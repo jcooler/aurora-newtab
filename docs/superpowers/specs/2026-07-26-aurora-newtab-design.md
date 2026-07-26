@@ -158,3 +158,10 @@ One commit per working milestone; a commit message notes each pause point.
 World clocks + countdown, JSON export/import backup, quote favorites, bookmarks-bar
 toggle (Chrome bookmarks API), Pomodoro daily stats, `?` shortcut cheat-sheet
 overlay, OpenWeather as an alternate keyed provider.
+
+v1.0.0 shipped deviations & polish backlog (from the final whole-phase review):
+the per-timer mute override was dropped (global mute covers it); Escape closes
+the oldest floating panel first when Tasks + Timer are both open (a shared
+dialog stack would fix ordering); weather/timer controls sit after the gear in
+tab order; a new-tab left open for hours shows stale weather until interaction;
+ArrowUp/Down aliases in the theme radiogroup.
