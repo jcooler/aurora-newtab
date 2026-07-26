@@ -6,4 +6,7 @@ import manifest from './src/manifest'
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), crx({ manifest })],
+  build: {
+    target: 'es2022',
+  },
 })
