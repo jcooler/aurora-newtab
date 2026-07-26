@@ -35,16 +35,20 @@ console.log('newtab resolved to:', page.url())
 await page.waitForSelector('time', { timeout: 10_000 })
 
 // Seed a manual location so weather renders deterministically-ish (live
-// Open-Meteo call; acceptable for preview, never for unit tests).
-await page.evaluate(() =>
-  chrome.storage.local.set({
+// Open-Meteo call; acceptable for preview, never for unit tests). Also flip
+// on the timer widget, which defaults to off — merge into the existing
+// settings so other keys (theme, etc.) aren't clobbered.
+await page.evaluate(async () => {
+  const { settings } = await chrome.storage.local.get('settings')
+  await chrome.storage.local.set({
     location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
     links: [
       { id: 'l1', title: 'GitHub', url: 'https://github.com' },
       { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
     ],
-  }),
-)
+    settings: { ...settings, widgets: { ...settings.widgets, timer: true } },
+  })
+})
 await page.reload()
 await page.waitForSelector('time')
 await page.waitForTimeout(2500) // weather fetch
@@ -81,6 +85,13 @@ await page.press('#todo-add-item', 'Enter')
 await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/todo-panel.png` })
 console.log('captured todo-panel.png')
+
+// Open the focus timer pill and capture its panel
+await page.click('button[aria-label^="Focus timer"]')
+await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/timer-panel.png` })
+console.log('captured timer-panel.png')
 
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)

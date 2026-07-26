@@ -12,6 +12,7 @@ import SettingsPanel from '../settings/SettingsPanel'
 import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinksWidget from './widgets/links/LinksWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
+import TimerWidget from './widgets/timer/TimerWidget'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -62,6 +63,10 @@ export default function App() {
 
       <WidgetBoundary name="todo">
         <TodoWidget />
+      </WidgetBoundary>
+
+      <WidgetBoundary name="timer">
+        <TimerWidget />
       </WidgetBoundary>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
