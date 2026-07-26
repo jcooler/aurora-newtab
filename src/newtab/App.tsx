@@ -4,6 +4,7 @@ import { applyTheme } from '../theme/index'
 import Background from './components/Background'
 import Clock from './components/Clock'
 import Greeting from './components/Greeting'
+import FocusLine from './components/FocusLine'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -20,6 +21,7 @@ export default function App() {
       <div className="flex flex-col items-center">
         <Clock />
         <Greeting />
+        <FocusLine />
       </div>
     </main>
   )
