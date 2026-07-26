@@ -11,5 +11,14 @@
 }
 
 :root {
-  color-scheme: dark light;
+  /* Locked to dark: native form controls (incl. the OS-drawn select popup)
+     must match the always-dark panels. 'dark light' let a light-mode OS paint
+     the dropdown white while our option text stayed white. */
+  color-scheme: dark;
+}
+
+/* Belt and braces for platforms that style option rows from the page: */
+select > option {
+  background-color: #17171c;
+  color: #f5f5f4;
 }

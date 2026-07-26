@@ -10,3 +10,6 @@ tmpclaude-*
 *.log
 .DS_Store
 Thumbs.db
+
+.playwright-profile/
+screenshots/
