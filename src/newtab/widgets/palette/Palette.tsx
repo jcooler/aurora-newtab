@@ -74,71 +74,76 @@ export default function Palette({
   const activeId = active ? `palette-option-${active.id}` : undefined
 
   return (
-    <div
-      aria-hidden
-      onClick={onClose}
-      className="fixed inset-0 z-40 flex items-start justify-center bg-black/30 pt-[18vh]"
-    >
-      <div
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Command palette"
-        onClick={(e) => e.stopPropagation()}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') {
-            // Handled at the dialog element (not document): with focus
-            // trapped inside, this fires during the bubble phase before the
-            // event ever reaches document, so preventDefault() here makes
-            // Drawer/TodoPanel's `!e.defaultPrevented` document listeners
-            // skip it — no first-registered-wins ordering to worry about.
-            e.preventDefault()
-            onClose()
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault()
-            if (results.length > 0) setActiveIndex((i) => Math.min(i + 1, results.length - 1))
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault()
-            if (results.length > 0) setActiveIndex((i) => Math.max(i - 1, 0))
-          } else if (e.key === 'Enter') {
-            e.preventDefault()
-            runResult(activeIndex)
-          }
-        }}
-        className="z-50 w-full max-w-lg overflow-hidden rounded-panel border border-panel-border bg-panel text-fg backdrop-blur-[var(--panel-blur)]"
-      >
-        <input
-          role="combobox"
-          aria-expanded="true"
-          aria-controls="palette-listbox"
-          aria-activedescendant={activeId}
-          aria-autocomplete="list"
-          autoComplete="off"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder='Type a command, a link, or "todo: buy milk"'
-          className="w-full border-b border-panel-border bg-transparent px-4 py-3 text-fg outline-none placeholder:text-fg-muted"
-        />
-        <ul id="palette-listbox" role="listbox" aria-label="Commands" className="max-h-80 overflow-y-auto py-1">
-          {results.length === 0 && <li className="px-4 py-3 text-sm text-fg-muted">No matches</li>}
-          {results.map((cmd, i) => (
-            <li
-              key={cmd.id}
-              id={`palette-option-${cmd.id}`}
-              role="option"
-              aria-selected={i === activeIndex}
-              onMouseEnter={() => setActiveIndex(i)}
-              onClick={() => runResult(i)}
-              className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-sm ${
-                i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
-              }`}
-            >
-              <span className="truncate">{cmd.label}</span>
-              {cmd.hint && <span className="ml-4 shrink-0 truncate text-xs text-fg-muted">{cmd.hint}</span>}
-            </li>
-          ))}
-        </ul>
+    <>
+      {/* Backdrop is a SIBLING of the dialog, not an ancestor: nesting
+          role="dialog" inside an aria-hidden element makes Chrome log
+          "Blocked aria-hidden on an element because its descendant retained
+          focus" the instant useFocusTrap moves focus in (only un-hidden via
+          non-standard leniency). The positioning wrapper below is
+          pointer-events-none so clicks in its empty padding fall through to
+          this backdrop and still close the palette. */}
+      <div aria-hidden onClick={onClose} className="fixed inset-0 z-40 bg-black/30" />
+      <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center pt-[18vh]">
+        <div
+          ref={panelRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Command palette"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              // Handled at the dialog element (not document): with focus
+              // trapped inside, this fires during the bubble phase before the
+              // event ever reaches document, so preventDefault() here makes
+              // Drawer/TodoPanel's `!e.defaultPrevented` document listeners
+              // skip it — no first-registered-wins ordering to worry about.
+              e.preventDefault()
+              onClose()
+            } else if (e.key === 'ArrowDown') {
+              e.preventDefault()
+              if (results.length > 0) setActiveIndex((i) => Math.min(i + 1, results.length - 1))
+            } else if (e.key === 'ArrowUp') {
+              e.preventDefault()
+              if (results.length > 0) setActiveIndex((i) => Math.max(i - 1, 0))
+            } else if (e.key === 'Enter') {
+              e.preventDefault()
+              runResult(activeIndex)
+            }
+          }}
+          className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
+        >
+          <input
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="palette-listbox"
+            aria-activedescendant={activeId}
+            aria-autocomplete="list"
+            autoComplete="off"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder='Type a command, a link, or "todo: buy milk"'
+            className="w-full border-b border-panel-border bg-transparent px-4 py-3 text-fg outline-none placeholder:text-fg-muted"
+          />
+          <ul id="palette-listbox" role="listbox" aria-label="Commands" className="max-h-80 overflow-y-auto py-1">
+            {results.length === 0 && <li className="px-4 py-3 text-sm text-fg-muted">No matches</li>}
+            {results.map((cmd, i) => (
+              <li
+                key={cmd.id}
+                id={`palette-option-${cmd.id}`}
+                role="option"
+                aria-selected={i === activeIndex}
+                onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => runResult(i)}
+                className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-sm ${
+                  i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
+                }`}
+              >
+                <span className="truncate">{cmd.label}</span>
+                {cmd.hint && <span className="ml-4 shrink-0 truncate text-xs text-fg-muted">{cmd.hint}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
