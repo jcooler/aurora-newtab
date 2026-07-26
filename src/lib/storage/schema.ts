@@ -1,0 +1,104 @@
+export const CURRENT_VERSION = 1
+
+export type ThemeId = 'glass' | 'mono' | 'aurora'
+
+export interface WidgetToggles {
+  search: boolean
+  weather: boolean
+  links: boolean
+  todo: boolean
+  timer: boolean
+  quote: boolean
+}
+
+export interface Settings {
+  name: string
+  use24Hour: boolean
+  theme: ThemeId
+  units: 'metric' | 'imperial'
+  searchEngine: 'google' | 'duckduckgo' | 'bing'
+  muted: boolean
+  widgets: WidgetToggles
+}
+
+/** date is a local YYYY-MM-DD key; the focus resets when it stops matching today. */
+export interface Focus {
+  text: string
+  date: string
+  done: boolean
+}
+
+export interface TodoItem {
+  id: string
+  text: string
+  done: boolean
+}
+
+export interface TodoList {
+  id: string
+  name: string
+  items: TodoItem[]
+}
+
+export interface QuickLink {
+  id: string
+  title: string
+  url: string
+}
+
+export interface TimerConfig {
+  workMinutes: number
+  breakMinutes: number
+}
+
+export interface PhotoPrefs {
+  mode: 'auto' | 'upload' | 'gradient'
+  index: number
+  lastRotated: string
+}
+
+export interface StoredLocation {
+  lat: number
+  lon: number
+  label: string
+  manual: boolean
+}
+
+export interface AuroraData {
+  settings: Settings
+  focus: Focus | null
+  todoLists: TodoList[]
+  links: QuickLink[]
+  timerConfig: TimerConfig
+  photoPrefs: PhotoPrefs
+  location: StoredLocation | null
+}
+
+export type DataKey = keyof AuroraData
+
+export function defaults(): AuroraData {
+  return {
+    settings: {
+      name: '',
+      use24Hour: false,
+      theme: 'aurora',
+      units: 'metric',
+      searchEngine: 'google',
+      muted: false,
+      widgets: {
+        search: true,
+        weather: true,
+        links: true,
+        todo: true,
+        timer: false,
+        quote: true,
+      },
+    },
+    focus: null,
+    todoLists: [],
+    links: [],
+    timerConfig: { workMinutes: 25, breakMinutes: 5 },
+    photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
+    location: null,
+  }
+}
