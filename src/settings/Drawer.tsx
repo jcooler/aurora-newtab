@@ -1,0 +1,61 @@
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useFocusTrap } from '../lib/hooks/useFocusTrap'
+
+export default function Drawer({
+  open,
+  onClose,
+  title,
+  children,
+}: {
+  open: boolean
+  onClose: () => void
+  title: string
+  children: ReactNode
+}) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef, open)
+
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  return (
+    <>
+      {open && (
+        <div
+          aria-hidden
+          onClick={onClose}
+          className="fixed inset-0 z-40 bg-black/30"
+        />
+      )}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        inert={!open} // off-screen drawer must not stay in the tab order
+        className={`fixed inset-y-0 right-0 z-50 w-96 max-w-full overflow-y-auto border-l border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none ${
+          open ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <h2 className="text-lg font-medium">{title}</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close settings"
+            className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </>
+  )
+}
