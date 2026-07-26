@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import type { TimerConfig } from '../../../lib/storage/schema'
+import type { Settings, TimerConfig } from '../../../lib/storage/schema'
 import { playChime } from './chime'
 import { initialTimer, timerReducer, type TimerAction, type TimerState } from './timerReducer'
 
@@ -23,7 +23,16 @@ function formatRemaining(ms: number): string {
 }
 
 export default function TimerWidget() {
+  // Gate BEFORE any of the ticking/reducer machinery exists: disabled tabs
+  // (the default — settings.widgets.timer starts false) mount none of that
+  // and so run zero interval work. Only useStoredKey is called out here, so
+  // Rules of Hooks stay satisfied regardless of the toggle.
   const [settings] = useStoredKey('settings')
+  if (!settings?.widgets.timer) return null
+  return <TimerInner settings={settings} />
+}
+
+function TimerInner({ settings }: { settings: Settings }) {
   const [timerConfig, saveTimerConfig] = useStoredKey('timerConfig')
   const config = timerConfig ?? DEFAULT_CONFIG
 
@@ -69,20 +78,34 @@ export default function TimerWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the config identity changing
   }, [config.workMinutes, config.breakMinutes])
 
-  // Chime + pill flash + screen-reader announcement, exactly once per phase
-  // transition (edge-detected against the previous justFinished value, since
-  // the reducer intentionally leaves it set until the next start/tick).
+  // Pill flash lifecycle: a pure function of the phase transition itself, so
+  // it can't get stuck on. Kept in its own effect (deps: only
+  // state.justFinished) so that settings.muted flipping mid-flash can never
+  // cancel this effect's pending setTimeout without also rescheduling it —
+  // React only tears down/reruns this effect when justFinished itself changes.
+  useEffect(() => {
+    if (!state.justFinished) return
+    setFlash(true)
+    const id = setTimeout(() => setFlash(false), 1200)
+    return () => {
+      clearTimeout(id)
+      setFlash(false)
+    }
+  }, [state.justFinished])
+
+  // Chime + screen-reader announcement, exactly once per phase transition
+  // (edge-detected against the previous justFinished value, since the
+  // reducer intentionally leaves it set until the next start/tick — and this
+  // effect's own settings.muted dependency would otherwise re-fire it every
+  // time muted is toggled). Muted flipping mid-transition may skip or allow
+  // the chime; it can no longer touch the flash timer above.
   useEffect(() => {
     if (state.justFinished && state.justFinished !== prevJustFinished.current) {
-      if (!settings?.muted) playChime()
+      if (!settings.muted) playChime()
       setAnnouncement(state.justFinished === 'work' ? 'Break time.' : 'Back to work.')
-      setFlash(true)
-      const id = setTimeout(() => setFlash(false), 1200)
-      prevJustFinished.current = state.justFinished
-      return () => clearTimeout(id)
     }
     prevJustFinished.current = state.justFinished
-  }, [state.justFinished, settings?.muted])
+  }, [state.justFinished, settings.muted])
 
   useEffect(() => {
     if (!open) return
@@ -99,7 +122,7 @@ export default function TimerWidget() {
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [open])
 
-  if (!settings?.widgets.timer || timerConfig === undefined) return null
+  if (timerConfig === undefined) return null
 
   const liveRemainingMs =
     state.running && state.endsAt !== null
