@@ -18,7 +18,13 @@ export default function Drawer({
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      // First-consumer convention: whichever open dialog's listener runs first
+      // (registration order) claims the Escape and stops the rest from also
+      // closing. A second press then closes the next one.
+      if (e.key === 'Escape' && !e.defaultPrevented) {
+        e.preventDefault()
+        onClose()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)

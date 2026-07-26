@@ -16,7 +16,13 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      // First-consumer convention: whichever open dialog's listener runs first
+      // (registration order) claims the Escape and stops the rest from also
+      // closing. A second press then closes the next one.
+      if (e.key === 'Escape' && !e.defaultPrevented) {
+        e.preventDefault()
+        onClose()
+      }
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
@@ -26,10 +32,22 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
     void storage.update('todoLists', (current) => todoReducer(current, action))
 
   // Auto-create a starter list the first time the panel is opened on an empty board.
+  // The emptiness check is re-done INSIDE the update transform (closest read to
+  // write) so a second tab opening the panel at the same time is a safe no-op:
+  // storage.update() re-reads fresh state right before writing, so if another
+  // tab's "Today" has already landed by then, this transform returns the SAME
+  // array reference — which the chrome-faithful driver never turns into a
+  // write event, so there's no visible flicker/duplicate from the race.
   useEffect(() => {
     if (lists === undefined || seeded.current) return
     seeded.current = true
-    if (lists.length === 0) dispatch({ type: 'addList', name: 'Today' })
+    if (lists.length === 0) {
+      void storage.update('todoLists', (current) =>
+        current.length === 0
+          ? todoReducer(current, { type: 'addList', name: 'Today' })
+          : current,
+      )
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- seed once per mount, not per dispatch identity
   }, [lists])
 
