@@ -14,6 +14,7 @@ import LinksWidget from './widgets/links/LinksWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import TimerWidget from './widgets/timer/TimerWidget'
 import QuoteWidget from './widgets/quote/QuoteWidget'
+import PaletteHost from './widgets/palette/PaletteHost'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -77,6 +78,10 @@ export default function App() {
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
         <SettingsPanel />
       </Drawer>
+
+      <WidgetBoundary name="palette">
+        <PaletteHost onOpenSettings={() => setSettingsOpen(true)} />
+      </WidgetBoundary>
     </main>
   )
 }

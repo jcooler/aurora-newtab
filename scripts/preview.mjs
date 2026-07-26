@@ -93,6 +93,22 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/timer-panel.png` })
 console.log('captured timer-panel.png')
 
+// Close the still-open to-do and timer panels so the palette screenshot isn't
+// cluttered by dimmed panels behind its backdrop
+await page.click('button:has-text("Tasks")')
+await page.click('button[aria-label^="Focus timer"]')
+await page.waitForTimeout(150)
+
+// Open the command palette with Ctrl+K, filter it, and capture it
+await page.keyboard.press('Control+k')
+await page.waitForSelector('[role="combobox"]')
+await page.waitForTimeout(150)
+await page.keyboard.type('git')
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/palette.png` })
+console.log('captured palette.png')
+await page.keyboard.press('Escape')
+
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')
