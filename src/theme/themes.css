@@ -1,0 +1,54 @@
+/* Aurora (default) — rich gradients */
+:root,
+[data-theme='aurora'] {
+  --fg: #f5f5f4;
+  --fg-muted: rgb(245 245 244 / 0.68);
+  --accent: #7dd3fc;
+  --panel: rgb(20 20 30 / 0.5);
+  --panel-border: rgb(255 255 255 / 0.12);
+  --panel-blur: 14px;
+  --radius: 1rem;
+  --scrim: linear-gradient(rgb(2 6 23 / 0.3), rgb(2 6 23 / 0.55));
+  --bg-fallback: linear-gradient(160deg, #0f172a, #312e81 55%, #4c1d95);
+}
+
+/* Glass — glassmorphism, soft blur */
+[data-theme='glass'] {
+  --fg: #ffffff;
+  --fg-muted: rgb(255 255 255 / 0.72);
+  --accent: #e0f2fe;
+  --panel: rgb(255 255 255 / 0.14);
+  --panel-border: rgb(255 255 255 / 0.28);
+  --panel-blur: 24px;
+  --radius: 1.25rem;
+  --scrim: linear-gradient(rgb(15 23 42 / 0.25), rgb(15 23 42 / 0.5));
+  --bg-fallback: linear-gradient(150deg, #334155, #0ea5e9 120%);
+}
+
+/* Mono — minimal monochrome, typographic */
+[data-theme='mono'] {
+  --fg: #fafafa;
+  --fg-muted: rgb(250 250 250 / 0.6);
+  --accent: #fafafa;
+  --panel: rgb(0 0 0 / 0.4);
+  --panel-border: transparent;
+  --panel-blur: 0px;
+  --radius: 0px;
+  --scrim: linear-gradient(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.62));
+  --bg-fallback: #101010;
+}
+
+/* System light mode: lift the fallback + panels; photo text stays scrim-protected. */
+@media (prefers-color-scheme: light) {
+  :root,
+  [data-theme='aurora'] {
+    --bg-fallback: linear-gradient(160deg, #bfdbfe, #c7d2fe 55%, #ddd6fe);
+  }
+  [data-theme='glass'] {
+    --bg-fallback: linear-gradient(150deg, #e2e8f0, #bae6fd 120%);
+  }
+  [data-theme='mono'] {
+    --bg-fallback: #ececec;
+    --scrim: linear-gradient(rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.65));
+  }
+}

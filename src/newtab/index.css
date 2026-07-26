@@ -1,5 +1,15 @@
 @import "tailwindcss";
+@import "../theme/themes.css";
+
+@theme inline {
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-accent: var(--accent);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --radius-panel: var(--radius);
+}
 
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
 }
