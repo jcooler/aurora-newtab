@@ -19,14 +19,19 @@ export default function Background({
       setUploadUrl(null)
       return
     }
+    let cancelled = false
     let url: string | null = null
     void getUpload().then((blob) => {
+      if (cancelled) return // superseded effect run must not set state or create URLs
       if (blob) {
         url = URL.createObjectURL(blob)
         setUploadUrl(url)
+      } else {
+        setUploadUrl(null)
       }
     })
     return () => {
+      cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
     // depend on the prefs object, not just mode: saving prefs after a new upload
@@ -39,10 +44,15 @@ export default function Background({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per rotation
   }, [rotated, index, today])
 
-  const showPhoto =
-    (prefs.mode === 'upload' && uploadUrl) ||
-    (prefs.mode === 'auto' && BUNDLED.length > 0)
-  const src = prefs.mode === 'upload' ? uploadUrl : bundledUrl(index)
+  // bundledUrl must never run with an empty set (or in gradient mode) — an
+  // out-of-range access would throw during render and blank the whole page.
+  const src =
+    prefs.mode === 'upload'
+      ? uploadUrl
+      : prefs.mode === 'auto' && BUNDLED.length > 0
+        ? bundledUrl(index)
+        : null
+  const showPhoto = src !== null
   const credit = prefs.mode === 'auto' && BUNDLED[index] ? BUNDLED[index] : null
 
   // The button is rendered as a sibling of the aria-hidden layer, not nested inside

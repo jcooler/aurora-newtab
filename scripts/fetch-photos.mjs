@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 
 // Candidate Picsum image ids (calm landscapes). Review the downloads visually;
 // replace any id that isn't a calm landscape, keep 10.
-const PICKS = [1015, 1016, 1018, 1036, 1039, 1043, 1044, 1053, 1064, 1080]
+const PICKS = [1015, 1016, 1018, 1036, 1039, 1043, 1044, 1053, 1064, 110]
 
 await mkdir('public/photos', { recursive: true })
 const manifest = []
