@@ -72,6 +72,16 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
 console.log('captured weather-expanded.png')
 
+// Open the to-do panel, add a task, and capture it
+await page.click('button:has-text("Tasks")')
+await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+await page.waitForTimeout(150)
+await page.fill('#todo-add-item', 'Ship Aurora')
+await page.press('#todo-add-item', 'Enter')
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/todo-panel.png` })
+console.log('captured todo-panel.png')
+
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')

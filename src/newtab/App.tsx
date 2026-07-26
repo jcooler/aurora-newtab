@@ -11,6 +11,7 @@ import Drawer from '../settings/Drawer'
 import SettingsPanel from '../settings/SettingsPanel'
 import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinksWidget from './widgets/links/LinksWidget'
+import TodoWidget from './widgets/todo/TodoWidget'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -58,6 +59,10 @@ export default function App() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
+
+      <WidgetBoundary name="todo">
+        <TodoWidget />
+      </WidgetBoundary>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
         <SettingsPanel />
