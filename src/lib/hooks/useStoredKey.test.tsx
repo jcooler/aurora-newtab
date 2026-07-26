@@ -60,12 +60,10 @@ describe('useStoredKey', () => {
 
     // Setup: track when hook's get() is called and delay it.
     let resolveHookGet: ((v: Record<string, unknown>) => void) | null = null
-    let readCount = 0
     const base = memoryDriver()
     const delayedDriver = {
       ...base,
       read: (keys: string[] | null) => {
-        readCount++
         // Allow first read (init: keys=null) to complete normally.
         if (keys === null) {
           return base.read(keys)
@@ -97,10 +95,17 @@ describe('useStoredKey', () => {
 
     // Now resolve the hook's blocked get() with a stale value.
     // Because gotUpdate === true, the hook should ignore this.
-    act(() => {
+    // Use async act and flush microtasks so the hook's .then() chain completes.
+    await act(async () => {
       if (resolveHookGet) {
         resolveHookGet({ settings: { name: 'STALE' } })
       }
+      // Flush native-Promise microtasks so the promise chain completes:
+      // driver.read resolution → async get() await → hook's .then() callback
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
+      await Promise.resolve()
     })
 
     // Verify we still see 'Fresh', not 'STALE'.
