@@ -1525,7 +1525,7 @@ export function setFocusText(text: string, today: string): Focus | null {
 - [ ] **Step 5: Write `src/newtab/components/FocusLine.tsx`**
 
 ```tsx
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { todayKey } from '../../lib/dates'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { currentFocus, setFocusText } from './focusLogic'
@@ -1533,6 +1533,9 @@ import { currentFocus, setFocusText } from './focusLogic'
 export default function FocusLine() {
   const [stored, save] = useStoredKey('focus')
   const [editing, setEditing] = useState(false)
+  // Guards the submit+blur double-fire: submitting unmounts the input, whose
+  // teardown blur re-enters the stale onBlur closure and would save twice.
+  const committed = useRef(false)
   if (stored === undefined) return null
 
   const today = todayKey()
@@ -1544,6 +1547,7 @@ export default function FocusLine() {
         className="mt-10 flex flex-col items-center"
         onSubmit={(e) => {
           e.preventDefault()
+          committed.current = true
           const input = new FormData(e.currentTarget).get('focus')
           save(setFocusText(String(input ?? ''), today))
           setEditing(false)
@@ -1558,7 +1562,7 @@ export default function FocusLine() {
           autoComplete="off"
           defaultValue={focus?.text ?? ''}
           onBlur={(e) => {
-            if (editing) {
+            if (editing && !committed.current) {
               save(setFocusText(e.currentTarget.value, today))
               setEditing(false)
             }
@@ -1589,7 +1593,10 @@ export default function FocusLine() {
       {focus.done && <span className="text-sm text-accent">Nice.</span>}
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={() => {
+          committed.current = false
+          setEditing(true)
+        }}
         className="text-sm text-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         Edit
