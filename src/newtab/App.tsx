@@ -13,6 +13,7 @@ import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinksWidget from './widgets/links/LinksWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import TimerWidget from './widgets/timer/TimerWidget'
+import QuoteWidget from './widgets/quote/QuoteWidget'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -67,6 +68,10 @@ export default function App() {
 
       <WidgetBoundary name="timer">
         <TimerWidget />
+      </WidgetBoundary>
+
+      <WidgetBoundary name="quote">
+        <QuoteWidget />
       </WidgetBoundary>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
