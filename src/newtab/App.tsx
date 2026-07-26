@@ -4,8 +4,9 @@ import { applyTheme } from '../theme/index'
 import Background from './components/Background'
 import Clock from './components/Clock'
 import Greeting from './components/Greeting'
-import SearchBar from './components/SearchBar'
 import FocusLine from './components/FocusLine'
+import SearchBar from './components/SearchBar'
+import WidgetBoundary from './components/WidgetBoundary'
 import Drawer from '../settings/Drawer'
 import SettingsPanel from '../settings/SettingsPanel'
 
@@ -19,15 +20,24 @@ export default function App() {
   }, [settings?.theme])
 
   if (!settings || !photoPrefs) return null
+
   return (
-    <main className="relative flex h-screen items-center justify-center text-fg">
+    <main className="relative h-screen overflow-hidden text-fg">
       <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
-      <div className="flex flex-col items-center">
-        <Clock />
-        <Greeting />
-        <SearchBar />
-        <FocusLine />
+
+      <div className="flex h-full flex-col items-center justify-center">
+        <WidgetBoundary name="clock">
+          <Clock />
+          <Greeting />
+        </WidgetBoundary>
+        <WidgetBoundary name="search">
+          <SearchBar />
+        </WidgetBoundary>
+        <WidgetBoundary name="focus">
+          <FocusLine />
+        </WidgetBoundary>
       </div>
+
       <button
         type="button"
         aria-label="Open settings"
@@ -39,6 +49,7 @@ export default function App() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
+
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
         <SettingsPanel />
       </Drawer>
