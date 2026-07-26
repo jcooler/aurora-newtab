@@ -9,6 +9,7 @@ import SearchBar from './components/SearchBar'
 import WidgetBoundary from './components/WidgetBoundary'
 import Drawer from '../settings/Drawer'
 import SettingsPanel from '../settings/SettingsPanel'
+import WeatherWidget from './widgets/weather/WeatherWidget'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -37,6 +38,10 @@ export default function App() {
           <FocusLine />
         </WidgetBoundary>
       </div>
+
+      <WidgetBoundary name="weather">
+        <WeatherWidget />
+      </WidgetBoundary>
 
       <button
         type="button"

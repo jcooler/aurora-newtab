@@ -27,6 +27,18 @@ const page = await context.newPage()
 await page.goto('chrome://newtab/')
 console.log('newtab resolved to:', page.url())
 await page.waitForSelector('time', { timeout: 10_000 })
+
+// Seed a manual location so weather renders deterministically-ish (live
+// Open-Meteo call; acceptable for preview, never for unit tests).
+await page.evaluate(() =>
+  chrome.storage.local.set({
+    location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+  }),
+)
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(2500) // weather fetch
+
 await page.waitForTimeout(800) // photo fade-in
 await page.screenshot({ path: `${outDir}/newtab.png` })
 console.log('captured newtab.png')
@@ -41,6 +53,14 @@ for (const theme of ['Aurora', 'Glass', 'Mono']) {
   await page.screenshot({ path: `${outDir}/drawer-${theme.toLowerCase()}.png` })
   console.log(`captured drawer-${theme.toLowerCase()}.png`)
 }
+
+// Close the drawer, then expand the weather widget's hourly forecast
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400) // slide-out transition
+await page.click('section[aria-label="Weather"] button')
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/weather-expanded.png` })
+console.log('captured weather-expanded.png')
 
 const errors = []
 page.on('console', (msg) => {
