@@ -55,6 +55,9 @@ export interface PhotoPrefs {
   mode: 'auto' | 'upload' | 'gradient'
   index: number
   lastRotated: string
+  /** Bumped on every new upload so the write is never deep-equal (chrome.storage
+   *  emits no onChanged event for equal writes). */
+  uploadedAt?: string
 }
 
 export interface StoredLocation {

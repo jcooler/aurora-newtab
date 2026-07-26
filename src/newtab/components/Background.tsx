@@ -40,9 +40,11 @@ export default function Background({
 
   const { index, rotated } = resolvePhoto(prefs, today, BUNDLED.length)
   useEffect(() => {
-    if (rotated) onPrefsChange({ ...prefs, index, lastRotated: today })
+    // Only 'auto' mode owns index/lastRotated; gradient/upload modes must never
+    // have their prefs mutated by the rotation effect.
+    if (prefs.mode === 'auto' && rotated) onPrefsChange({ ...prefs, index, lastRotated: today })
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per rotation
-  }, [rotated, index, today])
+  }, [rotated, index, today, prefs.mode])
 
   // bundledUrl must never run with an empty set (or in gradient mode) — an
   // out-of-range access would throw during render and blank the whole page.
@@ -81,7 +83,7 @@ export default function Background({
           aria-label="New background photo"
           title={credit ? `${credit.label} — click for a new photo` : 'New photo'}
           onClick={() => onPrefsChange(nextPhoto(prefs, today, BUNDLED.length))}
-          className="pointer-events-auto absolute bottom-4 left-4 rounded-full bg-panel p-2 text-fg-muted backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="absolute bottom-4 left-4 rounded-full bg-panel p-2 text-fg-muted backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a9 9 0 1 1-2.64-6.36" />

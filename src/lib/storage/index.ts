@@ -57,6 +57,8 @@ export function createStorage(driver: StorageDriver): AuroraStorage {
 
     subscribe(key, cb) {
       return driver.onChanged((changes) => {
+        // Cast assumes keys are never REMOVED from storage — a removal would
+        // deliver `undefined` here despite the AuroraData[K] type saying otherwise.
         if (key in changes) cb(changes[key] as AuroraData[typeof key])
       })
     },

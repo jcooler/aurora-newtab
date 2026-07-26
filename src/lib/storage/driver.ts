@@ -20,8 +20,13 @@ export function memoryDriver(
       return out
     },
     async write(patch) {
+      const changed: Changes = {}
+      for (const k of Object.keys(patch)) {
+        if (JSON.stringify(store[k]) !== JSON.stringify(patch[k])) changed[k] = patch[k]
+      }
       Object.assign(store, patch)
-      for (const cb of listeners) cb({ ...patch })
+      if (Object.keys(changed).length === 0) return
+      for (const cb of listeners) cb(changed)
     },
     onChanged(cb) {
       listeners.add(cb)

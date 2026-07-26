@@ -1,4 +1,5 @@
 import { useStoredKey } from '../lib/hooks/useStoredKey'
+import { useStorage } from '../lib/storage/context'
 import { THEMES } from '../theme/index'
 import { ENGINES } from '../lib/search'
 import { putUpload } from '../lib/idb'
@@ -19,6 +20,7 @@ const control =
   'rounded border border-panel-border bg-transparent px-2 py-1 text-sm text-fg outline-none focus-visible:border-accent'
 
 export default function SettingsPanel() {
+  const storage = useStorage()
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   if (!settings) return null
@@ -160,8 +162,13 @@ export default function SettingsPanel() {
                 const file = e.currentTarget.files?.[0]
                 if (file) {
                   await putUpload(file)
-                  // re-save prefs so Background re-reads the upload slot
-                  savePhotoPrefs({ ...photoPrefs })
+                  // fresh read + changed value: a stale spread could revert concurrent
+                  // writes, and a deep-equal write emits no chrome.storage event at all
+                  await storage.update('photoPrefs', (p) => ({
+                    ...p,
+                    mode: 'upload',
+                    uploadedAt: new Date().toISOString(),
+                  }))
                 }
               }}
               className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"

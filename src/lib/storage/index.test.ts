@@ -59,4 +59,24 @@ describe('createStorage', () => {
     await storage.set('focus', null)
     expect(onFocus).toHaveBeenCalledTimes(1)
   })
+
+  it('a deep-equal write does not notify subscribers; a changed write does', async () => {
+    // chrome.storage.onChanged never fires for a write that doesn't actually
+    // change the stored value. memoryDriver must be faithful to that or bugs
+    // like the photo-upload no-op (deep-equal re-save of photoPrefs) slip past
+    // tests that use a more permissive double.
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const onPhotoPrefs = vi.fn()
+    storage.subscribe('photoPrefs', onPhotoPrefs)
+
+    const current = await storage.get('photoPrefs')
+    await storage.set('photoPrefs', { ...current })
+    expect(onPhotoPrefs).not.toHaveBeenCalled()
+
+    const changed = { ...current, mode: 'gradient' as const }
+    await storage.set('photoPrefs', changed)
+    expect(onPhotoPrefs).toHaveBeenCalledTimes(1)
+    expect(onPhotoPrefs).toHaveBeenCalledWith(changed)
+  })
 })

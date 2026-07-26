@@ -19,5 +19,9 @@ export function migrate(
     data = step(data)
   }
   // Top-level keys missing from storage fall back to defaults.
+  // CONTRACT for migration authors: the default-merge below backfills MISSING
+  // TOP-LEVEL KEYS ONLY. A stored object (e.g. `settings`) replaces the default
+  // wholesale — new NESTED fields added in a schema bump will be undefined for
+  // existing users unless your migration step fills them in explicitly.
   return { ...defaults(), ...data } as AuroraData
 }
