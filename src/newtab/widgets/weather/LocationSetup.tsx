@@ -15,13 +15,18 @@ export default function LocationSetup() {
     setError(null)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        await storage.set('location', {
-          lat: Math.round(pos.coords.latitude * 100) / 100, // ~1km precision is plenty
-          lon: Math.round(pos.coords.longitude * 100) / 100,
-          label: 'My location',
-          manual: false,
-        })
-        setBusy(false)
+        try {
+          await storage.set('location', {
+            lat: Math.round(pos.coords.latitude * 100) / 100, // ~1km precision is plenty
+            lon: Math.round(pos.coords.longitude * 100) / 100,
+            label: 'My location',
+            manual: false,
+          })
+        } catch {
+          setError('Could not save location — try again.')
+        } finally {
+          setBusy(false)
+        }
       },
       () => {
         setBusy(false)

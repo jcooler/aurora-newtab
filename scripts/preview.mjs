@@ -24,6 +24,12 @@ const context = await chromium.launchPersistentContext(profileDir, {
 })
 
 const page = await context.newPage()
+const errors = []
+page.on('console', (msg) => {
+  if (msg.type() === 'error') errors.push(msg.text())
+})
+page.on('pageerror', (e) => errors.push(String(e)))
+
 await page.goto('chrome://newtab/')
 console.log('newtab resolved to:', page.url())
 await page.waitForSelector('time', { timeout: 10_000 })
@@ -62,10 +68,6 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
 console.log('captured weather-expanded.png')
 
-const errors = []
-page.on('console', (msg) => {
-  if (msg.type() === 'error') errors.push(msg.text())
-})
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')
