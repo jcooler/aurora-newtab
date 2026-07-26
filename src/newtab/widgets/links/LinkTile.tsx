@@ -10,6 +10,7 @@ export default function LinkTile({
   onRemove,
   onDragStart,
   onDropOn,
+  onDragEnd,
 }: {
   link: QuickLink
   index: number
@@ -18,6 +19,7 @@ export default function LinkTile({
   onRemove: (id: string) => void
   onDragStart: (index: number) => void
   onDropOn: (index: number) => void
+  onDragEnd: () => void
 }) {
   const [iconFailed, setIconFailed] = useState(false)
   return (
@@ -26,6 +28,7 @@ export default function LinkTile({
       onDragStart={() => onDragStart(index)}
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => onDropOn(index)}
+      onDragEnd={onDragEnd}
       className="group relative flex w-20 flex-col items-center gap-1"
     >
       <a
@@ -61,7 +64,7 @@ export default function LinkTile({
         type="button"
         aria-label={`Remove ${link.title}`}
         onClick={() => onRemove(link.id)}
-        className="absolute -right-1 -top-1 hidden size-4 items-center justify-center rounded-full bg-panel text-xs text-fg-muted hover:text-fg focus-visible:flex focus-visible:outline-2 focus-visible:outline-accent group-hover:flex"
+        className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-xs text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
       >
         ×
       </button>

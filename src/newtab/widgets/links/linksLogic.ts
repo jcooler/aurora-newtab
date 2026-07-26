@@ -1,7 +1,23 @@
 import type { QuickLink } from '../../../lib/storage/schema'
 
+/** Normalize to an http(s) URL, or null when the input can't be one. */
+export function normalizeUrl(raw: string): string | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const candidate = /^[a-z]+:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+  try {
+    const parsed = new URL(candidate)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null
+    if (!parsed.hostname.includes('.') && parsed.hostname !== 'localhost') return null
+    return candidate
+  } catch {
+    return null
+  }
+}
+
 export function addLink(links: QuickLink[], title: string, url: string): QuickLink[] {
-  const normalized = /^[a-z]+:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`
+  const normalized = normalizeUrl(url)
+  if (!normalized) return links
   const fallback = new URL(normalized).hostname
   return [
     ...links,

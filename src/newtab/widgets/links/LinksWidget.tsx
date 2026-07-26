@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import type { QuickLink } from '../../../lib/storage/schema'
-import { addLink, moveLink, removeLink } from './linksLogic'
+import { addLink, moveLink, normalizeUrl, removeLink } from './linksLogic'
 import LinkTile from './LinkTile'
 
 export default function LinksWidget() {
@@ -10,6 +10,7 @@ export default function LinksWidget() {
   const [links] = useStoredKey('links')
   const storage = useStorage()
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState(false)
   const dragFrom = useRef<number | null>(null)
 
   if (!settings?.widgets.links || links === undefined) return null
@@ -32,6 +33,7 @@ export default function LinksWidget() {
             if (dragFrom.current !== null) update((l) => moveLink(l, dragFrom.current!, to))
             dragFrom.current = null
           }}
+          onDragEnd={() => (dragFrom.current = null)}
         />
       ))}
       {adding ? (
@@ -41,15 +43,31 @@ export default function LinksWidget() {
             e.preventDefault()
             const data = new FormData(e.currentTarget)
             const url = String(data.get('url') ?? '').trim()
-            if (url) update((l) => addLink(l, String(data.get('title') ?? ''), url))
+            const normalized = normalizeUrl(url)
+            if (!normalized) {
+              setAddError(true)
+              return
+            }
+            update((l) => addLink(l, String(data.get('title') ?? ''), url))
             setAdding(false)
+            setAddError(false)
           }}
         >
           <input name="title" placeholder="Title" aria-label="Link title" autoFocus className="w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent" />
           <input name="url" placeholder="example.com" aria-label="Link URL" className="w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent" />
+          {addError && <p className="text-xs text-fg-muted">Enter a valid address.</p>}
           <div className="flex gap-2 text-xs">
             <button type="submit" className="text-accent focus-visible:outline-2 focus-visible:outline-accent">Add</button>
-            <button type="button" onClick={() => setAdding(false)} className="text-fg-muted focus-visible:outline-2 focus-visible:outline-accent">Cancel</button>
+            <button
+              type="button"
+              onClick={() => {
+                setAdding(false)
+                setAddError(false)
+              }}
+              className="text-fg-muted focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Cancel
+            </button>
           </div>
         </form>
       ) : (

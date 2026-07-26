@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addLink, moveLink, removeLink } from './linksLogic'
+import { addLink, moveLink, normalizeUrl, removeLink } from './linksLogic'
 
 const seed = [
   { id: 'a', title: 'A', url: 'https://a.example' },
@@ -21,6 +21,24 @@ describe('addLink', () => {
     expect(addLink([], '   ', 'https://news.ycombinator.com')[0].title).toBe(
       'news.ycombinator.com',
     )
+  })
+  it('no-ops on malformed input', () => {
+    expect(addLink([], 'X', 'not a url')).toEqual([])
+  })
+})
+
+describe('normalizeUrl', () => {
+  it('rejects unparseable input', () => {
+    expect(normalizeUrl('not a url')).toBeNull()
+  })
+  it('rejects a bare scheme with no host', () => {
+    expect(normalizeUrl('https://')).toBeNull()
+  })
+  it('rejects disallowed schemes', () => {
+    expect(normalizeUrl('javascript://alert(1)')).toBeNull()
+  })
+  it('normalizes a bare hostname', () => {
+    expect(normalizeUrl('gmail.com')).toBe('https://gmail.com')
   })
 })
 
