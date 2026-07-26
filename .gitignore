@@ -1,0 +1,12 @@
+# Archived Tide extension — kept local only, never committed
+legacy/
+
+node_modules/
+dist/
+coverage/
+
+.claude/settings.local.json
+tmpclaude-*
+*.log
+.DS_Store
+Thumbs.db
