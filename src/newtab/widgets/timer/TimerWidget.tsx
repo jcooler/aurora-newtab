@@ -155,7 +155,6 @@ function TimerInner({ settings }: { settings: Settings }) {
         <div
           ref={panelRef}
           role="dialog"
-          aria-modal="true"
           aria-label="Focus timer"
           className="fixed left-4 top-16 z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel p-3 text-fg backdrop-blur-[var(--panel-blur)]"
         >

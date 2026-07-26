@@ -72,7 +72,6 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
     <div
       ref={panelRef}
       role="dialog"
-      aria-modal="true"
       aria-label="Tasks"
       className="fixed bottom-16 right-4 z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel text-fg backdrop-blur-[var(--panel-blur)]"
     >

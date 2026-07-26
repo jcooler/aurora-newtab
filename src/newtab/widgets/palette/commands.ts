@@ -1,4 +1,5 @@
 import { fuzzyScore } from '../../../lib/fuzzy'
+import { THEMES } from '../../../theme/index'
 import type { QuickLink, Settings, ThemeId } from '../../../lib/storage/schema'
 
 export interface Command {
@@ -26,10 +27,10 @@ export function buildCommands(ctx: CommandContext): Command[] {
       hint: l.url,
       run: () => ctx.openUrl(l.url),
     })),
-    ...(['aurora', 'glass', 'mono'] as const).map((t) => ({
-      id: `theme:${t}`,
-      label: `Theme: ${t.charAt(0).toUpperCase()}${t.slice(1)}`,
-      run: () => void ctx.setTheme(t),
+    ...THEMES.map((t) => ({
+      id: `theme:${t.id}`,
+      label: `Theme: ${t.label}`,
+      run: () => void ctx.setTheme(t.id),
     })),
     { id: 'settings', label: 'Open settings', run: () => ctx.openSettings() },
   ]

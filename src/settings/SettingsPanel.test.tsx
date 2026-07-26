@@ -103,3 +103,36 @@ describe('SettingsPanel theme radiogroup (APG roving-tabindex pattern)', () => {
     expect((await storage.get('settings')).theme).toBe('aurora')
   })
 })
+
+describe('SettingsPanel Weather section (clear-location control)', () => {
+  it('is absent when no location is stored', async () => {
+    await renderPanel()
+    expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull()
+  })
+
+  it('clearing the location resets both location and weatherCache', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
+    await storage.set('weatherCache', {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Springfield',
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    await act(async () => {
+      fireEvent.click(clearButton)
+    })
+
+    expect(await storage.get('location')).toBeNull()
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+})

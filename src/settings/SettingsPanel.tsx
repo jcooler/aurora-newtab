@@ -24,6 +24,7 @@ export default function SettingsPanel() {
   const storage = useStorage()
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [location] = useStoredKey('location')
   const themeGroupRef = useRef<HTMLDivElement>(null)
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
@@ -219,6 +220,25 @@ export default function SettingsPanel() {
           </div>
         )}
       </section>
+
+      {location && (
+        <section aria-label="Weather">
+          <h3 className="mb-1 text-sm font-medium text-fg">Weather</h3>
+          <div className={row}>
+            <span className={label}>Location</span>
+            <button
+              type="button"
+              onClick={() => {
+                void storage.set('location', null)
+                void storage.set('weatherCache', null)
+              }}
+              className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              {`${location.label} — clear`}
+            </button>
+          </div>
+        </section>
+      )}
 
       <section aria-label="Widgets">
         <h3 className="mb-1 text-sm font-medium text-fg">Widgets</h3>
