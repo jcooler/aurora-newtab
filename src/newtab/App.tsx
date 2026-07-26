@@ -10,6 +10,7 @@ import WidgetBoundary from './components/WidgetBoundary'
 import Drawer from '../settings/Drawer'
 import SettingsPanel from '../settings/SettingsPanel'
 import WeatherWidget from './widgets/weather/WeatherWidget'
+import LinksWidget from './widgets/links/LinksWidget'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -36,6 +37,9 @@ export default function App() {
         </WidgetBoundary>
         <WidgetBoundary name="focus">
           <FocusLine />
+        </WidgetBoundary>
+        <WidgetBoundary name="links">
+          <LinksWidget />
         </WidgetBoundary>
       </div>
 

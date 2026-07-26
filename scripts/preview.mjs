@@ -39,6 +39,10 @@ await page.waitForSelector('time', { timeout: 10_000 })
 await page.evaluate(() =>
   chrome.storage.local.set({
     location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+    links: [
+      { id: 'l1', title: 'GitHub', url: 'https://github.com' },
+      { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
+    ],
   }),
 )
 await page.reload()
