@@ -21,6 +21,33 @@ export interface AuroraStorage {
 }
 
 export function createStorage(driver: StorageDriver): AuroraStorage {
+  const chains = new Map<string, Promise<unknown>>()
+
+  async function get<K extends DataKey>(key: K): Promise<AuroraData[K]> {
+    const found = await driver.read([key])
+    return (key in found ? found[key] : defaults()[key]) as AuroraData[K]
+  }
+
+  async function set<K extends DataKey>(key: K, value: AuroraData[K]): Promise<void> {
+    await driver.write({ [key]: value })
+  }
+
+  function update<K extends DataKey>(
+    key: K,
+    fn: (value: AuroraData[K]) => AuroraData[K],
+  ): Promise<AuroraData[K]> {
+    // Serialize read-modify-write per key: concurrent updates in THIS context
+    // can no longer drop writes. (Cross-tab remains last-write-wins.)
+    const prev = chains.get(key) ?? Promise.resolve()
+    const next = prev.then(async () => {
+      const value = fn(await get(key))
+      await set(key, value)
+      return value
+    })
+    chains.set(key, next.catch(() => undefined))
+    return next
+  }
+
   return {
     async init() {
       const all = await driver.read(null)
@@ -39,22 +66,9 @@ export function createStorage(driver: StorageDriver): AuroraStorage {
         console.warn(`Aurora data is schema v${stored}, app expects v${CURRENT_VERSION}`)
       }
     },
-
-    async get(key) {
-      const found = await driver.read([key])
-      return (key in found ? found[key] : defaults()[key]) as AuroraData[typeof key]
-    },
-
-    async set(key, value) {
-      await driver.write({ [key]: value })
-    },
-
-    async update(key, fn) {
-      const next = fn(await this.get(key))
-      await this.set(key, next)
-      return next
-    },
-
+    get,
+    set,
+    update,
     subscribe(key, cb) {
       return driver.onChanged((changes) => {
         // Cast assumes keys are never REMOVED from storage — a removal would

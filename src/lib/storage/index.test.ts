@@ -79,4 +79,29 @@ describe('createStorage', () => {
     expect(onPhotoPrefs).toHaveBeenCalledTimes(1)
     expect(onPhotoPrefs).toHaveBeenCalledWith(changed)
   })
+
+  it('serializes concurrent update() calls on the same key', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [{ id: 'l1', name: 'A', items: [] }])
+    const slow = storage.update('todoLists', (lists) => [
+      ...lists,
+      { id: 'l2', name: 'B', items: [] },
+    ])
+    const fast = storage.update('todoLists', (lists) => [
+      ...lists,
+      { id: 'l3', name: 'C', items: [] },
+    ])
+    await Promise.all([slow, fast])
+    const ids = (await storage.get('todoLists')).map((l) => l.id)
+    expect(ids).toEqual(['l1', 'l2', 'l3']) // neither write lost
+  })
+
+  it('update() works when destructured (no this-binding)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const { update, get } = storage
+    await update('focus', () => ({ text: 'x', date: '2026-07-26', done: false }))
+    expect((await get('focus'))?.text).toBe('x')
+  })
 })

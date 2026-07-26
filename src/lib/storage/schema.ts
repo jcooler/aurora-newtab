@@ -67,6 +67,28 @@ export interface StoredLocation {
   manual: boolean
 }
 
+export interface CurrentWeather {
+  tempC: number
+  feelsLikeC: number
+  code: number // WMO weather code
+  windKmh: number
+  humidity: number
+}
+
+export interface HourlyPoint {
+  time: string // ISO local hour from Open-Meteo
+  tempC: number
+  precipProb: number // 0-100
+  code: number
+}
+
+export interface WeatherSnapshot {
+  current: CurrentWeather
+  hourly: HourlyPoint[] // next ~12h
+  fetchedAt: number // epoch ms
+  locationLabel: string
+}
+
 export interface AuroraData {
   settings: Settings
   focus: Focus | null
@@ -75,6 +97,7 @@ export interface AuroraData {
   timerConfig: TimerConfig
   photoPrefs: PhotoPrefs
   location: StoredLocation | null
+  weatherCache: WeatherSnapshot | null
 }
 
 export type DataKey = keyof AuroraData
@@ -103,5 +126,6 @@ export function defaults(): AuroraData {
     timerConfig: { workMinutes: 25, breakMinutes: 5 },
     photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
     location: null,
+    weatherCache: null,
   }
 }

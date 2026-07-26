@@ -21,7 +21,9 @@ describe('Background', () => {
 
   it('gradient mode renders no photo and never calls onPrefsChange', () => {
     const onPrefsChange = vi.fn()
-    const prefs: PhotoPrefs = { mode: 'gradient', index: 0, lastRotated: '2026-07-26' }
+    // lastRotated is deliberately STALE: without the mode gate, rotation logic
+    // would fire onPrefsChange here. This proves gradient mode suppresses it.
+    const prefs: PhotoPrefs = { mode: 'gradient', index: 0, lastRotated: '2020-01-01' }
     const { container } = render(<Background prefs={prefs} onPrefsChange={onPrefsChange} />)
 
     expect(container.querySelector('img')).toBeNull()
