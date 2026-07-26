@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { THEMES } from '../theme/index'
@@ -23,8 +24,43 @@ export default function SettingsPanel() {
   const storage = useStorage()
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const themeGroupRef = useRef<HTMLDivElement>(null)
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
+
+  // APG radiogroup keyboard pattern: arrow keys move AND apply the selection
+  // (this isn't a form that needs a separate "submit", so there's no reason
+  // to make Left/Right merely preview a theme the user then has to commit).
+  // Home/End jump to the first/last theme. Focus is moved imperatively via
+  // .focus() on the target button — that works even though its tabIndex is
+  // still -1 at the moment of the call, since script-driven focus ignores
+  // tabIndex; the roving tabIndex only governs Tab-key navigation.
+  function onThemeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    if (!settings) return
+    const currentIndex = THEMES.findIndex((t) => t.id === settings.theme)
+    let nextIndex: number
+    switch (e.key) {
+      case 'ArrowRight':
+        nextIndex = (currentIndex + 1 + THEMES.length) % THEMES.length
+        break
+      case 'ArrowLeft':
+        nextIndex = (currentIndex - 1 + THEMES.length) % THEMES.length
+        break
+      case 'Home':
+        nextIndex = 0
+        break
+      case 'End':
+        nextIndex = THEMES.length - 1
+        break
+      default:
+        return
+    }
+    e.preventDefault()
+    const next = THEMES[nextIndex]!
+    patch({ theme: next.id })
+    const radios = themeGroupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
+    radios?.[nextIndex]?.focus()
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -49,12 +85,19 @@ export default function SettingsPanel() {
           <span className={label} id="theme-label">
             Theme
           </span>
-          <div role="radiogroup" aria-labelledby="theme-label" className="flex gap-2">
+          <div
+            role="radiogroup"
+            aria-labelledby="theme-label"
+            ref={themeGroupRef}
+            onKeyDown={onThemeKeyDown}
+            className="flex gap-2"
+          >
             {THEMES.map((t) => (
               <button
                 key={t.id}
                 role="radio"
                 aria-checked={settings.theme === t.id}
+                tabIndex={settings.theme === t.id ? 0 : -1}
                 onClick={() => patch({ theme: t.id })}
                 className={`rounded-full border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-accent ${
                   settings.theme === t.id

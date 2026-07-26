@@ -29,8 +29,6 @@ export default function App() {
 
   return (
     <main className="relative h-screen overflow-hidden text-fg">
-      <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
-
       <div className="flex h-full flex-col items-center justify-center">
         <WidgetBoundary name="clock">
           <Clock />
@@ -47,8 +45,18 @@ export default function App() {
         </WidgetBoundary>
       </div>
 
-      <WidgetBoundary name="weather">
-        <WeatherWidget />
+      {/*
+        Background mounts here — after the centered column — purely for tab
+        order: its refresh button (the only focusable thing it renders) must
+        come after search/focus-line/links but before Tasks/gear. The
+        aria-hidden photo layer's `-z-10` pins it behind everything in the
+        paint order regardless of where it sits in the DOM, so moving it here
+        doesn't change what's visible or what's hit-testable on top of it.
+      */}
+      <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
+
+      <WidgetBoundary name="todo">
+        <TodoWidget />
       </WidgetBoundary>
 
       <button
@@ -63,8 +71,8 @@ export default function App() {
         </svg>
       </button>
 
-      <WidgetBoundary name="todo">
-        <TodoWidget />
+      <WidgetBoundary name="weather">
+        <WeatherWidget />
       </WidgetBoundary>
 
       <WidgetBoundary name="timer">
