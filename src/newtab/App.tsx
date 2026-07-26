@@ -4,6 +4,7 @@ import { applyTheme } from '../theme/index'
 import Background from './components/Background'
 import Clock from './components/Clock'
 import Greeting from './components/Greeting'
+import SearchBar from './components/SearchBar'
 import FocusLine from './components/FocusLine'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
       <div className="flex flex-col items-center">
         <Clock />
         <Greeting />
+        <SearchBar />
         <FocusLine />
       </div>
     </main>
