@@ -5,6 +5,7 @@ import { createStorage } from '../storage/index'
 import { memoryDriver } from '../storage/driver'
 import { StorageProvider } from '../storage/context'
 import { useStoredKey } from './useStoredKey'
+import { defaults } from '../storage/schema'
 
 function Probe() {
   const [settings, save] = useStoredKey('settings')
@@ -49,5 +50,60 @@ describe('useStoredKey', () => {
       })
     })
     await screen.findByText('name:Ada')
+  })
+
+  it('subscribe-before-get: fresh write via onChanged wins over stale initial read', async () => {
+    // Test that a subscribed update arriving while the initial get() is in-flight
+    // clobbers the stale get() result, not the other way around.
+    // Key: the hook calls subscribe BEFORE get, so an onChanged fired during get's flight
+    // should update the hook state first. The gotUpdate flag ensures the stale get() is ignored.
+
+    // Setup: track when hook's get() is called and delay it.
+    let resolveHookGet: ((v: Record<string, unknown>) => void) | null = null
+    let readCount = 0
+    const base = memoryDriver()
+    const delayedDriver = {
+      ...base,
+      read: (keys: string[] | null) => {
+        readCount++
+        // Allow first read (init: keys=null) to complete normally.
+        if (keys === null) {
+          return base.read(keys)
+        }
+        // For hook reads, delay and capture resolver.
+        return new Promise<Record<string, unknown>>((resolve) => {
+          resolveHookGet = resolve
+        })
+      },
+    }
+
+    const storage = createStorage(delayedDriver)
+    await storage.init()
+
+    render(
+      <StorageProvider storage={storage}>
+        <Probe />
+      </StorageProvider>,
+    )
+
+    // Hook mounted and subscribed, but its get() is blocked.
+    // Trigger a write, which fires onChanged before get() resolves.
+    await act(async () => {
+      await storage.set('settings', { ...defaults().settings, name: 'Fresh' })
+    })
+
+    // Subscription callback should have fired via onChanged.
+    await screen.findByText('name:Fresh')
+
+    // Now resolve the hook's blocked get() with a stale value.
+    // Because gotUpdate === true, the hook should ignore this.
+    act(() => {
+      if (resolveHookGet) {
+        resolveHookGet({ settings: { name: 'STALE' } })
+      }
+    })
+
+    // Verify we still see 'Fresh', not 'STALE'.
+    expect(screen.getByText('name:Fresh')).toBeTruthy()
   })
 })

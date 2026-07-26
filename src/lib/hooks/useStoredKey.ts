@@ -8,10 +8,17 @@ export function useStoredKey<K extends DataKey>(key: K) {
 
   useEffect(() => {
     let live = true
-    void storage.get(key).then((v) => {
-      if (live) setValue(v)
+    let gotUpdate = false
+    // Subscribe BEFORE the initial read, and let any subscribed update win:
+    // otherwise a slow get() can resolve after a fresher onChanged value and
+    // clobber it with stale data.
+    const unsubscribe = storage.subscribe(key, (v) => {
+      gotUpdate = true
+      setValue(v)
     })
-    const unsubscribe = storage.subscribe(key, setValue)
+    void storage.get(key).then((v) => {
+      if (live && !gotUpdate) setValue(v)
+    })
     return () => {
       live = false
       unsubscribe()
@@ -21,7 +28,12 @@ export function useStoredKey<K extends DataKey>(key: K) {
   const save = useCallback(
     (next: AuroraData[K]) => {
       setValue(next) // optimistic; subscribe confirms
-      void storage.set(key, next)
+      storage.set(key, next).catch((error: unknown) => {
+        // Persist failed (quota, invalidated context): re-sync from storage
+        // so local state doesn't silently diverge from what's persisted.
+        console.error(`[aurora] failed to persist ${key}:`, error)
+        void storage.get(key).then((v) => setValue(v))
+      })
     },
     [key, storage],
   )
