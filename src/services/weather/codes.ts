@@ -1,6 +1,8 @@
 export type WeatherIconKey =
   | 'sun'
   | 'sun-cloud'
+  | 'moon'
+  | 'moon-cloud'
   | 'cloud'
   | 'fog'
   | 'drizzle'
@@ -22,9 +24,18 @@ const TABLE: [codes: number[], label: string, icon: WeatherIconKey][] = [
   [[95, 96, 99], 'Thunderstorm', 'storm'],
 ]
 
-export function describeCode(code: number): { label: string; icon: WeatherIconKey } {
+/** Sun-based icons flip to their moon variants at night (Open-Meteo is_day).
+ *  Labels stay the same — "Clear" at 3 AM is still clear. */
+export function describeCode(
+  code: number,
+  isDay = true,
+): { label: string; icon: WeatherIconKey } {
   for (const [codes, label, icon] of TABLE) {
-    if (codes.includes(code)) return { label, icon }
+    if (codes.includes(code)) {
+      if (!isDay && icon === 'sun') return { label, icon: 'moon' }
+      if (!isDay && icon === 'sun-cloud') return { label, icon: 'moon-cloud' }
+      return { label, icon }
+    }
   }
   return { label: 'Cloudy', icon: 'cloud' }
 }

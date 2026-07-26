@@ -73,6 +73,9 @@ export interface CurrentWeather {
   code: number // WMO weather code
   windKmh: number
   humidity: number
+  /** From Open-Meteo is_day; optional so pre-existing caches stay valid
+   *  (missing = treat as day; caches self-heal within the 30-min SWR window). */
+  isDay?: boolean
 }
 
 export interface HourlyPoint {
@@ -80,6 +83,7 @@ export interface HourlyPoint {
   tempC: number
   precipProb: number // 0-100
   code: number
+  isDay?: boolean // see CurrentWeather.isDay
 }
 
 export interface WeatherSnapshot {

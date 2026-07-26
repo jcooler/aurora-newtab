@@ -22,4 +22,11 @@ describe('describeCode', () => {
       expect(describeCode(code).icon.length).toBeGreaterThan(0)
     }
   })
+
+  it('flips sun icons to moons at night, keeping the label', () => {
+    expect(describeCode(0, false)).toEqual({ label: 'Clear', icon: 'moon' })
+    expect(describeCode(2, false)).toEqual({ label: 'Partly cloudy', icon: 'moon-cloud' })
+    expect(describeCode(63, false).icon).toBe('rain') // night doesn't change non-sun icons
+    expect(describeCode(0, true).icon).toBe('sun')
+  })
 })

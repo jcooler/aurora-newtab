@@ -30,6 +30,18 @@ const GLYPHS: Record<WeatherIconKey, React.ReactNode> = {
       <path {...base} d="M10 19.5h6.9a2.9 2.9 0 0 0 .48-5.76 4.3 4.3 0 0 0-8.38.88A2.7 2.7 0 0 0 10 19.5Z" />
     </>
   ),
+  moon: (
+    <path
+      {...accent}
+      d="M14.5 3.5a8 8 0 1 0 6 12.9A9 9 0 0 1 14.5 3.5Z"
+    />
+  ),
+  'moon-cloud': (
+    <>
+      <path {...accent} d="M9.5 3.5a5 5 0 1 0 4.4 7.5 5.6 5.6 0 0 1-4.4-7.5Z" />
+      <path {...base} d="M10 19.5h6.9a2.9 2.9 0 0 0 .48-5.76 4.3 4.3 0 0 0-8.38.88A2.7 2.7 0 0 0 10 19.5Z" />
+    </>
+  ),
   cloud: <path {...base} d={CLOUD} />,
   fog: (
     <>

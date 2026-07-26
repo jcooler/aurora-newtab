@@ -73,7 +73,7 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
       ref={panelRef}
       role="dialog"
       aria-label="Tasks"
-      className="fixed bottom-16 right-4 z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel text-fg backdrop-blur-[var(--panel-blur)]"
+      className="fixed bottom-16 right-4 z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
     >
       <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
         <h2 className="text-sm font-medium">Tasks</h2>
@@ -89,7 +89,7 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
 
       <div
         aria-label="Lists"
-        className="flex items-center gap-1 overflow-x-auto border-b border-panel-border px-2 py-1.5"
+        className="flex items-center gap-1.5 overflow-x-auto px-3 pb-1 pt-2"
       >
         {lists.map((list) => (
           <button
@@ -145,7 +145,7 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
             type="button"
             aria-label="New list"
             onClick={() => setAddingList(true)}
-            className="flex shrink-0 items-center justify-center rounded-full border border-dashed border-panel-border px-2 py-1 text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            className="shrink-0 rounded-full border border-dashed border-panel-border px-2.5 py-1 text-xs leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
           >
             +
           </button>
@@ -224,7 +224,7 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
               dispatch({ type: 'addItem', listId: activeList.id, text })
               e.currentTarget.reset()
             }}
-            className="flex items-center gap-2 border-t border-panel-border px-3 py-2"
+            className="flex items-center gap-2 border-t border-panel-border px-3 pb-1.5 pt-2"
           >
             <label htmlFor="todo-add-item" className="sr-only">
               Add a task
@@ -244,18 +244,18 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
             </button>
           </form>
 
-          <div className="flex items-center justify-between border-t border-panel-border px-3 py-2 text-xs">
+          <div className="flex items-center justify-between px-3 pb-2 text-xs">
             <button
               type="button"
               onClick={() => dispatch({ type: 'clearDone', listId: activeList.id })}
-              className="text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded border border-transparent px-1.5 py-0.5 text-fg-muted hover:border-panel-border hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
             >
               Clear done
             </button>
             <button
               type="button"
               onClick={() => dispatch({ type: 'removeList', listId: activeList.id })}
-              className="text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded border border-transparent px-1.5 py-0.5 text-fg-muted hover:border-panel-border hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
             >
               Delete list
             </button>

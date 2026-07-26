@@ -34,7 +34,10 @@ export default function WeatherWidget() {
             onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-2 text-left focus-visible:outline-2 focus-visible:outline-accent"
           >
-            <WeatherIcon icon={describeCode(snapshot.current.code).icon} size={30} />
+            <WeatherIcon
+              icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
+              size={30}
+            />
             <span className="text-2xl font-light">
               {displayTemp(snapshot.current.tempC, settings.units)}
             </span>
@@ -53,7 +56,7 @@ export default function WeatherWidget() {
                   <span className="text-fg-muted">
                     {compactHour(h.time, settings.use24Hour)}
                   </span>
-                  <WeatherIcon icon={describeCode(h.code).icon} size={18} />
+                  <WeatherIcon icon={describeCode(h.code, h.isDay ?? true).icon} size={18} />
                   <span className="tabular-nums">
                     {displayTemp(h.tempC, settings.units)}
                   </span>

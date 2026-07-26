@@ -8,12 +8,14 @@ const payload = {
     weather_code: 2,
     wind_speed_10m: 14.2,
     relative_humidity_2m: 60,
+    is_day: 1,
   },
   hourly: {
     time: ['2026-07-26T13:00', '2026-07-26T14:00'],
     temperature_2m: [21.0, 22.5],
     precipitation_probability: [10, 55],
     weather_code: [2, 61],
+    is_day: [1, 0],
   },
 }
 
@@ -35,11 +37,13 @@ describe('openMeteoProvider', () => {
       code: 2,
       windKmh: 14.2,
       humidity: 60,
+      isDay: true,
     })
     expect(snap.hourly).toEqual([
-      { time: '2026-07-26T13:00', tempC: 21, precipProb: 10, code: 2 },
-      { time: '2026-07-26T14:00', tempC: 22.5, precipProb: 55, code: 61 },
+      { time: '2026-07-26T13:00', tempC: 21, precipProb: 10, code: 2, isDay: true },
+      { time: '2026-07-26T14:00', tempC: 22.5, precipProb: 55, code: 61, isDay: false },
     ])
+    expect(fetchFn.mock.calls[0][0]).toContain('is_day')
     expect(snap.locationLabel).toBe('Berlin')
     expect(snap.fetchedAt).toBeTypeOf('number')
   })
