@@ -1869,6 +1869,8 @@ export default function SettingsPanel() {
           </label>
           <input
             id="set-name"
+            key={settings.name} // remount on external change: a stale uncontrolled
+            // value would otherwise be re-saved on blur, reverting another tab's rename
             defaultValue={settings.name}
             onBlur={(e) => patch({ name: e.currentTarget.value.trim() })}
             className={control}
