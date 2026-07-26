@@ -108,5 +108,9 @@ which is stored locally in IndexedDB (as a blob, never uploaded anywhere).
 
 The **only** outbound network calls Aurora ever makes are to Open-Meteo
 (`api.open-meteo.com` for forecasts, `geocoding-api.open-meteo.com` for city
-search), and only when the weather widget is enabled and a location is set.
+search), and only when the weather widget is enabled and a location is set —
+plus a single keyless reverse-geocode lookup (`api.bigdatacloud.net`) at the
+moment you click "Use my location", so the widget can label your weather with
+a real place name. That lookup happens once, only for device location, and
+sends the same ~1 km-rounded coordinates the forecast call already uses.
 There is no analytics, no telemetry, and no tracking of any kind.

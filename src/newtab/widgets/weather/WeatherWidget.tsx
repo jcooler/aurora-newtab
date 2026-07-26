@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
-import { displayTemp } from '../../../services/weather/units'
+import { compactHour, displayTemp } from '../../../services/weather/units'
 import LocationSetup from './LocationSetup'
+import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
 
 export default function WeatherWidget() {
@@ -14,10 +15,12 @@ export default function WeatherWidget() {
 
   if (!settings?.widgets.weather) return null
 
+  const callout = snapshot ? rainCallout(snapshot.hourly, settings.use24Hour) : null
+
   return (
     <section
       aria-label="Weather"
-      className="fixed right-4 top-4 max-w-64 rounded-panel border border-panel-border bg-panel p-3 text-fg backdrop-blur-[var(--panel-blur)]"
+      className="fixed right-4 top-4 w-max max-w-[32rem] rounded-panel border border-panel-border bg-panel p-3 text-fg backdrop-blur-[var(--panel-blur)]"
     >
       {location === null && <LocationSetup />}
       {location && !snapshot && (
@@ -31,9 +34,7 @@ export default function WeatherWidget() {
             onClick={() => setExpanded((v) => !v)}
             className="flex items-center gap-2 text-left focus-visible:outline-2 focus-visible:outline-accent"
           >
-            <span aria-hidden className="text-2xl">
-              {describeCode(snapshot.current.code).icon}
-            </span>
+            <WeatherIcon icon={describeCode(snapshot.current.code).icon} size={30} />
             <span className="text-2xl font-light">
               {displayTemp(snapshot.current.tempC, settings.units)}
             </span>
@@ -41,19 +42,30 @@ export default function WeatherWidget() {
               {describeCode(snapshot.current.code).label} · {snapshot.locationLabel}
             </span>
           </button>
-          {rainCallout(snapshot.hourly, settings.use24Hour) && (
-            <p className="text-sm text-accent">
-              {rainCallout(snapshot.hourly, settings.use24Hour)}
-            </p>
-          )}
+          {callout && <p className="text-sm text-accent">{callout}</p>}
           {expanded && (
-            <ol className="mt-1 flex gap-2 overflow-x-auto pb-1" aria-label="Hourly forecast">
+            <ol
+              className="mt-2 grid auto-cols-fr grid-flow-col gap-x-1.5"
+              aria-label="Hourly forecast"
+            >
               {snapshot.hourly.map((h) => (
-                <li key={h.time} className="flex min-w-10 flex-col items-center text-xs">
-                  <span className="text-fg-muted">{h.time.slice(11, 13)}</span>
-                  <span aria-hidden>{describeCode(h.code).icon}</span>
-                  <span>{displayTemp(h.tempC, settings.units)}</span>
-                  <span className="text-fg-muted">{h.precipProb}%</span>
+                <li key={h.time} className="flex flex-col items-center gap-0.5 text-xs">
+                  <span className="text-fg-muted">
+                    {compactHour(h.time, settings.use24Hour)}
+                  </span>
+                  <WeatherIcon icon={describeCode(h.code).icon} size={18} />
+                  <span className="tabular-nums">
+                    {displayTemp(h.tempC, settings.units)}
+                  </span>
+                  <span
+                    className={
+                      h.precipProb >= 30
+                        ? 'tabular-nums text-accent'
+                        : 'tabular-nums text-fg-muted opacity-50'
+                    }
+                  >
+                    {h.precipProb}%
+                  </span>
                 </li>
               ))}
             </ol>

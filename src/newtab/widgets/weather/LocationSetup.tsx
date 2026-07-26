@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { searchCity } from '../../../services/weather/geocode'
+import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
 
@@ -16,12 +17,11 @@ export default function LocationSetup() {
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
-          await storage.set('location', {
-            lat: Math.round(pos.coords.latitude * 100) / 100, // ~1km precision is plenty
-            lon: Math.round(pos.coords.longitude * 100) / 100,
-            label: 'My location',
-            manual: false,
-          })
+          const lat = Math.round(pos.coords.latitude * 100) / 100 // ~1km precision is plenty
+          const lon = Math.round(pos.coords.longitude * 100) / 100
+          // One-time lookup so the pill reads "Overcast · Dallas", not "· My location"
+          const label = (await reverseGeocode(lat, lon)) ?? 'My location'
+          await storage.set('location', { lat, lon, label, manual: false })
         } catch {
           setError('Could not save location — try again.')
         } finally {
@@ -69,11 +69,11 @@ export default function LocationSetup() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="or search a city"
           aria-label="Search for a city"
-          className="w-32 border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
+          className="w-40 border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
         />
       </form>
       {matches && matches.length > 0 && (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
           {matches.map((m) => (
             <li key={`${m.lat},${m.lon}`}>
               <button
@@ -86,10 +86,11 @@ export default function LocationSetup() {
                     manual: true,
                   })
                 }
-                className="text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                className="text-left text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
               >
                 {m.name}
-                {m.country ? `, ${m.country}` : ''}
+                {m.admin1 ? `, ${m.admin1}` : ''}
+                {m.country ? ` · ${m.country}` : ''}
               </button>
             </li>
           ))}

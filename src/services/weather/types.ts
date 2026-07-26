@@ -7,6 +7,7 @@ export interface WeatherProvider {
 export interface GeoMatch {
   name: string
   country: string
+  admin1: string // state/region, e.g. "Georgia" — disambiguates same-name cities
   lat: number
   lon: number
 }
