@@ -2,6 +2,8 @@ import { useEffect } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { applyTheme } from '../theme/index'
 import Background from './components/Background'
+import Clock from './components/Clock'
+import Greeting from './components/Greeting'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -15,7 +17,10 @@ export default function App() {
   return (
     <main className="relative flex h-screen items-center justify-center text-fg">
       <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
-      <h1 className="text-2xl font-light tracking-[0.3em]">AURORA</h1>
+      <div className="flex flex-col items-center">
+        <Clock />
+        <Greeting />
+      </div>
     </main>
   )
 }
