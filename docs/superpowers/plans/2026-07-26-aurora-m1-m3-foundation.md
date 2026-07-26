@@ -2191,6 +2191,27 @@ git commit -m "feat: M3 core layout — composed shell with widget boundaries
 
 ---
 
+## Post-review amendments (execution record)
+
+The plan's sample code was corrected in place during execution where reviews
+found defects; additionally, the final whole-branch review produced one fix
+wave (commit `212a139`) whose deltas are NOT mirrored into the task code
+blocks above:
+
+- `vite.config.ts` gained `build: { target: 'es2022' }` — required by the
+  top-level `await storage.init()` in `main.tsx` (Task 4).
+- `PhotoPrefs` gained optional `uploadedAt?: string` — a nonce stamped on every
+  upload because `chrome.storage.onChanged` emits nothing for deep-equal
+  writes; without it the uploaded photo never re-rendered in the real
+  extension (caught only at the whole-branch review; the memory driver was
+  too generous).
+- `memoryDriver.write` now notifies only actually-changed keys (chrome-faithful).
+- SettingsPanel's file handler uses fresh-read `storage.update('photoPrefs', ...)`
+  instead of spreading a possibly-stale closure.
+- Background's rotation persist is gated on `mode === 'auto'`; a
+  `Background.test.tsx` was added; `migrate()` carries a loud contract comment
+  (top-level-only default backfill).
+
 ## Out of scope for this plan
 
 M4–M9 (weather, quick links, to-do, focus timer, quote, command palette) and M10 (polish + README) get their own plan after Pause 2 feedback — the spec's milestone list is unchanged; only the planning is staged.
