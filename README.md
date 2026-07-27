@@ -6,19 +6,27 @@ no backend — everything lives on your machine.
 ## Features
 
 - **Clock & greeting** — large local time, time-of-day greeting.
+- **World clocks & countdown** — up to four extra time zones shown under
+  the local clock, plus a countdown line for the nearest upcoming date
+  you've added — both configured from Settings.
 - **Daily focus** — one thing you're focusing on today; resets each morning.
 - **Search bar** — Google, DuckDuckGo, or Bing, your choice.
 - **Quick links** — a small drag-to-reorder tile grid with favicons.
 - **Weather** — current conditions + next-12-hours forecast via Open-Meteo,
-  from your device location or a searched city. No API key needed.
+  from your device location or a searched city; expand it for feels-like
+  temperature, wind, humidity, and sunrise/sunset. No API key needed.
 - **Background photos** — a bundled, hand-curated set of landscape photos
-  that rotates daily, or upload your own image, or use a flat gradient.
+  that rotates daily, or upload your own as a gallery (add several at once,
+  remove any one from a thumbnail strip, rotates through the rest), or use
+  a flat gradient.
 - **Bookmarks bar** — your browser's actual bookmarks bar, rendered as a row
   of folder and favicon chips; click a folder to drill into it (with a
   breadcrumb back button for nested subfolders). Off by default; reads your
   existing bookmarks, never creates or modifies any.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer** — a Pomodoro-style work/break timer with a chime.
+- **Notes** — a small autosaving scratchpad pinned to the corner, for
+  jotting anything down; saves locally as you type.
 - **Daily quote** — one quote a day from a small bundled set.
 - **Command palette** — `Ctrl+K` / `Cmd+K` to jump to a link, switch theme,
   search the web, or quick-add a to-do (`todo: buy milk`).
@@ -128,9 +136,10 @@ as a single JSON file:
 
 Aurora has no backend and no accounts. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
-preferences, weather cache, and location — is stored locally in
-`chrome.storage.local`. The one exception is an uploaded background photo,
-which is stored locally in IndexedDB (as a blob, never uploaded anywhere).
+preferences, weather cache, location, notes, world clocks, and countdowns —
+is stored locally in `chrome.storage.local`. The one exception is an
+uploaded background photo, which is stored locally in IndexedDB (as a blob,
+never uploaded anywhere).
 
 The **only** outbound network calls Aurora ever makes are to Open-Meteo
 (`api.open-meteo.com` for forecasts, `geocoding-api.open-meteo.com` for city
