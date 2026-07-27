@@ -15,6 +15,7 @@ import TodoWidget from './widgets/todo/TodoWidget'
 import TimerWidget from './widgets/timer/TimerWidget'
 import QuoteWidget from './widgets/quote/QuoteWidget'
 import PaletteHost from './widgets/palette/PaletteHost'
+import BookmarksBar from './widgets/bookmarks/BookmarksBar'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -56,13 +57,18 @@ export default function App() {
       <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
 
       {/*
-        Weather and timer mount here — after Background's refresh button but
-        before Tasks/gear — purely for tab order (both are `fixed`-positioned,
-        so this has no effect on layout): search -> focus -> links -> photo
-        refresh -> weather controls -> timer pill -> Tasks -> gear.
+        Weather, the bookmarks bar, and timer mount here — after Background's
+        refresh button but before Tasks/gear — purely for tab order (all
+        three are `fixed`-positioned, so this has no effect on layout):
+        search -> focus -> links -> photo refresh -> weather controls ->
+        bookmarks chips -> timer pill -> Tasks -> gear.
       */}
       <WidgetBoundary name="weather">
         <WeatherWidget />
+      </WidgetBoundary>
+
+      <WidgetBoundary name="bookmarks">
+        <BookmarksBar />
       </WidgetBoundary>
 
       <WidgetBoundary name="timer">

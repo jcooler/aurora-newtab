@@ -36,8 +36,13 @@ await page.waitForSelector('time', { timeout: 10_000 })
 
 // Seed a manual location so weather renders deterministically-ish (live
 // Open-Meteo call; acceptable for preview, never for unit tests). Also flip
-// on the timer widget, which defaults to off — merge into the existing
-// settings so other keys (theme, etc.) aren't clobbered.
+// on the timer and bookmarks widgets, which default to off — merge into the
+// existing settings so other keys (theme, etc.) aren't clobbered.
+//
+// Headless Chromium's bookmarks tree is empty (no bookmarks-bar node has any
+// children), so the bookmarks bar renders nothing either way — this seed's
+// only job is proving the widget mounts (chrome.bookmarks.getTree() call,
+// gate on, no crash) without a console error, not a populated screenshot.
 await page.evaluate(async () => {
   const { settings } = await chrome.storage.local.get('settings')
   await chrome.storage.local.set({
@@ -46,7 +51,10 @@ await page.evaluate(async () => {
       { id: 'l1', title: 'GitHub', url: 'https://github.com' },
       { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
     ],
-    settings: { ...settings, widgets: { ...settings.widgets, timer: true } },
+    settings: {
+      ...settings,
+      widgets: { ...settings.widgets, timer: true, bookmarks: true },
+    },
   })
 })
 await page.reload()

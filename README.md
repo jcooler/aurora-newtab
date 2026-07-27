@@ -13,6 +13,10 @@ no backend — everything lives on your machine.
   from your device location or a searched city. No API key needed.
 - **Background photos** — a bundled, hand-curated set of landscape photos
   that rotates daily, or upload your own image, or use a flat gradient.
+- **Bookmarks bar** — your browser's actual bookmarks bar, rendered as a row
+  of folder and favicon chips; click a folder to drill into it (with a
+  breadcrumb back button for nested subfolders). Off by default; reads your
+  existing bookmarks, never creates or modifies any.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer** — a Pomodoro-style work/break timer with a chime.
 - **Daily quote** — one quote a day from a small bundled set.
@@ -136,3 +140,9 @@ moment you click "Use my location", so the widget can label your weather with
 a real place name. That lookup happens once, only for device location, and
 sends the same ~1 km-rounded coordinates the forecast call already uses.
 There is no analytics, no telemetry, and no tracking of any kind.
+
+If you enable the **Bookmarks bar** widget (off by default), Aurora requests
+the `bookmarks` permission and reads your browser's bookmarks tree with
+`chrome.bookmarks.getTree()` to render it. That read happens locally, is
+rendered locally, and is never transmitted anywhere — Aurora only reads your
+bookmarks, it never creates, edits, or deletes any.

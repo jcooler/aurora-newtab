@@ -5,7 +5,7 @@ export default defineManifest({
   name: 'Aurora',
   version: '1.0.0',
   description: 'A calm, local-first new-tab dashboard. No accounts, no tracking.',
-  permissions: ['storage', 'geolocation', 'favicon'],
+  permissions: ['storage', 'geolocation', 'favicon', 'bookmarks'],
   icons: {
     16: 'icons/icon16.png',
     48: 'icons/icon48.png',
