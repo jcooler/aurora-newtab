@@ -13,7 +13,20 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
   const [addingList, setAddingList] = useState(false)
   const seeded = useRef(false)
 
-  useFocusTrap(panelRef, true)
+  // `active` is gated on readiness (`lists !== undefined`), NOT hardcoded
+  // `true`. This component's dialog div only enters the JSX once `lists` has
+  // resolved (see the early-return below), so its FIRST render is always
+  // `null` — `panelRef.current` doesn't exist yet. useFocusTrap's effect deps
+  // are `[ref, active]`; if `active` were a constant `true` from that first
+  // render onward, the effect would run exactly once (while `ref.current` is
+  // still null), see nothing to trap, and never run again — deps never
+  // change, so React never re-invokes it, even once the dialog div (and its
+  // ref) shows up on a later render. Tying `active` to the SAME condition
+  // that gates the ref-bearing JSX makes `active` flip false -> true on
+  // exactly the render where `panelRef.current` first becomes non-null,
+  // which is what actually triggers useFocusTrap's initial-focus + Tab-trap
+  // + close-time restore. (Same fix as NotesPanel.tsx, Task 27.)
+  useFocusTrap(panelRef, lists !== undefined)
 
   // Newest-first shared stack (src/lib/dialogStack.ts): this panel only
   // mounts while open, so it's always active.

@@ -420,7 +420,10 @@ describe('SettingsPanel World clocks section', () => {
       fireEvent.click(within(worldClocksRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(screen.getByText('Pick a time zone from the list.')).toBeTruthy()
+    const error = screen.getByText('Pick a time zone from the list.')
+    expect(error).toBeTruthy()
+    expect(error.getAttribute('role')).toBe('alert')
+    expect(zoneInput.getAttribute('aria-describedby')).toBe(error.id)
     expect(await storage.get('worldClocks')).toEqual([])
   })
 

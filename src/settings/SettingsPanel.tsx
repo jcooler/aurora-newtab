@@ -508,6 +508,7 @@ export default function SettingsPanel() {
                   setZoneError(false)
                   if (!zoneLabelTouched) setNewZoneLabel(cityFromZone(zone))
                 }}
+                aria-describedby={zoneError ? 'wc-zone-error' : undefined}
                 className={`${control} w-36`}
               />
               <datalist id="wc-zone-options">
@@ -539,7 +540,11 @@ export default function SettingsPanel() {
             </div>
           </form>
         )}
-        {zoneError && <p className="text-xs text-fg-muted">Pick a time zone from the list.</p>}
+        {zoneError && (
+          <p id="wc-zone-error" role="alert" className="text-xs text-fg-muted">
+            Pick a time zone from the list.
+          </p>
+        )}
       </section>
 
       <section aria-label="Countdowns">
