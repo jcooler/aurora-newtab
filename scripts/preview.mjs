@@ -125,6 +125,31 @@ await page.screenshot({ path: `${outDir}/palette.png` })
 console.log('captured palette.png')
 await page.keyboard.press('Escape')
 
+// Open the notes scratchpad, type into it, and let the 500ms autosave
+// debounce fire, then reload the page from scratch and reopen the panel to
+// prove the text actually round-tripped through chrome.storage rather than
+// just sitting in React state.
+await page.click('button:has-text("Notes")')
+await page.waitForSelector('[role="dialog"][aria-label="Notes"]')
+await page.fill('textarea', 'Remember the milk')
+await page.waitForTimeout(700) // past the 500ms autosave debounce
+await page.screenshot({ path: `${outDir}/notes-panel.png` })
+console.log('captured notes-panel.png')
+
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800) // photo fade-in
+await page.click('button:has-text("Notes")')
+await page.waitForSelector('[role="dialog"][aria-label="Notes"]')
+const notesPersisted = await page.locator('textarea').inputValue()
+console.log(
+  notesPersisted === 'Remember the milk'
+    ? 'PASS: notes persisted across reload'
+    : `FAIL: notes did not persist across reload (got "${notesPersisted}")`,
+)
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
+
 // Multi-photo background gallery: switching to "My photo" and populating it
 // can't be driven through a real OS file-chooser dialog under automation, so
 // seed it directly via setInputFiles on the (now-visible) file input. Placed

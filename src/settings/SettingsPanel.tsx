@@ -12,8 +12,8 @@ import { defaults, type AuroraData, type DataKey, type PhotoPrefs, type Settings
 
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 
-// Partial: WidgetToggles still has keys (notes/clocks/countdown) ahead of the
-// widgets that back them (see Tasks 27-28) — this stays non-exhaustive on
+// Partial: WidgetToggles still has keys (clocks/countdown) ahead of the
+// widget that backs them (see Task 28) — this stays non-exhaustive on
 // purpose so we don't render a toggle for a widget that doesn't exist yet
 // (a "coming soon" control with nothing behind it).
 const WIDGET_LABELS: Partial<Record<keyof WidgetToggles, string>> = {
@@ -24,6 +24,7 @@ const WIDGET_LABELS: Partial<Record<keyof WidgetToggles, string>> = {
   timer: 'Focus timer',
   quote: 'Daily quote',
   bookmarks: 'Bookmarks bar',
+  notes: 'Notes',
 }
 
 const row = 'flex items-center justify-between gap-4 py-2'

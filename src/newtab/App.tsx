@@ -13,6 +13,7 @@ import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinksWidget from './widgets/links/LinksWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import TimerWidget from './widgets/timer/TimerWidget'
+import NotesWidget from './widgets/notes/NotesWidget'
 import QuoteWidget from './widgets/quote/QuoteWidget'
 import PaletteHost from './widgets/palette/PaletteHost'
 import BookmarksBar from './widgets/bookmarks/BookmarksBar'
@@ -57,11 +58,12 @@ export default function App() {
       <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
 
       {/*
-        Weather, the bookmarks bar, and timer mount here — after Background's
-        refresh button but before Tasks/gear — purely for tab order (all
-        three are `fixed`-positioned, so this has no effect on layout):
-        search -> focus -> links -> photo refresh -> weather controls ->
-        bookmarks chips -> timer pill -> Tasks -> gear.
+        Weather, the bookmarks bar, timer, and notes mount here — after
+        Background's refresh button but before Tasks/gear — purely for tab
+        order (all four are `fixed`-positioned, so this has no effect on
+        layout): search -> focus -> links -> photo refresh -> weather
+        controls -> bookmarks chips -> timer pill -> notes pill -> Tasks ->
+        gear.
       */}
       <WidgetBoundary name="weather">
         <WeatherWidget />
@@ -73,6 +75,10 @@ export default function App() {
 
       <WidgetBoundary name="timer">
         <TimerWidget />
+      </WidgetBoundary>
+
+      <WidgetBoundary name="notes">
+        <NotesWidget />
       </WidgetBoundary>
 
       <WidgetBoundary name="todo">
