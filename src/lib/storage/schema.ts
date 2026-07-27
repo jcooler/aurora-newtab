@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = 1
+export const CURRENT_VERSION = 2
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
@@ -9,6 +9,10 @@ export interface WidgetToggles {
   todo: boolean
   timer: boolean
   quote: boolean
+  bookmarks: boolean
+  notes: boolean
+  clocks: boolean
+  countdown: boolean
 }
 
 export interface Settings {
@@ -91,6 +95,24 @@ export interface WeatherSnapshot {
   hourly: HourlyPoint[] // next ~12h
   fetchedAt: number // epoch ms
   locationLabel: string
+  sunriseISO?: string
+  sunsetISO?: string
+}
+
+export interface Notes {
+  text: string
+  updatedAt: number
+}
+
+export interface WorldClock {
+  zone: string
+  label: string
+}
+
+export interface Countdown {
+  id: string
+  name: string
+  date: string // YYYY-MM-DD
 }
 
 export interface AuroraData {
@@ -102,6 +124,9 @@ export interface AuroraData {
   photoPrefs: PhotoPrefs
   location: StoredLocation | null
   weatherCache: WeatherSnapshot | null
+  notes: Notes
+  worldClocks: WorldClock[]
+  countdowns: Countdown[]
 }
 
 export type DataKey = keyof AuroraData
@@ -122,6 +147,10 @@ export function defaults(): AuroraData {
         todo: true,
         timer: false,
         quote: true,
+        bookmarks: false,
+        notes: true,
+        clocks: false,
+        countdown: false,
       },
     },
     focus: null,
@@ -131,5 +160,8 @@ export function defaults(): AuroraData {
     photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
     location: null,
     weatherCache: null,
+    notes: { text: '', updatedAt: 0 },
+    worldClocks: [],
+    countdowns: [],
   }
 }

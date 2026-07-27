@@ -5,7 +5,23 @@ type Snapshot = Record<string, unknown>
 export type Migration = (data: Snapshot) => Snapshot
 
 /** Keyed by the version being upgraded FROM: migrations[1] upgrades v1 -> v2. */
-export const migrations: Record<number, Migration> = {}
+export const migrations: Record<number, Migration> = {
+  // v1 -> v2: widget toggles gained nested keys (bookmarks/notes/clocks/countdown).
+  // Nested keys are exactly what the final default-merge does NOT backfill.
+  1: (data) => {
+    const d = defaults()
+    const settings = (data.settings ?? {}) as Record<string, unknown>
+    const widgets = (settings.widgets ?? {}) as Record<string, unknown>
+    return {
+      ...data,
+      settings: {
+        ...d.settings,
+        ...settings,
+        widgets: { ...d.settings.widgets, ...widgets },
+      },
+    }
+  },
+}
 
 export function migrate(
   snapshot: Snapshot,

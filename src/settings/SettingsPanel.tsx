@@ -13,6 +13,10 @@ const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
   todo: 'To-do lists',
   timer: 'Focus timer',
   quote: 'Daily quote',
+  bookmarks: 'Bookmarks',
+  notes: 'Notes',
+  clocks: 'World clocks',
+  countdown: 'Countdown',
 }
 
 const row = 'flex items-center justify-between gap-4 py-2'

@@ -10,7 +10,18 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     units: 'metric',
     searchEngine: 'google',
     muted: false,
-    widgets: { search: true, weather: true, links: true, todo: true, timer: false, quote: true },
+    widgets: {
+      search: true,
+      weather: true,
+      links: true,
+      todo: true,
+      timer: false,
+      quote: true,
+      bookmarks: false,
+      notes: true,
+      clocks: false,
+      countdown: false,
+    },
   }
   return {
     links,
