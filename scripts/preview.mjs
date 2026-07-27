@@ -36,24 +36,43 @@ await page.waitForSelector('time', { timeout: 10_000 })
 
 // Seed a manual location so weather renders deterministically-ish (live
 // Open-Meteo call; acceptable for preview, never for unit tests). Also flip
-// on the timer and bookmarks widgets, which default to off — merge into the
-// existing settings so other keys (theme, etc.) aren't clobbered.
+// on the timer, bookmarks, clocks, and countdown widgets, which default to
+// off — merge into the existing settings so other keys (theme, etc.) aren't
+// clobbered.
 //
 // Headless Chromium's bookmarks tree is empty (no bookmarks-bar node has any
 // children), so the bookmarks bar renders nothing either way — this seed's
 // only job is proving the widget mounts (chrome.bookmarks.getTree() call,
 // gate on, no crash) without a console error, not a populated screenshot.
+//
+// The countdown date is computed as today+14 right here inside the page
+// context, so the preview stays deterministic relative to whenever it runs
+// rather than hardcoding a date that eventually lands in the past.
 await page.evaluate(async () => {
   const { settings } = await chrome.storage.local.get('settings')
+  const in14Days = new Date()
+  in14Days.setDate(in14Days.getDate() + 14)
+  const launchDate = in14Days.toISOString().slice(0, 10)
   await chrome.storage.local.set({
     location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
     links: [
       { id: 'l1', title: 'GitHub', url: 'https://github.com' },
       { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
     ],
+    worldClocks: [
+      { zone: 'Asia/Tokyo', label: 'Tokyo' },
+      { zone: 'Europe/London', label: 'London' },
+    ],
+    countdowns: [{ id: 'c1', name: 'Launch', date: launchDate }],
     settings: {
       ...settings,
-      widgets: { ...settings.widgets, timer: true, bookmarks: true },
+      widgets: {
+        ...settings.widgets,
+        timer: true,
+        bookmarks: true,
+        clocks: true,
+        countdown: true,
+      },
     },
   })
 })

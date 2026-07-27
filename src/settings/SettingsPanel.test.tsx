@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
@@ -371,5 +371,173 @@ describe('SettingsPanel Background section (upload gallery)', () => {
 
     // Same live-object-URL ordering concern as the previous test.
     unmount()
+  })
+})
+
+describe('SettingsPanel World clocks section', () => {
+  function worldClocksRegion() {
+    return screen.getByRole('region', { name: 'World clocks' })
+  }
+
+  it('typing a zone defaults the label to its city segment; submitting persists both and resets the form', async () => {
+    const storage = await renderPanel()
+    const zoneInput = screen.getByLabelText('Time zone') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.change(zoneInput, { target: { value: 'Asia/Tokyo' } })
+    })
+    expect((screen.getByLabelText('Label') as HTMLInputElement).value).toBe('Tokyo')
+
+    await act(async () => {
+      fireEvent.click(within(worldClocksRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(await storage.get('worldClocks')).toEqual([{ zone: 'Asia/Tokyo', label: 'Tokyo' }])
+    expect(zoneInput.value).toBe('')
+    expect((screen.getByLabelText('Label') as HTMLInputElement).value).toBe('')
+  })
+
+  it('editing the label field overrides the city-segment default', async () => {
+    const storage = await renderPanel()
+    const zoneInput = screen.getByLabelText('Time zone')
+    const labelInput = screen.getByLabelText('Label') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.change(zoneInput, { target: { value: 'America/New_York' } })
+      fireEvent.change(labelInput, { target: { value: 'NYC' } })
+      fireEvent.click(within(worldClocksRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(await storage.get('worldClocks')).toEqual([{ zone: 'America/New_York', label: 'NYC' }])
+  })
+
+  it('an unrecognized zone shows an inline error and persists nothing', async () => {
+    const storage = await renderPanel()
+    const zoneInput = screen.getByLabelText('Time zone')
+
+    await act(async () => {
+      fireEvent.change(zoneInput, { target: { value: 'Not/AZone' } })
+      fireEvent.click(within(worldClocksRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(screen.getByText('Pick a time zone from the list.')).toBeTruthy()
+    expect(await storage.get('worldClocks')).toEqual([])
+  })
+
+  it('the remove button on a zone row deletes just that zone', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('worldClocks', [
+      { zone: 'Asia/Tokyo', label: 'Tokyo' },
+      { zone: 'Europe/London', label: 'London' },
+    ])
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
+    })
+
+    expect(await storage.get('worldClocks')).toEqual([{ zone: 'Europe/London', label: 'London' }])
+  })
+
+  it('hides the add row once 4 zones are stored (the max)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('worldClocks', [
+      { zone: 'Asia/Tokyo', label: 'Tokyo' },
+      { zone: 'Europe/London', label: 'London' },
+      { zone: 'America/New_York', label: 'New York' },
+      { zone: 'Australia/Sydney', label: 'Sydney' },
+    ])
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    expect(await screen.findByText('Australia/Sydney')).toBeTruthy()
+    expect(screen.queryByLabelText('Time zone')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Countdowns section', () => {
+  function countdownsRegion() {
+    return screen.getByRole('region', { name: 'Countdowns' })
+  }
+
+  it('adding a countdown persists it and resets the form', async () => {
+    const storage = await renderPanel()
+    const nameInput = screen.getByLabelText('New countdown name') as HTMLInputElement
+    const dateInput = screen.getByLabelText('New countdown date') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'Launch' } })
+      fireEvent.change(dateInput, { target: { value: '2026-08-09' } })
+      fireEvent.click(within(countdownsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    const stored = await storage.get('countdowns')
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({ name: 'Launch', date: '2026-08-09' })
+    expect(typeof stored[0]!.id).toBe('string')
+    expect(nameInput.value).toBe('')
+  })
+
+  it('a blank name or date is not added', async () => {
+    const storage = await renderPanel()
+    const dateInput = screen.getByLabelText('New countdown date')
+
+    await act(async () => {
+      fireEvent.change(dateInput, { target: { value: '2026-08-09' } })
+      fireEvent.click(within(countdownsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(await storage.get('countdowns')).toEqual([])
+  })
+
+  it('the remove button on a countdown row deletes just that countdown', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('countdowns', [
+      { id: 'c1', name: 'Launch', date: '2026-08-09' },
+      { id: 'c2', name: 'Trip', date: '2026-09-01' },
+    ])
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Launch' }))
+    })
+
+    expect(await storage.get('countdowns')).toEqual([{ id: 'c2', name: 'Trip', date: '2026-09-01' }])
+  })
+
+  it('editing a countdown date on blur-equivalent change persists the new date', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('countdowns', [{ id: 'c1', name: 'Launch', date: '2026-08-09' }])
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    const dateInput = screen.getByLabelText('Countdown date')
+    await act(async () => {
+      fireEvent.change(dateInput, { target: { value: '2026-08-20' } })
+    })
+
+    expect(await storage.get('countdowns')).toEqual([{ id: 'c1', name: 'Launch', date: '2026-08-20' }])
   })
 })

@@ -17,6 +17,8 @@ import NotesWidget from './widgets/notes/NotesWidget'
 import QuoteWidget from './widgets/quote/QuoteWidget'
 import PaletteHost from './widgets/palette/PaletteHost'
 import BookmarksBar from './widgets/bookmarks/BookmarksBar'
+import WorldClocks from './widgets/clocks/WorldClocks'
+import CountdownLine from './widgets/countdown/CountdownLine'
 
 export default function App() {
   const [settings] = useStoredKey('settings')
@@ -35,6 +37,12 @@ export default function App() {
         <WidgetBoundary name="clock">
           <Clock />
           <Greeting />
+        </WidgetBoundary>
+        <WidgetBoundary name="clocks">
+          <WorldClocks />
+        </WidgetBoundary>
+        <WidgetBoundary name="countdown">
+          <CountdownLine />
         </WidgetBoundary>
         <WidgetBoundary name="search">
           <SearchBar />

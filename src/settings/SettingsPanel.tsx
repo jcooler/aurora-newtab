@@ -8,15 +8,31 @@ import { useUploads } from '../lib/hooks/useUploads'
 import { serializeBackup, parseBackup } from '../lib/backup'
 import { migrate } from '../lib/storage/migrations'
 import { todayKey } from '../lib/dates'
-import { defaults, type AuroraData, type DataKey, type PhotoPrefs, type Settings, type WidgetToggles } from '../lib/storage/schema'
+import {
+  defaults,
+  type AuroraData,
+  type Countdown,
+  type DataKey,
+  type PhotoPrefs,
+  type Settings,
+  type WidgetToggles,
+  type WorldClock,
+} from '../lib/storage/schema'
 
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 
-// Partial: WidgetToggles still has keys (clocks/countdown) ahead of the
-// widget that backs them (see Task 28) — this stays non-exhaustive on
-// purpose so we don't render a toggle for a widget that doesn't exist yet
-// (a "coming soon" control with nothing behind it).
-const WIDGET_LABELS: Partial<Record<keyof WidgetToggles, string>> = {
+const MAX_WORLD_CLOCKS = 4
+const TIME_ZONES = Intl.supportedValuesOf('timeZone')
+const TIME_ZONE_SET = new Set(TIME_ZONES)
+
+/** Default label for a newly-added zone: its city segment, underscores
+ *  un-escaped (e.g. 'America/New_York' -> 'New York'). */
+function cityFromZone(zone: string): string {
+  const city = zone.split('/').pop() ?? zone
+  return city.replace(/_/g, ' ')
+}
+
+const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
   search: 'Search bar',
   weather: 'Weather',
   links: 'Quick links',
@@ -25,6 +41,8 @@ const WIDGET_LABELS: Partial<Record<keyof WidgetToggles, string>> = {
   quote: 'Daily quote',
   bookmarks: 'Bookmarks bar',
   notes: 'Notes',
+  clocks: 'World clocks',
+  countdown: 'Countdown',
 }
 
 const row = 'flex items-center justify-between gap-4 py-2'
@@ -37,9 +55,15 @@ export default function SettingsPanel() {
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
+  const [worldClocks] = useStoredKey('worldClocks')
+  const [countdowns] = useStoredKey('countdowns')
   const themeGroupRef = useRef<HTMLDivElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [newZone, setNewZone] = useState('')
+  const [newZoneLabel, setNewZoneLabel] = useState('')
+  const [zoneLabelTouched, setZoneLabelTouched] = useState(false)
+  const [zoneError, setZoneError] = useState(false)
   const [pendingImport, setPendingImport] = useState<{
     migrated: AuroraData
     summary: string
@@ -69,6 +93,38 @@ export default function SettingsPanel() {
     // fresh read + changed value: a stale spread could revert concurrent
     // writes, and a deep-equal write emits no chrome.storage event at all
     await storage.update('photoPrefs', (p) => ({ ...p, uploadedAt: new Date().toISOString() }))
+  }
+
+  const updateWorldClocks = (fn: (list: WorldClock[]) => WorldClock[]) =>
+    void storage.update('worldClocks', fn)
+  const updateCountdowns = (fn: (list: Countdown[]) => Countdown[]) =>
+    void storage.update('countdowns', fn)
+
+  function handleAddZone(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const zone = newZone.trim()
+    if (!zone || !TIME_ZONE_SET.has(zone)) {
+      setZoneError(true)
+      return
+    }
+    const finalLabel = newZoneLabel.trim() || cityFromZone(zone)
+    updateWorldClocks((list) =>
+      list.length >= MAX_WORLD_CLOCKS ? list : [...list, { zone, label: finalLabel }],
+    )
+    setNewZone('')
+    setNewZoneLabel('')
+    setZoneLabelTouched(false)
+    setZoneError(false)
+  }
+
+  function handleAddCountdown(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const data = new FormData(e.currentTarget)
+    const name = String(data.get('name') ?? '').trim()
+    const date = String(data.get('date') ?? '')
+    if (!name || !date) return
+    updateCountdowns((list) => [...list, { id: crypto.randomUUID(), name, date }])
+    e.currentTarget.reset()
   }
 
   async function handleExport() {
@@ -400,6 +456,162 @@ export default function SettingsPanel() {
             </div>
           ),
         )}
+      </section>
+
+      <section aria-label="World clocks">
+        <h3 className="mb-1 text-sm font-medium text-fg">World clocks</h3>
+        {(worldClocks ?? []).map((wc, i) => (
+          <div key={`${wc.zone}-${i}`} className={row}>
+            <span className={label}>{wc.zone}</span>
+            <div className="flex items-center gap-2">
+              <label htmlFor={`wc-label-${i}`} className="sr-only">
+                Label for {wc.zone}
+              </label>
+              <input
+                id={`wc-label-${i}`}
+                key={wc.label} // remount on external change, same as the profile name field above
+                defaultValue={wc.label}
+                onBlur={(e) => {
+                  const value = e.currentTarget.value.trim()
+                  if (!value || value === wc.label) return
+                  updateWorldClocks((list) =>
+                    list.map((z, j) => (j === i ? { ...z, label: value } : z)),
+                  )
+                }}
+                className={`${control} w-28`}
+              />
+              <button
+                type="button"
+                aria-label={`Remove ${wc.label}`}
+                onClick={() => updateWorldClocks((list) => list.filter((_, j) => j !== i))}
+                className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+        {(worldClocks?.length ?? 0) < MAX_WORLD_CLOCKS && (
+          <form className={row} onSubmit={handleAddZone}>
+            <div className="flex items-center gap-2">
+              <label htmlFor="wc-new-zone" className="sr-only">
+                Time zone
+              </label>
+              <input
+                id="wc-new-zone"
+                list="wc-zone-options"
+                placeholder="Time zone"
+                value={newZone}
+                onChange={(e) => {
+                  const zone = e.currentTarget.value
+                  setNewZone(zone)
+                  setZoneError(false)
+                  if (!zoneLabelTouched) setNewZoneLabel(cityFromZone(zone))
+                }}
+                className={`${control} w-36`}
+              />
+              <datalist id="wc-zone-options">
+                {TIME_ZONES.map((z) => (
+                  <option key={z} value={z} />
+                ))}
+              </datalist>
+            </div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="wc-new-label" className="sr-only">
+                Label
+              </label>
+              <input
+                id="wc-new-label"
+                placeholder="Label"
+                value={newZoneLabel}
+                onChange={(e) => {
+                  setNewZoneLabel(e.currentTarget.value)
+                  setZoneLabelTouched(true)
+                }}
+                className={`${control} w-24`}
+              />
+              <button
+                type="submit"
+                className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                Add
+              </button>
+            </div>
+          </form>
+        )}
+        {zoneError && <p className="text-xs text-fg-muted">Pick a time zone from the list.</p>}
+      </section>
+
+      <section aria-label="Countdowns">
+        <h3 className="mb-1 text-sm font-medium text-fg">Countdowns</h3>
+        {(countdowns ?? []).map((c) => (
+          <div key={c.id} className={row}>
+            <label htmlFor={`cd-name-${c.id}`} className="sr-only">
+              Countdown name
+            </label>
+            <input
+              id={`cd-name-${c.id}`}
+              key={c.name} // remount on external change, same as the profile name field above
+              defaultValue={c.name}
+              onBlur={(e) => {
+                const value = e.currentTarget.value.trim()
+                if (!value || value === c.name) return
+                updateCountdowns((list) =>
+                  list.map((x) => (x.id === c.id ? { ...x, name: value } : x)),
+                )
+              }}
+              className={`${control} w-28`}
+            />
+            <div className="flex items-center gap-2">
+              <label htmlFor={`cd-date-${c.id}`} className="sr-only">
+                Countdown date
+              </label>
+              <input
+                id={`cd-date-${c.id}`}
+                type="date"
+                value={c.date}
+                onChange={(e) => {
+                  // Capture the value synchronously: e.currentTarget is nulled
+                  // out once the event finishes dispatching, but storage.update's
+                  // fn only runs after an internal await (see lib/storage/index.ts),
+                  // so reading e.currentTarget.value lazily inside that closure
+                  // would silently throw and drop the write.
+                  const date = e.currentTarget.value
+                  updateCountdowns((list) =>
+                    list.map((x) => (x.id === c.id ? { ...x, date } : x)),
+                  )
+                }}
+                className={control}
+              />
+              <button
+                type="button"
+                aria-label={`Remove ${c.name}`}
+                onClick={() => updateCountdowns((list) => list.filter((x) => x.id !== c.id))}
+                className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        ))}
+        <form className={row} onSubmit={handleAddCountdown}>
+          <label htmlFor="cd-new-name" className="sr-only">
+            New countdown name
+          </label>
+          <input id="cd-new-name" name="name" placeholder="Name" className={`${control} w-28`} />
+          <div className="flex items-center gap-2">
+            <label htmlFor="cd-new-date" className="sr-only">
+              New countdown date
+            </label>
+            <input id="cd-new-date" name="date" type="date" className={control} />
+            <button
+              type="submit"
+              className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Add
+            </button>
+          </div>
+        </form>
       </section>
 
       <section aria-label="Data">
