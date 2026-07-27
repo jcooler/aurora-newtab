@@ -71,4 +71,31 @@ describe('NotesPanel', () => {
     })
     expect(textarea.value).toBe('applied while unfocused')
   })
+
+  it('traps focus in the textarea once loaded, and restores focus to whatever was previously focused when it closes', async () => {
+    // Stand-in for "the pill" that had focus before the panel opened — a
+    // real click on NotesWidget's actual pill button isn't reproducible via
+    // fireEvent.click in jsdom (unlike a real browser, it doesn't move
+    // focus), so this asserts the same mechanism useFocusTrap actually keys
+    // off: whatever `document.activeElement` was immediately before mount.
+    const pillStandIn = document.createElement('button')
+    document.body.appendChild(pillStandIn)
+    pillStandIn.focus()
+    expect(document.activeElement).toBe(pillStandIn)
+
+    // notes resolves asynchronously (same as real chrome.storage), so the
+    // panel's very first render has no ref-bearing dialog div yet — this
+    // proves useFocusTrap's effect correctly re-fires once it appears,
+    // rather than silently no-op'ing the way it would if `active` were
+    // hardcoded `true` from that first, ref-less render (see the comment in
+    // NotesPanel.tsx above the `useFocusTrap` call).
+    const { unmount } = await renderPanel()
+    const textarea = screen.getByRole('textbox') as HTMLTextAreaElement
+    expect(document.activeElement).toBe(textarea)
+
+    unmount()
+    expect(document.activeElement).toBe(pillStandIn)
+
+    document.body.removeChild(pillStandIn)
+  })
 })

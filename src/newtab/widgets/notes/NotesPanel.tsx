@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useDialogEscape } from '../../../lib/dialogStack'
+import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 
@@ -10,6 +11,7 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
   const [notes] = useStoredKey('notes')
   const [text, setText] = useState('')
 
+  const panelRef = useRef<HTMLDivElement>(null)
   const focusedRef = useRef(false)
   const textRef = useRef(text)
   textRef.current = text
@@ -53,6 +55,23 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-once; see comment above
   }, [])
 
+  // `active` is gated on readiness (`notes !== undefined`), NOT hardcoded
+  // `true` the way TodoPanel calls it. This component's dialog div only
+  // enters the JSX once `notes` has resolved (see the early-return below),
+  // so its FIRST render is always `null` — `panelRef.current` doesn't exist
+  // yet. useFocusTrap's effect deps are `[ref, active]`; if `active` were a
+  // constant `true` from that first render onward, the effect would run
+  // exactly once (while `ref.current` is still null), see nothing to trap,
+  // and never run again — deps never change, so React never re-invokes it,
+  // even once the dialog div (and its ref) shows up on a later render. Tying
+  // `active` to the SAME condition that gates the ref-bearing JSX (like
+  // TimerWidget ties its focus trap to `open`, the same flag that gates its
+  // panel div) makes `active` flip false -> true on exactly the render where
+  // `panelRef.current` first becomes non-null, which is what actually
+  // triggers useFocusTrap's initial-focus + Tab-trap + close-time restore.
+  const ready = notes !== undefined
+  useFocusTrap(panelRef, ready)
+
   useDialogEscape(onClose)
 
   const handleChange = (value: string) => {
@@ -68,6 +87,7 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div
+      ref={panelRef}
       role="dialog"
       aria-label="Notes"
       className="fixed bottom-16 left-4 z-30 h-64 w-80 rounded-panel border border-panel-border bg-[#17171c]/95 backdrop-blur-[var(--panel-blur)]"
@@ -77,7 +97,6 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
       </label>
       <textarea
         id="notes-textarea"
-        autoFocus
         value={text}
         placeholder="Jot something down…"
         onFocus={() => {
