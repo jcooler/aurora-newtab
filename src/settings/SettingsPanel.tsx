@@ -6,17 +6,16 @@ import { ENGINES } from '../lib/search'
 import { putUpload } from '../lib/idb'
 import type { PhotoPrefs, Settings, WidgetToggles } from '../lib/storage/schema'
 
-const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
+// Partial: WidgetToggles gains keys (bookmarks/notes/clocks/countdown) ahead
+// of the widgets that back them (see Tasks 26-28) — this stays non-exhaustive
+// on purpose so we don't render toggles for widgets that don't exist yet.
+const WIDGET_LABELS: Partial<Record<keyof WidgetToggles, string>> = {
   search: 'Search bar',
   weather: 'Weather',
   links: 'Quick links',
   todo: 'To-do lists',
   timer: 'Focus timer',
   quote: 'Daily quote',
-  bookmarks: 'Bookmarks',
-  notes: 'Notes',
-  clocks: 'World clocks',
-  countdown: 'Countdown',
 }
 
 const row = 'flex items-center justify-between gap-4 py-2'
@@ -246,22 +245,24 @@ export default function SettingsPanel() {
 
       <section aria-label="Widgets">
         <h3 className="mb-1 text-sm font-medium text-fg">Widgets</h3>
-        {(Object.keys(WIDGET_LABELS) as (keyof WidgetToggles)[]).map((key) => (
-          <div key={key} className={row}>
-            <label htmlFor={`w-${key}`} className={label}>
-              {WIDGET_LABELS[key]}
-            </label>
-            <input
-              id={`w-${key}`}
-              type="checkbox"
-              checked={settings.widgets[key]}
-              onChange={(e) =>
-                patch({ widgets: { ...settings.widgets, [key]: e.currentTarget.checked } })
-              }
-              className="size-4 accent-(--accent)"
-            />
-          </div>
-        ))}
+        {(Object.entries(WIDGET_LABELS) as [keyof WidgetToggles, string][]).map(
+          ([key, widgetLabel]) => (
+            <div key={key} className={row}>
+              <label htmlFor={`w-${key}`} className={label}>
+                {widgetLabel}
+              </label>
+              <input
+                id={`w-${key}`}
+                type="checkbox"
+                checked={settings.widgets[key]}
+                onChange={(e) =>
+                  patch({ widgets: { ...settings.widgets, [key]: e.currentTarget.checked } })
+                }
+                className="size-4 accent-(--accent)"
+              />
+            </div>
+          ),
+        )}
       </section>
     </div>
   )
