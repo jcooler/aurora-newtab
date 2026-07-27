@@ -17,6 +17,10 @@ const payload = {
     weather_code: [2, 61],
     is_day: [1, 0],
   },
+  daily: {
+    sunrise: ['2026-07-26T05:42'],
+    sunset: ['2026-07-26T20:31'],
+  },
 }
 
 describe('openMeteoProvider', () => {
@@ -44,8 +48,27 @@ describe('openMeteoProvider', () => {
       { time: '2026-07-26T14:00', tempC: 22.5, precipProb: 55, code: 61, isDay: false },
     ])
     expect(fetchFn.mock.calls[0][0]).toContain('is_day')
+    expect(fetchFn.mock.calls[0][0]).toContain('daily=sunrise,sunset')
+    expect(fetchFn.mock.calls[0][0]).toContain('forecast_days=1')
     expect(snap.locationLabel).toBe('Berlin')
     expect(snap.fetchedAt).toBeTypeOf('number')
+    expect(snap.sunriseISO).toBe('2026-07-26T05:42')
+    expect(snap.sunsetISO).toBe('2026-07-26T20:31')
+  })
+
+  it('leaves sun times undefined when the daily block is absent', async () => {
+    const { daily: _daily, ...payloadWithoutDaily } = payload
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => payloadWithoutDaily,
+    })
+    const snap = await openMeteoProvider(fetchFn as unknown as typeof fetch).fetchSnapshot(
+      52.52,
+      13.4,
+      'Berlin',
+    )
+    expect(snap.sunriseISO).toBeUndefined()
+    expect(snap.sunsetISO).toBeUndefined()
   })
 
   it('throws a descriptive error on HTTP failure', async () => {

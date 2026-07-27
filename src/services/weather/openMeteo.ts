@@ -5,7 +5,8 @@ const BASE = 'https://api.open-meteo.com/v1/forecast'
 const PARAMS =
   'current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day' +
   '&hourly=temperature_2m,precipitation_probability,weather_code,is_day' +
-  '&forecast_hours=12&timezone=auto'
+  '&forecast_hours=12&timezone=auto' +
+  '&daily=sunrise,sunset&forecast_days=1'
 
 export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvider {
   return {
@@ -32,6 +33,8 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
         })),
         fetchedAt: Date.now(),
         locationLabel: label,
+        sunriseISO: data.daily?.sunrise?.[0],
+        sunsetISO: data.daily?.sunset?.[0],
       }
     },
   }

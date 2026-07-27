@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compactHour, displayTemp } from './units'
+import { clockTime, compactHour, displayTemp, displayWind } from './units'
 
 describe('displayTemp', () => {
   it('rounds and formats metric', () => {
@@ -22,5 +22,33 @@ describe('compactHour', () => {
   it('zero-pads 24-hour form', () => {
     expect(compactHour(at(9), true)).toBe('09')
     expect(compactHour(at(15), true)).toBe('15')
+  })
+})
+
+describe('displayWind', () => {
+  it('formats metric km/h, rounded', () => {
+    expect(displayWind(14.2, 'metric')).toBe('14 km/h')
+  })
+  it('converts to mph, rounded', () => {
+    expect(displayWind(14.2, 'imperial')).toBe('9 mph') // 14.2 * 0.621371 = 8.82... -> 9
+  })
+})
+
+describe('clockTime', () => {
+  it('formats 12-hour with meridiem, minutes always padded', () => {
+    expect(clockTime('2026-07-26T05:42', false)).toBe('5:42 AM')
+    expect(clockTime('2026-07-26T20:31', false)).toBe('8:31 PM')
+  })
+  it('handles midnight and noon in 12-hour form', () => {
+    expect(clockTime('2026-07-26T00:00', false)).toBe('12:00 AM')
+    expect(clockTime('2026-07-26T12:00', false)).toBe('12:00 PM')
+  })
+  it('formats zero-padded 24-hour form', () => {
+    expect(clockTime('2026-07-26T05:42', true)).toBe('05:42')
+    expect(clockTime('2026-07-26T20:31', true)).toBe('20:31')
+  })
+  it('handles midnight and noon in 24-hour form', () => {
+    expect(clockTime('2026-07-26T00:00', true)).toBe('00:00')
+    expect(clockTime('2026-07-26T12:00', true)).toBe('12:00')
   })
 })
