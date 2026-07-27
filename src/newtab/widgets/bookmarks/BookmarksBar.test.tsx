@@ -78,6 +78,36 @@ describe('BookmarksBar', () => {
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
   })
 
+  it('elevates above TodoPanel/TimerWidget (z-30) only while a popover is open, not permanently', async () => {
+    await renderBar(nestedModel)
+    const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+    const folderChip = screen.getByRole('button', { name: 'Work' })
+
+    // Idle: below the z-30 panels TodoPanel/TimerWidget use, same as before
+    // FolderPopover's backdrop existed.
+    expect(nav.classList.contains('z-20')).toBe(true)
+    expect(nav.classList.contains('z-50')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    await screen.findByRole('dialog', { name: 'Work bookmarks' })
+
+    // Open: level with the popover's own panel, above its backdrop, so a
+    // DIFFERENT chip stays clickable through the dimmed page.
+    expect(nav.classList.contains('z-50')).toBe(true)
+    expect(nav.classList.contains('z-20')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(folderChip) // toggle the same chip closed
+    })
+
+    // Closed again: back down, so the bar no longer outranks TodoPanel/
+    // TimerWidget when no popover is open.
+    expect(nav.classList.contains('z-20')).toBe(true)
+    expect(nav.classList.contains('z-50')).toBe(false)
+  })
+
   it('opens the folder popover, drills into a subfolder, and returns via "‹ Back"', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })

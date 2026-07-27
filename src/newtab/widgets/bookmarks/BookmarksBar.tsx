@@ -53,13 +53,21 @@ function BookmarksBarInner() {
   return (
     <nav
       aria-label="Bookmarks bar"
-      // z-50: level with FolderPopover's own panel, and above its z-40
-      // backdrop — otherwise the backdrop (which spans the full viewport
-      // while a popover is open) would sit on top of the bar and swallow
-      // clicks meant for a DIFFERENT chip, breaking "click another chip to
-      // switch popovers directly" (only one popover open at a time is still
-      // enforced by openId being a single value either way).
-      className="fixed left-1/2 top-4 z-50 flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 -translate-x-1/2"
+      // z-20 normally (below TodoPanel/TimerWidget's z-30 panels, same as
+      // before this widget existed) but z-50 ONLY while a popover is open —
+      // level with FolderPopover's own panel, and above its z-40 backdrop.
+      // Scoped to `openId` rather than permanent: the backdrop only exists
+      // (and only needs outranking) while a popover is actually open: that's
+      // when it would otherwise sit on top of the bar and swallow clicks
+      // meant for a DIFFERENT chip, breaking "click another chip to switch
+      // popovers directly" (one popover open at a time is still enforced by
+      // openId being a single value regardless of z-index). Left permanently
+      // at z-50, the bar would instead render on top of TodoPanel/TimerWidget
+      // whenever they geometrically overlap even with no popover open — a
+      // stacking regression against those pre-existing widgets.
+      className={`fixed left-1/2 top-4 flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 -translate-x-1/2 ${
+        openId ? 'z-50' : 'z-20'
+      }`}
     >
       {visible.map((chip) =>
         chip.kind === 'folder' ? (
