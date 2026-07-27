@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
@@ -14,19 +15,9 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
 
   useFocusTrap(panelRef, true)
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      // First-consumer convention: whichever open dialog's listener runs first
-      // (registration order) claims the Escape and stops the rest from also
-      // closing. A second press then closes the next one.
-      if (e.key === 'Escape' && !e.defaultPrevented) {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [onClose])
+  // Newest-first shared stack (src/lib/dialogStack.ts): this panel only
+  // mounts while open, so it's always active.
+  useDialogEscape(onClose)
 
   const dispatch = (action: TodoAction) =>
     void storage.update('todoLists', (current) => todoReducer(current, action))

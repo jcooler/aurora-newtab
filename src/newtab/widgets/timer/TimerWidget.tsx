@@ -1,4 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
@@ -107,20 +108,9 @@ function TimerInner({ settings }: { settings: Settings }) {
     prevJustFinished.current = state.justFinished
   }, [state.justFinished, settings.muted])
 
-  useEffect(() => {
-    if (!open) return
-    // First-consumer convention: whichever open dialog's listener runs first
-    // (registration order) claims the Escape and stops the rest from also
-    // closing. A second press then closes the next one.
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !e.defaultPrevented) {
-        e.preventDefault()
-        setOpen(false)
-      }
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [open])
+  // Newest-first shared stack (src/lib/dialogStack.ts), active only while
+  // the panel is open.
+  useDialogEscape(() => setOpen(false), open)
 
   if (timerConfig === undefined) return null
 

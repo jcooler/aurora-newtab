@@ -68,6 +68,25 @@ describe('SettingsPanel theme radiogroup (APG roving-tabindex pattern)', () => {
     expect((await storage.get('settings')).theme).toBe('glass')
   })
 
+  it('ArrowDown aliases ArrowRight: moves selection AND applies it', async () => {
+    const storage = await renderPanel()
+
+    await act(async () => {
+      fireEvent.keyDown(themeGroup(), { key: 'ArrowDown' })
+    })
+
+    const glass = await screen.findByRole('radio', { name: 'Glass' })
+    expect(attr(glass, 'aria-checked')).toBe('true')
+    expect(attr(glass, 'tabindex')).toBe('0')
+    expect(document.activeElement).toBe(glass)
+
+    const aurora = screen.getByRole('radio', { name: 'Aurora' })
+    expect(attr(aurora, 'aria-checked')).toBe('false')
+    expect(attr(aurora, 'tabindex')).toBe('-1')
+
+    expect((await storage.get('settings')).theme).toBe('glass')
+  })
+
   it('ArrowLeft wraps from the first theme (Aurora) to the last (Mono)', async () => {
     const storage = await renderPanel()
 

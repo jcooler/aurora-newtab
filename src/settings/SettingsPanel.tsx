@@ -44,10 +44,16 @@ export default function SettingsPanel() {
     const currentIndex = THEMES.findIndex((t) => t.id === settings.theme)
     let nextIndex: number
     switch (e.key) {
+      // ArrowDown/ArrowUp alias Right/Left: this radiogroup lays its options
+      // out horizontally, but APG allows either axis's arrows to work, and
+      // some users reflexively reach for Up/Down on any roving-tabindex
+      // group regardless of visual orientation.
       case 'ArrowRight':
+      case 'ArrowDown':
         nextIndex = (currentIndex + 1 + THEMES.length) % THEMES.length
         break
       case 'ArrowLeft':
+      case 'ArrowUp':
         nextIndex = (currentIndex - 1 + THEMES.length) % THEMES.length
         break
       case 'Home':

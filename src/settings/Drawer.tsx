@@ -1,4 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
+import { useDialogEscape } from '../lib/dialogStack'
 import { useFocusTrap } from '../lib/hooks/useFocusTrap'
 
 export default function Drawer({
@@ -15,20 +16,10 @@ export default function Drawer({
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, open)
 
-  useEffect(() => {
-    if (!open) return
-    function onKey(e: KeyboardEvent) {
-      // First-consumer convention: whichever open dialog's listener runs first
-      // (registration order) claims the Escape and stops the rest from also
-      // closing. A second press then closes the next one.
-      if (e.key === 'Escape' && !e.defaultPrevented) {
-        e.preventDefault()
-        onClose()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  // Newest-first shared stack: Escape closes whichever dialog registered most
+  // recently (see src/lib/dialogStack.ts), so stacking this with the Tasks
+  // panel, timer panel, or palette closes them one at a time, newest first.
+  useDialogEscape(onClose, open)
 
   return (
     <>

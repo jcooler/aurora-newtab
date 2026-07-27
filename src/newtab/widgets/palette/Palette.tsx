@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
@@ -21,6 +22,11 @@ export default function Palette({
   const [activeIndex, setActiveIndex] = useState(0)
 
   useFocusTrap(panelRef, true)
+
+  // Newest-first shared stack (src/lib/dialogStack.ts). The dialog element's
+  // own onKeyDown below no longer intercepts Escape, so it bubbles up to the
+  // document listener this hook installs.
+  useDialogEscape(onClose)
 
   // ctx wraps every side effect the commands can trigger. Built once settings
   // has loaded (links defaults to [] so a link-less board still gets a ctx).
@@ -90,15 +96,7 @@ export default function Palette({
           aria-modal="true"
           aria-label="Command palette"
           onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              // Handled at the dialog element (not document): with focus
-              // trapped inside, this fires during the bubble phase before the
-              // event ever reaches document, so preventDefault() here makes
-              // Drawer/TodoPanel's `!e.defaultPrevented` document listeners
-              // skip it — no first-registered-wins ordering to worry about.
-              e.preventDefault()
-              onClose()
-            } else if (e.key === 'ArrowDown') {
+            if (e.key === 'ArrowDown') {
               e.preventDefault()
               if (results.length > 0) setActiveIndex((i) => Math.min(i + 1, results.length - 1))
             } else if (e.key === 'ArrowUp') {

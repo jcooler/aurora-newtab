@@ -55,6 +55,20 @@ export default function App() {
       */}
       <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
 
+      {/*
+        Weather and timer mount here — after Background's refresh button but
+        before Tasks/gear — purely for tab order (both are `fixed`-positioned,
+        so this has no effect on layout): search -> focus -> links -> photo
+        refresh -> weather controls -> timer pill -> Tasks -> gear.
+      */}
+      <WidgetBoundary name="weather">
+        <WeatherWidget />
+      </WidgetBoundary>
+
+      <WidgetBoundary name="timer">
+        <TimerWidget />
+      </WidgetBoundary>
+
       <WidgetBoundary name="todo">
         <TodoWidget />
       </WidgetBoundary>
@@ -70,14 +84,6 @@ export default function App() {
           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
         </svg>
       </button>
-
-      <WidgetBoundary name="weather">
-        <WeatherWidget />
-      </WidgetBoundary>
-
-      <WidgetBoundary name="timer">
-        <TimerWidget />
-      </WidgetBoundary>
 
       <WidgetBoundary name="quote">
         <QuoteWidget />
