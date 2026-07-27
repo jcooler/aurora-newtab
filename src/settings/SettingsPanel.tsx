@@ -1,9 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { THEMES } from '../theme/index'
 import { ENGINES } from '../lib/search'
-import { putUpload } from '../lib/idb'
+import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { serializeBackup, parseBackup } from '../lib/backup'
 import { migrate } from '../lib/storage/migrations'
 import { todayKey } from '../lib/dates'
@@ -40,8 +40,47 @@ export default function SettingsPanel() {
     migrated: AuroraData
     summary: string
   } | null>(null)
+  const [uploads, setUploads] = useState<{ key: string; blob: Blob }[]>([])
+  const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({})
+
+  // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
+  // bumps (every add/remove) — same "fresh read on nonce change" pattern the
+  // file input below already relies on for cross-tab re-reads.
+  useEffect(() => {
+    if (photoPrefs?.mode !== 'upload') {
+      setUploads([])
+      return
+    }
+    let cancelled = false
+    void listUploads().then((list) => {
+      if (cancelled) return // superseded effect run must not set stale state
+      setUploads(list)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [photoPrefs?.mode, photoPrefs?.uploadedAt])
+
+  // Object URLs derived from the blob list: created together whenever the
+  // list changes, and revoked together in cleanup (on the next refresh, or
+  // on unmount) so nothing leaks.
+  useEffect(() => {
+    const urls = Object.fromEntries(uploads.map((u) => [u.key, URL.createObjectURL(u.blob)]))
+    setThumbUrls(urls)
+    return () => {
+      Object.values(urls).forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [uploads])
+
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
+
+  async function handleRemoveUpload(key: string) {
+    await removeUpload(key)
+    // fresh read + changed value: a stale spread could revert concurrent
+    // writes, and a deep-equal write emits no chrome.storage event at all
+    await storage.update('photoPrefs', (p) => ({ ...p, uploadedAt: new Date().toISOString() }))
+  }
 
   async function handleExport() {
     const entries = await Promise.all(
@@ -271,18 +310,21 @@ export default function SettingsPanel() {
           </select>
         </div>
         {photoPrefs?.mode === 'upload' && (
-          <div className={row}>
-            <label htmlFor="set-bg-file" className={label}>
-              Image file
-            </label>
-            <input
-              id="set-bg-file"
-              type="file"
-              accept="image/*"
-              onChange={async (e) => {
-                const file = e.currentTarget.files?.[0]
-                if (file) {
-                  await putUpload(file)
+          <>
+            <div className={row}>
+              <label htmlFor="set-bg-file" className={label}>
+                Image files
+              </label>
+              <input
+                id="set-bg-file"
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={async (e) => {
+                  const files = Array.from(e.currentTarget.files ?? [])
+                  e.currentTarget.value = '' // allow re-selecting the same file(s) later
+                  if (files.length === 0) return
+                  await addUploads(files)
                   // fresh read + changed value: a stale spread could revert concurrent
                   // writes, and a deep-equal write emits no chrome.storage event at all
                   await storage.update('photoPrefs', (p) => ({
@@ -290,11 +332,43 @@ export default function SettingsPanel() {
                     mode: 'upload',
                     uploadedAt: new Date().toISOString(),
                   }))
-                }
-              }}
-              className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
-            />
-          </div>
+                }}
+                className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
+              />
+            </div>
+            {uploads.length > 0 && (
+              <div className={row}>
+                <span className={label} id="bg-gallery-label">
+                  Gallery
+                </span>
+                <div
+                  role="list"
+                  aria-labelledby="bg-gallery-label"
+                  className="flex flex-wrap justify-end gap-2"
+                >
+                  {uploads.map((u, i) => (
+                    <div key={u.key} role="listitem" className="relative">
+                      {thumbUrls[u.key] && (
+                        <img
+                          src={thumbUrls[u.key]}
+                          alt=""
+                          className="size-14 rounded object-cover"
+                        />
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Remove photo ${i + 1}`}
+                        onClick={() => void handleRemoveUpload(u.key)}
+                        className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </section>
 

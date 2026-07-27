@@ -117,6 +117,37 @@ await page.screenshot({ path: `${outDir}/palette.png` })
 console.log('captured palette.png')
 await page.keyboard.press('Escape')
 
+// Multi-photo background gallery: switching to "My photo" and populating it
+// can't be driven through a real OS file-chooser dialog under automation, so
+// seed it directly via setInputFiles on the (now-visible) file input. Placed
+// last, and the source is restored to "Daily photo" afterward, so this
+// leftover upload-mode state can't destabilize any capture above.
+await page.click('button[aria-label="Open settings"]')
+await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+await page.waitForTimeout(400) // slide-in transition
+await page.selectOption('#set-bg-mode', 'upload')
+await page.waitForSelector('#set-bg-file')
+await page.setInputFiles('#set-bg-file', ['public/photos/p01.webp', 'public/photos/p02.webp'])
+await page.waitForSelector('button[aria-label="Remove photo 1"]')
+await page.waitForTimeout(300) // thumbnail object-URL decode
+await page.screenshot({ path: `${outDir}/settings-gallery.png` })
+console.log('captured settings-gallery.png')
+
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400) // slide-out transition
+await page.waitForTimeout(800) // uploaded photo fade-in
+await page.screenshot({ path: `${outDir}/newtab-upload.png` })
+console.log('captured newtab-upload.png')
+
+// Restore the source so a re-run (or any capture appended after this block
+// later) starts from the stable "Daily photo" default.
+await page.click('button[aria-label="Open settings"]')
+await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+await page.waitForTimeout(400)
+await page.selectOption('#set-bg-mode', 'auto')
+await page.keyboard.press('Escape')
+await page.waitForTimeout(400)
+
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')
