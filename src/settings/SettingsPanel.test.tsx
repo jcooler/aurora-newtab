@@ -1,12 +1,22 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
+import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import SettingsPanel from './SettingsPanel'
+
+// Only the Background section's gallery touches IndexedDB; mock the whole
+// module so those tests don't need real IndexedDB (unavailable in jsdom) —
+// same pattern as Background.test.tsx.
+vi.mock('../lib/idb', () => ({
+  addUploads: vi.fn(),
+  listUploads: vi.fn(),
+  removeUpload: vi.fn(),
+}))
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -256,5 +266,110 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(await screen.findByText("That file isn't valid JSON.")).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
+  })
+})
+
+describe('SettingsPanel Background section (upload gallery)', () => {
+  let originalCreate: typeof URL.createObjectURL
+  let originalRevoke: typeof URL.revokeObjectURL
+
+  beforeEach(() => {
+    vi.mocked(addUploads).mockReset().mockResolvedValue(undefined)
+    vi.mocked(listUploads).mockReset().mockResolvedValue([])
+    vi.mocked(removeUpload).mockReset().mockResolvedValue(undefined)
+    // jsdom doesn't implement URL.createObjectURL/revokeObjectURL at all
+    // (spyOn requires the method to already exist), so they're stubbed
+    // directly, same as Background.test.tsx.
+    originalCreate = URL.createObjectURL
+    originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:mock-url') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+  })
+
+  afterEach(() => {
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+  })
+
+  async function renderPanelInUploadMode() {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'upload', index: 0, lastRotated: '' })
+    const { unmount } = render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    // Flush the gallery effect's listUploads() call, same as
+    // Background.test.tsx does after mounting in upload mode.
+    await act(async () => {})
+    return { storage, unmount }
+  }
+
+  // A single `await Promise.resolve()` or two isn't reliably enough hops to
+  // drain onChange's `await addUploads(...); await storage.update(...)` —
+  // the latter is itself a multi-hop read-modify-write chain (see
+  // lib/storage/index.ts). A macrotask flush drains the whole microtask
+  // queue regardless of chain depth, so it's used instead of guessing a hop count.
+  async function flushAsyncWork() {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  }
+
+  it('selecting files calls addUploads with the files and stamps the uploadedAt nonce', async () => {
+    const { storage } = await renderPanelInUploadMode()
+    const fileA = new File(['a'], 'a.png', { type: 'image/png' })
+    const fileB = new File(['b'], 'b.png', { type: 'image/png' })
+
+    const input = screen.getByLabelText('Image files') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [fileA, fileB] } })
+      await flushAsyncWork()
+    })
+
+    expect(addUploads).toHaveBeenCalledWith([fileA, fileB])
+    expect((await storage.get('photoPrefs')).uploadedAt).toBeTruthy()
+  })
+
+  it('renders one thumbnail per upload from the mocked gallery', async () => {
+    vi.mocked(listUploads).mockResolvedValue([
+      { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
+      { key: 'photo:b', blob: new Blob(['b'], { type: 'image/png' }) },
+    ])
+    const { unmount } = await renderPanelInUploadMode()
+
+    expect(await screen.findAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByRole('button', { name: 'Remove photo 1' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remove photo 2' })).toBeTruthy()
+
+    // Unmount now, while URL.revokeObjectURL is still the stub installed
+    // above: the thumbnail grid holds live object URLs, so the unmount
+    // effect calls revokeObjectURL, and this describe block's afterEach
+    // restores the (jsdom-absent) original before RTL's automatic
+    // post-test cleanup would otherwise unmount it — see Background.test.tsx.
+    unmount()
+  })
+
+  it('the ✕ on a thumbnail calls removeUpload with its key and stamps the uploadedAt nonce', async () => {
+    vi.mocked(listUploads).mockResolvedValue([
+      { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
+      { key: 'photo:b', blob: new Blob(['b'], { type: 'image/png' }) },
+    ])
+    const { storage, unmount } = await renderPanelInUploadMode()
+    const before = (await storage.get('photoPrefs')).uploadedAt
+
+    const removeSecond = await screen.findByRole('button', { name: 'Remove photo 2' })
+    await act(async () => {
+      fireEvent.click(removeSecond)
+      await flushAsyncWork()
+    })
+
+    expect(removeUpload).toHaveBeenCalledWith('photo:b')
+    const after = (await storage.get('photoPrefs')).uploadedAt
+    expect(after).toBeTruthy()
+    expect(after).not.toBe(before)
+
+    // Same live-object-URL ordering concern as the previous test.
+    unmount()
   })
 })

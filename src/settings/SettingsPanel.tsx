@@ -3,7 +3,8 @@ import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { THEMES } from '../theme/index'
 import { ENGINES } from '../lib/search'
-import { addUploads, listUploads, removeUpload } from '../lib/idb'
+import { addUploads, removeUpload } from '../lib/idb'
+import { useUploads } from '../lib/hooks/useUploads'
 import { serializeBackup, parseBackup } from '../lib/backup'
 import { migrate } from '../lib/storage/migrations'
 import { todayKey } from '../lib/dates'
@@ -40,26 +41,11 @@ export default function SettingsPanel() {
     migrated: AuroraData
     summary: string
   } | null>(null)
-  const [uploads, setUploads] = useState<{ key: string; blob: Blob }[]>([])
-  const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({})
-
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
   // bumps (every add/remove) — same "fresh read on nonce change" pattern the
   // file input below already relies on for cross-tab re-reads.
-  useEffect(() => {
-    if (photoPrefs?.mode !== 'upload') {
-      setUploads([])
-      return
-    }
-    let cancelled = false
-    void listUploads().then((list) => {
-      if (cancelled) return // superseded effect run must not set stale state
-      setUploads(list)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [photoPrefs?.mode, photoPrefs?.uploadedAt])
+  const uploads = useUploads(photoPrefs?.mode === 'upload', photoPrefs?.uploadedAt, [])
+  const [thumbUrls, setThumbUrls] = useState<Record<string, string>>({})
 
   // Object URLs derived from the blob list: created together whenever the
   // list changes, and revoked together in cleanup (on the next refresh, or

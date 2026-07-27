@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { PhotoPrefs } from '../../lib/storage/schema'
-import { listUploads } from '../../lib/idb'
+import { useUploads } from '../../lib/hooks/useUploads'
 import { BUNDLED, bundledUrl, nextPhoto, resolvePhoto } from '../../services/photos/index'
 import { todayKey } from '../../lib/dates'
 
@@ -14,29 +14,13 @@ export default function Background({
   // null = not loaded yet (or not in upload mode); [] = loaded and confirmed
   // empty — the distinction matters because only a confirmed-empty gallery
   // should trigger the bundled-set cascade below, not a load still in flight.
-  const [uploads, setUploads] = useState<{ key: string; blob: Blob }[] | null>(null)
+  // Depend on mode + the uploadedAt nonce (bumped on every add/remove), not
+  // the whole prefs object: rotation-only writes (index/lastRotated, now
+  // persisted in upload mode too — see the effect below) must not re-fetch
+  // an unchanged gallery on every rotation.
+  const uploads = useUploads(prefs.mode === 'upload', prefs.uploadedAt, null)
   const [uploadPhotoUrl, setUploadPhotoUrl] = useState<string | null>(null)
   const today = todayKey()
-
-  useEffect(() => {
-    if (prefs.mode !== 'upload') {
-      setUploads(null)
-      return
-    }
-    let cancelled = false
-    void listUploads().then((list) => {
-      if (cancelled) return // superseded effect run must not set stale state
-      setUploads(list)
-    })
-    return () => {
-      cancelled = true
-    }
-    // Depend on mode + the uploadedAt nonce (bumped on every add/remove), not
-    // the whole prefs object: rotation-only writes (index/lastRotated, now
-    // persisted in upload mode too — see the effect below) must not re-fetch
-    // an unchanged gallery on every rotation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefs.mode, prefs.uploadedAt])
 
   // Empty gallery in upload mode cascades to the bundled set, same as 'auto'
   // — a user who picked "My photo" but hasn't uploaded anything yet should
