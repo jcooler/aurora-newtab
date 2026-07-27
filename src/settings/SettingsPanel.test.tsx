@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
+import { parseBackup } from '../lib/backup'
+import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
 import SettingsPanel from './SettingsPanel'
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
@@ -153,5 +155,106 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
 
     expect(await storage.get('location')).toBeNull()
     expect(await storage.get('weatherCache')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Data section (export/import backup)', () => {
+  it('export builds a parseable envelope via a Blob + object URL', async () => {
+    let capturedBlob: Blob | null = null
+    // jsdom doesn't implement URL.createObjectURL/revokeObjectURL at all
+    // (spyOn requires the method to already exist), so they're stubbed
+    // directly rather than spied-on.
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      capturedBlob = blob
+      return 'blob:mock-url'
+    }) as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    // jsdom doesn't implement the "download" navigation an <a click> would
+    // trigger; the component's logic (Blob + createObjectURL) already ran by
+    // the time .click() fires, so stubbing it out avoids a jsdom "Not
+    // implemented: navigation" error without affecting what's under test.
+    const clickSpy = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {})
+
+    const storage = await renderPanel()
+    await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
+
+    const exportButton = await screen.findByRole('button', { name: 'Export' })
+    await act(async () => {
+      fireEvent.click(exportButton)
+    })
+
+    expect(capturedBlob).not.toBeNull()
+    const text = await (capturedBlob as unknown as Blob).text()
+    const result = parseBackup(text)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.version).toBe(CURRENT_VERSION)
+      expect(result.data.links).toEqual([
+        { id: '1', title: 'HN', url: 'https://news.ycombinator.com' },
+      ])
+    }
+
+    URL.createObjectURL = originalCreate
+    URL.revokeObjectURL = originalRevoke
+    clickSpy.mockRestore()
+  })
+
+  it('import happy path: parses, shows a confirm summary, and writes storage on confirm', async () => {
+    const storage = await renderPanel()
+    const backupData = {
+      ...defaults(),
+      links: [{ id: 'a', title: 'Example', url: 'https://example.com' }],
+    }
+    const backupText = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-07-20T00:00:00.000Z',
+      data: backupData,
+    })
+    const file = new File([backupText], 'aurora-backup-2026-07-20.json', {
+      type: 'application/json',
+    })
+
+    const input = screen.getByLabelText('Import backup') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      // File.text() is async; let the component's handler resolve.
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const confirmButton = await screen.findByRole('button', { name: 'Confirm' })
+    expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
+    expect(screen.getByText(/2026-07-20/)).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(confirmButton)
+    })
+
+    expect(await storage.get('links')).toEqual([
+      { id: 'a', title: 'Example', url: 'https://example.com' },
+    ])
+    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+  })
+
+  it('malformed import shows the rejection reason inline and writes nothing', async () => {
+    const storage = await renderPanel()
+    const before = await storage.get('links')
+    const file = new File(['not json at all {'], 'broken.json', { type: 'application/json' })
+
+    const input = screen.getByLabelText('Import backup') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByText("That file isn't valid JSON.")).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(await storage.get('links')).toEqual(before)
   })
 })

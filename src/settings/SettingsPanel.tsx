@@ -1,10 +1,15 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { THEMES } from '../theme/index'
 import { ENGINES } from '../lib/search'
 import { putUpload } from '../lib/idb'
-import type { PhotoPrefs, Settings, WidgetToggles } from '../lib/storage/schema'
+import { serializeBackup, parseBackup } from '../lib/backup'
+import { migrate } from '../lib/storage/migrations'
+import { todayKey } from '../lib/dates'
+import { defaults, type AuroraData, type DataKey, type PhotoPrefs, type Settings, type WidgetToggles } from '../lib/storage/schema'
+
+const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 
 // Partial: WidgetToggles gains keys (bookmarks/notes/clocks/countdown) ahead
 // of the widgets that back them (see Tasks 26-28) — this stays non-exhaustive
@@ -29,8 +34,71 @@ export default function SettingsPanel() {
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
   const themeGroupRef = useRef<HTMLDivElement>(null)
+  const importInputRef = useRef<HTMLInputElement>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<{
+    migrated: AuroraData
+    summary: string
+  } | null>(null)
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
+
+  async function handleExport() {
+    const entries = await Promise.all(
+      DATA_KEYS.map(async (key) => [key, await storage.get(key)] as const),
+    )
+    const data = Object.fromEntries(entries) as unknown as AuroraData
+    const json = serializeBackup(data)
+    const blob = new Blob([json], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `aurora-backup-${todayKey()}.json`
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  async function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.currentTarget.files?.[0]
+    e.currentTarget.value = '' // allow re-selecting the same file later
+    if (!file) return
+    setImportError(null)
+    setPendingImport(null)
+    const text = await file.text()
+    const result = parseBackup(text)
+    if (!result.ok) {
+      setImportError(result.reason)
+      return
+    }
+    const migrated = migrate(result.data, result.version)
+    // parseBackup already confirmed valid JSON; re-parsing here just recovers
+    // exportedAt, which parseBackup's contract deliberately omits.
+    let exportedAt: string | undefined
+    try {
+      const raw = JSON.parse(text) as { exportedAt?: unknown }
+      if (typeof raw.exportedAt === 'string') exportedAt = raw.exportedAt
+    } catch {
+      // unreachable: parseBackup already validated this text is JSON
+    }
+    const dateStr = exportedAt ? exportedAt.slice(0, 10) : 'an unknown date'
+    const summary =
+      `Replace current data? Backup from ${dateStr} — ${migrated.todoLists.length} lists, ` +
+      `${migrated.links.length} links, ${migrated.countdowns.length} countdowns.`
+    setPendingImport({ migrated, summary })
+  }
+
+  async function handleConfirmImport() {
+    if (!pendingImport) return
+    const { migrated } = pendingImport
+    await Promise.all(DATA_KEYS.map((key) => storage.set(key, migrated[key])))
+    setPendingImport(null)
+  }
+
+  function handleCancelImport() {
+    setPendingImport(null)
+  }
 
   // APG radiogroup keyboard pattern: arrow keys move AND apply the selection
   // (this isn't a form that needs a separate "submit", so there's no reason
@@ -269,6 +337,56 @@ export default function SettingsPanel() {
             </div>
           ),
         )}
+      </section>
+
+      <section aria-label="Data">
+        <h3 className="mb-1 text-sm font-medium text-fg">Data</h3>
+        <div className={row}>
+          <span className={label}>Export backup</span>
+          <button
+            type="button"
+            onClick={() => void handleExport()}
+            className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Export
+          </button>
+        </div>
+        <div className={row}>
+          <label htmlFor="set-import" className={label}>
+            Import backup
+          </label>
+          <input
+            id="set-import"
+            ref={importInputRef}
+            type="file"
+            accept=".json,application/json"
+            onChange={(e) => void handleImportChange(e)}
+            className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
+          />
+        </div>
+        {importError && <p className="text-fg-muted text-xs">{importError}</p>}
+        {pendingImport && (
+          <div className="mt-2 flex flex-col gap-2 rounded border border-panel-border p-2">
+            <p className="text-sm text-fg-muted">{pendingImport.summary}</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => void handleConfirmImport()}
+                className="rounded border border-panel-border px-2 py-1 text-sm text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                Confirm
+              </button>
+              <button
+                type="button"
+                onClick={handleCancelImport}
+                className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+        <p className="mt-2 text-xs text-fg-muted">Background photo uploads are not included.</p>
       </section>
     </div>
   )

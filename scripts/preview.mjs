@@ -68,6 +68,14 @@ for (const theme of ['Aurora', 'Glass', 'Mono']) {
   console.log(`captured drawer-${theme.toLowerCase()}.png`)
 }
 
+// The drawer scrolls internally; the new Data section (export/import backup)
+// sits below the fold at this viewport height, so scroll it into view for a
+// dedicated screenshot rather than relying on the per-theme captures above.
+await page.locator('section[aria-label="Data"]').scrollIntoViewIfNeeded()
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/drawer-data.png` })
+console.log('captured drawer-data.png')
+
 // Close the drawer, then expand the weather widget's hourly forecast
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400) // slide-out transition

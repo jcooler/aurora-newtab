@@ -98,6 +98,28 @@ automatically from `THEMES`.
    `<WidgetBoundary name="...">` — a widget that throws must never take the
    rest of the page down with it.
 
+## Data
+
+Settings → **Data** lets you back up and restore everything Aurora stores,
+as a single JSON file:
+
+- **Export** downloads `aurora-backup-YYYY-MM-DD.json` — a pretty-printed
+  envelope (`app`, `version`, `exportedAt`, and `data`) containing every
+  stored key: settings, quick links, to-do lists, the focus timer config,
+  today's focus text, background preferences, weather cache, location,
+  notes, world clocks, and countdowns.
+- **Background photo uploads are not included.** They live in IndexedDB as
+  a blob, not in the JSON-serializable data the backup covers; re-select
+  your image after restoring if you were using an uploaded background.
+- **Import** reads a backup file you choose, checks that it's a real Aurora
+  backup, and — if it is — shows a one-line summary of what it contains and
+  asks you to confirm before it replaces anything. Nothing is overwritten
+  until you click **Confirm**. Backups from older versions of Aurora are
+  migrated forward automatically before that summary is shown.
+- If the chosen file isn't a valid Aurora backup (wrong format, wrong app,
+  or a version newer than this build understands), Import shows why and
+  leaves your current data untouched.
+
 ## Privacy
 
 Aurora has no backend and no accounts. All of your data — settings, quick
