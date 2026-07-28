@@ -183,6 +183,13 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     }
   })
 
+  it('rejects a layout whose entry is not a finite pair', () => {
+    const bad = { ...defaults(), layout: { clock: { x: NaN, y: 10 } } }
+    const result = validateBackupShape(bad as never)
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.reason).toBe('That backup\'s "layout" data is invalid.')
+  })
+
   it('accepts a fully-defaulted backup unchanged', () => {
     const result = validateBackupShape(defaults())
     expect(result).toEqual({ ok: true, data: defaults() })
@@ -213,6 +220,15 @@ describe('validateBackupShape: unknown-key dropping', () => {
     if (result.ok) {
       expect(Object.keys(result.data).sort()).toEqual(Object.keys(defaults()).sort())
       expect('bogusExtraKey' in result.data).toBe(false)
+    }
+  })
+
+  it('drops unknown block ids from layout on import but keeps known ones', () => {
+    const data = { ...defaults(), layout: { clock: { x: 40, y: 30 }, bogus: { x: 1, y: 1 } } }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.layout).toEqual({ clock: { x: 40, y: 30 } })
     }
   })
 })

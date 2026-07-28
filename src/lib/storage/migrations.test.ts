@@ -16,7 +16,7 @@ describe('migrate', () => {
   it('runs registered migrations in order up to the current version', () => {
     const calls: number[] = []
     const registry: Record<number, Migration> = {
-      // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2 (CURRENT_VERSION)
+      // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2] upgrades v2 -> v3 (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -25,9 +25,13 @@ describe('migrate', () => {
         calls.push(1)
         return data
       },
+      2: (data) => {
+        calls.push(2)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1])
+    expect(calls).toEqual([0, 1, 2])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -84,5 +88,17 @@ describe('v1 -> v2', () => {
     const out = migrate({ links: [] }, 1)
     expect(out.worldClocks).toEqual([])
     expect(out.countdowns).toEqual([])
+  })
+})
+
+describe('v2 -> v3', () => {
+  it('backfills an empty layout map', () => {
+    const out = migrate({ settings: defaults().settings }, 2)
+    expect(out.layout).toEqual({})
+  })
+  it('a v1 snapshot chains through both migrations', () => {
+    const out = migrate({}, 1)
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 still ran
+    expect(out.layout).toEqual({}) // v2->v3 ran after it
   })
 })

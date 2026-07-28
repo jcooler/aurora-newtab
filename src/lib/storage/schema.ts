@@ -1,4 +1,6 @@
-export const CURRENT_VERSION = 2
+import type { Layout } from '../layout/types'
+
+export const CURRENT_VERSION = 3
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
@@ -127,6 +129,7 @@ export interface AuroraData {
   notes: Notes
   worldClocks: WorldClock[]
   countdowns: Countdown[]
+  layout: Layout
 }
 
 export type DataKey = keyof AuroraData
@@ -163,5 +166,6 @@ export function defaults(): AuroraData {
     notes: { text: '', updatedAt: 0 },
     worldClocks: [],
     countdowns: [],
+    layout: {},
   }
 }

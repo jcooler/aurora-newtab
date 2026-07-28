@@ -28,6 +28,8 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v2 -> v3: free-layout map for arrange mode. Absent for every v2 user.
+  2: (data) => ({ ...data, layout: {} }),
 }
 
 export function migrate(

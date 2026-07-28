@@ -7,6 +7,7 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { ENGINES } from './search'
 import { isPlainObject } from './object'
+import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
 
 const APP_ID = 'aurora'
 
@@ -224,6 +225,18 @@ function isCountdowns(v: unknown): boolean {
   )
 }
 
+function isBlockPos(v: unknown): boolean {
+  return isPlainObject(v) && isNumber(v.x) && isNumber(v.y)
+}
+
+// Structural only: every entry must be a finite {x,y} pair. Unknown block ids
+// (keys outside BLOCK_IDS) are NOT rejected here — they're silently dropped
+// later in the cleaned-assembly step below, matching the unknown-top-level-key
+// convention rather than failing the whole import.
+function isLayout(v: unknown): boolean {
+  return isPlainObject(v) && Object.values(v).every(isBlockPos)
+}
+
 const VALIDATORS: Record<DataKey, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
@@ -236,6 +249,19 @@ const VALIDATORS: Record<DataKey, (v: unknown) => boolean> = {
   notes: isNotes,
   worldClocks: isWorldClocks,
   countdowns: isCountdowns,
+  layout: isLayout,
+}
+
+const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
+
+/** Drops any layout entry whose key isn't a known BlockId. */
+function cleanLayout(v: unknown): Layout {
+  const layout = v as Layout
+  const cleaned: Layout = {}
+  for (const id of Object.keys(layout) as BlockId[]) {
+    if (BLOCK_ID_SET.has(id)) cleaned[id] = layout[id]
+  }
+  return cleaned
 }
 
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
@@ -258,7 +284,10 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
     if (!VALIDATORS[key](value)) {
       return { ok: false, reason: `That backup's "${key}" data is invalid.` }
     }
-    cleaned[key] = value
+    // Known block ids pass VALIDATORS as-is; unknown ones (extra keys inside
+    // an otherwise-valid layout object) are dropped here, matching the
+    // unknown-top-level-key convention above rather than failing the import.
+    cleaned[key] = key === 'layout' ? cleanLayout(value) : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
 }
