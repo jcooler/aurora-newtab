@@ -5,6 +5,7 @@ import Background from './components/Background'
 import Clock from './components/Clock'
 import Greeting from './components/Greeting'
 import FocusLine from './components/FocusLine'
+import PositionedBlock from './components/PositionedBlock'
 import SearchBar from './components/SearchBar'
 import WidgetBoundary from './components/WidgetBoundary'
 import Drawer from '../settings/Drawer'
@@ -24,35 +25,52 @@ import CountdownLine from './widgets/countdown/CountdownLine'
 export default function App() {
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [layout] = useStoredKey('layout')
   const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     if (settings) applyTheme(settings.theme)
   }, [settings?.theme])
 
-  if (!settings || !photoPrefs) return null
+  if (!settings || !photoPrefs || !layout) return null
 
   return (
     <main className="relative h-screen overflow-hidden text-fg">
       <div className="flex h-full flex-col items-center justify-center">
         <WidgetBoundary name="clock">
-          <Clock />
-          <Greeting />
+          <PositionedBlock id="clock" pos={layout?.clock}>
+            <Clock />
+          </PositionedBlock>
+        </WidgetBoundary>
+        <WidgetBoundary name="greeting">
+          <PositionedBlock id="greeting" pos={layout?.greeting}>
+            <Greeting />
+          </PositionedBlock>
         </WidgetBoundary>
         <WidgetBoundary name="clocks">
-          <WorldClocks />
+          <PositionedBlock id="worldClocks" pos={layout?.worldClocks}>
+            <WorldClocks />
+          </PositionedBlock>
         </WidgetBoundary>
         <WidgetBoundary name="countdown">
-          <CountdownLine />
+          <PositionedBlock id="countdown" pos={layout?.countdown}>
+            <CountdownLine />
+          </PositionedBlock>
         </WidgetBoundary>
         <WidgetBoundary name="search">
-          <SearchBar />
+          <PositionedBlock id="search" pos={layout?.search}>
+            <SearchBar />
+          </PositionedBlock>
         </WidgetBoundary>
         <WidgetBoundary name="focus">
-          <FocusLine />
+          <PositionedBlock id="focus" pos={layout?.focus}>
+            <FocusLine />
+          </PositionedBlock>
         </WidgetBoundary>
         <WidgetBoundary name="links">
-          <LinksWidget />
+          <PositionedBlock id="links" pos={layout?.links}>
+            <LinksWidget />
+          </PositionedBlock>
         </WidgetBoundary>
       </div>
 
