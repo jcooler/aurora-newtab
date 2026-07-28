@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { listUploads } from '../idb'
 
-type Upload = { key: string; blob: Blob }
+export type Upload = { key: string; blob: Blob }
 
 /**
  * Loads the uploaded-photo gallery while `active`, re-fetching whenever
