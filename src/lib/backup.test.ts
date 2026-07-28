@@ -153,6 +153,24 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "countdowns" data is invalid.' })
   })
 
+  it('rejects settings.searchEngine outside the known engine keys', () => {
+    // Unlike theme/units/photoPrefs.mode, an unrecognized searchEngine is a
+    // real reachable crash: SearchBar.tsx calls ENGINES[engine].url, and an
+    // uncaught TypeError from a form's onSubmit handler isn't caught by any
+    // React error boundary (event-handler throws don't unwind through one).
+    const bad = { ...defaults(), settings: { ...defaults().settings, searchEngine: 'yahoo' } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+
+  it('accepts every real engine key as a valid settings.searchEngine', () => {
+    for (const engine of ['google', 'duckduckgo', 'bing'] as const) {
+      const ok = { ...defaults(), settings: { ...defaults().settings, searchEngine: engine } }
+      const result = validateBackupShape(ok as never)
+      expect(result.ok).toBe(true)
+    }
+  })
+
   it('accepts a fully-defaulted backup unchanged', () => {
     const result = validateBackupShape(defaults())
     expect(result).toEqual({ ok: true, data: defaults() })
