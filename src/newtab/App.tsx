@@ -93,23 +93,37 @@ export default function App() {
         gear.
       */}
       <WidgetBoundary name="weather">
-        <WeatherWidget />
+        <PositionedBlock id="weather" pos={layout?.weather} className="fixed right-4 top-4">
+          <WeatherWidget />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <WidgetBoundary name="bookmarks">
-        <BookmarksBar />
+        <PositionedBlock
+          id="bookmarks"
+          pos={layout?.bookmarks}
+          className="fixed left-1/2 top-4 -translate-x-1/2"
+        >
+          <BookmarksBar />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <WidgetBoundary name="timer">
-        <TimerWidget />
+        <PositionedBlock id="timer" pos={layout?.timer} className="fixed left-4 top-4">
+          <TimerWidget />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <WidgetBoundary name="notes">
-        <NotesWidget />
+        <PositionedBlock id="notes" pos={layout?.notes} className="fixed bottom-4 left-16">
+          <NotesWidget />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <WidgetBoundary name="todo">
-        <TodoWidget />
+        <PositionedBlock id="tasks" pos={layout?.tasks} className="fixed bottom-4 right-16">
+          <TodoWidget />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <button
@@ -125,7 +139,30 @@ export default function App() {
       </button>
 
       <WidgetBoundary name="quote">
-        <QuoteWidget />
+        {/*
+          pointer-events-none: unlike weather/bookmarks/timer/notes/tasks
+          below (each shrink-to-fit sized, `left`/`right` alone), the quote's
+          old single-element `fixed inset-x-0 bottom-6 mx-auto max-w-xl`
+          resolved its actual (auto-margin) width via shrink-to-fit BECAUSE
+          `mx-auto` lived on the SAME element as `inset-x-0` — CSS only takes
+          that shortcut when both margins are auto. Split across a wrapper +
+          inner figure, the wrapper's own margins are the default 0 (not
+          auto), so `left:0;right:0` alone forces it to the full 1600px
+          viewport width — invisible, but still hit-testable, and (being
+          later in the DOM than Tasks/Notes/Timer/the gear) it silently ate
+          their clicks wherever it vertically overlapped them. QuoteWidget
+          has no interactive children, so disabling pointer events on this
+          wrapper is a total no-op visually and functionally except for
+          fixing that regression — confirmed via a real Playwright click
+          through to the Tasks pill underneath.
+        */}
+        <PositionedBlock
+          id="quote"
+          pos={layout?.quote}
+          className="pointer-events-none fixed inset-x-0 bottom-6"
+        >
+          <QuoteWidget />
+        </PositionedBlock>
       </WidgetBoundary>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">

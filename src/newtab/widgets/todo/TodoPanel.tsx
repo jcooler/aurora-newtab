@@ -3,9 +3,16 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import type { PanelPlacement } from '../../../lib/layout/anchor'
 import { todoReducer, type TodoAction } from './todoReducer'
 
-export default function TodoPanel({ onClose }: { onClose: () => void }) {
+export default function TodoPanel({
+  anchor,
+  onClose,
+}: {
+  anchor: PanelPlacement
+  onClose: () => void
+}) {
   const [lists] = useStoredKey('todoLists')
   const storage = useStorage()
   const panelRef = useRef<HTMLDivElement>(null)
@@ -77,7 +84,8 @@ export default function TodoPanel({ onClose }: { onClose: () => void }) {
       ref={panelRef}
       role="dialog"
       aria-label="Tasks"
-      className="fixed bottom-16 right-4 z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
+      style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+      className="z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
     >
       <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
         <h2 className="text-sm font-medium">Tasks</h2>

@@ -11,13 +11,22 @@ async function renderPanel() {
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <TodoPanel onClose={vi.fn()} />
+      <TodoPanel anchor={{ left: 1264, top: 619 }} onClose={vi.fn()} />
     </StorageProvider>,
   )
   return { storage, unmount: utils.unmount }
 }
 
 describe('TodoPanel', () => {
+  it('positions itself at the anchor prop via inline position:fixed (no fixed-position class of its own)', async () => {
+    await renderPanel()
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.style.position).toBe('fixed')
+    expect(dialog.style.left).toBe('1264px')
+    expect(dialog.style.top).toBe('619px')
+    expect(dialog.classList.contains('fixed')).toBe(false)
+  })
+
   it('traps focus in the panel once loaded, and restores focus to whatever was previously focused when it closes', async () => {
     // Stand-in for "the pill" that had focus before the panel opened — a
     // real click on TodoWidget's actual pill button isn't reproducible via

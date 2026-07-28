@@ -3,10 +3,17 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
+import type { PanelPlacement } from '../../../lib/layout/anchor'
 
 const SAVE_DEBOUNCE_MS = 500
 
-export default function NotesPanel({ onClose }: { onClose: () => void }) {
+export default function NotesPanel({
+  anchor,
+  onClose,
+}: {
+  anchor: PanelPlacement
+  onClose: () => void
+}) {
   const storage = useStorage()
   const [notes] = useStoredKey('notes')
   const [text, setText] = useState('')
@@ -95,7 +102,8 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
       ref={panelRef}
       role="dialog"
       aria-label="Notes"
-      className="fixed bottom-16 left-4 z-30 h-64 w-80 rounded-panel border border-panel-border bg-[#17171c]/95 backdrop-blur-[var(--panel-blur)]"
+      style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+      className="z-30 h-64 w-80 rounded-panel border border-panel-border bg-[#17171c]/95 backdrop-blur-[var(--panel-blur)]"
     >
       <label htmlFor="notes-textarea" className="sr-only">
         Scratchpad

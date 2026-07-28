@@ -79,7 +79,7 @@ function BookmarksBarInner() {
       // at z-50, the bar would instead render on top of TodoPanel/TimerWidget
       // whenever they geometrically overlap even with no popover open — a
       // stacking regression against those pre-existing widgets.
-      className={`fixed left-1/2 top-4 flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 -translate-x-1/2 ${
+      className={`flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 ${
         openId ? 'z-50' : 'z-20'
       }`}
     >

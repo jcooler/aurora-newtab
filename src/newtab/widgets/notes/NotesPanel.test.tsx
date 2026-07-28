@@ -12,7 +12,7 @@ async function renderPanel() {
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <NotesPanel onClose={vi.fn()} />
+      <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
     </StorageProvider>,
   )
   // Fake timers (below) block testing-library's setTimeout-polled findBy/
@@ -29,6 +29,15 @@ describe('NotesPanel', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('positions itself at the anchor prop via inline position:fixed (no fixed-position class of its own)', async () => {
+    await renderPanel()
+    const dialog = screen.getByRole('dialog', { name: 'Notes' })
+    expect(dialog.style.position).toBe('fixed')
+    expect(dialog.style.left).toBe('16px')
+    expect(dialog.style.top).toBe('582px')
+    expect(dialog.classList.contains('fixed')).toBe(false)
   })
 
   it('autosaves the debounced text to storage 500ms after the last keystroke', async () => {
@@ -135,7 +144,7 @@ describe('NotesPanel', () => {
     render(
       <StorageProvider storage={storage}>
         <BelowDialog />
-        <NotesPanel onClose={notesOnClose} />
+        <NotesPanel anchor={{ left: 16, top: 582 }} onClose={notesOnClose} />
       </StorageProvider>,
     )
     await act(async () => {}) // NotesPanel mounts; its notes read is gated, still pending

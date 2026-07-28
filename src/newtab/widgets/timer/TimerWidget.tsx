@@ -4,12 +4,20 @@ import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import type { Settings, TimerConfig } from '../../../lib/storage/schema'
+import { anchorPanel, type PanelPlacement } from '../../../lib/layout/anchor'
 import { playChime } from './chime'
 import { initialTimer, timerReducer, type TimerAction, type TimerState } from './timerReducer'
 
 const DEFAULT_CONFIG: TimerConfig = { workMinutes: 25, breakMinutes: 5 }
 const MIN_MINUTES = 1
 const MAX_MINUTES = 180
+
+// The panel has no fixed-height class (auto, sized to its content — header,
+// countdown, controls, work/break inputs, and an optional "N sessions
+// completed" line once cycles > 0); this is its measured height in the
+// deterministic default-open state (cycles === 0, that line absent). Width
+// matches the panel's w-64 class exactly.
+export const TIMER_PANEL_SIZE = { w: 256, h: 175 }
 
 function clampMinutes(value: number): number {
   if (!Number.isFinite(value)) return MIN_MINUTES
@@ -50,8 +58,10 @@ function TimerInner({ settings }: { settings: Settings }) {
 
   const now = useNow(500)
   const [open, setOpen] = useState(false)
+  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const [flash, setFlash] = useState(false)
   const [announcement, setAnnouncement] = useState('')
+  const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const prevJustFinished = useRef<TimerState['justFinished']>(state.justFinished)
   const prevConfigKey = useRef(`${config.workMinutes}:${config.breakMinutes}`)
@@ -124,16 +134,34 @@ function TimerInner({ settings }: { settings: Settings }) {
   const pause = () => dispatch({ type: 'pause', now: Date.now() })
   const reset = () => dispatch({ type: 'reset', now: Date.now() })
 
+  // The panel follows the pill: measured on open (not live-tracked — the
+  // pill can't move while the panel is open today, since arrange mode closes
+  // panels), via the same anchorPanel formula every peripheral panel uses.
+  const togglePanel = () => {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    if (pillRef.current) {
+      const rect = pillRef.current.getBoundingClientRect()
+      setAnchor(
+        anchorPanel(rect, TIMER_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
+      )
+    }
+    setOpen(true)
+  }
+
   return (
     <>
       <button
+        ref={pillRef}
         type="button"
         aria-expanded={open}
         aria-label={`Focus timer: ${display} remaining, ${state.mode} session, ${
           state.running ? 'running' : 'paused'
         }`}
-        onClick={() => setOpen((v) => !v)}
-        className={`fixed left-4 top-4 rounded-panel border border-panel-border bg-panel px-3 py-2 text-sm tabular-nums backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${
+        onClick={togglePanel}
+        className={`rounded-panel border border-panel-border bg-panel px-3 py-2 text-sm tabular-nums backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${
           flash ? 'text-accent' : 'text-fg'
         }`}
       >
@@ -141,12 +169,13 @@ function TimerInner({ settings }: { settings: Settings }) {
         {display}
       </button>
 
-      {open && (
+      {open && anchor && (
         <div
           ref={panelRef}
           role="dialog"
           aria-label="Focus timer"
-          className="fixed left-4 top-16 z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-[#17171c]/95 p-3 text-fg backdrop-blur-[var(--panel-blur)]"
+          style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-[#17171c]/95 p-3 text-fg backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium capitalize">{state.mode} session</h2>
