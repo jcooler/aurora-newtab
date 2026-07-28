@@ -1,9 +1,12 @@
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import type { BookmarkFolder, BookmarkItem } from '../../../services/bookmarks'
 import { faviconUrl } from '../links/linksLogic'
+
+// Kept clear of the viewport edge when the panel is nudged back on-screen.
+const EDGE_MARGIN = 8
 
 export function FolderIcon({ className = '' }: { className?: string }) {
   return (
@@ -42,6 +45,7 @@ export default function FolderPopover({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [stack, setStack] = useState<BookmarkFolder[]>([])
+  const [edgeShift, setEdgeShift] = useState(0)
   const top = stack[stack.length - 1]
   const currentTitle = top ? top.title : title
   const currentItems = top ? top.items : items
@@ -50,6 +54,27 @@ export default function FolderPopover({
   useFocusTrap(panelRef, true)
   // Newest-first shared stack (src/lib/dialogStack.ts).
   useDialogEscape(onClose)
+
+  // The panel is centered under its chip by default (left-1/2 -translate-x-1/2
+  // below) — CSS alone can't correct for a chip near the left/right edge of
+  // the viewport, since that centering is relative to the chip, not the
+  // viewport. Measure once per open/drill (jsdom has no layout engine, so
+  // getBoundingClientRect() is an all-zero rect there — the width===0 guard
+  // makes this a no-op in tests unless a test deliberately mocks it) and
+  // nudge horizontally by the smallest amount that brings both edges back
+  // within EDGE_MARGIN of the viewport.
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0) return
+    let shift = 0
+    if (rect.left < EDGE_MARGIN) shift = EDGE_MARGIN - rect.left
+    else if (rect.right > window.innerWidth - EDGE_MARGIN) {
+      shift = window.innerWidth - EDGE_MARGIN - rect.right
+    }
+    setEdgeShift(shift)
+  }, [currentTitle])
 
   return (
     <>
@@ -77,6 +102,17 @@ export default function FolderPopover({
         role="dialog"
         aria-modal="true"
         aria-label={`${currentTitle} bookmarks`}
+        // Tailwind v4 compiles -translate-x-1/2 to the native CSS `translate`
+        // property (not `transform`), so overriding it here — rather than
+        // `style.transform` — is what actually wins over the class. Only set
+        // when a shift is needed: leaving it undefined otherwise means the
+        // class alone controls centering, unchanged from before this effect
+        // existed.
+        style={
+          edgeShift
+            ? { translate: `calc(-50% ${edgeShift >= 0 ? '+' : '-'} ${Math.abs(edgeShift)}px) 0` }
+            : undefined
+        }
         className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
       >
           {top && (

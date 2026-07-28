@@ -2,8 +2,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
-import { memoryDriver } from '../../../lib/storage/driver'
+import { memoryDriver, type StorageDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import NotesPanel from './NotesPanel'
 
 async function renderPanel() {
@@ -97,5 +98,59 @@ describe('NotesPanel', () => {
     expect(document.activeElement).toBe(pillStandIn)
 
     document.body.removeChild(pillStandIn)
+  })
+
+  it("doesn't register on the shared Escape stack until `notes` resolves, so a press during that window reaches whatever dialog is stacked below instead of being eaten", async () => {
+    // A driver whose reads stay pending until releaseNotesRead() is called —
+    // storage.init() itself runs against the fast base driver first (so
+    // schema setup isn't blocked), and only the READS NotesPanel triggers
+    // after that are held open, simulating the real (if usually <100ms)
+    // async gap before useStoredKey('notes') resolves.
+    const base = memoryDriver()
+    let releaseNotesRead = () => {}
+    const gate = new Promise<void>((resolve) => {
+      releaseNotesRead = resolve
+    })
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      write: (patch) => base.write(patch),
+      onChanged: (cb) => base.onChanged(cb),
+    }
+    const storage = createStorage(driver)
+    await storage.init()
+    driver.read = async (keys) => {
+      await gate
+      return base.read(keys)
+    }
+
+    const belowOnClose = vi.fn()
+    const notesOnClose = vi.fn()
+    // Stands in for a dialog already open beneath Notes (e.g. the Drawer) —
+    // registers immediately, same as any other always-active dialog.
+    function BelowDialog() {
+      useDialogEscape(belowOnClose)
+      return null
+    }
+
+    render(
+      <StorageProvider storage={storage}>
+        <BelowDialog />
+        <NotesPanel onClose={notesOnClose} />
+      </StorageProvider>,
+    )
+    await act(async () => {}) // NotesPanel mounts; its notes read is gated, still pending
+
+    // notes hasn't resolved yet — NotesPanel must not have claimed the top
+    // of the stack, so Escape falls through to the dialog below it.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(belowOnClose).toHaveBeenCalledOnce()
+    expect(notesOnClose).not.toHaveBeenCalled()
+
+    releaseNotesRead()
+    await act(async () => {}) // notes resolves; NotesPanel now registers
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(notesOnClose).toHaveBeenCalledOnce()
+    expect(belowOnClose).toHaveBeenCalledOnce() // unchanged — this press was Notes'
   })
 })

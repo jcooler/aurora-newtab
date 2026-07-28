@@ -1,12 +1,9 @@
 import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
+import { isPlainObject } from '../object'
 
 type Snapshot = Record<string, unknown>
 
 export type Migration = (data: Snapshot) => Snapshot
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 /** Keyed by the version being upgraded FROM: migrations[1] upgrades v1 -> v2. */
 export const migrations: Record<number, Migration> = {

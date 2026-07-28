@@ -6,6 +6,7 @@
 // an already-migrated `AuroraData`.
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { ENGINES } from './search'
+import { isPlainObject } from './object'
 
 const APP_ID = 'aurora'
 
@@ -28,10 +29,6 @@ export function serializeBackup(data: AuroraData): string {
     data,
   }
   return JSON.stringify(envelope, null, 2)
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 export function parseBackup(raw: string): ParseBackupResult {
@@ -84,8 +81,12 @@ export function parseBackup(raw: string): ParseBackupResult {
 function isString(v: unknown): v is string {
   return typeof v === 'string'
 }
+// Number.isFinite (not a bare typeof check) rejects NaN and +/-Infinity too:
+// JSON can't encode NaN at all, but an oversized numeric literal (e.g.
+// `1e400`) parses to Infinity and would otherwise sail through as a
+// syntactically-valid "number" straight into e.g. timerConfig.workMinutes.
 function isNumber(v: unknown): v is number {
-  return typeof v === 'number'
+  return typeof v === 'number' && Number.isFinite(v)
 }
 function isBoolean(v: unknown): v is boolean {
   return typeof v === 'boolean'

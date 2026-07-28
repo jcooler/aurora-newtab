@@ -153,6 +153,18 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "countdowns" data is invalid.' })
   })
 
+  it('rejects timerConfig.workMinutes as NaN', () => {
+    const bad = { ...defaults(), timerConfig: { ...defaults().timerConfig, workMinutes: NaN } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "timerConfig" data is invalid.' })
+  })
+
+  it('rejects timerConfig.breakMinutes as Infinity (a real reachable case: JSON can\'t encode NaN, but an oversized literal like 1e400 parses to Infinity)', () => {
+    const bad = { ...defaults(), timerConfig: { ...defaults().timerConfig, breakMinutes: Infinity } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "timerConfig" data is invalid.' })
+  })
+
   it('rejects settings.searchEngine outside the known engine keys', () => {
     // Unlike theme/units/photoPrefs.mode, an unrecognized searchEngine is a
     // real reachable crash: SearchBar.tsx calls ENGINES[engine].url, and an

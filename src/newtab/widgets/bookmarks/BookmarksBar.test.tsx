@@ -210,6 +210,43 @@ describe('BookmarksBar', () => {
     expect(await screen.findByRole('dialog', { name: 'Personal bookmarks' })).toBeTruthy()
   })
 
+  it('nudges the popover left when it would overflow the right edge of the viewport (edge-clamp)', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    // jsdom has no real layout engine (getBoundingClientRect() always
+    // returns an all-zero rect, which FolderPopover's clamp effect treats as
+    // "not really laid out yet" and ignores) — simulate a panel that would
+    // overflow the right edge: window.innerWidth defaults to 1024 in jsdom,
+    // and this rect (width 256px, matching the w-64 panel) sits far enough
+    // right that its right edge (1156) overflows by 140px once the 8px
+    // margin is accounted for.
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 900,
+      right: 1156,
+      top: 0,
+      bottom: 0,
+      width: 256,
+      height: 0,
+      x: 900,
+      y: 0,
+      toJSON() {},
+    })
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
+
+    // Nudged left by exactly the overflow amount, on top of the default
+    // -50% centering (Tailwind v4 compiles -translate-x-1/2 to the CSS
+    // `translate` property, not `transform` — see the comment in
+    // FolderPopover.tsx on why the inline style targets `translate`).
+    expect(dialog.style.translate).toBe('calc(-50% - 140px) 0')
+
+    rectSpy.mockRestore()
+  })
+
   it('renders no fixed-position element inside the transformed bar; backdrop portals to <body>', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })

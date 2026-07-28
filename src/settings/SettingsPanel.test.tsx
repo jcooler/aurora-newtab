@@ -333,7 +333,9 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       await Promise.resolve()
     })
 
-    expect(await screen.findByText("That file isn't valid JSON.")).toBeTruthy()
+    const error = await screen.findByText("That file isn't valid JSON.")
+    expect(error.getAttribute('role')).toBe('alert')
+    expect(input.getAttribute('aria-describedby')).toBe(error.id)
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
   })

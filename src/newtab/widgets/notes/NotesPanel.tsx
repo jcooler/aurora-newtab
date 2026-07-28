@@ -72,7 +72,12 @@ export default function NotesPanel({ onClose }: { onClose: () => void }) {
   const ready = notes !== undefined
   useFocusTrap(panelRef, ready)
 
-  useDialogEscape(onClose)
+  // Gated on `ready` (same flag useFocusTrap above uses), not the default
+  // `true`: unlike TodoPanel, this panel's data can still be loading when it
+  // mounts (see the `ready` comment above), and registering the stack entry
+  // before then would let an Escape press during that <100ms window close
+  // whatever dialog is stacked below Notes instead of doing nothing here.
+  useDialogEscape(onClose, ready)
 
   const handleChange = (value: string) => {
     setText(value)

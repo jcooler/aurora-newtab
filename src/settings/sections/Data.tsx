@@ -110,10 +110,15 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
           type="file"
           accept=".json,application/json"
           onChange={(e) => void handleImportChange(e)}
+          aria-describedby={importError ? 'import-error' : undefined}
           className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
         />
       </div>
-      {importError && <p className="text-fg-muted text-xs">{importError}</p>}
+      {importError && (
+        <p id="import-error" role="alert" className="text-xs text-fg-muted">
+          {importError}
+        </p>
+      )}
       {pendingImport && (
         <div className="mt-2 flex flex-col gap-2 rounded border border-panel-border p-2">
           <p className="text-sm text-fg-muted">{pendingImport.summary}</p>
