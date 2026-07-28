@@ -1,5 +1,10 @@
-import { describe, expect, it } from 'vitest'
-import { toBarModel, type ChromeBookmarkNode } from './bookmarks'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  toBarModel,
+  hasBookmarksPermission,
+  ensureBookmarksPermission,
+  type ChromeBookmarkNode,
+} from './bookmarks'
 
 // chrome.bookmarks.getTree() always resolves to a single-element array: the
 // root node ('0'), whose children are the top-level folders (Bookmarks bar,
@@ -141,5 +146,36 @@ describe('toBarModel', () => {
 
   it('a missing/empty tree yields an empty model', () => {
     expect(toBarModel([])).toEqual({ folders: [], loose: [] })
+  })
+})
+
+describe('hasBookmarksPermission / ensureBookmarksPermission (chrome.permissions wrappers)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('hasBookmarksPermission forwards to chrome.permissions.contains', async () => {
+    const contains = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { contains } })
+
+    await expect(hasBookmarksPermission()).resolves.toBe(true)
+    expect(contains).toHaveBeenCalledWith({ permissions: ['bookmarks'] })
+  })
+
+  it('ensureBookmarksPermission calls chrome.permissions.request directly — no contains() pre-check, so no extra await lands between the click and the gesture-consuming call', async () => {
+    const contains = vi.fn()
+    const request = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { contains, request } })
+
+    await expect(ensureBookmarksPermission()).resolves.toBe(true)
+    expect(request).toHaveBeenCalledWith({ permissions: ['bookmarks'] })
+    expect(contains).not.toHaveBeenCalled()
+  })
+
+  it('ensureBookmarksPermission forwards a denial (request resolving false) rather than swallowing it', async () => {
+    const request = vi.fn().mockResolvedValue(false)
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(ensureBookmarksPermission()).resolves.toBe(false)
   })
 })

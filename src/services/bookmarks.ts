@@ -82,13 +82,20 @@ export async function hasBookmarksPermission(): Promise<boolean> {
   return chrome.permissions.contains({ permissions: ['bookmarks'] })
 }
 
-/** Requests the optional 'bookmarks' permission if it isn't already held.
- *  MUST be called synchronously from within a user gesture (e.g. a click
- *  handler) — chrome.permissions.request only shows its prompt when called
- *  that way; called any other time it rejects. Resolves to whether the
- *  permission is held once this settles: true if it was already granted or
- *  the user approves the prompt, false if the user denies it. */
+/** Requests the optional 'bookmarks' permission. MUST be called directly
+ *  from within a user gesture (e.g. a click handler) — chrome.permissions.request
+ *  only shows its prompt when called that way, and any await inserted before
+ *  it (even a fast one, like a hasBookmarksPermission() pre-check) is an IPC
+ *  round-trip that can land outside the gesture window and break the prompt.
+ *  So this calls request() straight away, with no pre-check: request()
+ *  already resolves true with no prompt at all when the permission is
+ *  already held, which is the same outcome a pre-check would have produced,
+ *  just without the extra await in front of the gesture-consuming call.
+ *  Resolves to whether the permission is held once this settles: true if it
+ *  was already granted or the user approves the prompt, false if the user
+ *  denies it. Callers should also expect this to reject (not just resolve
+ *  false) — e.g. if the gesture context was somehow already lost — and
+ *  handle that the same way as an explicit denial. */
 export async function ensureBookmarksPermission(): Promise<boolean> {
-  if (await hasBookmarksPermission()) return true
   return chrome.permissions.request({ permissions: ['bookmarks'] })
 }

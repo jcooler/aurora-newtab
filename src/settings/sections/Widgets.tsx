@@ -37,7 +37,18 @@ export default function Widgets({
   // needs the permission at all.
   async function handleWidgetToggle(key: keyof WidgetToggles, checked: boolean) {
     if (key === 'bookmarks' && checked) {
-      const granted = await ensureBookmarksPermission()
+      // ensureBookmarksPermission can REJECT, not just resolve false (e.g.
+      // the gesture context was somehow already lost by the time the
+      // permission prompt would show) — without a catch here, that's an
+      // unhandled promise rejection with no alert shown at all, which is
+      // worse than the ordinary denial path below. Route both outcomes to
+      // the same inline alert.
+      let granted: boolean
+      try {
+        granted = await ensureBookmarksPermission()
+      } catch {
+        granted = false
+      }
       if (!granted) {
         setBookmarksPermissionDenied(true)
         return

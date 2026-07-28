@@ -197,6 +197,22 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
   })
 
+  it('a rejected ensureBookmarksPermission (not just an explicit false) is caught and routed to the same alert, not left as an unhandled rejection', async () => {
+    vi.mocked(ensureBookmarksPermission).mockRejectedValue(new Error('gesture context lost'))
+    const storage = await renderPanel()
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(toggle.checked).toBe(false)
+    const error = await screen.findByRole('alert')
+    expect(error.textContent).toBeTruthy()
+    expect(toggle.getAttribute('aria-describedby')).toBe(error.id)
+    expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
+  })
+
   it('granting the bookmarks permission turns the toggle on and shows no alert', async () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
     const storage = await renderPanel()
