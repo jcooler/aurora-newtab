@@ -61,11 +61,34 @@ export function toBarModel(tree: ChromeBookmarkNode[]): BarModel {
   return { folders: mapped.folders, loose: mapped.items }
 }
 
-/** Thin chrome.bookmarks wrapper — the only chrome.* touch in this module
- *  (requires the 'bookmarks' permission declared in src/manifest.ts). Tests
- *  import `toBarModel` directly and never call this, so importing the pure
- *  half of this module never executes chrome.* code. */
+/** Thin chrome.bookmarks wrapper — one of the chrome.* touches in this module
+ *  (requires the optional 'bookmarks' permission declared in
+ *  src/manifest.ts — see ensureBookmarksPermission below). Tests import
+ *  `toBarModel` directly and never call this, so importing the pure half of
+ *  this module never executes chrome.* code. */
 export async function loadBarModel(): Promise<BarModel> {
   const tree = await chrome.bookmarks.getTree()
   return toBarModel(tree)
+}
+
+/** True if the extension currently holds the optional 'bookmarks'
+ *  permission — either because the user granted it via
+ *  ensureBookmarksPermission below, or (for anyone who had Aurora installed
+ *  before it became optional) because Chrome carries a previously-granted
+ *  permission forward across an update. chrome.permissions calls, alongside
+ *  chrome.bookmarks.getTree above, are the only chrome.* touches in this
+ *  module — the carve-out that keeps every other file free of chrome.*. */
+export async function hasBookmarksPermission(): Promise<boolean> {
+  return chrome.permissions.contains({ permissions: ['bookmarks'] })
+}
+
+/** Requests the optional 'bookmarks' permission if it isn't already held.
+ *  MUST be called synchronously from within a user gesture (e.g. a click
+ *  handler) — chrome.permissions.request only shows its prompt when called
+ *  that way; called any other time it rejects. Resolves to whether the
+ *  permission is held once this settles: true if it was already granted or
+ *  the user approves the prompt, false if the user denies it. */
+export async function ensureBookmarksPermission(): Promise<boolean> {
+  if (await hasBookmarksPermission()) return true
+  return chrome.permissions.request({ permissions: ['bookmarks'] })
 }

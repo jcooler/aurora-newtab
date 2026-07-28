@@ -6,12 +6,16 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { defaults } from '../../../lib/storage/schema'
 import type { BarModel } from '../../../services/bookmarks'
-import { loadBarModel } from '../../../services/bookmarks'
+import { hasBookmarksPermission, loadBarModel } from '../../../services/bookmarks'
 import BookmarksBar from './BookmarksBar'
 
-// loadBarModel is the only chrome.bookmarks touch; mock it so the widget
-// never needs a real chrome.bookmarks API in jsdom.
-vi.mock('../../../services/bookmarks', () => ({ loadBarModel: vi.fn() }))
+// loadBarModel and hasBookmarksPermission are the only chrome.* touches
+// (chrome.bookmarks.getTree and chrome.permissions.contains respectively);
+// mock both so the widget never needs a real chrome.* API in jsdom.
+vi.mock('../../../services/bookmarks', () => ({
+  loadBarModel: vi.fn(),
+  hasBookmarksPermission: vi.fn(),
+}))
 
 // faviconUrl touches chrome.runtime.getURL, unavailable in jsdom — mock the
 // whole module, same pattern as SettingsPanel.test.tsx mocking '../lib/idb'.
@@ -37,6 +41,7 @@ const nestedModel: BarModel = {
 }
 
 async function renderBar(model: BarModel) {
+  vi.mocked(hasBookmarksPermission).mockResolvedValue(true)
   vi.mocked(loadBarModel).mockResolvedValue(model)
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -64,6 +69,27 @@ describe('BookmarksBar', () => {
     )
     await act(async () => {})
     expect(container.firstChild).toBeNull()
+  })
+
+  it('renders nothing when the widget is on but the bookmarks permission is absent (e.g. revoked via chrome://extensions)', async () => {
+    vi.mocked(hasBookmarksPermission).mockResolvedValue(false)
+    vi.mocked(loadBarModel).mockResolvedValue(nestedModel)
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, bookmarks: true },
+    })
+    const { container } = render(
+      <StorageProvider storage={storage}>
+        <BookmarksBar />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+    // The whole point of checking permission first: never even attempt the
+    // chrome.bookmarks.getTree() call that would throw without it.
+    expect(loadBarModel).not.toHaveBeenCalled()
   })
 
   it('renders nothing for an empty bookmarks bar (no empty-state chrome)', async () => {

@@ -8,6 +8,7 @@ import { useUploads } from '../lib/hooks/useUploads'
 import { serializeBackup, parseBackup, validateBackupShape } from '../lib/backup'
 import { migrate } from '../lib/storage/migrations'
 import { todayKey } from '../lib/dates'
+import { ensureBookmarksPermission } from '../services/bookmarks'
 import {
   defaults,
   type AuroraData,
@@ -61,6 +62,7 @@ export default function SettingsPanel() {
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [galleryError, setGalleryError] = useState<string | null>(null)
+  const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
   const [newZone, setNewZone] = useState('')
   const [newZoneLabel, setNewZoneLabel] = useState('')
   const [zoneLabelTouched, setZoneLabelTouched] = useState(false)
@@ -124,6 +126,31 @@ export default function SettingsPanel() {
       mode: 'upload',
       uploadedAt: new Date().toISOString(),
     }))
+  }
+
+  // Every other widget toggle is a plain, synchronous patch. Bookmarks is
+  // the one exception: turning it ON must first request the optional
+  // 'bookmarks' permission from this click handler (a user gesture — the
+  // only context Chrome will show its prompt in). Denied -> the toggle
+  // stays off and an inline alert explains why; turning it back OFF never
+  // needs the permission at all.
+  async function handleWidgetToggle(key: keyof WidgetToggles, checked: boolean) {
+    // Same re-check as onThemeKeyDown below: `settings` narrows to non-null
+    // right after the `if (!settings) return null` guard above, but that
+    // narrowing doesn't carry into a separate hoisted function declaration's
+    // body (only into closures literally defined at that point), so this
+    // function needs its own guard even though it can only ever be called
+    // once settings has already resolved.
+    if (!settings) return
+    if (key === 'bookmarks' && checked) {
+      const granted = await ensureBookmarksPermission()
+      if (!granted) {
+        setBookmarksPermissionDenied(true)
+        return
+      }
+    }
+    if (key === 'bookmarks') setBookmarksPermissionDenied(false)
+    patch({ widgets: { ...settings.widgets, [key]: checked } })
   }
 
   const updateWorldClocks = (fn: (list: WorldClock[]) => WorldClock[]) =>
@@ -489,13 +516,20 @@ export default function SettingsPanel() {
                 id={`w-${key}`}
                 type="checkbox"
                 checked={settings.widgets[key]}
-                onChange={(e) =>
-                  patch({ widgets: { ...settings.widgets, [key]: e.currentTarget.checked } })
+                onChange={(e) => void handleWidgetToggle(key, e.currentTarget.checked)}
+                aria-describedby={
+                  key === 'bookmarks' && bookmarksPermissionDenied ? 'w-bookmarks-error' : undefined
                 }
                 className="size-4 accent-(--accent)"
               />
             </div>
           ),
+        )}
+        {bookmarksPermissionDenied && (
+          <p id="w-bookmarks-error" role="alert" className="text-xs text-fg-muted">
+            Bookmarks permission was denied, so the widget stays off. Turn it on
+            again to re-request it.
+          </p>
         )}
       </section>
 

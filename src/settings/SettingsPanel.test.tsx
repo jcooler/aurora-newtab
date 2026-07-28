@@ -7,6 +7,7 @@ import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
+import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
 
 // Only the Background section's gallery touches IndexedDB; mock the whole
@@ -17,6 +18,11 @@ vi.mock('../lib/idb', () => ({
   listUploads: vi.fn(),
   removeUpload: vi.fn(),
 }))
+
+// The Widgets section's bookmarks toggle calls ensureBookmarksPermission,
+// which touches chrome.permissions — unavailable in jsdom. Mock it the same
+// way BookmarksBar.test.tsx mocks the rest of this service module.
+vi.mock('../services/bookmarks', () => ({ ensureBookmarksPermission: vi.fn() }))
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -165,6 +171,70 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
 
     expect(await storage.get('location')).toBeNull()
     expect(await storage.get('weatherCache')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Widgets section (bookmarks permission)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureBookmarksPermission).mockReset()
+  })
+
+  it('denying the bookmarks permission keeps the toggle off and shows an inline alert', async () => {
+    vi.mocked(ensureBookmarksPermission).mockResolvedValue(false)
+    const storage = await renderPanel()
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(ensureBookmarksPermission).toHaveBeenCalledOnce()
+    expect(toggle.checked).toBe(false)
+    const error = await screen.findByRole('alert')
+    expect(error.textContent).toBeTruthy()
+    expect(toggle.getAttribute('aria-describedby')).toBe(error.id)
+    expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
+  })
+
+  it('granting the bookmarks permission turns the toggle on and shows no alert', async () => {
+    vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
+    const storage = await renderPanel()
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(toggle.checked).toBe(true)
+    expect((await storage.get('settings')).widgets.bookmarks).toBe(true)
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(toggle.getAttribute('aria-describedby')).toBeNull()
+  })
+
+  it('turning the widget back off never requests the permission', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, bookmarks: true },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+    expect(toggle.checked).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(ensureBookmarksPermission).not.toHaveBeenCalled()
+    expect(toggle.checked).toBe(false)
+    expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
   })
 })
 

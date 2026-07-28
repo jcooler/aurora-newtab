@@ -151,11 +151,11 @@ a real place name. That lookup happens once, only for device location, and
 sends the same ~1 km-rounded coordinates the forecast call already uses.
 There is no analytics, no telemetry, and no tracking of any kind.
 
-Aurora declares the `bookmarks` permission at install time (it's requested
-once, at install or update, regardless of whether you ever turn the widget
-on). The **Bookmarks bar** widget itself is off by default, and Aurora never
-reads your bookmarks until you enable it. Once enabled, it reads your
-browser's bookmarks tree with `chrome.bookmarks.getTree()` to render it —
-that read happens locally, is rendered locally, and is never transmitted
-anywhere. Aurora only reads your bookmarks, it never creates, edits, or
-deletes any.
+The **Bookmarks bar** widget is off by default, and the `bookmarks`
+permission it needs is requested only when you turn it on — not at install.
+Flipping it on in Settings prompts Chrome to ask whether Aurora may read your
+bookmarks; decline, and the widget simply stays off (with a note explaining
+why) until you try again. Grant it, and Aurora reads your browser's
+bookmarks tree with `chrome.bookmarks.getTree()` to render it — that read
+happens locally, is rendered locally, and is never transmitted anywhere.
+Aurora only reads your bookmarks, it never creates, edits, or deletes any.

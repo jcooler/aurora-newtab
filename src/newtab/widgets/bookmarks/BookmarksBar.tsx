@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { loadBarModel, type BarModel, type BookmarkFolder, type BookmarkItem } from '../../../services/bookmarks'
+import {
+  hasBookmarksPermission,
+  loadBarModel,
+  type BarModel,
+  type BookmarkFolder,
+  type BookmarkItem,
+} from '../../../services/bookmarks'
 import { faviconUrl } from '../links/linksLogic'
 import FolderPopover, { FolderIcon } from './FolderPopover'
 
@@ -28,8 +34,16 @@ function BookmarksBarInner() {
 
   useEffect(() => {
     let live = true
-    void loadBarModel().then((m) => {
-      if (live) setModel(m)
+    // The widget can be on in settings while the permission itself is
+    // absent — never granted (optional permissions aren't auto-granted at
+    // install), or revoked later via chrome://extensions. Check before
+    // calling loadBarModel(): chrome.bookmarks doesn't exist at all without
+    // it, so calling straight into chrome.bookmarks.getTree() would throw.
+    void hasBookmarksPermission().then((granted) => {
+      if (!granted || !live) return
+      void loadBarModel().then((m) => {
+        if (live) setModel(m)
+      })
     })
     return () => {
       live = false
