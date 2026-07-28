@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import type { BookmarkFolder, BookmarkItem } from '../../../services/bookmarks'
@@ -52,20 +53,32 @@ export default function FolderPopover({
 
   return (
     <>
-      {/* Backdrop is a SIBLING of the dialog, not an ancestor — nesting
-          role="dialog" inside an aria-hidden element trips Chrome's "Blocked
-          aria-hidden on an element because its descendant retained focus"
-          warning the instant useFocusTrap moves focus in. Same structure as
-          Palette.tsx. */}
-      <div aria-hidden onClick={onClose} className="fixed inset-0 z-40 bg-black/30" />
-      <div className="pointer-events-none fixed inset-0 z-50 flex items-start justify-center pt-16">
-        <div
-          ref={panelRef}
-          role="dialog"
-          aria-modal="true"
-          aria-label={`${currentTitle} bookmarks`}
-          className="pointer-events-auto max-h-[60vh] w-64 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
-        >
+      {/* The click-outside catcher must NOT render inside the bar: the nav's
+          -translate-x-1/2 transform makes it the containing block for fixed
+          descendants, which would shrink "inset-0" to the bar's own box and
+          stack the catcher ABOVE the sibling chips — turning every chip click
+          into a close. Portal to <body>, where fixed inset-0 is really the
+          viewport. Transparent (no dim): this is a dropdown menu, not a
+          modal — the first outside click just dismisses, like the native
+          bookmarks bar. Kept a SIBLING of the dialog, not an ancestor —
+          nesting role="dialog" inside an aria-hidden element trips Chrome's
+          "Blocked aria-hidden" warning when useFocusTrap moves focus in. */}
+      {createPortal(
+        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40" />,
+        document.body,
+      )}
+      {/* Anchored under the clicked chip via its `relative` wrapper —
+          absolute positioning resolves against that wrapper, so the nav's
+          transform is harmless here (unlike position:fixed). z-50 inside the
+          nav's stacking context (the nav itself is z-50 while open), above
+          the body-level z-40 catcher. */}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={`${currentTitle} bookmarks`}
+        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
+      >
           {top && (
             <button
               type="button"
@@ -110,7 +123,6 @@ export default function FolderPopover({
               ))}
             </ul>
           )}
-        </div>
       </div>
     </>
   )

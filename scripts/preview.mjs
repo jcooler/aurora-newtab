@@ -40,10 +40,13 @@ await page.waitForSelector('time', { timeout: 10_000 })
 // off — merge into the existing settings so other keys (theme, etc.) aren't
 // clobbered.
 //
-// Headless Chromium's bookmarks tree is empty (no bookmarks-bar node has any
-// children), so the bookmarks bar renders nothing either way — this seed's
-// only job is proving the widget mounts (chrome.bookmarks.getTree() call,
-// gate on, no crash) without a console error, not a populated screenshot.
+// Headless Chromium starts with an EMPTY bookmarks tree, but the extension
+// holds the `bookmarks` permission, so the seed below populates the real
+// tree via chrome.bookmarks.create — the bar renders real chips and the
+// popover capture further down exercises real hit-testing (the transformed-
+// nav backdrop bug shipped precisely because this used to be assumed
+// impossible). The profile dir is wiped at the top of every run, so the
+// seed never duplicates.
 //
 // The countdown date is computed as today+14 right here inside the page
 // context, so the preview stays deterministic relative to whenever it runs
@@ -75,6 +78,15 @@ await page.evaluate(async () => {
       },
     },
   })
+  const bar = '1' // Chromium's bookmarks-bar node id
+  const dev = await chrome.bookmarks.create({ parentId: bar, title: 'Dev' })
+  await chrome.bookmarks.create({ parentId: dev.id, title: 'GitHub', url: 'https://github.com/' })
+  await chrome.bookmarks.create({ parentId: dev.id, title: 'MDN', url: 'https://developer.mozilla.org/' })
+  const tools = await chrome.bookmarks.create({ parentId: dev.id, title: 'Tools' })
+  await chrome.bookmarks.create({ parentId: tools.id, title: 'Excalidraw', url: 'https://excalidraw.com/' })
+  const news = await chrome.bookmarks.create({ parentId: bar, title: 'News' })
+  await chrome.bookmarks.create({ parentId: news.id, title: 'HN', url: 'https://news.ycombinator.com/' })
+  await chrome.bookmarks.create({ parentId: bar, title: 'Docs', url: 'https://docs.example.com/' })
 })
 await page.reload()
 await page.waitForSelector('time')
@@ -83,6 +95,20 @@ await page.waitForTimeout(2500) // weather fetch
 await page.waitForTimeout(800) // photo fade-in
 await page.screenshot({ path: `${outDir}/newtab.png` })
 console.log('captured newtab.png')
+
+// Bookmarks-bar popover: REAL click on a folder chip (real hit-testing — the
+// one thing jsdom can't do), assert the popover opened anchored to it, then
+// assert a real outside click closes it.
+await page.click('nav[aria-label="Bookmarks bar"] button:has-text("Dev")')
+await page.waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]')
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/bookmarks-popover.png` })
+console.log('captured bookmarks-popover.png')
+await page.mouse.click(800, 500) // outside click must dismiss
+const popoverGone = await page
+  .waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]', { state: 'detached', timeout: 2000 })
+  .then(() => true, () => false)
+console.log(popoverGone ? 'PASS: outside click closed the bookmarks popover' : 'FAIL: bookmarks popover did not close on outside click')
 
 // Open the settings drawer and capture it per theme
 await page.click('button[aria-label="Open settings"]')

@@ -184,6 +184,43 @@ describe('BookmarksBar', () => {
     expect(await screen.findByRole('dialog', { name: 'Personal bookmarks' })).toBeTruthy()
   })
 
+  it('renders no fixed-position element inside the transformed bar; backdrop portals to <body>', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    const nav = screen.getByRole('navigation', { name: 'Bookmarks bar' })
+
+    // The nav's -translate-x-1/2 transform makes it the CONTAINING BLOCK for
+    // any position:fixed descendant: a "fixed inset-0" backdrop rendered
+    // inside it shrinks to the bar's own box and, being z-40 inside the
+    // nav's stacking context, paints ABOVE the sibling chips — every chip
+    // click then lands on the backdrop (= close) instead of the chip. So:
+    // nothing inside the nav may be position-fixed, ever.
+    expect(nav.querySelector('.fixed')).toBeNull()
+
+    // The popover panel anchors to its chip wrapper (absolute), not the
+    // viewport (fixed) — that's what pins it visually under the clicked chip.
+    expect(dialog.classList.contains('absolute')).toBe(true)
+    expect(dialog.classList.contains('fixed')).toBe(false)
+
+    // The click-outside catcher escapes the transformed subtree via a portal
+    // to <body>, where fixed inset-0 really means the whole viewport.
+    const bodyBackdrop = [...document.body.children].find(
+      (el) => el.matches('div[aria-hidden="true"]') && el.classList.contains('fixed'),
+    )
+    expect(bodyBackdrop).toBeTruthy()
+
+    // And it still closes the popover.
+    await act(async () => {
+      fireEvent.click(bodyBackdrop!)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
+  })
+
   it('beyond 8 chips, the rest collapse into a "»" chip whose popover lists them', async () => {
     const nineLooseModel: BarModel = {
       folders: [],
