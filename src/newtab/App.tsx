@@ -8,6 +8,7 @@ import FocusLine from './components/FocusLine'
 import SearchBar from './components/SearchBar'
 import WidgetBoundary from './components/WidgetBoundary'
 import Drawer from '../settings/Drawer'
+import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
 import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinksWidget from './widgets/links/LinksWidget'
@@ -110,7 +111,9 @@ export default function App() {
       </WidgetBoundary>
 
       <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
-        <SettingsPanel />
+        <DrawerBoundary>
+          <SettingsPanel />
+        </DrawerBoundary>
       </Drawer>
 
       <WidgetBoundary name="palette">

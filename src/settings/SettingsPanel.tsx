@@ -5,7 +5,7 @@ import { THEMES } from '../theme/index'
 import { ENGINES } from '../lib/search'
 import { addUploads, removeUpload } from '../lib/idb'
 import { useUploads } from '../lib/hooks/useUploads'
-import { serializeBackup, parseBackup } from '../lib/backup'
+import { serializeBackup, parseBackup, validateBackupShape } from '../lib/backup'
 import { migrate } from '../lib/storage/migrations'
 import { todayKey } from '../lib/dates'
 import {
@@ -60,6 +60,7 @@ export default function SettingsPanel() {
   const themeGroupRef = useRef<HTMLDivElement>(null)
   const importInputRef = useRef<HTMLInputElement>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [galleryError, setGalleryError] = useState<string | null>(null)
   const [newZone, setNewZone] = useState('')
   const [newZoneLabel, setNewZoneLabel] = useState('')
   const [zoneLabelTouched, setZoneLabelTouched] = useState(false)
@@ -89,10 +90,40 @@ export default function SettingsPanel() {
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
 
   async function handleRemoveUpload(key: string) {
-    await removeUpload(key)
+    // Fire-and-forget here was the bug: an IndexedDB failure (quota is
+    // realistic for photos) went silent, and the nonce-stamp write below
+    // never ran anyway — so removal just silently failed. Catch it and
+    // surface it, same idiom as the world-clocks zone-add error.
+    try {
+      await removeUpload(key)
+    } catch {
+      setGalleryError("Couldn't remove that photo. Try again.")
+      return
+    }
+    setGalleryError(null)
     // fresh read + changed value: a stale spread could revert concurrent
     // writes, and a deep-equal write emits no chrome.storage event at all
     await storage.update('photoPrefs', (p) => ({ ...p, uploadedAt: new Date().toISOString() }))
+  }
+
+  async function handleAddUploads(files: File[]) {
+    // Same fire-and-forget bug as handleRemoveUpload, mirrored here: catch
+    // the IDB failure instead of letting it vanish, and don't stamp the
+    // nonce for an add that didn't actually happen.
+    try {
+      await addUploads(files)
+    } catch {
+      setGalleryError("Couldn't save that photo. Your device may be low on storage.")
+      return
+    }
+    setGalleryError(null)
+    // fresh read + changed value: a stale spread could revert concurrent
+    // writes, and a deep-equal write emits no chrome.storage event at all
+    await storage.update('photoPrefs', (p) => ({
+      ...p,
+      mode: 'upload',
+      uploadedAt: new Date().toISOString(),
+    }))
   }
 
   const updateWorldClocks = (fn: (list: WorldClock[]) => WorldClock[]) =>
@@ -157,6 +188,17 @@ export default function SettingsPanel() {
       return
     }
     const migrated = migrate(result.data, result.version)
+    // Shape-check runs AFTER migrate(): a v1 backup's nested widget keys
+    // etc. must be backfilled first, or they'd fail validation for simply
+    // predating the current schema. A hand-edited/corrupted backup (e.g.
+    // `"settings": "oops"`) that gets this far would otherwise be written
+    // verbatim and throw at render time inside the always-mounted Drawer.
+    const shapeCheck = validateBackupShape(migrated)
+    if (!shapeCheck.ok) {
+      setImportError(shapeCheck.reason)
+      return
+    }
+    const data = shapeCheck.data
     // parseBackup already confirmed valid JSON; re-parsing here just recovers
     // exportedAt, which parseBackup's contract deliberately omits.
     let exportedAt: string | undefined
@@ -168,9 +210,9 @@ export default function SettingsPanel() {
     }
     const dateStr = exportedAt ? exportedAt.slice(0, 10) : 'an unknown date'
     const summary =
-      `Replace current data? Backup from ${dateStr} — ${migrated.todoLists.length} lists, ` +
-      `${migrated.links.length} links, ${migrated.countdowns.length} countdowns.`
-    setPendingImport({ migrated, summary })
+      `Replace current data? Backup from ${dateStr} — ${data.todoLists.length} lists, ` +
+      `${data.links.length} links, ${data.countdowns.length} countdowns.`
+    setPendingImport({ migrated: data, summary })
   }
 
   async function handleConfirmImport() {
@@ -365,19 +407,13 @@ export default function SettingsPanel() {
                 type="file"
                 accept="image/*"
                 multiple
-                onChange={async (e) => {
+                onChange={(e) => {
                   const files = Array.from(e.currentTarget.files ?? [])
                   e.currentTarget.value = '' // allow re-selecting the same file(s) later
                   if (files.length === 0) return
-                  await addUploads(files)
-                  // fresh read + changed value: a stale spread could revert concurrent
-                  // writes, and a deep-equal write emits no chrome.storage event at all
-                  await storage.update('photoPrefs', (p) => ({
-                    ...p,
-                    mode: 'upload',
-                    uploadedAt: new Date().toISOString(),
-                  }))
+                  void handleAddUploads(files)
                 }}
+                aria-describedby={galleryError ? 'bg-gallery-error' : undefined}
                 className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
               />
             </div>
@@ -412,6 +448,11 @@ export default function SettingsPanel() {
                   ))}
                 </div>
               </div>
+            )}
+            {galleryError && (
+              <p id="bg-gallery-error" role="alert" className="text-xs text-fg-muted">
+                {galleryError}
+              </p>
             )}
           </>
         )}

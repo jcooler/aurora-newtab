@@ -128,9 +128,10 @@ as a single JSON file:
   asks you to confirm before it replaces anything. Nothing is overwritten
   until you click **Confirm**. Backups from older versions of Aurora are
   migrated forward automatically before that summary is shown.
-- If the chosen file isn't a valid Aurora backup (wrong format, wrong app,
-  or a version newer than this build understands), Import shows why and
-  leaves your current data untouched.
+- If the chosen file isn't a valid Aurora backup (wrong format, wrong app, a
+  version newer than this build understands, or a field that doesn't match
+  what Aurora expects — e.g. a hand-edited or corrupted value), Import shows
+  why, names the field, and leaves your current data untouched.
 
 ## Privacy
 

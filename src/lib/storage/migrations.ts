@@ -4,14 +4,24 @@ type Snapshot = Record<string, unknown>
 
 export type Migration = (data: Snapshot) => Snapshot
 
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /** Keyed by the version being upgraded FROM: migrations[1] upgrades v1 -> v2. */
 export const migrations: Record<number, Migration> = {
   // v1 -> v2: widget toggles gained nested keys (bookmarks/notes/clocks/countdown).
   // Nested keys are exactly what the final default-merge does NOT backfill.
   1: (data) => {
     const d = defaults()
-    const settings = (data.settings ?? {}) as Record<string, unknown>
-    const widgets = (settings.widgets ?? {}) as Record<string, unknown>
+    // A bare `?? {}` only catches null/undefined — a hand-edited backup with
+    // e.g. `"settings": "oops"` sails through it, and `...'oops'` below would
+    // then spread the string's characters in as numeric-keyed garbage
+    // ({0:'o', 1:'o', ...}). Reachable via import (see backup.ts), so both
+    // `settings` and its nested `widgets` are checked for real object shape
+    // before spreading, falling back to `{}` otherwise.
+    const settings = isPlainObject(data.settings) ? data.settings : {}
+    const widgets = isPlainObject(settings.widgets) ? settings.widgets : {}
     return {
       ...data,
       settings: {

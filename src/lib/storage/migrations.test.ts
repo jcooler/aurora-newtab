@@ -59,6 +59,27 @@ describe('v1 -> v2', () => {
     expect(out.notes).toEqual({ text: '', updatedAt: 0 })
   })
 
+  it('guards against a non-object settings (e.g. a hand-edited string): defaults win, no garbage keys', () => {
+    // A bare `?? {}` fallback treats a non-null string as present, and later
+    // spreads it — `...'oops'` produces {0:'o', 1:'o', 2:'p', 3:'s'} — which
+    // is exactly the reachable-via-import bug this guard closes.
+    const out = migrate({ settings: 'oops' }, 1)
+    expect(out.settings).toEqual(defaults().settings)
+    expect(Object.keys(out.settings)).toEqual(Object.keys(defaults().settings))
+  })
+
+  it('guards against a non-object widgets nested inside a valid settings object', () => {
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: 'oops' } }, 1)
+    expect(out.settings.name).toBe('Jon') // rest of settings still preserved
+    expect(out.settings.widgets).toEqual(defaults().settings.widgets)
+    expect(Object.keys(out.settings.widgets)).toEqual(Object.keys(defaults().settings.widgets))
+  })
+
+  it('guards against an array settings (arrays are typeof "object" too)', () => {
+    const out = migrate({ settings: ['oops'] }, 1)
+    expect(out.settings).toEqual(defaults().settings)
+  })
+
   it('new top-level keys default for v1 snapshots', () => {
     const out = migrate({ links: [] }, 1)
     expect(out.worldClocks).toEqual([])

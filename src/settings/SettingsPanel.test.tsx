@@ -267,6 +267,37 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
   })
+
+  it('a shape-invalid backup (envelope is fine, a key is hand-edited garbage) is rejected before Confirm is offered', async () => {
+    // Regression coverage for the bug this fix targets: envelope-level
+    // checks (parseBackup) all pass, migrate() is a no-op at CURRENT_VERSION,
+    // and without per-key shape validation this would sail through to
+    // storage.set and later throw at render time. `links` as an object
+    // (rather than an array) exercises that path end-to-end through the
+    // real component, not just the pure validateBackupShape unit.
+    const storage = await renderPanel()
+    const before = await storage.get('links')
+    const backupText = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-07-20T00:00:00.000Z',
+      data: { ...defaults(), links: { oops: 'not an array' } },
+    })
+    const file = new File([backupText], 'aurora-backup-2026-07-20.json', {
+      type: 'application/json',
+    })
+
+    const input = screen.getByLabelText('Import backup') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(await screen.findByText('That backup\'s "links" data is invalid.')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(await storage.get('links')).toEqual(before)
+  })
 })
 
 describe('SettingsPanel Background section (upload gallery)', () => {
@@ -370,6 +401,67 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     expect(after).not.toBe(before)
 
     // Same live-object-URL ordering concern as the previous test.
+    unmount()
+  })
+
+  it('an addUploads rejection (e.g. IDB quota) shows an inline alert and does not stamp the nonce; a later successful add clears it', async () => {
+    vi.mocked(addUploads).mockRejectedValueOnce(new Error('QuotaExceededError'))
+    const { storage } = await renderPanelInUploadMode()
+    const before = (await storage.get('photoPrefs')).uploadedAt
+
+    const fileInput = screen.getByLabelText('Image files') as HTMLInputElement
+    const fileA = new File(['a'], 'a.png', { type: 'image/png' })
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [fileA] } })
+      await flushAsyncWork()
+    })
+
+    const error = await screen.findByRole('alert')
+    expect(error.textContent).toBeTruthy()
+    expect(fileInput.getAttribute('aria-describedby')).toBe(error.id)
+    // Fire-and-forget was the bug: a failed add must not silently stamp the
+    // nonce as if the photo were saved.
+    expect((await storage.get('photoPrefs')).uploadedAt).toBe(before)
+
+    // A later successful add clears the error, same as the zone-add idiom.
+    const fileB = new File(['b'], 'b.png', { type: 'image/png' })
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [fileB] } })
+      await flushAsyncWork()
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(fileInput.getAttribute('aria-describedby')).toBeNull()
+    expect((await storage.get('photoPrefs')).uploadedAt).not.toBe(before)
+  })
+
+  it('a removeUpload rejection shows an inline alert and does not stamp the nonce; a later successful remove clears it', async () => {
+    vi.mocked(listUploads).mockResolvedValue([
+      { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
+    ])
+    vi.mocked(removeUpload).mockRejectedValueOnce(new Error('boom'))
+    const { storage, unmount } = await renderPanelInUploadMode()
+    const before = (await storage.get('photoPrefs')).uploadedAt
+
+    const removeButton = await screen.findByRole('button', { name: 'Remove photo 1' })
+    await act(async () => {
+      fireEvent.click(removeButton)
+      await flushAsyncWork()
+    })
+
+    const error = await screen.findByRole('alert')
+    expect(error.textContent).toBeTruthy()
+    expect((await storage.get('photoPrefs')).uploadedAt).toBe(before)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove photo 1' }))
+      await flushAsyncWork()
+    })
+
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect((await storage.get('photoPrefs')).uploadedAt).not.toBe(before)
+
+    // Same live-object-URL ordering concern as the other gallery tests above.
     unmount()
   })
 })

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { serializeBackup, parseBackup } from './backup'
+import { serializeBackup, parseBackup, validateBackupShape } from './backup'
 import { CURRENT_VERSION, defaults } from './storage/schema'
+import { migrate } from './storage/migrations'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input', () => {
@@ -113,5 +114,75 @@ describe('parseBackup accepts older/current versions (migration is the caller\'s
   it('accepts version 1 without migrating it', () => {
     const result = parseBackup(JSON.stringify({ app: 'aurora', version: 1, data: { a: 1 } }))
     expect(result).toEqual({ ok: true, data: { a: 1 }, version: 1 })
+  })
+})
+
+describe('validateBackupShape rejections (per-key structural check)', () => {
+  it('rejects settings as a string', () => {
+    const result = validateBackupShape({ ...defaults(), settings: 'oops' } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+
+  it('rejects settings.widgets as an array', () => {
+    const bad = { ...defaults(), settings: { ...defaults().settings, widgets: [] } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+
+  it('rejects links as an object (not an array)', () => {
+    const bad = { ...defaults(), links: { id: '1', title: 'HN', url: 'https://x' } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "links" data is invalid.' })
+  })
+
+  it('rejects notes without text', () => {
+    const bad = { ...defaults(), notes: { updatedAt: 0 } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "notes" data is invalid.' })
+  })
+
+  it('rejects worldClocks as a string', () => {
+    const bad = { ...defaults(), worldClocks: 'Asia/Tokyo' }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "worldClocks" data is invalid.' })
+  })
+
+  it('rejects countdowns whose items are missing required fields', () => {
+    const bad = { ...defaults(), countdowns: [{ id: 'c1', name: 'Launch' }] } // no `date`
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "countdowns" data is invalid.' })
+  })
+
+  it('accepts a fully-defaulted backup unchanged', () => {
+    const result = validateBackupShape(defaults())
+    expect(result).toEqual({ ok: true, data: defaults() })
+  })
+})
+
+describe('validateBackupShape: migration-then-validate order', () => {
+  it('a valid v1-era backup migrates forward and then still passes validation', () => {
+    const v1Settings = {
+      ...defaults().settings,
+      name: 'Jon',
+      widgets: { search: false, weather: true, links: true, todo: true, timer: true, quote: false },
+    }
+    // A v1 snapshot predates the nested widget keys (bookmarks/notes/clocks/
+    // countdown) — migrate() must backfill them BEFORE validateBackupShape
+    // runs, or this would fail shape validation on the missing keys.
+    const migrated = migrate({ settings: v1Settings }, 1)
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+  })
+})
+
+describe('validateBackupShape: unknown-key dropping', () => {
+  it('silently drops top-level keys that are not a known DataKey', () => {
+    const withExtra = { ...defaults(), bogusExtraKey: 'should not survive' }
+    const result = validateBackupShape(withExtra as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(Object.keys(result.data).sort()).toEqual(Object.keys(defaults()).sort())
+      expect('bogusExtraKey' in result.data).toBe(false)
+    }
   })
 })
