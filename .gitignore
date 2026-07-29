@@ -12,4 +12,9 @@ tmpclaude-*
 Thumbs.db
 
 .playwright-profile/
+.playwright-mcp/
 screenshots/
+
+# Phase A/B photo curation scratch: downloaded candidates + contact sheets.
+# Working files for controller review only — never shipped, never committed.
+.photo-work/
