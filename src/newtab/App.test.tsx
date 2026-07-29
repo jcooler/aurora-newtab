@@ -92,6 +92,43 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
     expect(document.activeElement).toBe(gear)
   })
+
+  it('Settings\' Reset layout confirm dialog: a first Escape cancels the dialog only; a second Escape then closes the drawer (dialog-stack ordering)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    const gear = await screen.findByRole('button', { name: 'Open settings' })
+    await act(async () => {
+      fireEvent.click(gear)
+    })
+    const drawerPanel = await screen.findByRole('dialog', { name: 'Settings' })
+
+    const resetButton = await screen.findByRole('button', { name: 'Reset layout' })
+    await act(async () => {
+      fireEvent.click(resetButton)
+    })
+    const confirmDialog = screen.getByRole('dialog', { name: 'Reset layout?' })
+    expect(confirmDialog).toBeTruthy()
+    expect(drawerPanel.getAttribute('inert')).toBeNull() // drawer itself still fully open, underneath
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' }) // the confirm dialog is the NEWER stack entry — closes first
+    })
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+    expect(drawerPanel.getAttribute('inert')).toBeNull() // drawer untouched by this first Escape
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Escape-cancel never writes
+
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' }) // now the drawer's own stack entry is on top
+    })
+    expect(drawerPanel.getAttribute('inert')).toBe('')
+  })
 })
 
 // Review fix I3: the quote block's wrapper used to carry `pointer-events-none`

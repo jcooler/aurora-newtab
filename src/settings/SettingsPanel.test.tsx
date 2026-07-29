@@ -752,7 +752,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(onArrangeLayout).toHaveBeenCalledOnce()
   })
 
-  it('Reset layout needs two clicks: the first only arms (swaps the label to the confirm copy) and writes nothing, the second writes {}', async () => {
+  it('Reset layout opens a real confirm dialog; Cancel writes nothing, confirming writes {}', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('layout', { clock: { x: 10, y: 10 } })
@@ -763,20 +763,46 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     )
     await screen.findAllByRole('radio')
 
-    const resetButton = within(layoutRegion()).getByRole('button', { name: 'Reset layout' })
-    fireEvent.click(resetButton)
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // one click: armed, not written
-    expect(
-      within(layoutRegion()).getByRole('button', {
-        name: 'Reset layout? This puts every widget back.',
-      }),
-    ).toBeTruthy()
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // opening the dialog never writes
+    // The dialog portals to document.body, outside the "Layout" region's own
+    // subtree — and its confirm button shares the SAME accessible name
+    // ("Reset layout") as the section button that opened it, so every
+    // dialog-scoped query below goes through `within(dialog)` to disambiguate.
+    let dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
+    expect(document.activeElement).toBe(within(dialog).getByRole('button', { name: 'Cancel' })) // safe default
 
-    fireEvent.click(resetButton)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Cancel never writes
+
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
+    dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
     expect(await storage.get('layout')).toEqual({})
   })
 
-  it('an armed Reset layout disarms the instant the drawer closes, so reopening within the arm window shows it idle again (review fix)', async () => {
+  it('Escape cancels the confirm dialog without writing anything', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
+    expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+  })
+
+  it('an open confirm dialog does not survive the drawer closing, so reopening within the same session shows it closed (review fix)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('layout', { clock: { x: 10, y: 10 } })
@@ -790,24 +816,15 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     const { rerender } = render(<Wrapper open={true} />)
     await screen.findAllByRole('radio')
 
-    const resetButton = within(layoutRegion()).getByRole('button', { name: 'Reset layout' })
-    fireEvent.click(resetButton) // arm
-    expect(
-      within(layoutRegion()).getByRole('button', {
-        name: 'Reset layout? This puts every widget back.',
-      }),
-    ).toBeTruthy()
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
+    expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
 
     rerender(<Wrapper open={false} />) // Drawer.tsx merely toggles inert/translate — SettingsPanel stays mounted
-    rerender(<Wrapper open={true} />) // reopened well within the 4s arm window
+    rerender(<Wrapper open={true} />) // reopened
 
     expect(within(layoutRegion()).getByRole('button', { name: 'Reset layout' })).toBeTruthy()
-    expect(
-      within(layoutRegion()).queryByRole('button', {
-        name: 'Reset layout? This puts every widget back.',
-      }),
-    ).toBeNull()
-    // And nothing was actually written by the stray arm.
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+    // And nothing was actually written by the stray open dialog.
     expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
   })
 

@@ -483,10 +483,12 @@ console.log(
 )
 
 // Re-enter arrange (long-press the clock at its NEW position) and reset the
-// layout via the pill's two-step armed-confirm idiom
-// (src/lib/hooks/useArmedConfirm.ts): the first click only arms (swaps the
-// button's own label to the confirm copy), the second — same button —
-// actually resets.
+// layout via the pill's Reset button, which now opens a real confirm dialog
+// (src/lib/ResetLayoutDialog.tsx) instead of the old two-click armed-confirm
+// idiom. The dialog portals to document.body — a SIBLING of
+// `[data-arrange-overlay]`, not a descendant — so its own buttons are
+// selected via the dialog's `aria-label`, not scoped under the overlay the
+// way the pill's own "Reset"/"Done" buttons are.
 await page.mouse.move(droppedClockCenter.x, droppedClockCenter.y)
 await page.mouse.down()
 await page.waitForTimeout(650)
@@ -494,10 +496,36 @@ await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { t
 await page.mouse.up() // ends this re-engage drag with no movement; commits nothing new
 await page.waitForTimeout(150)
 
-const resetButton = page.locator('[data-arrange-overlay] button:has-text("Reset layout")')
-await resetButton.click() // arm (label becomes "Reset layout? This puts every widget back.")
+await page.click('[data-arrange-overlay] button:has-text("Reset")')
 await page.waitForTimeout(150)
-await resetButton.click() // same button, still matched by substring — confirm
+const dialog = page.locator('[aria-label="Reset layout?"]')
+const dialogAppeared = (await dialog.count()) === 1
+console.log(
+  dialogAppeared
+    ? 'PASS: Reset opens a confirm dialog'
+    : 'FAIL: Reset opens a confirm dialog — dialog never appeared',
+)
+
+// Cancel path first: must close the dialog and leave the just-dropped
+// layout untouched — proof Cancel really is a no-op, not just "some button
+// that happens to close the dialog."
+await dialog.getByRole('button', { name: 'Cancel' }).click()
+await page.waitForTimeout(150)
+const dialogGoneAfterCancel = (await dialog.count()) === 0
+const clockAfterCancel = await clockCenter()
+const cancelDx = Math.abs(clockAfterCancel.x - droppedClockCenter.x)
+const cancelDy = Math.abs(clockAfterCancel.y - droppedClockCenter.y)
+console.log(
+  dialogGoneAfterCancel && cancelDx <= 16 && cancelDy <= 16
+    ? 'PASS: Cancel closes the dialog and leaves the layout intact'
+    : `FAIL: Cancel closes the dialog and leaves the layout intact (dialog gone: ${dialogGoneAfterCancel}, clock at (${clockAfterCancel.x.toFixed(1)}, ${clockAfterCancel.y.toFixed(1)}), expected ~(${droppedClockCenter.x.toFixed(1)}, ${droppedClockCenter.y.toFixed(1)}))`,
+)
+
+// Now the real confirm: Reset -> dialog -> its own "Reset layout" danger
+// button (distinct text from the pill's own short "Reset" label).
+await page.click('[data-arrange-overlay] button:has-text("Reset")')
+await page.waitForTimeout(150)
+await dialog.getByRole('button', { name: 'Reset layout' }).click()
 await page.waitForTimeout(150)
 await page.click('[data-arrange-overlay] button:has-text("Done")')
 await page.waitForTimeout(300)

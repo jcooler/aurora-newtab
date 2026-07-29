@@ -1,10 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { isPremium } from '../../lib/premium'
-import { useArmedConfirm } from '../../lib/hooks/useArmedConfirm'
+import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
 import { row, label } from './shared'
-
-const RESET_CONFIRM_COPY = 'Reset layout? This puts every widget back.'
 
 /** Widget-arrangement entry points. Both gated on `isPremium()` and hidden
  *  ENTIRELY (not disabled/greyed) when it's false — the no-placeholder-UI
@@ -15,18 +13,24 @@ const RESET_CONFIRM_COPY = 'Reset layout? This puts every widget back.'
  *  "close the drawer, then bump ArrangeController's `openSignal` nonce" so
  *  the page is actually visible once arrange mode's overlay appears.
  *
- *  "Reset layout" uses the exact same two-step arm/confirm idiom
- *  (`useArmedConfirm`) as the arrange pill's own Reset layout button inside
- *  `ArrangeController` — the shared piece is the state machine, not this
- *  JSX, since settings and the newtab/arrange feature tree never import
- *  from each other.
+ *  "Reset layout" opens the exact same shared confirm dialog
+ *  (`src/lib/ResetLayoutDialog.tsx`) as the arrange pill's own danger-styled
+ *  Reset button inside `ArrangeController` — replacing the old two-step
+ *  arm/auto-expire idiom (`useArmedConfirm`, since removed from both call
+ *  sites) per explicit user feedback that a silently-auto-reverting button
+ *  is a bad pattern for a destructive action. Settings and the newtab/arrange
+ *  feature tree still never import from each other directly; the dialog
+ *  lives in `lib`, shared by both.
  *
  *  `open` (review fix): this section — like the rest of SettingsPanel —
  *  stays MOUNTED while the Drawer is merely closed (Drawer only toggles
- *  `inert`/`translate-x-full` on itself, see Drawer.tsx), so an armed Reset
- *  would otherwise survive a close and ambush a reopen within the arm
- *  window. Disarms the instant the drawer closes rather than waiting for a
- *  reopen, so it's never even MOMENTARILY visible pre-armed. */
+ *  `inert`/`translate-x-full` on itself, see Drawer.tsx), so a confirm
+ *  dialog left open would otherwise survive a close and ambush a reopen.
+ *  Closes the dialog the instant the drawer closes rather than waiting for a
+ *  reopen, so it's never even momentarily visible pre-opened. `inert` on the
+ *  drawer's own panel (see Drawer.tsx) already makes a still-open dialog
+ *  behind it unreachable the moment the drawer closes — this just also
+ *  drops its state so a reopen doesn't resurrect it. */
 export default function Layout({
   storage,
   onArrangeLayout,
@@ -36,13 +40,10 @@ export default function Layout({
   onArrangeLayout: () => void
   open: boolean
 }) {
-  const resetConfirm = useArmedConfirm(() => {
-    void storage.set('layout', {})
-  })
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
   useEffect(() => {
-    if (!open) resetConfirm.disarm()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only `open` transitions should re-run this; `resetConfirm.disarm` changes identity every render but is otherwise safe to omit
+    if (!open) setResetDialogOpen(false)
   }, [open])
 
   if (!isPremium()) return null
@@ -60,15 +61,27 @@ export default function Layout({
           >
             Arrange layout
           </button>
+          {/* Danger-styled to match the arrange pill's own Reset button —
+              same restrained-red convention (ResetLayoutDialog's doc
+              comment), since this opens the identical destructive dialog. */}
           <button
             type="button"
-            onClick={resetConfirm.trigger}
-            className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            onClick={() => setResetDialogOpen(true)}
+            className="rounded border border-panel-border px-2 py-1 text-sm text-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent"
           >
-            {resetConfirm.armed ? RESET_CONFIRM_COPY : 'Reset layout'}
+            Reset layout
           </button>
         </div>
       </div>
+
+      <ResetLayoutDialog
+        open={resetDialogOpen}
+        onCancel={() => setResetDialogOpen(false)}
+        onConfirm={() => {
+          setResetDialogOpen(false)
+          void storage.set('layout', {})
+        }}
+      />
     </section>
   )
 }

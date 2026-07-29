@@ -8,6 +8,7 @@ import { StorageProvider } from '../../lib/storage/context'
 import type { Layout } from '../../lib/layout/types'
 import { snapPosition } from '../../lib/layout/snap'
 import { clampCenterPct } from '../../lib/layout/clamp'
+import { pillAnchorRect } from '../../lib/layout/pillPlacement'
 import NotesWidget from '../widgets/notes/NotesWidget'
 import ArrangeController from './ArrangeController'
 
@@ -129,14 +130,87 @@ describe('ArrangeController', () => {
     vi.useRealTimers()
   })
 
-  it('engage renders the overlay outlines and the pill (Done, Reset layout by role)', async () => {
+  it('engage renders the overlay outlines and the pill (Done, Reset by role)', async () => {
     await renderController()
     engageClock()
 
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Move Clock' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Move Greeting' })).toBeTruthy()
+  })
+
+  describe('pill dodge (never sits on top of a widget)', () => {
+    it('the pill sits at the default bottom-center anchor when no block is anywhere near it', async () => {
+      await renderController()
+      engageClock()
+
+      const pill = screen.getByRole('button', { name: 'Reset' }).parentElement!
+      const expected = pillAnchorRect('bottom-center', { w: 0, h: 0 }, { w: 1600, h: 900 })
+      expect(pill.style.left).toBe(`${expected.left}px`)
+      expect(pill.style.top).toBe(`${expected.top}px`)
+    })
+
+    it('the pill dodges to the next clear candidate when a block covers the default bottom-center spot', async () => {
+      // greeting's rect moved to straddle the pill's default bottom-center
+      // spot (the fixture's own pill is measured 0x0 in this mocked
+      // environment — see RECT_DATA's fallback — so its default box is
+      // effectively the single point (800, 884)).
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const id = this.getAttribute('data-block-id')
+        // Covers ONLY the default bottom-center point (800, 884), not the
+        // above-bottom-center one 32px higher (800, 852) — a slim band so
+        // the dodge lands on the very next candidate, not one further down
+        // the list.
+        if (id === 'greeting') return domRect({ left: 700, top: 870, width: 200, height: 40 })
+        const data = id ? RECT_DATA[id] : undefined
+        return domRect(data ?? { left: 0, top: 0, width: 0, height: 0 })
+      })
+
+      await renderController()
+      engageClock()
+
+      const pill = screen.getByRole('button', { name: 'Reset' }).parentElement!
+      const expected = pillAnchorRect('above-bottom-center', { w: 0, h: 0 }, { w: 1600, h: 900 })
+      expect(pill.style.left).toBe(`${expected.left}px`)
+      expect(pill.style.top).toBe(`${expected.top}px`)
+    })
+
+    it('re-picks the anchor when rects change (self-heals) — a reset that clears the blocking block lets the pill fall back to bottom-center', async () => {
+      let greetingBlocksPill = true
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const id = this.getAttribute('data-block-id')
+        if (id === 'greeting') {
+          return domRect(
+            greetingBlocksPill
+              ? { left: 700, top: 870, width: 200, height: 40 } // see the previous test's comment
+              : RECT_DATA.greeting!,
+          )
+        }
+        const data = id ? RECT_DATA[id] : undefined
+        return domRect(data ?? { left: 0, top: 0, width: 0, height: 0 })
+      })
+
+      await renderController()
+      engageClock()
+      const pill = screen.getByRole('button', { name: 'Reset' }).parentElement!
+      const dodged = pillAnchorRect('above-bottom-center', { w: 0, h: 0 }, { w: 1600, h: 900 })
+      expect(pill.style.top).toBe(`${dodged.top}px`)
+
+      greetingBlocksPill = false
+      // Any resize re-measures every rect (including greeting's, now clear
+      // of the pill) and feeds the fresh set back into the dodge decision.
+      act(() => {
+        window.dispatchEvent(new Event('resize'))
+      })
+
+      const backToDefault = pillAnchorRect('bottom-center', { w: 0, h: 0 }, { w: 1600, h: 900 })
+      expect(pill.style.top).toBe(`${backToDefault.top}px`)
+    })
   })
 
   it('Escape exits the mode and clears the draft override', async () => {
@@ -235,36 +309,102 @@ describe('ArrangeController', () => {
     expect(beforeDone.clock).toBeDefined()
   })
 
-  it('Reset layout needs two clicks: the first only arms (swaps the label to the confirm copy) and writes nothing', async () => {
-    const { storage } = await renderController({ clock: { x: 10, y: 10 } })
-    engageClock()
-    await settleDrag()
+  describe('Reset opens a real confirm dialog (replaces the old two-click armed idiom)', () => {
+    it('clicking the pill\'s Reset opens the dialog and writes nothing yet', async () => {
+      const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+      engageClock()
+      await settleDrag()
 
-    const resetButton = screen.getByRole('button', { name: 'Reset layout' })
-    fireEvent.click(resetButton)
-    await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
 
-    expect((await storage.get('layout')).clock).toBeDefined() // unchanged — one click never writes
-    expect(
-      screen.getByRole('button', { name: 'Reset layout? This puts every widget back.' }),
-    ).toBeTruthy()
-  })
+      expect((await storage.get('layout')).clock).toBeDefined() // unchanged — opening the dialog never writes
+      const dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
+      expect(dialog).toBeTruthy()
+      expect(screen.getByText("Every widget returns to its default position. This can't be undone.")).toBeTruthy()
+    })
 
-  it('a second click while armed confirms: writes an empty layout without exiting the mode', async () => {
-    const { storage } = await renderController({ clock: { x: 10, y: 10 } })
-    engageClock()
-    await settleDrag()
+    it('focus lands on Cancel — the safe default — the moment the dialog opens', async () => {
+      await renderController()
+      engageClock()
+      await settleDrag()
 
-    const resetButton = screen.getByRole('button', { name: 'Reset layout' })
-    fireEvent.click(resetButton) // arm
-    fireEvent.click(resetButton) // same DOM node — confirm, regardless of its now-changed accessible name
-    await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
 
-    expect(await storage.get('layout')).toEqual({})
-    // Still in arrange mode — Reset doesn't exit.
-    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
-    // And the label is back to idle, ready to be armed again.
-    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
+      expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }))
+    })
+
+    it('Cancel closes the dialog and writes nothing', async () => {
+      const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+      engageClock()
+      await settleDrag()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      await act(async () => {})
+
+      expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+      expect((await storage.get('layout')).clock).toBeDefined() // still untouched
+      // Still in arrange mode — Cancel doesn't exit arrange, only the dialog.
+      expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+    })
+
+    it('confirming "Reset layout" inside the dialog writes {} once and closes the dialog, without exiting arrange mode', async () => {
+      const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+      engageClock()
+      await settleDrag()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
+      fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
+      await act(async () => {})
+
+      expect(await storage.get('layout')).toEqual({})
+      expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+      // Still in arrange mode — confirming Reset doesn't exit.
+      expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
+    })
+
+    it('a first Escape cancels the dialog only; a second Escape then exits arrange mode (stack ordering)', async () => {
+      const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+      engageClock()
+      await settleDrag()
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
+      expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
+
+      fireEvent.keyDown(document, { key: 'Escape' }) // dialog is the newest stack entry — closes first
+      expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
+      expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy() // still arranging
+      expect((await storage.get('layout')).clock).toBeDefined() // Escape-cancel never writes
+
+      fireEvent.keyDown(document, { key: 'Escape' }) // now arrange's own exit is the top entry
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    })
+
+    it('while the dialog is open, the overlay\'s own arrow-nudge keys on a Move button do not fire', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag() // clock's stored position is now its rect-derived (50%, 50%)
+      const beforeDialog = await storage.get('layout')
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
+
+      // Fire the arrow key directly on the (now unfocused, but still
+      // present) outline button — belt-and-suspenders coverage for the
+      // explicit dialog-open gate in handleOutlineKeyDown, independent of
+      // whether the focus trap alone would have prevented this.
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Move Clock' }), { key: 'ArrowRight' })
+      await act(async () => {})
+
+      expect(await storage.get('layout')).toEqual(beforeDialog) // unchanged — the nudge was gated
+      expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy() // still open too
+    })
   })
 
   it('a second, concurrent pointer pressing a different outline mid-drag is ignored', async () => {
@@ -384,11 +524,11 @@ describe('ArrangeController', () => {
       engageClock()
       await settleDrag()
 
-      const resetButton = screen.getByRole('button', { name: 'Reset layout' })
-      fireEvent.click(resetButton) // arm
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' })) // opens the confirm dialog
+      await act(async () => {})
 
       postReset = true
-      fireEvent.click(resetButton) // confirm — writes {} to layout, clears nudged
+      fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button — writes {} to layout, clears nudged
       await act(async () => {})
 
       expect(await storage.get('layout')).toEqual({})
@@ -459,24 +599,27 @@ describe('ArrangeController', () => {
     })
   })
 
-  it('an armed pill Reset disarms on arrange-mode exit, so re-entering within the auto-expire window does not show it pre-armed (review fix)', async () => {
+  it('a still-open confirm dialog does not survive an arrange-mode exit forced while it is open (defense in depth), so re-entering shows it closed', async () => {
     await renderController()
     engageClock()
     await settleDrag()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // arm
-    expect(
-      screen.getByRole('button', { name: 'Reset layout? This puts every widget back.' }),
-    ).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Reset' })) // open the dialog
+    await act(async () => {})
+    expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
 
-    fireEvent.keyDown(document, { key: 'Escape' }) // exit WITHOUT confirming
+    // Force an exit while the dialog is still open — Done is the ONLY way
+    // to reach `exit()` without going through the dialog's own stack entry
+    // first (a real Escape press would close the dialog, not arrange mode;
+    // this exercises exit()'s own defensive `setResetDialogOpen(false)`
+    // instead, same reasoning the old armed-Reset `disarm()` had).
+    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
 
-    engageClock() // re-enter well within the 4s auto-expire window (fake timers haven't advanced)
-    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
-    expect(
-      screen.queryByRole('button', { name: 'Reset layout? This puts every widget back.' }),
-    ).toBeNull()
+    engageClock() // re-enter
+    expect(screen.getByRole('button', { name: 'Reset' })).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
   })
 
   describe('keyboard nudging (Arrow / Shift+Arrow / Enter)', () => {

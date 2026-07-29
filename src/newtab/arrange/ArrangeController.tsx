@@ -2,16 +2,20 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { BLOCK_IDS, type BlockId, type BlockPos, type Layout } from '../../lib/layout/types'
 import { clampCenterPct, type Size } from '../../lib/layout/clamp'
 import { snapPosition, type Guide, type OtherRect } from '../../lib/layout/snap'
+import { choosePillAnchor, pillAnchorRect, type PillAnchor } from '../../lib/layout/pillPlacement'
 import { isPremium } from '../../lib/premium'
 import { closeAllDialogs, useDialogEscape } from '../../lib/dialogStack'
 import { useStorage } from '../../lib/storage/context'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
-import { useArmedConfirm } from '../../lib/hooks/useArmedConfirm'
+import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import { useLongPress } from './useLongPress'
 
 const NUDGE_PX = 8
 const NUDGE_PX_FINE = 1
-const RESET_CONFIRM_COPY = 'Reset layout? This puts every widget back.'
+// First-paint guess for the pill's own size, before it's ever been measured
+// — corrected synchronously (before the browser paints) by the anchor effect
+// below, so the exact numbers here are never actually visible on screen.
+const INITIAL_PILL_SIZE: Size = { w: 200, h: 48 }
 
 const BLOCK_LABELS: Record<BlockId, string> = {
   clock: 'Clock',
@@ -128,18 +132,22 @@ export default function ArrangeController({
   // Settings entry point, which doesn't pre-select any block). Consumed
   // (nulled) by the focus-management effect below the moment it succeeds.
   const pendingFocusRef = useRef<BlockId | 'first' | null>(null)
+  // Whether the "Reset layout?" confirm dialog (src/lib/ResetLayoutDialog.tsx
+  // — shared with Settings' Layout section, see its own doc comment) is up.
+  // Declared here (not down by the JSX that uses it) so `exit`, below, and
+  // `handleOutlineKeyDown` further down can both read it.
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
 
-  // The two-step inline confirm idiom (src/lib/hooks/useArmedConfirm.ts) —
-  // byte-identical copy/behavior to the Settings "Layout" section's own
-  // Reset layout button (src/settings/sections/Layout.tsx); only the JSX
-  // shell differs, since settings and the newtab/arrange tree never import
-  // from each other. Declared up here (not down by the JSX that uses it) so
-  // `exit`, below, can call `resetConfirm.disarm()`.
-  const resetConfirm = useArmedConfirm(() => {
-    void storage.set('layout', {})
-    setNudged({})
-    onDraftChange({})
-  })
+  // Pill placement (Jon: "reset layout and done buttons are right on top of
+  // a widget") — `pillRef` measures the pill's own rendered size (content-
+  // driven, effectively anchor-independent: same buttons/text regardless of
+  // where it's placed), `pillAnchor` is which of `choosePillAnchor`'s
+  // candidates is currently clear of every block. Both start at a guess
+  // (see INITIAL_PILL_SIZE / 'bottom-center', the pre-dodge default) that the
+  // layout effect below corrects before the very first paint.
+  const pillRef = useRef<HTMLDivElement>(null)
+  const [pillSize, setPillSize] = useState<Size>(INITIAL_PILL_SIZE)
+  const [pillAnchor, setPillAnchor] = useState<PillAnchor>('bottom-center')
 
   const measureAll = useCallback((): Partial<Record<BlockId, DOMRect>> => {
     const next: Partial<Record<BlockId, DOMRect>> = {}
@@ -162,14 +170,15 @@ export default function ArrangeController({
     setMode('off')
     setDrag(null)
     setNudged({})
-    // Review fix: don't leave a stray "Reset layout? This puts every widget
-    // back." armed across a re-entry within the auto-expire window — this
-    // component stays mounted the whole page session, so without this an
-    // armed Reset would survive Done/Escape/Enter and ambush the next
-    // session's first click.
-    resetConfirm.disarm()
+    // Don't leave the confirm dialog stranded open across a re-entry — this
+    // component stays mounted the whole page session, so without this a
+    // dialog left open (e.g. Escape closing arrange mode out from under it —
+    // can't normally happen since it's the newer stack entry and closes
+    // first, but this is the same defense-in-depth the old armed-Reset
+    // disarm-on-exit had) would ambush the next session already open.
+    setResetDialogOpen(false)
     onDraftChange({})
-  }, [onDraftChange, resetConfirm])
+  }, [onDraftChange])
 
   // Newest-first shared Escape stack (src/lib/dialogStack.ts) — only active
   // while arrange mode is on.
@@ -228,6 +237,26 @@ export default function ArrangeController({
     measureAll()
     return undefined
   }, [mode, layout, measureAll])
+
+  // Pill dodge (Jon: never sit on top of a widget) — re-picks the pill's
+  // anchor every time `rects` changes (mode entry, window resize, and the
+  // self-healing re-measure above all funnel through it already), using the
+  // pill's OWN just-measured size against every block's current rect. A
+  // `useLayoutEffect`, not `useEffect`: it must resolve (and, via
+  // `setPillAnchor`/`setPillSize`, potentially re-render) before the browser
+  // paints, so a stale first-guess position is never actually visible — see
+  // INITIAL_PILL_SIZE's own comment.
+  useLayoutEffect(() => {
+    if (mode !== 'on') return
+    const pillEl = pillRef.current
+    if (!pillEl) return
+    const pillRect = pillEl.getBoundingClientRect()
+    const nextSize: Size = { w: pillRect.width, h: pillRect.height }
+    const viewport = viewportSize()
+    const blockRects = Object.values(rects).filter((r): r is DOMRect => r !== undefined)
+    setPillSize((prev) => (prev.w === nextSize.w && prev.h === nextSize.h ? prev : nextSize))
+    setPillAnchor(choosePillAnchor(nextSize, blockRects, viewport))
+  }, [mode, rects])
 
   // Claim real pointer capture on the overlay once a drag starts, so the
   // eventual release is delivered even if the pointer strays outside the
@@ -419,6 +448,13 @@ export default function ArrangeController({
   // same `clampCenterPct` the drag path uses, so a block can never be nudged
   // past the viewport edge.
   const handleOutlineKeyDown = (blockId: BlockId, e: React.KeyboardEvent<HTMLButtonElement>) => {
+    // While the confirm dialog is up, the outline's own arrows/Enter must not
+    // fire — the dialog's focus trap already keeps focus (and therefore real
+    // keydown targets) inside itself, so this is belt-and-suspenders, not
+    // load-bearing; Escape is unaffected (it bubbles to the document-level
+    // dialog-stack listener regardless, and the dialog's own newer stack
+    // entry closes it first either way — see ResetLayoutDialog's doc comment).
+    if (resetDialogOpen) return
     if (e.key === 'Enter') {
       e.preventDefault()
       exit()
@@ -461,6 +497,8 @@ export default function ArrangeController({
   }
 
   if (mode !== 'on') return null
+
+  const pillRect = pillAnchorRect(pillAnchor, pillSize, viewportSize())
 
   return (
     <div
@@ -538,13 +576,32 @@ export default function ArrangeController({
         ),
       )}
 
-      <div className="fixed bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-panel border border-panel-border bg-[#17171c]/95 px-3 py-2 text-fg backdrop-blur-[var(--panel-blur)]">
+      {/* Positioned via inline left/top (not Tailwind bottom-4/left-1/2)
+          computed from `pillAnchor` — the dodge decision (Jon: "reset layout
+          and done buttons are right on top of a widget") needs the EXACT
+          same geometry for both "does this collide" and "where does it
+          render", which inline styles from the same `pillAnchorRect` call
+          guarantee; Tailwind's translate-based centering can't express the
+          non-default anchors (above-bottom-center/top-center/bottom-left)
+          without duplicating that math a second way. */}
+      <div
+        ref={pillRef}
+        style={{ left: pillRect.left, top: pillRect.top }}
+        className="fixed flex items-center gap-2 rounded-panel border border-panel-border bg-[#17171c]/95 px-3 py-2 text-fg backdrop-blur-[var(--panel-blur)]"
+      >
+        {/* Danger-styled per Jon's explicit feedback: a restrained red TEXT
+            treatment (no filled/solid background) — the codebase has no
+            other danger-action convention to match, so this establishes one,
+            reused verbatim by ResetLayoutDialog's own "Reset layout" button
+            and Settings' Layout section. Opens the shared confirm dialog
+            below instead of the old two-click arm/auto-expire idiom
+            (Jon: the auto-expiring armed button was itself the complaint). */}
         <button
           type="button"
-          onClick={resetConfirm.trigger}
-          className="rounded-full border border-panel-border px-3 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          onClick={() => setResetDialogOpen(true)}
+          className="rounded-full border border-panel-border px-3 py-1 text-sm text-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent"
         >
-          {resetConfirm.armed ? RESET_CONFIRM_COPY : 'Reset layout'}
+          Reset
         </button>
         <button
           type="button"
@@ -554,6 +611,17 @@ export default function ArrangeController({
           Done
         </button>
       </div>
+
+      <ResetLayoutDialog
+        open={resetDialogOpen}
+        onCancel={() => setResetDialogOpen(false)}
+        onConfirm={() => {
+          setResetDialogOpen(false)
+          void storage.set('layout', {})
+          setNudged({})
+          onDraftChange({})
+        }}
+      />
     </div>
   )
 }
