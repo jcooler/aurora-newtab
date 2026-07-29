@@ -5,7 +5,14 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
+import { ensurePermission } from '../../../services/permissions'
 import LocationSetup from './LocationSetup'
+
+// "Use my location" requests the optional 'geolocation' permission via
+// src/services/permissions.ts, which touches chrome.permissions —
+// unavailable in jsdom. Mocked the same way SettingsPanel.test.tsx mocks
+// ensureBookmarksPermission for the analogous bookmarks flow.
+vi.mock('../../../services/permissions', () => ({ ensurePermission: vi.fn() }))
 
 // Same caveat as NotesPanel.test.tsx: fake timers block testing-library's
 // setTimeout-polled findBy/waitFor, so every assertion below reads the DOM
@@ -387,5 +394,82 @@ describe('LocationSetup dropdown edge clamping', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(list.style.left).toBe('-208px') // still clamped, not un-clamped back to 0
+  })
+})
+
+describe('LocationSetup "Use my location" (geolocation permission, requested on click)', () => {
+  // jsdom doesn't implement navigator.geolocation at all — defined directly
+  // (same idiom as this file's window.innerWidth stub, and Data.test.tsx's
+  // URL.createObjectURL stub) rather than vi.stubGlobal('navigator', ...),
+  // which would replace the whole navigator object and lose everything else
+  // jsdom/testing-library relies on it for.
+  let getCurrentPosition: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    getCurrentPosition = vi.fn()
+    Object.defineProperty(navigator, 'geolocation', {
+      value: { getCurrentPosition },
+      configurable: true,
+    })
+    vi.mocked(ensurePermission).mockReset()
+  })
+
+  it('denying the geolocation permission shows an inline alert and never calls navigator.geolocation or writes a location', async () => {
+    vi.mocked(ensurePermission).mockResolvedValue(false)
+    const { storage } = await renderSetup()
+    const button = screen.getByRole('button', { name: 'Use my location' })
+
+    await act(async () => {
+      fireEvent.click(button)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(ensurePermission).toHaveBeenCalledWith('geolocation')
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
+    expect(await storage.get('location')).toBeNull()
+  })
+
+  it('a rejected ensurePermission (not just an explicit false) is caught and routed to the same alert, not left as an unhandled rejection', async () => {
+    vi.mocked(ensurePermission).mockRejectedValue(new Error('gesture context lost'))
+    const { storage } = await renderSetup()
+    const button = screen.getByRole('button', { name: 'Use my location' })
+
+    await act(async () => {
+      fireEvent.click(button)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect(await storage.get('location')).toBeNull()
+  })
+
+  it('granting the geolocation permission proceeds to navigator.geolocation.getCurrentPosition and writes the resolved location', async () => {
+    vi.mocked(ensurePermission).mockResolvedValue(true)
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      success({ coords: { latitude: 32.7767, longitude: -96.797 } })
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ city: 'Dallas' })))
+    const { storage } = await renderSetup()
+    const button = screen.getByRole('button', { name: 'Use my location' })
+
+    await act(async () => {
+      fireEvent.click(button)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(ensurePermission).toHaveBeenCalledWith('geolocation')
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+    expect(await storage.get('location')).toEqual({
+      lat: 32.78,
+      lon: -96.8,
+      label: 'Dallas',
+      manual: false,
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

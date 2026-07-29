@@ -1,3 +1,5 @@
+import { hasPermission, ensurePermission } from './permissions'
+
 export interface BookmarkItem {
   id: string
   title: string
@@ -61,11 +63,13 @@ export function toBarModel(tree: ChromeBookmarkNode[]): BarModel {
   return { folders: mapped.folders, loose: mapped.items }
 }
 
-/** Thin chrome.bookmarks wrapper — one of the chrome.* touches in this module
- *  (requires the optional 'bookmarks' permission declared in
- *  src/manifest.ts — see ensureBookmarksPermission below). Tests import
- *  `toBarModel` directly and never call this, so importing the pure half of
- *  this module never executes chrome.* code. */
+/** Thin chrome.bookmarks wrapper — the one remaining chrome.* touch in this
+ *  module (requires the optional 'bookmarks' permission declared in
+ *  src/manifest.ts — see ensureBookmarksPermission below). Permission
+ *  handling itself now lives in src/services/permissions.ts, so this is the
+ *  only chrome.* call left here. Tests import `toBarModel` directly and
+ *  never call this, so importing the pure half of this module never
+ *  executes chrome.* code. */
 export async function loadBarModel(): Promise<BarModel> {
   const tree = await chrome.bookmarks.getTree()
   return toBarModel(tree)
@@ -75,11 +79,14 @@ export async function loadBarModel(): Promise<BarModel> {
  *  permission — either because the user granted it via
  *  ensureBookmarksPermission below, or (for anyone who had Aurora installed
  *  before it became optional) because Chrome carries a previously-granted
- *  permission forward across an update. chrome.permissions calls, alongside
- *  chrome.bookmarks.getTree above, are the only chrome.* touches in this
- *  module — the carve-out that keeps every other file free of chrome.*. */
+ *  permission forward across an update. Thin delegate to the shared
+ *  chrome.permissions wrapper (src/services/permissions.ts) — kept as its
+ *  own named export, rather than call sites importing hasPermission
+ *  ('bookmarks') directly, so every existing call site and test mock
+ *  (`vi.mock('../services/bookmarks', ...)`) keyed on this name stays
+ *  unchanged. */
 export async function hasBookmarksPermission(): Promise<boolean> {
-  return chrome.permissions.contains({ permissions: ['bookmarks'] })
+  return hasPermission('bookmarks')
 }
 
 /** Requests the optional 'bookmarks' permission. MUST be called directly
@@ -87,15 +94,15 @@ export async function hasBookmarksPermission(): Promise<boolean> {
  *  only shows its prompt when called that way, and any await inserted before
  *  it (even a fast one, like a hasBookmarksPermission() pre-check) is an IPC
  *  round-trip that can land outside the gesture window and break the prompt.
- *  So this calls request() straight away, with no pre-check: request()
- *  already resolves true with no prompt at all when the permission is
- *  already held, which is the same outcome a pre-check would have produced,
- *  just without the extra await in front of the gesture-consuming call.
- *  Resolves to whether the permission is held once this settles: true if it
- *  was already granted or the user approves the prompt, false if the user
+ *  See src/services/permissions.ts's ensurePermission for the full
+ *  no-pre-check rationale this delegates straight through to — this wrapper
+ *  adds nothing of its own beyond pinning the permission name, so it can't
+ *  reintroduce an await in front of the gesture-consuming call. Resolves to
+ *  whether the permission is held once this settles: true if it was
+ *  already granted or the user approves the prompt, false if the user
  *  denies it. Callers should also expect this to reject (not just resolve
  *  false) — e.g. if the gesture context was somehow already lost — and
  *  handle that the same way as an explicit denial. */
 export async function ensureBookmarksPermission(): Promise<boolean> {
-  return chrome.permissions.request({ permissions: ['bookmarks'] })
+  return ensurePermission('bookmarks')
 }

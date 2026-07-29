@@ -24,6 +24,15 @@ import { defineManifest } from '@crxjs/vite-plugin'
 // instead of skipping it. A normal (production) build still gets
 // `bookmarks` as optional-only, byte-identical to before this change.
 //
+// `geolocation` made the same optional-permission move (LocationSetup.tsx's
+// "Use my location" button now requests it at click time via
+// ensurePermission('geolocation') — see src/services/permissions.ts), but
+// UNLIKE bookmarks it stays optional-only in the preview build too: the
+// preview harness (scripts/preview.mjs) seeds a manual location directly
+// into chrome.storage.local and never clicks "Use my location", so there's
+// no real-Chromium geolocation flow for install-time granting to unlock —
+// nothing in the preview capture would exercise it either way.
+//
 // `env.mode` is Vite's build mode (`vite build` defaults to 'production';
 // `--mode preview` sets it to 'preview'). This is the cleanest
 // @crxjs-supported mechanism for the switch: `defineManifest` accepts
@@ -41,12 +50,14 @@ export default defineManifest((env) => ({
   description: 'A calm, local-first new-tab dashboard. No accounts, no tracking.',
   permissions:
     env.mode === PREVIEW
-      ? ['storage', 'geolocation', 'favicon', 'bookmarks']
-      : ['storage', 'geolocation', 'favicon'],
+      ? ['storage', 'favicon', 'bookmarks']
+      : ['storage', 'favicon'],
   // Chrome disallows (warns/rejects) listing the same permission as both
-  // install-time and optional, so the preview build drops it from here
-  // rather than duplicating it — it MOVES, it doesn't get held twice.
-  optional_permissions: env.mode === PREVIEW ? [] : ['bookmarks'],
+  // install-time and optional, so the preview build drops `bookmarks` from
+  // here rather than duplicating it — it MOVES, it doesn't get held twice.
+  // `geolocation` is optional in BOTH modes (see the comment above), so it
+  // lives in this array unconditionally.
+  optional_permissions: env.mode === PREVIEW ? ['geolocation'] : ['bookmarks', 'geolocation'],
   icons: {
     16: 'icons/icon16.png',
     48: 'icons/icon48.png',

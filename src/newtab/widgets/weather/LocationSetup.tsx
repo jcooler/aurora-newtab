@@ -3,6 +3,7 @@ import { searchCity } from '../../../services/weather/geocode'
 import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
+import { ensurePermission } from '../../../services/permissions'
 
 const SEARCH_DEBOUNCE_MS = 300
 const MIN_QUERY_LENGTH = 2
@@ -82,8 +83,28 @@ export default function LocationSetup() {
   }, [])
 
   async function useDevice() {
-    setBusy(true)
     setError(null)
+    // ensurePermission MUST be the first thing this handler awaits — it's
+    // the call that has to land inside the click's user-gesture window (see
+    // src/services/permissions.ts's doc comment on ensurePermission for
+    // why even a fast await in front of it can break the native prompt).
+    // `geolocation` is optional (src/manifest.ts); Chrome's permission
+    // prompt here IS the consent moment — once it's granted,
+    // navigator.geolocation below works on this extension page with no
+    // further site-level prompt. Denied/rejected -> inline alert below; the
+    // manual city search stays untouched either way.
+    let granted: boolean
+    try {
+      granted = await ensurePermission('geolocation')
+    } catch {
+      granted = false
+    }
+    if (!granted) {
+      setError('Location permission was declined — the manual search below still works.')
+      return
+    }
+
+    setBusy(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
@@ -216,6 +237,7 @@ export default function LocationSetup() {
         type="button"
         onClick={useDevice}
         disabled={busy}
+        aria-describedby={error ? 'location-error' : undefined}
         className="self-start rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
       >
         Use my location
@@ -276,7 +298,11 @@ export default function LocationSetup() {
           })}
         </ul>
       </div>
-      {error && <p className="text-fg-muted">{error}</p>}
+      {error && (
+        <p id="location-error" role="alert" className="text-fg-muted">
+          {error}
+        </p>
+      )}
     </div>
   )
 }
