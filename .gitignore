@@ -16,9 +16,13 @@ Thumbs.db
 .playwright-mcp/
 screenshots/
 
-# Packaging output: the zip, screenshots, and listing copy are LOCAL
-# deliverables for Jon (Chrome Web Store launch) — never committed.
-release/
+# Packaging output: the zip and screenshots are LOCAL, binary deliverables
+# for Jon (Chrome Web Store launch) — never committed. The .md docs in
+# release/ (store-listing.md, LAUNCH-CHECKLIST.md) ARE tracked: they're the
+# only record of the launch decisions (e.g. the Data-Usage disclosure
+# reasoning) and belong in git history like any other doc.
+release/*.zip
+release/store-shots/
 
 # Phase A/B photo curation scratch: downloaded candidates + contact sheets.
 # Working files for controller review only — never shipped, never committed.
