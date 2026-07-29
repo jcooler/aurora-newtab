@@ -776,6 +776,41 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(await storage.get('layout')).toEqual({})
   })
 
+  it('an armed Reset layout disarms the instant the drawer closes, so reopening within the arm window shows it idle again (review fix)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    function Wrapper({ open }: { open: boolean }) {
+      return (
+        <StorageProvider storage={storage}>
+          <SettingsPanel onArrangeLayout={() => {}} open={open} />
+        </StorageProvider>
+      )
+    }
+    const { rerender } = render(<Wrapper open={true} />)
+    await screen.findAllByRole('radio')
+
+    const resetButton = within(layoutRegion()).getByRole('button', { name: 'Reset layout' })
+    fireEvent.click(resetButton) // arm
+    expect(
+      within(layoutRegion()).getByRole('button', {
+        name: 'Reset layout? This puts every widget back.',
+      }),
+    ).toBeTruthy()
+
+    rerender(<Wrapper open={false} />) // Drawer.tsx merely toggles inert/translate — SettingsPanel stays mounted
+    rerender(<Wrapper open={true} />) // reopened well within the 4s arm window
+
+    expect(within(layoutRegion()).getByRole('button', { name: 'Reset layout' })).toBeTruthy()
+    expect(
+      within(layoutRegion()).queryByRole('button', {
+        name: 'Reset layout? This puts every widget back.',
+      }),
+    ).toBeNull()
+    // And nothing was actually written by the stray arm.
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+  })
+
   it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {
     vi.mocked(isPremium).mockReturnValue(false)
     await renderPanel()

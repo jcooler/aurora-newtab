@@ -18,7 +18,18 @@ const DEFAULT_ARM_MS = 4000
  *  (`src/newtab/arrange/ArrangeController.tsx`) and the Settings "Layout"
  *  section's own copy of the same control (`src/settings/sections/
  *  Layout.tsx`) — two feature trees that otherwise never import from each
- *  other — without either one owning the other's button markup/styling. */
+ *  other — without either one owning the other's button markup/styling.
+ *
+ *  `disarm()` (review fix) lets a caller force-clear an in-progress arm from
+ *  OUTSIDE a click — both call sites live in always-mounted components
+ *  (the arrange pill inside `ArrangeController`, which stays mounted the
+ *  whole session; the Settings section inside the always-mounted
+ *  `SettingsPanel`), so without this, arming Reset then exiting arrange mode
+ *  (or closing the Settings drawer) and re-entering/reopening within
+ *  `armMs` would show it pre-armed — one stray click away from wiping every
+ *  widget's position. Callers wire `disarm()` to whatever "this control just
+ *  became invisible/inactive" signal they have (arrange mode's own `exit()`,
+ *  the drawer's `open` prop going false). */
 export function useArmedConfirm(onConfirm: () => void, armMs = DEFAULT_ARM_MS) {
   const [armed, setArmed] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -28,26 +39,31 @@ export function useArmedConfirm(onConfirm: () => void, armMs = DEFAULT_ARM_MS) {
   const onConfirmRef = useRef(onConfirm)
   onConfirmRef.current = onConfirm
 
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current)
-    },
-    [],
-  )
-
-  function trigger() {
-    if (!armed) {
-      setArmed(true)
-      timerRef.current = setTimeout(() => setArmed(false), armMs)
-      return
-    }
+  function clearArmTimer() {
     if (timerRef.current) {
       clearTimeout(timerRef.current)
       timerRef.current = null
     }
+  }
+
+  useEffect(() => clearArmTimer, [])
+
+  function trigger() {
+    if (!armed) {
+      setArmed(true)
+      clearArmTimer()
+      timerRef.current = setTimeout(() => setArmed(false), armMs)
+      return
+    }
+    clearArmTimer()
     setArmed(false)
     onConfirmRef.current()
   }
 
-  return { armed, trigger }
+  function disarm() {
+    clearArmTimer()
+    setArmed(false)
+  }
+
+  return { armed, trigger, disarm }
 }

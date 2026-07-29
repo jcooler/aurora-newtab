@@ -122,6 +122,18 @@ export default function ArrangeController({
   // (nulled) by the focus-management effect below the moment it succeeds.
   const pendingFocusRef = useRef<BlockId | 'first' | null>(null)
 
+  // The two-step inline confirm idiom (src/lib/hooks/useArmedConfirm.ts) —
+  // byte-identical copy/behavior to the Settings "Layout" section's own
+  // Reset layout button (src/settings/sections/Layout.tsx); only the JSX
+  // shell differs, since settings and the newtab/arrange tree never import
+  // from each other. Declared up here (not down by the JSX that uses it) so
+  // `exit`, below, can call `resetConfirm.disarm()`.
+  const resetConfirm = useArmedConfirm(() => {
+    void storage.set('layout', {})
+    setNudged({})
+    onDraftChange({})
+  })
+
   const measureAll = useCallback((): Partial<Record<BlockId, DOMRect>> => {
     const next: Partial<Record<BlockId, DOMRect>> = {}
     for (const id of BLOCK_IDS) {
@@ -143,8 +155,14 @@ export default function ArrangeController({
     setMode('off')
     setDrag(null)
     setNudged({})
+    // Review fix: don't leave a stray "Reset layout? This puts every widget
+    // back." armed across a re-entry within the auto-expire window — this
+    // component stays mounted the whole page session, so without this an
+    // armed Reset would survive Done/Escape/Enter and ambush the next
+    // session's first click.
+    resetConfirm.disarm()
     onDraftChange({})
-  }, [onDraftChange])
+  }, [onDraftChange, resetConfirm])
 
   // Newest-first shared Escape stack (src/lib/dialogStack.ts) — only active
   // while arrange mode is on.
@@ -205,7 +223,19 @@ export default function ArrangeController({
       const rect = fresh[blockId]
       if (!rect) return // nothing rendered/visible to drag
       const viewport = viewportSize()
-      const pos = rectCenterPct(rect, viewport)
+      // CRITICAL review fix: prefer `nudged[blockId]` (this block's own
+      // last-known-good effective position, reconciled on every drag commit
+      // AND every keyboard nudge — see handlePointerUp/handleOutlineKeyDown)
+      // over a fresh `getBoundingClientRect()` measurement. The measurement
+      // is the block's ACTUAL rendered rect, which is fine the FIRST time a
+      // block is ever touched — but once a block has been nudged or dragged
+      // before, `rects`/a fresh measurement can still reflect a position
+      // that's about to be superseded (e.g. this exact press IS the "grab a
+      // different outline" path, or the previous nudge's draft/storage
+      // write hasn't visibly landed yet) — `nudged` is the one value both
+      // drag and keyboard nudging keep in sync with each other, so it's the
+      // authoritative source whenever it exists.
+      const pos = nudged[blockId] ?? rectCenterPct(rect, viewport)
       const size: Size = { w: rect.width, h: rect.height }
       // Entering arrange mode must leave zero panels open underneath the
       // (about to become inert) page — see dialogStack.closeAllDialogs. Only
@@ -218,7 +248,7 @@ export default function ArrangeController({
       setDrag({ blockId, pos, guides: [], size, pointerId })
       onDraftChange({ [blockId]: pos })
     },
-    [measureAll, onDraftChange, mode],
+    [measureAll, onDraftChange, mode, nudged],
   )
 
   // The long-press entry point: engaging on ANY block immediately begins
@@ -303,6 +333,14 @@ export default function ArrangeController({
     if (!drag || e.pointerId !== drag.pointerId) return
     const { blockId, pos, pointerId } = drag
     void storage.update('layout', (current) => ({ ...current, [blockId]: pos }))
+    // CRITICAL review fix: reconcile `nudged` with the position this drag
+    // just committed. `rects`/a fresh DOM measurement won't reflect this
+    // until the next resize or mode re-entry, so without this, a keyboard
+    // nudge on this SAME block right after dropping it would base off the
+    // STALE pre-drag rect and visibly jump the block back toward its old
+    // spot — see handleOutlineKeyDown's `nudged[blockId] ?? …` base and
+    // beginDrag's mirrored read of `nudged` above.
+    setNudged((prev) => ({ ...prev, [blockId]: pos }))
     releaseCapture(pointerId)
     setDrag(null)
     onDraftChange({})
@@ -365,17 +403,6 @@ export default function ArrangeController({
     onDraftChange(nextNudged)
     void storage.update('layout', (current) => ({ ...current, [blockId]: next }))
   }
-
-  // The two-step inline confirm idiom (src/lib/hooks/useArmedConfirm.ts) —
-  // byte-identical copy/behavior to the Settings "Layout" section's own
-  // Reset layout button (src/settings/sections/Layout.tsx); only the JSX
-  // shell differs, since settings and the newtab/arrange tree never import
-  // from each other.
-  const resetConfirm = useArmedConfirm(() => {
-    void storage.set('layout', {})
-    setNudged({})
-    onDraftChange({})
-  })
 
   if (mode !== 'on') return null
 

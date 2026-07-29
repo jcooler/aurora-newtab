@@ -290,6 +290,88 @@ describe('ArrangeController', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move Clock' }))
   })
 
+  describe('drag <-> nudge position reconciliation (review fix — CRITICAL)', () => {
+    it('a real drag (with movement) then a keyboard nudge bases off the POST-drag position, not the stale pre-drag rect', async () => {
+      const { storage } = await renderController()
+      engageClock()
+
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+      // Actually move the pointer this time — `settleDrag()` (used by every
+      // OTHER test in this file, including the pre-fix nudge tests) never
+      // fires pointermove, which is exactly what masked this bug: a drag
+      // that never moves also never reveals whether the post-drag position
+      // got reconciled anywhere for a later nudge to read.
+      fireEvent.pointerMove(outline, { pointerId: 1, clientX: 1000, clientY: 304 })
+      fireEvent.pointerUp(outline, { pointerId: 1 })
+      fireEvent.click(outline) // consumes useLongPress's post-engage click suppressor, same as settleDrag
+      await act(async () => {})
+
+      const rawPct = { x: (1000 / 1600) * 100, y: (304 / 900) * 100 }
+      const others = [{ cxPx: 175, cyPx: 830, w: 150, h: 60 }] // greeting's measured center/size
+      const snapped = snapPosition(rawPct, { w: 200, h: 100 }, others, { w: 1600, h: 900 })
+      const draggedPos = clampCenterPct(snapped.pos, { w: 200, h: 100 }, { w: 1600, h: 900 })
+      expect((await storage.get('layout')).clock).toEqual(draggedPos)
+
+      // Now nudge — this MUST base off draggedPos. clock's `rects` entry
+      // (from mode-entry measureAll) still holds its ORIGINAL (700,400)
+      // rect — center (50%, 50%) — since nothing re-measures after a drag
+      // commits; before the fix, the nudge would base off that stale value
+      // instead and visibly jump the block back toward its old spot.
+      fireEvent.keyDown(screen.getByRole('button', { name: 'Move Clock' }), { key: 'ArrowRight' })
+      await act(async () => {})
+
+      const expectedAfterNudge = clampCenterPct(
+        { x: draggedPos.x + (8 / 1600) * 100, y: draggedPos.y },
+        { w: 200, h: 100 },
+        { w: 1600, h: 900 },
+      )
+      expect((await storage.get('layout')).clock).toEqual(expectedAfterNudge)
+    })
+
+    it('a nudge then a NEW drag (grabbing the same outline again) starts from the post-nudge position, not a re-derived stale rect', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag() // ends the initial engage-drag with no movement; clock's position is now its rect-derived (50%, 50%)
+
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+      fireEvent.keyDown(outline, { key: 'ArrowRight' }) // +8px -> 50.5%
+      await act(async () => {})
+      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+
+      // Press the SAME outline again to start a second drag — with NO
+      // movement before release, whatever position beginDrag computes as
+      // the drag's start is also exactly what gets committed.
+      fireEvent.pointerDown(outline, { pointerId: 2, clientX: 808, clientY: 450 })
+      fireEvent.pointerUp(outline, { pointerId: 2 })
+      await act(async () => {})
+
+      // Must still be the post-nudge (50.5, 50) — before the fix, beginDrag
+      // always re-derived from the fresh (but stale-for-this-purpose)
+      // measured rect, landing back at (50, 50) instead.
+      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+    })
+  })
+
+  it('an armed pill Reset disarms on arrange-mode exit, so re-entering within the auto-expire window does not show it pre-armed (review fix)', async () => {
+    await renderController()
+    engageClock()
+    await settleDrag()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // arm
+    expect(
+      screen.getByRole('button', { name: 'Reset layout? This puts every widget back.' }),
+    ).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' }) // exit WITHOUT confirming
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+
+    engageClock() // re-enter well within the 4s auto-expire window (fake timers haven't advanced)
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
+    expect(
+      screen.queryByRole('button', { name: 'Reset layout? This puts every widget back.' }),
+    ).toBeNull()
+  })
+
   describe('keyboard nudging (Arrow / Shift+Arrow / Enter)', () => {
     it('an unshifted Arrow key nudges the focused block by 8px (default step), through clampCenterPct, and persists via storage.update', async () => {
       const { storage } = await renderController()
@@ -387,17 +469,57 @@ describe('ArrangeController', () => {
     })
 
     it('every visible block gets an accessible "Move {label}" outline button (Tab/Shift-Tab order is just DOM order)', async () => {
-      await renderController()
-      engageClock()
+      // A DEDICATED fixture (not the shared one, which only ever renders
+      // clock+greeting) with a `data-block-id` div for every id RECT_DATA
+      // defines a non-zero rect for — review fix: the previous version of
+      // this test asserted against the shared Fixture, so worldClocks/
+      // tasks/bookmarks/notes/weather were never actually IN THE DOM,
+      // measureAll() found nothing for them, and the assertions below
+      // (before this fix, only clock/greeting) were re-testing coverage the
+      // very first test in this file already had — not the brief's
+      // "labels for all visible blocks" requirement.
+      const storage = createStorage(memoryDriver())
+      await storage.init()
+      const onDraftChange = vi.fn()
+      const labeledIds = ['clock', 'greeting', 'worldClocks', 'tasks', 'bookmarks', 'notes', 'weather'] as const
+      function LabelsFixture() {
+        return (
+          <>
+            {labeledIds.map((id) => (
+              <div key={id} data-block-id={id}>
+                <span>{id} content</span>
+              </div>
+            ))}
+            <ArrangeController onDraftChange={onDraftChange} />
+          </>
+        )
+      }
+      render(
+        <StorageProvider storage={storage}>
+          <LabelsFixture />
+        </StorageProvider>,
+      )
+      await act(async () => {})
 
-      // Every id present in the fixture's RECT_DATA (clock/greeting always
-      // rendered by the shared Fixture, plus the extra ids this describe
-      // block's RECT_DATA entries cover) gets its own labeled Move button,
-      // using the SAME human labels/casing convention as Settings' Widgets
+      // Long-press the clock block directly (this fixture's own content
+      // text isn't "Clock content", so the shared engageClock() helper
+      // doesn't apply here).
+      const clockBlock = document.querySelector('[data-block-id="clock"]') as HTMLElement
+      fireEvent.pointerDown(clockBlock, { pointerId: 1, clientX: 800, clientY: 450 })
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+
+      // Using the SAME human labels/casing convention as Settings' Widgets
       // section where they overlap (e.g. weather -> "Weather", notes ->
-      // "Notes").
+      // "Notes") — every one of these buttons must actually be IN THE DOM.
       expect(screen.getByRole('button', { name: 'Move Clock' })).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Move Greeting' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move World clocks' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move Tasks' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move Bookmarks' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move Notes' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move Weather' })).toBeTruthy()
     })
   })
 

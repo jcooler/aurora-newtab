@@ -12,7 +12,18 @@ import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
 
-export default function SettingsPanel({ onArrangeLayout }: { onArrangeLayout: () => void }) {
+export default function SettingsPanel({
+  onArrangeLayout,
+  // Whether the Drawer wrapping this panel is currently open — threaded down
+  // to the Layout section so its armed Reset button can disarm the instant
+  // the drawer closes (review fix; see Layout.tsx). Defaults to `true` so
+  // every OTHER test/call site that doesn't care about this specific
+  // behavior doesn't need to pass it; App always passes the real value.
+  open = true,
+}: {
+  onArrangeLayout: () => void
+  open?: boolean
+}) {
   const storage = useStorage()
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
@@ -64,7 +75,7 @@ export default function SettingsPanel({ onArrangeLayout }: { onArrangeLayout: ()
 
       <Data storage={storage} />
 
-      <Layout storage={storage} onArrangeLayout={onArrangeLayout} />
+      <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
     </div>
   )
 }

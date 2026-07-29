@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { isPremium } from '../../lib/premium'
 import { useArmedConfirm } from '../../lib/hooks/useArmedConfirm'
 import type { AuroraStorage } from '../../lib/storage/index'
@@ -18,17 +19,31 @@ const RESET_CONFIRM_COPY = 'Reset layout? This puts every widget back.'
  *  (`useArmedConfirm`) as the arrange pill's own Reset layout button inside
  *  `ArrangeController` — the shared piece is the state machine, not this
  *  JSX, since settings and the newtab/arrange feature tree never import
- *  from each other. */
+ *  from each other.
+ *
+ *  `open` (review fix): this section — like the rest of SettingsPanel —
+ *  stays MOUNTED while the Drawer is merely closed (Drawer only toggles
+ *  `inert`/`translate-x-full` on itself, see Drawer.tsx), so an armed Reset
+ *  would otherwise survive a close and ambush a reopen within the arm
+ *  window. Disarms the instant the drawer closes rather than waiting for a
+ *  reopen, so it's never even MOMENTARILY visible pre-armed. */
 export default function Layout({
   storage,
   onArrangeLayout,
+  open,
 }: {
   storage: AuroraStorage
   onArrangeLayout: () => void
+  open: boolean
 }) {
   const resetConfirm = useArmedConfirm(() => {
     void storage.set('layout', {})
   })
+
+  useEffect(() => {
+    if (!open) resetConfirm.disarm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only `open` transitions should re-run this; `resetConfirm.disarm` changes identity every render but is otherwise safe to omit
+  }, [open])
 
   if (!isPremium()) return null
 
