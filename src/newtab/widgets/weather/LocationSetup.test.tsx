@@ -251,6 +251,43 @@ describe('LocationSetup typeahead', () => {
     expect(screen.queryByRole('listbox')).toBeNull()
   })
 
+  it('review fix: selecting mid-debounce cancels the pending timer — no ghost second fetch, no reopened list', async () => {
+    // First search resolves and the list is showing (its results stay
+    // visible "by design" — see handleQueryChange — while a second
+    // keystroke's debounce is still pending below).
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { storage, input } = await renderSetup()
+
+    fireEvent.change(input, { target: { value: 'Da' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    // A further keystroke arms a NEW 300ms timer without touching the
+    // still-visible results — deliberately left unresolved/un-advanced here.
+    fireEvent.change(input, { target: { value: 'Dal' } })
+
+    // Select the still-visible suggestion from the FIRST search before that
+    // second timer ever fires.
+    fireEvent.click(screen.getByRole('option'))
+
+    expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
+    expect(input.value).toBe('Dallas')
+    expect(screen.queryByRole('listbox')).toBeNull()
+
+    // Advance well past where the cancelled "Dal" timer would have fired —
+    // it must NOT have dispatched a second fetch or reopened the list.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
   it('Escape closes the suggestion list without clearing the input, and does not bubble to close an ancestor dialog', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
     const storage = createStorage(memoryDriver())
@@ -282,5 +319,73 @@ describe('LocationSetup typeahead', () => {
 
     expect(() => fireEvent.keyDown(input, { key: 'Escape' })).not.toThrow()
     expect(input.value).toBe('D')
+  })
+})
+
+describe('LocationSetup dropdown edge clamping', () => {
+  // jsdom never lays anything out (getBoundingClientRect is always an
+  // all-zero rect), so the edge-clamp effect is normally a no-op in tests —
+  // this mock simulates a REAL browser well enough to exercise it: a fixed
+  // 300px-wide list sitting with its un-shifted left edge at x=400 in a
+  // 500px-wide viewport (so its un-shifted right edge, x=700, sits 208px
+  // past the window — same numbers as the reviewer's repro), reading the
+  // list's OWN currently-applied `style.left` the way a real render would.
+  const originalInnerWidth = window.innerWidth
+  let rectSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'innerWidth', { value: 500, configurable: true })
+    rectSpy = vi.spyOn(HTMLUListElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLUListElement) {
+        const appliedLeft = parseFloat(this.style.left || '0') || 0
+        const baseLeft = 400
+        const width = 300
+        return {
+          left: baseLeft + appliedLeft,
+          right: baseLeft + width + appliedLeft,
+          width,
+          height: 40,
+          top: 0,
+          bottom: 40,
+          x: baseLeft + appliedLeft,
+          y: 0,
+          toJSON() {},
+        } as DOMRect
+      },
+    )
+  })
+
+  afterEach(() => {
+    rectSpy.mockRestore()
+    Object.defineProperty(window, 'innerWidth', { value: originalInnerWidth, configurable: true })
+  })
+
+  it('review fix: a second completed search while the list stays open does not un-clamp it back off-screen', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ results: [dallasTX] }))
+      .mockResolvedValueOnce(jsonResponse({ results: [dallasTX, dallasGA] }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { input } = await renderSetup()
+
+    fireEvent.change(input, { target: { value: 'Dal' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    const list = screen.getByRole('listbox')
+    // Right edge (700) clamped back to window.innerWidth(500) - EDGE_MARGIN(8) = 492
+    // by shifting left 208px: 400 - 208 = 192, 700 - 208 = 492.
+    expect(list.style.left).toBe('-208px')
+
+    // A second search resolves while the SAME list is still open (results
+    // change, list never closes) — re-measuring must land on the same
+    // answer, not treat the already-shifted position as a fresh baseline.
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(list.style.left).toBe('-208px') // still clamped, not un-clamped back to 0
   })
 })

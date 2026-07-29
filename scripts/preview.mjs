@@ -274,10 +274,13 @@ console.log(
 
 // Escape must close the suggestion list without clearing what was typed, and
 // without doing anything else (no drawer/dialog to close here — the widget
-// sits directly on the page).
+// sits directly on the page). The listbox stays in the DOM hidden (not
+// unmounted) once closed — see LocationSetup.tsx's `hidden={!open}` — so
+// "closed" means invisible, not absent; `.count() === 0` would always be
+// false and falsely FAIL here.
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
-const listClosedAfterEscape = (await page.locator('[role="listbox"]').count()) === 0
+const listClosedAfterEscape = await page.locator('[role="listbox"]').isHidden()
 const inputAfterEscape = await page
   .locator('[role="combobox"][aria-label="Search for a city"]')
   .inputValue()

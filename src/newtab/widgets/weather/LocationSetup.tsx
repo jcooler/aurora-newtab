@@ -28,6 +28,11 @@ export default function LocationSetup() {
   const [activeIndex, setActiveIndex] = useState(-1)
   const [edgeShift, setEdgeShift] = useState(0)
   const listRef = useRef<HTMLUListElement>(null)
+  // Mirrors `edgeShift` (updated in lockstep, below) so the measurement
+  // effect can recover the list's TRUE unshifted position even though the
+  // DOM it's reading already has a previous shift baked into its rendered
+  // `style.left`.
+  const appliedShiftRef = useRef(0)
 
   // Weather is a freely-repositionable widget (arrange mode) that can end up
   // anywhere on screen, including hard against the right edge — where a
@@ -37,16 +42,28 @@ export default function LocationSetup() {
   // within EDGE_MARGIN (jsdom has no layout engine, so getBoundingClientRect
   // is an all-zero rect there — the width===0 guard makes this a no-op in
   // tests unless a test deliberately mocks it).
+  //
+  // Review fix: `rect` reflects whatever shift is CURRENTLY applied (from a
+  // prior run of this same effect), not the list's un-shifted baseline — a
+  // naive re-measure treats the already-corrected position as fresh input,
+  // which can "un-clamp" a list that's still off-screen at its true position
+  // the moment a second search resolves while the list stays open. Subtract
+  // the shift that's already baked into `rect` before deciding whether (and
+  // how much) to shift it now, so repeated measurements of the same
+  // underlying position always converge on the same answer.
   useLayoutEffect(() => {
     if (!open) return
     const el = listRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
     if (rect.width === 0) return
-    if (rect.left < EDGE_MARGIN) setEdgeShift(EDGE_MARGIN - rect.left)
-    else if (rect.right > window.innerWidth - EDGE_MARGIN) {
-      setEdgeShift(window.innerWidth - EDGE_MARGIN - rect.right)
-    } else setEdgeShift(0)
+    const baseLeft = rect.left - appliedShiftRef.current
+    const baseRight = rect.right - appliedShiftRef.current
+    let shift = 0
+    if (baseLeft < EDGE_MARGIN) shift = EDGE_MARGIN - baseLeft
+    else if (baseRight > window.innerWidth - EDGE_MARGIN) shift = window.innerWidth - EDGE_MARGIN - baseRight
+    appliedShiftRef.current = shift
+    setEdgeShift(shift)
   }, [open, results, noMatches])
 
   // Debounce timer + in-flight abort controller, both held in refs (not
@@ -146,6 +163,17 @@ export default function LocationSetup() {
   function selectResult(index: number) {
     const m = results[index]
     if (!m) return
+    // Review fix: a selection can happen mid-debounce (the old results are
+    // still on screen "by design" while a newer keystroke's timer is armed —
+    // see handleQueryChange) or while a search from an EARLIER keystroke is
+    // still in flight. Without cancelling both here, that stale timer/fetch
+    // fires anyway after selection, re-dispatching a request and reopening
+    // the dropdown with unrelated results — the user already picked one.
+    if (searchTimeoutRef.current !== null) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+    controllerRef.current?.abort()
     void storage.set('location', { lat: m.lat, lon: m.lon, label: m.name, manual: true })
     setQuery(m.name)
     setOpen(false)
@@ -207,41 +235,46 @@ export default function LocationSetup() {
           placeholder="or search a city"
           className="w-40 border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
         />
-        {open && (
-          <ul
-            ref={listRef}
-            id="location-listbox"
-            role="listbox"
-            aria-label="City suggestions"
-            style={edgeShift ? { left: edgeShift } : undefined}
-            className="absolute left-0 top-full z-10 mt-1 w-72 max-h-56 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
-          >
-            {results.length === 0 && noMatches && (
-              <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>
-            )}
-            {results.map((m, i) => {
-              const secondary = [m.admin1, m.country].filter(Boolean).join(', ')
-              return (
-                <li
-                  key={`${m.lat},${m.lon}`}
-                  id={`location-option-${i}`}
-                  role="option"
-                  aria-selected={i === activeIndex}
-                  onMouseEnter={() => setActiveIndex(i)}
-                  onClick={() => selectResult(i)}
-                  className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm ${
-                    i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
-                  }`}
-                >
-                  <span className="truncate">{m.name}</span>
-                  {secondary && (
-                    <span className="truncate text-xs text-fg-muted">— {secondary}</span>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
+        {/* Rendered whenever there's something to show, then hidden (not
+            unmounted) once closed — the `hidden` attribute drops it from the
+            accessibility tree exactly like not rendering it at all (so
+            existing queryByRole('listbox') checks are unaffected), but keeps
+            the element itself in the DOM so `aria-controls` above always
+            resolves to a real id, per the ARIA APG combobox pattern. */}
+        <ul
+          ref={listRef}
+          id="location-listbox"
+          role="listbox"
+          aria-label="City suggestions"
+          hidden={!open}
+          style={edgeShift ? { left: edgeShift } : undefined}
+          className="absolute left-0 top-full z-10 mt-1 w-72 max-h-56 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
+        >
+          {results.length === 0 && noMatches && (
+            <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>
+          )}
+          {results.map((m, i) => {
+            const secondary = [m.admin1, m.country].filter(Boolean).join(', ')
+            return (
+              <li
+                key={`${m.lat},${m.lon}`}
+                id={`location-option-${i}`}
+                role="option"
+                aria-selected={i === activeIndex}
+                onMouseEnter={() => setActiveIndex(i)}
+                onClick={() => selectResult(i)}
+                className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm ${
+                  i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
+                }`}
+              >
+                <span className="truncate">{m.name}</span>
+                {secondary && (
+                  <span className="truncate text-xs text-fg-muted">— {secondary}</span>
+                )}
+              </li>
+            )
+          })}
+        </ul>
       </div>
       {error && <p className="text-fg-muted">{error}</p>}
     </div>
