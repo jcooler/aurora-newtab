@@ -12,12 +12,13 @@ import FolderPopover, { FolderIcon } from './FolderPopover'
 
 const MAX_VISIBLE_CHIPS = 8
 const OVERFLOW_ID = '__overflow__'
-// Chips speak the same themed surface language as the Tasks/Notes pills
-// (bg-panel fill, theme blur, theme radius) — previously they had no fill and
-// a hardcoded rounded-full, which left them as floating borderless text in
-// Mono (whose --panel-border is transparent) and unfrosted in Glass.
+// Chips carry the themed surface (bg-panel fill, theme blur, theme border) but
+// keep rounded-full like the app's other SMALL controls (gear, photo-refresh,
+// timer buttons) — those stay round in every theme, including Mono, whose
+// --radius: 0 only squares off PANELS. Jon flagged the square-in-Mono look
+// when chips briefly used rounded-panel.
 const CHIP =
-  'flex shrink-0 items-center gap-1.5 rounded-panel border border-panel-border bg-panel px-2.5 py-1 text-xs text-fg-muted backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+  'flex shrink-0 items-center gap-1.5 rounded-full border border-panel-border bg-panel px-2.5 py-1 text-xs text-fg-muted backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
