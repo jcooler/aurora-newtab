@@ -409,6 +409,15 @@ export default function ArrangeController({
   return (
     <div
       ref={overlayRef}
+      // Identifies this element as the arrange-mode overlay for the
+      // real-browser Tab-inertness preview probe (scripts/preview.mjs):
+      // jsdom only ever asserts the sibling wrapper's `inert` ATTRIBUTE, not
+      // its actual focus-blocking behavior, so that probe walks
+      // `document.activeElement` after repeated Tabs and confirms it never
+      // leaves `[data-arrange-overlay]` — i.e. `inert` really is keeping Tab
+      // off the rest of the page in a real browser. No runtime behavior
+      // depends on this attribute; it exists purely as a stable selector.
+      data-arrange-overlay=""
       className="fixed inset-0 z-[60]"
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

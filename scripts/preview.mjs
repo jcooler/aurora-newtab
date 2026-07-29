@@ -252,6 +252,178 @@ await page.selectOption('#set-bg-mode', 'auto')
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
 
+// Arrange mode: real-mouse long-press + drag probe (Task 38), appended
+// last. ArrangeController.test.tsx (jsdom) exhaustively covers the state
+// machine via synthetic fireEvent pointer events, but jsdom can't drive a
+// real long-press TIMER against real elapsed time under real hit-testing,
+// real Pointer Capture routing a drag back to the overlay regardless of
+// what's literally under the cursor, or real `inert`-driven focus blocking
+// — it only ever asserts the `inert` ATTRIBUTE is present, never that Tab
+// actually can't reach the subtree it's on. This probe drives the actual
+// gesture via Playwright's page.mouse/page.keyboard against the built
+// extension, same "trust nothing jsdom can't verify" discipline as the
+// notes-persistence and bookmarks-popover probes above. Placed last so its
+// own state (an arranged, then reset, layout) never destabilizes any
+// capture before it; the Reset step at the end restores the default layout
+// so a re-run starts clean, same as the gallery block above restoring its
+// own "Daily photo" default.
+
+// Center of the clock block, in viewport px — used both for the initial
+// long-press target and (re-measured) for post-move/post-reset assertions.
+async function clockCenter() {
+  return page.evaluate(() => {
+    const r = document.querySelector('[data-block-id="clock"]').getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  })
+}
+
+// Default (pre-arrange) clock center, measured before touching anything —
+// the baseline the post-Reset assertion compares against, rather than a
+// hardcoded literal that could drift with layout CSS changes.
+const defaultClockCenter = await clockCenter()
+
+// Long-press the clock: move to its center, press down, and hold >500ms
+// with NO movement (useLongPress's own 8px tolerance would otherwise abort
+// it as a drag rather than a hold).
+await page.mouse.move(defaultClockCenter.x, defaultClockCenter.y)
+await page.mouse.down()
+await page.waitForTimeout(650)
+await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+console.log('arrange pill appeared on long-press')
+
+// BINDING CARRY (Task 36 review): while still mid-drag (mouse still down,
+// before dropping), press Tab repeatedly and confirm focus never lands on
+// an INTERACTIVE element outside the arrange overlay — proof the rest of
+// the page really is unreachable by keyboard in a real browser, not just
+// marked `inert` on paper. `[data-arrange-overlay]` is a tiny selector-only
+// data attribute added to ArrangeController's own root div for exactly this
+// probe (see src/newtab/arrange/ArrangeController.tsx).
+//
+// `document.activeElement === document.body` (nothing focused in the
+// document) does NOT count as an escape: once Tab exhausts the overlay's
+// own focusable set (one Move button per visible block, plus Reset
+// layout/Done), a real browser moves focus OUT of the page entirely — into
+// its own chrome (address bar, extensions) rather than wrapping back
+// in-document — which is exactly what correctly-applied `inert` on
+// everything else should produce, since there's nothing else in the
+// document left for it to land on. The actual failure mode this guards
+// against is focus landing on a live, in-document control that should have
+// been unreachable (e.g. the search box or settings gear under the
+// should-be-inert wrapper) — so only that counts as FAIL. 20 presses is
+// comfortably more than the overlay's total focusable count, so this both
+// exercises the wrap boundary and confirms overlay focus is reachable at
+// all (checked below), not just absent throughout.
+let tabStaysInOverlay = true
+let escapedTo = ''
+let sawOverlayFocus = false
+for (let i = 0; i < 20; i++) {
+  await page.keyboard.press('Tab')
+  const info = await page.evaluate(() => {
+    const el = document.activeElement
+    if (!el || el === document.body) return { kind: 'none' }
+    const inOverlay = el.closest('[data-arrange-overlay]') != null
+    return { kind: inOverlay ? 'overlay' : 'outside', tag: el.tagName, label: el.getAttribute('aria-label') }
+  })
+  if (info.kind === 'overlay') sawOverlayFocus = true
+  if (info.kind === 'outside') {
+    tabStaysInOverlay = false
+    escapedTo = `${info.tag}${info.label ? ` [aria-label="${info.label}"]` : ''}`
+    break
+  }
+}
+if (tabStaysInOverlay && !sawOverlayFocus) {
+  // Tab never once landed inside the overlay either — not a leak, but not
+  // proof of anything either; report honestly rather than a false PASS.
+  tabStaysInOverlay = false
+  escapedTo = 'focus never entered the overlay at all'
+}
+console.log(
+  tabStaysInOverlay
+    ? 'PASS: page inert during arrange (Tab stays in overlay)'
+    : `FAIL: page inert during arrange (Tab stays in overlay) — focus escaped to ${escapedTo}`,
+)
+
+// Drag toward mid-left, slowly, crossing the viewport's horizontal center
+// line (y = 450 on this 900px-tall viewport) on the way — real intermediate
+// page.mouse.move calls (not one jump), since the drag handler updates the
+// live position/guides off real pointermoves.
+const dropTarget = { x: 400, y: 450 }
+const dragSteps = 12
+for (let i = 1; i <= dragSteps; i++) {
+  const x = defaultClockCenter.x + ((dropTarget.x - defaultClockCenter.x) * i) / dragSteps
+  const y = defaultClockCenter.y + ((dropTarget.y - defaultClockCenter.y) * i) / dragSteps
+  await page.mouse.move(x, y)
+  await page.waitForTimeout(35)
+}
+// The drop target sits exactly on the horizontal center line, well within
+// the 6px snap threshold (src/lib/layout/snap.ts) — every block's outline
+// and the horizontal guide line should be visible for this mid-drag
+// capture, taken BEFORE the mouse comes up.
+await page.screenshot({ path: `${outDir}/arrange-mode.png` })
+console.log('captured arrange-mode.png')
+
+await page.mouse.up()
+await page.waitForTimeout(300) // let the drop's storage.update land before Done/reload
+await page.click('[data-arrange-overlay] button:has-text("Done")')
+await page.waitForTimeout(300)
+
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800) // photo fade-in
+
+const droppedClockCenter = await clockCenter()
+const dropDx = Math.abs(droppedClockCenter.x - dropTarget.x)
+const dropDy = Math.abs(droppedClockCenter.y - dropTarget.y)
+console.log(
+  dropDx <= 16 && dropDy <= 16
+    ? 'PASS: arrange position persisted'
+    : `FAIL: arrange position persisted (expected ~(${dropTarget.x}, ${dropTarget.y}), got (${droppedClockCenter.x.toFixed(1)}, ${droppedClockCenter.y.toFixed(1)}))`,
+)
+
+// Re-enter arrange (long-press the clock at its NEW position) and reset the
+// layout via the pill's two-step armed-confirm idiom
+// (src/lib/hooks/useArmedConfirm.ts): the first click only arms (swaps the
+// button's own label to the confirm copy), the second — same button —
+// actually resets.
+await page.mouse.move(droppedClockCenter.x, droppedClockCenter.y)
+await page.mouse.down()
+await page.waitForTimeout(650)
+await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+await page.mouse.up() // ends this re-engage drag with no movement; commits nothing new
+await page.waitForTimeout(150)
+
+const resetButton = page.locator('[data-arrange-overlay] button:has-text("Reset layout")')
+await resetButton.click() // arm (label becomes "Reset layout? This puts every widget back.")
+await page.waitForTimeout(150)
+await resetButton.click() // same button, still matched by substring — confirm
+await page.waitForTimeout(150)
+await page.click('[data-arrange-overlay] button:has-text("Done")')
+await page.waitForTimeout(300)
+
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800) // photo fade-in
+
+const resetClockCenter = await clockCenter()
+const resetDx = Math.abs(resetClockCenter.x - defaultClockCenter.x)
+const resetDy = Math.abs(resetClockCenter.y - defaultClockCenter.y)
+console.log(
+  resetDx <= 16 && resetDy <= 16
+    ? 'PASS: layout reset'
+    : `FAIL: layout reset (expected default ~(${defaultClockCenter.x.toFixed(1)}, ${defaultClockCenter.y.toFixed(1)}), got (${resetClockCenter.x.toFixed(1)}, ${resetClockCenter.y.toFixed(1)}))`,
+)
+
+// State restoration check: the arrange overlay must be gone (mode 'off')
+// after this block, same discipline as the gallery block above restoring
+// Source to "Daily photo" — anything appended after this later starts from
+// an idle page.
+const arrangeOverlayGone = (await page.locator('[data-arrange-overlay]').count()) === 0
+console.log(
+  arrangeOverlayGone
+    ? 'arrange overlay closed; page restored to idle'
+    : 'WARNING: arrange overlay still present after final reload',
+)
+
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')
