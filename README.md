@@ -35,13 +35,15 @@ no backend — everything lives on your machine.
 - **Keyboard accessible** — every widget is reachable and operable from the
   keyboard; the theme picker is a proper APG radiogroup (arrow keys move and
   apply the selection, roving tabindex).
-- **Rearrange the layout** — long-press any widget (or open it from Settings
-  → Layout → "Arrange layout") to drag it anywhere on the page, with snap
-  guides toward the viewport center and other widgets; once a widget is
-  selected, arrow keys nudge it a step at a time (Shift for a finer step)
-  instead of the mouse. "Reset layout" puts everything back to its default
-  position, with a two-step confirm so it can't happen by accident.
-  Positions are stored locally, same as everything else.
+- **Rearrange the layout** — press and hold an empty spot on a widget (its
+  non-interactive surface, not a button/link/input — those keep their own
+  click behavior) to drag it anywhere on the page, with snap guides toward
+  the viewport center and other widgets; or open Settings → Layout →
+  "Arrange layout" to enter the same mode without long-pressing anything.
+  Once a widget is selected, arrow keys nudge it a step at a time (Shift for
+  a finer step) instead of the mouse. "Reset layout" puts everything back to
+  its default position, with a two-step confirm so it can't happen by
+  accident. Positions are stored locally, same as everything else.
 
 Every widget can be turned on or off from Settings, and every setting is
 optional — the dashboard is fully usable with nothing configured beyond the

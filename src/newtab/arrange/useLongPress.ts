@@ -4,6 +4,7 @@ import { isPremium } from '../../lib/premium'
 
 const DEFAULT_HOLD_MS = 500
 const DEFAULT_TOLERANCE_PX = 8
+const INTERACTIVE_SELECTOR = 'button, a, input, textarea, select, [role="button"], [contenteditable="true"]'
 
 /** Document-level capture-phase long-press detector — no per-widget wiring.
  *  A press on (a descendant of) any `[data-block-id]` element starts a
@@ -11,6 +12,25 @@ const DEFAULT_TOLERANCE_PX = 8
  *  it fires aborts silently. On fire, `onEngage` runs and a one-shot
  *  capture-phase `click` suppressor is installed so the eventual release
  *  never activates whatever's under the pointer (a button, a link, …).
+ *
+ *  Interactive elements — anything matching `INTERACTIVE_SELECTOR` below —
+ *  never arm the timer at all (checked at pointerdown, inside the
+ *  `[data-block-id]` lookup, so a press elsewhere on the SAME block still
+ *  arms normally). Jon's bug report: holding a focus-timer minute
+ *  `<input type="number">`'s native spin buttons to run the value up/down
+ *  fast was ALSO arming this timer — 500ms into the hold it fired, entered
+ *  arrange mode, and the one-shot click suppressor ate the click that would
+ *  have committed the input's value. More generally, press-and-HOLD is the
+ *  wrong gesture to share with any control that already has its own
+ *  hold-to-repeat or click semantics (buttons, links, native number-input
+ *  spinners, …) — there's no reliable way to tell "the user is holding this
+ *  control to use IT" from "the user is holding this control to move the
+ *  WIDGET". Trade-off accepted (Jon, MVP fix — a hover-drag-handle model is
+ *  the planned real replacement, post-launch): the pill buttons themselves
+ *  (Tasks/Notes/Timer, and Search's input) ARE interactive, so those blocks
+ *  lose long-press entry entirely while idle — arrange mode stays reachable
+ *  for them via any OTHER block's non-interactive surface, or Settings ->
+ *  Layout -> Arrange layout, which is unconditionally available regardless.
  *
  *  No-ops entirely when `isPremium()` is false — checked once, when this
  *  effect (re-)runs, not per event; arrange mode has exactly one entry
@@ -106,6 +126,11 @@ export function useLongPress(
       const target = e.target
       const blockEl = target instanceof Element ? target.closest('[data-block-id]') : null
       if (!blockEl) return
+      // Interactive elements never arm the timer — see the doc comment
+      // above for why. Checked here (not before the block lookup) so this
+      // stays scoped to "is the PRESS TARGET itself interactive", not
+      // "is there an interactive element somewhere on the page".
+      if (target instanceof Element && target.closest(INTERACTIVE_SELECTOR)) return
       const id = blockEl.getAttribute('data-block-id') as BlockId | null
       if (!id) return
 

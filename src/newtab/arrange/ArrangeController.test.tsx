@@ -53,8 +53,14 @@ function domRect(r: { left: number; top: number; width: number; height: number }
 function Fixture({ onDraftChange }: { onDraftChange: (d: Layout) => void }) {
   return (
     <>
+      {/* A bare non-interactive element — matches the real Clock widget
+          (a `<time>` with no interactive children) and, post interactive-
+          exclusion fix, is what makes engageClock()'s press actually arm
+          useLongPress's timer; a `<button>` here would not (see
+          useLongPress.ts's doc comment / useLongPress.test.tsx's
+          "interactive elements never arm the timer" coverage). */}
       <div data-block-id="clock">
-        <button type="button">Clock content</button>
+        <span>Clock content</span>
       </div>
       <div data-block-id="greeting">
         <span>Greeting content</span>
@@ -81,8 +87,8 @@ async function renderController(seedLayout?: Layout) {
 /** Long-press the clock fixture (500ms hold, no movement) — engages arrange
  *  mode and immediately begins dragging clock, per the brief. */
 function engageClock() {
-  const clockButton = screen.getByText('Clock content')
-  fireEvent.pointerDown(clockButton, { pointerId: 1, clientX: 800, clientY: 450 })
+  const clockSurface = screen.getByText('Clock content')
+  fireEvent.pointerDown(clockSurface, { pointerId: 1, clientX: 800, clientY: 450 })
   act(() => {
     vi.advanceTimersByTime(500)
   })
@@ -783,8 +789,12 @@ describe('ArrangeController', () => {
     }) {
       return (
         <>
+          {/* Non-interactive, matching the real Clock widget — see the
+              comment on the shared Fixture above. openSignal is this
+              fixture's own entry point, so no test here presses this
+              element, but it stays accurate rather than stray. */}
           <div data-block-id="clock">
-            <button type="button">Clock content</button>
+            <span>Clock content</span>
           </div>
           <div data-block-id="greeting">
             <span>Greeting content</span>
@@ -864,8 +874,11 @@ function AppLikeFixture({ onDraftChange }: { onDraftChange: (d: Layout) => void 
   return (
     <>
       <div data-testid="widget-wrapper" inert={arranging}>
+        {/* Non-interactive, matching the real Clock widget — see the
+            comment on the shared Fixture above; this fixture's own
+            engageClock() calls press this element. */}
         <div data-block-id="clock">
-          <button type="button">Clock content</button>
+          <span>Clock content</span>
         </div>
         <NotesWidget />
       </div>
