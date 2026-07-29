@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
@@ -7,6 +8,7 @@ import { StorageProvider } from '../../lib/storage/context'
 import type { Layout } from '../../lib/layout/types'
 import { snapPosition } from '../../lib/layout/snap'
 import { clampCenterPct } from '../../lib/layout/clamp'
+import NotesWidget from '../widgets/notes/NotesWidget'
 import ArrangeController from './ArrangeController'
 
 // Deterministic rects per block id — keyed off the SAME data-block-id
@@ -247,5 +249,95 @@ describe('ArrangeController', () => {
     fireEvent.pointerUp(clockOutline, { pointerId: 1 })
     await act(async () => {})
     expect((await storage.get('layout')).clock).toBeDefined()
+  })
+})
+
+/** Mirrors App.tsx's actual composition (Task 36 review fix): a DOM wrapper
+ *  around "the rest of the page", driven by `inert`, wired to
+ *  ArrangeController's `onModeChange` callback — the same two-prop pattern
+ *  (`onDraftChange` + `onModeChange`) App.tsx uses. Includes a REAL
+ *  NotesWidget (not a stub) so the panel-closing test below exercises the
+ *  actual `closeAllDialogs` mechanism end to end against a real dialog, not
+ *  a mock. */
+function AppLikeFixture({ onDraftChange }: { onDraftChange: (d: Layout) => void }) {
+  const [arranging, setArranging] = useState(false)
+  return (
+    <>
+      <div data-testid="widget-wrapper" inert={arranging}>
+        <div data-block-id="clock">
+          <button type="button">Clock content</button>
+        </div>
+        <NotesWidget />
+      </div>
+      <ArrangeController onDraftChange={onDraftChange} onModeChange={setArranging} />
+    </>
+  )
+}
+
+async function renderAppLike() {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  const onDraftChange = vi.fn()
+  render(
+    <StorageProvider storage={storage}>
+      <AppLikeFixture onDraftChange={onDraftChange} />
+    </StorageProvider>,
+  )
+  await act(async () => {})
+  return { storage, onDraftChange }
+}
+
+describe('ArrangeController — inertness + panel closing (review fix)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1600)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const id = this.getAttribute('data-block-id')
+      const data = id ? RECT_DATA[id] : undefined
+      return domRect(data ?? { left: 0, top: 0, width: 0, height: 0 })
+    })
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('marks the widget wrapper inert while arranging, and clears it again on exit', async () => {
+    await renderAppLike()
+    const wrapper = screen.getByTestId('widget-wrapper')
+    // Boolean HTML attribute: absent (null) when off, `''` (present) when on
+    // — see SettingsPanel.test.tsx's getAttribute()+toBe() convention (no
+    // jest-dom matchers registered in this project).
+    expect(wrapper.getAttribute('inert')).toBeNull()
+
+    engageClock()
+    expect(wrapper.getAttribute('inert')).toBe('')
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(wrapper.getAttribute('inert')).toBeNull()
+  })
+
+  it('closes an already-open panel the moment arrange mode engages', async () => {
+    await renderAppLike()
+    const notesPill = screen.getByRole('button', { name: 'Notes' })
+
+    // NotesPanel is lazy-loaded (React.lazy + Suspense): its dynamic import
+    // needs real timers/microtasks to settle (fake timers, needed below for
+    // engageClock's long-press, block testing-library's setTimeout-polled
+    // findBy — same caveat NotesPanel.test.tsx documents), so open it under
+    // real timers first, then switch to fake timers for the engage step.
+    vi.useRealTimers()
+    fireEvent.click(notesPill)
+    expect(await screen.findByRole('dialog', { name: 'Notes' })).toBeTruthy()
+
+    vi.useFakeTimers()
+    engageClock()
+
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
   })
 })

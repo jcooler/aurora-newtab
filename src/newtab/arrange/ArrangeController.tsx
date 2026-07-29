@@ -3,7 +3,7 @@ import { BLOCK_IDS, type BlockId, type BlockPos, type Layout } from '../../lib/l
 import { clampCenterPct, type Size } from '../../lib/layout/clamp'
 import { snapPosition, type Guide, type OtherRect } from '../../lib/layout/snap'
 import { isPremium } from '../../lib/premium'
-import { useDialogEscape } from '../../lib/dialogStack'
+import { closeAllDialogs, useDialogEscape } from '../../lib/dialogStack'
 import { useStorage } from '../../lib/storage/context'
 import { useLongPress } from './useLongPress'
 
@@ -53,11 +53,21 @@ function rectCenterPct(rect: DOMRect, viewport: Size): BlockPos {
  *  `onDraftChange` is how the block CURRENTLY being dragged renders live
  *  without touching storage: App wraps its `PositionedBlock`s in
  *  `<DraftLayoutContext.Provider value={draft}>` and passes `setDraft` here
- *  as `onDraftChange` — see `src/newtab/arrange/draftLayout.ts`. */
+ *  as `onDraftChange` — see `src/newtab/arrange/draftLayout.ts`.
+ *
+ *  `onModeChange` (review fix) reports every `mode` transition up to App, so
+ *  it can apply `inert` to the rest of the page (everything BELOW this
+ *  controller in paint order is a sibling, not a descendant, of the overlay
+ *  below — the overlay covering it only ever blocked the POINTER, never
+ *  keyboard Tab). Entering mode ('off' -> 'on') also closes every open
+ *  dialog via `closeAllDialogs` (src/lib/dialogStack.ts), so nothing is left
+ *  both open AND about-to-go-inert underneath. */
 export default function ArrangeController({
   onDraftChange,
+  onModeChange,
 }: {
   onDraftChange: (draft: Layout) => void
+  onModeChange?: (arranging: boolean) => void
 }) {
   const storage = useStorage()
   const [mode, setMode] = useState<'off' | 'on'>('off')
@@ -91,6 +101,13 @@ export default function ArrangeController({
   // Newest-first shared Escape stack (src/lib/dialogStack.ts) — only active
   // while arrange mode is on.
   useDialogEscape(exit, mode === 'on')
+
+  // Reports every `mode` transition up to App (review fix), which flips its
+  // own `arranging` state and applies `inert` to everything below this
+  // controller in the tree — see the prop doc above.
+  useEffect(() => {
+    onModeChange?.(mode === 'on')
+  }, [mode, onModeChange])
 
   // Re-measure outlines on resize while the mode is up (per the brief:
   // "measured on entry + on resize"). Entry itself is measured synchronously
@@ -142,11 +159,17 @@ export default function ArrangeController({
       const viewport = viewportSize()
       const pos = rectCenterPct(rect, viewport)
       const size: Size = { w: rect.width, h: rect.height }
+      // Entering arrange mode must leave zero panels open underneath the
+      // (about to become inert) page — see dialogStack.closeAllDialogs. Only
+      // gated to the actual off->on transition: once already arranging, the
+      // rest of the page is inert, so nothing could have reopened a panel in
+      // the meantime and the stack is already empty.
+      if (mode === 'off') closeAllDialogs()
       setMode('on')
       setDrag({ blockId, pos, guides: [], size, pointerId })
       onDraftChange({ [blockId]: pos })
     },
-    [measureAll, onDraftChange],
+    [measureAll, onDraftChange, mode],
   )
 
   // The long-press entry point: engaging on ANY block immediately begins
