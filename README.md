@@ -71,6 +71,13 @@ npm run build            # type-check (tsc --noEmit) + production build into dis
 node scripts/preview.mjs # builds nothing itself — run `npm run build` first — then
                           # loads dist/ in real Chromium via Playwright and captures
                           # screenshots of every screen/state into screenshots/
+npm run package           # production build, verified (version match, no bookmarks-
+                           # permission leak, no sourcemaps, icons/photos present), then
+                           # zipped (contents at root) to release/aurora-<version>.zip
+node scripts/store-shots.mjs           # requires `npm run build:preview` first (same
+                                        # reason as scripts/preview.mjs above): captures
+                                        # the 5 Chrome Web Store listing screenshots, each
+                                        # exactly 1280x800, into release/store-shots/
 node scripts/build-candidates.mjs      # dev-only: downloads native-res background photo
                                         # candidates (Unsplash + NASA/Commons CC0/PD) into
                                         # .photo-work/candidates/ and writes
@@ -192,9 +199,14 @@ as a single JSON file:
 
 ## Privacy
 
+The full, standalone privacy policy (Chrome Web Store submission copy,
+audited line-by-line against this codebase) lives in
+[`PRIVACY.md`](PRIVACY.md). Summary:
+
 Aurora has no backend and no accounts. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
-preferences, weather cache, location, notes, world clocks, and countdowns —
+preferences, weather cache, location, notes, world clocks, countdowns, and
+widget layout —
 is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).

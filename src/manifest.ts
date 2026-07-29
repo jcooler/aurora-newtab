@@ -46,8 +46,8 @@ const PREVIEW = 'preview'
 export default defineManifest((env) => ({
   manifest_version: 3,
   name: 'Aurora',
-  version: '1.1.0',
-  description: 'A calm, local-first new-tab dashboard. No accounts, no tracking.',
+  version: '1.2.0',
+  description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
   permissions:
     env.mode === PREVIEW
       ? ['storage', 'favicon', 'bookmarks']

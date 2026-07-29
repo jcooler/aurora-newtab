@@ -12,8 +12,13 @@ tmpclaude-*
 Thumbs.db
 
 .playwright-profile/
+.playwright-profile-store-shots/
 .playwright-mcp/
 screenshots/
+
+# Packaging output: the zip, screenshots, and listing copy are LOCAL
+# deliverables for Jon (Chrome Web Store launch) — never committed.
+release/
 
 # Phase A/B photo curation scratch: downloaded candidates + contact sheets.
 # Working files for controller review only — never shipped, never committed.
