@@ -445,7 +445,44 @@ describe('LocationSetup "Use my location" (geolocation permission, requested on 
     expect(getCurrentPosition).not.toHaveBeenCalled()
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toBeTruthy()
+    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
     expect(await storage.get('location')).toBeNull()
+  })
+
+  it('review fix: the button disables synchronously on click, before ensurePermission resolves — a second click while the native prompt is still pending does not fire a second concurrent request', async () => {
+    let resolvePermission: (v: boolean) => void = () => {}
+    vi.mocked(ensurePermission).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolvePermission = resolve
+        }),
+    )
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      success({ coords: { latitude: 32.7767, longitude: -96.797 } })
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ city: 'Dallas' })))
+    const { storage } = await renderSetup()
+    const button = screen.getByRole('button', { name: 'Use my location' }) as HTMLButtonElement
+
+    fireEvent.click(button)
+    // Still mid-prompt (ensurePermission deliberately unresolved) — the
+    // button must already be disabled from this same click, not just after
+    // the prompt is answered, so a second click here is a no-op rather than
+    // a second concurrent chrome.permissions.request().
+    expect(button.disabled).toBe(true)
+    fireEvent.click(button)
+
+    expect(ensurePermission).toHaveBeenCalledTimes(1)
+    expect(getCurrentPosition).not.toHaveBeenCalled()
+
+    // Resolve the (single) outstanding prompt and confirm the button
+    // re-enables and the flow completes normally.
+    await act(async () => {
+      resolvePermission(true)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+    expect(await storage.get('location')).not.toBeNull()
   })
 
   it('granting the geolocation permission proceeds to navigator.geolocation.getCurrentPosition and writes the resolved location', async () => {

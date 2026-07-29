@@ -83,6 +83,17 @@ export default function LocationSetup() {
   }, [])
 
   async function useDevice() {
+    // setBusy(true) is the first synchronous line — before the
+    // ensurePermission call below, not after it resolves — so the button
+    // (disabled={busy}) goes inert on this very click, not seconds later
+    // once the user has answered Chrome's native prompt. Without this, a
+    // second click while that prompt is still pending re-enters useDevice
+    // and fires a second concurrent chrome.permissions.request(). Every
+    // exit path below (denied, rejected, device-level error, and the
+    // success handler's `finally`) resets it back to false — that's the
+    // part that has to stay exhaustive whenever a new early-return is
+    // added here.
+    setBusy(true)
     setError(null)
     // ensurePermission MUST be the first thing this handler awaits — it's
     // the call that has to land inside the click's user-gesture window (see
@@ -100,11 +111,11 @@ export default function LocationSetup() {
       granted = false
     }
     if (!granted) {
+      setBusy(false)
       setError('Location permission was declined — the manual search below still works.')
       return
     }
 
-    setBusy(true)
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
