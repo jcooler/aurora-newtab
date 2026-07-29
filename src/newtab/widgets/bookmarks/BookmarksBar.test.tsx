@@ -40,7 +40,7 @@ const nestedModel: BarModel = {
   loose: [{ id: 'i3', title: 'Docs', url: 'https://docs.example' }],
 }
 
-async function renderBar(model: BarModel) {
+async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) => void) {
   vi.mocked(hasBookmarksPermission).mockResolvedValue(true)
   vi.mocked(loadBarModel).mockResolvedValue(model)
   const storage = createStorage(memoryDriver())
@@ -51,7 +51,7 @@ async function renderBar(model: BarModel) {
   })
   const result = render(
     <StorageProvider storage={storage}>
-      <BookmarksBar />
+      <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} />
     </StorageProvider>,
   )
   return result
@@ -132,6 +132,60 @@ describe('BookmarksBar', () => {
     // TimerWidget when no popover is open.
     expect(nav.classList.contains('z-20')).toBe(true)
     expect(nav.classList.contains('z-50')).toBe(false)
+  })
+
+  // Bookmarks-stacking bug fix, part 2: `relative` + z-20/z-50 on the nav
+  // (tested above) only wins LOCAL stacking comparisons — `position: fixed`
+  // on the App.tsx wrapper unconditionally creates a stacking context, so
+  // the WRAPPER also needs an elevated z-index while a popover is open, and
+  // App.tsx can only know to apply it via this callback (see App.tsx's
+  // `bookmarksPopoverOpen` state and the bookmarks PositionedBlock's
+  // comment for the full writeup). This is the contract App.tsx depends on.
+  it('calls onPopoverOpenChange(true) on open and onPopoverOpenChange(false) on close', async () => {
+    const onPopoverOpenChange = vi.fn()
+    await renderBar(nestedModel, onPopoverOpenChange)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    expect(onPopoverOpenChange).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(true)
+
+    await act(async () => {
+      fireEvent.click(folderChip) // toggle closed
+    })
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('switching directly from one open popover to a different chip stays "open" throughout (no spurious close blip)', async () => {
+    const twoFolderModel: BarModel = {
+      folders: [
+        { id: 'f1', title: 'Work', items: [], folders: [] },
+        { id: 'f2', title: 'Personal', items: [], folders: [] },
+      ],
+      loose: [],
+    }
+    const onPopoverOpenChange = vi.fn()
+    await renderBar(twoFolderModel, onPopoverOpenChange)
+    const work = await screen.findByRole('button', { name: 'Work' })
+
+    await act(async () => {
+      fireEvent.click(work)
+    })
+    await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(true)
+
+    onPopoverOpenChange.mockClear()
+    const personal = screen.getByRole('button', { name: 'Personal' })
+    await act(async () => {
+      fireEvent.click(personal)
+    })
+    await screen.findByRole('dialog', { name: 'Personal bookmarks' })
+    expect(onPopoverOpenChange).toHaveBeenCalledTimes(1)
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(true)
   })
 
   it('opens the folder popover, drills into a subfolder, and returns via "‹ Back"', async () => {
@@ -247,7 +301,7 @@ describe('BookmarksBar', () => {
     rectSpy.mockRestore()
   })
 
-  it('renders no fixed-position element inside the transformed bar; backdrop portals to <body>', async () => {
+  it('renders no fixed-position element inside the bar; backdrop portals to <body>', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })
 
@@ -257,12 +311,13 @@ describe('BookmarksBar', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
     const nav = screen.getByRole('navigation', { name: 'Bookmarks bar' })
 
-    // The nav's -translate-x-1/2 transform makes it the CONTAINING BLOCK for
-    // any position:fixed descendant: a "fixed inset-0" backdrop rendered
-    // inside it shrinks to the bar's own box and, being z-40 inside the
-    // nav's stacking context, paints ABOVE the sibling chips — every chip
-    // click then lands on the backdrop (= close) instead of the chip. So:
-    // nothing inside the nav may be position-fixed, ever.
+    // If the bar (or its App.tsx wrapper) ever regains a `translate`/
+    // `transform` class, it becomes the CONTAINING BLOCK for any
+    // position:fixed descendant: a "fixed inset-0" backdrop rendered inside
+    // it would shrink to the bar's own box and, being z-40 inside that new
+    // stacking context, paint ABOVE the sibling chips — every chip click
+    // then lands on the backdrop (= close) instead of the chip. So: nothing
+    // inside the nav may be position-fixed, ever.
     expect(nav.querySelector('.fixed')).toBeNull()
 
     // The popover panel anchors to its chip wrapper (absolute), not the
@@ -270,8 +325,8 @@ describe('BookmarksBar', () => {
     expect(dialog.classList.contains('absolute')).toBe(true)
     expect(dialog.classList.contains('fixed')).toBe(false)
 
-    // The click-outside catcher escapes the transformed subtree via a portal
-    // to <body>, where fixed inset-0 really means the whole viewport.
+    // The click-outside catcher escapes the bar's subtree via a portal to
+    // <body>, where fixed inset-0 really means the whole viewport.
     const bodyBackdrop = [...document.body.children].find(
       (el) => el.matches('div[aria-hidden="true"]') && el.classList.contains('fixed'),
     )
@@ -282,6 +337,22 @@ describe('BookmarksBar', () => {
       fireEvent.click(bodyBackdrop!)
     })
     expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
+  })
+
+  // Bookmarks-stacking bug fix (bug: popovers opened but nothing inside was
+  // clickable — see App.tsx's comment on the bookmarks PositionedBlock for
+  // the full root-cause writeup). The nav lost `position: fixed` when its
+  // placement classes moved out to the App.tsx wrapper (commit 1125413),
+  // leaving its conditional z-20/z-50 classes sitting on a `position:
+  // static` element, where z-index has no effect at all — chips would stay
+  // under FolderPopover's z-40 body-portaled catcher even once the wrapper
+  // itself stopped being a transform-created stacking context. `relative`
+  // (no visual offset, just a `position` value) is what makes those
+  // z-index classes apply again.
+  it('the nav carries `relative` so its z-20/z-50 classes actually apply (bookmarks-stacking bug fix)', async () => {
+    await renderBar(nestedModel)
+    const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+    expect(nav.classList.contains('relative')).toBe(true)
   })
 
   it('beyond 8 chips, the rest collapse into a "»" chip whose popover lists them', async () => {

@@ -3,7 +3,13 @@
 // screenshots/. Never ships in the extension.
 //
 // Usage: node scripts/preview.mjs [--headed]
-// Prereq: npm run build (loads dist/, not src/)
+// Prereq: npm run build:preview (loads dist/, not src/) — the PREVIEW build
+// (src/manifest.ts, gated on Vite mode 'preview') holds the `bookmarks`
+// permission at install time instead of optional-only, which is what lets
+// the bookmarks probes below actually run instead of printing the SKIP line
+// (see the hasBookmarksPermission check further down). A plain `npm run
+// build` still loads and runs everything else fine — bookmarks capture just
+// SKIPs honestly, same as it always has for a production dist.
 import { mkdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { chromium } from 'playwright'
@@ -119,19 +125,97 @@ console.log('captured newtab.png')
 
 // Bookmarks-bar popover: REAL click on a folder chip (real hit-testing — the
 // one thing jsdom can't do), assert the popover opened anchored to it, then
-// assert a real outside click closes it. Only reachable if the bookmarks
-// permission was actually held above — the bar itself doesn't render
-// without it (see BookmarksBar.tsx's permission check), so the SKIP line
-// was already printed at seed time.
+// (below) exercise real clickability of what's INSIDE it, real chip-to-chip
+// switching, and a real outside click closing it. Only reachable if the
+// bookmarks permission was actually held above — the bar itself doesn't
+// render without it (see BookmarksBar.tsx's permission check), so the SKIP
+// line was already printed at seed time. Under a production build this is
+// always the SKIP path (bookmarks stays optional-only there); a preview
+// build (`npm run build:preview`) is what makes hasBookmarksPermission true
+// so this whole block actually runs — see the header comment above.
 if (hasBookmarksPermission) {
   await page.click('nav[aria-label="Bookmarks bar"] button:has-text("Dev")')
   await page.waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]')
   await page.waitForTimeout(150)
   await page.screenshot({ path: `${outDir}/bookmarks-popover.png` })
   console.log('captured bookmarks-popover.png')
+
+  // (a) Real clickability inside the open popover — this IS the bug
+  // (bookmarks-stacking fix): FolderPopover's body-portaled click-outside
+  // catcher used to paint ABOVE the entire bar and open panel (a wrapper
+  // `-translate-x-1/2` made the wrapper both a new containing block and a
+  // new stacking context — see App.tsx's comment on the bookmarks
+  // PositionedBlock for the full root-cause writeup), so
+  // `document.elementFromPoint` at a link's center resolved to the catcher,
+  // not the link — every click inside an open popover landed on the
+  // catcher (closing it) instead of following the link. A REAL
+  // page.click() + navigation assertion is the strongest available proof
+  // the click actually reaches the anchor: Playwright's own actionability
+  // check ("receives events", i.e. not obscured by another element at that
+  // point) will itself throw if the catcher is still on top, and even if
+  // it somehow didn't, a click that lands on the catcher instead of the
+  // link never navigates — either way this fails honestly rather than
+  // silently passing. "Dev" is a folder chip (opened above); its
+  // top-level popover lists "Tools" (a subfolder) then its two loose
+  // bookmarks, "GitHub" first — see the seed further up and
+  // services/bookmarks.ts's mapFolder for the folders-then-items order.
+  let reachedGitHub = false
+  try {
+    await page.click('[role="dialog"][aria-label="Dev bookmarks"] a:has-text("GitHub")', {
+      timeout: 5000,
+    })
+    reachedGitHub = await page.waitForURL(/github\.com/, { timeout: 5000 }).then(
+      () => true,
+      () => false,
+    )
+  } catch {
+    reachedGitHub = false
+  }
+  console.log(
+    reachedGitHub
+      ? 'PASS: clicking a bookmark link inside an open popover navigates (real hit-testing reaches the link, not the click-outside catcher)'
+      : 'FAIL: clicking a bookmark link inside an open popover navigates (real hit-testing reaches the link, not the click-outside catcher)',
+  )
+  if (reachedGitHub) {
+    await page.goBack()
+    await page.waitForSelector('time')
+    await page.waitForTimeout(800) // photo fade-in, same as every other reload in this script
+  }
+
+  // (b) Chip-to-chip switching — the OTHER casualty of the same stacking
+  // bug: with the catcher painting above the bar, clicking a DIFFERENT chip
+  // while a popover was open landed on the catcher too (just closing the
+  // open popover) instead of reaching the other chip's own button, which
+  // should switch popovers directly. Re-open Dev (navigating away above, if
+  // it succeeded, closed it — a fresh click either way keeps this
+  // independent of whether (a) passed or failed), then click News — a
+  // different folder chip — while Dev is still open.
+  await page.click('nav[aria-label="Bookmarks bar"] button:has-text("Dev")')
+  await page.waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]')
+  await page.click('nav[aria-label="Bookmarks bar"] button:has-text("News")')
+  const switchedToNews = await page
+    .waitForSelector('[role="dialog"][aria-label="News bookmarks"]', { timeout: 2000 })
+    .then(() => true, () => false)
+  const devPopoverGone = (await page.locator('[role="dialog"][aria-label="Dev bookmarks"]').count()) === 0
+  console.log(
+    switchedToNews && devPopoverGone
+      ? 'PASS: clicking a different chip while a popover is open switches to it'
+      : 'FAIL: clicking a different chip while a popover is open switches to it',
+  )
+
+  // Outside click must dismiss whichever popover is currently open — News,
+  // per the switch above (or Dev, if (b) itself somehow failed to switch).
+  // Scoped to that ONE aria-label rather than a bare `[role="dialog"]`:
+  // Drawer.tsx keeps the Settings drawer's own `role="dialog"` element
+  // permanently mounted (just visually/inertly closed, not unmounted), so
+  // an unscoped selector would never see ANY matching element fully
+  // detach and this would hang/timeout regardless of whether the bookmarks
+  // popover itself actually closed.
+  const openLabel = switchedToNews ? 'News bookmarks' : 'Dev bookmarks'
+  await page.waitForTimeout(150)
   await page.mouse.click(800, 500) // outside click must dismiss
   const popoverGone = await page
-    .waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]', { state: 'detached', timeout: 2000 })
+    .waitForSelector(`[role="dialog"][aria-label="${openLabel}"]`, { state: 'detached', timeout: 2000 })
     .then(() => true, () => false)
   console.log(popoverGone ? 'PASS: outside click closed the bookmarks popover' : 'FAIL: bookmarks popover did not close on outside click')
 }

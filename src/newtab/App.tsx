@@ -50,6 +50,19 @@ export default function App() {
   // just truthiness) enters arrange mode with no block pre-selected. Starts
   // at 0 so the very first bump (1) is always a real change.
   const [arrangeSignal, setArrangeSignal] = useState(0)
+  // Bookmarks-stacking bug fix, part 2 — mirrors BookmarksBar's own
+  // openId-derived open/closed state (via onPopoverOpenChange) so THIS
+  // wrapper's className can react to it. Needed because `position: fixed`
+  // (the bookmarks PositionedBlock below is unavoidably `fixed` — that's
+  // what anchors the bar to the viewport) unconditionally creates a new
+  // stacking context: BookmarksBar's own z-20/z-50 (on its `nav`) only
+  // wins LOCALLY, inside that stacking context, never against
+  // FolderPopover's body-portaled z-40 click-outside catcher, which lives
+  // OUTSIDE it. See the long comment on the bookmarks PositionedBlock
+  // below for the full writeup, including the minimal-repro measurements
+  // that found this (a real-Chromium preview-probe FAIL, not something
+  // caught by inspection or by jsdom).
+  const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   // Tracks whether the PREVIOUS render had `arranging` true, so the
   // focus-restore effect below only fires on a real on->off transition, never
@@ -168,12 +181,70 @@ export default function App() {
           </WidgetBoundary>
 
           <WidgetBoundary name="bookmarks">
+            {/*
+              Bug fix (bookmarks popover stacking) — bookmark folder popovers
+              opened, but nothing inside them was clickable. Two independent
+              causes, both rooted in this wrapper, both fixed here + in
+              BookmarksBar.tsx:
+
+              CAUSE 1 — this wrapper used to carry `left-1/2
+              -translate-x-1/2` for centering. Any `translate`/`transform`
+              on an element makes it a new CONTAINING BLOCK for `position:
+              fixed` DESCENDANTS (CSS Transforms spec) — harmless for the
+              nav's own children (FolderPopover's panel is `absolute`,
+              anchored to its chip), but it *also* makes the element a new
+              STACKING CONTEXT, painting atomically wherever it falls in the
+              parent's paint order. FolderPopover's click-outside catcher
+              portals to <body> specifically to escape being trapped INSIDE
+              that containing block (see FolderPopover's own comment) — but
+              portaling to <body> does nothing for the stacking-context
+              problem: the transformed wrapper (with every z-50 thing
+              inside it) still paints as one atomic unit, and in this app
+              that unit sits BELOW the body-level catcher's explicit z-40.
+              Fix: transform-free centering — `inset-x-0 mx-auto w-fit`
+              reproduces the same centered, shrink-to-fit box (verified
+              against BookmarksBar's own `max-w-[52vw] flex-wrap` chip
+              layout) without ever creating a containing block.
+
+              CAUSE 2 — found AFTER shipping fix 1, by the mandated
+              real-Chromium preview probe (a real `page.click` on a link
+              inside an open popover still timed out, Playwright reporting
+              the click-outside catcher as the interceptor): removing the
+              transform does NOT remove the stacking context, because
+              `position: fixed` — which this wrapper still needs, to stay
+              viewport-anchored at all — ALSO unconditionally creates one,
+              regardless of z-index (CSS Position spec: `fixed`/`sticky`
+              always establish a stacking context; `relative`/`absolute`
+              only do when z-index isn't `auto`, which is why the OTHER
+              half of this fix, `relative` on BookmarksBar's own `nav` —
+              see BookmarksBar.tsx — was necessary but not sufficient by
+              itself). With no explicit z-index of its own, this wrapper
+              paints as an atomic z-index:auto (effectively 0) layer at the
+              top level — ALWAYS below the catcher's explicit z-40, no
+              matter what z-index anything inside it (the nav's z-20/z-50
+              included) carries; that inner z-index only ever wins LOCAL
+              comparisons against the wrapper's own other descendants.
+              Confirmed with a minimal transform-free repro outside this
+              app (a `position:fixed` wrapper with a `position:relative
+              z-index:50` child, next to a sibling `position:fixed
+              z-index:40` catcher): `elementFromPoint` on the child resolved
+              to the catcher every time, until the WRAPPER itself also got
+              an explicit z-index — then it resolved to the child.
+              Fix: `bookmarksPopoverOpen` (state above, set via
+              BookmarksBar's `onPopoverOpenChange`) drives `z-50` on this
+              wrapper — matching the nav's own open-state z-50 — ONLY while
+              a popover is actually open, exactly mirroring BookmarksBar's
+              existing "z-20 idle / z-50 open" rationale (see its own
+              comment) rather than introducing a NEW permanent-elevation
+              regression against TodoPanel/TimerWidget: idle, this wrapper
+              stays at z-index:auto, unchanged from before this whole fix.
+            */}
             <PositionedBlock
               id="bookmarks"
               pos={layout?.bookmarks}
-              className="fixed left-1/2 top-4 -translate-x-1/2"
+              className={`fixed inset-x-0 top-4 mx-auto w-fit${bookmarksPopoverOpen ? ' z-50' : ''}`}
             >
-              <BookmarksBar />
+              <BookmarksBar onPopoverOpenChange={setBookmarksPopoverOpen} />
             </PositionedBlock>
           </WidgetBoundary>
 
@@ -210,8 +281,9 @@ export default function App() {
 
           <WidgetBoundary name="quote">
             {/*
-              Review fix I3: unlike weather/bookmarks/timer/notes/tasks below
-              (each shrink-to-fit sized, `left`/`right` alone), the quote's old
+              Review fix I3 (superseded below by the bookmarks-stacking bug
+              fix): unlike weather/bookmarks/timer/notes/tasks (each
+              shrink-to-fit sized, `left`/`right` alone), the quote's old
               single-element `fixed inset-x-0 bottom-6 mx-auto max-w-xl`
               resolved its actual (auto-margin) width via shrink-to-fit BECAUSE
               `mx-auto` lived on the SAME element as `inset-x-0` — CSS only
@@ -233,26 +305,37 @@ export default function App() {
               on it at all) and `ArrangeController.measureAll` measures for
               the drag outline (returning the full viewport width, pinning the
               drag's x to the degenerate clamp midpoint).
-              `left-1/2 -translate-x-1/2` (no `inset-x-0`) replaces both the
-              full-width span AND the `pointer-events-none` patch: the wrapper
-              itself becomes shrink-to-fit around QuoteWidget's own
-              `max-w-xl`-capped figure (identical rendered box — verified
-              pixel-identical against the pre-fix capture) and, being no
-              wider than its actual visible content, no longer extends over
-              the flanking pills at all — nothing left for it to
-              intercept, so pointer events can stay at their default `auto`.
-              `-translate-x-1/2` is safe here (unlike PositionedBlock's own
-              ARRANGED-branch style, which deliberately avoids `transform` so
-              it doesn't become a containing block for `position: fixed`
-              descendants — see PositionedBlock.tsx): QuoteWidget has no such
-              descendants, and this only ever applies pre-arrange anyway (this
-              `className` is dropped the instant the block has a stored
-              `pos`).
+              Review fix I3 then replaced that with `left-1/2
+              -translate-x-1/2` (no `inset-x-0`), reasoning it was safe
+              because QuoteWidget has no `position: fixed` descendants of its
+              own to break. True as far as it went — but the bookmarks-bar
+              popover-stacking bug (same task family as this one, see the
+              bookmarks PositionedBlock above) proved the SAME class also
+              turns this wrapper into a new STACKING CONTEXT, independent of
+              whether anything inside it is `position: fixed`. This wrapper
+              currently has no fixed/z-indexed descendants, so today it's
+              inert — but it's the identical landmine, and the fix is the
+              identical pattern: `inset-x-0 mx-auto w-fit` centers via equal
+              auto margins (CSS resolves this the same way `mx-auto
+              max-w-xl` did pre-Task-35 — see above — because `width` being a
+              specified value, here `fit-content` rather than `36rem`, is
+              what makes the auto-margin-centering branch apply at all)
+              without ever creating a containing block OR a stacking context.
+              `w-fit` reproduces the same shrink-to-fit box QuoteWidget's own
+              `max-w-xl`-capped figure already establishes (pixel-equivalent
+              to the `-translate-x-1/2` box it replaces — same shrink-to-fit
+              sizing, just resolved via `width` instead of `translate`), so
+              it stays no wider than its visible content: still nothing for
+              it to intercept over the flanking pills (pointer-events stay
+              default `auto`), and still shrink-to-fit for `useLongPress`'s
+              `[data-block-id]` hit test and `ArrangeController.measureAll`'s
+              drag-outline measurement — both keyed off this element's own
+              rendered box, unaffected by which CSS property produced it.
             */}
             <PositionedBlock
               id="quote"
               pos={layout?.quote}
-              className="fixed bottom-6 left-1/2 -translate-x-1/2"
+              className="fixed inset-x-0 bottom-6 mx-auto w-fit"
             >
               <QuoteWidget />
             </PositionedBlock>
