@@ -5,6 +5,7 @@
 // pipeline. Nothing here ships in the extension. Run after build-candidates.mjs:
 // `node scripts/contact-sheet.mjs`
 import { readFile, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import sharp from 'sharp'
 
 const CANDIDATES_DIR = '.photo-work/candidates'
@@ -102,13 +103,18 @@ async function buildQualitySample() {
     .extract({ left: nLeft, top: nTop, width: CROP_W, height: CROP_H })
     .toBuffer()
 
-  // Current pipeline representative: public/photos/p01.webp, capped at
-  // 1920x1200 by the picsum proxy. To show what the current pipeline yields
-  // for the *same relative crop*, take the equivalent proportional region
-  // (same fraction of frame) and scale it up to the same 1200x800 display
-  // size — this exposes the softness/blur the 1920x1200 cap forces on any
-  // tight crop or high-DPI render, which is the actual defect being fixed.
+  // Current pipeline representative: this used to be public/photos/p01.webp,
+  // capped at 1920x1200 by the now-retired picsum proxy (the defect phase B
+  // replaced). That file no longer ships — skip the comparison half of this
+  // sample gracefully if it's gone rather than crashing a future re-run;
+  // the numbered contact sheets above remain fully functional either way.
   const currentPath = 'public/photos/p01.webp'
+  if (!existsSync(currentPath)) {
+    console.log(
+      `skip: quality-sample comparison (${currentPath} no longer exists — the picsum-era pipeline it demonstrated was retired in phase B)`,
+    )
+    return
+  }
   const currentMeta = await sharp(currentPath).metadata()
   const fracW = CROP_W / nativeMeta.width
   const fracH = CROP_H / nativeMeta.height

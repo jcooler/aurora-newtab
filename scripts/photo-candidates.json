@@ -166,7 +166,8 @@
     "profile": "https://unsplash.com/@nevenkrcmarek",
     "license": "Unsplash License",
     "width": 4000,
-    "height": 2525
+    "height": 2525,
+    "excluded": "Controller cull: the island church (Lake Bled) is a man-made focal subject, violates the curation bar"
   },
   {
     "num": 14,
@@ -244,7 +245,8 @@
     "profile": "https://unsplash.com/@kalisaveer",
     "license": "Unsplash License",
     "width": 5318,
-    "height": 3545
+    "height": 3545,
+    "excluded": "Full-res recheck: tiny tourist figures visible on the clifftop plus O'Brien's Tower (man-made structure) on the point — this is the Cliffs of Moher"
   },
   {
     "num": 20,
@@ -257,7 +259,8 @@
     "profile": "https://unsplash.com/@wandrmagazine",
     "license": "Unsplash License",
     "width": 4811,
-    "height": 3187
+    "height": 3187,
+    "excluded": "Full-res recheck: a person is clearly visible walking on the beach"
   },
   {
     "num": 21,
@@ -283,7 +286,8 @@
     "profile": "https://unsplash.com/@jbcreate_",
     "license": "Unsplash License",
     "width": 6000,
-    "height": 4000
+    "height": 4000,
+    "excluded": "Full-res recheck: two people plus a dog visible on the cove beach, and an industrial plant is visible in the far background"
   },
   {
     "num": 23,
@@ -335,7 +339,8 @@
     "profile": "https://unsplash.com/@hariskhan488",
     "license": "Unsplash License",
     "width": 5152,
-    "height": 2862
+    "height": 2862,
+    "excluded": "Controller cull: vehicle tracks across the dune foreground"
   },
   {
     "num": 27,
@@ -362,7 +367,8 @@
     "license": "Public Domain (NASA, U.S. government work)",
     "width": 8256,
     "height": 5504,
-    "flag": "ISS station hardware (solar panel/truss) visible in-frame — dominant subject is still the aurora, but flagged for controller judgment call"
+    "flag": "ISS station hardware (solar panel/truss) visible in-frame — dominant subject is still the aurora, but flagged for controller judgment call",
+    "excluded": "Controller cull: flagged ISS hardware confirmed as a reason to drop"
   },
   {
     "num": 29,
@@ -376,7 +382,8 @@
     "license": "Public Domain (NASA, U.S. government work)",
     "width": 8256,
     "height": 5504,
-    "flag": "ISS station hardware visible in bottom-left corner — dominant subject is still the aurora/Earth limb, but flagged for controller judgment call"
+    "flag": "ISS station hardware visible in bottom-left corner — dominant subject is still the aurora/Earth limb, but flagged for controller judgment call",
+    "excluded": "Controller cull: flagged ISS hardware confirmed as a reason to drop"
   },
   {
     "num": 30,
@@ -389,7 +396,8 @@
     "profile": null,
     "license": "Public Domain (National Park Service)",
     "width": 6000,
-    "height": 4000
+    "height": 4000,
+    "excluded": "Controller cull: too faint, reads as a black screen at background scale"
   },
   {
     "num": 31,

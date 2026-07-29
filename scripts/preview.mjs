@@ -412,7 +412,10 @@ await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400) // slide-in transition
 await page.selectOption('#set-bg-mode', 'upload')
 await page.waitForSelector('#set-bg-file')
-await page.setInputFiles('#set-bg-file', ['public/photos/p01.webp', 'public/photos/p02.webp'])
+await page.setInputFiles('#set-bg-file', [
+  'public/photos/01-Ovn1hyBge38-2560x1600.avif',
+  'public/photos/02-vUePu7hAYAQ-2560x1600.avif',
+])
 await page.waitForSelector('button[aria-label="Remove photo 1"]')
 await page.waitForTimeout(300) // thumbnail object-URL decode
 await page.screenshot({ path: `${outDir}/settings-gallery.png` })

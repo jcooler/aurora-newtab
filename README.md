@@ -71,11 +71,20 @@ npm run build            # type-check (tsc --noEmit) + production build into dis
 node scripts/preview.mjs # builds nothing itself — run `npm run build` first — then
                           # loads dist/ in real Chromium via Playwright and captures
                           # screenshots of every screen/state into screenshots/
-node scripts/fetch-photos.mjs # dev-only: refreshes the bundled background set from
-                               # picsum.photos into public/photos/ and rewrites
-                               # src/services/photos/photos.json with credits
-node scripts/make-icons.mjs   # dev-only: regenerates public/icons/icon{16,48,128}.png
-                               # from an inline SVG via Playwright
+node scripts/build-candidates.mjs      # dev-only: downloads native-res background photo
+                                        # candidates (Unsplash + NASA/Commons CC0/PD) into
+                                        # .photo-work/candidates/ and writes
+                                        # scripts/photo-candidates.json
+node scripts/contact-sheet.mjs         # dev-only: builds numbered contact sheets from the
+                                        # downloaded candidates for visual review/culling
+node scripts/encode-photos.mjs         # dev-only: encodes every non-excluded candidate into
+                                        # dual AVIF tiers (2560x1600 + 3840x2400) into
+                                        # public/photos/ and writes
+                                        # src/services/photos/photos.json with credits
+node scripts/verify-photo-manifest.mjs # dev-only: checks the photo manifest and its AVIF
+                                        # files are consistent (npm run verify:photos)
+node scripts/make-icons.mjs            # dev-only: regenerates public/icons/icon{16,48,128}.png
+                                        # from an inline SVG via Playwright
 ```
 
 Pass `--headed` to `scripts/preview.mjs` (`node scripts/preview.mjs --headed`)
@@ -89,6 +98,42 @@ longitude (rounded to ~1km) and, for city search, whatever you've typed into
 the city search box so far — suggestions filter as you type (debounced, so
 it's not a call per keystroke), not only after you press Enter. Your location
 is stored locally and is never sent anywhere else.
+
+## Photo credits
+
+The bundled background set is 23 hand-curated landscape and aurora/night-sky
+photos, shipped as two AVIF resolution tiers each (2560x1600 and 3840x2400 —
+see [`src/services/photos/tier.ts`](src/services/photos/tier.ts) for how the
+tier is picked). 21 are used under the
+[Unsplash License](https://unsplash.com/license) (free to use, no
+attribution legally required — credited here anyway); 2 are Public Domain
+U.S. government works (NASA and the National Park Service). Full curation
+notes, including every candidate that was reviewed and rejected and why,
+live in [`scripts/photo-candidates.json`](scripts/photo-candidates.json).
+
+- [v2osk](https://unsplash.com/photos/aurora-borealis-Ovn1hyBge38) — Unsplash License
+- [Serey Kim](https://unsplash.com/photos/aurora-borealis-vUePu7hAYAQ) — Unsplash License
+- [Jussi Hellsten](https://unsplash.com/photos/a-mountain-covered-in-snow-under-a-green-and-purple-sky-1uwLmA5LFfg) — Unsplash License
+- [Jon Anders Dalan](https://unsplash.com/photos/green-aurora-lights-over-lake-DmA484UHAzw) — Unsplash License
+- [Robson Hatsukami Morgan](https://unsplash.com/photos/silhouette-of-mountains-under-milky-way-galaxy--wEFdRCG4IU) — Unsplash License
+- [Condor Wei](https://unsplash.com/photos/blue-and-black-sky-with-stars-oMcTmNHclZI) — Unsplash License
+- [Sami Matias Breilin](https://unsplash.com/photos/aurora-borealis-UZOpP-YHe9Q) — Unsplash License
+- [Federico Di Dio photography](https://unsplash.com/photos/green-aurora-lights-during-night-time-JWHSIG1kM2c) — Unsplash License
+- [Pinal Jain](https://unsplash.com/photos/silhouette-of-mountains-during-daytime-x-XwnC7FgFM) — Unsplash License
+- [Renato Muolo](https://unsplash.com/photos/snow-covered-mountain-under-blue-sky-during-night-time-evJh_sTH0b8) — Unsplash License
+- [Simon Lohmann](https://unsplash.com/photos/green-mountains-under-blue-sky-during-daytime-I_n_b44cqhk) — Unsplash License
+- [Toan Chu](https://unsplash.com/photos/green-and-brown-mountains-under-white-clouds-and-blue-sky-during-daytime-YKN_G9L9nMA) — Unsplash License
+- [Siru Zhou](https://unsplash.com/photos/a-forest-covered-in-fog-and-low-lying-clouds-iOvuSPwZLFY) — Unsplash License
+- [pine watt](https://unsplash.com/photos/aerial-shot-of-forest-2Hzmz15wGik) — Unsplash License
+- [Nadjib Bouarar](https://unsplash.com/photos/green-trees-on-brown-field-during-daytime-ljDlHHMqHRg) — Unsplash License
+- [Sebastian Unrau](https://unsplash.com/photos/trees-on-forest-with-sun-rays-sp-p7uuT0tw) — Unsplash License
+- [Luca Bravo](https://unsplash.com/photos/body-of-water-surrounded-by-pine-trees-during-daytime-ESkw2ayO2As) — Unsplash License
+- [Oleksii Piekhov](https://unsplash.com/photos/a-large-body-of-water-surrounded-by-mountains-meFvVI-mz0k) — Unsplash License
+- [Reed Naliboff](https://unsplash.com/photos/a-large-sand-dune-in-the-middle-of-a-desert-23tpftFIAD0) — Unsplash License
+- [Andrew Svk](https://unsplash.com/photos/a-group-of-sand-dunes-with-a-blue-sky-in-the-background-0s9oD70F-l4) — Unsplash License
+- [Ze Paulo Galveias](https://unsplash.com/photos/brown-sand-dunes-under-white-sky-during-daytime-GeReAnOMiZ8) — Unsplash License
+- Image credit: NASA / Expedition 72 crew, International Space Station — [details](https://images.nasa.gov/details/iss072e159172) — Public Domain (U.S. government work)
+- Mary Lewandowski / National Park Service, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Aurora_in_Denali_(7c1dff32-ca2f-41f1-bbc1-65cf123bc3cf).jpg) — Public Domain
 
 ## Adding a theme
 

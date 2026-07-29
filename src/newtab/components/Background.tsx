@@ -1,8 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { useUploads } from '../../lib/hooks/useUploads'
-import { BUNDLED, bundledUrl, nextPhoto, resolvePhoto } from '../../services/photos/index'
+import { BUNDLED, bundledUrl, nextPhoto, pickTier, resolvePhoto } from '../../services/photos/index'
 import { todayKey } from '../../lib/dates'
+
+// Physical display size drives the tier pick (see pickTier's own doc): the
+// larger of screen width/height times devicePixelRatio, falling back to the
+// viewport and finally a safe default so this never throws in an
+// environment without a real `screen` (jsdom under test).
+function physicalMaxDimension(): number {
+  const screenMax = Math.max(window.screen?.width || 0, window.screen?.height || 0)
+  const viewportMax = Math.max(window.innerWidth || 0, window.innerHeight || 0)
+  return screenMax || viewportMax || 1024
+}
 
 export default function Background({
   prefs,
@@ -61,11 +71,12 @@ export default function Background({
 
   // bundledUrl must never run with an empty set (or in gradient mode) — an
   // out-of-range access would throw during render and blank the whole page.
+  const tier = pickTier(physicalMaxDimension(), window.devicePixelRatio || 1)
   const src =
     effectiveMode === 'upload'
       ? uploadPhotoUrl
       : effectiveMode === 'auto' && BUNDLED.length > 0
-        ? bundledUrl(index)
+        ? bundledUrl(index, tier)
         : null
   const showPhoto = src !== null
   const credit = effectiveMode === 'auto' && BUNDLED[index] ? BUNDLED[index] : null
