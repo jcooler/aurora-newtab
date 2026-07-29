@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import PositionedBlock from './PositionedBlock'
+import { DraftLayoutContext } from '../arrange/draftLayout'
 
 afterEach(() => {
   cleanup()
@@ -31,9 +32,22 @@ describe('PositionedBlock', () => {
     expect(el).not.toBeNull()
     expect(el.className).toBe('')
     expect(el.style.position).toBe('fixed')
+    // jsdom reports 0x0 (no layout engine) — unmeasured, so left/top are the
+    // raw percent with no calc() offset yet (see the measured-size test below
+    // for the calc() form).
     expect(el.style.left).toBe('50%')
     expect(el.style.top).toBe('50%')
-    expect(el.style.translate).toBe('-50% -50%')
+  })
+
+  it('never sets transform/translate on the positioned branch — must not become a containing block for position:fixed descendants (e.g. a dragged pill\'s popup panel)', () => {
+    const { container } = render(
+      <PositionedBlock id="notes" pos={{ x: 30, y: 70 }}>
+        <span>content</span>
+      </PositionedBlock>,
+    )
+    const el = container.querySelector('[data-block-id="notes"]') as HTMLElement
+    expect(el.style.translate).toBe('')
+    expect(el.style.transform).toBe('')
   })
 
   it('a non-finite x or y falls back to the default (unpositioned) placement', () => {
@@ -90,10 +104,120 @@ describe('PositionedBlock', () => {
       )
       const el = container.querySelector('[data-block-id="search"]') as HTMLElement
       // Block (2000px) wider than jsdom's default window.innerWidth (1024px)
-      // -> clampCenterPct's degenerate case pins the x axis to center.
-      expect(el.style.left).toBe('50%')
+      // -> clampCenterPct's degenerate case pins the x axis to center. Once a
+      // real (non-zero) size is measured, left/top switch to the calc() form
+      // — percent center minus half the measured px size — which is what
+      // replaces the old `translate: -50% -50%` centering.
+      expect(el.style.left).toBe('calc(50% - 1000px)')
+      expect(el.style.top).toBe('calc(50% - 50px)')
+      expect(el.style.translate).toBe('')
+      expect(el.style.transform).toBe('')
     } finally {
       HTMLElement.prototype.getBoundingClientRect = originalRect
     }
+  })
+
+  it('recovers via ResizeObserver when the initial synchronous measurement races a real 0x0 box (e.g. a child still hydrating on a fresh page load)', () => {
+    // Reproduces a real bug found via a Playwright reload probe: on a fresh
+    // mount, a child can render nothing on its OWN first pass (e.g. Clock's
+    // own independent useStoredKey('settings') resolves a tick behind App's
+    // already-resolved settings gating this whole tree) — the SYNCHRONOUS
+    // getBoundingClientRect() in useLayoutEffect genuinely measures 0x0 at
+    // that instant, and `resize` never fires for a purely content-driven
+    // size change. Without a ResizeObserver picking up the size once the
+    // child actually renders, `size` stays permanently unset and the block
+    // renders top-left-anchored forever instead of centered. jsdom has no
+    // ResizeObserver, so this test provides a minimal fake one and fires
+    // its callback manually, standing in for the real browser doing so.
+    let capturedCallback: (() => void) | undefined
+    let observeCalls = 0
+    let disconnectCalls = 0
+    class FakeResizeObserver {
+      constructor(cb: () => void) {
+        capturedCallback = cb
+      }
+      observe() {
+        observeCalls++
+      }
+      disconnect() {
+        disconnectCalls++
+      }
+      unobserve() {}
+    }
+    const globalWithRO = globalThis as { ResizeObserver?: unknown }
+    const originalRO = globalWithRO.ResizeObserver
+    globalWithRO.ResizeObserver = FakeResizeObserver
+
+    const originalRect = HTMLElement.prototype.getBoundingClientRect
+    let width = 0 // starts at 0 — the "racing child" hasn't rendered content yet
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      return {
+        width,
+        height: width ? 96 : 0,
+        top: 0,
+        left: 0,
+        right: width,
+        bottom: width ? 96 : 0,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {}
+        },
+      } as DOMRect
+    }
+
+    try {
+      const { container, unmount } = render(
+        <PositionedBlock id="clock" pos={{ x: 25, y: 50 }}>
+          <span>content</span>
+        </PositionedBlock>,
+      )
+      const el = container.querySelector('[data-block-id="clock"]') as HTMLElement
+      // Still unmeasured at mount — no calc() offset yet, matching the
+      // pre-existing "jsdom 0x0" tests above.
+      expect(el.style.left).toBe('25%')
+      expect(observeCalls).toBe(1)
+
+      // The child "hydrates": its box now has a real size, and the browser
+      // fires the ResizeObserver callback — simulated here since jsdom can't.
+      width = 160
+      act(() => {
+        capturedCallback?.()
+      })
+
+      expect(el.style.left).toBe('calc(25% - 80px)')
+      expect(el.style.top).toBe('calc(50% - 48px)')
+
+      unmount()
+      expect(disconnectCalls).toBe(1) // cleaned up, not leaked
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalRect
+      if (originalRO === undefined) delete globalWithRO.ResizeObserver
+      else globalWithRO.ResizeObserver = originalRO
+    }
+  })
+
+  it('a DraftLayoutContext entry for this block overrides the pos prop (arrange-mode live drag), and falls back to pos once the entry is gone', () => {
+    const { container, rerender } = render(
+      <DraftLayoutContext.Provider value={{ search: { x: 20, y: 20 } }}>
+        <PositionedBlock id="search" pos={{ x: 50, y: 50 }} className="mt-8">
+          <span>content</span>
+        </PositionedBlock>
+      </DraftLayoutContext.Provider>,
+    )
+    const el = container.querySelector('[data-block-id="search"]') as HTMLElement
+    expect(el.style.left).toBe('20%')
+    expect(el.style.top).toBe('20%')
+
+    rerender(
+      <DraftLayoutContext.Provider value={{}}>
+        <PositionedBlock id="search" pos={{ x: 50, y: 50 }} className="mt-8">
+          <span>content</span>
+        </PositionedBlock>
+      </DraftLayoutContext.Provider>,
+    )
+    const el2 = container.querySelector('[data-block-id="search"]') as HTMLElement
+    expect(el2.style.left).toBe('50%')
+    expect(el2.style.top).toBe('50%')
   })
 })

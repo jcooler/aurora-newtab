@@ -4,7 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
-import { anchorPanel } from '../../../lib/layout/anchor'
+import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import TodoWidget, { TODO_CORNER_HUG_PX, TODO_PANEL_SIZE } from './TodoWidget'
 
 async function renderWidget() {
@@ -60,11 +60,7 @@ describe('TodoWidget', () => {
     // Same adjustment TodoWidget applies internally: the pill sits 48px
     // further from the corner than the panel did in the pre-anchorPanel
     // fixed layout, so the rect fed to anchorPanel is shifted to compensate.
-    const hugged = {
-      ...pillRect,
-      left: pillRect.left + TODO_CORNER_HUG_PX,
-      right: pillRect.right + TODO_CORNER_HUG_PX,
-    }
+    const hugged = hugHorizontal(pillRect, TODO_CORNER_HUG_PX, window.innerWidth)
     const expected = anchorPanel(hugged, TODO_PANEL_SIZE, {
       w: window.innerWidth,
       h: window.innerHeight,
@@ -73,6 +69,64 @@ describe('TodoWidget', () => {
     expect(dialog.style.position).toBe('fixed')
     expect(dialog.style.left).toBe(`${expected.left}px`)
     expect(dialog.style.top).toBe(`${expected.top}px`)
+
+    rectSpy.mockRestore()
+    widthSpy.mockRestore()
+    heightSpy.mockRestore()
+  })
+
+  it('hugs the corner it is ACTUALLY nearest to, not a corner hardcoded to Todo’s own default (right) placement — the position-agnostic requirement a dragged pill relies on', async () => {
+    const widthSpy = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1600)
+    const heightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
+
+    await renderWidget()
+    const pill = screen.getByRole('button', { name: 'Tasks' })
+
+    // Tasks' pill dragged across the vertical centerline into the LEFT
+    // half (mirrors NotesWidget's default-quadrant rect) — today's Todo
+    // hardcoded a permanent +48 shift, which would misplace this by 96px.
+    const pillRect = {
+      left: 64,
+      top: 846,
+      right: 122,
+      bottom: 884,
+      width: 58,
+      height: 38,
+      x: 64,
+      y: 846,
+      toJSON() {},
+    }
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(pillRect as DOMRect)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+
+    const hugged = hugHorizontal(pillRect, TODO_CORNER_HUG_PX, window.innerWidth)
+    const expected = anchorPanel(hugged, TODO_PANEL_SIZE, {
+      w: window.innerWidth,
+      h: window.innerHeight,
+    })
+    expect(dialog.style.left).toBe(`${expected.left}px`)
+    expect(dialog.style.top).toBe(`${expected.top}px`)
+
+    // Prove this ISN'T today's hardcoded "+48" sign: that would have shifted
+    // the rect further RIGHT (away from the corner it's actually nearest
+    // to), landing at a different spot than the dynamically-hugged one above.
+    const oldHardcodedHug = {
+      ...pillRect,
+      left: pillRect.left + TODO_CORNER_HUG_PX,
+      right: pillRect.right + TODO_CORNER_HUG_PX,
+    }
+    const oldExpected = anchorPanel(oldHardcodedHug, TODO_PANEL_SIZE, {
+      w: window.innerWidth,
+      h: window.innerHeight,
+    })
+    expect(dialog.style.left).not.toBe(`${oldExpected.left}px`)
 
     rectSpy.mockRestore()
     widthSpy.mockRestore()

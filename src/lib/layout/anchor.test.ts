@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { anchorPanel } from './anchor'
+import { anchorPanel, hugHorizontal } from './anchor'
 
 describe('anchorPanel', () => {
   const viewport = { w: 1600, h: 900 }
@@ -50,5 +50,36 @@ describe('anchorPanel', () => {
     const tallPanel = { w: 240, h: 500 }
     const result = anchorPanel(pillRect, tallPanel, viewport)
     expect(result.top).toBe(viewport.h - tallPanel.h - 8)
+  })
+})
+
+describe('hugHorizontal', () => {
+  const viewportW = 1600
+
+  it('shifts left (negative) when the pill center is in the left half', () => {
+    const rect = { left: 64, top: 846, right: 127, bottom: 884, width: 63, height: 38 }
+    const result = hugHorizontal(rect, 48, viewportW)
+    expect(result.left).toBe(16)
+    expect(result.right).toBe(79)
+    expect(result.top).toBe(846) // vertical fields pass through unchanged
+    expect(result.bottom).toBe(884)
+    expect(result.width).toBe(63)
+    expect(result.height).toBe(38)
+  })
+
+  it('shifts right (positive) when the pill center is in the right half — the mirror image, not a hardcoded sign', () => {
+    const rect = { left: 1478, top: 846, right: 1536, bottom: 884, width: 58, height: 38 }
+    const result = hugHorizontal(rect, 48, viewportW)
+    expect(result.left).toBe(1526)
+    expect(result.right).toBe(1584)
+  })
+
+  it('is a mirror-image function: hugging a rect and its horizontal mirror produces mirrored output', () => {
+    const left = { left: 100, top: 10, right: 180, bottom: 50, width: 80, height: 40 }
+    const mirroredRight = { left: viewportW - 180, top: 10, right: viewportW - 100, bottom: 50, width: 80, height: 40 }
+    const huggedLeft = hugHorizontal(left, 48, viewportW)
+    const huggedRight = hugHorizontal(mirroredRight, 48, viewportW)
+    expect(huggedRight.left).toBe(viewportW - huggedLeft.right)
+    expect(huggedRight.right).toBe(viewportW - huggedLeft.left)
   })
 })

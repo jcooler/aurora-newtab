@@ -1,6 +1,6 @@
 import { Suspense, lazy, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { anchorPanel, type PanelPlacement } from '../../../lib/layout/anchor'
+import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -15,8 +15,11 @@ export const TODO_PANEL_SIZE = { w: 320, h: 217 }
 // vs bottom-16 right-4 (panel), a deliberate 3rem (48px) gap baked into the
 // original design. anchorPanel aligns the panel's edge directly to the
 // pill's edge, so reproducing that tighter corner-hug means feeding it the
-// pill's rect shifted right by the same 48px (see Task 35 report for the
-// before/after numbers this was verified against).
+// pill's rect shifted by the same 48px (see Task 35 report for the
+// before/after numbers this was verified against). The shift's DIRECTION is
+// position-agnostic (hugHorizontal, src/lib/layout/anchor.ts) — it follows
+// wherever the pill's rect actually sits, not a hardcoded "always right"
+// sign, so a dragged pill still hugs the correct (nearest) corner (Task 36).
 export const TODO_CORNER_HUG_PX = 48
 
 export default function TodoWidget() {
@@ -36,14 +39,7 @@ export default function TodoWidget() {
     }
     if (pillRef.current) {
       const rect = pillRef.current.getBoundingClientRect()
-      const hugged = {
-        left: rect.left + TODO_CORNER_HUG_PX,
-        right: rect.right + TODO_CORNER_HUG_PX,
-        top: rect.top,
-        bottom: rect.bottom,
-        width: rect.width,
-        height: rect.height,
-      }
+      const hugged = hugHorizontal(rect, TODO_CORNER_HUG_PX, window.innerWidth)
       setAnchor(
         anchorPanel(hugged, TODO_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
       )
