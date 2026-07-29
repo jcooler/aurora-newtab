@@ -5,14 +5,15 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver, type StorageDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
+import type { PanelPlacement } from '../../../lib/layout/anchor'
 import NotesPanel from './NotesPanel'
 
-async function renderPanel() {
+async function renderPanel(anchor: PanelPlacement = { left: 16, top: 582 }) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
+      <NotesPanel anchor={anchor} onClose={vi.fn()} />
     </StorageProvider>,
   )
   // Fake timers (below) block testing-library's setTimeout-polled findBy/
@@ -38,6 +39,15 @@ describe('NotesPanel', () => {
     expect(dialog.style.left).toBe('16px')
     expect(dialog.style.top).toBe('582px')
     expect(dialog.classList.contains('fixed')).toBe(false)
+  })
+
+  it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the shape Notes actually gets at its default (bottom-half) pill position", async () => {
+    await renderPanel({ left: 16, bottom: 64 })
+    const dialog = screen.getByRole('dialog', { name: 'Notes' })
+    expect(dialog.style.position).toBe('fixed')
+    expect(dialog.style.left).toBe('16px')
+    expect(dialog.style.bottom).toBe('64px')
+    expect(dialog.style.top).toBe('')
   })
 
   it('autosaves the debounced text to storage 500ms after the last keystroke', async () => {

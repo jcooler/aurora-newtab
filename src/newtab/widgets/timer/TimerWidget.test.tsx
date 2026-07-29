@@ -64,10 +64,16 @@ describe('TimerWidget', () => {
       w: window.innerWidth,
       h: window.innerHeight,
     })
+    if (!('top' in expected)) throw new Error('expected a top-anchored result — this pill is in the top half')
 
     expect(dialog.style.position).toBe('fixed')
     expect(dialog.style.left).toBe(`${expected.left}px`)
+    // Timer's default pill sits in the top half — anchorPanel opens the
+    // panel DOWNWARD from there, still anchored via `top` (review fix I1
+    // only changes the UPWARD-opening case; see anchor.ts's PanelPlacement
+    // doc).
     expect(dialog.style.top).toBe(`${expected.top}px`)
+    expect(dialog.style.bottom).toBe('')
 
     rectSpy.mockRestore()
     widthSpy.mockRestore()

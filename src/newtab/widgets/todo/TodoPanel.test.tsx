@@ -4,14 +4,15 @@ import { render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import type { PanelPlacement } from '../../../lib/layout/anchor'
 import TodoPanel from './TodoPanel'
 
-async function renderPanel() {
+async function renderPanel(anchor: PanelPlacement = { left: 1264, top: 619 }) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
-      <TodoPanel anchor={{ left: 1264, top: 619 }} onClose={vi.fn()} />
+      <TodoPanel anchor={anchor} onClose={vi.fn()} />
     </StorageProvider>,
   )
   return { storage, unmount: utils.unmount }
@@ -25,6 +26,18 @@ describe('TodoPanel', () => {
     expect(dialog.style.left).toBe('1264px')
     expect(dialog.style.top).toBe('619px')
     expect(dialog.classList.contains('fixed')).toBe(false)
+  })
+
+  it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the panel that actually reaches this shape at Todo's default (bottom-half) pill position", async () => {
+    await renderPanel({ left: 1264, bottom: 64 })
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.style.position).toBe('fixed')
+    expect(dialog.style.left).toBe('1264px')
+    expect(dialog.style.bottom).toBe('64px')
+    // No `top` at all — a stray `top: undefined` would previously have
+    // clipped the add-task form + Clear-done row off-screen as the list
+    // grows, since a top-anchored panel grows DOWNWARD from a fixed point.
+    expect(dialog.style.top).toBe('')
   })
 
   it('traps focus in the panel once loaded, and restores focus to whatever was previously focused when it closes', async () => {

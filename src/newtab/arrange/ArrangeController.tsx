@@ -5,6 +5,7 @@ import { snapPosition, type Guide, type OtherRect } from '../../lib/layout/snap'
 import { isPremium } from '../../lib/premium'
 import { closeAllDialogs, useDialogEscape } from '../../lib/dialogStack'
 import { useStorage } from '../../lib/storage/context'
+import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { useArmedConfirm } from '../../lib/hooks/useArmedConfirm'
 import { useLongPress } from './useLongPress'
 
@@ -102,6 +103,12 @@ export default function ArrangeController({
   openSignal?: number
 }) {
   const storage = useStorage()
+  // Own subscription (mirrors App.tsx's), NOT a prop (review fix C1): the
+  // point isn't just reading the current layout, it's REACTING to every
+  // change that lands while this component is mounted — including a
+  // cross-tab edit arriving mid-arrange, not only this tab's own writes. See
+  // the self-healing effect below.
+  const [layout] = useStoredKey('layout')
   const [mode, setMode] = useState<'off' | 'on'>('off')
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -185,6 +192,42 @@ export default function ArrangeController({
     window.addEventListener('resize', measureAll)
     return () => window.removeEventListener('resize', measureAll)
   }, [mode, measureAll])
+
+  // Self-healing rects (CRITICAL review fix C1): `rects` is otherwise only
+  // ever re-measured on mode entry + window resize (the effect just above)
+  // — a confirmed in-pill Reset (`resetConfirm`, below) or a cross-tab edit
+  // landing mid-session both change `layout` without going through either of
+  // those paths, leaving `rects` (and therefore every outline's rendered
+  // position, AND the base a keyboard nudge computes its NEXT position from)
+  // silently pointing at wherever blocks were BEFORE the change. Left alone,
+  // the very next arrow-nudge on a just-reset block reads its stale
+  // pre-reset `rects` entry and writes the block right back to
+  // (approximately) where it was — silently undoing the reset the user just
+  // confirmed.
+  //
+  // Scheduled via requestAnimationFrame rather than measuring synchronously
+  // in this effect: every PositionedBlock sibling (App.tsx) reacts to the
+  // SAME `layout` change via its own independent subscription, and needs to
+  // have actually re-rendered and committed the new position to the DOM
+  // first — otherwise this would just re-measure the STILL-stale rects.
+  // rAF's "runs right before the next paint, after all pending script has
+  // run" guarantee holds regardless of whether that sibling re-render lands
+  // in the same React commit as this one or a separate one shortly after.
+  //
+  // Feature-detected (some environments have no requestAnimationFrame at
+  // all — same defensive shape as ResizeObserver in PositionedBlock.tsx and
+  // pointer capture above) with a synchronous fallback; tests exercise the
+  // real rAF branch under fake timers (`vi.advanceTimersToNextFrame()`),
+  // since jsdom-via-vitest does provide one.
+  useEffect(() => {
+    if (mode !== 'on') return
+    if (typeof requestAnimationFrame === 'function') {
+      const raf = requestAnimationFrame(() => measureAll())
+      return () => cancelAnimationFrame(raf)
+    }
+    measureAll()
+    return undefined
+  }, [mode, layout, measureAll])
 
   // Claim real pointer capture on the overlay once a drag starts, so the
   // eventual release is delivered even if the pointer strays outside the
@@ -340,10 +383,23 @@ export default function ArrangeController({
     // STALE pre-drag rect and visibly jump the block back toward its old
     // spot — see handleOutlineKeyDown's `nudged[blockId] ?? …` base and
     // beginDrag's mirrored read of `nudged` above.
-    setNudged((prev) => ({ ...prev, [blockId]: pos }))
+    const nextNudged = { ...nudged, [blockId]: pos }
+    setNudged(nextNudged)
     releaseCapture(pointerId)
     setDrag(null)
-    onDraftChange({})
+    // Important review fix I2: keep the dropped block's entry in the draft
+    // (same shape handleOutlineKeyDown already sends) instead of clearing it
+    // to `{}`. `storage.update` above is fire-and-forget — its real commit
+    // (and the subscribed echo back through `layout`/PositionedBlock's `pos`
+    // prop) lands some ticks later. Clearing the draft synchronously here,
+    // BEFORE that echo arrives, left PositionedBlock with no draft override
+    // AND a still-stale `pos` prop for one real render — the dropped block
+    // visibly flickered back to its pre-drag spot for a frame before
+    // snapping to where it was just dropped. Keeping `pos` in the draft
+    // means the rendered position is identical right up until `exit()`
+    // clears everything, by which point the real write has long since
+    // landed and prop-driven rendering shows the same value anyway.
+    onDraftChange(nextNudged)
   }
 
   const handlePointerCancel = (e: React.PointerEvent) => {

@@ -174,7 +174,17 @@ function TimerInner({ settings }: { settings: Settings }) {
           ref={panelRef}
           role="dialog"
           aria-label="Focus timer"
-          style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+          // `anchor` is `{left,top}` (opens downward) or `{left,bottom}`
+          // (opens upward) — review fix I1; see anchor.ts's PanelPlacement
+          // doc. Timer's own pill defaults to the top half (top-4), so this
+          // panel opens downward today, but a dragged pill (arrange mode)
+          // can land it in the bottom half too, so both shapes must be
+          // handled here regardless.
+          style={{
+            position: 'fixed',
+            left: anchor.left,
+            ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+          }}
           className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-[#17171c]/95 p-3 text-fg backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">

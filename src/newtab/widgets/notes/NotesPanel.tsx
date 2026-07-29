@@ -102,7 +102,17 @@ export default function NotesPanel({
       ref={panelRef}
       role="dialog"
       aria-label="Notes"
-      style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+      // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
+      // upward) — review fix I1; see anchor.ts's PanelPlacement doc. Notes'
+      // own panel is fixed-height (h-64), so this branch only ever affects
+      // WHICH edge pins it, never a clipping concern the way TodoPanel's
+      // growing list is — but it still has to handle both shapes, since its
+      // default (bottom-4) pill placement is itself in the bottom half.
+      style={{
+        position: 'fixed',
+        left: anchor.left,
+        ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+      }}
       className="z-30 h-64 w-80 rounded-panel border border-panel-border bg-[#17171c]/95 backdrop-blur-[var(--panel-blur)]"
     >
       <label htmlFor="notes-textarea" className="sr-only">

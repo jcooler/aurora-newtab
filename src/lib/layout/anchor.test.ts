@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { anchorPanel, hugHorizontal } from './anchor'
+import { anchorPanel, hugHorizontal, type PanelPlacement } from './anchor'
+
+// `anchorPanel` returns `{left,top}` (opens downward) or `{left,bottom}`
+// (opens upward) — these narrow the union so tests can assert on whichever
+// field applies, and (by throwing on the wrong shape) double as an assertion
+// that a given fixture landed in the branch the test expects.
+function topOf(result: PanelPlacement): number {
+  if (!('top' in result)) throw new Error('expected a top-anchored (downward) result')
+  return result.top
+}
+function bottomOf(result: PanelPlacement): number {
+  if (!('bottom' in result)) throw new Error('expected a bottom-anchored (upward) result')
+  return result.bottom
+}
 
 describe('anchorPanel', () => {
   const viewport = { w: 1600, h: 900 }
@@ -9,28 +22,34 @@ describe('anchorPanel', () => {
     const pillRect = { left: 100, top: 50, right: 180, bottom: 90, width: 80, height: 40 }
     const result = anchorPanel(pillRect, panel, viewport)
     expect(result.left).toBe(pillRect.left)
-    expect(result.top).toBe(pillRect.bottom + 8)
+    expect(topOf(result)).toBe(pillRect.bottom + 8)
   })
 
-  it('opens above-right when the pill is in the bottom-right quadrant', () => {
+  it('opens above-right when the pill is in the bottom-right quadrant — anchored via `bottom` (grow-up), not `top`', () => {
     const pillRect = { left: 1400, top: 800, right: 1480, bottom: 840, width: 80, height: 40 }
     const result = anchorPanel(pillRect, panel, viewport)
     expect(result.left).toBe(pillRect.right - panel.w)
-    expect(result.top).toBe(pillRect.top - 8 - panel.h)
+    const bottom = bottomOf(result)
+    expect(bottom).toBe(viewport.h - pillRect.top + 8)
+    // Equivalent on-screen top edge to the OLD top-anchored math (proof this
+    // is a pixel-identical re-anchoring at a size that never clips, not a
+    // visual shift): viewport.h - bottom - panel.h === the old rawTop.
+    const oldTop = pillRect.top - 8 - panel.h
+    expect(viewport.h - bottom - panel.h).toBe(oldTop)
   })
 
   it('opens below-right when the pill is in the top-right quadrant', () => {
     const pillRect = { left: 1400, top: 50, right: 1480, bottom: 90, width: 80, height: 40 }
     const result = anchorPanel(pillRect, panel, viewport)
     expect(result.left).toBe(pillRect.right - panel.w)
-    expect(result.top).toBe(pillRect.bottom + 8)
+    expect(topOf(result)).toBe(pillRect.bottom + 8)
   })
 
-  it('opens above-left when the pill is in the bottom-left quadrant', () => {
+  it('opens above-left when the pill is in the bottom-left quadrant — anchored via `bottom` (grow-up), not `top`', () => {
     const pillRect = { left: 100, top: 800, right: 180, bottom: 840, width: 80, height: 40 }
     const result = anchorPanel(pillRect, panel, viewport)
     expect(result.left).toBe(pillRect.left)
-    expect(result.top).toBe(pillRect.top - 8 - panel.h)
+    expect(bottomOf(result)).toBe(viewport.h - pillRect.top + 8)
   })
 
   it('clamps left to the 8px margin when the pill hugs the left edge', () => {
@@ -49,7 +68,19 @@ describe('anchorPanel', () => {
     const pillRect = { left: 100, top: 440, right: 180, bottom: 448, width: 80, height: 8 }
     const tallPanel = { w: 240, h: 500 }
     const result = anchorPanel(pillRect, tallPanel, viewport)
-    expect(result.top).toBe(viewport.h - tallPanel.h - 8)
+    expect(topOf(result)).toBe(viewport.h - tallPanel.h - 8)
+  })
+
+  it('clamps bottom to the 8px margin from the top edge when the above placement would overflow', () => {
+    // Pill in the bottom half (so this is the `bottom`-anchored branch) but
+    // hugging the TOP of the viewport, with a panel tall enough that opening
+    // upward from here would push its top past the screen edge.
+    const pillRect = { left: 100, top: 460, right: 180, bottom: 468, width: 80, height: 8 }
+    const tallPanel = { w: 240, h: 500 }
+    const result = anchorPanel(pillRect, tallPanel, viewport)
+    // Unclamped this would be viewport.h - pillRect.top + 8 = 448, well past
+    // the max of viewport.h - tallPanel.h - 8 = 392.
+    expect(bottomOf(result)).toBe(viewport.h - tallPanel.h - 8)
   })
 })
 

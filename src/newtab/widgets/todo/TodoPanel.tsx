@@ -84,7 +84,15 @@ export default function TodoPanel({
       ref={panelRef}
       role="dialog"
       aria-label="Tasks"
-      style={{ position: 'fixed', left: anchor.left, top: anchor.top }}
+      // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
+      // upward, growing UP so the add-task form + Clear-done row below the
+      // list never march off-screen as it grows past ~5 tasks — review fix
+      // I1; see anchor.ts's PanelPlacement doc).
+      style={{
+        position: 'fixed',
+        left: anchor.left,
+        ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+      }}
       className="z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
     >
       <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">

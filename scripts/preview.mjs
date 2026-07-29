@@ -362,6 +362,24 @@ for (let i = 1; i <= dragSteps; i++) {
 await page.screenshot({ path: `${outDir}/arrange-mode.png` })
 console.log('captured arrange-mode.png')
 
+// Review fix I3: the quote block's own outline must be sized to its actual
+// (shrink-to-fit) content box, not the full viewport — it used to measure
+// the full 1600px width because its wrapper was `inset-x-0` (patched over
+// with `pointer-events-none`, which also silently broke long-press on the
+// quote itself; see App.tsx's comment on the quote PositionedBlock for the
+// full history). A generous < 50% threshold comfortably separates
+// "content-sized" from "full viewport" without being sensitive to exact
+// quote text length.
+const quoteOutlineWidth = await page.evaluate(() => {
+  const el = document.querySelector('[aria-label="Move Quote"]')
+  return el ? el.getBoundingClientRect().width : null
+})
+console.log(
+  quoteOutlineWidth !== null && quoteOutlineWidth < 800
+    ? `PASS: quote block outline is content-sized (${quoteOutlineWidth.toFixed(1)}px, < 50% of the 1600px viewport)`
+    : `FAIL: quote block outline is content-sized (got ${quoteOutlineWidth}px, expected < 800px)`,
+)
+
 await page.mouse.up()
 await page.waitForTimeout(300) // let the drop's storage.update land before Done/reload
 await page.click('[data-arrange-overlay] button:has-text("Done")')

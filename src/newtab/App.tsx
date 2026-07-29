@@ -210,26 +210,49 @@ export default function App() {
 
           <WidgetBoundary name="quote">
             {/*
-              pointer-events-none: unlike weather/bookmarks/timer/notes/tasks
-              below (each shrink-to-fit sized, `left`/`right` alone), the quote's
-              old single-element `fixed inset-x-0 bottom-6 mx-auto max-w-xl`
+              Review fix I3: unlike weather/bookmarks/timer/notes/tasks below
+              (each shrink-to-fit sized, `left`/`right` alone), the quote's old
+              single-element `fixed inset-x-0 bottom-6 mx-auto max-w-xl`
               resolved its actual (auto-margin) width via shrink-to-fit BECAUSE
-              `mx-auto` lived on the SAME element as `inset-x-0` — CSS only takes
-              that shortcut when both margins are auto. Split across a wrapper +
-              inner figure, the wrapper's own margins are the default 0 (not
-              auto), so `left:0;right:0` alone forces it to the full 1600px
-              viewport width — invisible, but still hit-testable, and (being
-              later in the DOM than Tasks/Notes/Timer/the gear) it silently ate
-              their clicks wherever it vertically overlapped them. QuoteWidget
-              has no interactive children, so disabling pointer events on this
-              wrapper is a total no-op visually and functionally except for
-              fixing that regression — confirmed via a real Playwright click
-              through to the Tasks pill underneath.
+              `mx-auto` lived on the SAME element as `inset-x-0` — CSS only
+              takes that shortcut when both margins are auto. Task 35 split
+              this into a wrapper (this PositionedBlock) + inner figure
+              (QuoteWidget's own `mx-auto max-w-xl` element) and, since the
+              wrapper's own margins are the default 0 (not auto), `left:0;
+              right:0` alone forced it to the full 1600px viewport width —
+              invisible, but still hit-testable, silently eating
+              Tasks/Notes/Timer/the gear's clicks wherever it vertically
+              overlapped them — patched at the time with `pointer-events-none`
+              on this wrapper (safe only because QuoteWidget has no
+              interactive children).
+              That patch, though, is what broke long-press: the wrapper is
+              also PositionedBlock's own `[data-block-id="quote"]` element —
+              the exact node both `useLongPress` hit-tests against (`e.target
+              .closest('[data-block-id]')`, which finds nothing through a
+              pointer-events-none ancestor since the pointerdown never lands
+              on it at all) and `ArrangeController.measureAll` measures for
+              the drag outline (returning the full viewport width, pinning the
+              drag's x to the degenerate clamp midpoint).
+              `left-1/2 -translate-x-1/2` (no `inset-x-0`) replaces both the
+              full-width span AND the `pointer-events-none` patch: the wrapper
+              itself becomes shrink-to-fit around QuoteWidget's own
+              `max-w-xl`-capped figure (identical rendered box — verified
+              pixel-identical against the pre-fix capture) and, being no
+              wider than its actual visible content, no longer extends over
+              the flanking pills at all — nothing left for it to
+              intercept, so pointer events can stay at their default `auto`.
+              `-translate-x-1/2` is safe here (unlike PositionedBlock's own
+              ARRANGED-branch style, which deliberately avoids `transform` so
+              it doesn't become a containing block for `position: fixed`
+              descendants — see PositionedBlock.tsx): QuoteWidget has no such
+              descendants, and this only ever applies pre-arrange anyway (this
+              `className` is dropped the instant the block has a stored
+              `pos`).
             */}
             <PositionedBlock
               id="quote"
               pos={layout?.quote}
-              className="pointer-events-none fixed inset-x-0 bottom-6"
+              className="fixed bottom-6 left-1/2 -translate-x-1/2"
             >
               <QuoteWidget />
             </PositionedBlock>

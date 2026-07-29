@@ -65,10 +65,16 @@ describe('NotesWidget', () => {
       w: window.innerWidth,
       h: window.innerHeight,
     })
+    if (!('bottom' in expected)) throw new Error('expected a bottom-anchored result — this pill is in the bottom half')
 
     expect(dialog.style.position).toBe('fixed')
     expect(dialog.style.left).toBe(`${expected.left}px`)
-    expect(dialog.style.top).toBe(`${expected.top}px`)
+    // Notes' default pill sits in the bottom half — anchorPanel opens the
+    // panel UPWARD from there, which review fix I1 anchors via `bottom` (not
+    // `top`); Notes itself is fixed-height so this never clips, but it must
+    // still render the shape it's actually given.
+    expect(dialog.style.bottom).toBe(`${expected.bottom}px`)
+    expect(dialog.style.top).toBe('')
 
     rectSpy.mockRestore()
     widthSpy.mockRestore()
@@ -111,8 +117,9 @@ describe('NotesWidget', () => {
       w: window.innerWidth,
       h: window.innerHeight,
     })
+    if (!('bottom' in expected)) throw new Error('expected a bottom-anchored result — this pill is in the bottom half')
     expect(dialog.style.left).toBe(`${expected.left}px`)
-    expect(dialog.style.top).toBe(`${expected.top}px`)
+    expect(dialog.style.bottom).toBe(`${expected.bottom}px`)
 
     // Prove this ISN'T today's hardcoded "-48" sign: that would have shifted
     // the rect further LEFT (away from the corner it's actually nearest to),

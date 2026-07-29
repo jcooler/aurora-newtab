@@ -177,8 +177,13 @@ describe('ArrangeController', () => {
     const expectedPos = clampCenterPct(expectedSnap.pos, { w: 200, h: 100 }, { w: 1600, h: 900 })
 
     expect((await storage.get('layout')).clock).toEqual(expectedPos)
-    // The draft is cleared once the real position is persisted.
-    expect(onDraftChange).toHaveBeenLastCalledWith({})
+    // Important review fix I2: the draft is NOT cleared on drop — it keeps
+    // the dropped block's own committed position (matching what storage now
+    // holds) instead of falling back to `{}`, which would have briefly
+    // exposed PositionedBlock's still-stale `pos` prop (the OLD stored
+    // position, before the async storage.update's echo lands) and flickered
+    // the block back to its pre-drag spot for one real render.
+    expect(onDraftChange).toHaveBeenLastCalledWith({ clock: expectedPos })
   })
 
   it("the dragged block's own outline tracks the live drag position (not its stale entry-measured rect), while other blocks' outlines stay put", async () => {
@@ -349,6 +354,108 @@ describe('ArrangeController', () => {
       // always re-derived from the fresh (but stale-for-this-purpose)
       // measured rect, landing back at (50, 50) instead.
       expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+    })
+  })
+
+  describe('reset-while-arranging self-heals rects (review fix C1 — CRITICAL)', () => {
+    it('a confirmed Reset re-measures outlines to the fresh (default) rect, and a subsequent arrow-nudge bases off THAT — not the pre-reset one (the resurrect-bug regression test)', async () => {
+      // clock's rect as measured BEFORE the reset (its dragged/pre-reset
+      // spot, center 50%/50% — same as RECT_DATA.clock everywhere else in
+      // this file) vs. AFTER (where PositionedBlock actually re-renders it
+      // once `pos` goes back to undefined — a DIFFERENT box, deliberately,
+      // so a test reading a stale value is distinguishable from one reading
+      // the fresh one). `postReset` flips mid-test to simulate the sibling
+      // PositionedBlock committing the new DOM position between the confirm
+      // click and this component's own re-measure — exactly the ordering a
+      // real browser produces.
+      const PRE_RESET_RECT = { left: 700, top: 400, width: 200, height: 100 }
+      const DEFAULT_RECT = { left: 300, top: 100, width: 200, height: 100 }
+      let postReset = false
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const id = this.getAttribute('data-block-id')
+        if (id === 'clock') return domRect(postReset ? DEFAULT_RECT : PRE_RESET_RECT)
+        const data = id ? RECT_DATA[id] : undefined
+        return domRect(data ?? { left: 0, top: 0, width: 0, height: 0 })
+      })
+
+      const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+      engageClock()
+      await settleDrag()
+
+      const resetButton = screen.getByRole('button', { name: 'Reset layout' })
+      fireEvent.click(resetButton) // arm
+
+      postReset = true
+      fireEvent.click(resetButton) // confirm — writes {} to layout, clears nudged
+      await act(async () => {})
+
+      expect(await storage.get('layout')).toEqual({})
+
+      // The self-heal effect schedules its re-measure via
+      // requestAnimationFrame (real in this jsdom-via-vitest environment,
+      // so fake timers must be advanced a frame to flush it — `act()` alone
+      // only drains microtasks, not a pending animation frame).
+      act(() => {
+        vi.advanceTimersToNextFrame()
+      })
+
+      // The outline itself must have re-measured to the NEW (default) rect
+      // — not stayed at the pre-reset one.
+      const clockOutline = screen.getByRole('button', { name: 'Move Clock' })
+      expect(clockOutline.style.left).toBe(`${DEFAULT_RECT.left}px`)
+      expect(clockOutline.style.top).toBe(`${DEFAULT_RECT.top}px`)
+
+      // The regression test: an arrow-nudge now must base off the DEFAULT
+      // rect's center, NOT the pre-reset rect's — before the fix, `rects`
+      // was never re-measured after Reset, so this nudge would silently
+      // write the block back to roughly its pre-reset spot, undoing the
+      // reset the user just confirmed.
+      fireEvent.keyDown(clockOutline, { key: 'ArrowRight' })
+      await act(async () => {})
+
+      const defaultCenter = {
+        x: ((DEFAULT_RECT.left + DEFAULT_RECT.width / 2) / 1600) * 100,
+        y: ((DEFAULT_RECT.top + DEFAULT_RECT.height / 2) / 900) * 100,
+      }
+      const expected = clampCenterPct(
+        { x: defaultCenter.x + (8 / 1600) * 100, y: defaultCenter.y },
+        { w: 200, h: 100 },
+        { w: 1600, h: 900 },
+      )
+      expect((await storage.get('layout')).clock).toEqual(expected)
+    })
+  })
+
+  describe('drop keeps its committed position in the draft (review fix I2 — drop flicker)', () => {
+    it('a dropped block STAYS in the draft after pointerup — the whole nudged map, same shape the keyboard path already sends, not a clear to {}', async () => {
+      const { storage, onDraftChange } = await renderController()
+      engageClock()
+      await settleDrag() // clock is now nudged-tracked at its rect-derived (50%, 50%)
+
+      const greetingOutline = screen.getByRole('button', { name: 'Move Greeting' })
+      fireEvent.keyDown(greetingOutline, { key: 'ArrowRight' }) // nudge greeting too — now both blocks are in `nudged`
+      await act(async () => {})
+
+      // Grab clock's outline again and drag it somewhere new.
+      const clockOutline = screen.getByRole('button', { name: 'Move Clock' })
+      fireEvent.pointerDown(clockOutline, { pointerId: 3, clientX: 800, clientY: 450 })
+      fireEvent.pointerMove(clockOutline, { pointerId: 3, clientX: 1000, clientY: 304 })
+      fireEvent.pointerUp(clockOutline, { pointerId: 3 })
+      await act(async () => {})
+
+      const finalLayout = await storage.get('layout')
+      // The LAST draft this drop sends must still contain greeting's earlier
+      // nudge AND clock's own just-committed drop — not `{}`. Before the
+      // fix, this called onDraftChange({}) here: PositionedBlock would then
+      // fall back to its `pos` PROP, which is still the pre-drop stored
+      // value until storage.update's async write echoes back through
+      // useStoredKey — a real, if brief, visible jump back to the old spot.
+      expect(onDraftChange).toHaveBeenLastCalledWith({
+        clock: finalLayout.clock,
+        greeting: finalLayout.greeting,
+      })
     })
   })
 

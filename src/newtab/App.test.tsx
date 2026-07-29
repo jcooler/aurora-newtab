@@ -78,3 +78,69 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     expect(document.activeElement).toBe(gear)
   })
 })
+
+// Review fix I3: the quote block's wrapper used to carry `pointer-events-none`
+// (a Task 35 patch for a different bug — see App.tsx's comment on the quote
+// PositionedBlock) so long-press passed straight through it in a REAL
+// browser, violating "long-press any widget". jsdom's synthetic
+// `fireEvent.pointerDown` dispatches directly on the target element
+// regardless of CSS `pointer-events` (it doesn't do real hit-testing), so it
+// can't reproduce the pass-through itself — that's covered by
+// scripts/preview.mjs's real-browser drag probe instead. What IS verifiable
+// here, and is the actual code-level fix: the class is gone, and long-press
+// dispatched on the quote element still engages the mode (fixture-level).
+describe('App — quote block long-press (review fix I3)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const size = this.hasAttribute('data-block-id') ? { width: 200, height: 100 } : { width: 0, height: 0 }
+      return {
+        left: 700,
+        top: 400,
+        right: 700 + size.width,
+        bottom: 400 + size.height,
+        width: size.width,
+        height: size.height,
+        x: 700,
+        y: 400,
+        toJSON() {
+          return {}
+        },
+      } as DOMRect
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it("the quote wrapper no longer carries pointer-events-none, and a long-press dispatched on it engages arrange mode", async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const quoteBlock = document.querySelector('[data-block-id="quote"]')
+    expect(quoteBlock).toBeTruthy()
+    expect(quoteBlock!.classList.contains('pointer-events-none')).toBe(false)
+
+    fireEvent.pointerDown(quoteBlock!, { pointerId: 1, clientX: 800, clientY: 800 })
+    act(() => {
+      vi.advanceTimersByTime(500)
+    })
+
+    // Synchronous queries (not findBy*'s setTimeout-polled waitFor, which
+    // never resolves under fake timers, per the same caveat NotesPanel.test.tsx
+    // and others document): the state update from advanceTimersByTime above
+    // already flushed synchronously inside `act`.
+    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Move Quote' })).toBeTruthy()
+  })
+})

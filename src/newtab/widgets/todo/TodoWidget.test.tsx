@@ -65,10 +65,16 @@ describe('TodoWidget', () => {
       w: window.innerWidth,
       h: window.innerHeight,
     })
+    if (!('bottom' in expected)) throw new Error('expected a bottom-anchored result — this pill is in the bottom half')
 
     expect(dialog.style.position).toBe('fixed')
     expect(dialog.style.left).toBe(`${expected.left}px`)
-    expect(dialog.style.top).toBe(`${expected.top}px`)
+    // Todo's default pill sits in the bottom half — anchorPanel opens the
+    // panel UPWARD from there, which review fix I1 anchors via `bottom` (not
+    // `top`) so the add-task form + Clear-done row grow up into free space
+    // instead of clipping off-screen once the list passes ~5 tasks.
+    expect(dialog.style.bottom).toBe(`${expected.bottom}px`)
+    expect(dialog.style.top).toBe('')
 
     rectSpy.mockRestore()
     widthSpy.mockRestore()
@@ -111,8 +117,9 @@ describe('TodoWidget', () => {
       w: window.innerWidth,
       h: window.innerHeight,
     })
+    if (!('bottom' in expected)) throw new Error('expected a bottom-anchored result — this pill is in the bottom half')
     expect(dialog.style.left).toBe(`${expected.left}px`)
-    expect(dialog.style.top).toBe(`${expected.top}px`)
+    expect(dialog.style.bottom).toBe(`${expected.bottom}px`)
 
     // Prove this ISN'T today's hardcoded "+48" sign: that would have shifted
     // the rect further RIGHT (away from the corner it's actually nearest
