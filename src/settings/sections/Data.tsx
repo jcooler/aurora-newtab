@@ -89,7 +89,7 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
 
   return (
     <section aria-label="Data">
-      <h3 className="mb-1 text-sm font-medium text-fg">Data</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Data</h3>
       <div className={row}>
         <span className={label}>Export backup</span>
         <button

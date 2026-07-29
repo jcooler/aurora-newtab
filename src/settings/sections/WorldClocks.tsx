@@ -52,7 +52,7 @@ export default function WorldClocks({
 
   return (
     <section aria-label="World clocks">
-      <h3 className="mb-1 text-sm font-medium text-fg">World clocks</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">World clocks</h3>
       {(worldClocks ?? []).map((wc, i) => (
         <div key={`${wc.zone}-${i}`} className={row}>
           <span className={label}>{wc.zone}</span>

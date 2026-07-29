@@ -144,6 +144,18 @@ live in [`scripts/photo-candidates.json`](scripts/photo-candidates.json).
 - Image credit: NASA / Expedition 72 crew, International Space Station — [details](https://images.nasa.gov/details/iss072e159172) — Public Domain (U.S. government work)
 - Mary Lewandowski / National Park Service, via [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Aurora_in_Denali_(7c1dff32-ca2f-41f1-bbc1-65cf123bc3cf).jpg) — Public Domain
 
+## Font credits
+
+The type system uses two locally-bundled variable fonts (woff2, latin subset,
+under [`public/fonts/`](public/fonts)) — no runtime font requests, per
+[PRIVACY.md](PRIVACY.md). Both are licensed under the
+[SIL Open Font License 1.1](https://openfontlicense.org/):
+
+- [Space Grotesk](https://fonts.google.com/specimen/Space+Grotesk) by
+  Florian Karsten — display type (clock, greeting).
+- [Inter](https://fonts.google.com/specimen/Inter) by Rasmus Andersson —
+  body/UI type (everything else).
+
 ## Adding a theme
 
 1. Add a CSS block to `src/theme/themes.css` keyed on `[data-theme='yourid']`

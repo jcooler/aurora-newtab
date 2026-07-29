@@ -9,7 +9,7 @@ export default function Clock() {
   return (
     <time
       dateTime={now.toISOString()}
-      className="text-8xl font-extralight tabular-nums tracking-tight"
+      className="text-photo font-display text-[clamp(6rem,12vw,10rem)] font-medium tabular-nums tracking-[-0.02em]"
     >
       {formatClock(now, settings.use24Hour)}
     </time>

@@ -28,7 +28,7 @@ export default function Countdowns({
 
   return (
     <section aria-label="Countdowns">
-      <h3 className="mb-1 text-sm font-medium text-fg">Countdowns</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Countdowns</h3>
       {(countdowns ?? []).map((c) => (
         <div key={c.id} className={row}>
           <label htmlFor={`cd-name-${c.id}`} className="sr-only">

@@ -113,7 +113,7 @@ export default function FolderPopover({
             ? { translate: `calc(-50% ${edgeShift >= 0 ? '+' : '-'} ${Math.abs(edgeShift)}px) 0` }
             : undefined
         }
-        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg backdrop-blur-[var(--panel-blur)]"
+        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
           {top && (
             <button

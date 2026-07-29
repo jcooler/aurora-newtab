@@ -66,7 +66,7 @@ export default function Background({
 
   return (
     <section aria-label="Background">
-      <h3 className="mb-1 text-sm font-medium text-fg">Background</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Background</h3>
       <div className={row}>
         <label htmlFor="set-bg-mode" className={label}>
           Source

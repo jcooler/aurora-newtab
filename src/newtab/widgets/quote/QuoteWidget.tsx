@@ -8,8 +8,8 @@ export default function QuoteWidget() {
   const quote = quotes[dayHash(todayKey()) % quotes.length]
   return (
     <figure className="mx-auto max-w-xl px-16 text-center">
-      <blockquote className="text-sm text-fg">&ldquo;{quote.text}&rdquo;</blockquote>
-      <figcaption className="mt-1 text-xs text-fg-muted">— {quote.author}</figcaption>
+      <blockquote className="text-photo text-base font-medium text-fg">&ldquo;{quote.text}&rdquo;</blockquote>
+      <figcaption className="text-photo mt-1 text-sm font-normal text-fg-muted">— {quote.author}</figcaption>
     </figure>
   )
 }

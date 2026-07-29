@@ -161,7 +161,7 @@ function TimerInner({ settings }: { settings: Settings }) {
           state.running ? 'running' : 'paused'
         }`}
         onClick={togglePanel}
-        className={`rounded-panel border border-panel-border bg-panel px-3 py-2 text-sm tabular-nums backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${
+        className={`rounded-panel border border-panel-border bg-panel px-3 py-2 text-sm font-medium tabular-nums shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${
           flash ? 'text-accent' : 'text-fg'
         }`}
       >
@@ -185,10 +185,10 @@ function TimerInner({ settings }: { settings: Settings }) {
             left: anchor.left,
             ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
           }}
-          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel-solid p-3 text-fg backdrop-blur-[var(--panel-blur)]"
+          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium capitalize">{state.mode} session</h2>
+            <h2 className="text-sm font-semibold capitalize">{state.mode} session</h2>
             <button
               type="button"
               aria-label="Close focus timer"

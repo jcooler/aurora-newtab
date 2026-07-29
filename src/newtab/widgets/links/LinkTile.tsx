@@ -43,7 +43,7 @@ export default function LinkTile({
             onMove(index, index + 1)
           }
         }}
-        className="flex size-12 items-center justify-center rounded-panel border border-panel-border bg-panel backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="flex size-12 items-center justify-center rounded-panel border border-panel-border bg-panel shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         {iconFailed ? (
           <span aria-hidden className="text-lg text-fg-muted">
@@ -59,7 +59,7 @@ export default function LinkTile({
           />
         )}
       </a>
-      <span className="max-w-full truncate text-xs text-fg-muted">{link.title}</span>
+      <span className="text-photo max-w-full truncate text-xs text-fg-muted">{link.title}</span>
       <button
         type="button"
         aria-label={`Remove ${link.title}`}

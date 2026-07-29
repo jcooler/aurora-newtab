@@ -93,10 +93,10 @@ export default function TodoPanel({
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg backdrop-blur-[var(--panel-blur)]"
+      className="z-30 flex w-80 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
       <div className="flex items-center justify-between border-b border-panel-border px-3 py-2">
-        <h2 className="text-sm font-medium">Tasks</h2>
+        <h2 className="text-sm font-semibold">Tasks</h2>
         <button
           type="button"
           aria-label="Close tasks"

@@ -587,7 +587,7 @@ export default function ArrangeController({
       <div
         ref={pillRef}
         style={{ left: pillRect.left, top: pillRect.top }}
-        className="fixed flex items-center gap-2 rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-fg backdrop-blur-[var(--panel-blur)]"
+        className="fixed flex items-center gap-2 rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
         {/* Danger-styled per Jon's explicit feedback: a restrained red TEXT
             treatment (no filled/solid background) — the codebase has no

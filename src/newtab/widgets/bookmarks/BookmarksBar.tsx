@@ -18,7 +18,7 @@ const OVERFLOW_ID = '__overflow__'
 // --radius: 0 only squares off PANELS. Jon flagged the square-in-Mono look
 // when chips briefly used rounded-panel.
 const CHIP =
-  'flex shrink-0 items-center gap-1.5 rounded-full border border-panel-border bg-panel px-2.5 py-1 text-xs text-fg-muted backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+  'flex shrink-0 items-center gap-1.5 rounded-full border border-panel-border bg-panel px-2.5 py-1 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 

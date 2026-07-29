@@ -20,7 +20,7 @@ export default function WeatherWidget() {
   return (
     <section
       aria-label="Weather"
-      className="w-max max-w-[32rem] rounded-panel border border-panel-border bg-panel p-3 text-fg backdrop-blur-[var(--panel-blur)]"
+      className="w-max max-w-[32rem] rounded-panel border border-panel-border bg-panel p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
       {location === null && <LocationSetup />}
       {location && !snapshot && (

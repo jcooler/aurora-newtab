@@ -60,7 +60,7 @@ export default function Widgets({
 
   return (
     <section aria-label="Widgets">
-      <h3 className="mb-1 text-sm font-medium text-fg">Widgets</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Widgets</h3>
       {(Object.entries(WIDGET_LABELS) as [keyof WidgetToggles, string][]).map(
         ([key, widgetLabel]) => (
           <div key={key} className={row}>

@@ -15,7 +15,7 @@
      same fixed hex regardless of their own palette) actually change. */
   --panel-solid: rgb(23 23 28 / 0.95);
   --radius: 1rem;
-  --scrim: linear-gradient(rgb(2 6 23 / 0.3), rgb(2 6 23 / 0.55));
+  --scrim: linear-gradient(rgb(2 6 23 / 0.10), rgb(2 6 23 / 0.22));
   --bg-fallback: linear-gradient(160deg, #0f172a, #312e81 55%, #4c1d95);
 }
 
@@ -35,7 +35,7 @@
      drawer-glass.png). */
   --panel-solid: rgb(255 255 255 / 0.28);
   --radius: 1.25rem;
-  --scrim: linear-gradient(rgb(15 23 42 / 0.25), rgb(15 23 42 / 0.5));
+  --scrim: linear-gradient(rgb(15 23 42 / 0.08), rgb(15 23 42 / 0.18));
   --bg-fallback: linear-gradient(150deg, #334155, #0ea5e9 120%);
 }
 
@@ -52,7 +52,7 @@
      keeps text readable over a bright photo instead. */
   --panel-solid: rgb(10 10 10 / 0.92);
   --radius: 0px;
-  --scrim: linear-gradient(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.62));
+  --scrim: linear-gradient(rgb(0 0 0 / 0.18), rgb(0 0 0 / 0.30));
   --bg-fallback: #101010;
 }
 
@@ -72,6 +72,6 @@
   }
   [data-theme='mono'] {
     --bg-fallback: #ececec;
-    --scrim: linear-gradient(rgb(0 0 0 / 0.55), rgb(0 0 0 / 0.65));
+    --scrim: linear-gradient(rgb(0 0 0 / 0.22), rgb(0 0 0 / 0.34));
   }
 }

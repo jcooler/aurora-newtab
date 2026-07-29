@@ -47,3 +47,30 @@ describe('themes.css — --panel-solid', () => {
     expect(lightBlock).not.toMatch(/--panel-solid/)
   })
 })
+
+describe('themes.css — --scrim (gentle base wash; legibility now carried by .text-photo)', () => {
+  it('Aurora is a low-opacity dark-slate wash', () => {
+    expect(themeBlock('aurora')).toMatch(
+      /--scrim:\s*linear-gradient\(rgb\(2 6 23 \/ 0\.10\), rgb\(2 6 23 \/ 0\.22\)\);/,
+    )
+  })
+
+  it('Glass is a low-opacity slate wash, lighter than Aurora to match its own airier palette', () => {
+    expect(themeBlock('glass')).toMatch(
+      /--scrim:\s*linear-gradient\(rgb\(15 23 42 \/ 0\.08\), rgb\(15 23 42 \/ 0\.18\)\);/,
+    )
+  })
+
+  it('Mono is a low-opacity black wash', () => {
+    expect(themeBlock('mono')).toMatch(
+      /--scrim:\s*linear-gradient\(rgb\(0 0 0 \/ 0\.18\), rgb\(0 0 0 \/ 0\.30\)\);/,
+    )
+  })
+
+  it("Mono's light-mode override stays slightly stronger than its dark base (no dark chrome to lean on)", () => {
+    const lightBlock = css.slice(css.indexOf('@media (prefers-color-scheme: light)'))
+    expect(lightBlock).toMatch(
+      /--scrim:\s*linear-gradient\(rgb\(0 0 0 \/ 0\.22\), rgb\(0 0 0 \/ 0\.34\)\);/,
+    )
+  })
+})

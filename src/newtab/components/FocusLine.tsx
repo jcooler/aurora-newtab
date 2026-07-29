@@ -26,7 +26,7 @@ export default function FocusLine() {
           setEditing(false)
         }}
       >
-        <label htmlFor="focus-input" className="text-lg font-light text-fg-muted">
+        <label htmlFor="focus-input" className="text-photo text-base font-medium text-fg-muted">
           What&rsquo;s your main focus today?
         </label>
         <input
@@ -40,7 +40,7 @@ export default function FocusLine() {
               setEditing(false)
             }
           }}
-          className="mt-2 w-72 border-b border-panel-border bg-transparent pb-1 text-center text-xl text-fg outline-none focus-visible:border-accent"
+          className="text-photo mt-2 w-72 border-b border-panel-border bg-transparent pb-1 text-center text-xl text-fg outline-none focus-visible:border-accent"
         />
       </form>
     )
@@ -57,20 +57,20 @@ export default function FocusLine() {
       />
       <label
         htmlFor="focus-done"
-        className={`text-xl transition-opacity motion-reduce:transition-none ${
+        className={`text-photo text-xl transition-opacity motion-reduce:transition-none ${
           focus.done ? 'text-fg-muted line-through opacity-70' : 'text-fg'
         }`}
       >
         {focus.text}
       </label>
-      {focus.done && <span className="text-sm text-accent">Nice.</span>}
+      {focus.done && <span className="text-photo text-sm text-accent">Nice.</span>}
       <button
         type="button"
         onClick={() => {
           committed.current = false
           setEditing(true)
         }}
-        className="text-sm text-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="text-photo text-sm text-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         Edit
       </button>

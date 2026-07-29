@@ -1,6 +1,31 @@
 @import "tailwindcss";
 @import "../theme/themes.css";
 
+/* Locally-bundled fonts (SIL OFL — see README's Font credits section). Both
+   are variable-font woff2 files (latin subset only — this is an English-first
+   UI; see the type-scale comment further down), fetched once at build time
+   from Google Fonts' own CDN and committed under public/fonts/ specifically
+   so the shipped extension makes ZERO runtime font requests — a PRIVACY.md
+   constraint, not just a perf nicety. `font-weight: <min> <max>` on each
+   @font-face is the range the variable font's own wght axis actually
+   supports, so any weight utility in between (font-medium, font-semibold,
+   etc.) resolves via real interpolation rather than a fake synthetic
+   bold/oblique the browser would otherwise fake up. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-variable.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/space-grotesk-variable.woff2') format('woff2');
+}
+
 @theme inline {
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
@@ -9,6 +34,32 @@
   --color-panel-solid: var(--panel-solid);
   --color-panel-border: var(--panel-border);
   --radius-panel: var(--radius);
+  /* font-sans OVERRIDES Tailwind's own default sans stack (previously the OS
+     default via ui-sans-serif/system-ui) — every text-* utility in the app
+     already resolves through font-sans unless a component opts into
+     font-display, so this one line is what actually swaps body/UI text over
+     to Inter. font-display is a NEW utility (Tailwind has no default for
+     it) for the two big photo-floating headline elements: the clock and the
+     greeting. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Legibility system for text sitting DIRECTLY on the photo (clock, greeting,
+   world clocks, countdown, focus line, quote + attribution, link tile
+   labels) — NOT for text inside panels/pills, whose own surface (blur +
+   tint + border, now also shadow-lg — see the surface classes across
+   src/newtab/widgets and src/settings) already carries legibility. The
+   scrim in themes.css is now a gentle base wash, not the primary legibility
+   mechanism; this per-glyph shadow is what actually keeps text readable
+   against a bright sky or snowfield (see bright-photo-check.png in the
+   preview capture set). Two layers: a tight, dark contact shadow for edge
+   definition against any background, and a soft wide one that reads as
+   ambient depth rather than a hard outline. */
+@utility text-photo {
+  text-shadow:
+    0 1px 2px rgb(0 0 0 / 0.55),
+    0 2px 16px rgb(0 0 0 / 0.35);
 }
 
 :root {

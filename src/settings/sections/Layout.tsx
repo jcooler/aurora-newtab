@@ -50,7 +50,7 @@ export default function Layout({
 
   return (
     <section aria-label="Layout">
-      <h3 className="mb-1 text-sm font-medium text-fg">Layout</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Layout</h3>
       <div className={row}>
         <span className={label}>Widget positions</span>
         <div className="flex gap-2">

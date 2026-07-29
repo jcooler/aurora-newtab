@@ -15,7 +15,7 @@ export default function Weather({
 }) {
   return (
     <section aria-label="Weather">
-      <h3 className="mb-1 text-sm font-medium text-fg">Weather</h3>
+      <h3 className="mb-1 text-sm font-semibold text-fg">Weather</h3>
       <div className={row}>
         <span className={label}>Location</span>
         <button

@@ -141,10 +141,15 @@ export default function Background({
             onLoad={(e) => e.currentTarget.classList.replace('opacity-0', 'opacity-100')}
           />
         )}
-        {/* Per-theme legibility wash over the photo (--scrim in themes.css).
-            Jon evaluated the scrimless look on 2026-07-29 and chose to keep
-            the scrim — secondary text (countdown, focus prompt) loses too
-            much contrast on bright photos without it. */}
+        {/* Per-theme wash over the photo (--scrim in themes.css). Legibility
+            for text sitting directly on the photo is now carried primarily
+            by the .text-photo shadow utility (src/newtab/index.css) applied
+            to that text itself — the clock, greeting, world clocks,
+            countdown, focus line, quote, and link labels all hold up against
+            a bright photo (see bright-photo-check.png in the preview capture
+            set) via that shadow, not this wash. The scrim stays in place as
+            a gentle base tint (much lower opacity than before) for overall
+            photo-vs-UI cohesion, not as the primary legibility mechanism. */}
         <div className="absolute inset-0" style={{ background: 'var(--scrim)' }} />
       </div>
       {showRefresh && (
@@ -153,7 +158,7 @@ export default function Background({
           aria-label="New background photo"
           title={credit ? `${credit.label} — click for a new photo` : 'New photo'}
           onClick={() => onPrefsChange(nextPhoto(prefs, today, count))}
-          className="absolute bottom-4 left-4 rounded-full bg-panel p-2 text-fg-muted backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="absolute bottom-4 left-4 rounded-full bg-panel p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a9 9 0 1 1-2.64-6.36" />
