@@ -141,7 +141,12 @@ export default function Background({
             onLoad={(e) => e.currentTarget.classList.replace('opacity-0', 'opacity-100')}
           />
         )}
+        {/* Scrim TEMPORARILY DISABLED (Jon, 2026-07-29): evaluating whether the
+            per-theme gradient wash (--scrim in themes.css) is still needed now
+            that widget surfaces carry their own legibility — restore this line
+            or delete it + the --scrim vars once he decides.
         <div className="absolute inset-0" style={{ background: 'var(--scrim)' }} />
+        */}
       </div>
       {showRefresh && (
         <button
