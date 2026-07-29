@@ -107,7 +107,7 @@ export default function Palette({
               runResult(activeIndex)
             }
           }}
-          className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-panel border border-panel-border bg-[#17171c]/95 text-fg backdrop-blur-[var(--panel-blur)]"
+          className="pointer-events-auto w-full max-w-lg overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg backdrop-blur-[var(--panel-blur)]"
         >
           <input
             role="combobox"

@@ -248,7 +248,7 @@ export default function LocationSetup() {
           aria-label="City suggestions"
           hidden={!open}
           style={edgeShift ? { left: edgeShift } : undefined}
-          className="absolute left-0 top-full z-10 mt-1 w-72 max-h-56 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
+          className="absolute left-0 top-full z-10 mt-1 w-72 max-h-56 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg backdrop-blur-[var(--panel-blur)]"
         >
           {results.length === 0 && noMatches && (
             <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>

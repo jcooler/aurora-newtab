@@ -6,6 +6,7 @@
   --color-fg-muted: var(--fg-muted);
   --color-accent: var(--accent);
   --color-panel: var(--panel);
+  --color-panel-solid: var(--panel-solid);
   --color-panel-border: var(--panel-border);
   --radius-panel: var(--radius);
 }

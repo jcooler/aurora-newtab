@@ -41,6 +41,13 @@ describe('NotesPanel', () => {
     expect(dialog.classList.contains('fixed')).toBe(false)
   })
 
+  it('uses the themed bg-panel-solid utility, not a hardcoded hex (folders-widget theming bug — the same fix applies to every floating panel)', async () => {
+    await renderPanel()
+    const dialog = screen.getByRole('dialog', { name: 'Notes' })
+    expect(dialog.classList.contains('bg-panel-solid')).toBe(true)
+    expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the shape Notes actually gets at its default (bottom-half) pill position", async () => {
     await renderPanel({ left: 16, bottom: 64 })
     const dialog = screen.getByRole('dialog', { name: 'Notes' })

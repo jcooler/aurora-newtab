@@ -185,7 +185,7 @@ function TimerInner({ settings }: { settings: Settings }) {
             left: anchor.left,
             ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
           }}
-          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-[#17171c]/95 p-3 text-fg backdrop-blur-[var(--panel-blur)]"
+          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel-solid p-3 text-fg backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-medium capitalize">{state.mode} session</h2>

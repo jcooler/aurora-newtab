@@ -104,6 +104,17 @@ describe('BookmarksBar', () => {
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
   })
 
+  it('uses the themed bg-panel-solid utility, not a hardcoded hex, so the popover actually re-themes (folders-widget theming bug)', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(dialog.classList.contains('bg-panel-solid')).toBe(true)
+    expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
+  })
+
   it('elevates above TodoPanel/TimerWidget (z-30) only while a popover is open, not permanently', async () => {
     await renderBar(nestedModel)
     const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })

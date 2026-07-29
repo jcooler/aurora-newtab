@@ -73,7 +73,7 @@ export default function ResetLayoutDialog({
           role="dialog"
           aria-modal="true"
           aria-label="Reset layout?"
-          className="pointer-events-auto w-full max-w-sm rounded-panel border border-panel-border bg-[#17171c]/95 p-5 text-fg backdrop-blur-[var(--panel-blur)]"
+          className="pointer-events-auto w-full max-w-sm rounded-panel border border-panel-border bg-panel-solid p-5 text-fg backdrop-blur-[var(--panel-blur)]"
         >
           <h2 className="mb-2 text-base font-medium">Reset layout?</h2>
           <p className="mb-4 text-sm text-fg-muted">

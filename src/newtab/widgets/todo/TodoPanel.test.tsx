@@ -28,6 +28,13 @@ describe('TodoPanel', () => {
     expect(dialog.classList.contains('fixed')).toBe(false)
   })
 
+  it('uses the themed bg-panel-solid utility, not a hardcoded hex (folders-widget theming bug — the same fix applies to every floating panel)', async () => {
+    await renderPanel()
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.classList.contains('bg-panel-solid')).toBe(true)
+    expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the panel that actually reaches this shape at Todo's default (bottom-half) pill position", async () => {
     await renderPanel({ left: 1264, bottom: 64 })
     const dialog = await screen.findByRole('dialog', { name: 'Tasks' })

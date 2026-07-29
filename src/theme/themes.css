@@ -7,6 +7,13 @@
   --panel: rgb(20 20 30 / 0.5);
   --panel-border: rgb(255 255 255 / 0.12);
   --panel-blur: 14px;
+  /* Floating surfaces (popovers/panels/dialogs, as opposed to the drawer)
+     need more opacity than --panel for legibility over a photo background.
+     This is EXACTLY #17171c at 95% — the hex every one of those surfaces
+     used to hardcode — so switching them to this token is a visual no-op
+     for the default theme, and only Glass/Mono (which used to render that
+     same fixed hex regardless of their own palette) actually change. */
+  --panel-solid: rgb(23 23 28 / 0.95);
   --radius: 1rem;
   --scrim: linear-gradient(rgb(2 6 23 / 0.3), rgb(2 6 23 / 0.55));
   --bg-fallback: linear-gradient(160deg, #0f172a, #312e81 55%, #4c1d95);
@@ -20,6 +27,13 @@
   --panel: rgb(255 255 255 / 0.14);
   --panel-border: rgb(255 255 255 / 0.28);
   --panel-blur: 24px;
+  /* Stays in the theme's white-tinted glass language rather than jumping to
+     Aurora/Mono's near-black — the 24px blur does the legibility work, this
+     opacity just needs to be enough darker than the ambient --panel (0.14)
+     that small text in a floating panel doesn't wash out over a bright
+     photo. Verified against real preview captures (theme-glass-panel.png,
+     drawer-glass.png). */
+  --panel-solid: rgb(255 255 255 / 0.28);
   --radius: 1.25rem;
   --scrim: linear-gradient(rgb(15 23 42 / 0.25), rgb(15 23 42 / 0.5));
   --bg-fallback: linear-gradient(150deg, #334155, #0ea5e9 120%);
@@ -33,12 +47,21 @@
   --panel: rgb(0 0 0 / 0.4);
   --panel-border: transparent;
   --panel-blur: 0px;
+  /* Flat near-black, no blur/border to lean on (--panel-blur is 0 and
+     --panel-border is transparent in this theme) — high opacity is what
+     keeps text readable over a bright photo instead. */
+  --panel-solid: rgb(10 10 10 / 0.92);
   --radius: 0px;
   --scrim: linear-gradient(rgb(0 0 0 / 0.5), rgb(0 0 0 / 0.62));
   --bg-fallback: #101010;
 }
 
-/* System light mode: lift the fallback + panels; photo text stays scrim-protected. */
+/* System light mode: lift the fallback + panels; photo text stays scrim-protected.
+   --panel-solid (like --panel/--panel-border above) gets no override here on
+   purpose: floating panels sit over the photo background, not over the OS
+   chrome, so they stay on their dark theme-defined value regardless of
+   prefers-color-scheme — same reasoning that already keeps --panel itself
+   out of this block. */
 @media (prefers-color-scheme: light) {
   :root,
   [data-theme='aurora'] {

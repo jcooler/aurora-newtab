@@ -113,7 +113,7 @@ export default function NotesPanel({
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 h-64 w-80 rounded-panel border border-panel-border bg-[#17171c]/95 backdrop-blur-[var(--panel-blur)]"
+      className="z-30 h-64 w-80 rounded-panel border border-panel-border bg-panel-solid backdrop-blur-[var(--panel-blur)]"
     >
       <label htmlFor="notes-textarea" className="sr-only">
         Scratchpad

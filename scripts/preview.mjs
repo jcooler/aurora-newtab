@@ -220,7 +220,12 @@ if (hasBookmarksPermission) {
   console.log(popoverGone ? 'PASS: outside click closed the bookmarks popover' : 'FAIL: bookmarks popover did not close on outside click')
 }
 
-// Open the settings drawer and capture it per theme
+// Open the settings drawer and capture it per theme, plus a floating panel
+// (Tasks) per theme — the drawer's own bg-panel was already themed before
+// this fix; the bug Jon reported (folders widget not re-theming) lived in
+// the OTHER kind of surface, floating popovers/panels, which used to
+// hardcode bg-[#17171c]/95 regardless of theme. Gating only the drawer per
+// theme, as this loop used to, would never have caught that.
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400) // slide-in transition
@@ -229,7 +234,48 @@ for (const theme of ['Aurora', 'Glass', 'Mono']) {
   await page.waitForTimeout(150)
   await page.screenshot({ path: `${outDir}/drawer-${theme.toLowerCase()}.png` })
   console.log(`captured drawer-${theme.toLowerCase()}.png`)
+
+  // A floating panel, same theme. The drawer's own z-40 backdrop covers the
+  // whole viewport while open and would eat a real click on the Tasks pill
+  // underneath it, so close the drawer first.
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out transition
+  await page.click('button:has-text("Tasks")')
+  await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+  await page.waitForTimeout(150)
+  await page.screenshot({ path: `${outDir}/theme-${theme.toLowerCase()}-panel.png` })
+  console.log(`captured theme-${theme.toLowerCase()}-panel.png`)
+  await page.click('button:has-text("Tasks")') // close it again
+  await page.waitForTimeout(150)
+
+  // Jon's actual reported widget — the bookmarks folder popover — re-themes
+  // too. Gated on Mono specifically (the theme with no border/blur to lean
+  // on, so a wrong fill is most visible there) and on hasBookmarksPermission
+  // the same way the main bookmarks probes above are (only real under a
+  // preview build; see that block's header comment).
+  if (hasBookmarksPermission && theme === 'Mono') {
+    await page.click('nav[aria-label="Bookmarks bar"] button:has-text("Dev")')
+    await page.waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]')
+    await page.waitForTimeout(150)
+    await page.screenshot({ path: `${outDir}/theme-mono-popover.png` })
+    console.log('captured theme-mono-popover.png')
+    await page.mouse.click(800, 500) // outside click closes it
+    await page.waitForTimeout(150)
+  }
+
+  // Reopen the drawer — either for the next theme iteration, or (on the
+  // last one) for the Data-section capture that immediately follows this
+  // loop, which expects the drawer already open.
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400)
 }
+
+// Restore the default theme: every capture from here on (todo/timer/notes/
+// palette/arrange/gallery) must show Aurora, matching what's already
+// committed — not whatever theme the loop above happened to end on.
+await page.click('[role="radio"]:has-text("Aurora")')
+await page.waitForTimeout(150)
 
 // The drawer scrolls internally; the new Data section (export/import backup)
 // sits below the fold at this viewport height, so scroll it into view for a
