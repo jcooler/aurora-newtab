@@ -11,12 +11,26 @@ import { clampCenterPct } from '../../lib/layout/clamp'
 import NotesWidget from '../widgets/notes/NotesWidget'
 import ArrangeController from './ArrangeController'
 
+// isPremium() is hardcoded true today — mocked (defaulting to true, same as
+// useLongPress.test.tsx) so the openSignal defense-in-depth test below can
+// flip it false without touching the real module every other test relies on.
+vi.mock('../../lib/premium', () => ({ isPremium: vi.fn(() => true) }))
+import { isPremium } from '../../lib/premium'
+
 // Deterministic rects per block id — keyed off the SAME data-block-id
 // attribute the real PositionedBlock divs carry, exactly what ArrangeController
 // queries via document.querySelector.
 const RECT_DATA: Record<string, { left: number; top: number; width: number; height: number }> = {
   clock: { left: 700, top: 400, width: 200, height: 100 }, // center (800, 450) = the 1600x900 viewport center
   greeting: { left: 100, top: 800, width: 150, height: 60 }, // far from clock's drag target below, by design
+  // Only used by the "labels for every visible block" test below — non-zero
+  // (RECT_DATA's fallback is 0x0, which measureAll's own "skip empty" rule
+  // would otherwise exclude entirely) but otherwise arbitrary.
+  worldClocks: { left: 20, top: 20, width: 120, height: 40 },
+  tasks: { left: 1400, top: 800, width: 150, height: 60 },
+  bookmarks: { left: 700, top: 20, width: 200, height: 40 },
+  notes: { left: 20, top: 800, width: 150, height: 60 },
+  weather: { left: 1400, top: 20, width: 150, height: 60 },
 }
 
 function domRect(r: { left: number; top: number; width: number; height: number }): DOMRect {
@@ -97,6 +111,7 @@ async function settleDrag(pointerId = 1) {
 describe('ArrangeController', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.mocked(isPremium).mockReturnValue(true)
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1600)
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
@@ -215,19 +230,36 @@ describe('ArrangeController', () => {
     expect(beforeDone.clock).toBeDefined()
   })
 
-  it('Reset layout writes an empty layout via storage.update without exiting the mode', async () => {
+  it('Reset layout needs two clicks: the first only arms (swaps the label to the confirm copy) and writes nothing', async () => {
     const { storage } = await renderController({ clock: { x: 10, y: 10 } })
     engageClock()
     await settleDrag()
 
-    expect((await storage.get('layout')).clock).toBeDefined()
+    const resetButton = screen.getByRole('button', { name: 'Reset layout' })
+    fireEvent.click(resetButton)
+    await act(async () => {})
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset layout' }))
+    expect((await storage.get('layout')).clock).toBeDefined() // unchanged — one click never writes
+    expect(
+      screen.getByRole('button', { name: 'Reset layout? This puts every widget back.' }),
+    ).toBeTruthy()
+  })
+
+  it('a second click while armed confirms: writes an empty layout without exiting the mode', async () => {
+    const { storage } = await renderController({ clock: { x: 10, y: 10 } })
+    engageClock()
+    await settleDrag()
+
+    const resetButton = screen.getByRole('button', { name: 'Reset layout' })
+    fireEvent.click(resetButton) // arm
+    fireEvent.click(resetButton) // same DOM node — confirm, regardless of its now-changed accessible name
     await act(async () => {})
 
     expect(await storage.get('layout')).toEqual({})
     // Still in arrange mode — Reset doesn't exit.
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+    // And the label is back to idle, ready to be armed again.
+    expect(screen.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
   })
 
   it('a second, concurrent pointer pressing a different outline mid-drag is ignored', async () => {
@@ -249,6 +281,202 @@ describe('ArrangeController', () => {
     fireEvent.pointerUp(clockOutline, { pointerId: 1 })
     await act(async () => {})
     expect((await storage.get('layout')).clock).toBeDefined()
+  })
+
+  it('long-press entry focuses the ENGAGED block\'s own Move button (not just any outline)', async () => {
+    await renderController()
+    engageClock()
+
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Move Clock' }))
+  })
+
+  describe('keyboard nudging (Arrow / Shift+Arrow / Enter)', () => {
+    it('an unshifted Arrow key nudges the focused block by 8px (default step), through clampCenterPct, and persists via storage.update', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag() // ends the drag; clock's rect-derived position (viewport center, 50%/50%) is now the only thing in storage
+
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+      fireEvent.keyDown(outline, { key: 'ArrowRight' })
+      await act(async () => {})
+
+      // clock's rect centers at (800, 450) on a 1600x900 viewport = (50%, 50%).
+      // +8px on x = (8/1600)*100 = 0.5% -> 50.5%; y is untouched.
+      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+    })
+
+    it('Shift+Arrow nudges by 1px instead of 8px', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag()
+
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+      fireEvent.keyDown(outline, { key: 'ArrowDown', shiftKey: true })
+      await act(async () => {})
+
+      const expectedY = 50 + (1 / 900) * 100
+      expect((await storage.get('layout')).clock).toEqual({ x: 50, y: expectedY })
+    })
+
+    it('consecutive nudges compound from the LAST nudged position, not the original rect each time', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag()
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+
+      fireEvent.keyDown(outline, { key: 'ArrowRight' }) // +8px
+      fireEvent.keyDown(outline, { key: 'ArrowRight' }) // +8px again, from the FIRST nudge's result
+      await act(async () => {})
+
+      // Two 8px nudges = 16px total = (16/1600)*100 = 1% -> 51%. A bug that
+      // re-derives the base from the (unchanged) measured rect every time
+      // would instead land back at 50.5% on the second press.
+      expect((await storage.get('layout')).clock).toEqual({ x: 51, y: 50 })
+    })
+
+    it("a default-positioned block's first nudge bases off its CURRENT measured rect center — it must not jump to some other value", async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag() // only clock has ever been touched; greeting has no stored position at all
+
+      const greetingOutline = screen.getByRole('button', { name: 'Move Greeting' })
+      fireEvent.keyDown(greetingOutline, { key: 'ArrowRight' })
+      await act(async () => {})
+
+      // greeting's rect (150x60 at left:100,top:800) centers at (175, 830) ->
+      // (10.9375%, 92.2222...%); +8px on x = 0.5% -> 11.4375%. A base of 0 or
+      // the viewport center (either being "not this block's own rect") would
+      // land somewhere else entirely.
+      const layout = await storage.get('layout')
+      expect(layout.greeting?.x).toBeCloseTo(11.4375, 10)
+      expect(layout.greeting?.y).toBeCloseTo((830 / 900) * 100, 10)
+    })
+
+    it('clamps a nudge at the viewport edge instead of letting the block walk off-screen', async () => {
+      const { storage } = await renderController()
+      engageClock()
+      await settleDrag()
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+
+      // Clock's rect (200x100) starts centered at the viewport center (800px
+      // on a 1600px-wide viewport). The left-edge clamp keeps its center no
+      // closer than half-width + the 8px default margin = 108px from the
+      // left edge. 90 unshifted (8px) ArrowLeft presses would walk the raw
+      // target to 800 - 720 = 80px, well past 108px — clampCenterPct must
+      // pull it back to exactly 108px instead of letting it go negative.
+      for (let i = 0; i < 90; i++) {
+        fireEvent.keyDown(outline, { key: 'ArrowLeft' })
+      }
+      await act(async () => {})
+
+      const finalPos = (await storage.get('layout')).clock
+      expect(finalPos?.x).toBeCloseTo((108 / 1600) * 100, 10)
+      expect(finalPos?.y).toBe(50)
+    })
+
+    it('Enter on a focused Move button exits the mode, same as Escape/Done', async () => {
+      const { onDraftChange } = await renderController()
+      engageClock()
+      await settleDrag()
+      const outline = screen.getByRole('button', { name: 'Move Clock' })
+
+      fireEvent.keyDown(outline, { key: 'Enter' })
+
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+      expect(onDraftChange).toHaveBeenLastCalledWith({})
+    })
+
+    it('every visible block gets an accessible "Move {label}" outline button (Tab/Shift-Tab order is just DOM order)', async () => {
+      await renderController()
+      engageClock()
+
+      // Every id present in the fixture's RECT_DATA (clock/greeting always
+      // rendered by the shared Fixture, plus the extra ids this describe
+      // block's RECT_DATA entries cover) gets its own labeled Move button,
+      // using the SAME human labels/casing convention as Settings' Widgets
+      // section where they overlap (e.g. weather -> "Weather", notes ->
+      // "Notes").
+      expect(screen.getByRole('button', { name: 'Move Clock' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Move Greeting' })).toBeTruthy()
+    })
+  })
+
+  describe('openSignal (Settings entry point)', () => {
+    function SignalFixture({
+      openSignal,
+      onDraftChange,
+    }: {
+      openSignal: number
+      onDraftChange: (d: Layout) => void
+    }) {
+      return (
+        <>
+          <div data-block-id="clock">
+            <button type="button">Clock content</button>
+          </div>
+          <div data-block-id="greeting">
+            <span>Greeting content</span>
+          </div>
+          <ArrangeController onDraftChange={onDraftChange} openSignal={openSignal} />
+        </>
+      )
+    }
+
+    async function renderSignalFixture() {
+      const storage = createStorage(memoryDriver())
+      await storage.init()
+      const onDraftChange = vi.fn()
+      const utils = render(
+        <StorageProvider storage={storage}>
+          <SignalFixture openSignal={0} onDraftChange={onDraftChange} />
+        </StorageProvider>,
+      )
+      await act(async () => {})
+      return { storage, onDraftChange, rerender: utils.rerender }
+    }
+
+    it('bumping openSignal enters the mode without a drag, and focuses the FIRST Move button in DOM order', async () => {
+      const { storage, onDraftChange, rerender } = await renderSignalFixture()
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+
+      rerender(
+        <StorageProvider storage={storage}>
+          <SignalFixture openSignal={1} onDraftChange={onDraftChange} />
+        </StorageProvider>,
+      )
+      await act(async () => {})
+
+      expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
+      const clockOutline = screen.getByRole('button', { name: 'Move Clock' })
+      expect(document.activeElement).toBe(clockOutline) // clock is first in BLOCK_IDS order
+    })
+
+    it('a repeated (unchanged) openSignal value does not re-enter the mode', async () => {
+      const { storage, onDraftChange, rerender } = await renderSignalFixture()
+
+      rerender(
+        <StorageProvider storage={storage}>
+          <SignalFixture openSignal={0} onDraftChange={onDraftChange} />
+        </StorageProvider>,
+      )
+      await act(async () => {})
+
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    })
+
+    it('openSignal is a no-op when isPremium() is false (defense in depth — the real gate is the Settings button being hidden entirely)', async () => {
+      vi.mocked(isPremium).mockReturnValue(false)
+      const { storage, onDraftChange, rerender } = await renderSignalFixture()
+
+      rerender(
+        <StorageProvider storage={storage}>
+          <SignalFixture openSignal={1} onDraftChange={onDraftChange} />
+        </StorageProvider>,
+      )
+      await act(async () => {})
+
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    })
   })
 })
 
@@ -290,6 +518,7 @@ async function renderAppLike() {
 describe('ArrangeController — inertness + panel closing (review fix)', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    vi.mocked(isPremium).mockReturnValue(true)
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1600)
     vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(900)
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (

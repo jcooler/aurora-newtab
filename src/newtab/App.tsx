@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { applyTheme } from '../theme/index'
 import type { Layout } from '../lib/layout/types'
@@ -45,10 +45,50 @@ export default function App() {
   // on top of it) — Tab still walked straight through it to the settings
   // gear, search, links, and any already-open Notes/Todo/Timer panel.
   const [arranging, setArranging] = useState(false)
+  // Bump-to-enter nonce for the Settings "Arrange layout" button (Task 37) —
+  // any CHANGE (ArrangeController compares against the previous value, not
+  // just truthiness) enters arrange mode with no block pre-selected. Starts
+  // at 0 so the very first bump (1) is always a real change.
+  const [arrangeSignal, setArrangeSignal] = useState(0)
+  const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  // Tracks whether the PREVIOUS render had `arranging` true, so the
+  // focus-restore effect below only fires on a real on->off transition, never
+  // on mount (where `arranging` already starts false and body legitimately
+  // has focus on a fresh page load).
+  const wasArrangingRef = useRef(false)
 
   useEffect(() => {
     if (settings) applyTheme(settings.theme)
   }, [settings?.theme])
+
+  // Focus management on arrange-mode EXIT (Task 37): ArrangeController's
+  // overlay — and whichever Move button was focused inside it, per its own
+  // entry-side focus management — unmounts the instant `mode` flips off, so
+  // by the time `arranging` reaches here as false, the browser has already
+  // reverted `document.activeElement` to <body> (nothing else claimed it).
+  // Left alone, that stops keyboard use cold: no visible focus ring
+  // anywhere. Restoring it to the settings gear (always present, and
+  // conceptually where the Settings-triggered "Arrange layout" entry point
+  // returns to) fixes that for BOTH exit paths — the brief only requires it
+  // for the Settings-button path, but this single activeElement-driven
+  // heuristic needs no separate "how did we get here" bookkeeping and is a
+  // strict improvement (never a regression) for the long-press path too.
+  useEffect(() => {
+    const wasArranging = wasArrangingRef.current
+    wasArrangingRef.current = arranging
+    if (wasArranging && !arranging && document.activeElement === document.body) {
+      settingsButtonRef.current?.focus()
+    }
+  }, [arranging])
+
+  // Settings' "Arrange layout" button composes to this: close the drawer
+  // FIRST (so the arranged page is actually visible once the overlay
+  // appears — the drawer covers the right third of the screen while open),
+  // then bump the nonce ArrangeController watches.
+  const requestArrange = useCallback(() => {
+    setSettingsOpen(false)
+    setArrangeSignal((n) => n + 1)
+  }, [])
 
   if (!settings || !photoPrefs || !layout) return null
 
@@ -156,6 +196,7 @@ export default function App() {
           </WidgetBoundary>
 
           <button
+            ref={settingsButtonRef}
             type="button"
             aria-label="Open settings"
             onClick={() => setSettingsOpen(true)}
@@ -196,12 +237,12 @@ export default function App() {
 
           <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
             <DrawerBoundary>
-              <SettingsPanel />
+              <SettingsPanel onArrangeLayout={requestArrange} />
             </DrawerBoundary>
           </Drawer>
 
           <WidgetBoundary name="palette">
-            <PaletteHost onOpenSettings={() => setSettingsOpen(true)} />
+            <PaletteHost onOpenSettings={() => setSettingsOpen(true)} arranging={arranging} />
           </WidgetBoundary>
         </div>
 
@@ -211,8 +252,13 @@ export default function App() {
             while everything under it goes inert. Off by default (mode starts
             'off' and renders null) — the unarranged page is untouched.
             `onModeChange` is how App learns when to flip `arranging` — see
-            the comment on that state above. */}
-        <ArrangeController onDraftChange={setDraft} onModeChange={setArranging} />
+            the comment on that state above. `openSignal` is the Settings
+            "Arrange layout" entry point (Task 37) — see `requestArrange`. */}
+        <ArrangeController
+          onDraftChange={setDraft}
+          onModeChange={setArranging}
+          openSignal={arrangeSignal}
+        />
       </DraftLayoutContext.Provider>
     </main>
   )

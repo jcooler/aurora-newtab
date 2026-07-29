@@ -10,8 +10,9 @@ import Widgets from './sections/Widgets'
 import WorldClocks from './sections/WorldClocks'
 import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
+import Layout from './sections/Layout'
 
-export default function SettingsPanel() {
+export default function SettingsPanel({ onArrangeLayout }: { onArrangeLayout: () => void }) {
   const storage = useStorage()
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
@@ -62,6 +63,8 @@ export default function SettingsPanel() {
       <Countdowns countdowns={countdowns} storage={storage} />
 
       <Data storage={storage} />
+
+      <Layout storage={storage} onArrangeLayout={onArrangeLayout} />
     </div>
   )
 }

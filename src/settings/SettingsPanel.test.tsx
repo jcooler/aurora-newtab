@@ -24,6 +24,13 @@ vi.mock('../lib/idb', () => ({
 // way BookmarksBar.test.tsx mocks the rest of this service module.
 vi.mock('../services/bookmarks', () => ({ ensureBookmarksPermission: vi.fn() }))
 
+// isPremium() is hardcoded true today — mocked (defaulting to true, same as
+// useLongPress.test.tsx / ArrangeController.test.tsx) so the Layout section's
+// premium-gating test below can flip it false without touching the real
+// module every other test in this file relies on.
+vi.mock('../lib/premium', () => ({ isPremium: vi.fn(() => true) }))
+import { isPremium } from '../lib/premium'
+
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
 // suite (e.g. Background.test.tsx's querySelector/toBeNull checks) rather
@@ -32,12 +39,12 @@ function attr(el: Element, name: string) {
   return el.getAttribute(name)
 }
 
-async function renderPanel() {
+async function renderPanel(onArrangeLayout: () => void = () => {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   render(
     <StorageProvider storage={storage}>
-      <SettingsPanel />
+      <SettingsPanel onArrangeLayout={onArrangeLayout} />
     </StorageProvider>,
   )
   // Settings resolves asynchronously (useStoredKey's storage.get().then(...)),
@@ -159,7 +166,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -237,7 +244,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -416,7 +423,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     await storage.set('photoPrefs', { mode: 'upload', index: 0, lastRotated: '' })
     const { unmount } = render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -616,7 +623,7 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -639,7 +646,7 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -693,7 +700,7 @@ describe('SettingsPanel Countdowns section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -711,7 +718,7 @@ describe('SettingsPanel Countdowns section', () => {
     await storage.set('countdowns', [{ id: 'c1', name: 'Launch', date: '2026-08-09' }])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel />
+        <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
@@ -722,5 +729,59 @@ describe('SettingsPanel Countdowns section', () => {
     })
 
     expect(await storage.get('countdowns')).toEqual([{ id: 'c1', name: 'Launch', date: '2026-08-20' }])
+  })
+})
+
+describe('SettingsPanel Layout section (arrange entry + reset)', () => {
+  afterEach(() => {
+    // Only the premium-gating test below ever flips this — reset so it never
+    // leaks into a later test/file even if execution order ever changes.
+    vi.mocked(isPremium).mockReturnValue(true)
+  })
+
+  function layoutRegion() {
+    return screen.getByRole('region', { name: 'Layout' })
+  }
+
+  it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
+    const onArrangeLayout = vi.fn()
+    await renderPanel(onArrangeLayout)
+
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
+
+    expect(onArrangeLayout).toHaveBeenCalledOnce()
+  })
+
+  it('Reset layout needs two clicks: the first only arms (swaps the label to the confirm copy) and writes nothing, the second writes {}', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    const resetButton = within(layoutRegion()).getByRole('button', { name: 'Reset layout' })
+    fireEvent.click(resetButton)
+    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // one click: armed, not written
+    expect(
+      within(layoutRegion()).getByRole('button', {
+        name: 'Reset layout? This puts every widget back.',
+      }),
+    ).toBeTruthy()
+
+    fireEvent.click(resetButton)
+    expect(await storage.get('layout')).toEqual({})
+  })
+
+  it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {
+    vi.mocked(isPremium).mockReturnValue(false)
+    await renderPanel()
+
+    expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Reset layout/ })).toBeNull()
   })
 })
