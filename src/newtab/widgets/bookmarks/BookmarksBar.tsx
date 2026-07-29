@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import {
   hasBookmarksPermission,
@@ -49,6 +49,13 @@ function BookmarksBarInner({
   // One popover open at a time: a folder chip's id, or OVERFLOW_ID, or null.
   const [openId, setOpenId] = useState<string | null>(null)
 
+  // Read through a ref (same idiom as dialogStack.ts's useDialogEscape and
+  // useLongPress.ts's onEngageRef) so the mount-once/unmount-once effect
+  // below always calls the LATEST onPopoverOpenChange, never a stale one
+  // closed over when that effect's callback was first created.
+  const onPopoverOpenChangeRef = useRef(onPopoverOpenChange)
+  onPopoverOpenChangeRef.current = onPopoverOpenChange
+
   useEffect(() => {
     let live = true
     // The widget can be on in settings while the permission itself is
@@ -65,6 +72,29 @@ function BookmarksBarInner({
     return () => {
       live = false
     }
+  }, [])
+
+  // Review fix (bookmarks-stacking bug fix, part 3): if THIS component
+  // unmounts while a popover is open, nothing previously told App.tsx it
+  // closed. That's reachable without ever touching a popover:
+  // settings.widgets.bookmarks lives in shared chrome.storage, so a
+  // DIFFERENT new-tab tab can flip the widget off while a popover is open
+  // here — the outer BookmarksBar's gate (top of this file) then returns
+  // null, unmounting this component entirely, popover included, with no
+  // onClose ever firing. App's bookmarksPopoverOpen would stick `true`
+  // forever (self-healing only the next time a popover actually
+  // opens/closes elsewhere), so if the widget were re-enabled later
+  // without touching a popover, the bar would reappear already carrying a
+  // stale `z-50` wrapper class, permanently outranking TodoPanel/
+  // TimerWidget's z-30 — the exact regression the CONDITIONAL (not
+  // permanent) elevation exists to avoid (see App.tsx's comment on the
+  // bookmarks PositionedBlock). Empty deps: this fires its cleanup exactly
+  // once, on unmount, regardless of how many times openId/model/etc.
+  // change in between — always reporting "closed" via the ref above, which
+  // is a safe, idempotent no-op on App's side if nothing was open anyway
+  // (setState to the same value bails out the re-render).
+  useEffect(() => {
+    return () => onPopoverOpenChangeRef.current?.(false)
   }, [])
 
   // Empty bookmarks bar (including "still loading") renders nothing — no
@@ -130,18 +160,24 @@ function BookmarksBarInner({
       // bookmarks PositionedBlock's comment in App.tsx for the full
       // writeup and the minimal-repro measurements that found this.
       //
-      // z-20 normally (below TodoPanel/TimerWidget's z-30 panels, same as
-      // before this widget existed) but z-50 ONLY while a popover is open —
-      // level with FolderPopover's own panel, and above its z-40 backdrop.
-      // Scoped to `openId` rather than permanent: the backdrop only exists
-      // (and only needs outranking) while a popover is actually open: that's
-      // when it would otherwise sit on top of the bar and swallow clicks
-      // meant for a DIFFERENT chip, breaking "click another chip to switch
-      // popovers directly" (one popover open at a time is still enforced by
-      // openId being a single value regardless of z-index). Left permanently
-      // at z-50, the bar would instead render on top of TodoPanel/TimerWidget
-      // whenever they geometrically overlap even with no popover open — a
-      // stacking regression against those pre-existing widgets.
+      // z-20 normally, z-50 while a popover is open — but (reviewer-noted
+      // stale comment, corrected) by ITSELF this only wins LOCAL
+      // comparisons inside the wrapper's own stacking context: concretely,
+      // the open popover's own panel (z-50) painting above ITS sibling
+      // chips within this nav. Outranking FolderPopover's z-40
+      // body-portaled catcher — and TodoPanel/TimerWidget's z-30 panels —
+      // while a popover is open is now the WRAPPER's job (App.tsx's
+      // `bookmarksPopoverOpen`-gated className, fed by `onPopoverOpenChange`
+      // above), not this class's; see the big comment above for why a class
+      // in here can never reach outside the wrapper on its own. Kept
+      // `openId`-scoped (matching the wrapper's own open-only elevation)
+      // rather than permanent for the same reason the wrapper is scoped
+      // that way: permanently at z-50, this nav would win its OWN local
+      // popover-vs-sibling-chip comparison even with nothing open (harmless
+      // there) but would also be one more thing to keep in sync with the
+      // wrapper's condition for no benefit — `openId` is already the single
+      // source of truth this reads from, so mirroring it here costs
+      // nothing and keeps both classes legible together.
       className={`relative flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 ${
         openId ? 'z-50' : 'z-20'
       }`}

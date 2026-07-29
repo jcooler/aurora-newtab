@@ -188,6 +188,56 @@ describe('BookmarksBar', () => {
     expect(onPopoverOpenChange).toHaveBeenLastCalledWith(true)
   })
 
+  // Review fix (bookmarks-stacking bug fix, part 3): settings.widgets
+  // .bookmarks lives in shared chrome.storage, so a DIFFERENT new-tab page
+  // can flip it off while a popover is open HERE — the outer BookmarksBar
+  // gate then returns null, unmounting BookmarksBarInner (popover and all)
+  // with no onClose ever firing. Without the unmount-cleanup effect in
+  // BookmarksBarInner, App.tsx's mirrored bookmarksPopoverOpen would stick
+  // `true` forever. Simulated here via storage.set on the SAME storage
+  // instance the render subscribes to — the same mechanism a real
+  // cross-tab chrome.storage.onChanged event drives through useStoredKey.
+  it('reports the popover closed if the bar unmounts while one is open (settings.widgets.bookmarks flipped off from another tab)', async () => {
+    vi.mocked(hasBookmarksPermission).mockResolvedValue(true)
+    vi.mocked(loadBarModel).mockResolvedValue(nestedModel)
+    const onPopoverOpenChange = vi.fn()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, bookmarks: true },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <BookmarksBar onPopoverOpenChange={onPopoverOpenChange} />
+      </StorageProvider>,
+    )
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(true)
+
+    onPopoverOpenChange.mockClear()
+    await act(async () => {
+      await storage.set('settings', {
+        ...defaults().settings,
+        widgets: { ...defaults().settings.widgets, bookmarks: false },
+      })
+    })
+
+    // The bar (and its still-open popover) is gone — the outer gate's
+    // `settings?.widgets.bookmarks` check returned null.
+    expect(screen.queryByRole('navigation', { name: 'Bookmarks bar' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
+    // And the unmount told App.tsx the popover closed — exactly once, not
+    // stuck at the stale `true` from the click above.
+    expect(onPopoverOpenChange).toHaveBeenCalledTimes(1)
+    expect(onPopoverOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('opens the folder popover, drills into a subfolder, and returns via "‹ Back"', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })
