@@ -26,19 +26,29 @@ const TIERS = {
 }
 
 // Default AVIF quality (sharp's 1-100 scale, higher = better/larger),
-// targeting visual transparency without oversized files. Gradient-heavy
-// content (aurora curtains, night skies) is the banding risk at this
-// quality — 4:4:4 chroma (full color resolution, no subsampling) matters
-// more than the quality number here, since banding in these images is
-// mostly a chroma-plane artifact. The 7 highest-risk frames in the set (the
-// smoothest/largest aurora curtains, the Milky Way frame, and the ISS
-// Earth-limb shot) were each checked at a 100%-crop, full native-tier PNG
-// export after encoding at the default — none showed visible banding, so no
-// per-id overrides were needed this round. Left in place (empty) for the
-// next photo-set revision, if a future candidate needs one.
-const DEFAULT_QUALITY = 60
+// targeting per-image visual transparency: for every kept candidate, a
+// 1200x800 center crop of the 3840x2400-tier encode was checked against the
+// same crop of a lossless PNG export of the same resize/crop pipeline (i.e.
+// "the native original at 100%" for that tier — native source resolution
+// varies per photo, so the lossless full-tier export is the only true
+// like-for-like reference). q80 with 4:4:4 chroma (full color resolution,
+// no subsampling — this matters more than the quality number for gradient
+// banding) was visually transparent for 20 of the 23 photos: aurora
+// curtains, starfields, dune ripples, water and foliage texture all held up
+// with no detectable softening or banding. Three photos showed faint
+// softening of fine, high-entropy grain/dust texture at q80 under a 2x
+// zoomed crop comparison (ref vs q80/q85/q90) and were raised to q90 where
+// they became indistinguishable from the reference:
+//   - 1uwLmA5LFfg: fine noise/grain texture across the teal night sky
+//   - -wEFdRCG4IU: Milky Way dust-cloud texture and faint star density
+//   - 2Hzmz15wGik: heavy film-grain texture over the fog/canopy
+// Re-run scripts/... comparisons (see .photo-work/compare*.mjs, gitignored
+// scratch tooling) against any future candidate before assuming q80 holds.
+const DEFAULT_QUALITY = 80
 const QUALITY_OVERRIDES = {
-  // id: quality
+  '1uwLmA5LFfg': 90, // teal night-sky grain softened at q80
+  '-wEFdRCG4IU': 90, // Milky Way dust/star texture softened at q80
+  '2Hzmz15wGik': 90, // heavy fog/canopy film grain softened at q80
 }
 
 function slug(candidate) {
@@ -48,11 +58,11 @@ function slug(candidate) {
 async function encodeTier(candidate, tierName, tierSize, quality) {
   const srcPath = `${CANDIDATES_DIR}/${candidate.file}`
   const outFile = `${slug(candidate)}-${tierName}.avif`
-  await sharp(srcPath)
+  const info = await sharp(srcPath)
     .resize(tierSize.width, tierSize.height, { fit: 'cover', position: 'attention' })
     .avif({ quality, effort: 5, chromaSubsampling: '4:4:4' })
     .toFile(`${OUT_DIR}/${outFile}`)
-  return outFile
+  return { outFile, bytes: info.size }
 }
 
 async function main() {
@@ -66,18 +76,23 @@ async function main() {
   for (const c of kept) {
     const quality = QUALITY_OVERRIDES[c.id] ?? DEFAULT_QUALITY
     const tiers = {}
+    const bytes = {}
     for (const [tierName, tierSize] of Object.entries(TIERS)) {
-      tiers[tierName] = await encodeTier(c, tierName, tierSize, quality)
+      const { outFile, bytes: size } = await encodeTier(c, tierName, tierSize, quality)
+      tiers[tierName] = outFile
+      bytes[tierName] = size
     }
     manifest.push({
       id: c.id,
       tiers,
+      q: quality,
+      bytes,
       label: `Photo by ${c.photographer}`,
       photographer: c.photographer,
       license: c.license,
       source: c.source,
     })
-    console.log(`encoded ${c.id} (q${quality}): ${Object.values(tiers).join(', ')}`)
+    console.log(`encoded ${c.id} (q${quality}): ${Object.values(tiers).join(', ')} [${Object.values(bytes).map((b) => (b / 1024).toFixed(0) + 'KB').join(', ')}]`)
   }
 
   await writeFile('src/services/photos/photos.json', JSON.stringify(manifest, null, 2) + '\n')

@@ -3,11 +3,14 @@ export type PhotoTier = '2560x1600' | '3840x2400'
 /**
  * Picks which bundled AVIF tier to render: the 3840x2400 (4K) tier once the
  * display's physical pixel size — CSS max(width, height) times
- * devicePixelRatio — exceeds the 2560x1600 (2.5K) tier's own width, i.e. the
- * 2.5K asset would otherwise be upscaled to fill the viewport. Exactly at
- * the boundary (2560 physical px) the 2.5K tier is already a 1:1 match, so
- * it stays picked; only strictly past it does the 4K tier take over.
+ * devicePixelRatio — reaches 2400px, i.e. 1440p and up. This is deliberately
+ * generous rather than a strict "avoid upscaling" cutoff: a 4K source
+ * downscaled to fit a smaller viewport reads crisper than the 2.5K tier
+ * shown at its native resolution, because downscaling a higher-quality
+ * source hides lossy-encode softening that a 1:1 render would expose. Only
+ * displays below the 1440p-class threshold (maxCssDimension * DPR < 2400)
+ * fall back to the smaller 2.5K tier.
  */
 export function pickTier(maxCssDimension: number, devicePixelRatio: number): PhotoTier {
-  return maxCssDimension * devicePixelRatio > 2560 ? '3840x2400' : '2560x1600'
+  return maxCssDimension * devicePixelRatio >= 2400 ? '3840x2400' : '2560x1600'
 }

@@ -5,6 +5,11 @@
       "2560x1600": "01-Ovn1hyBge38-2560x1600.avif",
       "3840x2400": "01-Ovn1hyBge38-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 656968,
+      "3840x2400": 1868762
+    },
     "label": "Photo by v2osk",
     "photographer": "v2osk",
     "license": "Unsplash License",
@@ -15,6 +20,11 @@
     "tiers": {
       "2560x1600": "02-vUePu7hAYAQ-2560x1600.avif",
       "3840x2400": "02-vUePu7hAYAQ-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 188722,
+      "3840x2400": 388084
     },
     "label": "Photo by Serey Kim",
     "photographer": "Serey Kim",
@@ -27,6 +37,11 @@
       "2560x1600": "03-1uwLmA5LFfg-2560x1600.avif",
       "3840x2400": "03-1uwLmA5LFfg-3840x2400.avif"
     },
+    "q": 90,
+    "bytes": {
+      "2560x1600": 2295267,
+      "3840x2400": 5091152
+    },
     "label": "Photo by Jussi Hellsten",
     "photographer": "Jussi Hellsten",
     "license": "Unsplash License",
@@ -37,6 +52,11 @@
     "tiers": {
       "2560x1600": "04-DmA484UHAzw-2560x1600.avif",
       "3840x2400": "04-DmA484UHAzw-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 591618,
+      "3840x2400": 1260797
     },
     "label": "Photo by Jon Anders Dalan",
     "photographer": "Jon Anders Dalan",
@@ -49,6 +69,11 @@
       "2560x1600": "05--wEFdRCG4IU-2560x1600.avif",
       "3840x2400": "05--wEFdRCG4IU-3840x2400.avif"
     },
+    "q": 90,
+    "bytes": {
+      "2560x1600": 1494070,
+      "3840x2400": 3272710
+    },
     "label": "Photo by Robson Hatsukami Morgan",
     "photographer": "Robson Hatsukami Morgan",
     "license": "Unsplash License",
@@ -59,6 +84,11 @@
     "tiers": {
       "2560x1600": "06-oMcTmNHclZI-2560x1600.avif",
       "3840x2400": "06-oMcTmNHclZI-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 439179,
+      "3840x2400": 1030142
     },
     "label": "Photo by Condor Wei",
     "photographer": "Condor Wei",
@@ -71,6 +101,11 @@
       "2560x1600": "07-UZOpP-YHe9Q-2560x1600.avif",
       "3840x2400": "07-UZOpP-YHe9Q-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 493624,
+      "3840x2400": 1510400
+    },
     "label": "Photo by Sami Matias Breilin",
     "photographer": "Sami Matias Breilin",
     "license": "Unsplash License",
@@ -81,6 +116,11 @@
     "tiers": {
       "2560x1600": "08-JWHSIG1kM2c-2560x1600.avif",
       "3840x2400": "08-JWHSIG1kM2c-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 998421,
+      "3840x2400": 2545242
     },
     "label": "Photo by Federico Di Dio photography",
     "photographer": "Federico Di Dio photography",
@@ -93,6 +133,11 @@
       "2560x1600": "09-x-XwnC7FgFM-2560x1600.avif",
       "3840x2400": "09-x-XwnC7FgFM-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 213761,
+      "3840x2400": 801937
+    },
     "label": "Photo by Pinal Jain",
     "photographer": "Pinal Jain",
     "license": "Unsplash License",
@@ -103,6 +148,11 @@
     "tiers": {
       "2560x1600": "10-evJh_sTH0b8-2560x1600.avif",
       "3840x2400": "10-evJh_sTH0b8-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 505313,
+      "3840x2400": 1265223
     },
     "label": "Photo by Renato Muolo",
     "photographer": "Renato Muolo",
@@ -115,6 +165,11 @@
       "2560x1600": "11-I_n_b44cqhk-2560x1600.avif",
       "3840x2400": "11-I_n_b44cqhk-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 885942,
+      "3840x2400": 2126599
+    },
     "label": "Photo by Simon Lohmann",
     "photographer": "Simon Lohmann",
     "license": "Unsplash License",
@@ -125,6 +180,11 @@
     "tiers": {
       "2560x1600": "12-YKN_G9L9nMA-2560x1600.avif",
       "3840x2400": "12-YKN_G9L9nMA-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 1033766,
+      "3840x2400": 2356255
     },
     "label": "Photo by Toan Chu",
     "photographer": "Toan Chu",
@@ -137,6 +197,11 @@
       "2560x1600": "14-iOvuSPwZLFY-2560x1600.avif",
       "3840x2400": "14-iOvuSPwZLFY-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 566413,
+      "3840x2400": 1010225
+    },
     "label": "Photo by Siru Zhou",
     "photographer": "Siru Zhou",
     "license": "Unsplash License",
@@ -147,6 +212,11 @@
     "tiers": {
       "2560x1600": "15-2Hzmz15wGik-2560x1600.avif",
       "3840x2400": "15-2Hzmz15wGik-3840x2400.avif"
+    },
+    "q": 90,
+    "bytes": {
+      "2560x1600": 1655963,
+      "3840x2400": 4044851
     },
     "label": "Photo by pine watt",
     "photographer": "pine watt",
@@ -159,6 +229,11 @@
       "2560x1600": "16-ljDlHHMqHRg-2560x1600.avif",
       "3840x2400": "16-ljDlHHMqHRg-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 1302056,
+      "3840x2400": 2543874
+    },
     "label": "Photo by Nadjib Bouarar",
     "photographer": "Nadjib Bouarar",
     "license": "Unsplash License",
@@ -169,6 +244,11 @@
     "tiers": {
       "2560x1600": "17-sp-p7uuT0tw-2560x1600.avif",
       "3840x2400": "17-sp-p7uuT0tw-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 746150,
+      "3840x2400": 1423068
     },
     "label": "Photo by Sebastian Unrau",
     "photographer": "Sebastian Unrau",
@@ -181,6 +261,11 @@
       "2560x1600": "18-ESkw2ayO2As-2560x1600.avif",
       "3840x2400": "18-ESkw2ayO2As-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 1137192,
+      "3840x2400": 2216882
+    },
     "label": "Photo by Luca Bravo",
     "photographer": "Luca Bravo",
     "license": "Unsplash License",
@@ -191,6 +276,11 @@
     "tiers": {
       "2560x1600": "21-meFvVI-mz0k-2560x1600.avif",
       "3840x2400": "21-meFvVI-mz0k-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 792699,
+      "3840x2400": 2196070
     },
     "label": "Photo by Oleksii Piekhov",
     "photographer": "Oleksii Piekhov",
@@ -203,6 +293,11 @@
       "2560x1600": "23-23tpftFIAD0-2560x1600.avif",
       "3840x2400": "23-23tpftFIAD0-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 86672,
+      "3840x2400": 230692
+    },
     "label": "Photo by Reed Naliboff",
     "photographer": "Reed Naliboff",
     "license": "Unsplash License",
@@ -213,6 +308,11 @@
     "tiers": {
       "2560x1600": "24-0s9oD70F-l4-2560x1600.avif",
       "3840x2400": "24-0s9oD70F-l4-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 388930,
+      "3840x2400": 1429761
     },
     "label": "Photo by Andrew Svk",
     "photographer": "Andrew Svk",
@@ -225,6 +325,11 @@
       "2560x1600": "25-GeReAnOMiZ8-2560x1600.avif",
       "3840x2400": "25-GeReAnOMiZ8-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 307125,
+      "3840x2400": 838959
+    },
     "label": "Photo by Ze Paulo Galveias",
     "photographer": "Ze Paulo Galveias",
     "license": "Unsplash License",
@@ -236,6 +341,11 @@
       "2560x1600": "27-nasa-iss072e159172-2560x1600.avif",
       "3840x2400": "27-nasa-iss072e159172-3840x2400.avif"
     },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 660066,
+      "3840x2400": 1940601
+    },
     "label": "Photo by NASA / Expedition 72 crew",
     "photographer": "NASA / Expedition 72 crew",
     "license": "Public Domain (NASA, U.S. government work)",
@@ -246,6 +356,11 @@
     "tiers": {
       "2560x1600": "31-commons-denali-aurora-2560x1600.avif",
       "3840x2400": "31-commons-denali-aurora-3840x2400.avif"
+    },
+    "q": 80,
+    "bytes": {
+      "2560x1600": 396368,
+      "3840x2400": 940191
     },
     "label": "Photo by Mary Lewandowski / NPS",
     "photographer": "Mary Lewandowski / NPS",
