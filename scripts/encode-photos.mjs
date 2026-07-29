@@ -14,6 +14,17 @@
 // reads via src/services/photos/index.ts). Re-running is idempotent and
 // will never resurrect an excluded candidate, because the exclusion lives
 // in photo-candidates.json itself, not in this script.
+//
+// DECODE-TIMING RECORD (measured 2026-07-29, headless Chromium via
+// HTMLImageElement.decode(), 5 runs each, post-q80/q90 re-encode):
+//   2560-tier median file (657KB):  ~36ms   — under the ~50ms comfort bar
+//   3840-tier median file (1.51MB): ~68ms   — over the bar, judged acceptable:
+//   3840-tier largest file (5.09MB, the one q90 override): ~136-165ms
+// Ruling (controller): the bg-fallback gradient paints instantly and the
+// 700ms opacity fade-in makes decode latency read as an entrance, not a
+// stall, so no quality was traded away. If snappier photo-in is ever
+// wanted, the right fix is a blur-up swap (paint the 2560 tier immediately,
+// swap to 3840 when decoded) — not lowering q.
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import sharp from 'sharp'
 
