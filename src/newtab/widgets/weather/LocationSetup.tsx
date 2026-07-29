@@ -1,15 +1,68 @@
-import { useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { searchCity } from '../../../services/weather/geocode'
 import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
 
+const SEARCH_DEBOUNCE_MS = 300
+const MIN_QUERY_LENGTH = 2
+// Kept clear of the viewport edge when the dropdown is nudged back on-screen
+// — same constant/purpose as FolderPopover's EDGE_MARGIN.
+const EDGE_MARGIN = 8
+
 export default function LocationSetup() {
   const storage = useStorage()
   const [query, setQuery] = useState('')
-  const [matches, setMatches] = useState<GeoMatch[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Typeahead state, entirely separate from the geolocation flow's busy/error
+  // above. `open` tracks whether the dropdown should be visible — it's only
+  // ever flipped true alongside a non-empty `results` or `noMatches`, so
+  // there's never a moment where it's showing an empty, resultless list
+  // (no spinner theater: while a search is debouncing or in flight, `open`
+  // simply stays whatever it last was, usually false).
+  const [results, setResults] = useState<GeoMatch[]>([])
+  const [noMatches, setNoMatches] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const [edgeShift, setEdgeShift] = useState(0)
+  const listRef = useRef<HTMLUListElement>(null)
+
+  // Weather is a freely-repositionable widget (arrange mode) that can end up
+  // anywhere on screen, including hard against the right edge — where a
+  // fixed-width dropdown anchored `left-0` would run off-screen unreadable.
+  // Same fix as FolderPopover.tsx: measure once per open/result-set change
+  // and nudge left by the smallest amount that brings the right edge back
+  // within EDGE_MARGIN (jsdom has no layout engine, so getBoundingClientRect
+  // is an all-zero rect there — the width===0 guard makes this a no-op in
+  // tests unless a test deliberately mocks it).
+  useLayoutEffect(() => {
+    if (!open) return
+    const el = listRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    if (rect.width === 0) return
+    if (rect.left < EDGE_MARGIN) setEdgeShift(EDGE_MARGIN - rect.left)
+    else if (rect.right > window.innerWidth - EDGE_MARGIN) {
+      setEdgeShift(window.innerWidth - EDGE_MARGIN - rect.right)
+    } else setEdgeShift(0)
+  }, [open, results, noMatches])
+
+  // Debounce timer + in-flight abort controller, both held in refs (not
+  // state) since neither should ever trigger a re-render on its own — same
+  // idiom as NotesPanel's saveTimeoutRef.
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const controllerRef = useRef<AbortController | null>(null)
+
+  // Abort whatever's outstanding on unmount so a response that arrives after
+  // the component is gone never touches state.
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current !== null) clearTimeout(searchTimeoutRef.current)
+      controllerRef.current?.abort()
+    }
+  }, [])
 
   async function useDevice() {
     setBusy(true)
@@ -36,21 +89,97 @@ export default function LocationSetup() {
     )
   }
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault()
-    if (!query.trim()) return
-    setBusy(true)
-    setError(null)
-    try {
-      const found = await searchCity(query)
-      setMatches(found)
-      if (found.length === 0) setError('No matching city found.')
-    } catch {
-      setError('City search failed — are you offline?')
-    } finally {
-      setBusy(false)
+  // Driven from the input's onChange, not a useEffect keyed on `query` — a
+  // programmatic setQuery (see selectResult below, which writes the chosen
+  // label back into the input) must NOT re-trigger a search, and routing the
+  // debounce through this handler rather than an effect is what makes that
+  // true for free, no "did this change come from a select?" ref needed.
+  function handleQueryChange(value: string) {
+    setQuery(value)
+    setActiveIndex(-1)
+
+    if (searchTimeoutRef.current !== null) {
+      clearTimeout(searchTimeoutRef.current)
+      searchTimeoutRef.current = null
+    }
+    // Cancel whatever's still in flight from a previous keystroke — belt and
+    // suspenders alongside the `controller.signal.aborted` checks below,
+    // which are what actually guarantee a late, stale response can never
+    // clobber a newer one (they hold regardless of whether the fetch mock in
+    // a given test honors AbortSignal at all).
+    controllerRef.current?.abort()
+
+    const trimmed = value.trim()
+    if (trimmed.length < MIN_QUERY_LENGTH) {
+      setResults([])
+      setNoMatches(false)
+      setOpen(false)
+      return
+    }
+
+    searchTimeoutRef.current = setTimeout(() => {
+      searchTimeoutRef.current = null
+      const controller = new AbortController()
+      controllerRef.current = controller
+      const abortableFetch: typeof fetch = (input, init) =>
+        fetch(input, { ...init, signal: controller.signal })
+
+      searchCity(trimmed, abortableFetch)
+        .then((found) => {
+          if (controller.signal.aborted) return
+          setResults(found)
+          setNoMatches(found.length === 0)
+          setOpen(true)
+          setActiveIndex(-1)
+        })
+        .catch(() => {
+          // Quiet failure, same convention as the rest of the app — a
+          // typeahead dropdown is not the place for an error banner.
+          if (controller.signal.aborted) return
+          setResults([])
+          setNoMatches(false)
+          setOpen(false)
+        })
+    }, SEARCH_DEBOUNCE_MS)
+  }
+
+  function selectResult(index: number) {
+    const m = results[index]
+    if (!m) return
+    void storage.set('location', { lat: m.lat, lon: m.lon, label: m.name, manual: true })
+    setQuery(m.name)
+    setOpen(false)
+    setActiveIndex(-1)
+  }
+
+  function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'ArrowDown') {
+      if (results.length === 0) return
+      e.preventDefault()
+      setActiveIndex((i) => (i >= results.length - 1 ? 0 : i + 1))
+    } else if (e.key === 'ArrowUp') {
+      if (results.length === 0) return
+      e.preventDefault()
+      setActiveIndex((i) => (i <= 0 ? results.length - 1 : i - 1))
+    } else if (e.key === 'Enter') {
+      if (results.length === 0) return
+      e.preventDefault()
+      // No arrowed-to option yet — Enter picks the top match, preserving the
+      // old "type, then Enter" muscle memory from before typeahead existed.
+      selectResult(activeIndex === -1 ? 0 : activeIndex)
+    } else if (e.key === 'Escape' && open) {
+      // Deliberate inner consumer (same precedent as TodoPanel's draft-name
+      // input): stop this Escape from reaching the shared dialog stack so it
+      // closes only the suggestion list, never a dialog this widget happens
+      // to be inside. The list isn't itself a dialog, so it doesn't register
+      // with useDialogEscape — this stopPropagation is the only thing
+      // standing between it and whatever's on top of that stack.
+      e.stopPropagation()
+      setOpen(false)
     }
   }
+
+  const activeId = activeIndex !== -1 ? `location-option-${activeIndex}` : undefined
 
   return (
     <div className="flex flex-col gap-2 text-sm">
@@ -63,39 +192,57 @@ export default function LocationSetup() {
       >
         Use my location
       </button>
-      <form onSubmit={search} className="flex gap-1">
+      <div className="relative w-40">
         <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="or search a city"
+          role="combobox"
+          aria-expanded={open}
+          aria-controls="location-listbox"
+          aria-activedescendant={activeId}
+          aria-autocomplete="list"
           aria-label="Search for a city"
+          autoComplete="off"
+          value={query}
+          onChange={(e) => handleQueryChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="or search a city"
           className="w-40 border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
         />
-      </form>
-      {matches && matches.length > 0 && (
-        <ul className="flex max-h-56 flex-col gap-1 overflow-y-auto">
-          {matches.map((m) => (
-            <li key={`${m.lat},${m.lon}`}>
-              <button
-                type="button"
-                onClick={() =>
-                  storage.set('location', {
-                    lat: m.lat,
-                    lon: m.lon,
-                    label: m.name,
-                    manual: true,
-                  })
-                }
-                className="text-left text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-              >
-                {m.name}
-                {m.admin1 ? `, ${m.admin1}` : ''}
-                {m.country ? ` · ${m.country}` : ''}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+        {open && (
+          <ul
+            ref={listRef}
+            id="location-listbox"
+            role="listbox"
+            aria-label="City suggestions"
+            style={edgeShift ? { left: edgeShift } : undefined}
+            className="absolute left-0 top-full z-10 mt-1 w-72 max-h-56 overflow-y-auto rounded-panel border border-panel-border bg-[#17171c]/95 p-1 text-fg backdrop-blur-[var(--panel-blur)]"
+          >
+            {results.length === 0 && noMatches && (
+              <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>
+            )}
+            {results.map((m, i) => {
+              const secondary = [m.admin1, m.country].filter(Boolean).join(', ')
+              return (
+                <li
+                  key={`${m.lat},${m.lon}`}
+                  id={`location-option-${i}`}
+                  role="option"
+                  aria-selected={i === activeIndex}
+                  onMouseEnter={() => setActiveIndex(i)}
+                  onClick={() => selectResult(i)}
+                  className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm ${
+                    i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
+                  }`}
+                >
+                  <span className="truncate">{m.name}</span>
+                  {secondary && (
+                    <span className="truncate text-xs text-fg-muted">— {secondary}</span>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
       {error && <p className="text-fg-muted">{error}</p>}
     </div>
   )

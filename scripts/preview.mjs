@@ -247,6 +247,54 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
 console.log('captured weather-expanded.png')
 
+// Location search typeahead: clear the seeded location so LocationSetup
+// (src/newtab/widgets/weather/LocationSetup.tsx) mounts inside the Weather
+// widget in place of the snapshot above, then type into its combobox and
+// confirm Open-Meteo's geocoder returns live suggestions as-you-type
+// (debounced ~300ms), not only after pressing Enter. A REAL network call —
+// acceptable for preview, never for unit tests (those mock fetch at the
+// service boundary; see LocationSetup.test.tsx).
+await page.evaluate(() => chrome.storage.local.set({ location: null }))
+await page.waitForSelector('[role="combobox"][aria-label="Search for a city"]')
+await page.click('[role="combobox"][aria-label="Search for a city"]')
+await page.keyboard.type('Dall', { delay: 60 })
+await page
+  .waitForSelector('[role="listbox"]', { timeout: 5000 })
+  .catch(() => {}) // real network call — the PASS/FAIL line below reports honestly either way
+await page.waitForTimeout(200)
+await page.screenshot({ path: `${outDir}/location-typeahead.png` })
+console.log('captured location-typeahead.png')
+
+const suggestionCount = await page.locator('[role="option"]').count()
+console.log(
+  suggestionCount >= 1
+    ? `PASS: location typeahead shows live suggestions while typing (${suggestionCount} row(s))`
+    : 'FAIL: location typeahead shows live suggestions while typing (0 rows after debounce)',
+)
+
+// Escape must close the suggestion list without clearing what was typed, and
+// without doing anything else (no drawer/dialog to close here — the widget
+// sits directly on the page).
+await page.keyboard.press('Escape')
+await page.waitForTimeout(150)
+const listClosedAfterEscape = (await page.locator('[role="listbox"]').count()) === 0
+const inputAfterEscape = await page
+  .locator('[role="combobox"][aria-label="Search for a city"]')
+  .inputValue()
+console.log(
+  listClosedAfterEscape && inputAfterEscape === 'Dall'
+    ? 'PASS: Escape closes the suggestion list without clearing the input'
+    : `FAIL: Escape closes the suggestion list without clearing the input (list closed: ${listClosedAfterEscape}, input: "${inputAfterEscape}")`,
+)
+
+// Restore the seeded New York location so nothing captured further down
+// (to-do panel, palette, notes, gallery, arrange mode) is destabilized by
+// the weather widget having no location again.
+await page.evaluate(() =>
+  chrome.storage.local.set({ location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true } }),
+)
+await page.waitForTimeout(300)
+
 // Open the to-do panel, add a task, and capture it
 await page.click('button:has-text("Tasks")')
 await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')

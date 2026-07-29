@@ -83,9 +83,10 @@ to watch the run in a visible browser window instead of headless.
 
 Weather is powered by [Open-Meteo](https://open-meteo.com/), a free service
 that needs no API key and no sign-up. Aurora sends it only a latitude and
-longitude (rounded to ~1km) and, for city search, whatever you type into the
-city search box. Your location is stored locally and is never sent anywhere
-else.
+longitude (rounded to ~1km) and, for city search, whatever you've typed into
+the city search box so far — suggestions filter as you type (debounced, so
+it's not a call per keystroke), not only after you press Enter. Your location
+is stored locally and is never sent anywhere else.
 
 ## Adding a theme
 
@@ -149,10 +150,13 @@ is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 
-The **only** outbound network calls Aurora ever makes are to Open-Meteo
-(`api.open-meteo.com` for forecasts, `geocoding-api.open-meteo.com` for city
-search), and only when the weather widget is enabled and a location is set —
-plus a single keyless reverse-geocode lookup (`api.bigdatacloud.net`) at the
+The **only** outbound network calls Aurora ever makes are to Open-Meteo: the
+forecast endpoint (`api.open-meteo.com`), only once the weather widget is
+enabled and a location is set, and the geocoder (`geocoding-api.open-meteo.com`),
+only while the widget is enabled and you're actively searching for a city —
+queried as you type (debounced by ~300ms, at least 2 characters), not only
+when you press Enter — plus a single keyless reverse-geocode lookup
+(`api.bigdatacloud.net`) at the
 moment you click "Use my location", so the widget can label your weather with
 a real place name. That lookup happens once, only for device location, and
 sends the same ~1 km-rounded coordinates the forecast call already uses.
