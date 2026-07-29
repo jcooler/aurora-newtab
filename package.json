@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "build:preview": "tsc --noEmit && vite build --mode preview",
+    "pretest": "node scripts/verify-photo-manifest.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "verify:photos": "node scripts/verify-photo-manifest.mjs"

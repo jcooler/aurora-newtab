@@ -1,11 +1,9 @@
 // Dev-time only. Builds numbered contact sheets from the downloaded
 // candidates in .photo-work/candidates/ (per scripts/photo-candidates.json)
 // for visual controller review/cull, plus one full-resolution quality-sample
-// crop demonstrating native-res detail vs. the current picsum-proxied
-// pipeline. Nothing here ships in the extension. Run after build-candidates.mjs:
-// `node scripts/contact-sheet.mjs`
+// crop demonstrating native-res detail. Nothing here ships in the
+// extension. Run after build-candidates.mjs: `node scripts/contact-sheet.mjs`
 import { readFile, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
 import sharp from 'sharp'
 
 const CANDIDATES_DIR = '.photo-work/candidates'
@@ -103,57 +101,23 @@ async function buildQualitySample() {
     .extract({ left: nLeft, top: nTop, width: CROP_W, height: CROP_H })
     .toBuffer()
 
-  // Current pipeline representative: this used to be public/photos/p01.webp,
-  // capped at 1920x1200 by the now-retired picsum proxy (the defect phase B
-  // replaced). That file no longer ships — skip the comparison half of this
-  // sample gracefully if it's gone rather than crashing a future re-run;
-  // the numbered contact sheets above remain fully functional either way.
-  const currentPath = 'public/photos/p01.webp'
-  if (!existsSync(currentPath)) {
-    console.log(
-      `skip: quality-sample comparison (${currentPath} no longer exists — the picsum-era pipeline it demonstrated was retired in phase B)`,
-    )
-    return
-  }
-  const currentMeta = await sharp(currentPath).metadata()
-  const fracW = CROP_W / nativeMeta.width
-  const fracH = CROP_H / nativeMeta.height
-  const cCropW = Math.max(1, Math.round(currentMeta.width * fracW))
-  const cCropH = Math.max(1, Math.round(currentMeta.height * fracH))
-  const cLeft = Math.max(0, Math.round((currentMeta.width - cCropW) / 2))
-  const cTop = Math.max(0, Math.round((currentMeta.height - cCropH) / 2))
-  const currentCrop = await sharp(currentPath)
-    .extract({ left: cLeft, top: cTop, width: cCropW, height: cCropH })
-    .resize(CROP_W, CROP_H, { kernel: 'cubic' }) // upscaled, same as a browser would do
-    .toBuffer()
-
   const LABEL_H2 = 56
-  const GAP = 24
-  const width = CROP_W * 2 + GAP + MARGIN * 2
+  const width = CROP_W + MARGIN * 2
   const height = CROP_H + LABEL_H2 + MARGIN * 2
 
-  const labelLeft = Buffer.from(`
+  const label = Buffer.from(`
     <svg width="${CROP_W}" height="${LABEL_H2}" xmlns="http://www.w3.org/2000/svg">
       <rect width="100%" height="100%" fill="#111318"/>
       <text x="8" y="22" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">Native-res candidate — #${nativeCandidate.num} ${nativeCandidate.id} (${nativeMeta.width}x${nativeMeta.height} source)</text>
       <text x="8" y="42" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9aa0ab">1200x800 center crop, no upscaling</text>
     </svg>
   `)
-  const labelRight = Buffer.from(`
-    <svg width="${CROP_W}" height="${LABEL_H2}" xmlns="http://www.w3.org/2000/svg">
-      <rect width="100%" height="100%" fill="#111318"/>
-      <text x="8" y="22" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="700" fill="#ffffff">Current pipeline — public/photos/p01.webp (${currentMeta.width}x${currentMeta.height} source)</text>
-      <text x="8" y="42" font-family="Segoe UI, Arial, sans-serif" font-size="13" fill="#9aa0ab">Same proportional crop region, upscaled to match — shows the 1920x1200 cap's softness</text>
-    </svg>
-  `)
 
   const canvas = sharp({
     create: { width, height, channels: 4, background: { r: 8, g: 9, b: 12, alpha: 1 } },
   }).composite([
-    { input: labelLeft, left: MARGIN, top: MARGIN },
+    { input: label, left: MARGIN, top: MARGIN },
     { input: nativeCrop, left: MARGIN, top: MARGIN + LABEL_H2 },
-    { input: labelRight, left: MARGIN + CROP_W + GAP, top: MARGIN },
-    { input: currentCrop, left: MARGIN + CROP_W + GAP, top: MARGIN + LABEL_H2 },
   ])
 
   const outPath = `${OUT_DIR}/quality-sample.png`

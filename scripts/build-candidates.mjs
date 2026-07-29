@@ -7,13 +7,39 @@
 // encode). Every candidate below was visually vetted on unsplash.com before
 // being listed here: no people, no man-made focal subject, landscape/sky
 // only. Re-run with `node scripts/build-candidates.mjs`.
-import { mkdir, writeFile } from 'node:fs/promises'
+//
+// Idempotent re-runs: the existing scripts/photo-candidates.json (if any) is
+// read FIRST and merged in by id — any controller-added `excluded`/`flag`
+// (or other field this script doesn't itself compute) on a known id is
+// carried forward onto the freshly-fetched entry rather than being wiped by
+// the overwrite. Only ids with no matching entry in the existing manifest
+// are genuinely new, appended with nothing to merge. This is what makes
+// re-runs safe to do after curation — they can never resurrect an excluded
+// candidate (including the two where people are visible in-frame).
+//
+// `--merge-only`: skips every network fetch and sharp probe, sourcing each
+// candidate's width/height from the existing manifest entry instead of
+// downloading. Exists to exercise/demonstrate the merge logic offline,
+// without re-pulling ~30 native-res originals; any candidate id not already
+// in the existing manifest is skipped (logged) since there's no way to know
+// its real dimensions without a real network run. Not a substitute for a
+// real run when the candidate set actually changes.
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import sharp from 'sharp'
 
 const UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36'
 
 const OUT_DIR = '.photo-work/candidates'
+const MANIFEST_PATH = 'scripts/photo-candidates.json'
+const MERGE_ONLY = process.argv.includes('--merge-only')
+
+// Fields this script computes fresh on every run. Anything else found on an
+// existing manifest entry (excluded, flag, or a future unrecognized field)
+// is controller-owned annotation and gets carried forward untouched.
+const KNOWN_KEYS = new Set([
+  'num', 'file', 'id', 'category', 'description', 'photographer', 'source', 'profile', 'license', 'width', 'height',
+])
 
 // --- Unsplash candidates -----------------------------------------------
 // id: Unsplash photo id. slug: full page-path fragment for credit URLs.
@@ -137,8 +163,32 @@ async function fetchBuffer(url, referer) {
   return Buffer.from(await res.arrayBuffer())
 }
 
+async function loadExistingManifest() {
+  try {
+    const raw = await readFile(MANIFEST_PATH, 'utf8')
+    return new Map(JSON.parse(raw).map((c) => [c.id, c]))
+  } catch (err) {
+    if (err.code === 'ENOENT') return new Map()
+    throw err
+  }
+}
+
+// Carries forward any controller-owned field (excluded, flag, ...) from the
+// previous manifest entry with the same id onto a freshly-built entry, so a
+// re-run can never resurrect an excluded photo.
+function withPreservedFields(freshEntry, existingById) {
+  const existing = existingById.get(freshEntry.id)
+  if (!existing) return freshEntry
+  const preserved = {}
+  for (const [key, value] of Object.entries(existing)) {
+    if (!KNOWN_KEYS.has(key) && !(key in freshEntry)) preserved[key] = value
+  }
+  return { ...freshEntry, ...preserved }
+}
+
 async function main() {
-  await mkdir(OUT_DIR, { recursive: true })
+  const existingById = await loadExistingManifest()
+  if (!MERGE_ONLY) await mkdir(OUT_DIR, { recursive: true })
   const manifest = []
   let n = 0
   const skipped = []
@@ -148,31 +198,47 @@ async function main() {
     const seq = String(n).padStart(2, '0')
     const file = `${seq}-${c.id}.jpg`
     try {
-      const buf = await fetchBuffer(
-        `https://unsplash.com/photos/${c.id}/download?force=true`,
-        `https://unsplash.com/photos/${c.slug}`,
-      )
-      const meta = await sharp(buf).metadata()
-      if (!meta.width || meta.width < 3840) {
-        skipped.push({ id: c.id, reason: `native width ${meta.width} < 3840` })
-        n--
-        continue
+      let width, height
+      if (MERGE_ONLY) {
+        const existing = existingById.get(c.id)
+        if (!existing) {
+          skipped.push({ id: c.id, reason: '--merge-only: no cached dimensions (not in existing manifest)' })
+          n--
+          continue
+        }
+        ;({ width, height } = existing)
+      } else {
+        const buf = await fetchBuffer(
+          `https://unsplash.com/photos/${c.id}/download?force=true`,
+          `https://unsplash.com/photos/${c.slug}`,
+        )
+        const meta = await sharp(buf).metadata()
+        if (!meta.width || meta.width < 3840) {
+          skipped.push({ id: c.id, reason: `native width ${meta.width} < 3840` })
+          n--
+          continue
+        }
+        await writeFile(`${OUT_DIR}/${file}`, buf)
+        ;({ width, height } = meta)
       }
-      await writeFile(`${OUT_DIR}/${file}`, buf)
-      manifest.push({
-        num: n,
-        file,
-        id: c.id,
-        category: c.category,
-        description: c.desc,
-        photographer: c.photographer,
-        source: `https://unsplash.com/photos/${c.slug}`,
-        profile: `https://unsplash.com/@${c.handle}`,
-        license: 'Unsplash License',
-        width: meta.width,
-        height: meta.height,
-      })
-      console.log(`[ok] ${file} — ${meta.width}x${meta.height} — ${c.photographer}`)
+      const entry = withPreservedFields(
+        {
+          num: n,
+          file,
+          id: c.id,
+          category: c.category,
+          description: c.desc,
+          photographer: c.photographer,
+          source: `https://unsplash.com/photos/${c.slug}`,
+          profile: `https://unsplash.com/@${c.handle}`,
+          license: 'Unsplash License',
+          width,
+          height,
+        },
+        existingById,
+      )
+      manifest.push(entry)
+      console.log(`[ok] ${file} — ${width}x${height} — ${c.photographer}${entry.excluded ? ' (excluded)' : ''}`)
     } catch (err) {
       skipped.push({ id: c.id, reason: err.message })
       console.warn(`[skip] ${c.id}: ${err.message}`)
@@ -185,29 +251,45 @@ async function main() {
     const seq = String(n).padStart(2, '0')
     const file = `${seq}-${s.id}.jpg`
     try {
-      const buf = await fetchBuffer(s.downloadUrl)
-      const meta = await sharp(buf).metadata()
-      if (!meta.width || meta.width < 3840) {
-        skipped.push({ id: s.id, reason: `native width ${meta.width} < 3840` })
-        n--
-        continue
+      let width, height
+      if (MERGE_ONLY) {
+        const existing = existingById.get(s.id)
+        if (!existing) {
+          skipped.push({ id: s.id, reason: '--merge-only: no cached dimensions (not in existing manifest)' })
+          n--
+          continue
+        }
+        ;({ width, height } = existing)
+      } else {
+        const buf = await fetchBuffer(s.downloadUrl)
+        const meta = await sharp(buf).metadata()
+        if (!meta.width || meta.width < 3840) {
+          skipped.push({ id: s.id, reason: `native width ${meta.width} < 3840` })
+          n--
+          continue
+        }
+        await writeFile(`${OUT_DIR}/${file}`, buf)
+        ;({ width, height } = meta)
       }
-      await writeFile(`${OUT_DIR}/${file}`, buf)
-      manifest.push({
-        num: n,
-        file,
-        id: s.id,
-        category: s.category,
-        description: s.desc,
-        photographer: s.photographer,
-        source: s.sourcePage,
-        profile: null,
-        license: s.license,
-        width: meta.width,
-        height: meta.height,
-        ...(s.flag ? { flag: s.flag } : {}),
-      })
-      console.log(`[ok] ${file} — ${meta.width}x${meta.height} — ${s.photographer}`)
+      const entry = withPreservedFields(
+        {
+          num: n,
+          file,
+          id: s.id,
+          category: s.category,
+          description: s.desc,
+          photographer: s.photographer,
+          source: s.sourcePage,
+          profile: null,
+          license: s.license,
+          width,
+          height,
+          ...(s.flag ? { flag: s.flag } : {}),
+        },
+        existingById,
+      )
+      manifest.push(entry)
+      console.log(`[ok] ${file} — ${width}x${height} — ${s.photographer}${entry.excluded ? ' (excluded)' : ''}`)
     } catch (err) {
       skipped.push({ id: s.id, reason: err.message })
       console.warn(`[skip] ${s.id}: ${err.message}`)
@@ -215,8 +297,8 @@ async function main() {
     }
   }
 
-  await writeFile('scripts/photo-candidates.json', JSON.stringify(manifest, null, 2) + '\n')
-  console.log(`\nwrote scripts/photo-candidates.json with ${manifest.length} candidates`)
+  await writeFile(MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n')
+  console.log(`\nwrote ${MANIFEST_PATH} with ${manifest.length} candidates`)
   if (skipped.length) {
     console.log(`skipped ${skipped.length}:`)
     for (const s of skipped) console.log(`  - ${s.id}: ${s.reason}`)

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { useUploads } from '../../lib/hooks/useUploads'
-import { BUNDLED, bundledUrl, nextPhoto, pickTier, resolvePhoto } from '../../services/photos/index'
+import {
+  BUNDLED,
+  bundledUrl,
+  nextPhoto,
+  pickTier,
+  resolvePhoto,
+  type PhotoTier,
+} from '../../services/photos/index'
 import { todayKey } from '../../lib/dates'
 
 // Physical display size drives the tier pick (see pickTier's own doc): the
@@ -69,9 +76,39 @@ export default function Background({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per rotation
   }, [rotated, index, today, effectiveMode])
 
+  // Reactive tier pick (review fix): pickTier's inputs — physical display
+  // size + devicePixelRatio — used to be read once inline during render, so
+  // a window dragged from a 1080p panel to a 4K one (or moved to a
+  // higher-DPR display) kept the low tier until some UNRELATED re-render
+  // happened to re-evaluate it. This listens for resize, debounced ~250ms
+  // so an in-progress drag-resize doesn't recompute every frame, and only
+  // calls setTier with the freshly-picked value — React's own Object.is
+  // bail-out on an unchanged primitive means a resize that doesn't cross
+  // the tier boundary causes zero re-render/image-load churn. Self-
+  // contained: doesn't touch the rotation/upload effects above or get
+  // touched by arrange mode (App.tsx mounts Background as an ordinary
+  // sibling inside the arrange `inert` wrapper — this effect has no
+  // interaction with that).
+  const [tier, setTier] = useState<PhotoTier>(() =>
+    pickTier(physicalMaxDimension(), window.devicePixelRatio || 1),
+  )
+  useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const handleResize = () => {
+      clearTimeout(timeoutId)
+      timeoutId = setTimeout(() => {
+        setTier(pickTier(physicalMaxDimension(), window.devicePixelRatio || 1))
+      }, 250)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      clearTimeout(timeoutId)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
   // bundledUrl must never run with an empty set (or in gradient mode) — an
   // out-of-range access would throw during render and blank the whole page.
-  const tier = pickTier(physicalMaxDimension(), window.devicePixelRatio || 1)
   const src =
     effectiveMode === 'upload'
       ? uploadPhotoUrl

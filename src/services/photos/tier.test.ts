@@ -31,4 +31,17 @@ describe('pickTier', () => {
   it('treats a DPR of exactly the boundary ratio as still 2.5K (product == 2560)', () => {
     expect(pickTier(1280, 2)).toBe('2560x1600')
   })
+
+  // Fractional DPR (Windows 150% display scaling reports devicePixelRatio
+  // 1.5) can never land exactly on the 2560 boundary from an integer CSS
+  // dimension — 2560 / 1.5 = 1706.66..., not a whole logical pixel — so the
+  // two cases below pin the nearest integer on each side instead, matching
+  // exactly how a real 150%-scaled Windows display would report itself.
+  it('picks the 2.5K tier at DPR 1.5 just below the boundary (1706 CSS px * 1.5 = 2559 physical)', () => {
+    expect(pickTier(1706, 1.5)).toBe('2560x1600')
+  })
+
+  it('picks the 4K tier at DPR 1.5 just past the boundary (1707 CSS px * 1.5 = 2560.5 physical)', () => {
+    expect(pickTier(1707, 1.5)).toBe('3840x2400')
+  })
 })

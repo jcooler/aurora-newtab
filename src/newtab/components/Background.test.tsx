@@ -88,4 +88,46 @@ describe('Background', () => {
 
     expect(container.querySelector('img')?.getAttribute('src')).toContain('/photos/')
   })
+
+  it('re-picks the tier on a debounced resize instead of staying static for the session', () => {
+    const onPrefsChange = vi.fn()
+    const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+    const { container } = render(<Background prefs={prefs} onPrefsChange={onPrefsChange} />)
+    const initialSrc = container.querySelector('img')?.getAttribute('src')
+    expect(initialSrc).toBeTruthy()
+
+    // Bump devicePixelRatio well past what it would take to cross the tier
+    // boundary at any plausible jsdom default screen size, then fire resize.
+    const originalDpr = window.devicePixelRatio
+    Object.defineProperty(window, 'devicePixelRatio', { value: 3, configurable: true })
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+    })
+    // Still debounced — no re-render/src change yet.
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(initialSrc)
+
+    act(() => {
+      vi.advanceTimersByTime(250)
+    })
+    expect(container.querySelector('img')?.getAttribute('src')).not.toBe(initialSrc)
+
+    Object.defineProperty(window, 'devicePixelRatio', { value: originalDpr, configurable: true })
+  })
+
+  it('does not re-render when a resize settles back on the same tier', () => {
+    const onPrefsChange = vi.fn()
+    const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+    const { container } = render(<Background prefs={prefs} onPrefsChange={onPrefsChange} />)
+    const initialSrc = container.querySelector('img')?.getAttribute('src')
+
+    act(() => {
+      window.dispatchEvent(new Event('resize'))
+      vi.advanceTimersByTime(250)
+    })
+
+    // Same devicePixelRatio/screen size as mount, so the recomputed tier is
+    // identical — React's setState bail-out means the <img> (keyed on src)
+    // never remounts.
+    expect(container.querySelector('img')?.getAttribute('src')).toBe(initialSrc)
+  })
 })

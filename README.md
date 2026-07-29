@@ -82,7 +82,9 @@ node scripts/encode-photos.mjs         # dev-only: encodes every non-excluded ca
                                         # public/photos/ and writes
                                         # src/services/photos/photos.json with credits
 node scripts/verify-photo-manifest.mjs # dev-only: checks the photo manifest and its AVIF
-                                        # files are consistent (npm run verify:photos)
+                                        # files are consistent (npm run verify:photos — also
+                                        # runs automatically as `npm test`'s pretest hook, so
+                                        # a broken/incomplete photo manifest fails CI too)
 node scripts/make-icons.mjs            # dev-only: regenerates public/icons/icon{16,48,128}.png
                                         # from an inline SVG via Playwright
 ```
