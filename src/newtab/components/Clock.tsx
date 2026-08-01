@@ -18,13 +18,15 @@ export default function Clock() {
       // secondary type below, which steps via the `short`/`xshort` variants
       // — the clock is the one element worth a fluid curve, since it's the
       // single biggest overlap risk and the thing Jon actually screenshotted).
-      // `min()` can only ever pull the preferred value DOWN from the old
-      // 12vw-only curve, never up: at any viewport where height was already
-      // generous relative to width (the common case — vw was already the
-      // binding term, e.g. every existing preview capture at 1600x900+),
-      // 20vh comfortably exceeds 12vw and this resolves to the exact same
-      // value as before. It only engages when height is the scarcer
-      // dimension, exactly the short-window case this exists to fix.
+      // This curve is monotonically ≤ the old `clamp(6rem, 12vw, 10rem)` at
+      // every viewport (review-verified algebraically), via TWO mechanisms:
+      // (1) the `min()` height term engages when height is the scarcer
+      // dimension — the short-window case this exists to fix; (2) the floor
+      // dropped 6rem→3rem, which independently shrinks the clock on NARROW
+      // windows even at generous heights (e.g. 500x900: 96px→60px) so a
+      // skinny side-window isn't dominated by a floor-clamped clock. At
+      // standard sizes (1600x900 and up) both old and new saturate against
+      // the shared 10rem ceiling and render identically.
       className="text-photo font-display text-[clamp(3rem,min(12vw,20vh),10rem)] font-medium tabular-nums tracking-[-0.02em]"
     >
       {formatClock(now, settings.use24Hour)}

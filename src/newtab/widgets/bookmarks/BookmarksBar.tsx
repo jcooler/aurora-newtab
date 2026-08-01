@@ -192,7 +192,9 @@ function BookmarksBarInner({
       // proportionally with viewport width rather than to a fixed px value —
       // paired with WeatherWidget's own `tight:max-w-[30vw]`, the GAP between
       // the two panels' worst-case edges stays a constant width fraction
-      // (≈6vw, minus the two panels' fixed 4px/1rem edge insets) at every
+      // (8vw − 16px per the centered/right-anchored geometry: bar right edge
+      // 50vw + 24vw/2 = 62vw, weather left edge 100vw − 16px − 30vw = 70vw −
+      // 16px — review-verified; still ~10px even at an unreachable 320px) at every
       // width in this tier, instead of closing back up as the viewport
       // shrinks the way two independently-fixed px caps would. Existing
       // `flex-wrap` on this nav means a tighter cap just wraps chips onto
