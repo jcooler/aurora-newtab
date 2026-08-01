@@ -209,6 +209,11 @@ as a single JSON file:
   what Aurora expects — e.g. a hand-edited or corrupted value), Import shows
   why, names the field, and leaves your current data untouched.
 
+## Support
+
+If Aurora's useful to you, there's a quiet "☕ Buy me a coffee" link in
+Settings' footer — or go straight to [buymeacoffee.com/joncooler](https://buymeacoffee.com/joncooler).
+
 ## Privacy
 
 The full, standalone privacy policy (Chrome Web Store submission copy,

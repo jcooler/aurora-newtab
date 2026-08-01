@@ -285,6 +285,16 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/drawer-data.png` })
 console.log('captured drawer-data.png')
 
+// The quiet support-link footer (src/settings/sections/About.tsx) sits below
+// Layout, past the bottom of the drawer at this viewport height — a
+// dedicated capture proves it renders (version text + the Buy Me a Coffee
+// link) for the controller's visual gate, without disturbing the
+// drawer-data.png capture above.
+await page.locator('footer').scrollIntoViewIfNeeded()
+await page.waitForTimeout(150)
+await page.screenshot({ path: `${outDir}/drawer-footer.png` })
+console.log('captured drawer-footer.png')
+
 // Close the drawer, then expand the weather widget's hourly forecast
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400) // slide-out transition

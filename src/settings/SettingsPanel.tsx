@@ -11,6 +11,7 @@ import WorldClocks from './sections/WorldClocks'
 import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
+import About from './sections/About'
 
 export default function SettingsPanel({
   onArrangeLayout,
@@ -76,6 +77,8 @@ export default function SettingsPanel({
       <Data storage={storage} />
 
       <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
+
+      <About />
     </div>
   )
 }

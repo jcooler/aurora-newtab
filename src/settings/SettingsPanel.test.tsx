@@ -9,6 +9,10 @@ import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
+// Imported (not hardcoded) so the About footer's version assertion below
+// can't silently drift from package.json — the same file __APP_VERSION__ is
+// itself derived from at build time (see vite.config.ts / vitest.config.ts).
+import pkg from '../../package.json'
 
 // Only the Background section's gallery touches IndexedDB; mock the whole
 // module so those tests don't need real IndexedDB (unavailable in jsdom) —
@@ -835,5 +839,26 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Reset layout/ })).toBeNull()
+  })
+})
+
+describe('SettingsPanel About footer (support link + version)', () => {
+  it('renders after the last section with the current version and a working Buy Me a Coffee link', async () => {
+    await renderPanel()
+
+    // Only one <footer> in the tree (About.tsx) — asserted via a direct DOM
+    // query, same "raw DOM over toHaveAttribute" idiom this file's attr()
+    // helper documents, since the version/link text is split across sibling
+    // text nodes and an <a>, which getByText can't match as one string.
+    const footer = document.querySelector('footer')
+    expect(footer).not.toBeNull()
+    expect(footer!.textContent).toContain(`Aurora v${pkg.version}`)
+
+    const link = screen.getByRole('link', { name: 'Buy me a coffee — support Aurora' })
+    expect(footer!.contains(link)).toBe(true)
+    expect(attr(link, 'href')).toBe('https://buymeacoffee.com/joncooler')
+    expect(attr(link, 'target')).toBe('_blank')
+    const rel = (attr(link, 'rel') ?? '').split(/\s+/)
+    expect(rel).toEqual(expect.arrayContaining(['noopener', 'noreferrer']))
   })
 })
