@@ -654,6 +654,139 @@ console.log(
     : 'WARNING: arrange overlay still present after final reload',
 )
 
+// Viewport matrix (BINDING: media-query responsive pass) — the owner's own
+// ~1420x437 short-wide browser window is what surfaced this whole task: the
+// clock's old width-only clamp() rendered ~160px tall there and collided
+// with the greeting below it (see Clock.tsx's own comment on the fix). Reuses
+// this already-loaded, already-seeded page (idle at this point — default
+// Aurora theme, default layout, "Daily photo" source, timer/clocks/countdown
+// on, bookmarks on if the permission was grantable — see the seed block way
+// up top) rather than relaunching: a plain `page.setViewportSize` reflows the
+// existing DOM exactly like a real window resize would, which is the actual
+// thing under test here.
+const viewportMatrix = [
+  { w: 1420, h: 437 }, // the owner's own window — the original bug report
+  { w: 1280, h: 500 },
+  { w: 1024, h: 600 },
+  { w: 800, h: 450 },
+  { w: 2560, h: 1440 },
+]
+const launchViewport = { width: 1600, height: 900 } // this script's own launch size (top of file) — restored after
+let errorsSeenSoFar = errors.length
+for (const { w, h } of viewportMatrix) {
+  await page.setViewportSize({ width: w, height: h })
+  await page.waitForTimeout(300) // let resize listeners + layout settle
+  // Background.tsx's own tier-pick resize listener is separately debounced
+  // ~250ms and, if the physical size crosses the 2.5K/4K tier boundary (only
+  // 2560x1440 in this matrix does, going up from the launch viewport's
+  // 1600x900), swaps in a brand-new <img> that has to fetch+decode a much
+  // larger AVIF before its own 700ms opacity fade-in TRANSITION completes. A
+  // fixed short wait isn't reliable across that range of possible decode
+  // times (found via a real run: 2560x1440 screenshotted the bare gradient
+  // fallback, not the photo, on a flat 250ms wait) — wait for the actual
+  // condition instead: the photo img's own opacity-100 CLASS, the same
+  // fade-in signal Background.tsx uses. `div[aria-hidden] > img` is that
+  // layer's own img specifically (not a link/bookmark favicon, which also
+  // carry alt="" but sit elsewhere in the DOM) — absent entirely is also a
+  // valid steady state (gradient mode, or upload mode with nothing
+  // uploaded), hence the `? … : true` rather than requiring one to exist.
+  await page
+    .waitForFunction(
+      () => {
+        const img = document.querySelector('div[aria-hidden] > img')
+        return img ? img.classList.contains('opacity-100') : true
+      },
+      { timeout: 5000 },
+    )
+    .catch(() => {}) // best-effort — screenshot honestly either way rather than hanging the run
+  // The class flip above fires the INSTANT onLoad does — CSS then animates
+  // the actual opacity from 0 to 1 over the next 700ms (duration-700 on the
+  // same element), so classList.contains('opacity-100') is true well before
+  // the transition visually finishes. Found the hard way: a run with only
+  // the waitForFunction above screenshotted 2560x1440 mid-fade — a washed-out,
+  // low-contrast frame, not the plain gradient fallback but not the real
+  // photo either. Same 800ms constant every reload elsewhere in this script
+  // already uses for "photo fade-in" (see e.g. the very first capture, or
+  // any of the reload blocks below) — reused here for the identical reason.
+  await page.waitForTimeout(800)
+  await page.screenshot({ path: `${outDir}/viewport-${w}x${h}.png` })
+  console.log(`captured viewport-${w}x${h}.png`)
+
+  const newErrorCount = errors.length - errorsSeenSoFar
+  console.log(
+    newErrorCount === 0
+      ? `PASS: no console errors at ${w}x${h}`
+      : `FAIL: no console errors at ${w}x${h} (${newErrorCount} new: ${errors.slice(-newErrorCount).join('; ')})`,
+  )
+  errorsSeenSoFar = errors.length
+
+  // Overlap assertion for the center column's two biggest elements — the
+  // exact pair the owner's screenshot showed colliding. `[data-block-id]` is
+  // the same attribute PositionedBlock stamps on every default-placement
+  // block (see clockCenter() above for the identical selector idiom). Two
+  // axis-aligned rects DON'T intersect iff one is fully to a side of the
+  // other, or fully above/below it, on at least one axis.
+  const overlap = await page.evaluate(() => {
+    const clock = document.querySelector('[data-block-id="clock"]')?.getBoundingClientRect()
+    const greeting = document.querySelector('[data-block-id="greeting"]')?.getBoundingClientRect()
+    if (!clock || !greeting) return null
+    const intersects = !(
+      clock.right <= greeting.left ||
+      clock.left >= greeting.right ||
+      clock.bottom <= greeting.top ||
+      clock.top >= greeting.bottom
+    )
+    return {
+      intersects,
+      clock: { top: clock.top, bottom: clock.bottom, left: clock.left, right: clock.right },
+      greeting: { top: greeting.top, bottom: greeting.bottom, left: greeting.left, right: greeting.right },
+    }
+  })
+  console.log(
+    overlap && !overlap.intersects
+      ? `PASS: no clock/greeting overlap at ${w}x${h}`
+      : overlap
+        ? `FAIL: no clock/greeting overlap at ${w}x${h} (clock ${JSON.stringify(overlap.clock)}, greeting ${JSON.stringify(overlap.greeting)})`
+        : `FAIL: no clock/greeting overlap at ${w}x${h} (clock or greeting element not found)`,
+  )
+
+  // Bonus verification for goal 3 (bookmarks bar / weather panel collision,
+  // the OTHER known peripheral collision this pass fixes) — cheap to check
+  // alongside the assertion above since the page is already at this size.
+  // Only meaningful under a preview build, same gating as every other
+  // bookmarks probe in this script (see the header comment + the
+  // hasBookmarksPermission SKIP line near the top): a production build never
+  // renders the bar at all, so there's nothing to collide.
+  if (hasBookmarksPermission) {
+    const peripheralOverlap = await page.evaluate(() => {
+      const bar = document.querySelector('nav[aria-label="Bookmarks bar"]')?.getBoundingClientRect()
+      const weather = document.querySelector('section[aria-label="Weather"]')?.getBoundingClientRect()
+      if (!bar || !weather) return null
+      const intersects = !(
+        bar.right <= weather.left ||
+        bar.left >= weather.right ||
+        bar.bottom <= weather.top ||
+        bar.top >= weather.bottom
+      )
+      return { intersects }
+    })
+    console.log(
+      peripheralOverlap && !peripheralOverlap.intersects
+        ? `PASS: no bookmarks/weather overlap at ${w}x${h}`
+        : peripheralOverlap
+          ? `FAIL: no bookmarks/weather overlap at ${w}x${h}`
+          : `SKIP: bookmarks/weather overlap check at ${w}x${h} (element(s) not found)`,
+    )
+  }
+}
+
+// State restoration: back to this script's own launch viewport, so nothing
+// appended after this later starts from a resized page — same discipline as
+// every other restoration point in this script (Source, theme, layout,
+// location, arrange overlay above).
+await page.setViewportSize(launchViewport)
+await page.waitForTimeout(150)
+
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
 else console.log('no console errors')

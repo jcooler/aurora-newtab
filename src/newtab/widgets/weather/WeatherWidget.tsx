@@ -20,7 +20,15 @@ export default function WeatherWidget() {
   return (
     <section
       aria-label="Weather"
-      className="w-max max-w-[32rem] rounded-panel border border-panel-border bg-panel p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      // tight:max-w-[30vw] — see the matching comment on BookmarksBar.tsx's
+      // nav className for the full writeup (goal 3): below 1300px width, a
+      // proportional cap here paired with the bookmarks bar's own
+      // proportional cap keeps a constant-width gap between the two
+      // panels' worst-case edges at every width in range, rather than the
+      // fixed 32rem ceiling (reachable only when this widget is expanded —
+      // the collapsed state is already much narrower) eating into the
+      // centered bookmarks bar's own space as the viewport narrows.
+      className="w-max max-w-[32rem] tight:max-w-[30vw] rounded-panel border border-panel-border bg-panel p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
       {location === null && <LocationSetup />}
       {location && !snapshot && (

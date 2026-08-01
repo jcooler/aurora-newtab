@@ -19,7 +19,10 @@ export default function LinksWidget() {
     void storage.update('links', fn)
 
   return (
-    <section aria-label="Quick links" className="mt-10 flex flex-wrap items-start justify-center gap-3">
+    <section
+      aria-label="Quick links"
+      className="mt-10 short:mt-3 xshort:mt-1 flex flex-wrap items-start justify-center gap-3 short:gap-2 xshort:gap-1"
+    >
       {links.map((link, i) => (
         <LinkTile
           key={link.id}

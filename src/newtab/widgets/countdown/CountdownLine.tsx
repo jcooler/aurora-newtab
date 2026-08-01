@@ -24,5 +24,9 @@ function CountdownLineInner() {
   const phrase = countdownPhrase(nearest.name, nearest.days)
   if (!phrase) return null
 
-  return <p className="text-photo mt-1 text-base font-medium text-accent">{phrase}</p>
+  return (
+    <p className="text-photo mt-1 short:mt-0.5 xshort:mt-0.5 text-base short:text-sm xshort:text-xs font-medium text-accent">
+      {phrase}
+    </p>
+  )
 }

@@ -18,6 +18,28 @@ describe('index.css — .text-photo utility', () => {
   })
 })
 
+// Lean regression guard for the responsive pass (BINDING: media-query fix for
+// the owner's ~1420x437 short-wide window). All four custom variants are
+// declared once here, in index.css, and consumed throughout the center
+// column / bookmarks / weather widgets — a typo or dropped declaration here
+// would silently no-op every `short:`/`xshort:`/`narrow:`/`tight:` utility
+// app-wide with no build error (Tailwind just never generates the class),
+// so this is worth pinning directly rather than only inferring it from
+// components that happen to use the variant.
+describe('index.css — responsive custom variants', () => {
+  it('declares short (height 451-600px) and xshort (height <=450px) as a non-overlapping pair', () => {
+    expect(indexCss).toMatch(
+      /@custom-variant short \(@media \(max-height: 600px\) and \(min-height: 451px\)\);/,
+    )
+    expect(indexCss).toMatch(/@custom-variant xshort \(@media \(max-height: 450px\)\);/)
+  })
+
+  it('declares tight (width <=1300px, bookmarks/weather only) and narrow (width <=1024px)', () => {
+    expect(indexCss).toMatch(/@custom-variant tight \(@media \(max-width: 1300px\)\);/)
+    expect(indexCss).toMatch(/@custom-variant narrow \(@media \(max-width: 1024px\)\);/)
+  })
+})
+
 // Lean regression guard for the text-shadow legibility system (visual-quality
 // overhaul): the clock sits directly on the photo (no panel/pill surface of
 // its own), so it MUST carry the .text-photo utility or it silently loses
@@ -40,5 +62,30 @@ describe('Clock — text-photo legibility utility', () => {
     const time = container.querySelector('time')
     expect(time).toBeTruthy()
     expect(time?.classList.contains('text-photo')).toBe(true)
+  })
+})
+
+// Regression guard for the clock's fluid type scale (BINDING: media-query
+// fix — the owner's ~1420x437 short-wide window rendered a ~160px-tall
+// clock, via a WIDTH-only clamp(), that collided with the greeting below
+// it). The scale must include a height term so it degrades continuously as
+// the window gets shorter — jsdom can't compute clamp()/min() against a real
+// viewport, so this asserts the className carries the formula itself rather
+// than a resolved pixel value; the real cross-size proof is the preview
+// harness's viewport matrix + overlap assertion (scripts/preview.mjs).
+describe('Clock — height-aware fluid scale', () => {
+  it('carries a min(vw,vh) term in its clamp(), not width alone', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(
+      <StorageProvider storage={storage}>
+        <Clock />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const time = container.querySelector('time')
+    expect(time?.className).toContain('clamp(3rem,min(12vw,20vh),10rem)')
   })
 })

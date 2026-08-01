@@ -118,7 +118,7 @@ export default function App() {
             top) is what makes the rest of the page truly unreachable — both
             by pointer AND by keyboard — while arrange mode is on. */}
         <div className="contents" inert={arranging}>
-          <div className="flex h-full flex-col items-center justify-center">
+          <div className="flex h-full flex-col items-center justify-center narrow:px-4">
             <WidgetBoundary name="clock">
               <PositionedBlock id="clock" pos={layout?.clock}>
                 <Clock />
@@ -335,7 +335,7 @@ export default function App() {
             <PositionedBlock
               id="quote"
               pos={layout?.quote}
-              className="fixed inset-x-0 bottom-6 mx-auto w-fit"
+              className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto w-fit"
             >
               <QuoteWidget />
             </PositionedBlock>

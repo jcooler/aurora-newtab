@@ -17,7 +17,7 @@ export default function FocusLine() {
   if (!focus || editing) {
     return (
       <form
-        className="mt-10 flex flex-col items-center"
+        className="mt-10 short:mt-3 xshort:mt-1 flex flex-col items-center"
         onSubmit={(e) => {
           e.preventDefault()
           committed.current = true
@@ -26,7 +26,10 @@ export default function FocusLine() {
           setEditing(false)
         }}
       >
-        <label htmlFor="focus-input" className="text-photo text-base font-medium text-fg-muted">
+        <label
+          htmlFor="focus-input"
+          className="text-photo text-base short:text-sm xshort:text-xs font-medium text-fg-muted"
+        >
           What&rsquo;s your main focus today?
         </label>
         <input
@@ -40,14 +43,17 @@ export default function FocusLine() {
               setEditing(false)
             }
           }}
-          className="text-photo mt-2 w-72 border-b border-panel-border bg-transparent pb-1 text-center text-xl text-fg outline-none focus-visible:border-accent"
+          className="text-photo mt-2 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl short:text-base xshort:text-sm text-fg outline-none focus-visible:border-accent"
         />
       </form>
     )
   }
 
   return (
-    <div className="group mt-10 flex items-center gap-3" aria-live="polite">
+    <div
+      className="group mt-10 short:mt-3 xshort:mt-1 flex items-center gap-3 short:gap-2 xshort:gap-1"
+      aria-live="polite"
+    >
       <input
         id="focus-done"
         type="checkbox"
@@ -57,7 +63,7 @@ export default function FocusLine() {
       />
       <label
         htmlFor="focus-done"
-        className={`text-photo text-xl transition-opacity motion-reduce:transition-none ${
+        className={`text-photo text-xl short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${
           focus.done ? 'text-fg-muted line-through opacity-70' : 'text-fg'
         }`}
       >

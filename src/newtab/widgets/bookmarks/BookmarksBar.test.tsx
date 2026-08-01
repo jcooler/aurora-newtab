@@ -104,6 +104,20 @@ describe('BookmarksBar', () => {
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
   })
 
+  // Regression guard for the bookmarks/weather collision fix (BINDING:
+  // media-query pass, goal 3): below 1300px width, this bar's max-width used
+  // to stay at 52vw — wide enough to reach into the weather panel's own
+  // space (see WeatherWidget.tsx's matching `tight:max-w-[30vw]`, which
+  // pairs with this to keep a constant-width gap between the two). Lean
+  // className check, not a rendered-layout one — jsdom has no real layout
+  // engine to measure an actual overlap; that's the preview harness's job.
+  it('tightens its max-width below 1300px width, pairing with WeatherWidget to avoid the collision', async () => {
+    await renderBar(nestedModel)
+    const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+    expect(nav.className).toContain('max-w-[52vw]')
+    expect(nav.className).toContain('tight:max-w-[24vw]')
+  })
+
   it('uses the themed bg-panel-solid utility, not a hardcoded hex, so the popover actually re-themes (folders-widget theming bug)', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })

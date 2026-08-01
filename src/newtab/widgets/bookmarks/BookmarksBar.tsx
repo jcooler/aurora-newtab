@@ -183,7 +183,21 @@ function BookmarksBarInner({
       // wrapper's condition for no benefit — `openId` is already the single
       // source of truth this reads from, so mirroring it here costs
       // nothing and keeps both classes legible together.
-      className={`relative flex max-w-[52vw] flex-wrap items-center justify-center gap-1.5 ${
+      // max-w-[52vw] is fine above ~1300px width — plenty of horizontal room
+      // beside the timer pill (left-4) and the weather panel (right-4, up to
+      // 32rem wide when expanded — see WeatherWidget.tsx). Below that, a
+      // centered bar capped at 52vw can reach into the weather panel's own
+      // footprint (goal 3 of the responsive pass — a real, reported
+      // collision, not hypothetical). `tight:max-w-[24vw]` tightens the cap
+      // proportionally with viewport width rather than to a fixed px value —
+      // paired with WeatherWidget's own `tight:max-w-[30vw]`, the GAP between
+      // the two panels' worst-case edges stays a constant width fraction
+      // (≈6vw, minus the two panels' fixed 4px/1rem edge insets) at every
+      // width in this tier, instead of closing back up as the viewport
+      // shrinks the way two independently-fixed px caps would. Existing
+      // `flex-wrap` on this nav means a tighter cap just wraps chips onto
+      // more rows sooner — compression, not removal.
+      className={`relative flex max-w-[52vw] tight:max-w-[24vw] flex-wrap items-center justify-center gap-1.5 ${
         openId ? 'z-50' : 'z-20'
       }`}
     >

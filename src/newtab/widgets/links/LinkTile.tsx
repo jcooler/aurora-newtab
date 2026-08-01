@@ -29,7 +29,7 @@ export default function LinkTile({
       onDragOver={(e) => e.preventDefault()}
       onDrop={() => onDropOn(index)}
       onDragEnd={onDragEnd}
-      className="group relative flex w-20 flex-col items-center gap-1"
+      className="group relative flex w-20 flex-col items-center gap-1 short:gap-0.5 xshort:gap-0.5"
     >
       <a
         href={link.url}
@@ -43,7 +43,7 @@ export default function LinkTile({
             onMove(index, index + 1)
           }
         }}
-        className="flex size-12 items-center justify-center rounded-panel border border-panel-border bg-panel shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="flex size-12 short:size-10 xshort:size-9 items-center justify-center rounded-panel border border-panel-border bg-panel shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         {iconFailed ? (
           <span aria-hidden className="text-lg text-fg-muted">

@@ -69,6 +69,42 @@
   color-scheme: dark;
 }
 
+/* Responsive breakpoints — the owner's ~1420x437 short-wide browser window
+   (BINDING: media-query pass) exposed that nothing in this app previously
+   reacted to viewport HEIGHT at all, and only reacted to WIDTH at the
+   default Tailwind sm/md/lg/xl steps, none of which fire below ~640px wide
+   either. Four custom variants, on two independent axes:
+     short   — viewport height 451–600px: first compression step for the
+               center column's vertical rhythm (margins) and secondary type
+               (greeting, world clocks, countdown, focus, search — see each
+               component). Matches goal 2's "~600px" height threshold.
+     xshort  — viewport height <=450px: second, deeper compression step.
+               Matches goal 2's "~450px" height threshold. `short`/`xshort`
+               are a NON-OVERLAPPING pair (deliberate — both ever touch the
+               same property, e.g. a margin, on the same element; disjoint
+               ranges avoid depending on generated-CSS source order to break
+               the tie where two same-specificity rules would otherwise both
+               match at once).
+     narrow  — viewport width <=1024px: shrinks the center column's own wide
+               children (search input, focus input, quote line-length).
+     tight   — viewport width <=1300px: the ONLY consumer is the
+               bookmarks-bar / weather-panel pairing (goal 3) — proportional
+               (vw-based) caps on both that open a constant-width gap at
+               every width in range, all the way down through `narrow`'s own
+               range too (it's a strict superset of `narrow`, not a separate
+               tier — the two variants never set the same property on the
+               same element, so the overlap is harmless: `tight` alone
+               governs bookmarks/weather, `narrow` alone governs
+               search/focus/quote). Above 1300px the two peripherals already
+               have enough room and stay at their un-tightened default.
+   The clock's own type scale is deliberately NOT stepped by `short`/`xshort`
+   — see the min(vw,vh) term on its clamp() in Clock.tsx, which degrades
+   continuously with height instead of jumping at these steps. */
+@custom-variant short (@media (max-height: 600px) and (min-height: 451px));
+@custom-variant xshort (@media (max-height: 450px));
+@custom-variant tight (@media (max-width: 1300px));
+@custom-variant narrow (@media (max-width: 1024px));
+
 /* Belt and braces for platforms that style option rows from the page: */
 select > option {
   background-color: #17171c;

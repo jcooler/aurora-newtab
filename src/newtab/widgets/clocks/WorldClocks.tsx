@@ -25,7 +25,7 @@ function WorldClocksInner({
 }) {
   const now = useNow(30_000)
   return (
-    <p className="text-photo mt-1 text-base font-medium text-fg-muted">
+    <p className="text-photo mt-1 short:mt-0.5 xshort:mt-0.5 text-base short:text-sm xshort:text-xs font-medium text-fg-muted">
       {worldClocks
         .map((c) => `${c.label} ${zoneTime(c.zone, settings.use24Hour, now)}`)
         .join(' · ')}
