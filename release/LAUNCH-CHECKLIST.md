@@ -98,7 +98,9 @@ review.
 **Timeline — stated honestly, not a promise:** Google's own guidance is
 that most reviews complete within a few hours to a few business days;
 first-time submissions and anything requesting sensitive permissions
-(Aurora's `bookmarks` and `geolocation`, both optional, both runtime-gated)
+(Aurora's `bookmarks`, optional and runtime-gated, and `geolocation`,
+install-time because Chrome doesn't allow it to be optional but still
+only ever exercised on a user's explicit "Use my location" click)
 sometimes take longer — up to a couple of weeks isn't unheard of, especially
 if a reviewer has follow-up questions about permission use. There's no
 guaranteed SLA. If it's rejected, the dashboard names the specific policy

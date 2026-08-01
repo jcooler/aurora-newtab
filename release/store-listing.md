@@ -88,8 +88,11 @@ would need its own justification.
       "Use my location" with a real place name) — both free, keyless
       services, sent only the coordinates or search text needed for
       that one lookup. Full detail in PRIVACY.md.
-    - Bookmarks and location are both OPTIONAL permissions, requested
-      only when you turn on that specific feature — never at install.
+    - Bookmarks is an OPTIONAL permission, requested only when you turn
+      that widget on — never at install. Location is granted at install
+      (Chrome doesn't allow it to be requested any other way) but only
+      ever READ the instant you click "Use my location" — never in the
+      background, and never just for typing a city name.
 
     Read the full privacy policy: [PRIVACY.md URL — Jon fills in once
     hosting is decided, see release/LAUNCH-CHECKLIST.md]
@@ -117,6 +120,21 @@ would need its own justification.
   added, passed to Chrome's local favicon cache — not a network request
   Aurora makes itself, and no browsing-history access beyond that.
 
+**`geolocation`** (install-time, no prompt — Chrome does not permit this
+specific permission to be requested at runtime; it maintains a fixed list
+of permissions that may be declared optional, and geolocation is not on
+it, so it has to be installed the same way `storage` and `favicon` are)
+- *Why:* Lets the Weather widget use your device's exact position instead
+  of a manually searched city.
+- *When prompted:* Never — install-time, automatic, same as `storage` and
+  `favicon` above. Holding the permission is not the same as using it,
+  though: Aurora never reads your device location in the background, and
+  typing a city name into the search box never touches it at all.
+- *What's read:* Your device coordinates, read only in the instant you
+  click "Use my location" inside the Weather widget — that click is the
+  only moment this permission is ever exercised — rounded to ~1 km before
+  Aurora stores or sends them anywhere (see "Network calls" in PRIVACY.md).
+
 **`bookmarks`** (optional — requested at runtime)
 - *Why:* Powers the Bookmarks bar widget, which renders your actual
   bookmarks bar as folder/favicon chips on the dashboard.
@@ -125,16 +143,6 @@ would need its own justification.
 - *What's read:* `chrome.bookmarks.getTree()` — your full bookmarks tree,
   read locally to render the bar. Aurora never creates, edits, moves, or
   deletes a bookmark, and never transmits the tree anywhere.
-
-**`geolocation`** (optional — requested at runtime)
-- *Why:* Lets the Weather widget use your device's exact position instead
-  of a manually searched city.
-- *When prompted:* Only at the moment you click "Use my location" inside
-  the Weather widget — never at install, and never just for typing a city
-  name into the search box.
-- *What's read:* Your device coordinates, once per click of that button,
-  rounded to ~1 km before Aurora stores or sends them anywhere (see
-  "Network calls" in PRIVACY.md).
 
 ## Data Usage disclosure (CWS Developer Dashboard → Privacy practices tab)
 
@@ -154,7 +162,7 @@ it does make three third-party network calls (Open-Meteo ×2, BigDataCloud
 | Financial and payment information | No | — |
 | Authentication information | No | No accounts exist. |
 | Personal communications | No | — |
-| **Location** | **Yes — approximate location** | Only when geolocation is granted (optional, on-click). Rounded to ~1 km and sent to Open-Meteo (forecast) and, once per click, BigDataCloud (place-name lookup). Never sold, never used for advertising, used only to show weather for that location. |
+| **Location** | **Yes — approximate location** | The `geolocation` permission is held from install (Chrome requires that — see the permission justification above), but coordinates are only ever read and sent at the moment you click "Use my location," never in the background. Rounded to ~1 km and sent to Open-Meteo (forecast) and, once per click, BigDataCloud (place-name lookup). Never sold, never used for advertising, used only to show weather for that location. |
 | Web history | No | Bookmarks are read via `chrome.bookmarks.getTree()` but never transmitted anywhere — they stay on-device, so this is a local *read*, not a *collection* under Google's definition. |
 | User activity | No | No clicks, keystrokes, or usage are logged or transmitted. |
 | Website content | No | — |
@@ -170,13 +178,15 @@ Certifications (all true, tick all three):
 **Flag for Jon:** the task brief for this listing said to write these
 answers as "collects: nothing." That's not accurate once geolocation is in
 play — the coordinates genuinely leave the device (to Open-Meteo and
-BigDataCloud) whenever a user grants that optional permission and clicks
-"Use my location." "Collects: nothing" would be true for a build with no
-weather widget, but Aurora ships one. I've written the table above as the
-honest answer (Location: yes, single-purpose, not sold) instead of the
+BigDataCloud) whenever a user clicks "Use my location." (The `geolocation`
+permission itself is held from install, per Chrome's rules, but that's a
+separate question from whether the coordinates ever leave the device — they
+only do on that click.) "Collects: nothing" would be true for a build with
+no weather widget, but Aurora ships one. I've written the table above as
+the honest answer (Location: yes, single-purpose, not sold) instead of the
 literal instruction, because an inaccurate Data Usage disclosure is a CWS
 policy violation, not just a wording nitpick. Please confirm you agree
 before submitting — if you'd rather not disclose Location at all, the only
-compliant way to get to "collects: nothing" is to remove the
-`geolocation` optional permission and the "Use my location" button
-entirely, which is a product change, not just a form change.
+compliant way to get to "collects: nothing" is to remove the `geolocation`
+permission and the "Use my location" button entirely, which is a product
+change, not just a form change.

@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** July 29, 2026
+**Effective date:** August 1, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -110,14 +110,17 @@ Aurora requests the following Chrome permissions:
   to render it as a row of chips — that read stays on your device and is
   never transmitted anywhere. Aurora only ever reads your bookmarks; it
   never creates, edits, moves, or deletes any bookmark or folder.
-- **`geolocation`** (optional — requested at runtime, never at install).
-  Aurora never asks for this permission just to load, and searching for a
-  city by name never touches it at all. It's requested only at the moment
-  you click "Use my location" in the Weather widget, via Chrome's own
-  permission prompt. Declining leaves the manual city search available;
-  granting it reads your device's coordinates once per click to set your
-  weather location (see "Network calls" above for what happens with that
-  location next).
+- **`geolocation`** (installed automatically, no prompt — Chrome does not
+  permit this specific permission to be requested at runtime; it maintains
+  a fixed list of permissions that may be optional, and geolocation isn't
+  on it). Holding the permission is not the same as using it: Aurora never
+  reads your device location in the background, and searching for a city
+  by name never touches it at all. Your coordinates are read only in the
+  instant you click "Use my location" in the Weather widget — that click
+  is the only moment this permission is ever exercised. If the browser's
+  own location prompt is declined at that point, the manual city search
+  remains available (see "Network calls" above for what happens with the
+  location once it's read).
 
 ## Data collection, sale, and sharing
 

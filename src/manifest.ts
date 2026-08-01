@@ -24,14 +24,28 @@ import { defineManifest } from '@crxjs/vite-plugin'
 // instead of skipping it. A normal (production) build still gets
 // `bookmarks` as optional-only, byte-identical to before this change.
 //
-// `geolocation` made the same optional-permission move (LocationSetup.tsx's
-// "Use my location" button now requests it at click time via
-// ensurePermission('geolocation') — see src/services/permissions.ts), but
-// UNLIKE bookmarks it stays optional-only in the preview build too: the
-// preview harness (scripts/preview.mjs) seeds a manual location directly
-// into chrome.storage.local and never clicks "Use my location", so there's
-// no real-Chromium geolocation flow for install-time granting to unlock —
-// nothing in the preview capture would exercise it either way.
+// `geolocation` is install-time `permissions` in BOTH build modes, and MUST
+// STAY THAT WAY — do not move it to `optional_permissions`, even though
+// `bookmarks` above looks like a precedent for doing exactly that. It WAS
+// tried: moving `geolocation` into `optional_permissions` loads fine, but
+// chrome://extensions then shows this warning on the extension's card —
+//
+//   "Permission 'geolocation' cannot be listed as optional. This
+//   permission will be omitted."
+//
+// — and Chrome means it literally: the permission is dropped from what
+// actually gets requested, not merely deferred, so
+// chrome.permissions.request({ permissions: ['geolocation'] }) has nothing
+// to grant and always resolves as if declined. That made "Use my location"
+// dead on arrival (the declined-message showed immediately on every click)
+// and left a standing error badge on the extension. Chrome maintains a
+// fixed allow-list of permissions that may be declared optional at all —
+// geolocation is not on it (nor are a handful of others like `debugger` or
+// `proxy`) — so unlike `bookmarks`, there is no build-mode split available
+// here; it has to be install-time everywhere. LocationSetup.tsx's
+// "Use my location" therefore calls navigator.geolocation.getCurrentPosition
+// directly, with no chrome.permissions.request() gate in front of it — the
+// permission is already held by the time that button can be clicked.
 //
 // `env.mode` is Vite's build mode (`vite build` defaults to 'production';
 // `--mode preview` sets it to 'preview'). This is the cleanest
@@ -50,14 +64,15 @@ export default defineManifest((env) => ({
   description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
   permissions:
     env.mode === PREVIEW
-      ? ['storage', 'favicon', 'bookmarks']
-      : ['storage', 'favicon'],
+      ? ['storage', 'favicon', 'bookmarks', 'geolocation']
+      : ['storage', 'favicon', 'geolocation'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
   // here rather than duplicating it — it MOVES, it doesn't get held twice.
-  // `geolocation` is optional in BOTH modes (see the comment above), so it
-  // lives in this array unconditionally.
-  optional_permissions: env.mode === PREVIEW ? ['geolocation'] : ['bookmarks', 'geolocation'],
+  // `geolocation` can NEVER appear in this array, in either mode — see the
+  // comment above the `permissions` array for the exact Chrome warning that
+  // rules it out.
+  optional_permissions: env.mode === PREVIEW ? [] : ['bookmarks'],
   icons: {
     16: 'icons/icon16.png',
     48: 'icons/icon48.png',

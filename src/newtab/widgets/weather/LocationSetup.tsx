@@ -3,7 +3,6 @@ import { searchCity } from '../../../services/weather/geocode'
 import { reverseGeocode } from '../../../services/weather/reverseGeocode'
 import type { GeoMatch } from '../../../services/weather/types'
 import { useStorage } from '../../../lib/storage/context'
-import { ensurePermission } from '../../../services/permissions'
 
 const SEARCH_DEBOUNCE_MS = 300
 const MIN_QUERY_LENGTH = 2
@@ -83,39 +82,25 @@ export default function LocationSetup() {
   }, [])
 
   async function useDevice() {
-    // setBusy(true) is the first synchronous line — before the
-    // ensurePermission call below, not after it resolves — so the button
-    // (disabled={busy}) goes inert on this very click, not seconds later
-    // once the user has answered Chrome's native prompt. Without this, a
-    // second click while that prompt is still pending re-enters useDevice
-    // and fires a second concurrent chrome.permissions.request(). Every
-    // exit path below (denied, rejected, device-level error, and the
-    // success handler's `finally`) resets it back to false — that's the
-    // part that has to stay exhaustive whenever a new early-return is
-    // added here.
+    // setBusy(true) is the first synchronous line — before
+    // navigator.geolocation.getCurrentPosition below — so the button
+    // (disabled={busy}) goes inert on this very click. Without this, a
+    // second click while a request is still pending re-enters useDevice and
+    // fires a second concurrent getCurrentPosition call. Both exit paths
+    // below (device-level denial, and the success handler's `finally`)
+    // reset it back to false — that's the part that has to stay exhaustive
+    // whenever a new early-return is added here.
     setBusy(true)
     setError(null)
-    // ensurePermission MUST be the first thing this handler awaits — it's
-    // the call that has to land inside the click's user-gesture window (see
-    // src/services/permissions.ts's doc comment on ensurePermission for
-    // why even a fast await in front of it can break the native prompt).
-    // `geolocation` is optional (src/manifest.ts); Chrome's permission
-    // prompt here IS the consent moment — once it's granted,
-    // navigator.geolocation below works on this extension page with no
-    // further site-level prompt. Denied/rejected -> inline alert below; the
-    // manual city search stays untouched either way.
-    let granted: boolean
-    try {
-      granted = await ensurePermission('geolocation')
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setBusy(false)
-      setError('Location permission was declined — the manual search below still works.')
-      return
-    }
-
+    // `geolocation` is an install-time permission (src/manifest.ts) — Chrome
+    // does not allow it to be requested as optional (see manifest.ts's
+    // comment for the exact chrome://extensions warning this produced when
+    // it was tried), so there is no chrome.permissions.request() gate here:
+    // the permission is already held by the time this button is clickable.
+    // The only remaining prompt is the browser/OS-level location dialog
+    // navigator.geolocation itself may show; its denial is handled by the
+    // error callback below, and the manual city search stays untouched
+    // either way.
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {

@@ -244,10 +244,13 @@ bookmarks tree with `chrome.bookmarks.getTree()` to render it — that read
 happens locally, is rendered locally, and is never transmitted anywhere.
 Aurora only reads your bookmarks, it never creates, edits, or deletes any.
 
-The `geolocation` permission works the same way: Aurora never asks for it at
-install, and searching for a city by name never touches it at all. It's
-requested only at the moment you click "Use my location" in the weather
-widget — Chrome's permission prompt there is the only consent moment.
-Decline it, and an inline note explains that the manual city search still
-works; grant it, and Aurora reads your device's coordinates once to look up
-the forecast and a place name, the same as it always has.
+The `geolocation` permission works differently: Chrome does not allow
+geolocation to be requested as an optional, runtime permission (only a
+fixed list of permissions qualify, and geolocation isn't on it), so Aurora
+holds it from install — the same as `storage` and `favicon` above. Holding
+it is not the same as using it, though: Aurora never reads your device
+location in the background, and searching for a city by name never touches
+it at all. Your coordinates are read only in the instant you click "Use my
+location" in the weather widget; if the browser's own location prompt is
+declined at that moment, an inline note explains that the manual city
+search still works.

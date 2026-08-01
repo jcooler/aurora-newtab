@@ -1,8 +1,24 @@
-/** Thin chrome.permissions wrapper, shared by every optional permission
- *  Aurora requests at runtime instead of at install time (currently
- *  'bookmarks' and 'geolocation' — see src/manifest.ts's
- *  `optional_permissions`). Generalized out of what used to be
- *  bookmarks-only hasBookmarksPermission/ensureBookmarksPermission
+/** Thin chrome.permissions wrapper, shared by every permission Aurora
+ *  requests at RUNTIME instead of at install time — currently just
+ *  'bookmarks' (see src/manifest.ts's `optional_permissions`).
+ *
+ *  IMPORTANT: this service is only for permissions Chrome actually allows
+ *  to be optional. Chrome maintains a fixed allow-list for that — not every
+ *  permission qualifies. `geolocation` does NOT: it was moved into
+ *  `optional_permissions` once, and chrome://extensions responded with
+ *  "Permission 'geolocation' cannot be listed as optional. This permission
+ *  will be omitted" (see src/manifest.ts's comment for the full story),
+ *  silently leaving nothing for chrome.permissions.request() to grant. So
+ *  geolocation lives in install-time `permissions` instead, and
+ *  LocationSetup.tsx's useDevice calls navigator.geolocation directly, with
+ *  no request()/hasPermission() gate through this module at all. Before
+ *  routing a new permission through hasPermission/ensurePermission below,
+ *  confirm Chrome's docs actually list it as optional-capable — if not, it
+ *  belongs in install-time `permissions` and the caller uses the browser
+ *  API straight, the same way LocationSetup.tsx does.
+ *
+ *  Generalized out of what used to be bookmarks-only
+ *  hasBookmarksPermission/ensureBookmarksPermission
  *  (src/services/bookmarks.ts), which now delegate here as thin,
  *  permission-pinned wrappers so their exported names — and every existing
  *  call site/test mock keyed on them — stay unchanged.
@@ -15,9 +31,8 @@
 
 /** True if the extension currently holds the named optional permission —
  *  either because a caller previously granted it via ensurePermission
- *  below, or (for anyone who had it as an install-time permission before it
- *  became optional — e.g. `geolocation` before this change) because Chrome
- *  carries a previously-granted permission forward across an update. */
+ *  below, or because Chrome carries a previously-granted permission forward
+ *  across an update. */
 export async function hasPermission(name: chrome.runtime.ManifestPermission): Promise<boolean> {
   return chrome.permissions.contains({ permissions: [name] })
 }

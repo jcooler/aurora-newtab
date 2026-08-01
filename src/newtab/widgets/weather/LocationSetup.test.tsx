@@ -5,14 +5,7 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
-import { ensurePermission } from '../../../services/permissions'
 import LocationSetup from './LocationSetup'
-
-// "Use my location" requests the optional 'geolocation' permission via
-// src/services/permissions.ts, which touches chrome.permissions —
-// unavailable in jsdom. Mocked the same way SettingsPanel.test.tsx mocks
-// ensureBookmarksPermission for the analogous bookmarks flow.
-vi.mock('../../../services/permissions', () => ({ ensurePermission: vi.fn() }))
 
 // Same caveat as NotesPanel.test.tsx: fake timers block testing-library's
 // setTimeout-polled findBy/waitFor, so every assertion below reads the DOM
@@ -397,7 +390,7 @@ describe('LocationSetup dropdown edge clamping', () => {
   })
 })
 
-describe('LocationSetup "Use my location" (geolocation permission, requested on click)', () => {
+describe('LocationSetup "Use my location" (geolocation is an install-time permission — no request gate)', () => {
   // jsdom doesn't implement navigator.geolocation at all — defined directly
   // (same idiom as this file's window.innerWidth stub, and Data.test.tsx's
   // URL.createObjectURL stub) rather than vi.stubGlobal('navigator', ...),
@@ -411,82 +404,57 @@ describe('LocationSetup "Use my location" (geolocation permission, requested on 
       value: { getCurrentPosition },
       configurable: true,
     })
-    vi.mocked(ensurePermission).mockReset()
   })
 
-  it('denying the geolocation permission shows an inline alert and never calls navigator.geolocation or writes a location', async () => {
-    vi.mocked(ensurePermission).mockResolvedValue(false)
-    const { storage } = await renderSetup()
-    const button = screen.getByRole('button', { name: 'Use my location' })
-
-    await act(async () => {
-      fireEvent.click(button)
-      await vi.advanceTimersByTimeAsync(0)
-    })
-
-    expect(ensurePermission).toHaveBeenCalledWith('geolocation')
-    expect(getCurrentPosition).not.toHaveBeenCalled()
-    const alert = screen.getByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
-    expect(await storage.get('location')).toBeNull()
-  })
-
-  it('a rejected ensurePermission (not just an explicit false) is caught and routed to the same alert, not left as an unhandled rejection', async () => {
-    vi.mocked(ensurePermission).mockRejectedValue(new Error('gesture context lost'))
-    const { storage } = await renderSetup()
-    const button = screen.getByRole('button', { name: 'Use my location' })
-
-    await act(async () => {
-      fireEvent.click(button)
-      await vi.advanceTimersByTimeAsync(0)
-    })
-
-    expect(getCurrentPosition).not.toHaveBeenCalled()
-    const alert = screen.getByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
-    expect(await storage.get('location')).toBeNull()
-  })
-
-  it('review fix: the button disables synchronously on click, before ensurePermission resolves — a second click while the native prompt is still pending does not fire a second concurrent request', async () => {
-    let resolvePermission: (v: boolean) => void = () => {}
-    vi.mocked(ensurePermission).mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          resolvePermission = resolve
-        }),
-    )
+  it('review fix: the button disables synchronously on click, before getCurrentPosition settles — a second click while it is still pending does not fire a second concurrent call', async () => {
+    let resolvePosition: (pos: unknown) => void = () => {}
     getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
-      success({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      resolvePosition = success
     })
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ city: 'Dallas' })))
     const { storage } = await renderSetup()
     const button = screen.getByRole('button', { name: 'Use my location' }) as HTMLButtonElement
 
     fireEvent.click(button)
-    // Still mid-prompt (ensurePermission deliberately unresolved) — the
-    // button must already be disabled from this same click, not just after
-    // the prompt is answered, so a second click here is a no-op rather than
-    // a second concurrent chrome.permissions.request().
+    // getCurrentPosition deliberately left unresolved — the button must
+    // already be disabled from this same click, so a second click here is a
+    // no-op rather than a second concurrent getCurrentPosition call.
     expect(button.disabled).toBe(true)
     fireEvent.click(button)
 
-    expect(ensurePermission).toHaveBeenCalledTimes(1)
-    expect(getCurrentPosition).not.toHaveBeenCalled()
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
 
-    // Resolve the (single) outstanding prompt and confirm the button
+    // Resolve the (single) outstanding call and confirm the button
     // re-enables and the flow completes normally.
     await act(async () => {
-      resolvePermission(true)
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
       await vi.advanceTimersByTimeAsync(0)
     })
-    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+    expect(button.disabled).toBe(false)
     expect(await storage.get('location')).not.toBeNull()
   })
 
-  it('granting the geolocation permission proceeds to navigator.geolocation.getCurrentPosition and writes the resolved location', async () => {
-    vi.mocked(ensurePermission).mockResolvedValue(true)
+  it('device-level denial (the browser/OS location prompt itself is declined) shows an inline alert and writes no location', async () => {
+    getCurrentPosition.mockImplementation((_success: (pos: unknown) => void, error: (err: unknown) => void) => {
+      error(new Error('User denied Geolocation'))
+    })
+    const { storage } = await renderSetup()
+    const button = screen.getByRole('button', { name: 'Use my location' }) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(button)
+      await vi.advanceTimersByTimeAsync(0)
+    })
+
+    expect(getCurrentPosition).toHaveBeenCalledTimes(1)
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toBe('Location denied — search for your city instead.')
+    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
+    expect(await storage.get('location')).toBeNull()
+    expect(button.disabled).toBe(false)
+  })
+
+  it('clicking "Use my location" calls navigator.geolocation.getCurrentPosition directly (no permission request in front of it) and writes the resolved location', async () => {
     getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
       success({ coords: { latitude: 32.7767, longitude: -96.797 } })
     })
@@ -499,7 +467,6 @@ describe('LocationSetup "Use my location" (geolocation permission, requested on 
       await vi.advanceTimersByTimeAsync(0)
     })
 
-    expect(ensurePermission).toHaveBeenCalledWith('geolocation')
     expect(getCurrentPosition).toHaveBeenCalledTimes(1)
     expect(await storage.get('location')).toEqual({
       lat: 32.78,
