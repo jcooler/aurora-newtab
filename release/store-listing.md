@@ -94,8 +94,7 @@ would need its own justification.
       ever READ the instant you click "Use my location" — never in the
       background, and never just for typing a city name.
 
-    Read the full privacy policy: [PRIVACY.md URL — Jon fills in once
-    hosting is decided, see release/LAUNCH-CHECKLIST.md]
+    Read the full privacy policy: https://github.com/jcooler/aurora-newtab/blob/main/PRIVACY.md
 
 **[Jon: the tone above avoids "best," "revolutionary," "must-have" — deliberately, per your no-growth-hack-superlatives instruction. Read it once end to end before it goes live; it's your name on the listing, not mine.]**
 
