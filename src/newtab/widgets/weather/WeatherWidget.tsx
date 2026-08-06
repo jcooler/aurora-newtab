@@ -28,7 +28,17 @@ export default function WeatherWidget() {
       // fixed 32rem ceiling (reachable only when this widget is expanded —
       // the collapsed state is already much narrower) eating into the
       // centered bookmarks bar's own space as the viewport narrows.
-      className="w-max max-w-[32rem] tight:max-w-[30vw] rounded-panel border border-panel-border bg-panel p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      //
+      // Surface: bg-panel (50% — same token the collapsed chip has always
+      // used) while collapsed, bg-panel-solid (95%) once expanded — the
+      // project convention floating panels follow (TimerWidget's pill vs.
+      // its own expanded dialog is the same-file precedent: bg-panel at
+      // ~line 164, bg-panel-solid at ~line 188). Conditional rather than a
+      // flat switch specifically so the collapsed chip stays byte-identical
+      // (its own explicit "untouched" requirement) while the taller,
+      // richer expanded content — now sitting over more of the photo —
+      // gets the stronger surface.
+      className={`w-max max-w-[32rem] tight:max-w-[30vw] rounded-panel border border-panel-border p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${expanded ? 'bg-panel-solid' : 'bg-panel'}`}
     >
       {location === null && <LocationSetup />}
       {location && !snapshot && (
