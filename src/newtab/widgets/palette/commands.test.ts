@@ -8,7 +8,6 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     use24Hour: false,
     theme: 'aurora',
     units: 'metric',
-    searchEngine: 'google',
     muted: false,
     widgets: {
       search: true,

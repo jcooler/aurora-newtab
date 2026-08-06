@@ -7,9 +7,15 @@ described here; do not re-litigate settled decisions.
 
 Aurora: a local-first MV3 new-tab Chrome extension (React 19 + TS strict + Vite 6
 + @crxjs + Tailwind 4 + Vitest 3 + Playwright preview harness), built to beat
-Momentum. **v1.2.0 is SUBMITTED to the Chrome Web Store** (2026-07-30, tag
-`v1.2.0`, repo public) and awaiting review — if the verdict arrives mid-session
-and is a rejection, STOP and consult Jon before anything store-related.
+Momentum. **v1.2.0 was REJECTED by Chrome Web Store review** (violation
+"Red Argon" — Single Purpose: the in-extension Google/DuckDuckGo/Bing
+search-engine picker changed the user's search experience instead of
+routing through the Chrome Search API). **v1.2.1 remediation has shipped**
+(engine picker deleted; every search now calls `chrome.search.query()` —
+see `release/RESUBMISSION-NOTES.md` for the full story) — **resubmission to
+the CWS dashboard is pending Jon** (upload + listing-copy update + reviewer
+note, steps in that same file). If Jon reports a new store verdict mid-
+session, STOP and consult him before anything store-related.
 
 We are starting **v2: the connector era**. Jon approved the roster (GitHub,
 GitLab, Gmail, Google Calendar, Spotify, Jira, Vercel, RSS, crypto ticker,
@@ -26,6 +32,15 @@ auth-type phasing across four sub-projects:
 Verified at handoff: HEAD = `254544c`… plus this file and 3 specs + 1 plan
 committed after; working tree clean, everything pushed, `npm test` 428/428
 green, `npm run build` + `npm run build:preview` green.
+
+**Update (2026-08-06):** one remediation commit landed on top of the above
+(v1.2.1, Red Argon fix — see the store-state line up top and
+`release/RESUBMISSION-NOTES.md`). It bumped the storage schema to
+**v4** (migration strips `Settings.searchEngine`) — sub-project 1's plan
+below still says "schema v4" for its own connector-framework bump; that now
+COLLIDES and needs to be renumbered to **v5** before Task 39 starts. Fix the
+plan file's version number first, don't just start coding against the old
+one. `npm test` is 438/438 green as of this commit.
 
 ## The process (superpowers subagent-driven development)
 
@@ -57,9 +72,12 @@ You are the controller; you do NOT write feature code yourself. Per task:
 
 ## Immediate next action
 
-Sub-project 1, Task 39 (schema v4). The plan is complete and self-reviewed —
-brief it, dispatch it, run the loop through Task 45, final review, report.
-Then write sub-project 2's plan from its spec (writing-plans skill) and continue.
+Sub-project 1, Task 39 — **schema v5, NOT v4** (v4 was consumed by the
+Red Argon remediation's searchEngine-removal migration; see the "Update
+(2026-08-06)" note above — renumber the plan file before dispatching). The
+plan is otherwise complete and self-reviewed — brief it, dispatch it, run
+the loop through Task 45, final review, report. Then write sub-project 2's
+plan from its spec (writing-plans skill) and continue.
 
 ## Jon's standing directives (violating these gets tasks rejected)
 

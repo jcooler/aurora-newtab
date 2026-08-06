@@ -5,7 +5,6 @@
 // module's. That's why the success shape is `{ data, version }` rather than
 // an already-migrated `AuroraData`.
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
-import { ENGINES } from './search'
 import { isPlainObject } from './object'
 import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
 
@@ -102,8 +101,6 @@ function isWidgetToggles(v: unknown): boolean {
   return isPlainObject(v) && WIDGET_KEYS.every((k) => isBoolean(v[k]))
 }
 
-const ENGINE_KEYS = Object.keys(ENGINES) as (keyof typeof ENGINES)[]
-
 function isSettings(v: unknown): boolean {
   if (!isPlainObject(v)) return false
   return (
@@ -111,15 +108,11 @@ function isSettings(v: unknown): boolean {
     isBoolean(v.use24Hour) &&
     isString(v.theme) &&
     isString(v.units) &&
-    // searchEngine is whitelisted (not just typeof-checked, unlike the other
-    // string fields here): SearchBar.tsx does `ENGINES[engine].url`, and an
-    // unrecognized key throws an uncaught TypeError from a form's onSubmit
-    // handler — event-handler throws aren't caught by React error
-    // boundaries, so an invalid value silently breaks search until the user
-    // reselects an engine in Settings. theme/units/photoPrefs.mode were
-    // traced too and don't have an equivalent reachable crash, so they stay
-    // typeof-only.
-    ENGINE_KEYS.includes(v.searchEngine as keyof typeof ENGINES) &&
+    // No searchEngine check here anymore (Red Argon remediation): the field
+    // is gone from Settings entirely, and migrate()'s v3->v4 step strips it
+    // from any older backup BEFORE this validator ever runs (see
+    // storage/migrations.ts's step 3, and validateBackupShape's own doc
+    // comment below for why migration always runs first).
     isBoolean(v.muted) &&
     isWidgetToggles(v.widgets)
   )

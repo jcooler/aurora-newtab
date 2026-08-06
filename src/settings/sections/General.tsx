@@ -1,6 +1,5 @@
 import { useRef } from 'react'
 import { THEMES } from '../../theme/index'
-import { ENGINES } from '../../lib/search'
 import type { Settings } from '../../lib/storage/schema'
 import { row, label, control } from './shared'
 
@@ -133,25 +132,6 @@ export default function General({
           >
             <option value="metric">Celsius</option>
             <option value="imperial">Fahrenheit</option>
-          </select>
-        </div>
-        <div className={row}>
-          <label htmlFor="set-engine" className={label}>
-            Search engine
-          </label>
-          <select
-            id="set-engine"
-            value={settings.searchEngine}
-            onChange={(e) =>
-              patch({ searchEngine: e.currentTarget.value as Settings['searchEngine'] })
-            }
-            className={control}
-          >
-            {Object.entries(ENGINES).map(([id, engine]) => (
-              <option key={id} value={id}>
-                {engine.label}
-              </option>
-            ))}
           </select>
         </div>
         <div className={row}>

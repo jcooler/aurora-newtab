@@ -3,7 +3,7 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
-import { searchUrl } from '../../../lib/search'
+import { searchWeb } from '../../../services/search'
 import { todoReducer } from '../todo/todoReducer'
 import { buildCommands, filterCommands, type CommandContext } from './commands'
 
@@ -36,7 +36,10 @@ export default function Palette({
       links: links ?? [],
       settings,
       openUrl: (url) => window.location.assign(url),
-      webSearch: (q) => window.location.assign(searchUrl(settings.searchEngine, q)),
+      // Red Argon remediation: routes through Chrome's own Search API
+      // (src/services/search.ts) rather than building a provider URL —
+      // see that module's doc comment for the full story.
+      webSearch: (q) => void searchWeb(q),
       // Same idempotent-list pattern as TodoPanel's auto-seed, but folded into
       // a single transform: this one must ALWAYS produce a change (the new
       // item), so there's no same-reference short-circuit to preserve.

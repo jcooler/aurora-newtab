@@ -1,6 +1,6 @@
 import type { Layout } from '../layout/types'
 
-export const CURRENT_VERSION = 3
+export const CURRENT_VERSION = 4
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
@@ -22,7 +22,6 @@ export interface Settings {
   use24Hour: boolean
   theme: ThemeId
   units: 'metric' | 'imperial'
-  searchEngine: 'google' | 'duckduckgo' | 'bing'
   muted: boolean
   widgets: WidgetToggles
 }
@@ -141,7 +140,6 @@ export function defaults(): AuroraData {
       use24Hour: false,
       theme: 'aurora',
       units: 'metric',
-      searchEngine: 'google',
       muted: false,
       widgets: {
         search: true,

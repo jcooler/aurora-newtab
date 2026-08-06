@@ -165,24 +165,6 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "timerConfig" data is invalid.' })
   })
 
-  it('rejects settings.searchEngine outside the known engine keys', () => {
-    // Unlike theme/units/photoPrefs.mode, an unrecognized searchEngine is a
-    // real reachable crash: SearchBar.tsx calls ENGINES[engine].url, and an
-    // uncaught TypeError from a form's onSubmit handler isn't caught by any
-    // React error boundary (event-handler throws don't unwind through one).
-    const bad = { ...defaults(), settings: { ...defaults().settings, searchEngine: 'yahoo' } }
-    const result = validateBackupShape(bad as never)
-    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
-  })
-
-  it('accepts every real engine key as a valid settings.searchEngine', () => {
-    for (const engine of ['google', 'duckduckgo', 'bing'] as const) {
-      const ok = { ...defaults(), settings: { ...defaults().settings, searchEngine: engine } }
-      const result = validateBackupShape(ok as never)
-      expect(result.ok).toBe(true)
-    }
-  })
-
   it('rejects a layout whose entry is not a finite pair', () => {
     const bad = { ...defaults(), layout: { clock: { x: NaN, y: 10 } } }
     const result = validateBackupShape(bad as never)
@@ -209,6 +191,21 @@ describe('validateBackupShape: migration-then-validate order', () => {
     const migrated = migrate({ settings: v1Settings }, 1)
     const result = validateBackupShape(migrated)
     expect(result.ok).toBe(true)
+  })
+
+  // Red Argon remediation: an OLD (v<=3) backup — from before the in-extension
+  // engine picker was removed — still carries a searchEngine field. isSettings
+  // no longer checks it at all (the field doesn't exist on Settings anymore),
+  // so importing such a backup must still work: migrate()'s v3->v4 step
+  // strips searchEngine BEFORE validateBackupShape ever runs, exactly the
+  // same migrate-then-validate order the v1-era test above relies on.
+  it('an old (v3) backup carrying searchEngine imports cleanly: migration strips it before validation', () => {
+    const v3Settings = { ...defaults().settings, name: 'Jon', searchEngine: 'duckduckgo' }
+    const migrated = migrate({ settings: v3Settings }, 3)
+    expect('searchEngine' in migrated.settings).toBe(false)
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.settings.name).toBe('Jon')
   })
 })
 

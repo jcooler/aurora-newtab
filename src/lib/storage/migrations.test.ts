@@ -16,7 +16,8 @@ describe('migrate', () => {
   it('runs registered migrations in order up to the current version', () => {
     const calls: number[] = []
     const registry: Record<number, Migration> = {
-      // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2] upgrades v2 -> v3 (CURRENT_VERSION)
+      // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
+      // upgrades v2 -> v3, registry[3] upgrades v3 -> v4 (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -29,9 +30,13 @@ describe('migrate', () => {
         calls.push(2)
         return data
       },
+      3: (data) => {
+        calls.push(3)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2])
+    expect(calls).toEqual([0, 1, 2, 3])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -100,5 +105,60 @@ describe('v2 -> v3', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 still ran
     expect(out.layout).toEqual({}) // v2->v3 ran after it
+  })
+})
+
+// Red Argon remediation: the in-extension engine picker is gone, and
+// Settings.searchEngine must not survive an import — see migrations.ts's
+// comment on step 3 for why.
+describe('v3 -> v4', () => {
+  it('strips searchEngine from settings, keeping every other field', () => {
+    const v3Settings = { ...defaults().settings, name: 'Jon', searchEngine: 'duckduckgo' }
+    const out = migrate({ settings: v3Settings }, 3)
+    expect(out.settings.name).toBe('Jon')
+    expect('searchEngine' in out.settings).toBe(false)
+  })
+
+  it('tolerates a v3 snapshot with no settings at all', () => {
+    const out = migrate({}, 3)
+    expect('searchEngine' in out.settings).toBe(false)
+  })
+
+  it('guards against a non-object settings (e.g. a hand-edited string): no throw', () => {
+    // Unlike v1->v2 (which always rebuilds settings from defaults() as part
+    // of its own backfill and so incidentally repairs a corrupted value),
+    // this step's only job is stripping one field — a non-object settings
+    // is left untouched rather than crashing (destructuring a string by key
+    // throws), and is caught downstream by backup.ts's validateBackupShape,
+    // the same enforcement point the original v1 guard's comment points at
+    // ("reachable via import").
+    expect(() => migrate({ settings: 'oops' }, 3)).not.toThrow()
+  })
+
+  it('a v1 snapshot chains through all three migrations, ending with no searchEngine', () => {
+    const v1Settings = {
+      name: 'Jon',
+      use24Hour: false,
+      theme: 'aurora',
+      units: 'metric',
+      searchEngine: 'bing',
+      muted: false,
+      widgets: { search: false, weather: true, links: true, todo: true, timer: true, quote: false },
+    }
+    const out = migrate({ settings: v1Settings }, 1)
+    expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran last
+  })
+
+  // The reason validateBackupShape's isSettings check no longer whitelists
+  // searchEngine at all (backup.ts): an OLD (v<=3) backup's searchEngine
+  // must be gone BEFORE shape validation ever sees it, not merely ignored
+  // by it. Proven at the migrate() level here; backup.test.ts proves the
+  // full parseBackup -> migrate -> validateBackupShape pipeline.
+  it('an old backup carrying searchEngine no longer has it after migrate(), regardless of validation', () => {
+    const out = migrate({ settings: { ...defaults().settings, searchEngine: 'google' } }, 3)
+    expect(Object.keys(out.settings).sort()).toEqual(Object.keys(defaults().settings).sort())
   })
 })

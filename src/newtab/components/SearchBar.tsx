@@ -1,4 +1,4 @@
-import { searchUrl } from '../../lib/search'
+import { searchWeb } from '../../services/search'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 
 export default function SearchBar() {
@@ -10,8 +10,8 @@ export default function SearchBar() {
       className="mt-8 short:mt-2 xshort:mt-1"
       onSubmit={(e) => {
         e.preventDefault()
-        const q = String(new FormData(e.currentTarget).get('q') ?? '')
-        if (q.trim()) window.location.assign(searchUrl(settings.searchEngine, q))
+        const q = String(new FormData(e.currentTarget).get('q') ?? '').trim()
+        if (q) void searchWeb(q)
       }}
     >
       <input

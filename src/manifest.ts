@@ -60,12 +60,25 @@ const PREVIEW = 'preview'
 export default defineManifest((env) => ({
   manifest_version: 3,
   name: 'Aurora',
-  version: '1.2.0',
+  version: '1.2.1',
   description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
+  // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
+  // — see src/services/search.ts, the ONLY caller of chrome.search.query()
+  // in this codebase. Chrome's optional-permissions allow-list (the same
+  // one that rules out `geolocation` below) does NOT exclude `search` —
+  // it's legal to request it at runtime instead of at install. It's placed
+  // here anyway, install-time in BOTH build modes, as a deliberate product
+  // choice, not a Chrome restriction: the search bar is a flagship,
+  // default-on widget (settings.widgets.search defaults to true), visible
+  // on every new tab from first launch. Gating it behind an on-first-search
+  // permission prompt would put a native Chrome dialog between the user and
+  // the very first thing they try to use — worse UX than `bookmarks`
+  // below, which is off by default and easily deferred to a real user
+  // gesture in Settings.
   permissions:
     env.mode === PREVIEW
-      ? ['storage', 'favicon', 'bookmarks', 'geolocation']
-      : ['storage', 'favicon', 'geolocation'],
+      ? ['storage', 'favicon', 'bookmarks', 'geolocation', 'search']
+      : ['storage', 'favicon', 'geolocation', 'search'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
   // here rather than duplicating it — it MOVES, it doesn't get held twice.

@@ -30,6 +30,23 @@ export const migrations: Record<number, Migration> = {
   },
   // v2 -> v3: free-layout map for arrange mode. Absent for every v2 user.
   2: (data) => ({ ...data, layout: {} }),
+  // v3 -> v4: Red Argon remediation — the in-extension engine picker
+  // (google/duckduckgo/bing) is gone; all search now routes through
+  // chrome.search.query (see src/services/search.ts), which respects
+  // whatever engine the user actually has set in their own browser, so
+  // Settings.searchEngine no longer means anything and must not survive an
+  // import. Spread-omit (not `delete`), same style as every migration here:
+  // a fresh object without the key, rather than mutating the stored one.
+  // Guarded the same way v1->v2 guards `widgets` — a hand-edited backup can
+  // carry `"settings": "oops"`, and `const { searchEngine, ...rest } =
+  // 'oops'` would throw (destructuring a string by key is not the same as
+  // spreading one), so settings is shape-checked first.
+  3: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    const { searchEngine: _searchEngine, ...rest } = settings
+    return { ...data, settings: rest }
+  },
 }
 
 export function migrate(

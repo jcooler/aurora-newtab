@@ -10,7 +10,8 @@ no backend — everything lives on your machine.
   the local clock, plus a countdown line for the nearest upcoming date
   you've added — both configured from Settings.
 - **Daily focus** — one thing you're focusing on today; resets each morning.
-- **Search bar** — Google, DuckDuckGo, or Bing, your choice.
+- **Search bar** — searches with your browser's default search engine, via
+  Chrome's own Search API (`chrome.search`).
 - **Quick links** — a small drag-to-reorder tile grid with favicons.
 - **Weather** — current conditions + next-12-hours forecast via Open-Meteo,
   from your device location or a searched city; expand it for feels-like

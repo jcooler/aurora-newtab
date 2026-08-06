@@ -1,8 +1,19 @@
-# Chrome Web Store listing — Aurora v1.2.0
+# Chrome Web Store listing — Aurora v1.2.1
 
 Prepared for Jon to paste into the CWS Developer Dashboard. Nothing here is
 final until he's read it — voice/tone calls are flagged inline where marked
 **[Jon: ...]**.
+
+**Updated for v1.2.1 (Red Argon remediation):** v1.2.0 was rejected for
+Single Purpose violation "Red Argon" — the in-extension Google/DuckDuckGo/
+Bing search-engine picker changed the user's search experience without
+going through the Chrome Search API. That picker is gone; every search now
+routes through `chrome.search.query()`, which respects whatever engine the
+user has actually set as their Chrome default. This revision removes the
+"your choice" line from the description below (it described the very
+feature that got rejected) and adds a permission-justification block for
+the new `search` permission. See `release/RESUBMISSION-NOTES.md` for the
+reviewer-facing note and Jon's resubmission steps.
 
 ## Item name
 
@@ -48,8 +59,9 @@ would need its own justification.
     - Weather — current conditions and a next-12-hours forecast, from
       your device location or a searched city, powered by the free,
       keyless Open-Meteo API. No API key to configure, no sign-up.
-    - A search bar (Google, DuckDuckGo, or Bing — your choice) and a
-      small drag-to-reorder grid of quick links with favicons.
+    - A search bar that searches with your browser's own default search
+      engine (via Chrome's Search API) and a small drag-to-reorder grid
+      of quick links with favicons.
     - Background photos: a bundled, hand-curated set of landscape and
       aurora photos that rotates daily, your own uploaded photo gallery,
       or a flat gradient.
@@ -119,6 +131,24 @@ would need its own justification.
   added, passed to Chrome's local favicon cache — not a network request
   Aurora makes itself, and no browsing-history access beyond that.
 
+**`search`** (install-time, no prompt — Chrome's optional-permissions
+allow-list does NOT exclude `search`, unlike `geolocation` below; installing
+it at install-time here is a deliberate product choice, not a Chrome
+requirement)
+- *Why:* Red Argon remediation. The search bar and the command palette's
+  "Search the web" fallback both need to route queries through
+  `chrome.search.query()` — the platform API that respects the user's own
+  default search engine — instead of Aurora building a provider URL itself
+  (the exact thing v1.2.0 was rejected for).
+- *When prompted:* Never — install-time, automatic. Chosen over an
+  on-first-search runtime prompt because the search bar is a default-on,
+  flagship widget visible on every new tab from first launch; gating it
+  behind a permission dialog would interrupt the first thing most users try.
+- *What's read/written:* Only the text you type into the search bar or
+  palette, handed straight to `chrome.search.query()`. Aurora never
+  constructs a search URL, never learns which engine Chrome used, and never
+  sees the results.
+
 **`geolocation`** (install-time, no prompt — Chrome does not permit this
 specific permission to be requested at runtime; it maintains a fixed list
 of permissions that may be declared optional, and geolocation is not on
@@ -162,7 +192,7 @@ it does make three third-party network calls (Open-Meteo ×2, BigDataCloud
 | Authentication information | No | No accounts exist. |
 | Personal communications | No | — |
 | **Location** | **Yes — approximate location** | The `geolocation` permission is held from install (Chrome requires that — see the permission justification above), but coordinates are only ever read and sent at the moment you click "Use my location," never in the background. Rounded to ~1 km and sent to Open-Meteo (forecast) and, once per click, BigDataCloud (place-name lookup). Never sold, never used for advertising, used only to show weather for that location. |
-| Web history | No | Bookmarks are read via `chrome.bookmarks.getTree()` but never transmitted anywhere — they stay on-device, so this is a local *read*, not a *collection* under Google's definition. |
+| Web history | No | Bookmarks are read via `chrome.bookmarks.getTree()` but never transmitted anywhere — they stay on-device, so this is a local *read*, not a *collection* under Google's definition. Same reasoning covers search: text typed into the search bar/palette is handed to `chrome.search.query()`, a browser-mediated API call, not a network request Aurora itself makes — Aurora never builds or sends the request and never learns the result. |
 | User activity | No | No clicks, keystrokes, or usage are logged or transmitted. |
 | Website content | No | — |
 

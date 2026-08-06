@@ -23,11 +23,13 @@
  *  permission-pinned wrappers so their exported names — and every existing
  *  call site/test mock keyed on them — stay unchanged.
  *
- *  This module, alongside the storage driver (chrome.storage) and
- *  bookmarks.ts's loadBarModel (chrome.bookmarks.getTree), is one of the
- *  few places in the codebase allowed to touch chrome.* directly — every
- *  other caller goes through hasPermission/ensurePermission below rather
- *  than chrome.permissions itself. */
+ *  This module, alongside the storage driver (chrome.storage), bookmarks.ts's
+ *  loadBarModel (chrome.bookmarks.getTree), and search.ts's searchWeb
+ *  (chrome.search.query), is one of the few places in the codebase allowed
+ *  to touch chrome.* directly — every other caller goes through
+ *  hasPermission/ensurePermission below rather than chrome.permissions
+ *  itself. `search` is install-time (not requested through this module) —
+ *  see src/manifest.ts's comment for why. */
 
 /** True if the extension currently holds the named optional permission —
  *  either because a caller previously granted it via ensurePermission

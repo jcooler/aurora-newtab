@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** August 1, 2026
+**Effective date:** August 6, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -21,8 +21,8 @@ All of the following is stored locally in the extension's
 `chrome.storage.local`, on your device only, and is never transmitted
 anywhere except as explicitly described under "Network calls" below:
 
-- Your settings (name/greeting text, theme, units, search engine, sound,
-  and which widgets are turned on)
+- Your settings (name/greeting text, theme, units, sound, and which widgets
+  are turned on)
 - Quick links (the tiles you add)
 - To-do lists and their items
 - Focus timer configuration and session state
@@ -87,10 +87,21 @@ Chrome's own built-in local favicon cache (the `_favicon` API, gated by the
 `favicon` permission below) — not from any external favicon service, and
 not a request Aurora itself makes over the network.
 
-Clicking a quick link, a bookmark, or typing into the search bar navigates
-your browser to that page the same way clicking any other link would —
-that's ordinary browsing, not a network call Aurora makes on your behalf,
-and it isn't logged or recorded by Aurora anywhere.
+Clicking a quick link or a bookmark navigates your browser to that page the
+same way clicking any other link would — that's ordinary browsing, not a
+network call Aurora makes on your behalf, and it isn't logged or recorded by
+Aurora anywhere.
+
+**The search bar and the command palette's "Search the web" don't make a
+network request either.** Aurora hands whatever text you typed straight to
+Chrome's own `chrome.search.query()` API (the `search` permission below) and
+stops there — Chrome decides which search engine to use (whichever one is
+set as your default in Chrome's own settings, at `chrome://settings/search`)
+and sends the request itself. Aurora never builds a search-provider URL, has
+no opinion about which engine you use, and never sees or learns where the
+query actually goes. (An earlier version shipped an in-extension
+Google/DuckDuckGo/Bing picker that built the query URL itself instead of
+using this API — that's gone; every search now goes through Chrome.)
 
 ## Permissions
 
@@ -102,6 +113,14 @@ Aurora requests the following Chrome permissions:
   small site icons next to quick links and bookmarks, via Chrome's local
   favicon cache. No browsing history is read beyond the single URL needed
   to look up each icon.
+- **`search`** (installed automatically, no prompt) — used only to send
+  what you type into the search bar or the command palette's "Search the
+  web" to `chrome.search.query()`, so Chrome can route it to your own
+  default search engine (see "Network calls" above). Held from install
+  rather than requested on first use because the search bar is a
+  default-on widget shown from the very first new tab — Chrome does allow
+  `search` to be requested at runtime instead, but doing so here would put
+  a permission prompt between you and the first thing on the page.
 - **`bookmarks`** (optional — requested at runtime, never at install).
   Aurora's Bookmarks bar widget is off by default. Turning it on in Settings
   triggers Chrome's own native permission prompt; declining leaves the
