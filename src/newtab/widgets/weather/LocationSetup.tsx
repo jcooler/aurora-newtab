@@ -234,7 +234,14 @@ export default function LocationSetup() {
         onClick={useDevice}
         disabled={busy}
         aria-describedby={error ? 'location-error' : undefined}
-        className="self-start rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+        // Explicit cursors, both here and on the input below: WeatherWidget's
+        // <section> sets `cursor-default` (it inherits, which is what keeps
+        // the text I-beam off the forecast data — see its own comment), and
+        // Tailwind v4's preflight sets `cursor: default` on buttons besides.
+        // Neither is right for a form: a button is a control (pointer) and a
+        // text field is a text field (I-beam). The suggestion rows below
+        // already carry their own `cursor-pointer`.
+        className="self-start cursor-pointer rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
       >
         Use my location
       </button>
@@ -251,7 +258,7 @@ export default function LocationSetup() {
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="or search a city"
-          className="w-40 border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
+          className="w-40 cursor-text border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent"
         />
         {/* Rendered whenever there's something to show, then hidden (not
             unmounted) once closed — the `hidden` attribute drops it from the

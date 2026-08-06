@@ -727,6 +727,47 @@ console.log(
     : 'FAIL: location typeahead shows live suggestions while typing (0 rows after debounce)',
 )
 
+// C3, second state. The cursor probe further up only ever sees the widget
+// with a cached snapshot; LocationSetup mounts inside the SAME <section>, and
+// that section's `cursor-default` INHERITS — which is exactly what keeps the
+// I-beam off the forecast data, but is wrong for a form. Chrome's UA sheet
+// sets no cursor on a text input (it relies on `auto`), so the inherited
+// `default` silently turned the city field into an arrow; Tailwind v4's
+// preflight does the same to the "Use my location" button. Both now say what
+// they are, and this probe — piggybacking on the typeahead state above, where
+// input, button and suggestion rows are all on screen at once — is what keeps
+// them saying it.
+{
+  const c = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const cursorOf = (el) => getComputedStyle(el).cursor
+    const input = sec.querySelector('input[role="combobox"]')
+    const button = sec.querySelector('button')
+    const options = [...sec.querySelectorAll('[role="option"]')]
+    const statics = [...sec.querySelectorAll('p')].filter((el) => !el.closest('button, a'))
+    return {
+      input: input ? cursorOf(input) : null,
+      button: button ? cursorOf(button) : null,
+      options: [...new Set(options.map(cursorOf))],
+      optionCount: options.length,
+      statics: [...new Set(statics.map(cursorOf))],
+    }
+  }, weatherSel)
+  const optionsOk = c && (c.optionCount === 0 || (c.options.length === 1 && c.options[0] === 'pointer'))
+  const ok =
+    c &&
+    c.input === 'text' &&
+    c.button === 'pointer' &&
+    optionsOk &&
+    !c.statics.includes('pointer')
+  console.log(
+    ok
+      ? `PASS: correct cursors in the location-setup state (input=${c.input}, "Use my location"=${c.button}, ${c.optionCount} suggestion row(s)=${c.options.join('/') || 'n/a'}, static text=${c.statics.join('/') || 'none'})`
+      : `FAIL: correct cursors in the location-setup state (${JSON.stringify(c)})`,
+  )
+}
+
 // Escape must close the suggestion list without clearing what was typed, and
 // without doing anything else (no drawer/dialog to close here — the widget
 // sits directly on the page). The listbox stays in the DOM hidden (not
