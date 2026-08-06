@@ -410,18 +410,245 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/drawer-footer.png` })
 console.log('captured drawer-footer.png')
 
-// Close the drawer, then expand the weather widget's hourly forecast
+// ---------------------------------------------------------------------------
+// Weather widget (rebuild after Jon rejected the previous expanded panel).
+//
+// The gate that let that redesign ship was screenshots-only: three PNGs a
+// human eyeballed. Every one of the five defects he then hit in real use —
+// a hit target that only responded in a narrow band, an always-on Windows
+// scrollbar, a text I-beam over non-interactive forecast data, a collision
+// with the bookmarks bar, and a scrollbar drag engaging arrange mode — is
+// invisible in a screenshot and trivially MEASURABLE in a real browser. The
+// probes below are that measurement.
+//
+// NOTE on selectors: `section[aria-label="Weather"]` is AMBIGUOUS — the
+// Settings drawer has its own permanently-mounted Weather section with the
+// same label. Everything here scopes through `[data-block-id="weather"]`
+// (PositionedBlock's own attribute) so it can only ever match the widget.
+const weatherSel = '[data-block-id="weather"] section[aria-label="Weather"]'
+const weatherToggle = '[data-block-id="weather"] button[aria-expanded]'
+
+async function weatherExpanded() {
+  return page.evaluate(
+    (s) => document.querySelector(s)?.getAttribute('aria-expanded') === 'true',
+    weatherToggle,
+  )
+}
+async function setWeatherExpanded(want) {
+  if ((await weatherExpanded()) !== want) {
+    await page.click(weatherToggle)
+    await page.waitForTimeout(150)
+  }
+}
+
+/** Every element in the widget that is a scroll container, or whose content
+ *  is wider than its box. `.sr-only` is skipped on purpose: it is a 1px,
+ *  clip-path'd, deliberately-clipped box (the accessible "Sunrise"/"Sunset"
+ *  prefixes) that can never paint a scrollbar. */
+async function weatherOverflow() {
+  return page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return ['weather widget not found']
+    const bad = []
+    for (const el of [sec, ...sec.querySelectorAll('*')]) {
+      if (el.classList?.contains('sr-only')) continue
+      const cs = getComputedStyle(el)
+      if (['auto', 'scroll'].includes(cs.overflowX) || ['auto', 'scroll'].includes(cs.overflowY)) {
+        bad.push(`${el.tagName} is a scroll container (overflow ${cs.overflowX}/${cs.overflowY})`)
+        continue
+      }
+      // SVG child elements (path/rect/…) have no clientWidth at all — the
+      // subtraction is NaN there, and NaN > 1 is false, so they skip
+      // themselves without a special case.
+      const dx = el.scrollWidth - el.clientWidth
+      if (dx > 1) bad.push(`${el.tagName} scrollWidth ${el.scrollWidth} > clientWidth ${el.clientWidth}`)
+    }
+    return bad
+  }, weatherSel)
+}
+
+// Close the drawer first — its z-40 backdrop covers the whole viewport while
+// open and would eat every click below.
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400) // slide-out transition
-await page.click('section[aria-label="Weather"] button')
+
+// C1 — hit target. Jon: "you cannot click in to expand it unless you click on
+// a very specific place in that box." Root cause (measured, pre-fix): the
+// toggle was a content-sized <button> inside a `p-3` <section>, so only 48.2%
+// of the collapsed chip's area (and 4.7% of the expanded panel's) responded —
+// clicks in the padding, on the rain callout, or at the corners resolved to
+// the <section> and did nothing.
+//
+// The nine points below are all unambiguously ON the chip: four edge
+// midpoints (the padding gutters that used to be dead), four corners inset by
+// CORNER_INSET, and the centre. The inset is not a hedge — the panel is
+// `rounded-panel` (16px in Aurora, 20px in Glass), so the literal corner of
+// its bounding RECT is outside the painted shape in every theme: no pixel of
+// the widget is drawn there, and a click there is a click on the photo. 7px
+// in from the corner is inside the arc for both radii (√(10²+10²) = 14.1 < 16;
+// √(14²+14²) = 19.8 < 20) and outside the old button's box entirely.
+{
+  await setWeatherExpanded(false)
+  const box = await page.evaluate((s) => {
+    const r = document.querySelector(s).getBoundingClientRect()
+    return { x: r.x, y: r.y, w: r.width, h: r.height }
+  }, weatherSel)
+  const CORNER_INSET = 7
+  const points = [
+    ['left edge', box.x + 2, box.y + box.h / 2],
+    ['right edge', box.x + box.w - 2, box.y + box.h / 2],
+    ['top edge', box.x + box.w / 2, box.y + 2],
+    ['bottom edge', box.x + box.w / 2, box.y + box.h - 2],
+    ['top-left corner', box.x + CORNER_INSET, box.y + CORNER_INSET],
+    ['top-right corner', box.x + box.w - CORNER_INSET, box.y + CORNER_INSET],
+    ['bottom-left corner', box.x + CORNER_INSET, box.y + box.h - CORNER_INSET],
+    ['bottom-right corner', box.x + box.w - CORNER_INSET, box.y + box.h - CORNER_INSET],
+    ['centre', box.x + box.w / 2, box.y + box.h / 2],
+  ]
+  const dead = []
+  for (const [name, x, y] of points) {
+    await setWeatherExpanded(false)
+    await page.mouse.click(x, y)
+    await page.waitForTimeout(120)
+    if (!(await weatherExpanded())) dead.push(name)
+  }
+  console.log(
+    dead.length === 0
+      ? `PASS: every point on the collapsed weather chip expands it (${points.length} points — 4 edges, 4 corners, centre)`
+      : `FAIL: every point on the collapsed weather chip expands it — dead points: ${dead.join(', ')}`,
+  )
+
+  // …and the same control closes it again, from an equally obvious affordance
+  // (the header row carries a rotating chevron and aria-expanded).
+  await setWeatherExpanded(true)
+  await page.click(weatherToggle)
+  await page.waitForTimeout(150)
+  const closed = !(await weatherExpanded())
+  console.log(
+    closed
+      ? 'PASS: the weather panel closes again from its own header control'
+      : 'FAIL: the weather panel closes again from its own header control',
+  )
+}
+
+await setWeatherExpanded(true)
 await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
 console.log('captured weather-expanded.png')
 
-// Narrow-viewport expanded captures (Task 1 redesign — bigger hourly cards,
-// a structured meta row, and the full-forecast link all need to keep
-// reading cleanly at the two tightest shapes this app is tuned for, not
-// just the roomy 1600x900 launch size above). 1420x437 is the owner's own
+// C3 — false affordances. Jon: "the cursor changes when you hover over the
+// weather alerts like possible rain." Root cause (measured, pre-fix): the
+// chip <button> computed `cursor: default` (Tailwind v4's preflight sets that
+// on buttons, unlike v3's `pointer`), while every label, temperature and
+// forecast cell computed `cursor: auto` — which resolves to the TEXT I-BEAM
+// over text. Exactly inverted: the one real control looked inert, and the
+// data looked live. `auto` is therefore a FAILURE here, not just `pointer`.
+{
+  const cursors = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    const cursorOf = (el) => getComputedStyle(el).cursor
+    const chip = sec.querySelector('button[aria-expanded]')
+    const link = sec.querySelector('a[href*="weather.com"]')
+    const data = [...sec.querySelectorAll('dl, dt, dd, p, span, svg[role="img"]')].filter(
+      (el) => !el.closest('button, a') && !el.classList.contains('sr-only'),
+    )
+    return {
+      chip: chip ? cursorOf(chip) : null,
+      link: link ? cursorOf(link) : null,
+      dataCursors: [...new Set(data.map(cursorOf))],
+      dataClickable: data.filter((el) => cursorOf(el) !== 'default').length,
+      sampled: data.length,
+    }
+  }, weatherSel)
+  const ok =
+    cursors.chip === 'pointer' &&
+    cursors.link === 'pointer' &&
+    cursors.sampled > 0 &&
+    cursors.dataClickable === 0
+  console.log(
+    ok
+      ? `PASS: pointer cursor only on real weather controls (chip=${cursors.chip}, link=${cursors.link}; all ${cursors.sampled} data elements cursor:${cursors.dataCursors.join('/')})`
+      : `FAIL: pointer cursor only on real weather controls (chip=${cursors.chip}, link=${cursors.link}, ${cursors.dataClickable}/${cursors.sampled} data elements not cursor:default — saw ${cursors.dataCursors.join('/')})`,
+  )
+}
+
+// C2 — no scroll region anywhere. Root cause (measured, pre-fix): the hourly
+// strip was `overflow-x-auto` holding 12 fixed-width cards — scrollWidth 872
+// in a clientWidth 510 box — so Windows painted a permanent horizontal
+// scrollbar across the bottom of the panel. Its replacement is an <svg> with
+// a fixed viewBox at width:100%, which has no width to run out of.
+{
+  const bad = await weatherOverflow()
+  console.log(
+    bad.length === 0
+      ? 'PASS: no scrollable region in the expanded weather panel at 1600x900'
+      : `FAIL: no scrollable region in the expanded weather panel at 1600x900 (${bad.join('; ')})`,
+  )
+}
+
+// C5 — arrange mode. Jon: "holding the sidescroll literally activates the
+// mechanism to change the layout." Root cause: a press on a native scrollbar
+// targets the SCROLL CONTAINER itself (the old <ol>), which is not in
+// useLongPress's interactive exclusion list, so the 500ms timer armed; and
+// Chrome does not deliver pointermove to the page during a native scrollbar
+// drag, so the 8px movement tolerance that would have aborted the hold never
+// fired. Deleting the scroll region (C2 above) deletes the trigger.
+//
+// What remains to verify is the other half: a press-and-hold on a REAL
+// control must never enter arrange mode either. (That the harness can detect
+// arrange mode at all is proven independently by the "arrange pill appeared
+// on long-press" line further down — this probe is the negative case.)
+{
+  const centre = await page.evaluate((s) => {
+    const r = document.querySelector(s).getBoundingClientRect()
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 }
+  }, weatherSel)
+  const controls = [
+    ['chip / close control', weatherToggle],
+    ['full-forecast link', '[data-block-id="weather"] a[href*="weather.com"]'],
+  ]
+  const leaked = []
+  for (const [label, sel] of controls) {
+    const box = await page.locator(sel).boundingBox()
+    if (!box) {
+      leaked.push(`${label} (not found)`)
+      continue
+    }
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.waitForTimeout(700) // past useLongPress's 500ms hold
+    const engaged = (await page.locator('[data-arrange-overlay]').count()) > 0
+    if (engaged) {
+      // Release in place — useLongPress's own one-shot suppressor eats the
+      // click, so this can't follow the link — then leave the mode.
+      await page.mouse.up()
+      await page.waitForTimeout(150)
+      leaked.push(label)
+      await page.click('[data-arrange-overlay] button:has-text("Done")')
+      await page.waitForTimeout(250)
+    } else {
+      // Release over the panel's own non-interactive middle so the resulting
+      // click resolves to a common ancestor instead of activating the control
+      // under the press (which would toggle the panel shut, or open
+      // weather.com in a new tab).
+      await page.mouse.move(centre.x, centre.y)
+      await page.mouse.up()
+      await page.waitForTimeout(150)
+    }
+    await setWeatherExpanded(true)
+  }
+  console.log(
+    leaked.length === 0
+      ? 'PASS: press-and-hold on a weather control never enters arrange mode (chip, full-forecast link)'
+      : `FAIL: press-and-hold on a weather control never enters arrange mode — leaked: ${leaked.join(', ')}`,
+  )
+}
+
+// Narrow-viewport expanded captures — the trend graphic, the meta grid, and
+// the full-forecast link all need to keep reading cleanly (and, per the
+// no-overflow probe repeated at each size below, keep fitting their box) at
+// the two tightest shapes this app is tuned for, not just the roomy 1600x900
+// launch size above. 1420x437 is the owner's own
 // short-wide window that originally motivated the xshort/tight/narrow
 // variants (xshort height, but width stays over the 1300px `tight`
 // threshold — see index.css's custom-variant comment); 800x450 stacks
@@ -458,6 +685,16 @@ for (const { w, h } of [
   await waitForPhotoSettle()
   await page.screenshot({ path: `${outDir}/weather-expanded-${w}x${h}.png` })
   console.log(`captured weather-expanded-${w}x${h}.png`)
+
+  // C2 at this size too — the whole point of the constraint is that it holds
+  // at EVERY viewport in the matrix, not just the roomy one. 800x450 is the
+  // hard case: the panel is only 240px wide there (30vw).
+  const bad = await weatherOverflow()
+  console.log(
+    bad.length === 0
+      ? `PASS: no scrollable region in the expanded weather panel at ${w}x${h}`
+      : `FAIL: no scrollable region in the expanded weather panel at ${w}x${h} (${bad.join('; ')})`,
+  )
 }
 // Restore this script's own launch viewport before continuing — same
 // restoration discipline as every other resize in this script (Source,
@@ -837,6 +1074,12 @@ console.log(
 // existing DOM exactly like a real window resize would, which is the actual
 // thing under test here.
 const viewportMatrix = [
+  // 1600x900 is this script's own launch size, so the setViewportSize below
+  // is a no-op for it — it's in the matrix because the weather/bookmarks
+  // overlap assertion has to cover it: it is the widest viewport where the
+  // bookmarks bar still gets its full un-tightened `max-w-[52vw]` cap, and
+  // therefore the tightest squeeze the expanded weather panel ever faces.
+  { w: 1600, h: 900 },
   { w: 1420, h: 437 }, // the owner's own window — the original bug report
   { w: 1280, h: 500 },
   { w: 1024, h: 600 },
@@ -930,25 +1173,67 @@ for (const { w, h } of viewportMatrix) {
   // hasBookmarksPermission SKIP line near the top): a production build never
   // renders the bar at all, so there's nothing to collide.
   if (hasBookmarksPermission) {
-    const peripheralOverlap = await page.evaluate(() => {
-      const bar = document.querySelector('nav[aria-label="Bookmarks bar"]')?.getBoundingClientRect()
-      const weather = document.querySelector('section[aria-label="Weather"]')?.getBoundingClientRect()
-      if (!bar || !weather) return null
-      const intersects = !(
-        bar.right <= weather.left ||
-        bar.left >= weather.right ||
-        bar.bottom <= weather.top ||
-        bar.top >= weather.bottom
-      )
-      return { intersects }
-    })
+    // Measures BOTH rects as rendered AND the bar's worst case. The bar is
+    // centred and shrink-to-fit under a `max-w-[52vw]` cap, so its actual
+    // width depends entirely on how many bookmarks the profile happens to
+    // have — this script seeds three, which is far too narrow to collide with
+    // anything and would pass this assertion no matter how wrong the geometry
+    // was. The worst case (centre ± max-width/2, i.e. a right edge at 76vw,
+    // or 62vw under `tight`) is the number the widths are actually designed
+    // against, and it is what a real profile with a full bookmarks bar
+    // produces. See WeatherWidget.tsx's own width-cap comment for the
+    // arithmetic.
+    const overlapAt = () =>
+      page.evaluate((s) => {
+        const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+        const sec = document.querySelector(s)
+        if (!nav || !sec) return null
+        const bar = nav.getBoundingClientRect()
+        const weather = sec.getBoundingClientRect()
+        const maxW = parseFloat(getComputedStyle(nav).maxWidth)
+        const cx = bar.left + bar.width / 2
+        const worst = {
+          left: cx - maxW / 2,
+          right: cx + maxW / 2,
+          top: bar.top,
+          bottom: bar.bottom,
+        }
+        const hits = (a, b) =>
+          !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+        return {
+          actual: hits(bar, weather),
+          worst: hits(worst, weather),
+          gap: +(weather.left - worst.right).toFixed(1),
+          weatherWidth: +weather.width.toFixed(1),
+        }
+      }, weatherSel)
+
+    const collapsedOverlap = await overlapAt()
     console.log(
-      peripheralOverlap && !peripheralOverlap.intersects
+      collapsedOverlap && !collapsedOverlap.actual && !collapsedOverlap.worst
         ? `PASS: no bookmarks/weather overlap at ${w}x${h}`
-        : peripheralOverlap
-          ? `FAIL: no bookmarks/weather overlap at ${w}x${h}`
+        : collapsedOverlap
+          ? `FAIL: no bookmarks/weather overlap at ${w}x${h} (actual=${collapsedOverlap.actual}, worst-case=${collapsedOverlap.worst}, gap ${collapsedOverlap.gap}px)`
           : `SKIP: bookmarks/weather overlap check at ${w}x${h} (element(s) not found)`,
     )
+
+    // The state that actually collided in real use, and the one the previous
+    // gate never checked: EXPANDED. Measured before the fix, the panel's
+    // unconditional `max-w-[32rem]` put its left edge at 1072px against a
+    // worst-case bar right edge of 1216px at 1600x900 — 144px of overlap, and
+    // 187px at 1420x437.
+    await setWeatherExpanded(true)
+    await page.waitForTimeout(200)
+    const expandedOverlap = await overlapAt()
+    console.log(
+      expandedOverlap && !expandedOverlap.actual && !expandedOverlap.worst
+        ? `PASS: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expandedOverlap.weatherWidth}px wide, ${expandedOverlap.gap}px clear of the bar's worst case)`
+        : expandedOverlap
+          ? `FAIL: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (actual=${expandedOverlap.actual}, worst-case=${expandedOverlap.worst}, gap ${expandedOverlap.gap}px)`
+          : `SKIP: expanded bookmarks/weather overlap check at ${w}x${h} (element(s) not found)`,
+    )
+    await setWeatherExpanded(false) // leave the page as this loop found it
+    await page.waitForTimeout(150)
   }
 }
 
