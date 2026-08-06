@@ -151,6 +151,15 @@ console.log('captured newtab.png')
     (img) => (img ? { src: img.src, className: img.className } : null),
     bgImg,
   )
+  // Snapshot photoPrefs before part (b)'s own refresh click below advances
+  // it, so it can be restored afterward — otherwise every downstream
+  // capture (weather-expanded*, the viewport-* matrix, arrange-mode,
+  // panels, palette) would render one photo ahead of a clean run. Same
+  // restoration discipline this file already uses for Source/theme/layout/
+  // location/viewport (see the "Restore the …" comments further down).
+  const originalPhotoPrefs = await page.evaluate(
+    async () => (await chrome.storage.local.get('photoPrefs')).photoPrefs,
+  )
 
   // (a) Opening a second page in the SAME context must not remount or
   // re-fade page A's already-settled background photo — the exact
@@ -205,6 +214,26 @@ console.log('captured newtab.png')
       ? "PASS: a deliberate background-photo change in page B still remounts page A's photo (cross-tab sync intact)"
       : `FAIL: a deliberate background-photo change in page B still remounts page A's photo (before=${JSON.stringify(before)}, afterRefresh=${JSON.stringify(afterRefresh)})`,
   )
+
+  // Restore photoPrefs to its pre-probe value (see the snapshot above) so
+  // this probe leaves no trace in any capture below — the resulting remount
+  // back to the original src is expected and harmless here, since it
+  // happens before any downstream screenshot reads the photo.
+  if (before !== null) {
+    await page.evaluate(
+      (prefs) => chrome.storage.local.set({ photoPrefs: prefs }),
+      originalPhotoPrefs,
+    )
+    await page.waitForFunction(
+      (expectedSrc) => {
+        const img = document.querySelector('div[aria-hidden] > img')
+        return img ? img.src === expectedSrc && img.classList.contains('opacity-100') : false
+      },
+      before.src,
+      { timeout: 10_000 },
+    )
+    await page.waitForTimeout(800) // photo fade-in, same wait this file uses everywhere else
+  }
 
   await flickerPageB.close()
 }
