@@ -75,8 +75,8 @@ export function parseBackup(raw: string): ParseBackupResult {
 //
 // These checks are deliberately structural only (plain object vs array vs
 // primitive types of the right kind) — not business-rule validation (e.g.
-// enum membership for `theme` or `searchEngine`). That mirrors what
-// `defaults()` in storage/schema.ts documents as the expected shape.
+// enum membership for `theme`). That mirrors what `defaults()` in
+// storage/schema.ts documents as the expected shape.
 
 function isString(v: unknown): v is string {
   return typeof v === 'string'
