@@ -58,9 +58,10 @@ const PRECIP_FLOOR = 10
 const MIN_COLUMN_H = 2.5
 
 /** Rain chance at or above this reads as "worth knowing about" and is drawn
- *  at full strength. Same threshold `rainCallout` uses for its "possible
- *  rain" line, deliberately: the callout and the graphic must never disagree
- *  about which hours matter. */
+ *  at full strength. `rainCallout` (callout.ts) IMPORTS this constant for its
+ *  own "possible rain" line rather than repeating the number, so the callout
+ *  and the graphic can never disagree about which hours matter — they are
+ *  read together, one naming the hour and the other showing the shape. */
 export const NOTABLE_PRECIP = 30
 
 export interface TrendColumn {
