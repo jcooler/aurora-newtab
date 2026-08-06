@@ -123,6 +123,92 @@ await page.waitForTimeout(800) // photo fade-in
 await page.screenshot({ path: `${outDir}/newtab.png` })
 console.log('captured newtab.png')
 
+// Cross-tab no-flicker invariant (2026-08-06 flicker investigation, Task 2 of
+// the 2026-08-06-cleanup-queue). Jon reported that opening a new tab makes an
+// already-open new-tab page's background photo reload/flicker ("seems like
+// each browser is connected"). Investigated via superpowers:systematic-
+// debugging: the suspected mechanism — tab B's mount triggering a photoPrefs
+// rotation (or DPR-tier) write whose chrome.storage.onChanged echo reaches
+// tab A and remounts Background's `key={src}` <img> — was FALSIFIED by
+// direct measurement (throwaway two-page probes: sequential-already-stable,
+// concurrent-mount race on a fresh profile, upload-gallery mode, a direct
+// check that chrome.storage.onChanged skips deep-equal writes, and a check
+// that opening a tab fires no `resize` on siblings — none produced a remount
+// or reload). The design is race-safe by construction: the rotation index is
+// a pure function of the day (hashDay(today) % count in
+// src/services/photos/rotation.ts), so independent tabs converge on the same
+// value even when racing to be the day's first rotation; DPR tier
+// (src/services/photos/tier.ts) is never persisted to storage at all, so
+// there is no possible echo path for it. This probe locks that invariant
+// permanently so a future on-mount storage write (e.g. a v2 connector
+// polling/refreshing its own state on open) can't silently reintroduce the
+// echo-remount bug without breaking this harness run.
+{
+  const bgImg = await page.evaluateHandle(
+    () => document.querySelector('div[aria-hidden] > img'),
+  )
+  const before = await page.evaluate(
+    (img) => (img ? { src: img.src, className: img.className } : null),
+    bgImg,
+  )
+
+  // (a) Opening a second page in the SAME context must not remount or
+  // re-fade page A's already-settled background photo — the exact
+  // "already-open tab" scenario Jon described.
+  const flickerPageB = await context.newPage()
+  await flickerPageB.goto('chrome://newtab/')
+  await flickerPageB.waitForSelector('time', { timeout: 10_000 })
+  await flickerPageB
+    .waitForFunction(
+      () => {
+        const img = document.querySelector('div[aria-hidden] > img')
+        return img ? img.classList.contains('opacity-100') : true
+      },
+      { timeout: 10_000 },
+    )
+    .catch(() => {})
+  await page.waitForTimeout(500) // let any onChanged echo + re-render settle
+
+  const after = await page.evaluate(
+    (img) => (img ? { sameNode: document.querySelector('div[aria-hidden] > img') === img, className: img.className } : null),
+    bgImg,
+  )
+  const noFlicker =
+    before !== null &&
+    after !== null &&
+    after.sameNode === true &&
+    after.className === before.className
+  console.log(
+    noFlicker
+      ? "PASS: opening a second page does not remount/re-fade an already-open page's background photo"
+      : `FAIL: opening a second page does not remount/re-fade an already-open page's background photo (before=${JSON.stringify(before)}, after=${JSON.stringify(after)})`,
+  )
+
+  // (b) Deliberate cross-tab sync must still work: a real settings change
+  // (the refresh button) in page B must still reach page A and swap its
+  // photo. This is the ONE mechanism that's SUPPOSED to remount cross-tab —
+  // proving it still does guards against an over-broad fix in either
+  // direction.
+  await flickerPageB.click('button[aria-label="New background photo"]')
+  await page.waitForTimeout(500)
+  const afterRefresh = await page.evaluate(
+    (img) => {
+      const current = document.querySelector('div[aria-hidden] > img')
+      return { sameNode: current === img, src: current ? current.src : null }
+    },
+    bgImg,
+  )
+  const syncWorked =
+    before !== null && afterRefresh.sameNode === false && afterRefresh.src !== before.src
+  console.log(
+    syncWorked
+      ? "PASS: a deliberate background-photo change in page B still remounts page A's photo (cross-tab sync intact)"
+      : `FAIL: a deliberate background-photo change in page B still remounts page A's photo (before=${JSON.stringify(before)}, afterRefresh=${JSON.stringify(afterRefresh)})`,
+  )
+
+  await flickerPageB.close()
+}
+
 // Bookmarks-bar popover: REAL click on a folder chip (real hit-testing — the
 // one thing jsdom can't do), assert the popover opened anchored to it, then
 // (below) exercise real clickability of what's INSIDE it, real chip-to-chip
