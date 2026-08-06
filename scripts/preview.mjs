@@ -303,6 +303,53 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
 console.log('captured weather-expanded.png')
 
+// Narrow-viewport expanded captures (Task 1 redesign — bigger hourly cards,
+// a structured meta row, and the full-forecast link all need to keep
+// reading cleanly at the two tightest shapes this app is tuned for, not
+// just the roomy 1600x900 launch size above). 1420x437 is the owner's own
+// short-wide window that originally motivated the xshort/tight/narrow
+// variants (xshort height, but width stays over the 1300px `tight`
+// threshold — see index.css's custom-variant comment); 800x450 stacks
+// xshort height on top of BOTH narrow and tight width, the tightest
+// combination the panel's own `tight:max-w-[30vw]` cap ever sees (30vw of
+// 800 is only 240px). The panel is already expanded from the capture just
+// above — a resize alone reflows it, no re-click needed.
+async function waitForPhotoSettle() {
+  // Same condition-wait as the viewport matrix further down: the photo
+  // layer's own opacity-100 class (Background.tsx's resize-triggered tier
+  // swap can fetch+decode a new AVIF on a large enough jump) plus an 800ms
+  // settle for the CSS opacity transition to actually finish, not just
+  // start. Neither narrow capture below crosses the 2.5K/4K tier boundary
+  // (both are smaller than the 1600x900 launch size), so this is normally a
+  // fast no-op — kept for the same reason the matrix below keeps it: honest
+  // under a slower run rather than assuming today's tier math forever.
+  await page
+    .waitForFunction(
+      () => {
+        const img = document.querySelector('div[aria-hidden] > img')
+        return img ? img.classList.contains('opacity-100') : true
+      },
+      { timeout: 5000 },
+    )
+    .catch(() => {})
+  await page.waitForTimeout(800)
+}
+for (const { w, h } of [
+  { w: 1420, h: 437 }, // the owner's own window — xshort height only
+  { w: 800, h: 450 }, // narrow + tight + xshort, all at once
+]) {
+  await page.setViewportSize({ width: w, height: h })
+  await page.waitForTimeout(300) // let resize listeners + layout settle
+  await waitForPhotoSettle()
+  await page.screenshot({ path: `${outDir}/weather-expanded-${w}x${h}.png` })
+  console.log(`captured weather-expanded-${w}x${h}.png`)
+}
+// Restore this script's own launch viewport before continuing — same
+// restoration discipline as every other resize in this script (Source,
+// theme, layout, location, arrange overlay, and the viewport matrix below).
+await page.setViewportSize({ width: 1600, height: 900 })
+await page.waitForTimeout(150)
+
 // Location search typeahead: clear the seeded location so LocationSetup
 // (src/newtab/widgets/weather/LocationSetup.tsx) mounts inside the Weather
 // widget in place of the snapshot above, then type into its combobox and
