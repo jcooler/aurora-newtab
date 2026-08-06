@@ -38,9 +38,9 @@ green, `npm run build` + `npm run build:preview` green.
 `release/RESUBMISSION-NOTES.md`). It bumped the storage schema to
 **v4** (migration strips `Settings.searchEngine`) — sub-project 1's plan
 below still says "schema v4" for its own connector-framework bump; that now
-COLLIDES and needs to be renumbered to **v5** before Task 39 starts. Fix the
-plan file's version number first, don't just start coding against the old
-one. `npm test` is 438/438 green as of this commit.
+COLLIDED and has been renumbered to **v5** (plan + spec updated). Do not re-fix the
+plan — this note is historical context only, the docs are already
+correct. `npm test` is 438/438 green as of this commit.
 
 ## The process (superpowers subagent-driven development)
 
@@ -74,7 +74,7 @@ You are the controller; you do NOT write feature code yourself. Per task:
 
 Sub-project 1, Task 39 — **schema v5, NOT v4** (v4 was consumed by the
 Red Argon remediation's searchEngine-removal migration; see the "Update
-(2026-08-06)" note above — renumber the plan file before dispatching). The
+(2026-08-06)" note above — renumbered — DONE, plan and spec now say v5). The
 plan is otherwise complete and self-reviewed — brief it, dispatch it, run
 the loop through Task 45, final review, report. Then write sub-project 2's
 plan from its spec (writing-plans skill) and continue.

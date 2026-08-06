@@ -17,11 +17,11 @@
 - **Rendering hard rules** (paid for in blood): `position:fixed` elements are stacking contexts — overlays that must outrank body-level portals need explicit conditional z on the WRAPPER; no transforms on wrappers that contain `position:fixed` descendants (PositionedBlock is calc-centered for this reason); preview screenshots must wait out the photo fade (condition-wait + 800ms settle idiom, already in the harness helpers).
 - No-placeholder rule: the Connectors tab does not EXIST in the UI until its first real card ships (Task 44). Toggle labels land with their widget.
 - Verification per task: `npm test` + `npm run build` (+ `npm run build:preview` + `node scripts/preview.mjs` where stated) with NO console errors; controller reviews new/changed screenshots personally. Preview build (`build:preview`) is required for any probe touching bookmarks.
-- Commits end with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`; push after every task. Work on `main`, continuous. Version stays 1.2.0 until Task 45 bumps to 1.3.0.
+- Commits end with `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`; push after every task. Work on `main`, continuous. Version stays 1.2.1 until Task 45 bumps to 1.3.0.
 
 ---
 
-### Task 39: Schema v4 — connector keys, migration, secret-aware backup
+### Task 39: Schema v5 — connector keys, migration, secret-aware backup
 
 **Files:**
 - Create: `src/services/connectors/types.ts`
@@ -48,14 +48,14 @@ export interface ConnectorSnapshot {
 }
 ```
 
-- Produces (schema): `AuroraData` gains `connectors: Partial<Record<ConnectorId, ConnectorConfig>>` and `connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>`; `defaults()` gains `{}` for both; `CURRENT_VERSION = 4`; `migrations[3]` backfills both `{}` (follow `migrations[2]`'s style incl. spread-preserve).
+- Produces (schema): `AuroraData` gains `connectors: Partial<Record<ConnectorId, ConnectorConfig>>` and `connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>`; `defaults()` gains `{}` for both; `CURRENT_VERSION = 5`; `migrations[4]` backfills both `{}` (follow `migrations[2]`'s style incl. spread-preserve).
 - Produces (backup): a `SECRET_FIELDS: Partial<Record<ConnectorId, string[]>>` map in `backup.ts` (RSS: `[]` — the MECHANISM ships now, exercised by test with a fake entry); export strips listed fields per connector; validators for both new keys (`connectors` entries: plain object with boolean `enabled`; unknown connector ids DROPPED in cleaning, same convention as layout's unknown block ids; `connectorSnapshots`: plain objects with finite `fetchedAt` — snapshots are cache, also acceptable to EXCLUDE from export entirely: **decision — snapshots are excluded from exports** (cache, not user data; smaller files; one less validator surface on import — imports simply never contain them, and any present in a hand-edited file are dropped).
 
-- [ ] **Step 1: Failing migration tests** — v3→v4 backfills both keys `{}`; a v1 snapshot chains 1→2→3 (assert `layout` AND `connectors` both present after `migrate({}, 1)`); extend the custom-registry ordering test with `3:` (expect `[0,1,2,3]`).
+- [ ] **Step 1: Failing migration tests** — v4→v5 backfills both keys `{}`; a v1 snapshot chains 1→2→3→4 (assert `layout` AND `connectors` both present after `migrate({}, 1)`, and `searchEngine` absent — migrations[3] strips it); extend the custom-registry ordering test with `4:` (expect `[0,1,2,3,4]`).
 - [ ] **Step 2: Run to fail, implement schema/types/migration, run to green.**
 - [ ] **Step 3: Failing backup tests** — export of defaults contains `connectors` but NOT `connectorSnapshots`; a config with a fake secret field listed in a test-injected SECRET_FIELDS entry is stripped from export but survives in storage; import drops unknown connector ids and any snapshot key; malformed `connectors` (string) rejects naming the key.
 - [ ] **Step 4: Implement, green. Full suite + build.** Wrapper tests still seed version symbolically — verify no hard-coded `3`.
-- [ ] **Step 5: Commit + push** — `feat: schema v4 — connector config and snapshot keys, secret-aware backup` + trailer.
+- [ ] **Step 5: Commit + push** — `feat: schema v5 — connector config and snapshot keys, secret-aware backup` + trailer.
 
 ---
 
@@ -68,7 +68,7 @@ export interface ConnectorSnapshot {
 
 **Interfaces:**
 - Produces: `Tabs({ tabs: { id: string; label: string }[], active, onChange, children })` — renders `role="tablist"` of `role="tab"` buttons (`aria-selected`, `id`/`aria-controls` wiring to a `role="tabpanel"`); keyboard: Left/Right/Home/End roving focus per ARIA tabs pattern, focus-visible outlines per house idiom. SettingsPanel owns `const [tab, setTab] = useState<'general' | 'widgets' | 'data'>('general')` — resets each drawer open (component remounts with the drawer's children; verify and rely on that, don't add state clearing).
-- Section redistribution (MOVE, don't rewrite — imports and JSX order only): **General** = name, 24-hour, theme, units, search engine, mute, Background section. **Widgets** = widget toggles, Weather (location), World clocks, Countdowns, Layout. **Data** = Data section + About footer. Every existing element id / aria-label is preserved (the harness and tests select on them).
+- Section redistribution (MOVE, don't rewrite — imports and JSX order only): **General** = name, 24-hour, theme, units, mute, Background section (NOTE: the search-engine picker no longer exists — deleted in the Red Argon remediation, ed25420). **Widgets** = widget toggles, Weather (location), World clocks, Countdowns, Layout. **Data** = Data section + About footer. Every existing element id / aria-label is preserved (the harness and tests select on them).
 - The `'connectors'` tab id is NOT in this task (no-placeholder: it appears in Task 44 with its first real card).
 
 - [ ] **Step 1: Failing Tabs tests** — three tabs render; clicking switches panels (other panels unmounted, not hidden — sections with `useStoredKey` must not run hooks when not shown... **decision: unmount inactive tabs** — cheaper and matches the gate/inner zero-hooks philosophy); ArrowRight/Left/Home/End move focus and select; `aria-selected`/`aria-controls` correct.

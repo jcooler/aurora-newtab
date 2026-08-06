@@ -13,7 +13,7 @@ Every other connector (sub-projects 2–3); OAuth of any kind; background pollin
 ## Settings: four tabs
 
 - Tab bar directly under the drawer's "Settings" header: `role="tablist"`, arrow-key navigation, `aria-selected`, focus-visible — the theme radiogroup's keyboard conventions. Panel surface/width unchanged; each tab's content scrolls independently if needed.
-- **General**: name, 24-hour clock, theme, units, search engine, mute, Background (source, gallery).
+- **General**: name, 24-hour clock, theme, units, mute, Background (source, gallery).
 - **Widgets**: all widget toggles; per-widget config (Weather location, World clocks, Countdowns); Layout (Arrange layout / Reset layout).
 - **Connectors**: one card per registered connector — icon glyph (inline SVG, never remote), name, one-line what-you-get, state (Off / Configured), expand-to-configure. Gated on `isPremium()` (hidden entirely when false, no-placeholder rule).
 - **Data**: Export/Import backup; the About footer (version · support link) stays pinned at this tab's bottom.
@@ -27,10 +27,10 @@ Every other connector (sub-projects 2–3); OAuth of any kind; background pollin
 - `src/services/connectors/types.ts`: `ConnectorId` union (starts `'rss'`; grows per sub-project), `ConnectorDescriptor { id; label; blurb; auth: 'none' | 'token' | 'oauth'; origins(config): string[]; ttlMs; secretFields: (keyof config)[] }`, `CONNECTORS` registry array.
 - Per connector: `src/services/connectors/<id>.ts` — pure service (fetch + parse + typed snapshot), no `chrome.*`. The framework's generic pieces (refresh orchestration, permission requests) live once, not per connector.
 
-### Storage (schema v4)
+### Storage (schema v5)
 
 - `AuroraData` gains `connectors: Partial<Record<ConnectorId, ConnectorConfig>>` (per-connector: `enabled: boolean` + service-specific fields — RSS: `feeds: string[]` (max 5), `shownCount`) and `connectorSnapshots: Partial<Record<ConnectorId, { fetchedAt: number; data: unknown }>>`.
-- `CURRENT_VERSION = 4`; `migrations[3]` backfills both `{}`. Backup validators gain both keys (type-forced); **fields listed in a descriptor's `secretFields` are stripped from exports** (future tokens/ICS URLs; RSS has none) — the Data tab's "what's excluded" line mentions connector credentials alongside photos.
+- `CURRENT_VERSION = 5`; `migrations[4]` backfills both `{}`. Backup validators gain both keys (type-forced); **fields listed in a descriptor's `secretFields` are stripped from exports** (future tokens/ICS URLs; RSS has none) — the Data tab's "what's excluded" line mentions connector credentials alongside photos.
 - Snapshot lifecycle: on new-tab mount, each ENABLED connector renders its cached snapshot immediately; if `now - fetchedAt > ttlMs`, refresh in the background and write the new snapshot (plain write — `fetchedAt` always changes). Quiet-failure convention: a failed refresh keeps the stale snapshot, no error banners on the dashboard; the connector card in Settings shows last-refresh state.
 
 ### Permissions (the load-bearing decision)
@@ -50,7 +50,7 @@ Each shipped connector maps to a `BlockId` (arrange-mode integration). This sub-
 
 ## Testing
 
-Pure: registry shape invariants, RSS/Atom parser fixtures (malformed feeds, entity handling), migration v3→v4, backup validators + secret-field stripping, origin-set computation. RTL: tab bar keyboard/aria behavior; each tab renders its moved sections (SettingsPanel tests reorganized per-tab, coverage preserved not deleted); connector card enable flow with mocked permission service; RSS widget renders from a snapshot. Harness: per-tab drawer captures + the RSS probe + all existing PASS lines.
+Pure: registry shape invariants, RSS/Atom parser fixtures (malformed feeds, entity handling), migration v4→v5, backup validators + secret-field stripping, origin-set computation. RTL: tab bar keyboard/aria behavior; each tab renders its moved sections (SettingsPanel tests reorganized per-tab, coverage preserved not deleted); connector card enable flow with mocked permission service; RSS widget renders from a snapshot. Harness: per-tab drawer captures + the RSS probe + all existing PASS lines.
 
 ## Compliance
 
