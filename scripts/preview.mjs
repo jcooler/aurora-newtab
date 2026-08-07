@@ -1180,6 +1180,14 @@ const viewportMatrix = [
 // bar's own `top` (clearance would go sharply negative).
 const GAP_TOLERANCE = 1 // sub-pixel layout only
 
+// Absolute floor for the bar's own top clearance, checked next to the
+// symmetric comparison below: that comparison only measures the two sides
+// of the gap against EACH OTHER, so a --top-band-gap collapsed to 0 would
+// make both sides 0px and pass it cleanly, with the bar flush against the
+// very top edge of the viewport. BAR_TOP_FLOOR catches that independently
+// of what bar.top is being compared to.
+const BAR_TOP_FLOOR = 4
+
 // Returns null ONLY when the bar itself is missing — and that is a FAIL,
 // not a skip: this whole block is already gated on the bookmarks
 // permission, and the seed at the top of the script guarantees a
@@ -1399,6 +1407,18 @@ for (const { w, h } of viewportMatrix) {
       )
     }
 
+    // 1c. ABSOLUTE FLOOR — see BAR_TOP_FLOOR above. bar.top doesn't depend
+    // on timer/weather, so this is checked once per viewport rather than
+    // inside the loop below, right next to the symmetric clearance check it
+    // complements.
+    if (band) {
+      console.log(
+        band.bar.top >= BAR_TOP_FLOOR
+          ? `PASS: bookmarks bar top clears an absolute floor at ${w}x${h} (${band.bar.top}px >= ${BAR_TOP_FLOOR}px)`
+          : `FAIL: bookmarks bar top clears an absolute floor at ${w}x${h} (${band.bar.top}px < ${BAR_TOP_FLOOR}px)`,
+      )
+    }
+
     // 2. The timer pill clears the band. 3a. So does the weather chip, in
     // its COLLAPSED state. Both are guaranteed present by the seed (it flips
     // the timer widget on and sets a manual location), so a missing element
@@ -1423,6 +1443,21 @@ for (const { w, h } of viewportMatrix) {
         ok
           ? `PASS: no bookmarks/${label} overlap at ${w}x${h} (starts ${clear}px below the bar, matching the ${band.bar.top}px above it)`
           : `FAIL: no bookmarks/${label} overlap at ${w}x${h} (clearance ${clear}px below the bar vs ${band.bar.top}px above it; actual-hit=${hits(band.bar, rect)}, worst-case-hit=${hits(band.barWorst, rect)})`,
+      )
+    }
+
+    // 2b. Timer and weather also must not overlap EACH OTHER — the loop
+    // above only checks each one against the bar independently; both
+    // default to the same row below the band (left-4/right-4, bookending
+    // it — see App.tsx's timer/weather PositionedBlock comments), so a
+    // regression that narrows the gap between the two of them specifically
+    // would pass both individual checks above and still collide.
+    if (band && band.timer && band.weather) {
+      const timerWeatherHit = hits(band.timer, band.weather)
+      console.log(
+        !timerWeatherHit
+          ? `PASS: no timer/weather overlap at ${w}x${h}`
+          : `FAIL: no timer/weather overlap at ${w}x${h} (timer ${JSON.stringify(band.timer)}, weather ${JSON.stringify(band.weather)})`,
       )
     }
 
@@ -1455,10 +1490,109 @@ for (const { w, h } of viewportMatrix) {
           ? `PASS: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expanded.weather.width}x${expanded.weather.height}px, starts ${clear}px below the bar, ${bottomRoom}px of viewport left under it)`
           : `FAIL: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (clearance ${clear}px below the bar vs ${expanded.bar.top}px above it; ${bottomRoom}px left under the panel, need >=0; actual-hit=${hits(expanded.bar, expanded.weather)}, worst-case-hit=${hits(expanded.barWorst, expanded.weather)})`,
       )
+
+      // 3c. The expanded panel is far taller than the collapsed chip —
+      // tall enough to reach up into the clock/greeting column, which the
+      // collapsed-state overlap check earlier in this same iteration (the
+      // one the owner's original screenshot motivated) never exercises,
+      // since it runs before the widget expands.
+      const centerColumn = await page.evaluate(() => {
+        const r = (el) => (el ? el.getBoundingClientRect() : null)
+        return {
+          clock: r(document.querySelector('[data-block-id="clock"]')),
+          greeting: r(document.querySelector('[data-block-id="greeting"]')),
+        }
+      })
+      const clockHit = centerColumn.clock ? hits(expanded.weather, centerColumn.clock) : false
+      const greetingHit = centerColumn.greeting ? hits(expanded.weather, centerColumn.greeting) : false
+      console.log(
+        !clockHit && !greetingHit
+          ? `PASS: no expanded-weather/clock-greeting overlap at ${w}x${h}`
+          : `FAIL: no expanded-weather/clock-greeting overlap at ${w}x${h} (clock-hit=${clockHit}, greeting-hit=${greetingHit}, weather ${JSON.stringify(expanded.weather)}, clock ${JSON.stringify(centerColumn.clock)}, greeting ${JSON.stringify(centerColumn.greeting)})`,
+      )
     }
     await setWeatherExpanded(false) // leave the page as this loop found it
     await page.waitForTimeout(150)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Fresh-install DEFAULT state (final review finding 2). Storage defaults
+// (src/lib/storage/schema.ts's defaults()) ship bookmarks:false, timer:false
+// — every capture up to this point in this script ran with BOTH seeded ON
+// (see the top-of-file seed comment), so the actual out-of-the-box state a
+// brand-new install shows has never been screenshot-gated. The top band is
+// reserved UNCONDITIONALLY whether or not bookmarks/timer are on (deliberate
+// — see index.css's --top-band comments), so this is also the state that
+// proves the band doesn't leave a dead gap when nothing occupies the row
+// below it. Own storage write + reload (not a live toggle) so the captures
+// reflect a genuine first mount from storage rather than a transition —
+// then restored, same snapshot/restore discipline as every other point in
+// this script (photoPrefs, Source, location, theme, layout).
+{
+  const originalSettings = await page.evaluate(
+    async () => (await chrome.storage.local.get('settings')).settings,
+  )
+  await page.evaluate(
+    (settings) =>
+      chrome.storage.local.set({
+        settings: { ...settings, widgets: { ...settings.widgets, bookmarks: false, timer: false } },
+      }),
+    originalSettings,
+  )
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  const errorsBeforeDefaultState = errors.length
+  await waitForPhotoSettle()
+  await page.screenshot({ path: `${outDir}/default-state-1600x900.png` })
+  console.log('captured default-state-1600x900.png')
+
+  await page.setViewportSize({ width: 1420, height: 437 })
+  await page.waitForTimeout(300) // let resize listeners + layout settle
+  await waitForPhotoSettle()
+  await page.screenshot({ path: `${outDir}/default-state-1420x437.png` })
+  console.log('captured default-state-1420x437.png')
+
+  const newDefaultStateErrors = errors.length - errorsBeforeDefaultState
+  console.log(
+    newDefaultStateErrors === 0
+      ? 'PASS: no console errors in the default fresh-install state'
+      : `FAIL: no console errors in the default fresh-install state (${newDefaultStateErrors} new: ${errors.slice(-newDefaultStateErrors).join('; ')})`,
+  )
+
+  const defaultState = await page.evaluate(
+    (s) => ({
+      weatherChip: !!document.querySelector(s),
+      bookmarksNav: !!document.querySelector('nav[aria-label="Bookmarks bar"]'),
+      timerPill: !!document.querySelector('button[aria-label^="Focus timer"]'),
+    }),
+    weatherSel,
+  )
+  console.log(
+    defaultState.weatherChip
+      ? 'PASS: weather chip present in the default fresh-install state'
+      : 'FAIL: weather chip present in the default fresh-install state (not found)',
+  )
+  console.log(
+    !defaultState.bookmarksNav
+      ? 'PASS: bookmarks nav absent in the default fresh-install state'
+      : 'FAIL: bookmarks nav absent in the default fresh-install state (found in the DOM)',
+  )
+  console.log(
+    !defaultState.timerPill
+      ? 'PASS: timer pill absent in the default fresh-install state'
+      : 'FAIL: timer pill absent in the default fresh-install state (found in the DOM)',
+  )
+
+  // Restore: original settings (bookmarks/timer back to whatever this
+  // script's own seed had them at), launch viewport, reload — so nothing
+  // captured after this section runs against the default-off state.
+  await page.evaluate((settings) => chrome.storage.local.set({ settings }), originalSettings)
+  await page.setViewportSize(launchViewport)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in, same as every other reload in this script
 }
 
 // ---------------------------------------------------------------------------

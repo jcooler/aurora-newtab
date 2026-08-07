@@ -176,7 +176,8 @@ function TimerInner({ settings }: { settings: Settings }) {
           aria-label="Focus timer"
           // `anchor` is `{left,top}` (opens downward) or `{left,bottom}`
           // (opens upward) — review fix I1; see anchor.ts's PanelPlacement
-          // doc. Timer's own pill defaults to the top half (top-4), so this
+          // doc. Timer's own pill defaults to the top half
+          // (top-[var(--top-band)], below the bookmarks band), so this
           // panel opens downward today, but a dragged pill (arrange mode)
           // can land it in the bottom half too, so both shapes must be
           // handled here regardless.
