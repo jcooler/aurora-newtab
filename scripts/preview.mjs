@@ -1627,14 +1627,14 @@ for (const { w, h } of viewportMatrix) {
             : `FAIL: bookmarks chips are icon-only rather than unreadable at ${w}x${h} (iconOnly=${band.iconOnly}, circular=${band.allCircular}; ${JSON.stringify(band.chipDetails)})`,
         )
       } else {
-        const mustBind = w === 800
+        const mustBind = w === 800 || w === 730
         const legible = band.worstLabelRatio >= 0.5
         const exercised = !mustBind || band.capBinding
         const labelled = !band.iconOnly
         console.log(
           legible && exercised && labelled
             ? `PASS: bookmarks chips shrink rather than wrap at ${w}x${h} (cap ${band.capBinding ? 'binding' : 'not binding'}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps ${(band.worstLabelRatio * 100).toFixed(0)}% of itself)`
-            : `FAIL: bookmarks chips shrink rather than wrap at ${w}x${h} (cap binding=${band.capBinding}${mustBind ? ' — required at the matrix\'s narrowest labelled viewport' : ''}; labels rendered=${labelled}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps only ${(band.worstLabelRatio * 100).toFixed(0)}%, need >=50%)`,
+            : `FAIL: bookmarks chips shrink rather than wrap at ${w}x${h} (cap binding=${band.capBinding}${mustBind ? ' — cap-pressure requirement applies at the two narrowest labelled viewports (730 and 800)' : ''}; labels rendered=${labelled}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps only ${(band.worstLabelRatio * 100).toFixed(0)}%, need >=50%)`,
         )
       }
 
