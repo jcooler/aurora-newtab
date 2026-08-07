@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, GithubConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, RssConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -86,6 +86,30 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect('token' in envelope.data.connectors.github).toBe(false)
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.token).toBe('github_pat_supersecret')
+  })
+
+  it('a real serializeBackup strips the gitlab token but keeps instanceUrl + username; storage is untouched (Task 49)', () => {
+    // Same REAL-registry proof as the github case above, for gitlab's own
+    // secretFields: ['token']: instanceUrl is NOT a secret (it's needed to
+    // reconnect and isn't sensitive on its own), so it survives the strip
+    // alongside enabled/username, while token is shorn.
+    const stored: GitlabConfig = {
+      enabled: true,
+      token: 'glpat_supersecret',
+      instanceUrl: 'https://gitlab.example.com',
+      username: 'jon',
+    }
+    const input = { ...defaults(), connectors: { gitlab: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.gitlab).toEqual({
+      enabled: true,
+      instanceUrl: 'https://gitlab.example.com',
+      username: 'jon',
+    })
+    expect('token' in envelope.data.connectors.gitlab).toBe(false)
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.token).toBe('glpat_supersecret')
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {

@@ -24,6 +24,7 @@ import WorldClocks from './widgets/clocks/WorldClocks'
 import CountdownLine from './widgets/countdown/CountdownLine'
 import RssWidget from './widgets/rss/RssWidget'
 import GithubWidget from './widgets/github/GithubWidget'
+import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -347,6 +348,26 @@ export default function App() {
                 comments): a plain top/right offset, no translate. */}
             <PositionedBlock id="github" pos={layout?.github} className="fixed right-8 top-[24vh]">
               <GithubWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="gitlab">
+            {/* DEFAULT placement — the right-middle column, BELOW the GitHub
+                widget's own default slot. `top-[46vh]` clears github's
+                `top-[24vh]` card (w-80, p-4 content — comfortably under
+                46vh regardless of PR/issue row count at the widths this app
+                targets) while sharing its `right-8` anchor, so a reader who
+                connects both sees them stacked as one column rather than
+                overlapping. A stored arrange-mode `pos` still wins
+                (PositionedBlock drops this className on that branch).
+                GitlabWidget self-gates on the connector's enabled+token+
+                instanceUrl state, so this wrapper renders an empty box until
+                the connector is connected — same as every other
+                toggle-gated peripheral here. Transform-free per the house
+                rule (App's quote/bookmarks comments): a plain top/right
+                offset, no translate. */}
+            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[46vh]">
+              <GitlabWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

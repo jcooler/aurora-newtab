@@ -1,9 +1,10 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, RssConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, RssConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub } from '../../services/connectors/github'
+import { whoamiGitlab } from '../../services/connectors/gitlab'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
 import { control } from './shared'
@@ -78,13 +79,14 @@ export default function Connectors({
   )
 }
 
-// Body slot per connector id. Partial (not a full Record): only rss has a
-// body today — github/gitlab/jira/vercel/crypto/ics land in their own later
-// sub-project-2 tasks, and this map carries no placeholder entries for them
-// (a lookup for an unregistered id is simply undefined -> no body rendered).
+// Body slot per connector id. Partial (not a full Record): jira/vercel/
+// crypto/ics land in their own later sub-project-2 tasks, and this map
+// carries no placeholder entries for them (a lookup for an unregistered id is
+// simply undefined -> no body rendered).
 const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
   rss: RssBody,
   github: GithubBody,
+  gitlab: GitlabBody,
 }
 
 function ConnectorCard({
@@ -380,6 +382,87 @@ function GithubBody({ config, storage }: BodyProps) {
         await storage.update('connectors', (prev) => {
           const next = { ...prev }
           delete next.github
+          return next
+        })
+        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+      }}
+    />
+  )
+}
+
+// The GitLab connector's card body — github's sibling (Task 49), copying the
+// same connect/disconnect mechanics through TokenConnectForm. The one real
+// difference: TWO fields (a per-config instance URL alongside the token,
+// since GitLab is self-hostable), which flows through into `originsFor`
+// deriving the origin from the FIELD VALUE rather than a single constant.
+function GitlabBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as GithubBody above: BodyProps.config is the
+  // generic union (the body map is shared across ids), and this component is
+  // registered only under 'gitlab', so it is always GitlabConfig at runtime —
+  // one documented cast. Defensive reads (a backup can restore { enabled:
+  // true } with none of the three fields) keep the connected/reconnect
+  // decision honest.
+  const gitlab = config as GitlabConfig | undefined
+  const username = typeof gitlab?.username === 'string' ? gitlab.username : ''
+  const token = typeof gitlab?.token === 'string' ? gitlab.token : ''
+  // Same rule as GithubBody: Disconnect only once BOTH identity and secret
+  // are present; identity-present + secret-empty (backup restored username
+  // but not the stripped token) falls through to the form so the user can
+  // re-enter a token — the card shell's "Reconnect needed" chip already flags
+  // that state.
+  const connectedAs = username && token ? username : null
+
+  return (
+    <TokenConnectForm
+      fields={[
+        {
+          id: 'instanceUrl',
+          label: 'Instance URL',
+          type: 'text',
+          placeholder: 'https://gitlab.com',
+          defaultValue: 'https://gitlab.com',
+        },
+        {
+          id: 'token',
+          label: 'Personal access token',
+          type: 'password',
+          placeholder: 'glpat-…',
+        },
+      ]}
+      // Synchronous by contract (TokenConnectForm awaits ensureOrigin FIRST,
+      // in the gesture): derived from the instance-url FIELD VALUE, unlike
+      // github's single constant. originPattern itself validates https (and
+      // that the value parses as a URL at all) and throws a clear message on
+      // anything else — the form's own catch turns that into its generic
+      // inline alert, so no separate validation step is needed here.
+      originsFor={(values) => [originPattern(values.instanceUrl)]}
+      // Runs AFTER the grant. GET {base}/api/v4/user resolves the username the
+      // config is persisted under; a bad token/instance funnels its
+      // status-bearing message to the form's inline alert with nothing stored.
+      validate={(values) => whoamiGitlab(values.instanceUrl, values.token)}
+      onConnected={async (values, identity) => {
+        // Replace the whole gitlab config (dropping any stray cruft the
+        // generic enable-toggle's `{}` seed left) with exactly the token
+        // connector's four fields.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          gitlab: { enabled: true, token: values.token, instanceUrl: values.instanceUrl, username: identity },
+        }))
+      }}
+      connectedAs={connectedAs}
+      onDisconnect={async () => {
+        // Compute what's safe to revoke BEFORE clearing the config
+        // (releasableOrigins needs gitlab's own config present to derive its
+        // origin), then drop the entry and revoke each released origin.
+        // releasableOrigins runs through the REAL registry, so an origin
+        // another enabled connector (or another gitlab-pointed-at-the-same-
+        // instance connector, hypothetically) still claimed would be
+        // withheld.
+        const current = await storage.get('connectors')
+        const releasable = releasableOrigins('gitlab', current)
+        await storage.update('connectors', (prev) => {
+          const next = { ...prev }
+          delete next.gitlab
           return next
         })
         await Promise.all(releasable.map((origin) => removeOrigin(origin)))

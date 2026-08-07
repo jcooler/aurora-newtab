@@ -11,6 +11,7 @@
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId } from './types'
 import { rssDescriptor } from './rss'
 import { githubDescriptor } from './github'
+import { gitlabDescriptor } from './gitlab'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -19,10 +20,14 @@ import { githubDescriptor } from './github'
 // below — each descriptor itself stays typed to its own specific config
 // (ConnectorDescriptor<RssConfig>, ConnectorDescriptor<GithubConfig>, …). Task
 // 48 adds github as connector #2, the first to actually exercise the "two
-// entries" path the registry-invariant tests assert.
+// entries" path the registry-invariant tests assert; Task 49 adds gitlab as
+// #3, the first with a PER-CONFIG derived origin (its instanceUrl), proving
+// releasableOrigins' sharing check against a real (not fake) second derived
+// origin.
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,
+  gitlabDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

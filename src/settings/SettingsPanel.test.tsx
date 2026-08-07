@@ -6,7 +6,7 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, GithubConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, RssConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -57,6 +57,15 @@ vi.mock('../services/connectors/github', async (importActual) => {
   return { ...actual, whoamiGithub: vi.fn() }
 })
 import { whoamiGithub } from '../services/connectors/github'
+
+// Same treatment for gitlab (Task 49) — mock ONLY whoamiGitlab, keep
+// gitlabDescriptor/fetchGitlab real so the registry still registers gitlab
+// and releasableOrigins (used by onDisconnect below) runs its real path.
+vi.mock('../services/connectors/gitlab', async (importActual) => {
+  const actual = await importActual<typeof import('../services/connectors/gitlab')>()
+  return { ...actual, whoamiGitlab: vi.fn() }
+})
+import { whoamiGitlab } from '../services/connectors/gitlab'
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -1344,6 +1353,181 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     // The card shell flags it, and the body offers the form to re-enter a token.
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
     expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s sibling)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(whoamiGitlab).mockReset()
+  })
+
+  async function renderWithGitlab(gitlab?: GitlabConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (gitlab) await storage.set('connectors', { gitlab })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readGitlab(storage: AuroraStorage): Promise<GitlabConfig | undefined> {
+    return (await storage.get('connectors')).gitlab as GitlabConfig | undefined
+  }
+
+  it('the card shell renders the GitLab descriptor (label, blurb, enable toggle)', async () => {
+    await renderWithGitlab()
+    expect(screen.getByRole('heading', { name: 'GitLab' })).toBeTruthy()
+    expect(screen.getByText('Assigned MRs and to-dos')).toBeTruthy()
+    expect(screen.getByLabelText('Enable GitLab')).toBeTruthy()
+    // Not connected -> no status chip yet, and the token form only appears once
+    // the connector is enabled (the shell gates the body on `enabled`).
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByLabelText('Personal access token')).toBeNull()
+  })
+
+  it('the instance URL field defaults to https://gitlab.com', async () => {
+    await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+    const input = screen.getByLabelText('Instance URL') as HTMLInputElement
+    expect(input.value).toBe('https://gitlab.com')
+  })
+
+  it('connect happy path: ensureOrigin (derived from the instance URL) -> whoami -> persists { enabled, token, instanceUrl, username }', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGitlab).mockResolvedValue({ ok: true, identity: 'jcooler' })
+    // Enabled but no token yet -> the token form renders.
+    const storage = await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+
+    const input = screen.getByLabelText('Personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'glpat_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    // originsFor derives the origin from the instance-url FIELD VALUE — the
+    // form's own defaultValue ('https://gitlab.com'), since this test never
+    // touched that field.
+    expect(ensureOrigin).toHaveBeenCalledWith('https://gitlab.com/*')
+    expect(whoamiGitlab).toHaveBeenCalledWith('https://gitlab.com', 'glpat_123')
+    expect(await readGitlab(storage)).toEqual({
+      enabled: true,
+      token: 'glpat_123',
+      instanceUrl: 'https://gitlab.com',
+      username: 'jcooler',
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a self-hosted instance URL drives ensureOrigin/whoami with that host, not gitlab.com', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGitlab).mockResolvedValue({ ok: true, identity: 'jon' })
+    const storage = await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://gitlab.example.com:8443' },
+      })
+      fireEvent.change(screen.getByLabelText('Personal access token'), { target: { value: 'glpat_x' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://gitlab.example.com:8443/*')
+    expect(whoamiGitlab).toHaveBeenCalledWith('https://gitlab.example.com:8443', 'glpat_x')
+    expect((await readGitlab(storage))?.instanceUrl).toBe('https://gitlab.example.com:8443')
+  })
+
+  it('a non-https instance URL blocks the connect with an inline alert: no permission requested, nothing stored', async () => {
+    const storage = await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), { target: { value: 'http://insecure.example.com' } })
+      fireEvent.change(screen.getByLabelText('Personal access token'), { target: { value: 'glpat_x' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect(whoamiGitlab).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readGitlab(storage))?.token).toBe('')
+  })
+
+  it('a rejected token surfaces whoami\'s status message as an inline alert and stores nothing', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGitlab).mockResolvedValue({ ok: false, message: 'GitLab rejected that token (status 401).' })
+    const storage = await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Personal access token'), { target: { value: 'glpat_bad' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('401')
+    expect((await readGitlab(storage))?.token).toBe('')
+  })
+
+  it('a denied origin grant blocks the connect: whoami is never called and nothing is stored', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithGitlab({ enabled: true, token: '', instanceUrl: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Personal access token'), { target: { value: 'glpat_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(whoamiGitlab).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readGitlab(storage))?.token).toBe('')
+  })
+
+  it('connected state renders "Connected as {username}" + Disconnect; disconnecting revokes the instance origin and clears the config', async () => {
+    const storage = await renderWithGitlab({
+      enabled: true,
+      token: 'glpat_x',
+      instanceUrl: 'https://gitlab.com',
+      username: 'jcooler',
+    })
+
+    expect(screen.getAllByText('Connected as jcooler')).toHaveLength(1)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins (gitlab's sole
+    // origin, claimed by no other enabled connector).
+    expect(removeOrigin).toHaveBeenCalledWith('https://gitlab.com/*')
+    expect(await readGitlab(storage)).toBeUndefined()
+  })
+
+  it('disconnecting a self-hosted instance with NO other connector sharing it revokes that instance origin', async () => {
+    await renderWithGitlab({
+      enabled: true,
+      token: 'glpat_x',
+      instanceUrl: 'https://gitlab.example.com',
+      username: 'jon',
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(removeOrigin).toHaveBeenCalledWith('https://gitlab.example.com/*')
+  })
+
+  it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
+    await renderWithGitlab({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jcooler' })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
 })
