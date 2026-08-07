@@ -7,7 +7,8 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
-import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from '../services/connectors/types'
+import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
+import { CONNECTORS } from '../services/connectors/registry'
 
 const APP_ID = 'aurora'
 
@@ -18,8 +19,8 @@ export interface BackupEnvelope {
   // connectorSnapshots is cache, not user data — deliberately excluded from
   // every export (smaller files, and one less validator surface on import:
   // see validateBackupShape's matching never-trust-it-on-import handling
-  // below). `connectors` (user-chosen config) IS exported, minus anything
-  // named in SECRET_FIELDS for that connector.
+  // below). `connectors` (user-chosen config) IS exported, minus anything a
+  // connector's registry descriptor lists in `secretFields`.
   data: Omit<AuroraData, 'connectorSnapshots'>
 }
 
@@ -27,31 +28,36 @@ export type ParseBackupResult =
   | { ok: true; data: Record<string, unknown>; version: number }
   | { ok: false; reason: string }
 
-// Per connector, the ConnectorConfig field names that must never leave the
-// device in a plaintext export (API keys, tokens, etc). RSS has none today —
-// its list ships empty — but the stripping mechanism (and its test coverage)
-// ships now so the first connector that *does* carry a secret only needs to
-// add its field names here, not touch serializeBackup.
-export const SECRET_FIELDS: Partial<Record<ConnectorId, string[]>> = {
-  rss: [],
-}
-
-/** Returns a new connectors map with each entry's SECRET_FIELDS stripped.
+/** Returns a new connectors map with every field a connector's descriptor
+ *  lists in `secretFields` removed — the single source of truth is the
+ *  registry (no local secret list to keep in sync). RSS declares none today,
+ *  so this is an identity over its config; the first secret-bearing connector
+ *  only adds `secretFields` to its descriptor, nothing here changes.
+ *
  *  Never mutates its input — `data.connectors` is what's actually sitting in
- *  storage, and it must survive an export untouched. */
-function stripSecrets(connectors: AuroraData['connectors']): AuroraData['connectors'] {
+ *  storage and must survive an export untouched (each stripped entry is a fresh
+ *  clone). `descriptors` is a test-only injection seam defaulting to CONNECTORS;
+ *  production always uses the real registry. */
+export function stripSecrets(
+  connectors: AuroraData['connectors'],
+  descriptors: readonly ConnectorDescriptor[] = CONNECTORS,
+): AuroraData['connectors'] {
   const result: AuroraData['connectors'] = {}
   for (const id of Object.keys(connectors) as ConnectorId[]) {
     const config = connectors[id]
     if (!config) continue
-    const secretFields = SECRET_FIELDS[id]
+    const secretFields = descriptors.find((d) => d.id === id)?.secretFields
     if (!secretFields || secretFields.length === 0) {
       result[id] = config
       continue
     }
-    const clone = { ...config } as Record<string, unknown>
+    // Clone as Partial so `delete` is legal (optional keys) with no cast at the
+    // delete site; one honest Partial->full assertion at assignment. No
+    // `as unknown as` round trip — the export intentionally emits a config
+    // shorn of its secret fields, and this is the single place that states it.
+    const clone: Partial<ConnectorConfig> = { ...config }
     for (const field of secretFields) delete clone[field]
-    result[id] = clone as unknown as ConnectorConfig
+    result[id] = clone as ConnectorConfig
   }
   return result
 }

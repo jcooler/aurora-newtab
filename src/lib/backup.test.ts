@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { serializeBackup, parseBackup, validateBackupShape, SECRET_FIELDS } from './backup'
-import { CURRENT_VERSION, defaults } from './storage/schema'
+import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
+import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
+import type { ConnectorDescriptor, RssConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -34,8 +35,8 @@ describe('serializeBackup / parseBackup round-trip', () => {
 // Task 39: schema v5 connector keys. connectorSnapshots is cache, not user
 // data, and is deliberately excluded from every export (smaller files, one
 // less validator surface on import — see backup.ts's doc comments). connectors
-// carries per-connector config and IS exported, minus anything named in
-// SECRET_FIELDS for that connector.
+// carries per-connector config and IS exported, minus anything a connector's
+// registry descriptor lists in secretFields (Task 42 replaced the local map).
 describe('connector config / snapshot handling (Task 39)', () => {
   it('export of defaults contains connectors but not connectorSnapshots', () => {
     const json = serializeBackup(defaults())
@@ -44,26 +45,41 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect('connectorSnapshots' in envelope.data).toBe(false)
   })
 
-  it('strips a field listed in SECRET_FIELDS from the export, but the original (storage) data survives untouched', () => {
-    const originalRss = SECRET_FIELDS.rss
-    SECRET_FIELDS.rss = ['apiKey'] // test-injected fake secret field
-    try {
-      const data = {
-        ...defaults(),
-        connectors: {
-          rss: { enabled: true, feeds: [], shownCount: 5, apiKey: 'super-secret' } as never,
-        },
-      }
-      const json = serializeBackup(data)
-      const envelope = JSON.parse(json)
-      expect(envelope.data.connectors.rss.enabled).toBe(true)
-      expect('apiKey' in envelope.data.connectors.rss).toBe(false)
-      // The object handed in (what's actually sitting in storage) must not
-      // have been mutated by the export.
-      expect((data.connectors.rss as never as { apiKey: string }).apiKey).toBe('super-secret')
-    } finally {
-      SECRET_FIELDS.rss = originalRss
+  it('strips a field declared secret by its descriptor, but the original (storage) data survives untouched', () => {
+    // stripSecrets reads secretFields from the connector registry. Inject a
+    // fake descriptor via its test-only seam (the production path — CONNECTORS —
+    // stays unmocked). A hypothetical rss config that carries an apiKey lets us
+    // prove the strip without waiting for a real secret-bearing connector.
+    const fakeDescriptor: ConnectorDescriptor<RssConfig & { apiKey: string }> = {
+      id: 'rss',
+      label: 'RSS (test)',
+      blurb: 'test',
+      auth: 'token',
+      ttlMs: 1_000,
+      secretFields: ['apiKey'],
+      origins: () => [],
     }
+    const stored = { enabled: true, feeds: [], shownCount: 5, apiKey: 'super-secret' }
+    const connectors = { rss: stored } as AuroraData['connectors']
+
+    // Single cast: the fake's config type widens RssConfig with apiKey so its
+    // secretFields list type-checks; it stays a valid ConnectorDescriptor.
+    const stripped = stripSecrets(connectors, [fakeDescriptor] as ConnectorDescriptor[])
+    const strippedRss = stripped.rss as Record<string, unknown> | undefined
+    expect(strippedRss?.enabled).toBe(true)
+    expect(strippedRss && 'apiKey' in strippedRss).toBe(false)
+    // The object handed in (what's actually sitting in storage) must not have
+    // been mutated by stripping.
+    expect(stored.apiKey).toBe('super-secret')
+  })
+
+  it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {
+    // Real RSS declares no secrets today; with the default CONNECTORS source
+    // (empty until Task 43) stripSecrets is an identity over the config.
+    const stored = { enabled: true, feeds: ['https://example.com/feed'], shownCount: 5 }
+    const connectors = { rss: stored } as AuroraData['connectors']
+    const stripped = stripSecrets(connectors)
+    expect(stripped.rss).toEqual(stored)
   })
 
   it('import drops unknown connector ids and any connectorSnapshots key entirely', () => {
