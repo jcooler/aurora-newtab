@@ -24,8 +24,8 @@ auth-type phasing across four sub-projects:
 
 | Sub-project | Spec | Plan | Status |
 |---|---|---|---|
-| 1. Settings tabs + connector framework (+RSS reference) | `docs/superpowers/specs/2026-07-30-settings-tabs-connector-framework-design.md` | `docs/superpowers/plans/2026-08-02-settings-tabs-connector-framework.md` (tasks 39–45) | **START HERE — no tasks begun** |
-| 2. Token connectors (GitHub, GitLab, Jira, Vercel, crypto, ICS calendar) | `docs/superpowers/specs/2026-08-02-token-connectors-design.md` | write when its turn comes | after 1 |
+| 1. Settings tabs + connector framework (+RSS reference) | `docs/superpowers/specs/2026-07-30-settings-tabs-connector-framework-design.md` | `docs/superpowers/plans/2026-08-02-settings-tabs-connector-framework.md` (tasks 39–45) | **DONE 2026-08-07 at `23b506f`** — v1.3.0 staged (NOT submitted; v1.2.1 verdict pending); 618 tests, 134 harness assertions; fable whole-plan review Satisfied. SP2 inherits: render card `auth` state; per-entry descriptor cast when ConnectorConfig becomes a union (see types.ts variance note); Data-tab copy naming connector-cache exclusion. |
+| 2. Token connectors (GitHub, GitLab, Jira, Vercel, crypto, ICS calendar) | `docs/superpowers/specs/2026-08-02-token-connectors-design.md` | write when its turn comes | **START HERE next** |
 | 3. OAuth wave (Spotify first, Google Calendar, Gmail-if-CASA-approved) | `docs/superpowers/specs/2026-08-02-oauth-wave-design.md` | write when its turn comes | after 2; Jon owns Google-console paperwork |
 | 4. Local widgets (habit streaks, month calendar) | `docs/superpowers/specs/2026-08-02-local-widgets-design.md` | write when its turn comes | breather — slot anywhere |
 
