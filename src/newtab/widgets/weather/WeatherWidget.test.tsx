@@ -101,6 +101,21 @@ describe('WeatherWidget collapsed chip', () => {
     expect(section.className).toContain('compact:w-[min(20rem,calc(100vw_-_8.5rem))]')
   })
 
+  // Measured regression (730x900): 30vw alone put the expanded panel's left
+  // edge 12.3px INSIDE the right edge of a centred "Good afternoon." — a
+  // collision no matrix viewport could see, since the only tall ones were
+  // >=1024px wide and the 800px one is `xshort`, where the greeting is 18px
+  // type. The second term states the rule the first only approximated: stay
+  // out of the centred column's half of the page, plus that greeting's
+  // overhang.
+  it('keeps the expanded panel clear of the centred column in the tight band, not just of 30vw', async () => {
+    await renderWidget()
+    await expandPanel()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    expect(section.className).toContain('tight:w-[min(30vw,calc(50vw_-_10.5rem))]')
+    expect(section.className).not.toContain('tight:w-[30vw]')
+  })
+
   it('keeps the rain callout visible even while collapsed', async () => {
     await renderWidget({
       snapshot: makeSnapshot({

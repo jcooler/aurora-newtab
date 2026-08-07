@@ -606,9 +606,32 @@ async function weatherOverflow() {
       // above), and the shortened text is a designed state with the full
       // string on a `title` — see the collapsed chip's condition/location
       // line in WeatherWidget.tsx, which used to WRAP here instead and
-      // strand the chevron beside it. Clipping WITHOUT an ellipsis stays a
-      // failure: that is content disappearing with nothing to say so.
-      if (cs.textOverflow === 'ellipsis' && cs.overflowX === 'hidden') continue
+      // strand the chevron beside it.
+      //
+      // All five conditions are load-bearing, because `truncate` is a
+      // four-property shorthand that can be applied to things it does not
+      // actually truncate:
+      //   whiteSpace nowrap    without it the text WRAPS and the box clips
+      //                        the overflowing lines vertically — the
+      //                        ellipsis never paints and content vanishes.
+      //   no element children  `text-overflow` only ever elides an inline
+      //                        text overflow. Put `truncate` on a block or
+      //                        flex CONTAINER and it silently clips its
+      //                        children with no ellipsis at all, which is
+      //                        exactly the class of bug this probe exists
+      //                        to catch.
+      //   a `title`            truncation is only acceptable because the
+      //                        full string is one hover away. Without it
+      //                        the text is simply gone.
+      if (
+        cs.textOverflow === 'ellipsis' &&
+        cs.overflowX === 'hidden' &&
+        cs.whiteSpace === 'nowrap' &&
+        el.children.length === 0 &&
+        el.title
+      ) {
+        continue
+      }
       // SVG child elements (path/rect/…) have no clientWidth at all — the
       // subtraction is NaN there, and NaN > 1 is false, so they skip
       // themselves without a special case.
@@ -835,6 +858,11 @@ async function waitForPhotoSettle() {
 for (const { w, h } of [
   { w: 1420, h: 437 }, // the owner's own window — xshort height only
   { w: 800, h: 450 }, // narrow + tight + xshort, all at once
+  // The NARROWEST the expanded panel ever gets: `tight`'s second term
+  // (`calc(50vw - 10.5rem)`, the centred column's clearance) binds here and
+  // only here, at ~197px, so this is where the panel's contents are closest
+  // to running out of box.
+  { w: 730, h: 900 },
   { w: 500, h: 900 }, // the owner's side window — narrow + compact
 ]) {
   await page.setViewportSize({ width: w, height: h })
@@ -1284,6 +1312,17 @@ const viewportMatrix = [
   { w: 1280, h: 500 },
   { w: 1024, h: 600 },
   { w: 800, h: 450 },
+  // The LABELLED side of the compact threshold, 10px above it. Without a
+  // viewport here, the threshold's derivation (index.css: labels stop
+  // keeping half of themselves at ~703px) was arithmetic in a comment and
+  // nothing else — the narrowest labelled viewport was 800px, which clears
+  // the rule by a mile. Here the ratio assertion below is actually near its
+  // limit (0.577 measured), so a threshold set too LOW fails honestly
+  // instead of shipping the crumbs it was supposed to delete. Tall on
+  // purpose: it is also the only viewport in the matrix in the 721-900px
+  // band at full height, which is where the expanded weather panel turned
+  // out to collide with a centred "Good afternoon." (see WeatherWidget.tsx).
+  { w: 730, h: 900 },
   // Jon's own ~500px-wide side window (2026-08-07). Below the `compact`
   // threshold on BOTH widgets in the top row: the bookmarks bar renders one
   // mark per chip instead of labels, and the weather chip stops being sized
@@ -1727,15 +1766,29 @@ for (const { w, h } of viewportMatrix) {
     } else {
       const clear = +(expanded.weather.top - expanded.bar.bottom).toFixed(1)
       const bottomRoom = +(expanded.viewport.h - expanded.weather.bottom).toFixed(1)
+      // The panel's own box, once it is a panel rather than a chip: it has
+      // to stay inside the viewport horizontally and stay off the timer
+      // pill. Neither was covered before — 2b above measures timer vs
+      // weather in the COLLAPSED state only, and it runs before this block
+      // expands anything, so a panel wide enough to reach across the row
+      // (or off the left edge) passed every check in this loop. That gap
+      // only became reachable once the panel's width stopped being a small
+      // viewport fraction, so it is closed here, at every viewport, rather
+      // than only where the new widths apply.
+      const onScreenX =
+        expanded.weather.left >= 0 && expanded.weather.right <= expanded.viewport.w + 1
+      const timerClear = !expanded.timer || !hits(expanded.weather, expanded.timer)
       const ok =
         !hits(expanded.bar, expanded.weather) &&
         !hits(expanded.barWorst, expanded.weather) &&
         Math.abs(clear - expanded.bar.top) <= GAP_TOLERANCE &&
-        bottomRoom >= 0
+        bottomRoom >= 0 &&
+        onScreenX &&
+        timerClear
       console.log(
         ok
-          ? `PASS: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expanded.weather.width}x${expanded.weather.height}px, starts ${clear}px below the bar, ${bottomRoom}px of viewport left under it)`
-          : `FAIL: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (clearance ${clear}px below the bar vs ${expanded.bar.top}px above it; ${bottomRoom}px left under the panel, need >=0; actual-hit=${hits(expanded.bar, expanded.weather)}, worst-case-hit=${hits(expanded.barWorst, expanded.weather)})`,
+          ? `PASS: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expanded.weather.width}x${expanded.weather.height}px, starts ${clear}px below the bar, ${bottomRoom}px of viewport left under it; spans ${expanded.weather.left}..${expanded.weather.right} of ${expanded.viewport.w}px, clear of the timer pill)`
+          : `FAIL: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (clearance ${clear}px below the bar vs ${expanded.bar.top}px above it; ${bottomRoom}px left under the panel, need >=0; spans ${expanded.weather.left}..${expanded.weather.right} of ${expanded.viewport.w}px, timer-clear=${timerClear}; actual-hit=${hits(expanded.bar, expanded.weather)}, worst-case-hit=${hits(expanded.barWorst, expanded.weather)})`,
       )
 
       // 3c. The expanded panel is far taller than the collapsed chip —
@@ -1750,13 +1803,18 @@ for (const { w, h } of viewportMatrix) {
           greeting: r(document.querySelector('[data-block-id="greeting"]')),
         }
       })
+      // Both blocks are guaranteed present (they are default-placement
+      // widgets with no toggle), so a missing rect is a regression, not a
+      // reason to say nothing — without this the `? … : false` below would
+      // report a clean PASS for a page that had lost its clock.
+      const columnMeasured = !!centerColumn.clock && !!centerColumn.greeting
       const clockHit = centerColumn.clock ? hits(expanded.weather, centerColumn.clock) : false
       const greetingHit = centerColumn.greeting ? hits(expanded.weather, centerColumn.greeting) : false
       if (w > COMPACT_MAX_WIDTH) {
         console.log(
-          !clockHit && !greetingHit
+          columnMeasured && !clockHit && !greetingHit
             ? `PASS: no expanded-weather/clock-greeting overlap at ${w}x${h}`
-            : `FAIL: no expanded-weather/clock-greeting overlap at ${w}x${h} (clock-hit=${clockHit}, greeting-hit=${greetingHit}, weather ${JSON.stringify(expanded.weather)}, clock ${JSON.stringify(centerColumn.clock)}, greeting ${JSON.stringify(centerColumn.greeting)})`,
+            : `FAIL: no expanded-weather/clock-greeting overlap at ${w}x${h} (measured=${columnMeasured}, clock-hit=${clockHit}, greeting-hit=${greetingHit}, weather ${JSON.stringify(expanded.weather)}, clock ${JSON.stringify(centerColumn.clock)}, greeting ${JSON.stringify(centerColumn.greeting)})`,
         )
       } else {
         // Below `compact`, clearing the centre column is ARITHMETICALLY
@@ -1771,7 +1829,22 @@ for (const { w, h } of viewportMatrix) {
         // other floating panel in this app (Tasks, Notes, the timer) already
         // behaves at every size. The geometry checks that still mean
         // something at this width — clear of the band, clear of the timer
-        // pill, fully on screen — are asserted directly above and below.
+        // pill, fully on screen — are asserted directly above.
+        //
+        // Written to be FALSIFIABLE, which took three tries:
+        //   · the alpha floor is the `bg-panel-solid` CONTRACT (0.95 in
+        //     Aurora, the theme this matrix runs in), not "greater than
+        //     zero" — a regression to the 50%-opaque `bg-panel` the
+        //     COLLAPSED chip uses would sail through a >0 test while
+        //     leaving the greeting legible straight through the panel.
+        //   · `covered` must be non-empty. `[].every()` is `true`, so a
+        //     panel that had stopped overlapping anything — or a page whose
+        //     clock and greeting had vanished — would have reported the
+        //     strongest possible PASS for having proved nothing.
+        //   · there is deliberately no backdrop-filter term: `--panel-blur`
+        //     is `0px` in the Mono theme, and `blur(0px)` still contains the
+        //     substring "blur", so that clause could only ever be true.
+        const SOLID_SURFACE_ALPHA = 0.9
         const overlay = await page.evaluate(
           ({ s, rects }) => {
             const sec = document.querySelector(s)
@@ -1797,23 +1870,20 @@ for (const { w, h } of viewportMatrix) {
               const el = document.elementFromPoint((left + right) / 2, (top + bottom) / 2)
               covered.push({ name, onTop: !!el && !!el.closest('[data-block-id="weather"]') })
             }
-            return {
-              alpha,
-              blurred: (cs.backdropFilter || cs.webkitBackdropFilter || '').includes('blur'),
-              covered,
-            }
+            return { alpha: +alpha.toFixed(2), covered }
           },
           { s: weatherSel, rects: centerColumn },
         )
         const ok =
           overlay !== null &&
-          overlay.alpha > 0 &&
-          overlay.blurred &&
+          columnMeasured &&
+          overlay.alpha >= SOLID_SURFACE_ALPHA &&
+          overlay.covered.length > 0 &&
           overlay.covered.every((c) => c.onTop)
         console.log(
           ok
-            ? `PASS: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (covers ${overlay.covered.map((c) => c.name).join(', ') || 'nothing'}; opaque surface, topmost at every covered point)`
-            : `FAIL: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (${JSON.stringify(overlay)})`,
+            ? `PASS: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (covers ${overlay.covered.map((c) => c.name).join(', ')}; surface alpha ${overlay.alpha} >= ${SOLID_SURFACE_ALPHA}, topmost at every covered point)`
+            : `FAIL: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (column measured=${columnMeasured}, need alpha >= ${SOLID_SURFACE_ALPHA} and a non-empty covered set, all topmost: ${JSON.stringify(overlay)})`,
         )
       }
     }

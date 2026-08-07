@@ -90,6 +90,37 @@ describe('toBarModel', () => {
     expect(model.folders[0]?.folders[0]?.title).toBe('Folder')
   })
 
+  // Folders have had an untitled fallback since the start (above); bookmarks
+  // did not, and Chrome lets you save one with an empty title. That used to
+  // be merely a blank label in a chip; since the compact pass it is a chip
+  // with NO name at all — a nameless circle, unreadable and unhoverable,
+  // with nothing for the `title` attribute or the accessible name to carry.
+  // The host is the one thing a bookmark always has.
+  it('falls back to a bookmark\'s hostname when Chrome hands us an empty title', () => {
+    const tree = root([
+      {
+        id: '1',
+        title: 'Bookmarks bar',
+        folderType: 'bookmarks-bar',
+        children: [
+          { id: '10', title: '', url: 'https://www.example.com/deep/path?q=1' },
+          { id: '11', title: '   ', url: 'https://news.ycombinator.com/' },
+          // Not a URL the URL parser can take a host from — the raw string
+          // is still better than nothing.
+          { id: '12', title: '', url: 'javascript:void(0)' },
+          // A real title is never second-guessed, whitespace and all.
+          { id: '13', title: ' Spaced ', url: 'https://spaced.example/' },
+        ],
+      },
+    ])
+    const model = toBarModel(tree)
+    // `www.` is noise on a chip this small — every host has it or doesn't.
+    expect(model.loose[0]?.title).toBe('example.com')
+    expect(model.loose[1]?.title).toBe('news.ycombinator.com')
+    expect(model.loose[2]?.title).toBe('javascript:void(0)')
+    expect(model.loose[3]?.title).toBe(' Spaced ')
+  })
+
   it('an empty bookmarks bar produces empty folders/loose arrays', () => {
     const tree = root([
       { id: '1', title: 'Bookmarks bar', folderType: 'bookmarks-bar', children: [] },

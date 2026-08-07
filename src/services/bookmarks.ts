@@ -32,12 +32,35 @@ export interface ChromeBookmarkNode {
   children?: ChromeBookmarkNode[]
 }
 
+/** A bookmark's display name. Chrome permits an EMPTY title (Ctrl+D, clear
+ *  the name field, save), and an untitled bookmark used to reach the bar as
+ *  a chip with a blank label. Since the bar's compact mode (viewport width
+ *  <= 720px — see BookmarksBar.tsx) that is worse than untidy: the label is
+ *  also the chip's accessible name and its `title` tooltip, so an empty one
+ *  renders a nameless circle that nothing — pointer, screen reader, or the
+ *  preview harness's own allTitled check — can identify.
+ *
+ *  The host is the one thing a bookmark always has. `www.` comes off because
+ *  it is noise that every host either carries or doesn't, and it costs a
+ *  third of the room on a chip this size. Anything the URL parser can't take
+ *  a host from (a `javascript:` bookmarklet, a malformed entry) keeps its
+ *  raw URL, which is still a name; folders have had their own 'Folder'
+ *  fallback below since the start. */
+function bookmarkLabel(title: string, url: string): string {
+  if (title.trim()) return title
+  try {
+    return new URL(url).hostname.replace(/^www\./, '') || url
+  } catch {
+    return url
+  }
+}
+
 function mapFolder(node: ChromeBookmarkNode): BookmarkFolder {
   const items: BookmarkItem[] = []
   const folders: BookmarkFolder[] = []
   for (const child of node.children ?? []) {
     if (child.url) {
-      items.push({ id: child.id, title: child.title, url: child.url })
+      items.push({ id: child.id, title: bookmarkLabel(child.title, child.url), url: child.url })
     } else if (child.children) {
       folders.push(mapFolder(child))
     }

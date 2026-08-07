@@ -119,22 +119,43 @@ export default function WeatherWidget() {
   // The EXPANDED panel keeps its breakpoints, because it has a second
   // constraint the chip doesn't: it is tall enough to reach down into the
   // centre column, so its width is what keeps it clear of the clock and
-  // greeting at desktop sizes (asserted in scripts/preview.mjs). Below
-  // `compact` that clearance is arithmetically unreachable — the greeting is
-  // centred and ~254px wide, so at 500px a right-anchored panel would have
-  // to be ~107px to miss it, narrower than this panel's own header — so the
+  // greeting at desktop sizes (asserted in scripts/preview.mjs).
+  //
+  // `tight` now states that constraint instead of approximating it. 30vw
+  // alone held only by luck, and only for the shorter greetings: the
+  // greeting is CENTRED, so its right edge is at 50vw + half its width, and
+  // at 36px display type "Good afternoon." is 284.5px against "Good
+  // morning."'s 253.7px. Measured at 730x900: 30vw put the panel's left edge
+  // at 495px, which clears the morning greeting by 3.1px and OVERLAPS the
+  // afternoon one by 12.3px — a real collision that no existing matrix
+  // viewport could see, because the only tall viewports were >=1024px wide
+  // and the 800px one is `xshort`, where the greeting is 18px type. The
+  // second term is the actual rule: keep the panel out of the half of the
+  // page the centred column occupies, plus the widest default greeting's
+  // overhang (10.5rem = half of 284.5px, plus ~10px of margin). It binds
+  // only in the 721-900px band where the collision was; at 1024px and up
+  // 30vw is still the smaller of the two and nothing changes.
+  //
+  // The guarantee is sized against the longest DEFAULT greeting. A user-set
+  // name makes it unbounded ("Good afternoon, Bartholomew."), which no
+  // width rule can chase — that case falls back to the same answer as
+  // `compact` below: an opaque panel, painted and hit-tested on top.
+  //
+  // Below `compact` the clearance is arithmetically unreachable even for the
+  // default text — at 500px a right-anchored panel would have to be ~107px
+  // to miss the greeting, narrower than this panel's own header — so the
   // panel stops chasing it and becomes a proper compact SHEET instead: 20rem
   // where there's room, still stopping short of the timer pill, deliberately
   // overlaying the column the way any disclosure panel does at that size.
-  // The harness asserts that overlay is disciplined (opaque, on top, on
-  // screen, clear of the band and the pill) rather than pretending it isn't
-  // there.
+  // The harness asserts that overlay is disciplined (opaque surface, on top
+  // at every covered point, on screen, clear of the band and the pill)
+  // rather than pretending it isn't there.
   //
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
   // class name assembled at runtime is never generated at build time.
   const widthClass = expanded
-    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[30vw] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
+    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
     : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))]'
 
   return (
