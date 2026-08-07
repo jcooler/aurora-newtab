@@ -2,11 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { CONNECTORS, getConnector } from './registry'
 import { CONNECTOR_IDS, type ConnectorId } from './types'
 
-// The registry ships EMPTY this task (Task 43 adds the RSS descriptor). These
-// invariants are written GENERICALLY over CONNECTORS so they stay silent while
-// the array is empty and start BITING the moment a real descriptor lands: a
-// duplicate id, an id outside CONNECTOR_IDS, or a registered id that
-// getConnector can't resolve all fail immediately once populated.
+// These invariants are written GENERICALLY over CONNECTORS (shipped empty in
+// Task 42, populated with RSS in Task 43): a duplicate id, an id outside
+// CONNECTOR_IDS, or a registered id that getConnector can't resolve all fail
+// immediately, for the current registry and every future descriptor alike.
 describe('connector registry invariants', () => {
   it('has no duplicate descriptor ids', () => {
     const ids = CONNECTORS.map((d) => d.id)
