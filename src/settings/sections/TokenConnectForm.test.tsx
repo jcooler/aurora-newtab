@@ -195,3 +195,67 @@ describe('TokenConnectForm — connected state', () => {
     expect(onDisconnect).toHaveBeenCalledOnce()
   })
 })
+
+// Review fix (round 1): ids used to be static (`token-connect-${field.id}`,
+// hardcoded `token-connect-error`). GithubConfig and VercelConfig both
+// declare a `token` field, so two token-connector cards mounted on the same
+// Connectors tab at once — an ordinary state, not an edge case — used to
+// collide on id="token-connect-token" and id="token-connect-error", breaking
+// label association and aria-describedby for screen readers. useId()
+// prefixes every generated id per mounted instance; this block is the
+// falsifying case for the old bug.
+describe('TokenConnectForm — two instances mounted at once (per-instance ids)', () => {
+  function renderTwo() {
+    const makeProps = () => ({
+      fields: FIELDS,
+      originsFor: vi.fn(() => []),
+      validate: vi.fn(async () => ({ ok: false as const, message: 'x' })),
+      onConnected: vi.fn(async () => {}),
+      connectedAs: null,
+      onDisconnect: vi.fn(async () => {}),
+    })
+    return render(
+      <>
+        <TokenConnectForm {...makeProps()} />
+        <TokenConnectForm {...makeProps()} />
+      </>,
+    )
+  }
+
+  it('generates no duplicate DOM ids, even though both instances share a field id ("token")', () => {
+    const { container } = renderTwo()
+    const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id)
+    // Sanity: there ARE ids to check (both the per-field input ids and, once
+    // an error is present, the alert id) — an empty list would make the
+    // uniqueness assertion below vacuously true.
+    expect(ids.length).toBeGreaterThan(0)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it("each label resolves to (and would focus) its OWN instance's input, never the other instance's", () => {
+    renderTwo()
+    const labels = screen.getAllByText('Personal access token').filter((el) => el.tagName === 'LABEL') as HTMLLabelElement[]
+    const inputs = screen.getAllByPlaceholderText('ghp_...')
+    expect(labels).toHaveLength(2)
+    expect(inputs).toHaveLength(2)
+    expect(inputs[0]!.id).not.toBe(inputs[1]!.id)
+
+    // `label.control` is the browser-native resolution of a label's target
+    // control (per the labeled-control algorithm: look up `for`'s value with
+    // getElementById, the SAME lookup a real click-to-focus relies on and
+    // the exact mechanism duplicate ids would break — getElementById always
+    // returns the FIRST matching id in document order, so with the old
+    // static ids labels[1].control would have resolved to inputs[0], not
+    // inputs[1]). Asserted via `.control` rather than a simulated click
+    // because jsdom implements label->control resolution but does not
+    // forward a synthetic label click into focusing a text input.
+    expect(labels[0]!.control).toBe(inputs[0])
+    expect(labels[1]!.control).toBe(inputs[1])
+
+    // And the real focus path still works end-to-end for each instance.
+    inputs[1]!.focus()
+    expect(document.activeElement).toBe(inputs[1])
+    inputs[0]!.focus()
+    expect(document.activeElement).toBe(inputs[0])
+  })
+})

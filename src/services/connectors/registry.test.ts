@@ -105,6 +105,16 @@ describe('releasableOrigins', () => {
     expect(releasableOrigins('rss', configs)).toEqual(['https://shared.example.com/*'])
   })
 
+  it('an origin derived TWICE by the disconnecting connector itself (two feeds, same host) is listed once', () => {
+    const dupeHostConfig: RssConfig = {
+      enabled: true,
+      feeds: ['https://shared.example.com/feed-a', 'https://shared.example.com/feed-b'],
+      shownCount: 5,
+    }
+    const configs: Partial<Record<ConnectorId, ConnectorConfig>> = { rss: dupeHostConfig }
+    expect(releasableOrigins('rss', configs)).toEqual(['https://shared.example.com/*'])
+  })
+
   it('an origin also derived by another ENABLED connector is withheld', () => {
     CONNECTORS.push(fakeGithub as ConnectorDescriptor)
     const githubConfig: GithubConfig = { enabled: true, token: 't', username: 'octocat' }

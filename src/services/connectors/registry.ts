@@ -48,7 +48,12 @@ function originsOf(descriptor: ConnectorDescriptor, config: ConnectorConfig): st
  *  same site, but it isn't actively fetching it, so it doesn't get to keep
  *  the grant alive. The disconnecting connector's OWN origins are read
  *  unconditionally (its own `enabled` flag doesn't gate what it's *asking*
- *  to release) — only the sharing check on the OTHER side is enabled-gated. */
+ *  to release) — only the sharing check on the OTHER side is enabled-gated.
+ *
+ *  Deduped: a connector can derive the same origin more than once (e.g. two
+ *  of its own feeds sharing a host), and descriptor.origins() makes no
+ *  uniqueness promise — a caller that removeOrigin's the result shouldn't
+ *  see (or redundantly act on) the same origin twice. */
 export function releasableOrigins(id: ConnectorId, configs: Partial<Record<ConnectorId, ConnectorConfig>>): string[] {
   const config = configs[id]
   const descriptor = getConnector(id)
@@ -64,5 +69,5 @@ export function releasableOrigins(id: ConnectorId, configs: Partial<Record<Conne
     for (const origin of originsOf(other, otherConfig)) stillClaimed.add(origin)
   }
 
-  return own.filter((origin) => !stillClaimed.has(origin))
+  return [...new Set(own.filter((origin) => !stillClaimed.has(origin)))]
 }

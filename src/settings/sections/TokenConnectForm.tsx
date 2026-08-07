@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { ensureOrigin } from '../../services/permissions'
 import { control } from './shared'
 
@@ -36,6 +36,14 @@ export function TokenConnectForm(props: {
   onDisconnect(): Promise<void>
 }) {
   const { fields, connectLabel = 'Connect', originsFor, validate, onConnected, connectedAs, onDisconnect } = props
+
+  // Two token connectors can render on the same Connectors tab at once
+  // (GithubConfig and VercelConfig both declare a `token` field, for
+  // instance), so a static `token-connect-${field.id}` id would collide
+  // across instances — duplicate DOM ids break label association and
+  // aria-describedby for screen readers. useId() gives each mounted
+  // TokenConnectForm its own stable, unique prefix.
+  const uid = useId()
 
   const [values, setValues] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.id, f.defaultValue ?? ''])),
@@ -127,11 +135,11 @@ export function TokenConnectForm(props: {
     >
       {fields.map((field) => (
         <div key={field.id}>
-          <label htmlFor={`token-connect-${field.id}`} className="sr-only">
+          <label htmlFor={`${uid}-${field.id}`} className="sr-only">
             {field.label}
           </label>
           <input
-            id={`token-connect-${field.id}`}
+            id={`${uid}-${field.id}`}
             type={field.type}
             placeholder={field.placeholder}
             value={values[field.id] ?? ''}
@@ -141,7 +149,7 @@ export function TokenConnectForm(props: {
               setValues((prev) => ({ ...prev, [field.id]: next }))
               setError(null)
             }}
-            aria-describedby={error ? 'token-connect-error' : undefined}
+            aria-describedby={error ? `${uid}-error` : undefined}
             className={`${control} w-full`}
           />
         </div>
@@ -156,7 +164,7 @@ export function TokenConnectForm(props: {
       </button>
 
       {error && (
-        <p id="token-connect-error" role="alert" className="text-xs text-fg-muted">
+        <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">
           {error}
         </p>
       )}
