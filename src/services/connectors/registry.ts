@@ -8,7 +8,7 @@
 // from ../permissions for its `origins` mapper, but permissions.ts only
 // touches chrome.* inside function bodies, never at module scope, so pulling
 // it in here doesn't add a load-time chrome.* dependency.
-import type { ConnectorDescriptor, ConnectorId } from './types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId } from './types'
 import { rssDescriptor } from './rss'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
@@ -22,4 +22,47 @@ export const CONNECTORS: ConnectorDescriptor[] = [rssDescriptor as ConnectorDesc
  *  is fine: the catalog is tiny and fixed at build time. */
 export function getConnector(id: ConnectorId): ConnectorDescriptor | undefined {
   return CONNECTORS.find((descriptor) => descriptor.id === id)
+}
+
+/** descriptor.origins(config), wrapped defensively — same contract rss.ts's
+ *  origins() documents: a caller sweeping origins() across every registered
+ *  descriptor must be able to trust that one connector's bad/malformed
+ *  persisted config degrades to fewer origins rather than throwing out of
+ *  the sweep. Descriptors that follow the contract (like rssDescriptor)
+ *  never need this catch; it exists for the ones that don't. */
+function originsOf(descriptor: ConnectorDescriptor, config: ConnectorConfig): string[] {
+  try {
+    return descriptor.origins(config)
+  } catch {
+    return []
+  }
+}
+
+/** Origins safe to revoke when `id` disconnects: its own origins minus any
+ *  origin another ENABLED connector still derives. Pure; callers do the
+ *  actual removeOrigin calls (this fulfils the production caller
+ *  descriptor.origins() was promised — SP1 finding 3).
+ *
+ *  "Other" here means every OTHER registered connector whose stored config
+ *  has `enabled: true` — a disabled connector's config might still name the
+ *  same site, but it isn't actively fetching it, so it doesn't get to keep
+ *  the grant alive. The disconnecting connector's OWN origins are read
+ *  unconditionally (its own `enabled` flag doesn't gate what it's *asking*
+ *  to release) — only the sharing check on the OTHER side is enabled-gated. */
+export function releasableOrigins(id: ConnectorId, configs: Partial<Record<ConnectorId, ConnectorConfig>>): string[] {
+  const config = configs[id]
+  const descriptor = getConnector(id)
+  if (!descriptor || !config) return []
+
+  const own = originsOf(descriptor, config)
+
+  const stillClaimed = new Set<string>()
+  for (const other of CONNECTORS) {
+    if (other.id === id) continue
+    const otherConfig = configs[other.id]
+    if (!otherConfig?.enabled) continue
+    for (const origin of originsOf(other, otherConfig)) stillClaimed.add(origin)
+  }
+
+  return own.filter((origin) => !stillClaimed.has(origin))
 }
