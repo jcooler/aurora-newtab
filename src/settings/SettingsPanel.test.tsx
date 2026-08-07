@@ -1639,8 +1639,12 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     expect(whoamiJira).not.toHaveBeenCalled()
+    // Review fix (round 1): the EXACT brief-mandated copy, not just "some
+    // alert text" — TokenConnectForm now surfaces originsFor's own thrown
+    // message (jira.ts's normalizeJiraSite) instead of discarding it for a
+    // generic fallback.
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
+    expect(alert.textContent).toBe('Enter your site as yoursite.atlassian.net')
     expect((await readJira(storage))?.apiToken).toBe('')
   })
 

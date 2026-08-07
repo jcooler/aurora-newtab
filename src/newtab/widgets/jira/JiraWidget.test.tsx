@@ -73,6 +73,23 @@ describe('JiraWidget', () => {
     expect(screen.getByText('3 In Progress · 2 To Do')).toBeTruthy()
   })
 
+  // Review fix (round 1): the happy-path test above ('3 In Progress · 2 To
+  // Do') never falsifies count-descending order against insertion order,
+  // because 'In Progress' happens to be BOTH the higher count AND the
+  // first-inserted key in that fixture. Here the insertion order (Done,
+  // In Progress, To Do — via object key order) is the OPPOSITE of the
+  // count-descending order the widget must render in, and there's a TIE
+  // (Done/To Do both at 1) the widget breaks by insertion order.
+  it('the counts line sorts by count descending, not by insertion order (with a tie broken by insertion order)', async () => {
+    const storage = await seededStorage(CONNECTED, {
+      issues: [{ key: 'AUR-1', summary: 'Solo', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-1' }],
+      counts: { Done: 1, 'In Progress': 5, 'To Do': 1 },
+    })
+    mount(storage)
+    await screen.findByText('AUR-1')
+    expect(screen.getByText('5 In Progress · 1 Done')).toBeTruthy()
+  })
+
   it('shows only one status in the counts line when only one is present', async () => {
     const storage = await seededStorage(CONNECTED, {
       issues: [{ key: 'AUR-1', summary: 'Solo', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-1' }],

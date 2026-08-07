@@ -138,10 +138,17 @@ describe('TokenConnectForm — connect gesture', () => {
     expect(alert.textContent).toBeTruthy()
   })
 
-  it('originsFor() throwing shows an alert and never calls ensureOrigin', async () => {
+  // Review fix (round 1, Task 50): originsFor throwing an Error with a
+  // message used to be discarded entirely — the catch below only ever set
+  // origins to [], and the alert always showed the generic fallback text,
+  // no matter what originsFor's own thrown message said. That silently
+  // swallowed connector-specific guidance (e.g. jira.ts's
+  // normalizeJiraSite naming the exact site format it expects). The thrown
+  // message is now captured and preferred when present.
+  it('originsFor() throwing an Error with a message shows THAT message, never calls ensureOrigin', async () => {
     renderForm({
       originsFor: vi.fn(() => {
-        throw new Error('cannot derive an origin')
+        throw new Error('Enter your site as yoursite.atlassian.net')
       }),
     })
     fillFields()
@@ -152,7 +159,25 @@ describe('TokenConnectForm — connect gesture', () => {
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
+    expect(alert.textContent).toBe('Enter your site as yoursite.atlassian.net')
+  })
+
+  it('originsFor() throwing a messageless value falls back to the generic alert, never calls ensureOrigin', async () => {
+    renderForm({
+      originsFor: vi.fn(() => {
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        throw 'not an Error instance'
+      }),
+    })
+    fillFields()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Could not determine which site to connect to.')
   })
 
   it('every field input is labelled', () => {

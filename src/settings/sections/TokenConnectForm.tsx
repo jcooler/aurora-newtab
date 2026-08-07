@@ -92,14 +92,21 @@ export function TokenConnectForm(props: {
       trimmed[field.id] = value
     }
 
-    let origins: string[]
+    // A thrown originsFor error (e.g. jira.ts's normalizeJiraSite naming the
+    // exact expected site shape) is a more useful message than the generic
+    // fallback below — captured here and preferred when present, so a
+    // connector-specific rejection reaches the user instead of being
+    // discarded. A messageless throw (or a non-Error thrown value) still
+    // falls back to the generic copy.
+    let origins: string[] = []
+    let originsError: string | null = null
     try {
       origins = originsFor(trimmed)
-    } catch {
-      origins = []
+    } catch (e) {
+      originsError = e instanceof Error && e.message ? e.message : null
     }
     if (origins.length === 0) {
-      setError('Could not determine which site to connect to.')
+      setError(originsError ?? 'Could not determine which site to connect to.')
       return
     }
 
