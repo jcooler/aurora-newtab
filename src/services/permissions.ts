@@ -1,6 +1,8 @@
 /** Thin chrome.permissions wrapper, shared by every permission Aurora
- *  requests at RUNTIME instead of at install time — currently just
- *  'bookmarks' (see src/manifest.ts's `optional_permissions`).
+ *  requests at RUNTIME instead of at install time — currently 'bookmarks'
+ *  (see src/manifest.ts's `optional_permissions`) plus, via
+ *  originPattern/hasOrigin/ensureOrigin/removeOrigin below, per-connector
+ *  host access (see src/manifest.ts's `optional_host_permissions`).
  *
  *  IMPORTANT: this service is only for permissions Chrome actually allows
  *  to be optional. Chrome maintains a fixed allow-list for that — not every
@@ -27,9 +29,9 @@
  *  loadBarModel (chrome.bookmarks.getTree), and search.ts's searchWeb
  *  (chrome.search.query), is one of the few places in the codebase allowed
  *  to touch chrome.* directly — every other caller goes through
- *  hasPermission/ensurePermission below rather than chrome.permissions
- *  itself. `search` is install-time (not requested through this module) —
- *  see src/manifest.ts's comment for why. */
+ *  hasPermission/ensurePermission/hasOrigin/ensureOrigin/removeOrigin below
+ *  rather than chrome.permissions itself. `search` is install-time (not
+ *  requested through this module) — see src/manifest.ts's comment for why. */
 
 /** True if the extension currently holds the named optional permission —
  *  either because a caller previously granted it via ensurePermission
@@ -55,4 +57,72 @@ export async function hasPermission(name: chrome.runtime.ManifestPermission): Pr
  *  handle that the same way as an explicit denial. */
 export async function ensurePermission(name: chrome.runtime.ManifestPermission): Promise<boolean> {
   return chrome.permissions.request({ permissions: [name] })
+}
+
+/** Per-origin counterpart to the named-permission trio above, for connectors:
+ *  each connector needs host access to exactly the site it fetches, granted
+ *  and revoked independently of every other connector's site, rather than
+ *  one blanket `<all_urls>` grant covering all of them. Backed by
+ *  src/manifest.ts's `optional_host_permissions` wildcard entry (every
+ *  https origin, any path), which puts every https origin on Chrome's
+ *  requestable allow-list without
+ *  pre-granting any of them — chrome.permissions.request below still shows
+ *  its native per-site prompt, and chrome.permissions.contains/.remove still
+ *  scope to the one pattern passed in, not the wildcard the manifest
+ *  declares.
+ *
+ *  Converts a connector URL into the origin match pattern
+ *  chrome.permissions.{contains,request,remove} expect: scheme + host (with
+ *  port, if non-default) + '/*', with path and query stripped — Chrome
+ *  matches permissions per-origin, not per-page, so
+ *  https://news.ycombinator.com/item?id=1 and
+ *  https://news.ycombinator.com/other both reduce to the same
+ *  'https://news.ycombinator.com/*' pattern. Throws on a non-https URL (this
+ *  codebase's connector URLs are validated https-only before they ever reach
+ *  here — see the connector config validation, not this module) and on any
+ *  string `new URL()` itself can't parse. */
+export function originPattern(url: string): string {
+  const parsed = new URL(url)
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`originPattern: expected an https URL, got ${JSON.stringify(url)}`)
+  }
+  return `https://${parsed.host}/*`
+}
+
+/** True if the extension currently holds host access to the given URL's
+ *  origin — either granted previously via ensureOrigin below, or carried
+ *  forward by Chrome across an update, same as hasPermission above. */
+export async function hasOrigin(url: string): Promise<boolean> {
+  return chrome.permissions.contains({ origins: [originPattern(url)] })
+}
+
+/** Requests host access to the given URL's origin. Same gesture-chain
+ *  discipline as ensurePermission above and for the same reason: MUST be
+ *  called directly from within a user gesture, with zero awaits ahead of
+ *  it — originPattern() above is synchronous, so computing the pattern
+ *  doesn't cost the gesture window the way an await would. No contains()
+ *  pre-check either, for the same reason: request() already resolves true
+ *  with no prompt when the origin is already held. Resolves to whether the
+ *  origin is held once this settles; also expect this to reject and treat
+ *  that the same as a denial. */
+export async function ensureOrigin(url: string): Promise<boolean> {
+  return chrome.permissions.request({ origins: [originPattern(url)] })
+}
+
+/** Revokes host access to the given URL's origin, e.g. when a connector
+ *  pointed at that site is deleted. Safe no-op if the origin was never
+ *  granted — chrome.permissions.remove resolves false rather than throwing
+ *  in that case, same as any other permission it doesn't hold. Also
+ *  tolerates the call rejecting outright: callers invoke this from
+ *  non-gesture contexts (e.g. deleting a connector from Settings well after
+ *  the click that created it), where there's no prompt to fail and nothing
+ *  useful a caller could do differently on error, so this swallows it rather
+ *  than making every call site handle a revoke failure it can't act on. */
+export async function removeOrigin(url: string): Promise<void> {
+  try {
+    await chrome.permissions.remove({ origins: [originPattern(url)] })
+  } catch {
+    // Already absent, or Chrome failed to revoke — either way, nothing left
+    // to grant back, so there's nothing for a caller to react to.
+  }
 }

@@ -86,6 +86,16 @@ export default defineManifest((env) => ({
   // comment above the `permissions` array for the exact Chrome warning that
   // rules it out.
   optional_permissions: env.mode === PREVIEW ? [] : ['bookmarks'],
+  // Per-origin host access for connectors (src/services/permissions.ts's
+  // originPattern/hasOrigin/ensureOrigin/removeOrigin): every https origin
+  // is requestable, but none is pre-granted — a connector still gets
+  // Chrome's native per-site prompt via ensureOrigin the first time it's
+  // added, scoped to that one origin, not this wildcard. Unlike `bookmarks`
+  // above, this isn't build-mode-gated: there's no install-time equivalent
+  // to move it to (an install-time `<all_urls>`-style host permission would
+  // defeat the entire per-origin, ask-only-for-what-you-use point), so it's
+  // identical in both build modes.
+  optional_host_permissions: ['https://*/*'],
   icons: {
     16: 'icons/icon16.png',
     48: 'icons/icon48.png',
