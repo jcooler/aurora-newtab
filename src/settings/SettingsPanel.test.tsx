@@ -61,6 +61,86 @@ function themeGroup() {
   return screen.getByRole('radiogroup', { name: 'Theme' })
 }
 
+/** The panel is tabbed (Task 40) and only the ACTIVE tab's panel is mounted,
+ *  so a test whose section moved off the default General tab clicks its tab
+ *  first. Purely mechanical: nothing else about any pre-existing test below
+ *  changed. */
+function openTab(name: 'General' | 'Widgets' | 'Data') {
+  fireEvent.click(screen.getByRole('tab', { name }))
+}
+
+describe('SettingsPanel tabs (General / Widgets / Data)', () => {
+  it('opens on General, showing its own sections and nothing from the other tabs', async () => {
+    await renderPanel()
+
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
+      'General',
+      'Widgets',
+      'Data',
+    ])
+    expect(attr(screen.getByRole('tab', { name: 'General' }), 'aria-selected')).toBe('true')
+
+    expect(screen.getByLabelText('Your name')).toBeTruthy()
+    expect(themeGroup()).toBeTruthy()
+    expect(screen.getByLabelText('24-hour clock')).toBeTruthy()
+    expect(screen.getByLabelText('Units')).toBeTruthy()
+    expect(screen.getByLabelText('Mute sounds')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Background' })).toBeTruthy()
+
+    // The other tabs' sections are UNMOUNTED, not hidden — the whole reason
+    // this shell swaps children instead of toggling visibility.
+    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
+    expect(document.querySelector('footer')).toBeNull()
+  })
+
+  it('the Widgets tab holds the toggles, world clocks, countdowns and Layout', async () => {
+    await renderPanel()
+    openTab('Widgets')
+
+    expect(screen.getByRole('region', { name: 'Widgets' })).toBeTruthy()
+    expect(screen.getByLabelText('Bookmarks bar')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'World clocks' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Countdowns' })).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Layout' })).toBeTruthy()
+
+    expect(screen.queryByLabelText('Your name')).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Background' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
+  })
+
+  it('the Weather (location) section rides on the Widgets tab too', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+
+    expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull() // not on General
+    openTab('Widgets')
+    expect(screen.getByRole('region', { name: 'Weather' })).toBeTruthy()
+  })
+
+  it('the Data tab holds Data and the About footer', async () => {
+    await renderPanel()
+    openTab('Data')
+
+    expect(screen.getByRole('region', { name: 'Data' })).toBeTruthy()
+    expect(screen.getByLabelText('Import backup')).toBeTruthy()
+    expect(document.querySelector('footer')).not.toBeNull()
+
+    expect(screen.queryByLabelText('Your name')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+  })
+})
+
 describe('SettingsPanel theme radiogroup (APG roving-tabindex pattern)', () => {
   it('only the selected theme (default: Aurora) is a tab stop; the rest are -1', async () => {
     await renderPanel()
@@ -155,6 +235,7 @@ describe('SettingsPanel theme radiogroup (APG roving-tabindex pattern)', () => {
 describe('SettingsPanel Weather section (clear-location control)', () => {
   it('is absent when no location is stored', async () => {
     await renderPanel()
+    openTab('Widgets')
     expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull()
   })
 
@@ -174,6 +255,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
     await act(async () => {
@@ -193,6 +275,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
   it('denying the bookmarks permission keeps the toggle off and shows an inline alert', async () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(false)
     const storage = await renderPanel()
+    openTab('Widgets')
     const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
     expect(toggle.checked).toBe(false)
 
@@ -211,6 +294,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
   it('a rejected ensureBookmarksPermission (not just an explicit false) is caught and routed to the same alert, not left as an unhandled rejection', async () => {
     vi.mocked(ensureBookmarksPermission).mockRejectedValue(new Error('gesture context lost'))
     const storage = await renderPanel()
+    openTab('Widgets')
     const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
 
     await act(async () => {
@@ -227,6 +311,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
   it('granting the bookmarks permission turns the toggle on and shows no alert', async () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
     const storage = await renderPanel()
+    openTab('Widgets')
     const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
 
     await act(async () => {
@@ -252,6 +337,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
     const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
     expect(toggle.checked).toBe(true)
 
@@ -287,6 +373,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       .mockImplementation(() => {})
 
     const storage = await renderPanel()
+    openTab('Data')
     await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
 
     const exportButton = await screen.findByRole('button', { name: 'Export' })
@@ -312,6 +399,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 
   it('import happy path: parses, shows a confirm summary, and writes storage on confirm', async () => {
     const storage = await renderPanel()
+    openTab('Data')
     const backupData = {
       ...defaults(),
       links: [{ id: 'a', title: 'Example', url: 'https://example.com' }],
@@ -350,6 +438,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 
   it('malformed import shows the rejection reason inline and writes nothing', async () => {
     const storage = await renderPanel()
+    openTab('Data')
     const before = await storage.get('links')
     const file = new File(['not json at all {'], 'broken.json', { type: 'application/json' })
 
@@ -375,6 +464,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     // (rather than an array) exercises that path end-to-end through the
     // real component, not just the pure validateBackupShape unit.
     const storage = await renderPanel()
+    openTab('Data')
     const before = await storage.get('links')
     const backupText = JSON.stringify({
       app: 'aurora',
@@ -572,6 +662,7 @@ describe('SettingsPanel World clocks section', () => {
 
   it('typing a zone defaults the label to its city segment; submitting persists both and resets the form', async () => {
     const storage = await renderPanel()
+    openTab('Widgets')
     const zoneInput = screen.getByLabelText('Time zone') as HTMLInputElement
 
     await act(async () => {
@@ -590,6 +681,7 @@ describe('SettingsPanel World clocks section', () => {
 
   it('editing the label field overrides the city-segment default', async () => {
     const storage = await renderPanel()
+    openTab('Widgets')
     const zoneInput = screen.getByLabelText('Time zone')
     const labelInput = screen.getByLabelText('Label') as HTMLInputElement
 
@@ -604,6 +696,7 @@ describe('SettingsPanel World clocks section', () => {
 
   it('an unrecognized zone shows an inline error and persists nothing', async () => {
     const storage = await renderPanel()
+    openTab('Widgets')
     const zoneInput = screen.getByLabelText('Time zone')
 
     await act(async () => {
@@ -631,6 +724,7 @@ describe('SettingsPanel World clocks section', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
@@ -654,6 +748,7 @@ describe('SettingsPanel World clocks section', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     expect(await screen.findByText('Australia/Sydney')).toBeTruthy()
     expect(screen.queryByLabelText('Time zone')).toBeNull()
@@ -667,6 +762,7 @@ describe('SettingsPanel Countdowns section', () => {
 
   it('adding a countdown persists it and resets the form', async () => {
     const storage = await renderPanel()
+    openTab('Widgets')
     const nameInput = screen.getByLabelText('New countdown name') as HTMLInputElement
     const dateInput = screen.getByLabelText('New countdown date') as HTMLInputElement
 
@@ -685,6 +781,7 @@ describe('SettingsPanel Countdowns section', () => {
 
   it('a blank name or date is not added', async () => {
     const storage = await renderPanel()
+    openTab('Widgets')
     const dateInput = screen.getByLabelText('New countdown date')
 
     await act(async () => {
@@ -708,6 +805,7 @@ describe('SettingsPanel Countdowns section', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Launch' }))
@@ -726,6 +824,7 @@ describe('SettingsPanel Countdowns section', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     const dateInput = screen.getByLabelText('Countdown date')
     await act(async () => {
@@ -750,6 +849,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
     const onArrangeLayout = vi.fn()
     await renderPanel(onArrangeLayout)
+    openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
 
@@ -766,6 +866,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // opening the dialog never writes
@@ -796,6 +897,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
       </StorageProvider>,
     )
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -819,6 +921,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     }
     const { rerender } = render(<Wrapper open={true} />)
     await screen.findAllByRole('radio')
+    openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -835,6 +938,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {
     vi.mocked(isPremium).mockReturnValue(false)
     await renderPanel()
+    openTab('Widgets')
 
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
@@ -845,6 +949,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
 describe('SettingsPanel About footer (support link + version)', () => {
   it('renders after the last section with the current version and a working Buy Me a Coffee link', async () => {
     await renderPanel()
+    openTab('Data')
 
     // Only one <footer> in the tree (About.tsx) — asserted via a direct DOM
     // query, same "raw DOM over toHaveAttribute" idiom this file's attr()

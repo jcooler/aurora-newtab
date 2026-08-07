@@ -28,6 +28,17 @@ vi.mock('./widgets/links/linksLogic', () => ({ faviconUrl: (url: string) => `fav
 // be verified through the REAL App composition (ArrangeController and the
 // settings gear are siblings owned by App, not something a narrower
 // component test can exercise), not a general App test suite.
+/** The Settings drawer is tabbed (Task 40) and mounts only the ACTIVE tab's
+ *  sections, so the Layout section's two buttons ("Arrange layout", "Reset
+ *  layout") are reached by clicking the Widgets tab first. Purely mechanical:
+ *  nothing else about either test below changed. */
+async function openSettingsTab(name: string) {
+  const tab = await screen.findByRole('tab', { name })
+  await act(async () => {
+    fireEvent.click(tab)
+  })
+}
+
 describe('App — arrange-mode focus management (Task 37 review fix)', () => {
   beforeEach(() => {
     // jsdom never computes real layout — every element's getBoundingClientRect()
@@ -73,6 +84,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
       fireEvent.click(gear)
     })
     await screen.findByRole('dialog', { name: 'Settings' })
+    await openSettingsTab('Widgets')
 
     const arrangeButton = await screen.findByRole('button', { name: 'Arrange layout' })
     await act(async () => {
@@ -108,6 +120,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
       fireEvent.click(gear)
     })
     const drawerPanel = await screen.findByRole('dialog', { name: 'Settings' })
+    await openSettingsTab('Widgets')
 
     const resetButton = await screen.findByRole('button', { name: 'Reset layout' })
     await act(async () => {

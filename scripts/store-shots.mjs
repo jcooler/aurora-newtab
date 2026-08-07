@@ -260,6 +260,11 @@ await page.waitForTimeout(2500) // weather re-fetch
 // all three shows the Glass theme's translucent panel treatment across
 // several widgets at once, which is the point of a theme screenshot.
 // ---------------------------------------------------------------------------
+// The drawer is tabbed as of Task 40 (General / Widgets / Data), but this
+// script only ever touches the theme radiogroup, which is on General — the
+// tab the drawer opens on — and nothing here ever switches tabs, so no
+// `[role="tab"]` click is needed. (preview.mjs, which does reach into the
+// other tabs, names each one explicitly; see its openSettingsTab helper.)
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400)

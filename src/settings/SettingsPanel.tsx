@@ -12,6 +12,17 @@ import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
 import About from './sections/About'
+import Tabs from './Tabs'
+
+type TabId = 'general' | 'widgets' | 'data'
+
+// Three tabs, in reading order. The Connectors tab is NOT here: it appears
+// with its first real card (no placeholder UI), not before.
+const TABS: readonly { id: TabId; label: string }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'widgets', label: 'Widgets' },
+  { id: 'data', label: 'Data' },
+]
 
 export default function SettingsPanel({
   onArrangeLayout,
@@ -26,6 +37,13 @@ export default function SettingsPanel({
   open?: boolean
 }) {
   const storage = useStorage()
+  // Which tab's sections are mounted. Deliberately NOT persisted anywhere: a
+  // freshly-loaded new tab always starts on General. It does survive a
+  // close/reopen within one page session, because Drawer.tsx keeps its
+  // children mounted while closed (it only toggles `inert`/`translate-x-full`
+  // — see Layout.tsx's `open` prop, which exists for exactly that reason), so
+  // this state is never torn down between opens.
+  const [tab, setTab] = useState<TabId>('general')
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
@@ -52,33 +70,50 @@ export default function SettingsPanel({
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
 
+  // Only the ACTIVE tab's sections are rendered — inactive ones are
+  // unmounted, not hidden, so their hooks and effects don't run off screen
+  // (Data's pending-import state, Layout's confirm dialog, Background's
+  // thumbnail grid). The keys SettingsPanel itself reads stay above this
+  // split, so switching tabs never re-reads storage.
   return (
-    <div className="flex flex-col gap-6">
-      <General settings={settings} patch={patch} />
+    <Tabs tabs={TABS} active={tab} onChange={setTab}>
+      {tab === 'general' && (
+        <>
+          <General settings={settings} patch={patch} />
 
-      <Background
-        storage={storage}
-        photoPrefs={photoPrefs}
-        savePhotoPrefs={savePhotoPrefs}
-        uploads={uploads}
-        thumbUrls={thumbUrls}
-        galleryError={galleryError}
-        setGalleryError={setGalleryError}
-      />
+          <Background
+            storage={storage}
+            photoPrefs={photoPrefs}
+            savePhotoPrefs={savePhotoPrefs}
+            uploads={uploads}
+            thumbUrls={thumbUrls}
+            galleryError={galleryError}
+            setGalleryError={setGalleryError}
+          />
+        </>
+      )}
 
-      {location && <Weather location={location} storage={storage} />}
+      {tab === 'widgets' && (
+        <>
+          <Widgets settings={settings} patch={patch} />
 
-      <Widgets settings={settings} patch={patch} />
+          {location && <Weather location={location} storage={storage} />}
 
-      <WorldClocks worldClocks={worldClocks} storage={storage} />
+          <WorldClocks worldClocks={worldClocks} storage={storage} />
 
-      <Countdowns countdowns={countdowns} storage={storage} />
+          <Countdowns countdowns={countdowns} storage={storage} />
 
-      <Data storage={storage} />
+          <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
+        </>
+      )}
 
-      <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
+      {tab === 'data' && (
+        <>
+          <Data storage={storage} />
 
-      <About />
-    </div>
+          <About />
+        </>
+      )}
+    </Tabs>
   )
 }

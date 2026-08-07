@@ -478,6 +478,19 @@ if (hasBookmarksPermission) {
   console.log(popoverGone ? 'PASS: outside click closed the bookmarks popover' : 'FAIL: bookmarks popover did not close on outside click')
 }
 
+// The Settings drawer is TABBED (Task 40): General / Widgets / Data, and only
+// the ACTIVE tab's sections are in the DOM — unmounted, not hidden. So every
+// probe below that reaches into the drawer names the tab its control lives on
+// first, rather than inheriting whatever tab an earlier block left selected:
+// SettingsPanel stays mounted while the drawer is merely closed (Drawer.tsx
+// only toggles `inert`/`translate-x-full` on itself), so a close/reopen does
+// not reset the selection.
+async function openSettingsTab(name) {
+  await page.click(`[role="tab"]:has-text("${name}")`)
+  await page.waitForSelector(`[role="tab"][aria-selected="true"]:has-text("${name}")`)
+  await page.waitForTimeout(100) // let the swapped-in panel lay out
+}
+
 // Open the settings drawer and capture it per theme, plus a floating panel
 // (Tasks) per theme — the drawer's own bg-panel was already themed before
 // this fix; the bug Jon reported (folders widget not re-theming) lived in
@@ -487,6 +500,10 @@ if (hasBookmarksPermission) {
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400) // slide-in transition
+// The theme radiogroup lives on General (the tab the drawer opens on) — named
+// explicitly anyway, so this loop doesn't depend on being the first block in
+// the script to touch the drawer.
+await openSettingsTab('General')
 for (const theme of ['Aurora', 'Glass', 'Mono']) {
   await page.click(`[role="radio"]:has-text("${theme}")`)
   await page.waitForTimeout(150)
@@ -535,23 +552,59 @@ for (const theme of ['Aurora', 'Glass', 'Mono']) {
 await page.click('[role="radio"]:has-text("Aurora")')
 await page.waitForTimeout(150)
 
-// The drawer scrolls internally; the new Data section (export/import backup)
-// sits below the fold at this viewport height, so scroll it into view for a
-// dedicated screenshot rather than relying on the per-theme captures above.
-await page.locator('section[aria-label="Data"]').scrollIntoViewIfNeeded()
-await page.waitForTimeout(150)
-await page.screenshot({ path: `${outDir}/drawer-data.png` })
-console.log('captured drawer-data.png')
+// One capture per tab, replacing the old scroll-position ones (drawer-data /
+// drawer-footer, which had to hunt down a single long column with
+// scrollIntoViewIfNeeded to photograph the Data section and the About footer).
+// Each tab is now a whole screen of its own at its natural scroll position —
+// which is the point of the split, so the gate photographs it that way.
+const tabMounts = {}
+for (const [tabName, file] of [
+  ['General', 'drawer-general'],
+  ['Widgets', 'drawer-widgets'],
+  ['Data', 'drawer-data'],
+]) {
+  await openSettingsTab(tabName)
+  await page.screenshot({ path: `${outDir}/${file}.png` })
+  console.log(`captured ${file}.png`)
+  // Sampled while this tab is up: one marker section per tab, plus the
+  // number of live tabpanels. Read here rather than in a second pass so
+  // what's asserted below is exactly what was photographed above.
+  tabMounts[tabName] = await page.evaluate(() => ({
+    profile: !!document.querySelector('#set-name'), // General
+    widgetToggle: !!document.querySelector('#w-bookmarks'), // Widgets
+    data: !!document.querySelector('section[aria-label="Data"]'), // Data
+    footer: !!document.querySelector('footer'), // Data (About)
+    panels: document.querySelectorAll('[role="tabpanel"]').length,
+  }))
+}
 
-// The quiet support-link footer (src/settings/sections/About.tsx) sits below
-// Layout, past the bottom of the drawer at this viewport height — a
-// dedicated capture proves it renders (version text + the Buy Me a Coffee
-// link) for the controller's visual gate, without disturbing the
-// drawer-data.png capture above.
-await page.locator('footer').scrollIntoViewIfNeeded()
-await page.waitForTimeout(150)
-await page.screenshot({ path: `${outDir}/drawer-footer.png` })
-console.log('captured drawer-footer.png')
+// …and the tabs really do MOUNT only their own sections rather than hiding
+// the rest. That's the design decision behind the shell (a section that
+// isn't on screen shouldn't be running its hooks), and it's also what keeps
+// the three captures above honest: a drawer that rendered everything at once
+// would produce three near-identical PNGs and still pass every other line in
+// this script.
+{
+  const ok =
+    tabMounts.General.profile &&
+    !tabMounts.General.widgetToggle &&
+    !tabMounts.General.data &&
+    !tabMounts.General.footer &&
+    tabMounts.Widgets.widgetToggle &&
+    !tabMounts.Widgets.profile &&
+    !tabMounts.Widgets.data &&
+    !tabMounts.Widgets.footer &&
+    tabMounts.Data.data &&
+    tabMounts.Data.footer &&
+    !tabMounts.Data.profile &&
+    !tabMounts.Data.widgetToggle &&
+    Object.values(tabMounts).every((t) => t.panels === 1)
+  console.log(
+    ok
+      ? 'PASS: each settings tab mounts only its own sections (General: profile+background, Widgets: toggles, Data: backup+about), one live tabpanel at a time'
+      : `FAIL: each settings tab mounts only its own sections (${JSON.stringify(tabMounts)})`,
+  )
+}
 
 // ---------------------------------------------------------------------------
 // Weather widget (rebuild after Jon rejected the previous expanded panel).
@@ -1045,6 +1098,7 @@ await page.waitForTimeout(150)
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400) // slide-in transition
+await openSettingsTab('General') // Background section — the per-tab captures above left Data selected
 await page.selectOption('#set-bg-mode', 'upload')
 await page.waitForSelector('#set-bg-file')
 await page.setInputFiles('#set-bg-file', [
@@ -1067,6 +1121,7 @@ console.log('captured newtab-upload.png')
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400)
+await openSettingsTab('General') // Background section again
 await page.selectOption('#set-bg-mode', 'auto')
 await page.keyboard.press('Escape')
 await page.waitForTimeout(400)
@@ -1962,6 +2017,16 @@ for (const { w, h } of viewportMatrix) {
   await waitForPhotoSettle()
   await page.screenshot({ path: `${outDir}/default-state-1420x437.png` })
   console.log('captured default-state-1420x437.png')
+
+  // Jon's own ~500px side window, and the only capture in this block below
+  // the `compact` threshold (deferred from the batch-2 final review: the
+  // default state had never been gated at the narrow end, where the top band
+  // is reserved for a bookmarks bar that a fresh install doesn't render).
+  await page.setViewportSize({ width: 500, height: 900 })
+  await page.waitForTimeout(300) // let resize listeners + layout settle
+  await waitForPhotoSettle()
+  await page.screenshot({ path: `${outDir}/default-state-500x900.png` })
+  console.log('captured default-state-500x900.png')
 
   const newDefaultStateErrors = errors.length - errorsBeforeDefaultState
   console.log(
