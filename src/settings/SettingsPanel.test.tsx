@@ -6,7 +6,7 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -66,6 +66,16 @@ vi.mock('../services/connectors/gitlab', async (importActual) => {
   return { ...actual, whoamiGitlab: vi.fn() }
 })
 import { whoamiGitlab } from '../services/connectors/gitlab'
+
+// Same treatment for jira (Task 50) — mock ONLY whoamiJira, keep
+// jiraDescriptor/fetchJira/normalizeJiraSite real so the registry still
+// registers jira and releasableOrigins (used by onDisconnect below) runs its
+// real path.
+vi.mock('../services/connectors/jira', async (importActual) => {
+  const actual = await importActual<typeof import('../services/connectors/jira')>()
+  return { ...actual, whoamiJira: vi.fn() }
+})
+import { whoamiJira } from '../services/connectors/jira'
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -1528,6 +1538,177 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     await renderWithGitlab({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jcooler' })
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(whoamiJira).mockReset()
+  })
+
+  async function renderWithJira(jira?: JiraConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (jira) await storage.set('connectors', { jira })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readJira(storage: AuroraStorage): Promise<JiraConfig | undefined> {
+    return (await storage.get('connectors')).jira as JiraConfig | undefined
+  }
+
+  it('the card shell renders the Jira descriptor (label, blurb, enable toggle)', async () => {
+    await renderWithJira()
+    expect(screen.getByRole('heading', { name: 'Jira' })).toBeTruthy()
+    expect(screen.getByText('Issues assigned to you')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Jira')).toBeTruthy()
+    // Not connected -> no status chip yet, and the token form only appears once
+    // the connector is enabled (the shell gates the body on `enabled`).
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByLabelText('API token')).toBeNull()
+  })
+
+  it('the card renders THREE fields: site, email, API token', async () => {
+    await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+    expect(screen.getByLabelText('Site')).toBeTruthy()
+    expect(screen.getByLabelText('Email')).toBeTruthy()
+    expect(screen.getByLabelText('API token')).toBeTruthy()
+    expect((screen.getByLabelText('Site') as HTMLInputElement).placeholder).toBe('yoursite.atlassian.net')
+  })
+
+  it('connect happy path: ensureOrigin (derived from the site) -> whoami -> persists { enabled, email, apiToken, site, displayName }', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiJira).mockResolvedValue({ ok: true, identity: 'Jon Cooler' })
+    const storage = await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'yoursite.atlassian.net' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://yoursite.atlassian.net/*')
+    expect(whoamiJira).toHaveBeenCalledWith('yoursite.atlassian.net', 'jon@acme.com', 'tok_123')
+    expect(await readJira(storage)).toEqual({
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: 'tok_123',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a site typed with an https:// prefix / trailing slash is normalized before ensureOrigin/whoami/persist', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiJira).mockResolvedValue({ ok: true, identity: 'Jon Cooler' })
+    const storage = await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'https://yoursite.atlassian.net/' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://yoursite.atlassian.net/*')
+    expect(whoamiJira).toHaveBeenCalledWith('yoursite.atlassian.net', 'jon@acme.com', 'tok_123')
+    expect((await readJira(storage))?.site).toBe('yoursite.atlassian.net')
+  })
+
+  it('a site that is not *.atlassian.net blocks the connect with an inline alert: no permission requested, nothing stored', async () => {
+    const storage = await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'yoursite.com' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect(whoamiJira).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readJira(storage))?.apiToken).toBe('')
+  })
+
+  it("a rejected token surfaces whoami's status message as an inline alert and stores nothing", async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiJira).mockResolvedValue({ ok: false, message: 'Jira rejected that token (status 401).' })
+    const storage = await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'yoursite.atlassian.net' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_bad' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('401')
+    expect((await readJira(storage))?.apiToken).toBe('')
+  })
+
+  it('a denied origin grant blocks the connect: whoami is never called and nothing is stored', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithJira({ enabled: true, email: '', apiToken: '', site: '', displayName: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'yoursite.atlassian.net' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(whoamiJira).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readJira(storage))?.apiToken).toBe('')
+  })
+
+  it('connected state renders "Connected as {displayName}" + Disconnect; disconnecting revokes the site origin and clears the config', async () => {
+    const storage = await renderWithJira({
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: 'tok_x',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    })
+
+    expect(screen.getAllByText('Connected as Jon Cooler')).toHaveLength(1)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins (jira's sole
+    // origin, claimed by no other enabled connector).
+    expect(removeOrigin).toHaveBeenCalledWith('https://yoursite.atlassian.net/*')
+    expect(await readJira(storage)).toBeUndefined()
+  })
+
+  it('reconnect state (displayName present, apiToken stripped by a backup) renders the FORM, not the Disconnect row', async () => {
+    await renderWithJira({
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: '',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByLabelText('API token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
 })

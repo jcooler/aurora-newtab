@@ -1965,6 +1965,282 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// Jira connector (Task 50) — the third full token connector, and the FIRST
+// with a THREE-field card body (site, email, API token — Jira Cloud auth is
+// email + token, not a bare token). NO live network: seed an enabled +
+// connected config (site/email/apiToken so the widget's gate opens, a
+// displayName so the card reads "Connected as") and a fresh snapshot
+// (fetchedAt stamped in the page so the ttl is fresh at read time and
+// useConnectorSnapshot renders straight from cache). Runs right after the
+// GitLab block (github + gitlab both left disabled), captures, probes its
+// own defaults (including the bottom-right Tasks pill it sits closest to —
+// jira's `top-[66vh]` default is the LOWEST of the three right-column
+// connectors), THEN — since github's/gitlab's default slots (top-[24vh],
+// top-[46vh]) sit directly above jira's own (top-[66vh]) — momentarily
+// re-enables ALL THREE alongside jira to prove the full right-column stack
+// never overlaps itself, before restoring everything off so every block
+// below (viewport matrix, default-state, worst-case bookmarks) is
+// undisturbed.
+{
+  const FIXTURE = {
+    issues: [
+      {
+        key: 'AUR-101',
+        summary: 'Fix the flaky auth test on CI',
+        status: 'In Progress',
+        url: 'https://yoursite.atlassian.net/browse/AUR-101',
+      },
+      {
+        key: 'AUR-102',
+        summary: 'Draft the Q3 planning doc',
+        status: 'In Progress',
+        url: 'https://yoursite.atlassian.net/browse/AUR-102',
+      },
+      {
+        key: 'AUR-103',
+        summary: 'Rotate the staging API keys',
+        status: 'To Do',
+        url: 'https://yoursite.atlassian.net/browse/AUR-103',
+      },
+    ],
+    counts: { 'In Progress': 2, 'To Do': 1 },
+  }
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        jira: {
+          enabled: true,
+          email: 'jon@acme.com',
+          apiToken: 'atlassian_preview',
+          site: 'yoursite.atlassian.net',
+          displayName: 'Jon Cooler',
+        },
+      },
+      // fetchedAt stamped HERE, in the page, so the snapshot is fresh relative
+      // to whenever this run happens — the SWR hook renders from cache and never
+      // touches the network.
+      connectorSnapshots: { jira: { fetchedAt: Date.now(), data } },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the widget renders the seeded rows (3 issues) from cache, first
+  // summary + the counts line. Link attributes captured in the same read for
+  // probe 2.
+  await page.waitForSelector(jiraSel, { timeout: 5000 }).catch(() => {})
+  const rows = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const links = [...sec.querySelectorAll('a')]
+    return {
+      count: links.length,
+      firstTitle: links[0]?.getAttribute('title') ?? null,
+      firstTarget: links[0]?.getAttribute('target') ?? null,
+      firstRel: links[0]?.getAttribute('rel') ?? null,
+      firstHref: links[0]?.getAttribute('href') ?? null,
+      counts: sec.textContent.includes('2 In Progress · 1 To Do'),
+    }
+  }, jiraSel)
+  const rowsOk =
+    rows !== null &&
+    rows.count === 3 &&
+    rows.firstTitle === 'Fix the flaky auth test on CI' &&
+    rows.counts === true
+  console.log(
+    rowsOk
+      ? `PASS: the Jira widget renders the seeded issues and counts line from cache (${rows.count} rows, first "${rows.firstTitle}", "2 In Progress · 1 To Do" present)`
+      : `FAIL: the Jira widget renders the seeded issues and counts line from cache (${JSON.stringify(rows)})`,
+  )
+
+  // Probe 2: interaction correctness — each row is a REAL external link.
+  // Asserted in-DOM (attributes), never by navigating away: a new tab, and rel
+  // that severs window.opener and strips the referrer, href intact.
+  const rel = (rows?.firstRel ?? '').split(/\s+/)
+  const linkOk =
+    rows !== null &&
+    rows.firstTarget === '_blank' &&
+    rel.includes('noopener') &&
+    rel.includes('noreferrer') &&
+    rows.firstHref === 'https://yoursite.atlassian.net/browse/AUR-101'
+  console.log(
+    linkOk
+      ? 'PASS: each Jira row is an external link (target=_blank, rel=noopener noreferrer, href intact)'
+      : `FAIL: each Jira row is an external link (target=${rows?.firstTarget}, rel=${rows?.firstRel}, href=${rows?.firstHref})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-jira.png` })
+  console.log('captured connectors-jira.png')
+
+  // Probe 3: combined-defaults collision — the Jira widget at its default
+  // placement (right column, lowest: fixed right-8 top-[66vh]) must clear the
+  // collapsed weather chip (top-right band), the timer pill (top-left), and —
+  // the one this default sits closest to — the bottom-right Tasks pill and
+  // settings gear. Same rect-intersection idiom as the GitHub/GitLab collision
+  // probes above.
+  const collision = await page.evaluate((s) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const jr = rect(s)
+    const weather = rect('[data-block-id="weather"]')
+    const timer = rect('[data-block-id="timer"]')
+    const tasks = rect('[data-block-id="tasks"]')
+    const gear = rect('button[aria-label="Open settings"]')
+    return {
+      found: !!jr,
+      weatherFound: !!weather,
+      timerFound: !!timer,
+      tasksFound: !!tasks,
+      jrWeather: hits(jr, weather),
+      jrTimer: hits(jr, timer),
+      jrTasks: hits(jr, tasks),
+      jrGear: hits(jr, gear),
+      jr: jr ? { top: +jr.top.toFixed(1), bottom: +jr.bottom.toFixed(1), left: +jr.left.toFixed(1), right: +jr.right.toFixed(1) } : null,
+      tasks: tasks ? { top: +tasks.top.toFixed(1), bottom: +tasks.bottom.toFixed(1) } : null,
+    }
+  }, jiraSel)
+  const collisionOk =
+    collision.found &&
+    collision.weatherFound &&
+    collision.timerFound &&
+    collision.tasksFound &&
+    !collision.jrWeather &&
+    !collision.jrTimer &&
+    !collision.jrTasks &&
+    !collision.jrGear
+  console.log(
+    collisionOk
+      ? `PASS: the Jira widget clears the weather chip, timer pill, Tasks pill and gear at defaults (jira ${JSON.stringify(collision.jr)}, tasks ${JSON.stringify(collision.tasks)})`
+      : `FAIL: the Jira widget clears the weather chip, timer pill, Tasks pill and gear at defaults (${JSON.stringify(collision)})`,
+  )
+
+  // Refresh drawer-connectors.png now that jira is CONNECTED — the card this
+  // task adds. (The GitLab block's own refresh above photographed ITS
+  // connected row, with github still enabled at the time; this refresh shows
+  // jira's connected row, with github/gitlab back to disabled by now.)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-jira-enabled')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      connectedAs: sec.textContent.includes('Connected as Jon Cooler'),
+      hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
+    }
+  })
+  const cardOk = card !== null && card.enabled === true && card.connectedAs && card.hasDisconnect
+  console.log(
+    cardOk
+      ? `PASS: the Jira card reads connected (enabled=${card.enabled}, "Connected as Jon Cooler" + Disconnect present)`
+      : `FAIL: the Jira card reads connected (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Probe 4: three-stack non-overlap — the collision probe above only proves
+  // jira clears its NEIGHBOURS (weather/timer/tasks/gear) at its own default;
+  // it says nothing about github's/gitlab's default slots directly above it,
+  // which only exist when those connectors are ALSO connected. Momentarily
+  // re-seed github + gitlab (each disabled by its own earlier block) alongside
+  // jira, purely for this one measurement, then assert every PAIR of the three
+  // right-column panels is non-overlapping.
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+        gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+      },
+      connectorSnapshots: {
+        jira: { fetchedAt: Date.now(), data },
+        github: { fetchedAt: Date.now(), data: { prs: [], issues: [], notifications: 0, etags: {} } },
+        gitlab: { fetchedAt: Date.now(), data: { mrs: [], todos: 0 } },
+      },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const stack = await page.evaluate(
+    ([selGh, selGl, selJr]) => {
+      const rect = (sel) => {
+        const el = document.querySelector(sel)
+        return el ? el.getBoundingClientRect() : null
+      }
+      const hits = (a, b) =>
+        !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+      const gh = rect(selGh)
+      const gl = rect(selGl)
+      const jr = rect(selJr)
+      return {
+        ghFound: !!gh,
+        glFound: !!gl,
+        jrFound: !!jr,
+        ghGl: hits(gh, gl),
+        ghJr: hits(gh, jr),
+        glJr: hits(gl, jr),
+        gh: gh ? { top: +gh.top.toFixed(1), bottom: +gh.bottom.toFixed(1) } : null,
+        gl: gl ? { top: +gl.top.toFixed(1), bottom: +gl.bottom.toFixed(1) } : null,
+        jr: jr ? { top: +jr.top.toFixed(1), bottom: +jr.bottom.toFixed(1) } : null,
+      }
+    },
+    ['[data-block-id="github"] section[aria-label="GitHub"]', '[data-block-id="gitlab"] section[aria-label="GitLab"]', jiraSel],
+  )
+  const stackOk =
+    stack.ghFound && stack.glFound && stack.jrFound && !stack.ghGl && !stack.ghJr && !stack.glJr
+  console.log(
+    stackOk
+      ? `PASS: with github, gitlab AND jira all connected, their default cards stack in one column with no pairwise overlap (github ${JSON.stringify(stack.gh)}, gitlab ${JSON.stringify(stack.gl)}, jira ${JSON.stringify(stack.jr)})`
+      : `FAIL: with github, gitlab AND jira all connected, their default cards stack in one column with no pairwise overlap (${JSON.stringify(stack)})`,
+  )
+
+  // Restore: disable ALL THREE connectors (jira, plus github/gitlab re-enabled
+  // just above for probe 4) and clear their cache, then reload so none of the
+  // three widgets is present for every block below — same restore discipline
+  // as the RSS/GitHub/GitLab blocks above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        jira: { ...connectors.jira, enabled: false },
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const jiraGone = (await page.locator(jiraSel).count()) === 0
+  console.log(
+    jiraGone
+      ? 'Jira connector disabled; page restored to idle'
+      : 'WARNING: Jira widget still present after disabling the connector',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

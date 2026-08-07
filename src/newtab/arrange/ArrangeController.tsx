@@ -34,6 +34,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   rss: 'Headlines',
   github: 'GitHub',
   gitlab: 'GitLab',
+  jira: 'Jira',
 }
 
 interface DragState {

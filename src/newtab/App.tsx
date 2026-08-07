@@ -25,6 +25,7 @@ import CountdownLine from './widgets/countdown/CountdownLine'
 import RssWidget from './widgets/rss/RssWidget'
 import GithubWidget from './widgets/github/GithubWidget'
 import GitlabWidget from './widgets/gitlab/GitlabWidget'
+import JiraWidget from './widgets/jira/JiraWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -368,6 +369,27 @@ export default function App() {
                 offset, no translate. */}
             <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[46vh]">
               <GitlabWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="jira">
+            {/* DEFAULT placement — the right column, lower still: BELOW both
+                the GitHub (`top-[24vh]`) and GitLab (`top-[46vh]`) default
+                slots, sharing their `right-8` anchor so a reader who connects
+                all three sees one stacked column rather than any overlap.
+                `top-[66vh]` also has to clear the bottom-right Tasks pill
+                (`fixed bottom-4 right-16`) and the settings gear beside it —
+                the harness's own collision probe is what actually pins this
+                number, same discipline as every other connector default
+                here. A stored arrange-mode `pos` still wins (PositionedBlock
+                drops this className on that branch). JiraWidget self-gates
+                on the connector's enabled+site+email+apiToken state, so this
+                wrapper renders an empty box until the connector is
+                connected — same as every other toggle-gated peripheral
+                here. Transform-free per the house rule (App's quote/
+                bookmarks comments): a plain top/right offset, no translate. */}
+            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[66vh]">
+              <JiraWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

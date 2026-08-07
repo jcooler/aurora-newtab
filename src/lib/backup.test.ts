@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -110,6 +110,33 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect('token' in envelope.data.connectors.gitlab).toBe(false)
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.token).toBe('glpat_supersecret')
+  })
+
+  it('a real serializeBackup strips the jira apiToken but keeps email/site/displayName; storage is untouched (Task 50)', () => {
+    // Same REAL-registry proof as the github/gitlab cases above, for jira's
+    // own secretFields: ['apiToken']: email and site are NOT secrets (both
+    // are needed to reconnect and neither is sensitive on its own), so they
+    // survive the strip alongside enabled/displayName, while apiToken is
+    // shorn.
+    const stored: JiraConfig = {
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: 'atlassian_supersecret',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    }
+    const input = { ...defaults(), connectors: { jira: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.jira).toEqual({
+      enabled: true,
+      email: 'jon@acme.com',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    })
+    expect('apiToken' in envelope.data.connectors.jira).toBe(false)
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.apiToken).toBe('atlassian_supersecret')
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {

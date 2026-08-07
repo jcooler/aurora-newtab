@@ -1,10 +1,11 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, RssConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
+import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
 import { control } from './shared'
@@ -87,6 +88,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   rss: RssBody,
   github: GithubBody,
   gitlab: GitlabBody,
+  jira: JiraBody,
 }
 
 function ConnectorCard({
@@ -463,6 +465,110 @@ function GitlabBody({ config, storage }: BodyProps) {
         await storage.update('connectors', (prev) => {
           const next = { ...prev }
           delete next.gitlab
+          return next
+        })
+        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+      }}
+    />
+  )
+}
+
+// The Jira connector's card body — the third token connector (Task 50),
+// copying the same connect/disconnect mechanics through TokenConnectForm.
+// THREE fields (site, email, API token — Jira Cloud auth is email + token,
+// not a bare token like github/gitlab), and `originsFor` derives the origin
+// from the site FIELD VALUE via jira.ts's normalizeJiraSite — the SAME
+// helper the service (whoamiJira/fetchJira) and the descriptor's origins()
+// both call, so the site-shape rule lives in exactly one place. Letting a
+// bad shape THROW here (rather than catching it) mirrors GitlabBody's own
+// originsFor above: TokenConnectForm's own catch turns it into its generic
+// inline alert, no permission requested, nothing stored — the exact
+// site-format copy (JIRA_SITE_ERROR) is the SERVICE layer's own contract,
+// asserted directly against whoamiJira/fetchJira in jira.test.ts.
+function JiraBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as GitlabBody above: BodyProps.config is the
+  // generic union (the body map is shared across ids), and this component is
+  // registered only under 'jira', so it is always JiraConfig at runtime —
+  // one documented cast. Defensive reads (a backup can restore { enabled:
+  // true } with none of the four fields) keep the connected/reconnect
+  // decision honest.
+  const jira = config as JiraConfig | undefined
+  const displayName = typeof jira?.displayName === 'string' ? jira.displayName : ''
+  const apiToken = typeof jira?.apiToken === 'string' ? jira.apiToken : ''
+  // Same rule as GithubBody/GitlabBody: Disconnect only once BOTH identity
+  // and secret are present; identity-present + secret-empty (backup restored
+  // displayName but not the stripped apiToken) falls through to the form so
+  // the user can re-enter a token — the card shell's "Reconnect needed" chip
+  // already flags that state.
+  const connectedAs = displayName && apiToken ? displayName : null
+
+  return (
+    <TokenConnectForm
+      fields={[
+        {
+          id: 'site',
+          label: 'Site',
+          type: 'text',
+          placeholder: 'yoursite.atlassian.net',
+        },
+        {
+          id: 'email',
+          label: 'Email',
+          type: 'text',
+          placeholder: 'you@company.com',
+        },
+        {
+          id: 'apiToken',
+          label: 'API token',
+          type: 'password',
+          placeholder: 'API token',
+        },
+      ]}
+      // Synchronous by contract (TokenConnectForm awaits ensureOrigin FIRST,
+      // in the gesture): derived from the site FIELD VALUE via the shared
+      // normalizeJiraSite helper. A malformed site throws (caught generically
+      // by TokenConnectForm, same as GitlabBody's originPattern call above),
+      // so no permission is ever requested for a site that can't be a real
+      // Jira Cloud tenant.
+      originsFor={(values) => [`https://${normalizeJiraSite(values.site)}/*`]}
+      // Runs AFTER the grant. GET {site}/rest/api/3/myself resolves the
+      // displayName the config is persisted under; a bad site/email/token
+      // funnels its message to the form's inline alert with nothing stored.
+      // normalizeJiraSite here is redundant with originsFor's own call above
+      // (a site that reached this point already passed that check) but keeps
+      // this callback self-contained and guarantees whoamiJira is always
+      // called with the CANONICAL site, matching what onConnected persists
+      // below.
+      validate={(values) => whoamiJira(normalizeJiraSite(values.site), values.email, values.apiToken)}
+      onConnected={async (values, identity) => {
+        // Replace the whole jira config (dropping any stray cruft the
+        // generic enable-toggle's `{}` seed left) with exactly the token
+        // connector's five fields. `site` is persisted as the NORMALIZED
+        // value (matching what originsFor/validate actually granted/checked)
+        // rather than whatever raw casing/slashes the user typed.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          jira: {
+            enabled: true,
+            email: values.email,
+            apiToken: values.apiToken,
+            site: normalizeJiraSite(values.site),
+            displayName: identity,
+          },
+        }))
+      }}
+      connectedAs={connectedAs}
+      onDisconnect={async () => {
+        // Compute what's safe to revoke BEFORE clearing the config
+        // (releasableOrigins needs jira's own config present to derive its
+        // origin), then drop the entry and revoke each released origin.
+        // releasableOrigins runs through the REAL registry, so an origin
+        // another enabled connector still claimed would be withheld.
+        const current = await storage.get('connectors')
+        const releasable = releasableOrigins('jira', current)
+        await storage.update('connectors', (prev) => {
+          const next = { ...prev }
+          delete next.jira
           return next
         })
         await Promise.all(releasable.map((origin) => removeOrigin(origin)))
