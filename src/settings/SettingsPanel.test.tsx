@@ -35,6 +35,17 @@ vi.mock('../services/bookmarks', () => ({ ensureBookmarksPermission: vi.fn() }))
 vi.mock('../lib/premium', () => ({ isPremium: vi.fn(() => true) }))
 import { isPremium } from '../lib/premium'
 
+// The Connectors section's add/remove-feed flow calls ensureOrigin/removeOrigin
+// (chrome.permissions — unavailable in jsdom). Mock only those two; originPattern
+// stays REAL (the section's "does a remaining feed share this origin?" check
+// depends on it, and the rss registry descriptor imported transitively also
+// reads it).
+vi.mock('../services/permissions', async (importActual) => {
+  const actual = await importActual<typeof import('../services/permissions')>()
+  return { ...actual, ensureOrigin: vi.fn(), removeOrigin: vi.fn() }
+})
+import { ensureOrigin, removeOrigin } from '../services/permissions'
+
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
 // suite (e.g. Background.test.tsx's querySelector/toBeNull checks) rather
@@ -65,7 +76,7 @@ function themeGroup() {
  *  so a test whose section moved off the default General tab clicks its tab
  *  first. Purely mechanical: nothing else about any pre-existing test below
  *  changed. */
-function openTab(name: 'General' | 'Widgets' | 'Data') {
+function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
@@ -76,6 +87,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual([
       'General',
       'Widgets',
+      'Connectors',
       'Data',
     ])
     expect(attr(screen.getByRole('tab', { name: 'General' }), 'aria-selected')).toBe('true')
@@ -93,6 +105,23 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Connectors' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
+    expect(document.querySelector('footer')).toBeNull()
+  })
+
+  it('the Connectors tab holds the connector cards and nothing from the other tabs', async () => {
+    await renderPanel()
+    openTab('Connectors')
+
+    expect(screen.getByRole('region', { name: 'Connectors' })).toBeTruthy()
+    // The one shipped connector card (RSS), rendered from its registry
+    // descriptor — label, blurb, and its enable toggle.
+    expect(screen.getByRole('heading', { name: 'RSS' })).toBeTruthy()
+    expect(screen.getByLabelText('Enable RSS')).toBeTruthy()
+
+    expect(screen.queryByLabelText('Your name')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
     expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
     expect(document.querySelector('footer')).toBeNull()
   })
@@ -943,6 +972,164 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Reset layout/ })).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (RSS card)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+  })
+
+  async function renderWithConnectors(rss?: { enabled: boolean; feeds: string[]; shownCount: number }) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (rss) await storage.set('connectors', { rss })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  function connectorsRegion() {
+    return screen.getByRole('region', { name: 'Connectors' })
+  }
+
+  it('enabling the connector writes the default config (enabled, no feeds, shownCount 5)', async () => {
+    const storage = await renderWithConnectors()
+    const toggle = screen.getByLabelText('Enable RSS') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect((await storage.get('connectors')).rss).toEqual({ enabled: true, feeds: [], shownCount: 5 })
+  })
+
+  it('add-feed happy path: validates https, requests the origin, then persists the feed', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+
+    const input = screen.getByLabelText('Add feed URL') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'https://news.ycombinator.com/rss' } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/rss')
+    expect((await storage.get('connectors')).rss?.feeds).toEqual(['https://news.ycombinator.com/rss'])
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(input.value).toBe('') // form resets on success
+  })
+
+  it('a denied origin request shows an inline alert and does NOT add the feed', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), {
+        target: { value: 'https://news.ycombinator.com/rss' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledOnce()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+  })
+
+  it('a non-https URL is rejected with an alert and ensureOrigin is never called (validation is load-bearing)', async () => {
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), {
+        target: { value: 'http://insecure.example.com/rss' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+  })
+
+  it('removing a feed revokes its origin ONLY when no remaining feed shares that origin', async () => {
+    const storage = await renderWithConnectors({
+      enabled: true,
+      feeds: [
+        'https://example.com/feed-a',
+        'https://example.com/feed-b', // shares example.com with feed-a
+        'https://other.com/feed',
+      ],
+      shownCount: 5,
+    })
+
+    // Removing one of the two example.com feeds must NOT revoke — the origin
+    // is still claimed by the other.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove https://example.com/feed-a' }))
+    })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await storage.get('connectors')).rss?.feeds).toEqual([
+      'https://example.com/feed-b',
+      'https://other.com/feed',
+    ])
+
+    // Removing the sole user of other.com DOES revoke.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove https://other.com/feed' }))
+    })
+    expect(removeOrigin).toHaveBeenCalledWith('https://other.com/feed')
+    expect((await storage.get('connectors')).rss?.feeds).toEqual(['https://example.com/feed-b'])
+  })
+
+  it('shownCount is a 3–8 select that persists the chosen value', async () => {
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const select = screen.getByLabelText('Headlines shown') as HTMLSelectElement
+    expect([...select.options].map((o) => o.value)).toEqual(['3', '4', '5', '6', '7', '8'])
+    expect(select.value).toBe('5')
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: '8' } })
+    })
+
+    expect((await storage.get('connectors')).rss?.shownCount).toBe(8)
+  })
+
+  it('enforces a maximum of 5 feeds: the add row is disabled at the cap', async () => {
+    await renderWithConnectors({
+      enabled: true,
+      feeds: [
+        'https://a.example.com/feed',
+        'https://b.example.com/feed',
+        'https://c.example.com/feed',
+        'https://d.example.com/feed',
+        'https://e.example.com/feed',
+      ],
+      shownCount: 5,
+    })
+
+    expect((screen.getByLabelText('Add feed URL') as HTMLInputElement).disabled).toBe(true)
+    expect((within(connectorsRegion()).getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('is absent entirely (no Connectors tab, no card) when isPremium() is false', async () => {
+    vi.mocked(isPremium).mockReturnValue(false)
+    try {
+      await renderPanel()
+      expect(screen.queryByRole('tab', { name: 'Connectors' })).toBeNull()
+      expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['General', 'Widgets', 'Data'])
+      expect(screen.queryByRole('region', { name: 'Connectors' })).toBeNull()
+    } finally {
+      vi.mocked(isPremium).mockReturnValue(true)
+    }
   })
 })
 

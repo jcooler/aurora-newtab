@@ -22,6 +22,7 @@ import PaletteHost from './widgets/palette/PaletteHost'
 import BookmarksBar from './widgets/bookmarks/BookmarksBar'
 import WorldClocks from './widgets/clocks/WorldClocks'
 import CountdownLine from './widgets/countdown/CountdownLine'
+import RssWidget from './widgets/rss/RssWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -310,6 +311,23 @@ export default function App() {
           <WidgetBoundary name="todo">
             <PositionedBlock id="tasks" pos={layout?.tasks} className="fixed bottom-4 right-16">
               <TodoWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="rss">
+            {/* DEFAULT placement — the left-middle column, clear of the Notes
+                pill (bottom-left) and the photo refresh button at defaults, and
+                well left of the centred clock/greeting column. A stored
+                arrange-mode `pos` still wins (PositionedBlock drops this
+                className on that branch). RssWidget self-gates on the
+                connector's enabled+feeds state, so this wrapper renders an
+                empty box until the connector is turned on — same as every other
+                toggle-gated peripheral here. No `translate`: this widget has no
+                `position: fixed` descendants, but the house rule is to keep
+                default-placement wrappers transform-free (App's quote/bookmarks
+                comments), so it anchors with a plain top offset. */}
+            <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[22vh]">
+              <RssWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

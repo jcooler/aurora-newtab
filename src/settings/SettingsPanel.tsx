@@ -12,17 +12,25 @@ import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
 import About from './sections/About'
+import Connectors from './sections/Connectors'
 import Tabs from './Tabs'
+import { isPremium } from '../lib/premium'
 
-type TabId = 'general' | 'widgets' | 'data'
+type TabId = 'general' | 'widgets' | 'connectors' | 'data'
 
-// Three tabs, in reading order. The Connectors tab is NOT here: it appears
-// with its first real card (no placeholder UI), not before.
-const TABS: readonly { id: TabId; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'widgets', label: 'Widgets' },
-  { id: 'data', label: 'Data' },
-]
+// Tabs in reading order. Connectors sits between Widgets and Data — but only
+// when premium: it is gated on isPremium() and, per the no-placeholder rule,
+// the tab does not exist at all when that's false (not a disabled tab, an
+// absent one). Computed at render (isPremium is a function, and tests flip it)
+// rather than as a module constant.
+function tabsFor(premium: boolean): readonly { id: TabId; label: string }[] {
+  return [
+    { id: 'general', label: 'General' },
+    { id: 'widgets', label: 'Widgets' },
+    ...(premium ? ([{ id: 'connectors', label: 'Connectors' }] as const) : []),
+    { id: 'data', label: 'Data' },
+  ]
+}
 
 export default function SettingsPanel({
   onArrangeLayout,
@@ -49,6 +57,7 @@ export default function SettingsPanel({
   const [location] = useStoredKey('location')
   const [worldClocks] = useStoredKey('worldClocks')
   const [countdowns] = useStoredKey('countdowns')
+  const [connectors] = useStoredKey('connectors')
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
   // bumps (every add/remove) — same "fresh read on nonce change" pattern the
@@ -69,6 +78,8 @@ export default function SettingsPanel({
 
   if (!settings) return null
   const patch = (p: Partial<Settings>) => save({ ...settings, ...p })
+  const premium = isPremium()
+  const TABS = tabsFor(premium)
 
   // Only the ACTIVE tab's sections are rendered — inactive ones are
   // unmounted, not hidden, so their hooks and effects don't run off screen
@@ -106,6 +117,8 @@ export default function SettingsPanel({
           <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
         </>
       )}
+
+      {tab === 'connectors' && premium && <Connectors connectors={connectors} storage={storage} />}
 
       {tab === 'data' && (
         <>

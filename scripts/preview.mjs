@@ -561,17 +561,28 @@ const tabMounts = {}
 for (const [tabName, file] of [
   ['General', 'drawer-general'],
   ['Widgets', 'drawer-widgets'],
+  // Connectors (Task 44) contributes its mount-exclusivity sample here, but
+  // its CAPTURE (drawer-connectors.png) is taken in the dedicated RSS block
+  // further down, where the connector's feeds are actually seeded — an
+  // unseeded card would photograph an empty feed list. `null` file = sample
+  // only, no screenshot.
+  ['Connectors', null],
   ['Data', 'drawer-data'],
 ]) {
   await openSettingsTab(tabName)
-  await page.screenshot({ path: `${outDir}/${file}.png` })
-  console.log(`captured ${file}.png`)
+  if (file) {
+    await page.screenshot({ path: `${outDir}/${file}.png` })
+    console.log(`captured ${file}.png`)
+  }
   // Sampled while this tab is up: one marker section per tab, plus the
   // number of live tabpanels. Read here rather than in a second pass so
-  // what's asserted below is exactly what was photographed above.
+  // what's asserted below is exactly what was photographed above. The RSS
+  // card renders regardless of whether the connector is enabled, so the
+  // Connectors marker is present here without any seed.
   tabMounts[tabName] = await page.evaluate(() => ({
     profile: !!document.querySelector('#set-name'), // General
     widgetToggle: !!document.querySelector('#w-bookmarks'), // Widgets
+    connectors: !!document.querySelector('section[aria-label="Connectors"]'), // Connectors
     data: !!document.querySelector('section[aria-label="Data"]'), // Data
     footer: !!document.querySelector('footer'), // Data (About)
     panels: document.querySelectorAll('[role="tabpanel"]').length,
@@ -588,20 +599,28 @@ for (const [tabName, file] of [
   const ok =
     tabMounts.General.profile &&
     !tabMounts.General.widgetToggle &&
+    !tabMounts.General.connectors &&
     !tabMounts.General.data &&
     !tabMounts.General.footer &&
     tabMounts.Widgets.widgetToggle &&
     !tabMounts.Widgets.profile &&
+    !tabMounts.Widgets.connectors &&
     !tabMounts.Widgets.data &&
     !tabMounts.Widgets.footer &&
+    tabMounts.Connectors.connectors &&
+    !tabMounts.Connectors.profile &&
+    !tabMounts.Connectors.widgetToggle &&
+    !tabMounts.Connectors.data &&
+    !tabMounts.Connectors.footer &&
     tabMounts.Data.data &&
     tabMounts.Data.footer &&
     !tabMounts.Data.profile &&
     !tabMounts.Data.widgetToggle &&
+    !tabMounts.Data.connectors &&
     Object.values(tabMounts).every((t) => t.panels === 1)
   console.log(
     ok
-      ? 'PASS: each settings tab mounts only its own sections (General: profile+background, Widgets: toggles, Data: backup+about), one live tabpanel at a time'
+      ? 'PASS: each settings tab mounts only its own sections (General: profile+background, Widgets: toggles, Connectors: cards, Data: backup+about), one live tabpanel at a time'
       : `FAIL: each settings tab mounts only its own sections (${JSON.stringify(tabMounts)})`,
   )
 }
@@ -1343,6 +1362,182 @@ console.log(
     ? 'arrange overlay closed; page restored to idle'
     : 'WARNING: arrange overlay still present after final reload',
 )
+
+// ---------------------------------------------------------------------------
+// RSS connector (Task 44) — the first connector UI. NO live network: seed a
+// pre-baked snapshot whose fetchedAt is computed inside the page (so the ttl is
+// fresh at read time and useConnectorSnapshot renders straight from cache
+// rather than firing a real fetch), plus an enabled config with fixture feeds,
+// via a merge write. The service layer (parse + fetch orchestration) is
+// unit-tested; this harness proves the WIDGET + CARD + config path in a real
+// browser. Reload for a clean mount, run the probes and the two captures, then
+// DISABLE the connector and reload so every block after this (the viewport
+// matrix, default-state, worst-case bookmarks) is undisturbed — same
+// snapshot/restore discipline as the arrange and gallery blocks above.
+{
+  const FIXTURE_FEEDS = [
+    'https://news.ycombinator.com/rss',
+    'https://www.theverge.com/rss/index.xml',
+  ]
+  const FIXTURE_HEADLINES = [
+    { source: 'Hacker News', title: 'A local-first dashboard people actually keep open', url: 'https://news.ycombinator.com/item?id=100', publishedAt: 5 },
+    { source: 'The Verge', title: 'The quiet return of the RSS reader', url: 'https://www.theverge.com/rss-returns', publishedAt: 4 },
+    { source: 'Hacker News', title: 'Show HN: I built a new-tab page just for me', url: 'https://news.ycombinator.com/item?id=101', publishedAt: 3 },
+    { source: 'The Verge', title: 'Browser extensions and the per-site permission prompt', url: 'https://www.theverge.com/permissions', publishedAt: 2 },
+    { source: 'Hacker News', title: 'Ask HN: what lives on your new-tab page?', url: 'https://news.ycombinator.com/item?id=102', publishedAt: 1 },
+  ]
+  const rssSel = '[data-block-id="rss"] section[aria-label="Headlines"]'
+
+  await page.evaluate(
+    async ({ feeds, headlines }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, rss: { enabled: true, feeds, shownCount: 5 } },
+        // fetchedAt is stamped HERE, in the page, so the snapshot is fresh
+        // relative to whenever this run happens — the SWR hook then renders it
+        // from cache and never touches the network.
+        connectorSnapshots: { rss: { fetchedAt: Date.now(), data: headlines } },
+      })
+    },
+    { feeds: FIXTURE_FEEDS, headlines: FIXTURE_HEADLINES },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the widget renders the seeded rows (count + first title), from
+  // cache, no network. Also captures the link attributes for probe 6 in the
+  // same read.
+  await page.waitForSelector(rssSel, { timeout: 5000 }).catch(() => {})
+  const rows = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const links = [...sec.querySelectorAll('a')]
+    return {
+      count: links.length,
+      firstTitle: links[0]?.getAttribute('title') ?? null,
+      firstTarget: links[0]?.getAttribute('target') ?? null,
+      firstRel: links[0]?.getAttribute('rel') ?? null,
+      firstHref: links[0]?.getAttribute('href') ?? null,
+    }
+  }, rssSel)
+  const rowsOk =
+    rows !== null &&
+    rows.count === 5 &&
+    rows.firstTitle === 'A local-first dashboard people actually keep open'
+  console.log(
+    rowsOk
+      ? `PASS: the RSS widget renders the seeded headlines from cache (${rows.count} rows, first "${rows.firstTitle}")`
+      : `FAIL: the RSS widget renders the seeded headlines from cache (${JSON.stringify(rows)})`,
+  )
+
+  // Probe 6: interaction correctness — each headline row is a REAL external
+  // link. Asserted in-DOM (attributes), never by navigating away (which would
+  // derail the run): a new tab, and rel that severs window.opener and strips
+  // the referrer, with the href intact.
+  const rel = (rows?.firstRel ?? '').split(/\s+/)
+  const linkOk =
+    rows !== null &&
+    rows.firstTarget === '_blank' &&
+    rel.includes('noopener') &&
+    rel.includes('noreferrer') &&
+    rows.firstHref === 'https://news.ycombinator.com/item?id=100'
+  console.log(
+    linkOk
+      ? 'PASS: each RSS headline is an external link (target=_blank, rel=noopener noreferrer, href intact)'
+      : `FAIL: each RSS headline is an external link (target=${rows?.firstTarget}, rel=${rows?.firstRel}, href=${rows?.firstHref})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-rss.png` })
+  console.log('captured connectors-rss.png')
+
+  // Probe 2: combined-defaults collision — the RSS widget at its default
+  // placement (left-middle) must clear the Notes pill (bottom-left) and the
+  // photo refresh button (bottom-left), the two peripherals nearest its corner.
+  // Same rect-intersection idiom as the clock/greeting overlap in the viewport
+  // matrix below.
+  const collision = await page.evaluate((s) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const rss = rect(s)
+    const notes = rect('[data-block-id="notes"]')
+    const refresh = rect('button[aria-label="New background photo"]')
+    return {
+      found: !!rss,
+      notesFound: !!notes,
+      refreshFound: !!refresh,
+      rssNotes: hits(rss, notes),
+      rssRefresh: hits(rss, refresh),
+      rss: rss ? { top: +rss.top.toFixed(1), bottom: +rss.bottom.toFixed(1), left: +rss.left.toFixed(1), right: +rss.right.toFixed(1) } : null,
+    }
+  }, rssSel)
+  const collisionOk =
+    collision.found &&
+    collision.notesFound &&
+    collision.refreshFound &&
+    !collision.rssNotes &&
+    !collision.rssRefresh
+  console.log(
+    collisionOk
+      ? `PASS: the RSS widget clears the Notes pill and the refresh button at defaults (rss ${JSON.stringify(collision.rss)})`
+      : `FAIL: the RSS widget clears the Notes pill and the refresh button at defaults (${JSON.stringify(collision)})`,
+  )
+
+  // Capture the Connectors settings card with its feeds list populated from the
+  // seed (drawer-connectors.png — the tabMounts loop above deliberately left
+  // this capture to here, where the feeds exist).
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-rss-enabled')
+    const count = sec.querySelector('#connector-rss-count')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      removeButtons: sec.querySelectorAll('button[aria-label^="Remove https"]').length,
+      shownCount: count ? count.value : null,
+    }
+  })
+  const cardOk = card !== null && card.enabled === true && card.removeButtons === 2
+  console.log(
+    cardOk
+      ? `PASS: the Connectors card lists the seeded feeds (${card.removeButtons} feed rows, enabled=${card.enabled}, shownCount=${card.shownCount})`
+      : `FAIL: the Connectors card lists the seeded feeds (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable the connector and clear its cache, then reload so the
+  // widget is gone for every block below (viewport matrix, default-state,
+  // worst-case bookmarks) — same restore discipline as the blocks above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, rss: { ...connectors.rss, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const rssGone = (await page.locator(rssSel).count()) === 0
+  console.log(
+    rssGone
+      ? 'RSS connector disabled; page restored to idle'
+      : 'WARNING: RSS widget still present after disabling the connector',
+  )
+}
 
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
