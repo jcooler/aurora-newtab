@@ -219,3 +219,78 @@ before submitting — if you'd rather not disclose Location at all, the only
 compliant way to get to "collects: nothing" is to remove the `geolocation`
 permission and the "Use my location" button entirely, which is a product
 change, not just a form change.
+
+---
+
+## STAGED FOR v1.3.0 — NOT YET SUBMITTED, DO NOT PASTE INTO CWS YET
+
+Everything above this line is the live v1.2.1 listing (Red Argon
+remediation), which is **still awaiting Google's review** as of this
+writing — see `release/RESUBMISSION-NOTES.md`. This section is prepared
+ahead of v1.3.0's own listing update so the delta doesn't have to be
+reconstructed later; it is not itself a submission, and nothing below
+should be pasted into the CWS Developer Dashboard until v1.2.1's review has
+concluded. **If v1.2.1 comes back REJECTED, stop and get Jon's sign-off
+before acting on any of this** — submitting a second, unrelated change
+while the first is still unresolved would compound the review backlog, not
+fix it.
+
+v1.3.0 adds a Connectors framework to the dashboard: Settings gains a
+fourth tab (Connectors), and RSS ships as the first connector — up to 5
+feed URLs per user, merged into a new headlines widget. Two changes to the
+store listing follow from that; the Summary, Category, and Single purpose
+statement above are unaffected (Connectors is one more dashboard feature
+inside the existing single purpose, not a second purpose needing its own
+statement).
+
+### New permission justification: `optional_host_permissions` (`https://*/*`)
+
+- *Why:* Connectors fetch data directly from whatever site the user points
+  them at — RSS feeds today, more connector types potentially later. Rather
+  than bundling a fixed allow-list of hosts (which would force a listing
+  update every time a new site is supported) or requesting `<all_urls>` at
+  install (asking for the entire internet up front, for a feature most
+  users may never touch), Aurora declares every `https://` origin
+  *requestable* via this manifest key and pre-grants none of them.
+- *When prompted:* Never at install — `optional_host_permissions` grants
+  nothing on its own; it only makes origins eligible to be requested later.
+  A real Chrome permission prompt, scoped to exactly one origin (e.g.
+  `https://example.com/*`), appears only when a user clicks "Add" on a feed
+  URL in Settings → Connectors. Declining leaves that feed un-added; the
+  rest of the dashboard is unaffected.
+- *What's read/written:* Nothing beyond ordinary HTTP GET requests to the
+  origins a user has explicitly granted, one at a time, sent straight from
+  the browser to that origin — no Aurora server sits in between (Aurora has
+  none). Removing the last feed pointed at a given site revokes that site's
+  grant automatically (`chrome.permissions.remove`); Aurora does not
+  accumulate standing access to sites no longer in use. Full detail in
+  `PRIVACY.md`'s "Connectors" section.
+- *Data Usage disclosure impact:* **[Jon: needs your read before
+  submission.]** The existing table's "Web history: No — stays on-device"
+  reasoning (used above for bookmarks and search) plausibly extends to RSS
+  fetches too, since Aurora itself never sees or retains the response — but
+  a connector request does leave the device, to a host the user chose, the
+  same structural fact that made Location a "Yes" above. Rather than assume
+  silently, call it out explicitly in the Data Usage form when this ships,
+  the same way Location was — Google's reviewers weigh "leaves the device"
+  over "who benefits from it."
+
+### Detailed description delta
+
+Add to the FEATURES list, after the bookmarks-bar bullet:
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. The first
+      connector is RSS — add up to 5 feed URLs and see the latest
+      headlines from all of them in one widget.
+
+Add to the PRIVACY, THE ACTUAL DIFFERENTIATOR list, after the bookmarks
+bullet:
+
+    - Connectors ask for host access one site at a time, only when you
+      add that site yourself, and only for that one site — never a
+      blanket grant, never at install. Every connector's configuration
+      is included in your backup export; anything a connector marks as
+      a secret (e.g. a future connector's API token) is automatically
+      stripped from that export before it's written to disk.

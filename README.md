@@ -24,6 +24,13 @@ no backend — everything lives on your machine.
   of folder and favicon chips; click a folder to drill into it (with a
   breadcrumb back button for nested subfolders). Off by default; reads your
   existing bookmarks, never creates or modifies any.
+- **Connectors** — an extensible framework for pulling outside data into the
+  dashboard, one card per source under Settings → Connectors, each asking
+  Chrome for access to exactly the site you add and nothing more. The first
+  connector is **RSS**: add up to 5 feed URLs and see the latest headlines
+  from all of them merged into one widget, refreshed roughly every 30
+  minutes. See [Connectors](#connectors) below for how the permission model
+  works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer** — a Pomodoro-style work/break timer with a chime.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
@@ -46,9 +53,13 @@ no backend — everything lives on your machine.
   its default position, with a two-step confirm so it can't happen by
   accident. Positions are stored locally, same as everything else.
 
-Every widget can be turned on or off from Settings, and every setting is
-optional — the dashboard is fully usable with nothing configured beyond the
-defaults.
+Settings is organized into four tabs: **General** (name/greeting, 24-hour
+clock, theme, units, mute, background), **Widgets** (per-widget on/off
+toggles, weather location, world clocks, countdowns, and layout/arrange),
+**Connectors** (outside data sources — see [Connectors](#connectors) below),
+and **Data** (backup/restore, plus the About footer). Every widget can be
+turned on or off from Settings, and every setting is optional — the
+dashboard is fully usable with nothing configured beyond the defaults.
 
 ## Install (from source)
 
@@ -108,6 +119,36 @@ longitude (rounded to ~1km) and, for city search, whatever you've typed into
 the city search box so far — suggestions filter as you type (debounced, so
 it's not a call per keystroke), not only after you press Enter. Your location
 is stored locally and is never sent anywhere else.
+
+## Connectors
+
+Connectors are Aurora's framework for pulling data from a source you point
+it at, instead of a fixed built-in service (contrast with Weather, above,
+which always talks to Open-Meteo). Each connector is a small, self-contained
+package — a config card in Settings → Connectors, a widget, and a service
+module — but the generic plumbing around all of them (caching what was last
+fetched, asking Chrome for permission to reach a site, and keeping anything
+sensitive out of backup exports) is written once and shared. **RSS** is the
+first connector; the framework is built so adding another source later
+means writing that connector's own card/widget/service, not re-solving
+caching, permissions, or backups again.
+
+**RSS**, concretely: turn it on in Settings → Connectors, add up to 5
+`https://` feed URLs, and pick how many headlines to show (3–8). Aurora
+fetches each feed directly from your browser — there's no Aurora server in
+the middle relaying the request — merges the results newest-first, and
+caches them locally so the widget doesn't refetch on every new tab (about
+once every 30 minutes, or sooner if you refresh).
+
+**The permission model** is per-site, not all-or-nothing. Aurora's manifest
+lists every `https://` origin as *requestable*, but none is granted until
+you act: the moment you click "Add" on a feed URL, Chrome shows its own
+native permission prompt scoped to that one site only (the same kind of
+prompt Bookmarks bar uses) — decline it, and the feed simply isn't added.
+Remove the last feed pointed at a given site, and Aurora releases that
+site's permission automatically; feeds on other sites are unaffected. Every
+connector added or removed follows the same site-by-site rule going
+forward.
 
 ## Photo credits
 
@@ -196,10 +237,14 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, and countdowns.
-- **Background photo uploads are not included.** They live in IndexedDB as
-  a blob, not in the JSON-serializable data the backup covers; re-select
-  your image after restoring if you were using an uploaded background.
+  notes, world clocks, countdowns, and connector configuration (e.g. your
+  RSS feed list) — with any field a connector marks as secret stripped out
+  first (see [Connectors](#connectors); RSS has none today).
+- **Background photo uploads are not included**, and neither is connectors'
+  cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
+  blob and connector caches are disposable, re-fetched automatically —
+  neither is the JSON-serializable data the backup covers; re-select your
+  image after restoring if you were using an uploaded background.
 - **Import** reads a backup file you choose, checks that it's a real Aurora
   backup, and — if it is — shows a one-line summary of what it contains and
   asks you to confirm before it replaces anything. Nothing is overwritten
@@ -223,23 +268,27 @@ audited line-by-line against this codebase) lives in
 
 Aurora has no backend and no accounts. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
-preferences, weather cache, location, notes, world clocks, countdowns, and
-widget layout —
+preferences, weather cache, location, notes, world clocks, countdowns,
+widget layout, and connector configuration (e.g. your RSS feed list) —
 is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 
-The **only** outbound network calls Aurora ever makes are to Open-Meteo: the
-forecast endpoint (`api.open-meteo.com`), only once the weather widget is
-enabled and a location is set, and the geocoder (`geocoding-api.open-meteo.com`),
-only while the widget is enabled and you're actively searching for a city —
-queried as you type (debounced by ~300ms, at least 2 characters), not only
-when you press Enter — plus a single keyless reverse-geocode lookup
-(`api.bigdatacloud.net`) at the
-moment you click "Use my location", so the widget can label your weather with
-a real place name. That lookup happens once, only for device location, and
-sends the same ~1 km-rounded coordinates the forecast call already uses.
-There is no analytics, no telemetry, and no tracking of any kind.
+The **fixed** outbound network calls Aurora makes on its own are to
+Open-Meteo: the forecast endpoint (`api.open-meteo.com`), only once the
+weather widget is enabled and a location is set, and the geocoder
+(`geocoding-api.open-meteo.com`), only while the widget is enabled and
+you're actively searching for a city — queried as you type (debounced by
+~300ms, at least 2 characters), not only when you press Enter — plus a
+single keyless reverse-geocode lookup (`api.bigdatacloud.net`) at the
+moment you click "Use my location", so the widget can label your weather
+with a real place name. That lookup happens once, only for device location,
+and sends the same ~1 km-rounded coordinates the forecast call already
+uses. Beyond those fixed calls, the **Connectors** framework lets you point
+Aurora at outside sites yourself — today, RSS: any feed URL you add is
+fetched directly from your browser to that feed's host, with no Aurora
+server in between, only for feeds you've actually added, roughly every 30
+minutes. There is no analytics, no telemetry, and no tracking of any kind.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.
@@ -249,6 +298,14 @@ why) until you try again. Grant it, and Aurora reads your browser's
 bookmarks tree with `chrome.bookmarks.getTree()` to render it — that read
 happens locally, is rendered locally, and is never transmitted anywhere.
 Aurora only reads your bookmarks, it never creates, edits, or deletes any.
+
+**Connectors** work similarly, but per-site rather than as one on/off
+switch: Aurora's manifest lists every `https://` origin as *requestable*
+(`optional_host_permissions`), but none is granted at install. Adding a
+feed in Settings → Connectors triggers Chrome's native permission prompt
+for that one origin only — decline, and the feed isn't added; grant, and
+Aurora can fetch just that site. Removing the last feed on a site revokes
+that site's permission automatically.
 
 The `geolocation` permission works differently: Chrome does not allow
 geolocation to be requested as an optional, runtime permission (only a
