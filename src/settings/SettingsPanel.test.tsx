@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { createStorage } from '../lib/storage/index'
+import { createStorage, type AuroraStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
+import type { ConnectorDescriptor, GithubConfig, RssConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
+import { authState } from './sections/Connectors'
 // Imported (not hardcoded) so the About footer's version assertion below
 // can't silently drift from package.json — the same file __APP_VERSION__ is
 // itself derived from at build time (see vite.config.ts / vitest.config.ts).
@@ -1044,6 +1046,13 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     return screen.getByRole('region', { name: 'Connectors' })
   }
 
+  // ConnectorConfig is a 7-member union as of Task 46; this suite only ever
+  // stores rss configs, so this single narrowing cast stands in for every
+  // `.rss` read below rather than repeating an inline cast at each call site.
+  async function readRss(storage: AuroraStorage): Promise<RssConfig | undefined> {
+    return (await storage.get('connectors')).rss as RssConfig | undefined
+  }
+
   it('enabling the connector writes the default config (enabled, no feeds, shownCount 5)', async () => {
     const storage = await renderWithConnectors()
     const toggle = screen.getByLabelText('Enable RSS') as HTMLInputElement
@@ -1067,7 +1076,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     })
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/rss')
-    expect((await storage.get('connectors')).rss?.feeds).toEqual(['https://news.ycombinator.com/rss'])
+    expect((await readRss(storage))?.feeds).toEqual(['https://news.ycombinator.com/rss'])
     expect(screen.queryByRole('alert')).toBeNull()
     expect(input.value).toBe('') // form resets on success
   })
@@ -1086,7 +1095,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect(ensureOrigin).toHaveBeenCalledOnce()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBeTruthy()
-    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+    expect((await readRss(storage))?.feeds).toEqual([])
   })
 
   it('a non-https URL is rejected with an alert and ensureOrigin is never called (validation is load-bearing)', async () => {
@@ -1102,7 +1111,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBeTruthy()
-    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+    expect((await readRss(storage))?.feeds).toEqual([])
   })
 
   it('removing a feed revokes its origin ONLY when no remaining feed shares that origin', async () => {
@@ -1122,7 +1131,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove https://example.com/feed-a' }))
     })
     expect(removeOrigin).not.toHaveBeenCalled()
-    expect((await storage.get('connectors')).rss?.feeds).toEqual([
+    expect((await readRss(storage))?.feeds).toEqual([
       'https://example.com/feed-b',
       'https://other.com/feed',
     ])
@@ -1132,7 +1141,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove https://other.com/feed' }))
     })
     expect(removeOrigin).toHaveBeenCalledWith('https://other.com/feed')
-    expect((await storage.get('connectors')).rss?.feeds).toEqual(['https://example.com/feed-b'])
+    expect((await readRss(storage))?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
   it('two same-origin removes racing before a re-render still revoke the origin exactly once', async () => {
@@ -1154,7 +1163,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove https://example.com/feed-b' }))
     })
 
-    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+    expect((await readRss(storage))?.feeds).toEqual([])
     expect(removeOrigin).toHaveBeenCalledTimes(1)
     expect(removeOrigin).toHaveBeenCalledWith('https://example.com/feed-b')
   })
@@ -1169,7 +1178,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.change(select, { target: { value: '8' } })
     })
 
-    expect((await storage.get('connectors')).rss?.shownCount).toBe(8)
+    expect((await readRss(storage))?.shownCount).toBe(8)
   })
 
   it('enforces a maximum of 5 feeds: the add row is disabled at the cap', async () => {
@@ -1199,6 +1208,57 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     } finally {
       vi.mocked(isPremium).mockReturnValue(true)
     }
+  })
+
+  // RSS is auth 'none' — the card shell's status chip (Task 46) is a
+  // 'token'-auth-only affordance, so RSS's card must never show one,
+  // enabled or not.
+  it('auth "none" (RSS) never shows a status chip, enabled or not', async () => {
+    await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+})
+
+// Pure unit tests of the extracted auth-state helper — exported from
+// Connectors.tsx (beside the default export) purely so it can be tested
+// directly here, without a real token connector existing yet (the first one,
+// github, lands in Task 48). The fake descriptor reuses GithubConfig's shape
+// (enabled/token/username, exactly a token connector's minimum) rather than
+// inventing a new ad hoc type; it is cast to the base ConnectorDescriptor at
+// the call site, the same single-cast pattern backup.test.ts's fake
+// descriptor uses (types.ts's ConnectorDescriptor variance comment explains
+// why the cast is required once ConnectorConfig is a multi-member union).
+describe('authState (Connectors.tsx card auth-state helper)', () => {
+  const tokenDescriptor: ConnectorDescriptor<GithubConfig> = {
+    id: 'github',
+    label: 'Fake Token Connector',
+    blurb: 'test',
+    auth: 'token',
+    ttlMs: 1_000,
+    secretFields: ['token'],
+    identityField: 'username',
+    origins: () => [],
+  }
+
+  it('identity + secret both present -> connected', () => {
+    const config: GithubConfig = { enabled: true, token: 't', username: 'jon' }
+    expect(authState(tokenDescriptor as ConnectorDescriptor, config)).toBe('connected')
+  })
+
+  it('identity present, secret missing (backup-restored) -> reconnect', () => {
+    const config: GithubConfig = { enabled: true, token: '', username: 'jon' }
+    expect(authState(tokenDescriptor as ConnectorDescriptor, config)).toBe('reconnect')
+  })
+
+  it('no config at all -> unconfigured', () => {
+    expect(authState(tokenDescriptor as ConnectorDescriptor, undefined)).toBe('unconfigured')
+  })
+
+  it("auth 'none' -> none, regardless of config", () => {
+    const noneDescriptor: ConnectorDescriptor<GithubConfig> = { ...tokenDescriptor, auth: 'none' }
+    const config: GithubConfig = { enabled: true, token: 't', username: 'jon' }
+    expect(authState(noneDescriptor as ConnectorDescriptor, config)).toBe('none')
   })
 })
 

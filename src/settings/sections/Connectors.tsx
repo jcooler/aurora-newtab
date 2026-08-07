@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorDescriptor, RssConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, RssConfig } from '../../services/connectors/types'
 import { CONNECTORS } from '../../services/connectors/registry'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { control } from './shared'
@@ -9,6 +9,33 @@ import { control } from './shared'
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
 const RSS_DEFAULT: RssConfig = { enabled: true, feeds: [], shownCount: 5 }
+
+/** Props every per-connector body component receives through BODY_COMPONENTS.
+ *  `config` is the generic (union) ConnectorConfig — each body is registered
+ *  under one specific id and narrows it internally with one documented cast,
+ *  the same pattern ConnectorCard itself uses for its own `config` prop. */
+interface BodyProps {
+  config: ConnectorConfig | undefined
+  storage: AuroraStorage
+}
+
+/** Card auth-state, exported (beside the default export) purely for direct
+ *  unit testing — see SettingsPanel.test.tsx's authState describe block.
+ *  Implements the rule types.ts's ConnectorDescriptor.identityField doc
+ *  comment states: secret present + identity present -> connected; identity
+ *  present + every secretFields entry empty/missing (backup-restored) ->
+ *  reconnect; identity absent -> unconfigured; auth 'none' -> none always. */
+export function authState(
+  descriptor: ConnectorDescriptor,
+  config: ConnectorConfig | undefined,
+): 'none' | 'unconfigured' | 'connected' | 'reconnect' {
+  if (descriptor.auth === 'none') return 'none'
+  const field = descriptor.identityField
+  const identity = field ? config?.[field] : undefined
+  if (!identity) return 'unconfigured'
+  const secretMissing = descriptor.secretFields.every((f) => !config?.[f])
+  return secretMissing ? 'reconnect' : 'connected'
+}
 
 /** The origin match pattern for a feed URL, or null if it can't be derived
  *  (non-https / unparseable). Used only to decide whether a REMAINING feed
@@ -49,16 +76,27 @@ export default function Connectors({
   )
 }
 
+// Body slot per connector id. Partial (not a full Record): only rss has a
+// body today — github/gitlab/jira/vercel/crypto/ics land in their own later
+// sub-project-2 tasks, and this map carries no placeholder entries for them
+// (a lookup for an unregistered id is simply undefined -> no body rendered).
+const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
+  rss: RssBody,
+}
+
 function ConnectorCard({
   descriptor,
   config,
   storage,
 }: {
   descriptor: ConnectorDescriptor
-  config: RssConfig | undefined
+  config: ConnectorConfig | undefined
   storage: AuroraStorage
 }) {
   const enabled = !!config?.enabled
+  const state = authState(descriptor, config)
+  const identity = descriptor.identityField ? config?.[descriptor.identityField] : undefined
+  const Body = BODY_COMPONENTS[descriptor.id]
 
   return (
     <div className="mt-2 rounded border border-panel-border p-3">
@@ -66,6 +104,16 @@ function ConnectorCard({
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-fg">{descriptor.label}</h4>
           <p className="text-xs text-fg-muted">{descriptor.blurb}</p>
+          {/* Status chip: 'token'-auth connectors only (types.ts's
+              identityField doc comment states the connected/reconnect rule
+              authState implements). Quiet-chip idiom, same as the On/Off
+              span below — text-xs, tinted by state, no pill/border. */}
+          {descriptor.auth === 'token' && state === 'connected' && (
+            <p className="text-xs text-emerald-400">Connected as {String(identity)}</p>
+          )}
+          {descriptor.auth === 'token' && state === 'reconnect' && (
+            <p className="text-xs text-fg-muted">Reconnect needed</p>
+          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <span className={`text-xs ${enabled ? 'text-accent' : 'text-fg-muted'}`}>
@@ -92,23 +140,21 @@ function ConnectorCard({
         </div>
       </div>
 
-      {/* Per-connector config body — RSS is the only one today. */}
-      {descriptor.id === 'rss' && enabled && (
-        <RssBody feeds={config?.feeds ?? []} shownCount={config?.shownCount ?? 5} storage={storage} />
-      )}
+      {Body && enabled && <Body config={config} storage={storage} />}
     </div>
   )
 }
 
-function RssBody({
-  feeds,
-  shownCount,
-  storage,
-}: {
-  feeds: string[]
-  shownCount: number
-  storage: AuroraStorage
-}) {
+function RssBody({ config, storage }: BodyProps) {
+  // BodyProps.config is the generic ConnectorConfig union (BODY_COMPONENTS is
+  // shared across every connector id); this component is registered only
+  // under 'rss', so it is always RssConfig at runtime — one documented
+  // narrowing cast, same pattern ConnectorCard's own config prop used before
+  // the body-map split it out.
+  const rss = config as RssConfig | undefined
+  const feeds = rss?.feeds ?? []
+  const shownCount = rss?.shownCount ?? 5
+
   const [newFeed, setNewFeed] = useState('')
   const [error, setError] = useState<string | null>(null)
 
@@ -172,7 +218,9 @@ function RssBody({
     // promise doesn't allow. storage.update serializes per-key and returns
     // the post-write value, so the second removal always sees the first's.
     const next = await updateRss((rss) => ({ ...rss, feeds: rss.feeds.filter((f) => f !== url) }))
-    const remaining = next.rss?.feeds ?? []
+    // Same narrowing as the ConnectorCard call site above: next.rss is
+    // ConnectorConfig-typed post-union, but updateRss only ever writes RssConfig.
+    const remaining = (next.rss as RssConfig | undefined)?.feeds ?? []
     // Revoke the origin only when this was its last user — another feed on the
     // same site still needs the grant. originOf swallows bad entries so they
     // don't count as sharing (and don't crash the sweep).

@@ -30,10 +30,17 @@ export function __resetInFlight(): void {
  *  Task 43+ call sites stay clean: `useConnectorSnapshot('rss', refreshFn)`.
  *  The registry is empty until Task 43 — the `?? 0` fallback then treats every
  *  snapshot as stale (refresh on mount), and tests pass an explicit ttl to
- *  exercise the fresh-enough path. */
+ *  exercise the fresh-enough path.
+ *
+ *  `refresh` receives the previously-cached data (null when there was none) —
+ *  exactly what the mount effect just read from the snapshot, never a fresh
+ *  storage read. Token connectors (Task 46+) use this to carry over fields a
+ *  fetch doesn't repeat every call (e.g. a display name resolved once at
+ *  connect time). RSS ignores the argument; a callback declared with fewer
+ *  parameters is assignable here, so its call site compiles unchanged. */
 export function useConnectorSnapshot<T>(
   id: ConnectorId,
-  refresh: () => Promise<T>,
+  refresh: (prev: T | null) => Promise<T>,
   ttlMs: number = getConnector(id)?.ttlMs ?? 0,
 ): { data: T | null; fetchedAt: number | null; refreshing: boolean; lastError: string | null } {
   const storage = useStorage()
@@ -61,11 +68,11 @@ export function useConnectorSnapshot<T>(
       }
     })
 
-    async function runRefresh(): Promise<void> {
+    async function runRefresh(prev: T | null): Promise<void> {
       let pending = inFlight.get(id)
       const owner = pending === undefined
       if (pending === undefined) {
-        pending = refreshRef.current()
+        pending = refreshRef.current(prev)
         inFlight.set(id, pending)
       }
       if (live) setRefreshing(true)
@@ -98,7 +105,7 @@ export function useConnectorSnapshot<T>(
         setFetchedAt(snap.fetchedAt)
       }
       const stale = snap === undefined || Date.now() - snap.fetchedAt >= ttlRef.current
-      if (stale) void runRefresh()
+      if (stale) void runRefresh(snap ? (snap.data as T) : null)
     })
 
     return () => {

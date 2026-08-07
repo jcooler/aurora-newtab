@@ -12,7 +12,11 @@ export default function RssWidget() {
   // gate" split: the read that decides IF we render lives here; the read that
   // COSTS (the SWR fetch orchestration) lives past the gate.
   const [connectors] = useStoredKey('connectors')
-  const rss = connectors?.rss
+  // ConnectorConfig is a union across all connector ids as of Task 46;
+  // schema.ts ties every id to the same union rather than its specific
+  // member, so this key is narrowed with one documented cast — it is always
+  // RssConfig at runtime, since only the rss connector ever writes here.
+  const rss = connectors?.rss as RssConfig | undefined
   // Array.isArray is load-bearing, not paranoia: backup import validates
   // connector configs only structurally (`enabled` alone — per-connector
   // fields are this service boundary's job), so a hand-edited backup can

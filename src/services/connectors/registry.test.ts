@@ -24,13 +24,19 @@ describe('connector registry invariants', () => {
     }
   })
 
-  // Completeness direction, written conditionally so it becomes meaningful at
-  // Task 43: once ANY connector is registered, EVERY CONNECTOR_ID must map to
-  // exactly one descriptor. With RSS the only id, registering RSS makes this a
-  // hard full-coverage check; it stays meaningful as the union grows. Vacuous
-  // (skipped body) only while the registry is still empty.
-  it('once the registry is populated, every CONNECTOR_ID has exactly one descriptor', () => {
-    if (CONNECTORS.length === 0) return
+  // Completeness direction, written conditionally so it becomes meaningful
+  // once the catalog is believed complete. Originally triggered on ANY
+  // registration (CONNECTORS.length === 0), which held while RSS was the
+  // only known id — but Task 46 grows CONNECTOR_IDS to seven ids ahead of
+  // their descriptors (github/gitlab/jira/vercel/crypto/ics land in later
+  // sub-project-2 tasks; CONNECTORS deliberately stays rss-only until each
+  // one does — same additive, incremental-registration principle as the
+  // Connectors.tsx body map). Gating on a LENGTH match instead keeps the
+  // check vacuous through every partial state and meaningful again exactly
+  // when the last connector is registered, rather than firing (and failing
+  // by design) on every task in between.
+  it('once every CONNECTOR_ID has a registered descriptor, each maps to exactly one', () => {
+    if (CONNECTORS.length !== CONNECTOR_IDS.length) return
     for (const id of CONNECTOR_IDS) {
       const matches = CONNECTORS.filter((d) => d.id === id)
       expect(matches).toHaveLength(1)

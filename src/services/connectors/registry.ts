@@ -11,13 +11,12 @@
 import type { ConnectorDescriptor, ConnectorId } from './types'
 import { rssDescriptor } from './rss'
 
-// Task 43 registers the first (and, for now, only) descriptor. With
-// ConnectorConfig === RssConfig today, ConnectorDescriptor<RssConfig> is
-// exactly ConnectorDescriptor — no cast needed here. types.ts's variance
-// comment explains why registering connector #2 WILL need one
-// (`rssDescriptor as ConnectorDescriptor`), once ConnectorConfig becomes a
-// real union and `secretFields` sits in an invariant position.
-export const CONNECTORS: ConnectorDescriptor[] = [rssDescriptor]
+// Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
+// the situation types.ts's ConnectorDescriptor variance comment predicted:
+// ConnectorDescriptor<RssConfig> is no longer assignable to the base
+// ConnectorDescriptor, so registering rss needs the one honest cast below —
+// rssDescriptor itself stays typed ConnectorDescriptor<RssConfig>.
+export const CONNECTORS: ConnectorDescriptor[] = [rssDescriptor as ConnectorDescriptor]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan
  *  is fine: the catalog is tiny and fixed at build time. */

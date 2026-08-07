@@ -140,7 +140,9 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
           </div>
         </div>
       )}
-      <p className="mt-2 text-xs text-fg-muted">Background photo uploads are not included.</p>
+      <p className="mt-2 text-xs text-fg-muted">
+        Background photo uploads, connector sign-in secrets, and cached connector data are not included.
+      </p>
     </section>
   )
 }

@@ -14,7 +14,7 @@ afterEach(() => __resetInFlight())
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
 
-function Probe({ refresh, ttl }: { refresh: () => Promise<string>; ttl?: number }) {
+function Probe({ refresh, ttl }: { refresh: (prev: string | null) => Promise<string>; ttl?: number }) {
   const { data, fetchedAt, refreshing, lastError } = useConnectorSnapshot('rss', refresh, ttl)
   return (
     <ul>
@@ -33,7 +33,7 @@ async function freshStorage(seed?: { fetchedAt: number; data: unknown }): Promis
   return storage
 }
 
-function mount(storage: AuroraStorage, refresh: () => Promise<string>, ttl?: number) {
+function mount(storage: AuroraStorage, refresh: (prev: string | null) => Promise<string>, ttl?: number) {
   return render(
     <StorageProvider storage={storage}>
       <Probe refresh={refresh} ttl={ttl} />
@@ -76,6 +76,30 @@ describe('useConnectorSnapshot', () => {
       await tick()
     })
     await screen.findByText('data:fresh-data')
+  })
+
+  it('stale snapshot: refresh is called with the PREVIOUS cached data object', async () => {
+    const storage = await freshStorage({ fetchedAt: Date.now() - 10_000, data: 'stale-data' })
+    const refresh = vi.fn((_prev: string | null) => Promise.resolve('fresh-data'))
+
+    mount(storage, refresh, 1_000)
+    await act(async () => {
+      await tick()
+    })
+
+    expect(refresh).toHaveBeenCalledWith('stale-data')
+  })
+
+  it('no snapshot at all: refresh is called with null', async () => {
+    const storage = await freshStorage()
+    const refresh = vi.fn((_prev: string | null) => Promise.resolve('fresh-data'))
+
+    mount(storage, refresh)
+    await act(async () => {
+      await tick()
+    })
+
+    expect(refresh).toHaveBeenCalledWith(null)
   })
 
   it('fresh-enough snapshot: no refresh', async () => {
