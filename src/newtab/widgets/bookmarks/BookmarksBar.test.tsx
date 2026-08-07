@@ -104,18 +104,103 @@ describe('BookmarksBar', () => {
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
   })
 
-  // Regression guard for the bookmarks/weather collision fix (BINDING:
-  // media-query pass, goal 3): below 1300px width, this bar's max-width used
-  // to stay at 52vw — wide enough to reach into the weather panel's own
-  // space (see WeatherWidget.tsx's matching `tight:max-w-[30vw]`, which
-  // pairs with this to keep a constant-width gap between the two). Lean
-  // className check, not a rendered-layout one — jsdom has no real layout
-  // engine to measure an actual overlap; that's the preview harness's job.
-  it('tightens its max-width below 1300px width, pairing with WeatherWidget to avoid the collision', async () => {
+  // Top-band pass: the bar owns the top row alone (the timer pill and
+  // weather chip default BELOW it now — see App.tsx and index.css's
+  // `--top-band`), so its width is bounded by the VIEWPORT rather than by
+  // the share the peripherals beside it used to need. The old pair of caps
+  // — `max-w-[52vw] tight:max-w-[24vw]`, sized against WeatherWidget's own
+  // `tight:max-w-[30vw]` to hold a horizontal gap — is gone with the premise
+  // that produced it. Lean className checks, not rendered-layout ones: jsdom
+  // has no layout engine, so the real single-row/no-overflow measurement is
+  // the preview harness's job (scripts/preview.mjs).
+  it('caps its width against the viewport, not against the peripherals that used to share the row', async () => {
     await renderBar(nestedModel)
     const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
-    expect(nav.className).toContain('max-w-[52vw]')
-    expect(nav.className).toContain('tight:max-w-[24vw]')
+    expect(nav.className).toContain('max-w-[min(72rem,calc(100vw_-_2rem))]')
+    expect(nav.className).not.toContain('max-w-[52vw]')
+    expect(nav.className).not.toContain('tight:max-w-[24vw]')
+  })
+
+  // The other half of "shrink, not wrap": with nothing left to wrap into,
+  // the row must compress instead. `flex-wrap` on the nav is what let three
+  // chips become two rows at 800x450 — a bar that grows DOWNWARD eats into
+  // the band the timer/weather row below now depends on.
+  it('never wraps to a second row: the nav is flex-nowrap and every chip can be squeezed', async () => {
+    await renderBar(nestedModel)
+    const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })
+    expect(nav.classList.contains('flex-nowrap')).toBe(true)
+    expect(nav.classList.contains('flex-wrap')).toBe(false)
+
+    // A folder chip's flex item is its `relative` wrapper div (the popover's
+    // positioning context); a loose bookmark's is the anchor itself. Both
+    // need `min-w-0`, or `truncate`'s own `white-space: nowrap` makes each
+    // chip's min-content its whole title and the row overflows.
+    const folderChip = screen.getByRole('button', { name: 'Work' })
+    const looseChip = screen.getByRole('link', { name: 'Docs' })
+    for (const item of [folderChip.parentElement!, looseChip]) {
+      expect(item.classList.contains('min-w-0')).toBe(true)
+    }
+    // …and the button inside a folder's wrapper has to follow it down
+    // rather than spilling out of it.
+    expect(folderChip.classList.contains('max-w-full')).toBe(true)
+  })
+
+  // Which chips actually give ground. flex-shrink is proportional to each
+  // item's width, but a chip's icon/padding/border can't shrink — the whole
+  // reduction lands on the label, so a SHORT title loses most of itself.
+  // Measured at 800x450 with a full bar, "Dev" and "News" came out as "D…"
+  // and "N…". Titles short enough to read whole are exempt; the long ones
+  // absorb the compression.
+  it('short titles are exempt from shrinking; long ones absorb the squeeze', async () => {
+    const mixedModel: BarModel = {
+      folders: [
+        { id: 'f1', title: 'Dev', items: [], folders: [] },
+        { id: 'f2', title: 'Design system', items: [], folders: [] },
+      ],
+      loose: [
+        { id: 'i1', title: 'Mail', url: 'https://mail.example' },
+        { id: 'i2', title: 'Engineering docs', url: 'https://docs.example' },
+      ],
+    }
+    await renderBar(mixedModel)
+    await screen.findByRole('button', { name: 'Dev' })
+
+    const slotOf = (el: HTMLElement) => (el.tagName === 'BUTTON' ? el.parentElement! : el)
+    const exempt = [
+      screen.getByRole('button', { name: 'Dev' }), // 3 chars
+      screen.getByRole('link', { name: 'Mail' }), // 4 chars
+    ]
+    const shrinkable = [
+      screen.getByRole('button', { name: 'Design system' }), // 13 chars
+      screen.getByRole('link', { name: 'Engineering docs' }), // 16 chars
+    ]
+    for (const el of exempt) {
+      expect(slotOf(el).classList.contains('shrink-0')).toBe(true)
+      expect(slotOf(el).classList.contains('shrink')).toBe(false)
+    }
+    for (const el of shrinkable) {
+      expect(slotOf(el).classList.contains('shrink')).toBe(true)
+      expect(slotOf(el).classList.contains('shrink-0')).toBe(false)
+    }
+  })
+
+  // The overflow chip is exempt whatever its (nonexistent) title would say:
+  // a single glyph with nothing to truncate, and the ONLY way to reach the
+  // bookmarks it stands for.
+  it('the "»" overflow chip is exempt from shrinking', async () => {
+    const nineLooseModel: BarModel = {
+      folders: [],
+      loose: Array.from({ length: 9 }, (_, i) => ({
+        id: `i${i}`,
+        title: `Bookmark ${i}`,
+        url: `https://example.com/${i}`,
+      })),
+    }
+    await renderBar(nineLooseModel)
+    const overflowChip = await screen.findByRole('button', { name: 'More bookmarks' })
+    const slot = overflowChip.parentElement!
+    expect(slot.classList.contains('shrink-0')).toBe(true)
+    expect(slot.classList.contains('shrink')).toBe(false)
   })
 
   it('uses the themed bg-panel-solid utility, not a hardcoded hex, so the popover actually re-themes (folders-widget theming bug)', async () => {

@@ -17,8 +17,63 @@ const OVERFLOW_ID = '__overflow__'
 // timer buttons) — those stay round in every theme, including Mono, whose
 // --radius: 0 only squares off PANELS. Jon flagged the square-in-Mono look
 // when chips briefly used rounded-panel.
+//
+// SHRINK, NOT WRAP (this row must stay ONE row at every viewport — see the
+// nav's own comment below). Two classes carry that here:
+//   min-w-0    a flex item's automatic minimum size is its MIN-CONTENT width
+//              unless overridden — and `truncate` sets `white-space: nowrap`,
+//              which makes a label's min-content its FULL width (there is no
+//              break opportunity to shrink to). Without this, a chip refuses
+//              to go below its whole title and the row overflows instead of
+//              tightening.
+//   max-w-full caps a chip at its parent's width once that parent is itself
+//              squeezed. Load-bearing for FOLDER chips specifically: their
+//              flex item is the `relative` wrapper div (the popover's
+//              positioning context), not the button, so the button needs to
+//              be told to follow the wrapper down rather than spill out of it.
+// The label span's own `truncate` (overflow-hidden) is what absorbs the
+// shrink, and — because a non-visible overflow zeroes the automatic minimum
+// size — is also what lets the span shrink at all.
+//
+// flex-shrink itself is NOT here; it's per-chip (see shrinkFor below).
+//
+// The tightening steps are HORIZONTAL ONLY (px, gaps, label caps). The chip's
+// vertical metrics — `py-1`, `text-sm`'s line height, the 1px border — are
+// deliberately breakpoint-invariant, because index.css's `--top-band` is
+// derived from them and every viewport shares one band.
 const CHIP =
-  'flex shrink-0 items-center gap-1.5 rounded-full border border-panel-border bg-panel px-2.5 py-1 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+  'flex min-w-0 max-w-full items-center gap-1.5 narrow:gap-1 rounded-full border border-panel-border bg-panel px-2.5 narrow:px-2 py-1 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+// Folder + overflow chips only: the wrapper div is the nav's flex item (it
+// anchors the popover), so the flex permissions belong on it, and `relative`
+// stays for FolderPopover's `absolute` panel.
+const CHIP_SLOT = 'relative min-w-0'
+// Upper bound on a label when there IS room; below that, flex shrink takes
+// over. Tightened on narrow viewports so the squeeze starts from a smaller
+// number and fewer chips need truncating at all.
+const CHIP_LABEL = 'max-w-32 narrow:max-w-24 truncate'
+
+// WHICH chips give ground. flex-shrink distributes in proportion to each
+// item's own width — which sounds right (the longest titles lose the most
+// pixels) but is wrong in the only place it matters: a chip's icon, padding
+// and border can't shrink, so the whole reduction lands on the label, and for
+// a SHORT title that reduction is most of it. Measured at 800x450 with a full
+// bar: "Dev" and "News" rendered as "D…" and "N…" — chips that cost the same
+// space as before and no longer say anything.
+//
+// So the floor is per-chip, not per-pixel: a title short enough to read whole
+// is exempt, and the compression lands entirely on the titles long enough to
+// survive losing a few characters. `shrink`/`shrink-0` are appended at each
+// call site rather than baked into CHIP above, because they are the same CSS
+// property — both in one className would resolve by generated-CSS source
+// order, not by the order they're written.
+//
+// The exemption can't overflow the row: a title this short makes a chip at
+// most ~86px wide, so even the degenerate case (all 8 visible chips exempt,
+// plus the "»" chip and the gaps) tops out around 750px — inside the 768px
+// cap at 800px wide, the narrowest viewport in the harness matrix.
+const SHRINK_EXEMPT_CHARS = 6
+const shrinkFor = (title: string) =>
+  title.trim().length <= SHRINK_EXEMPT_CHARS ? 'shrink-0' : 'shrink'
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
@@ -183,29 +238,41 @@ function BookmarksBarInner({
       // wrapper's condition for no benefit — `openId` is already the single
       // source of truth this reads from, so mirroring it here costs
       // nothing and keeps both classes legible together.
-      // max-w-[52vw] is fine above ~1300px width — plenty of horizontal room
-      // beside the timer pill (left-4) and the weather panel (right-4, up to
-      // 32rem wide when expanded — see WeatherWidget.tsx). Below that, a
-      // centered bar capped at 52vw can reach into the weather panel's own
-      // footprint (goal 3 of the responsive pass — a real, reported
-      // collision, not hypothetical). `tight:max-w-[24vw]` tightens the cap
-      // proportionally with viewport width rather than to a fixed px value —
-      // paired with WeatherWidget's own `tight:max-w-[30vw]`, the GAP between
-      // the two panels' worst-case edges stays a constant width fraction
-      // (8vw − 16px per the centered/right-anchored geometry: bar right edge
-      // 50vw + 24vw/2 = 62vw, weather left edge 100vw − 16px − 30vw = 70vw −
-      // 16px — review-verified; still ~10px even at an unreachable 320px) at every
-      // width in this tier, instead of closing back up as the viewport
-      // shrinks the way two independently-fixed px caps would. Existing
-      // `flex-wrap` on this nav means a tighter cap just wraps chips onto
-      // more rows sooner — compression, not removal.
-      className={`relative flex max-w-[52vw] tight:max-w-[24vw] flex-wrap items-center justify-center gap-1.5 ${
+      // WIDTH + ONE ROW, ALWAYS. This bar now owns the top band alone (the
+      // timer pill and weather chip default BELOW it — see App.tsx and
+      // index.css's `--top-band`), which changes both halves of the old
+      // sizing rule:
+      //
+      // The cap. It used to be `max-w-[52vw] tight:max-w-[24vw]`: a share of
+      // the viewport carved out so a CENTERED bar could never reach the
+      // peripherals sitting at its own elevation (52vw ⇒ a right edge at
+      // 76vw; the `tight` step tightened it to 62vw to stay clear of the
+      // weather panel's own `tight:max-w-[30vw]`). Nothing shares this row
+      // any more, so the only real constraint left is the viewport itself:
+      // `calc(100vw - 2rem)` keeps the 1rem gutter the rest of the page's
+      // peripherals use, and the 72rem ceiling stops a full bar from
+      // stretching wall-to-wall on a wide display, where an edge-to-edge row
+      // of chips would read as browser chrome rather than as part of the
+      // page. min() picks whichever binds, continuously — no breakpoint step
+      // needed, so `tight` no longer has a consumer here.
+      //
+      // The row count. `flex-wrap` is gone: at 800x450 the old caps wrapped
+      // three chips onto two rows, and a bar that grows downward eats into
+      // the band the peripherals below now depend on. `flex-nowrap` plus
+      // per-chip shrink (see CHIP above) turns that overflow into
+      // compression instead — chips tighten and their labels truncate, the
+      // row height never changes. The reclaimed width is what makes this
+      // affordable: at 800px the budget goes from 192px (24vw) to 768px for
+      // the same chips. scripts/preview.mjs asserts the single row directly
+      // (measured nav height vs. measured chip height, with a seeded profile
+      // at the full 8-chips-plus-overflow maximum) at every matrix viewport.
+      className={`relative flex max-w-[min(72rem,calc(100vw_-_2rem))] flex-nowrap items-center justify-center gap-1.5 narrow:gap-1 ${
         openId ? 'z-50' : 'z-20'
       }`}
     >
       {visible.map((chip) =>
         chip.kind === 'folder' ? (
-          <div key={chip.folder.id} className="relative">
+          <div key={chip.folder.id} className={`${CHIP_SLOT} ${shrinkFor(chip.folder.title)}`}>
             <button
               type="button"
               aria-haspopup="dialog"
@@ -214,7 +281,7 @@ function BookmarksBarInner({
               className={CHIP}
             >
               <FolderIcon />
-              <span className="max-w-32 truncate">{chip.folder.title}</span>
+              <span className={CHIP_LABEL}>{chip.folder.title}</span>
             </button>
             {openId === chip.folder.id && (
               <FolderPopover
@@ -226,14 +293,21 @@ function BookmarksBarInner({
             )}
           </div>
         ) : (
-          <a key={chip.item.id} href={chip.item.url} className={CHIP}>
+          // No CHIP_SLOT wrapper: a loose bookmark has no popover to anchor,
+          // so the anchor IS the nav's flex item — CHIP's own `min-w-0` and
+          // this chip's shrink class both land on it directly.
+          <a key={chip.item.id} href={chip.item.url} className={`${CHIP} ${shrinkFor(chip.item.title)}`}>
             <img src={faviconUrl(chip.item.url)} alt="" width={12} height={12} className="shrink-0" />
-            <span className="max-w-32 truncate">{chip.item.title}</span>
+            <span className={CHIP_LABEL}>{chip.item.title}</span>
           </a>
         ),
       )}
       {overflow.length > 0 && (
-        <div className="relative">
+        // Always exempt, whatever shrinkFor would say about a title: this
+        // chip is a single glyph with nothing to truncate, and it is the only
+        // way to reach the bookmarks it stands for. Squeezing it buys a
+        // couple of pixels and costs the row its escape hatch.
+        <div className={`${CHIP_SLOT} shrink-0`}>
           <button
             type="button"
             aria-haspopup="dialog"

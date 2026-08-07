@@ -274,6 +274,76 @@ describe('App — default-placement wrapper classNames carry no transform (bookm
   })
 })
 
+// Top-band pass. Jon: the top of the page belongs to the bookmarks bar
+// ALONE — the timer pill and weather chip move below it as new DEFAULTS.
+// jsdom has no layout engine, so the real measurement (bar bottom vs.
+// timer/weather top, at every matrix viewport) lives in scripts/preview.mjs;
+// what CAN be pinned here is the contract those measurements depend on:
+// which classes each default-placement wrapper carries, and — the part most
+// at risk of an accidental revert — that neither peripheral shares the bar's
+// own `top-4` any more.
+describe('App — the bookmarks bar owns the top band; timer/weather default below it', () => {
+  it('bookmarks sits at the top of the band; timer and weather default below it', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    // Both offsets come from the SAME pair of index.css tokens: the bar's
+    // own `top` is the band's gap, and the band is that gap + one chip row +
+    // that gap again, so the air above and below the bar is equal by
+    // construction (and compresses together on short viewports).
+    const bookmarks = document.querySelector('[data-block-id="bookmarks"]')!
+    expect(bookmarks.classList.contains('top-[var(--top-band-gap)]')).toBe(true)
+
+    for (const id of ['timer', 'weather']) {
+      const block = document.querySelector(`[data-block-id="${id}"]`)!
+      expect(block.classList.contains('top-[var(--top-band)]')).toBe(true)
+      // The regression that matters: sharing the bar's own top offset again.
+      expect(block.classList.contains('top-[var(--top-band-gap)]')).toBe(false)
+      expect(block.classList.contains('top-4')).toBe(false)
+    }
+
+    // Horizontal anchors are unchanged — the row below the bar is bookended
+    // by the same two corners the peripherals always occupied.
+    expect(document.querySelector('[data-block-id="timer"]')!.classList.contains('left-4')).toBe(true)
+    expect(document.querySelector('[data-block-id="weather"]')!.classList.contains('right-4')).toBe(true)
+  })
+
+  // The whole point of a DEFAULT-only change: a stored arrange-mode layout
+  // is the user's, and PositionedBlock drops the default className entirely
+  // on that branch. If the new offset ever leaked into the positioned
+  // branch it would fight the stored coordinates.
+  it('a stored layout still wins — the new default offset never reaches a positioned block', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { timer: { x: 80, y: 60 }, weather: { x: 20, y: 40 } })
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    for (const [id, pos] of [
+      ['timer', { x: 80, y: 60 }],
+      ['weather', { x: 20, y: 40 }],
+    ] as const) {
+      const block = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement
+      expect(block.className).toBe('')
+      expect(block.style.position).toBe('fixed')
+      // jsdom measures 0x0, so these stay the raw percent center with no
+      // calc() offset — see PositionedBlock.test.tsx.
+      expect(block.style.left).toBe(`${pos.x}%`)
+      expect(block.style.top).toBe(`${pos.y}%`)
+    }
+  })
+})
+
 // Bookmarks-stacking bug fix, PART 2 — found only after Fix 1 (transform-
 // free centering + `relative` on the nav) shipped and the real-Chromium
 // preview probe still failed: `position: fixed` unconditionally creates a

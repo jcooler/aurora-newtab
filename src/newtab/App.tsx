@@ -175,13 +175,51 @@ export default function App() {
             gear.
           */}
           <WidgetBoundary name="weather">
-            <PositionedBlock id="weather" pos={layout?.weather} className="fixed right-4 top-4">
+            {/*
+              DEFAULT placement only (`pos` — a stored arrange-mode layout —
+              still wins whenever the user has one; PositionedBlock drops
+              this className entirely on that branch).
+
+              `top-[var(--top-band)]`, not `top-4`: the top of the page
+              belongs to the bookmarks bar alone, so this chip and the timer
+              pill both start at the first pixel BELOW the band the bar
+              owns. See index.css's `--top-band` for the derivation (the
+              band's gap + one chip row + that same gap again) and why the
+              band is reserved unconditionally rather than sized to whether
+              the bar happens to be rendering. `right-4` is unchanged — the horizontal
+              anchor is what makes this "the weather corner", and the timer
+              keeps `left-4` for the same reason: the two share one row, one
+              top edge, opposite ends.
+            */}
+            <PositionedBlock
+              id="weather"
+              pos={layout?.weather}
+              className="fixed right-4 top-[var(--top-band)]"
+            >
               <WeatherWidget />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="bookmarks">
             {/*
+              PLACEMENT — the top of the band, and nothing else defaults
+              beside it. This bar owns the band outright; the timer pill and
+              weather chip (above/below in this file) start at
+              `top-[var(--top-band)]`, the first pixel below it.
+              `--top-band-gap` is the SAME token the band's own height is
+              built from (index.css), so the air above the bar and the air
+              below it stay equal by construction — including where that
+              measure compresses on short viewports. Two consequences worth
+              naming here, because they only make sense as a pair:
+                · the bar no longer has to leave room for peripherals at its
+                  own elevation, so its width cap is now bounded by the
+                  VIEWPORT rather than by whatever the neighbours needed —
+                  see BookmarksBar.tsx's own max-width comment;
+                · that reclaimed width is what lets the chip row shrink to
+                  fit instead of wrapping to a second row (which would grow
+                  the band under the peripherals and reintroduce the very
+                  overlap the offset exists to prevent).
+
               Bug fix (bookmarks popover stacking) — bookmark folder popovers
               opened, but nothing inside them was clickable. Two independent
               causes, both rooted in this wrapper, both fixed here + in
@@ -203,8 +241,9 @@ export default function App() {
               that unit sits BELOW the body-level catcher's explicit z-40.
               Fix: transform-free centering — `inset-x-0 mx-auto w-fit`
               reproduces the same centered, shrink-to-fit box (verified
-              against BookmarksBar's own `max-w-[52vw] flex-wrap` chip
-              layout) without ever creating a containing block.
+              against BookmarksBar's own capped, `flex-nowrap` chip row —
+              `w-fit` resolves to that row's own width, clamped by the
+              nav's max-width) without ever creating a containing block.
 
               CAUSE 2 — found AFTER shipping fix 1, by the mandated
               real-Chromium preview probe (a real `page.click` on a link
@@ -242,14 +281,22 @@ export default function App() {
             <PositionedBlock
               id="bookmarks"
               pos={layout?.bookmarks}
-              className={`fixed inset-x-0 top-4 mx-auto w-fit${bookmarksPopoverOpen ? ' z-50' : ''}`}
+              className={`fixed inset-x-0 top-[var(--top-band-gap)] mx-auto w-fit${bookmarksPopoverOpen ? ' z-50' : ''}`}
             >
               <BookmarksBar onPopoverOpenChange={setBookmarksPopoverOpen} />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="timer">
-            <PositionedBlock id="timer" pos={layout?.timer} className="fixed left-4 top-4">
+            {/* Same move as weather above, mirrored: DEFAULT placement drops
+                out of the bookmarks bar's band to `top-[var(--top-band)]`,
+                keeping its `left-4` anchor so the two peripherals bookend
+                one row under the bar. See index.css's `--top-band`. */}
+            <PositionedBlock
+              id="timer"
+              pos={layout?.timer}
+              className="fixed left-4 top-[var(--top-band)]"
+            >
               <TimerWidget />
             </PositionedBlock>
           </WidgetBoundary>

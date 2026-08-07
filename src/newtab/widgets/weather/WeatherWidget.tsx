@@ -68,23 +68,33 @@ export default function WeatherWidget() {
           : ' No rain expected.')
       : ''
 
-  // Width caps (goal: the panel can never reach the centred bookmarks bar, in
-  // EITHER state, at any viewport — Jon's overlap report).
+  // Width caps. ORIGINALLY derived to keep this panel clear of the centred
+  // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
+  // bar was capped at `max-w-[52vw]` (worst-case right edge 50vw + 26vw =
+  // 76vw) and this panel is anchored `right-4`, so requiring 100vw − 16px −
+  // W > 76vw gave W < 24vw − 16px; `24vw − 2rem` added a guaranteed 16px on
+  // top, and the `tight` pair (24vw bar / 30vw panel) held an 8vw − 16px gap
+  // all the way down. The OLD unconditional `max-w-[32rem]` is what actually
+  // overlapped in Jon's report: measured 1600×900, bar right edge 1216px vs.
+  // this panel's left edge 1072px — 144px of collision, and 187px at
+  // 1420×437, invisible to a harness that only ever measured the COLLAPSED
+  // chip.
   //
-  // The bar is centred with `max-w-[52vw]` (BookmarksBar.tsx), so its
-  // worst-case right edge is 50vw + 26vw = 76vw. This panel is anchored
-  // `right-4` (App.tsx), so its left edge is 100vw − 16px − W. Requiring
-  // 100vw − 16px − W > 76vw gives W < 24vw − 16px; `24vw − 2rem` leaves a
-  // guaranteed 16px gap on top of that at every width in the band, and the
-  // 24rem ceiling stops the card ballooning on a 4K display. Below the
-  // `tight` breakpoint the bar's own cap drops to 24vw (right edge 62vw), so
-  // 30vw here still clears it by 8vw − 16px.
+  // THAT PREMISE IS GONE: the bookmarks bar now owns the top band alone and
+  // this widget's DEFAULT placement is a full band below it (App.tsx's
+  // `top-[var(--top-band)]`), so the two no longer share a line to compete
+  // for — the clearance is vertical, asserted as such in scripts/preview.mjs,
+  // and the bar's own cap has been widened to match (it is bounded by the
+  // viewport now, not by this panel).
   //
-  // The OLD `max-w-[32rem]` (512px, unconditional above `tight`) is exactly
-  // what overlapped: measured 1600×900, bar right edge 1216px vs. this
-  // panel's left edge 1072px — 144px of collision, and 187px at 1420×437.
-  // The previous harness never saw it because it only ever measured the
-  // COLLAPSED chip, which is far too narrow to reach.
+  // The caps stay, for reasons that survive the move:
+  //   · Arrange mode can put this panel back up beside the bar — a stored
+  //     layout is the user's, and a panel that stays a bounded fraction of
+  //     the viewport degrades far better up there than an unbounded one.
+  //   · 24rem/24vw is a sane reading measure for a two-column data card, and
+  //     the ceiling is what stops it ballooning on a 4K display.
+  //   · `tight:30vw` keeps the card proportional rather than letting a fixed
+  //     px width swallow a small viewport whole (30vw of 800 = 240px).
   //
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
@@ -139,7 +149,19 @@ export default function WeatherWidget() {
             type="button"
             aria-expanded={expanded}
             onClick={() => setExpanded((v) => !v)}
-            className={`flex w-full cursor-pointer flex-col gap-1 px-4 py-3 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+            // The `short`/`xshort` steps repeated across this panel are one
+            // decision, not eight: expanded, this card is ~383px tall, and
+            // the viewports the app is tuned for include 1420x437 and
+            // 800x450 — 88% of the window for one widget. Now that it opens
+            // BELOW the bookmarks bar's band rather than inside it (App.tsx),
+            // that stopped being merely ungainly and started running off the
+            // bottom edge. Only the internal RHYTHM tightens — no content is
+            // dropped, no type shrinks, nothing gains a scroll region — the
+            // same compression the centre column already applies at these
+            // heights. Both variants carry the same value (they're disjoint
+            // ranges covering height <= 600px together), so there is no
+            // source-order tie to break between them.
+            className={`flex w-full cursor-pointer flex-col gap-1 px-4 py-3 short:py-2 xshort:py-2 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
               expanded ? 'rounded-t-panel' : 'rounded-panel'
             }`}
           >
@@ -169,9 +191,9 @@ export default function WeatherWidget() {
           </button>
 
           {expanded && (
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-4 short:pb-3 xshort:pb-3">
               {geo && (
-                <div className="border-t border-panel-border pt-3">
+                <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                   <div className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
                     <span>Next {hours.length} hours</span>
                     <span className="shrink-0">
@@ -191,7 +213,7 @@ export default function WeatherWidget() {
                       the callout above; nothing else in the panel uses it. */}
                   <svg
                     viewBox={`0 0 ${TREND_VIEWBOX.w} ${geo.height}`}
-                    className="mt-2 h-auto w-full text-fg"
+                    className="mt-2 short:mt-1 xshort:mt-1 h-auto w-full text-fg"
                     role="img"
                     aria-label={trendSummary}
                   >
@@ -253,7 +275,7 @@ export default function WeatherWidget() {
                 </div>
               )}
 
-              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-panel-border pt-3">
+              <dl className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                 <div>
                   <dt className="text-[11px] text-fg-muted">Feels like</dt>
                   <dd className="mt-0.5 text-sm tabular-nums text-fg">
@@ -289,7 +311,7 @@ export default function WeatherWidget() {
                 )}
               </dl>
 
-              <div className="mt-3 flex items-center justify-between gap-3">
+              <div className="mt-3 short:mt-2 xshort:mt-2 flex items-center justify-between gap-3">
                 {stale || error ? (
                   <button
                     type="button"

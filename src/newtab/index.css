@@ -67,6 +67,70 @@
      must match the always-dark panels. 'dark light' let a light-mode OS paint
      the dropdown white while our option text stayed white. */
   color-scheme: dark;
+
+  /* ── The top band ──────────────────────────────────────────────────────
+     The strip across the top of the page that the bookmarks bar owns
+     OUTRIGHT (Jon: "the top of the page belongs to the bookmarks bar
+     ALONE"). Nothing else may default into it: the timer pill and the
+     weather chip — the two peripherals that used to share this line at
+     `top-4` — now default to `top-[var(--top-band)]`, i.e. the first pixel
+     below the band (see App.tsx).
+
+     RESERVED, not conditional. The band keeps its height whether or not the
+     bar actually renders (the widget is off by default, needs an optional
+     permission, and renders nothing for an empty bookmarks bar) — same as a
+     menu bar. A presence-driven offset would mean the pills jump downward
+     the moment the bookmarks tree finishes loading, and would make the two
+     peripherals' geometry depend on a third widget's async state.
+
+     DERIVED, not guessed:
+       --top-band-gap      the air above the bar — the bar's own `top` — and
+                           the SAME measure again below it, so the band reads
+                           as a band with matching breathing room on both
+                           sides rather than a row shoved against the
+                           viewport edge with its neighbours crowding in
+                           underneath. ONE token feeds both, so the symmetry
+                           is structural rather than two numbers that have to
+                           be kept equal by hand. Compressed on `xshort`
+                           viewports (the media query below) exactly the way
+                           the rest of the page's vertical rhythm is: 62px of
+                           reserved band is 14% of a 437px-tall window, and
+                           the widget that pays for it is the expanded
+                           weather panel directly underneath.
+       --bookmarks-chip-h  ONE chip row, which is the bar's full height —
+                           it can never wrap to two (BookmarksBar.tsx is
+                           `flex-nowrap`, chips shrink instead), and its
+                           `items-center` line box is set by the tallest
+                           chip content: the `text-sm` label's 1.25rem line
+                           height (the 14px folder icon / 12px favicon are
+                           both shorter), plus `py-1` top and bottom, plus
+                           the chip's own 1px border on each edge.
+                           The chip's VERTICAL metrics are deliberately
+                           breakpoint-INVARIANT — the narrow-viewport
+                           tightening in BookmarksBar.tsx only ever touches
+                           horizontal ones (padding-x, gaps, label caps), so
+                           this height, and therefore this band, is the same
+                           at every viewport in the matrix.
+       --top-band          the whole band: gap + bar + gap. This is what the
+                           peripherals below it use as their `top`; the bar
+                           itself uses `--top-band-gap` as its own.
+
+     scripts/preview.mjs asserts the real clearance (measured bar bottom vs.
+     measured timer/weather top, at every matrix viewport) so these constants
+     can't silently drift out of sync with the chip classes they're derived
+     from — CSS can't measure, so the harness is the guard. */
+  --top-band-gap: 1rem;
+  --bookmarks-chip-h: calc(1.25rem + 2 * 0.25rem + 2 * 1px);
+  --top-band: calc(2 * var(--top-band-gap) + var(--bookmarks-chip-h));
+}
+
+/* Same threshold as the `xshort` variant below, spelled out as a raw media
+   query because a custom variant can only prefix a UTILITY — it can't
+   redeclare a custom property. Keep the two in sync. */
+@media (max-height: 450px) {
+  :root {
+    --top-band-gap: 0.5rem;
+  }
 }
 
 /* Responsive breakpoints — the owner's ~1420x437 short-wide browser window
@@ -86,17 +150,22 @@
                the tie where two same-specificity rules would otherwise both
                match at once).
      narrow  — viewport width <=1024px: shrinks the center column's own wide
-               children (search input, focus input, quote line-length).
-     tight   — viewport width <=1300px: the ONLY consumer is the
-               bookmarks-bar / weather-panel pairing (goal 3) — proportional
-               (vw-based) caps on both that open a constant-width gap at
-               every width in range, all the way down through `narrow`'s own
-               range too (it's a strict superset of `narrow`, not a separate
-               tier — the two variants never set the same property on the
-               same element, so the overlap is harmless: `tight` alone
-               governs bookmarks/weather, `narrow` alone governs
-               search/focus/quote). Above 1300px the two peripherals already
-               have enough room and stay at their un-tightened default.
+               children (search input, focus input, quote line-length), and
+               tightens the bookmarks bar's HORIZONTAL chip metrics — chip
+               padding, both gaps, the label cap — so the row has more to
+               give before flex shrink starts truncating labels (see
+               BookmarksBar.tsx; its vertical metrics stay invariant on
+               purpose, since `--top-band` above is derived from them).
+     tight   — viewport width <=1300px: since the top-band pass moved the
+               weather chip out from beside the bookmarks bar, the ONLY
+               remaining consumer is WeatherWidget's own `tight:max-w-[30vw]`
+               / `tight:w-[30vw]` — keeping the card a proportion of a small
+               viewport instead of a fixed px width. (It used to be a PAIR of
+               caps, one on each of those two widgets, sized against each
+               other to hold a constant-width horizontal gap; that gap is
+               vertical now.) It remains a strict superset of `narrow` rather
+               than a separate tier, and the two still never set the same
+               property on the same element, so the overlap stays harmless.
    The clock's own type scale is deliberately NOT stepped by `short`/`xshort`
    — see the min(vw,vh) term on its clamp() in Clock.tsx, which degrades
    continuously with height instead of jumping at these steps. */
