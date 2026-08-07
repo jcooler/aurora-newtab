@@ -165,8 +165,14 @@ function RssBody({
   }
 
   async function handleRemoveFeed(url: string) {
-    const remaining = feeds.filter((f) => f !== url)
-    await updateRss((rss) => ({ ...rss, feeds: rss.feeds.filter((f) => f !== url) }))
+    // Survivors come from the WRITE's result, never the render-time `feeds`
+    // prop: two same-origin removals landing before a re-render would each
+    // see the other still present in the stale prop and NEITHER would
+    // revoke — a permanent grant leak PRIVACY.md's "released automatically"
+    // promise doesn't allow. storage.update serializes per-key and returns
+    // the post-write value, so the second removal always sees the first's.
+    const next = await updateRss((rss) => ({ ...rss, feeds: rss.feeds.filter((f) => f !== url) }))
+    const remaining = next.rss?.feeds ?? []
     // Revoke the origin only when this was its last user — another feed on the
     // same site still needs the grant. originOf swallows bad entries so they
     // don't count as sharing (and don't crash the sweep).

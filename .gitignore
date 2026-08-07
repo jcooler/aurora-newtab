@@ -27,3 +27,7 @@ release/store-shots/
 # Phase A/B photo curation scratch: downloaded candidates + contact sheets.
 # Working files for controller review only — never shipped, never committed.
 .photo-work/
+
+# Product-concept renders Jon drops in for vision discussions — reference
+# imagery for design sessions, not source and not shipped.
+output/

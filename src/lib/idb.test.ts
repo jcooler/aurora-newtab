@@ -143,13 +143,36 @@ describe('backfillThumbs', () => {
     const upgraded = new Blob(['sharper'], { type: 'image/webp' })
     vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(upgraded)
     const undersizedThumb = new Blob(['old-32px'], { type: 'image/webp' })
-    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockResolvedValue(32)
+    // Per-blob widths: the stored thumb reads under-spec, the regenerated
+    // one reads at-spec — the improvement the no-improvement guard looks for.
+    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockImplementation(async (b) =>
+      b === undersizedThumb ? 32 : thumbs.THUMB_WIDTH,
+    )
     const full = new Blob(['full'], { type: 'image/png' })
     const heal = vi.fn().mockResolvedValue(undefined)
 
     await backfillThumbs([{ key: 'photo:1', blob: full, thumb: undersizedThumb }], heal)
 
     expect(heal).toHaveBeenCalledWith('photo:1', upgraded)
+    vi.restoreAllMocks()
+  })
+
+  it('skips an upload whose source photo is itself narrower than the spec — no rewrite-per-load loop', async () => {
+    // makeThumb never upscales, so a 90px source yields a 90px thumb no
+    // matter how many times it regenerates. Before the no-improvement guard
+    // this record failed the >= THUMB_WIDTH check every page load and was
+    // re-encoded + rewritten every time, forever.
+    const regenerated = new Blob(['still-90px'], { type: 'image/webp' })
+    vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(regenerated)
+    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockResolvedValue(90) // stored AND fresh
+    const heal = vi.fn().mockResolvedValue(undefined)
+
+    await backfillThumbs(
+      [{ key: 'photo:1', blob: new Blob(['narrow-source']), thumb: new Blob(['90px'], { type: 'image/webp' }) }],
+      heal,
+    )
+
+    expect(heal).not.toHaveBeenCalled()
     vi.restoreAllMocks()
   })
 

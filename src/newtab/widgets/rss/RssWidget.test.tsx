@@ -98,4 +98,18 @@ describe('RssWidget', () => {
 
     expect(container.firstChild).toBeNull()
   })
+
+  it('survives a hand-edited backup restoring { enabled: true } with no feeds array — renders nothing, never throws', async () => {
+    // Backup import validates connector configs only structurally (`enabled`
+    // alone), so this shape can legally reach storage. The gate's
+    // Array.isArray check is what stands between it and a render throw.
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { rss: { enabled: true } as never })
+    const { container } = mount(storage)
+    await act(async () => {})
+
+    expect(container.firstChild).toBeNull()
+    expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
+  })
 })

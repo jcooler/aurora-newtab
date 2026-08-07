@@ -13,7 +13,12 @@ export default function RssWidget() {
   // COSTS (the SWR fetch orchestration) lives past the gate.
   const [connectors] = useStoredKey('connectors')
   const rss = connectors?.rss
-  if (!rss?.enabled || rss.feeds.length === 0) return null
+  // Array.isArray is load-bearing, not paranoia: backup import validates
+  // connector configs only structurally (`enabled` alone — per-connector
+  // fields are this service boundary's job), so a hand-edited backup can
+  // legally restore { rss: { enabled: true } } with no feeds array at all.
+  // The type says feeds: string[]; storage doesn't promise it.
+  if (!rss?.enabled || !Array.isArray(rss.feeds) || rss.feeds.length === 0) return null
   return <RssInner feeds={rss.feeds} shownCount={rss.shownCount} />
 }
 

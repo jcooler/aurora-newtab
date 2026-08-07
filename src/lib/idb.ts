@@ -121,13 +121,25 @@ export async function backfillThumbs(
   heal: (key: string, thumb: Blob) => Promise<void>,
 ): Promise<void> {
   for (const upload of uploads) {
+    let storedWidth: number | null = null
     if (upload.thumb) {
-      const width = await thumbIntrinsicWidth(upload.thumb)
-      if (width !== null && width >= THUMB_WIDTH) continue // already at spec
+      storedWidth = await thumbIntrinsicWidth(upload.thumb)
+      if (storedWidth !== null && storedWidth >= THUMB_WIDTH) continue // already at spec
     }
     try {
       const thumb = await makeThumb(upload.blob)
       if (!thumb) continue
+      // A source photo naturally narrower than THUMB_WIDTH can never reach
+      // spec — makeThumb never upscales, so its output is exactly as wide as
+      // the stored thumb already is. Healing it would rewrite an equivalent
+      // record on EVERY page load, forever. Skip when no improvement is
+      // possible. (A null storedWidth — undecodable stored thumb — still
+      // heals: after one write the stored thumb IS the fresh one, so the
+      // next load's width check passes and the loop terminates.)
+      if (storedWidth !== null) {
+        const freshWidth = await thumbIntrinsicWidth(thumb)
+        if (freshWidth !== null && freshWidth <= storedWidth) continue
+      }
       await heal(upload.key, thumb)
     } catch {
       // keep going — see the doc comment

@@ -1135,6 +1135,30 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect((await storage.get('connectors')).rss?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
+  it('two same-origin removes racing before a re-render still revoke the origin exactly once', async () => {
+    // The leak this covers: `remaining` used to come from the render-time
+    // feeds prop, so two removals clicked before React re-rendered each saw
+    // the OTHER feed still present and neither revoked — a permanent grant
+    // PRIVACY.md's "released automatically" promise doesn't allow. The
+    // handler now derives survivors from storage.update's serialized result.
+    const storage = await renderWithConnectors({
+      enabled: true,
+      feeds: ['https://example.com/feed-a', 'https://example.com/feed-b'],
+      shownCount: 5,
+    })
+
+    await act(async () => {
+      // Both clicks in one act, no await between: the second handler runs
+      // against the same stale prop the first did.
+      fireEvent.click(screen.getByRole('button', { name: 'Remove https://example.com/feed-a' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove https://example.com/feed-b' }))
+    })
+
+    expect((await storage.get('connectors')).rss?.feeds).toEqual([])
+    expect(removeOrigin).toHaveBeenCalledTimes(1)
+    expect(removeOrigin).toHaveBeenCalledWith('https://example.com/feed-b')
+  })
+
   it('shownCount is a 3–8 select that persists the chosen value', async () => {
     const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
     const select = screen.getByLabelText('Headlines shown') as HTMLSelectElement

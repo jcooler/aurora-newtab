@@ -363,6 +363,31 @@ describe('fetchHeadlines', () => {
     expect(fetchFn).not.toHaveBeenCalled()
   })
 
+  it('dedupes a syndicated article appearing in two feeds, keeping its newest-sorted row', async () => {
+    // Same article url from both feeds (different surrounding metadata).
+    // One row survives — which is also what keeps the widget's url-keyed
+    // React rows unique.
+    const feedA = `<rss version="2.0"><channel><title>A</title>
+      <item><title>Shared story</title><link>https://shared.example.com/story</link><pubDate>Wed, 08 Sep 2021 12:00:00 GMT</pubDate></item>
+    </channel></rss>`
+    const feedB = `<rss version="2.0"><channel><title>B</title>
+      <item><title>Shared story</title><link>https://shared.example.com/story</link><pubDate>Tue, 07 Sep 2021 12:00:00 GMT</pubDate></item>
+      <item><title>B exclusive</title><link>https://b.example.com/only</link><pubDate>Mon, 06 Sep 2021 12:00:00 GMT</pubDate></item>
+    </channel></rss>`
+    const bodies: Record<string, string> = { 'https://a.example.com/f': feedA, 'https://b.example.com/f': feedB }
+    const fetchFn = vi.fn(async (url: string) => ({ ok: true, status: 200, text: async () => bodies[url] }))
+
+    const out = await fetchHeadlines(
+      ['https://a.example.com/f', 'https://b.example.com/f'],
+      5,
+      fetchFn as unknown as typeof fetch,
+    )
+    expect(out.map((h) => h.url)).toEqual(['https://shared.example.com/story', 'https://b.example.com/only'])
+    // The surviving row is the newest-sorted appearance (feed A's Wednesday
+    // copy, source "A"), not feed B's older duplicate.
+    expect(out[0]!.source).toBe('A')
+  })
+
   it('yields [] for a zero or negative count — never "all but the last N"', async () => {
     // slice(0, negative) would silently mean "drop the tail"; a corrupted
     // stored shownCount must produce nothing rather than almost-everything.

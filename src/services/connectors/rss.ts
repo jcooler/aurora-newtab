@@ -172,11 +172,16 @@ export async function fetchHeadlines(
   const results = await Promise.all(feeds.map((feedUrl) => fetchOneFeed(feedUrl, fetchFn)))
   const merged = results.flat()
   merged.sort((a, b) => b.publishedAt - a.publishedAt)
+  // Dedupe by url AFTER the sort so a syndicated article appearing in two
+  // configured feeds keeps one row (its newest-sorted appearance) instead of
+  // two — which is also what keeps the widget's url-keyed React rows unique.
+  const seen = new Set<string>()
+  const unique = merged.filter((h) => (seen.has(h.url) ? false : (seen.add(h.url), true)))
   // Math.max guards the function's own contract: slice(0, negative) means
   // "all but the last N" — a corrupted stored shownCount must yield nothing,
   // not almost-everything. (The settings UI enforces 3-8; this doesn't rely
   // on it.)
-  return merged.slice(0, Math.max(0, count))
+  return unique.slice(0, Math.max(0, count))
 }
 
 export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
@@ -189,11 +194,15 @@ export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
   // Filter, don't throw: backup import validates connector configs only
   // structurally (isConnectorConfig checks `enabled` alone — per-connector
   // field validation is deferred to this service boundary), so a restored
-  // feeds array can hold non-https or unparseable entries. originPattern
-  // throws on those, and the framework calls origins() in sweeps across ALL
-  // connectors — one connector's bad persisted data must not throw out of
-  // the whole sweep. Same clean-don't-crash idiom as backup's cleanLayout/
-  // cleanConnectors.
+  // feeds array can hold non-https or unparseable entries. origins() is the
+  // registry's CONTRACT for grant/revoke bookkeeping — any caller sweeping
+  // descriptors must be able to trust that one connector's bad persisted
+  // data degrades to fewer origins rather than throwing out of the sweep.
+  // Same clean-don't-crash idiom as backup's cleanLayout/cleanConnectors.
+  // (Today's only production bookkeeping — the card's remove handler —
+  // reaches originPattern through its own originOf wrapper; this contract
+  // is what makes routing it through the registry safe whenever that
+  // consolidation happens.)
   origins: (config) =>
     config.feeds.flatMap((feed) => {
       try {
