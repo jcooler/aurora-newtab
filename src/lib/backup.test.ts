@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { serializeBackup, parseBackup, validateBackupShape } from './backup'
+import { serializeBackup, parseBackup, validateBackupShape, SECRET_FIELDS } from './backup'
 import { CURRENT_VERSION, defaults } from './storage/schema'
 import { migrate } from './storage/migrations'
 
 describe('serializeBackup / parseBackup round-trip', () => {
-  it('round-trips: serialize -> parse -> data deep-equals the input', () => {
+  it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
     const input = { ...defaults(), links: [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }] }
     const json = serializeBackup(input)
     const result = parseBackup(json)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data).toEqual(input)
+      const { connectorSnapshots: _connectorSnapshots, ...expected } = input
+      expect(result.data).toEqual(expected)
+      expect('connectorSnapshots' in result.data).toBe(false)
       expect(result.version).toBe(CURRENT_VERSION)
     }
   })
@@ -22,9 +24,69 @@ describe('serializeBackup / parseBackup round-trip', () => {
     expect(envelope.version).toBe(CURRENT_VERSION)
     expect(typeof envelope.exportedAt).toBe('string')
     expect(new Date(envelope.exportedAt).toString()).not.toBe('Invalid Date')
-    expect(envelope.data).toEqual(defaults())
+    const { connectorSnapshots: _connectorSnapshots, ...expectedData } = defaults()
+    expect(envelope.data).toEqual(expectedData)
     // Pretty-printed: multiple lines, not a single minified line.
     expect(json.split('\n').length).toBeGreaterThan(1)
+  })
+})
+
+// Task 39: schema v5 connector keys. connectorSnapshots is cache, not user
+// data, and is deliberately excluded from every export (smaller files, one
+// less validator surface on import — see backup.ts's doc comments). connectors
+// carries per-connector config and IS exported, minus anything named in
+// SECRET_FIELDS for that connector.
+describe('connector config / snapshot handling (Task 39)', () => {
+  it('export of defaults contains connectors but not connectorSnapshots', () => {
+    const json = serializeBackup(defaults())
+    const envelope = JSON.parse(json)
+    expect(envelope.data.connectors).toEqual({})
+    expect('connectorSnapshots' in envelope.data).toBe(false)
+  })
+
+  it('strips a field listed in SECRET_FIELDS from the export, but the original (storage) data survives untouched', () => {
+    const originalRss = SECRET_FIELDS.rss
+    SECRET_FIELDS.rss = ['apiKey'] // test-injected fake secret field
+    try {
+      const data = {
+        ...defaults(),
+        connectors: {
+          rss: { enabled: true, feeds: [], shownCount: 5, apiKey: 'super-secret' } as never,
+        },
+      }
+      const json = serializeBackup(data)
+      const envelope = JSON.parse(json)
+      expect(envelope.data.connectors.rss.enabled).toBe(true)
+      expect('apiKey' in envelope.data.connectors.rss).toBe(false)
+      // The object handed in (what's actually sitting in storage) must not
+      // have been mutated by the export.
+      expect((data.connectors.rss as never as { apiKey: string }).apiKey).toBe('super-secret')
+    } finally {
+      SECRET_FIELDS.rss = originalRss
+    }
+  })
+
+  it('import drops unknown connector ids and any connectorSnapshots key entirely', () => {
+    const data = {
+      ...defaults(),
+      connectors: {
+        rss: { enabled: true, feeds: [], shownCount: 5 },
+        bogus: { enabled: true },
+      },
+      connectorSnapshots: { rss: { fetchedAt: 123, data: { items: [] } } },
+    }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(Object.keys(result.data.connectors)).toEqual(['rss'])
+      expect(result.data.connectorSnapshots).toEqual({})
+    }
+  })
+
+  it('rejects malformed connectors (a string), naming the key', () => {
+    const bad = { ...defaults(), connectors: 'oops' }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "connectors" data is invalid.' })
   })
 })
 

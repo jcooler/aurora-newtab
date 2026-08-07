@@ -17,7 +17,8 @@ describe('migrate', () => {
     const calls: number[] = []
     const registry: Record<number, Migration> = {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
-      // upgrades v2 -> v3, registry[3] upgrades v3 -> v4 (CURRENT_VERSION)
+      // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
+      // v4 -> v5 (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -34,9 +35,13 @@ describe('migrate', () => {
         calls.push(3)
         return data
       },
+      4: (data) => {
+        calls.push(4)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3])
+    expect(calls).toEqual([0, 1, 2, 3, 4])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -160,5 +165,37 @@ describe('v3 -> v4', () => {
   it('an old backup carrying searchEngine no longer has it after migrate(), regardless of validation', () => {
     const out = migrate({ settings: { ...defaults().settings, searchEngine: 'google' } }, 3)
     expect(Object.keys(out.settings).sort()).toEqual(Object.keys(defaults().settings).sort())
+  })
+})
+
+// Task 39: connector config/snapshot keys. Neither existed before v5, so this
+// step is a plain top-level backfill — same style as v2->v3's `layout: {}`,
+// not the defensive isPlainObject-guarded style v1->v2 needs (there's no
+// prior shape to corrupt or preserve nested fields inside).
+describe('v4 -> v5', () => {
+  it('backfills empty connectors and connectorSnapshots maps', () => {
+    const out = migrate({ settings: defaults().settings, layout: {} }, 4)
+    expect(out.connectors).toEqual({})
+    expect(out.connectorSnapshots).toEqual({})
+  })
+
+  it('tolerates a v4 snapshot with no connectors at all', () => {
+    const out = migrate({}, 4)
+    expect(out.connectors).toEqual({})
+    expect(out.connectorSnapshots).toEqual({})
+  })
+
+  it('spread-preserves the rest of the snapshot untouched by this step', () => {
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon' } }, 4)
+    expect(out.settings.name).toBe('Jon')
+  })
+
+  it('a v1 snapshot chains through all four migrations: layout and connectors backfilled, searchEngine gone', () => {
+    const out = migrate({}, 1)
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
+    expect(out.connectors).toEqual({}) // v4->v5 ran
+    expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
   })
 })

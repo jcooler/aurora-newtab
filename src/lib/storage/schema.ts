@@ -1,6 +1,7 @@
 import type { Layout } from '../layout/types'
+import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 4
+export const CURRENT_VERSION = 5
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
@@ -129,6 +130,8 @@ export interface AuroraData {
   worldClocks: WorldClock[]
   countdowns: Countdown[]
   layout: Layout
+  connectors: Partial<Record<ConnectorId, ConnectorConfig>>
+  connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
 }
 
 export type DataKey = keyof AuroraData
@@ -165,5 +168,7 @@ export function defaults(): AuroraData {
     worldClocks: [],
     countdowns: [],
     layout: {},
+    connectors: {},
+    connectorSnapshots: {},
   }
 }

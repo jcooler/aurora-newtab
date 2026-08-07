@@ -7,6 +7,7 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
+import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from '../services/connectors/types'
 
 const APP_ID = 'aurora'
 
@@ -14,19 +15,54 @@ export interface BackupEnvelope {
   app: typeof APP_ID
   version: number
   exportedAt: string
-  data: AuroraData
+  // connectorSnapshots is cache, not user data — deliberately excluded from
+  // every export (smaller files, and one less validator surface on import:
+  // see validateBackupShape's matching never-trust-it-on-import handling
+  // below). `connectors` (user-chosen config) IS exported, minus anything
+  // named in SECRET_FIELDS for that connector.
+  data: Omit<AuroraData, 'connectorSnapshots'>
 }
 
 export type ParseBackupResult =
   | { ok: true; data: Record<string, unknown>; version: number }
   | { ok: false; reason: string }
 
+// Per connector, the ConnectorConfig field names that must never leave the
+// device in a plaintext export (API keys, tokens, etc). RSS has none today —
+// its list ships empty — but the stripping mechanism (and its test coverage)
+// ships now so the first connector that *does* carry a secret only needs to
+// add its field names here, not touch serializeBackup.
+export const SECRET_FIELDS: Partial<Record<ConnectorId, string[]>> = {
+  rss: [],
+}
+
+/** Returns a new connectors map with each entry's SECRET_FIELDS stripped.
+ *  Never mutates its input — `data.connectors` is what's actually sitting in
+ *  storage, and it must survive an export untouched. */
+function stripSecrets(connectors: AuroraData['connectors']): AuroraData['connectors'] {
+  const result: AuroraData['connectors'] = {}
+  for (const id of Object.keys(connectors) as ConnectorId[]) {
+    const config = connectors[id]
+    if (!config) continue
+    const secretFields = SECRET_FIELDS[id]
+    if (!secretFields || secretFields.length === 0) {
+      result[id] = config
+      continue
+    }
+    const clone = { ...config } as Record<string, unknown>
+    for (const field of secretFields) delete clone[field]
+    result[id] = clone as unknown as ConnectorConfig
+  }
+  return result
+}
+
 export function serializeBackup(data: AuroraData): string {
+  const { connectorSnapshots: _connectorSnapshots, ...rest } = data
   const envelope: BackupEnvelope = {
     app: APP_ID,
     version: CURRENT_VERSION,
     exportedAt: new Date().toISOString(),
-    data,
+    data: { ...rest, connectors: stripSecrets(data.connectors) },
   }
   return JSON.stringify(envelope, null, 2)
 }
@@ -230,7 +266,19 @@ function isLayout(v: unknown): boolean {
   return isPlainObject(v) && Object.values(v).every(isBlockPos)
 }
 
-const VALIDATORS: Record<DataKey, (v: unknown) => boolean> = {
+// Structural only, same restraint as every other validator here: just
+// `enabled` (a boolean every ConnectorConfig has), not per-connector fields
+// like RssConfig.feeds — those are the service boundary's job, not a
+// generic backup-shape check's.
+function isConnectorConfig(v: unknown): boolean {
+  return isPlainObject(v) && isBoolean(v.enabled)
+}
+
+function isConnectors(v: unknown): boolean {
+  return isPlainObject(v) && Object.values(v).every(isConnectorConfig)
+}
+
+const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
   todoLists: isTodoLists,
@@ -243,6 +291,7 @@ const VALIDATORS: Record<DataKey, (v: unknown) => boolean> = {
   worldClocks: isWorldClocks,
   countdowns: isCountdowns,
   layout: isLayout,
+  connectors: isConnectors,
 }
 
 const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
@@ -253,6 +302,19 @@ function cleanLayout(v: unknown): Layout {
   const cleaned: Layout = {}
   for (const id of Object.keys(layout) as BlockId[]) {
     if (BLOCK_ID_SET.has(id)) cleaned[id] = layout[id]
+  }
+  return cleaned
+}
+
+const CONNECTOR_ID_SET: ReadonlySet<string> = new Set(CONNECTOR_IDS)
+
+/** Drops any connector entry whose key isn't a known ConnectorId — same
+ *  unknown-key convention as cleanLayout's unknown block ids. */
+function cleanConnectors(v: unknown): AuroraData['connectors'] {
+  const connectors = v as Record<string, ConnectorConfig>
+  const cleaned: AuroraData['connectors'] = {}
+  for (const id of Object.keys(connectors) as ConnectorId[]) {
+    if (CONNECTOR_ID_SET.has(id)) cleaned[id] = connectors[id]
   }
   return cleaned
 }
@@ -273,14 +335,24 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
   const source = data as unknown as Record<string, unknown>
   const cleaned = {} as Record<string, unknown>
   for (const key of DATA_KEYS) {
+    // connectorSnapshots is cache, not user data (see serializeBackup's doc
+    // comment): never trusted from an import, always reset to empty
+    // regardless of what — if anything — is present for this key. No
+    // validator needed; it's simply never read.
+    if (key === 'connectorSnapshots') {
+      cleaned[key] = {}
+      continue
+    }
     const value = source[key]
     if (!VALIDATORS[key](value)) {
       return { ok: false, reason: `That backup's "${key}" data is invalid.` }
     }
-    // Known block ids pass VALIDATORS as-is; unknown ones (extra keys inside
-    // an otherwise-valid layout object) are dropped here, matching the
-    // unknown-top-level-key convention above rather than failing the import.
-    cleaned[key] = key === 'layout' ? cleanLayout(value) : value
+    // Known block/connector ids pass VALIDATORS as-is; unknown ones (extra
+    // keys inside an otherwise-valid layout/connectors object) are dropped
+    // here, matching the unknown-top-level-key convention above rather than
+    // failing the import.
+    cleaned[key] =
+      key === 'layout' ? cleanLayout(value) : key === 'connectors' ? cleanConnectors(value) : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
 }

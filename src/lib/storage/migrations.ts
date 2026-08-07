@@ -47,6 +47,12 @@ export const migrations: Record<number, Migration> = {
     const { searchEngine: _searchEngine, ...rest } = settings
     return { ...data, settings: rest }
   },
+  // v4 -> v5: connector config + snapshot cache (Task 39). Both keys are
+  // brand new — no v4 user has ever had them — so this is a plain top-level
+  // backfill, same style as v2->v3's `layout: {}`, not the defensive
+  // isPlainObject-guarded style v1->v2 needs (there's no prior shape to
+  // corrupt or nested user data to preserve here).
+  4: (data) => ({ ...data, connectors: {}, connectorSnapshots: {} }),
 }
 
 export function migrate(
