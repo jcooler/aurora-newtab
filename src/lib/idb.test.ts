@@ -5,7 +5,7 @@
 // existed hold a bare Blob where new writes hold a {blob, thumb} record) and
 // the thumbnail backfill that heals those old records.
 import { describe, expect, it, vi } from 'vitest'
-import { backfillThumbs, toStoredUpload, toUpload } from './idb'
+import { backfillThumbs, healedRecord, toStoredUpload, toStoredUploads, toUpload } from './idb'
 import * as thumbs from './thumbs'
 
 describe('toUpload', () => {
@@ -53,43 +53,94 @@ describe('toStoredUpload', () => {
   })
 })
 
+describe('toStoredUploads', () => {
+  it('decodes selected files one at a time rather than all at once', async () => {
+    // A multi-file pick is the realistic case (8 phone photos at 24MP is
+    // ~750MB of simultaneous full-res bitmaps), and holding them all decoded
+    // at once is exactly what thumbs.ts's prompt-release design exists to
+    // avoid.
+    let inFlight = 0
+    let peak = 0
+    vi.spyOn(thumbs, 'makeThumb').mockImplementation(async () => {
+      inFlight += 1
+      peak = Math.max(peak, inFlight)
+      await new Promise((r) => setTimeout(r, 0))
+      inFlight -= 1
+      return new Blob(['tiny'], { type: 'image/webp' })
+    })
+    const files = Array.from({ length: 6 }, (_, i) => new File([`${i}`], `${i}.png`))
+
+    const records = await toStoredUploads(files)
+
+    expect(records).toHaveLength(6)
+    expect(records.map((r) => r.blob)).toEqual(files)
+    expect(peak).toBe(1)
+    vi.restoreAllMocks()
+  })
+})
+
+describe('healedRecord', () => {
+  const thumb = new Blob(['tiny'], { type: 'image/webp' })
+
+  it('refuses to write anything for a key that no longer exists', () => {
+    // The deletion case: the user removed this photo while the backfill was
+    // still running. Writing here would resurrect it.
+    expect(healedRecord(undefined, thumb)).toBeNull()
+  })
+
+  it('heals a pre-placeholder bare-Blob record using the blob currently stored', () => {
+    const stored = new Blob(['legacy'], { type: 'image/png' })
+    expect(healedRecord(stored, thumb)).toEqual({ blob: stored, thumb })
+  })
+
+  it('heals a thumbless record using the blob currently stored', () => {
+    const stored = new Blob(['full'], { type: 'image/png' })
+    expect(healedRecord({ blob: stored }, thumb)).toEqual({ blob: stored, thumb })
+  })
+
+  it('leaves a record that already has a thumb alone', () => {
+    const stored = new Blob(['full'], { type: 'image/png' })
+    const existing = new Blob(['other'], { type: 'image/webp' })
+    expect(healedRecord({ blob: stored, thumb: existing }, thumb)).toBeNull()
+  })
+})
+
 describe('backfillThumbs', () => {
-  it('generates and writes a thumb only for uploads that lack one', async () => {
+  it('generates and heals only uploads that lack one', async () => {
     const made = new Blob(['tiny'], { type: 'image/webp' })
     vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(made)
     const legacy = new Blob(['legacy'], { type: 'image/png' })
     const already = new Blob(['already'], { type: 'image/png' })
-    const put = vi.fn().mockResolvedValue(undefined)
+    const heal = vi.fn().mockResolvedValue(undefined)
 
     await backfillThumbs(
       [
         { key: 'photo:1', blob: legacy, thumb: undefined },
         { key: 'photo:2', blob: already, thumb: new Blob(['t'], { type: 'image/webp' }) },
       ],
-      put,
+      heal,
     )
 
-    expect(put).toHaveBeenCalledTimes(1)
-    expect(put).toHaveBeenCalledWith('photo:1', { blob: legacy, thumb: made })
+    // The thumb only — never the snapshot's blob, which the store may have
+    // moved on from by now.
+    expect(heal).toHaveBeenCalledTimes(1)
+    expect(heal).toHaveBeenCalledWith('photo:1', made)
     vi.restoreAllMocks()
   })
 
-  it('writes nothing when the thumbnail cannot be generated', async () => {
+  it('heals nothing when the thumbnail cannot be generated', async () => {
     vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(null)
-    const put = vi.fn().mockResolvedValue(undefined)
+    const heal = vi.fn().mockResolvedValue(undefined)
 
-    await backfillThumbs(
-      [{ key: 'photo:1', blob: new Blob(['legacy']), thumb: undefined }],
-      put,
-    )
+    await backfillThumbs([{ key: 'photo:1', blob: new Blob(['legacy']), thumb: undefined }], heal)
 
-    expect(put).not.toHaveBeenCalled()
+    expect(heal).not.toHaveBeenCalled()
     vi.restoreAllMocks()
   })
 
   it('keeps going when one upload fails to backfill', async () => {
     vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(new Blob(['tiny']))
-    const put = vi.fn().mockRejectedValueOnce(new Error('quota')).mockResolvedValue(undefined)
+    const heal = vi.fn().mockRejectedValueOnce(new Error('quota')).mockResolvedValue(undefined)
 
     await expect(
       backfillThumbs(
@@ -97,11 +148,48 @@ describe('backfillThumbs', () => {
           { key: 'photo:1', blob: new Blob(['a']), thumb: undefined },
           { key: 'photo:2', blob: new Blob(['b']), thumb: undefined },
         ],
-        put,
+        heal,
       ),
     ).resolves.toBeUndefined()
 
-    expect(put).toHaveBeenCalledTimes(2)
+    expect(heal).toHaveBeenCalledTimes(2)
+    vi.restoreAllMocks()
+  })
+
+  it('does not resurrect an upload the user deleted while the backfill was running', async () => {
+    // The backfill works off a SNAPSHOT taken by listUploads(). A legacy
+    // gallery keeps it running for seconds, another tab can be deleting the
+    // whole time, and the per-page `backfillStarted` guard doesn't help
+    // across tabs. So the heal has to re-check the store, not trust the
+    // snapshot. Modelled here with a map standing in for the object store,
+    // healed through the same healedRecord() the real transaction uses.
+    const blobA = new Blob(['a'], { type: 'image/png' })
+    const blobB = new Blob(['b'], { type: 'image/png' })
+    const store = new Map<string, unknown>([
+      ['photo:1', blobA],
+      ['photo:2', blobB],
+    ])
+    vi.spyOn(thumbs, 'makeThumb').mockImplementation(async (blob) => {
+      // The user deletes photo:1 while its thumbnail is being generated.
+      if (blob === blobA) store.delete('photo:1')
+      return new Blob(['tiny'], { type: 'image/webp' })
+    })
+    const heal = async (key: string, thumb: Blob) => {
+      const record = healedRecord(store.get(key), thumb)
+      if (record) store.set(key, record)
+    }
+
+    await backfillThumbs(
+      [
+        { key: 'photo:1', blob: blobA, thumb: undefined },
+        { key: 'photo:2', blob: blobB, thumb: undefined },
+      ],
+      heal,
+    )
+
+    expect(store.has('photo:1')).toBe(false)
+    // ...and the surviving photo is still healed.
+    expect(store.get('photo:2')).toEqual({ blob: blobB, thumb: expect.any(Blob) })
     vi.restoreAllMocks()
   })
 })

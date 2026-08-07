@@ -62,26 +62,69 @@ export async function toStoredUpload(file: File): Promise<StoredUpload> {
 }
 
 /**
- * Generates the missing placeholder for every thumbless upload and writes it
- * back through `put`. Best-effort by construction: a photo whose thumbnail
- * can't be produced or stored is left exactly as it was and the rest still
- * get healed — this runs unattended, off the render path, and must never be
- * able to take the gallery down with it.
+ * The record to write when healing `key`, given whatever the store holds for
+ * it RIGHT NOW, or null to write nothing.
+ *
+ * The backfill works off a snapshot, and a snapshot goes stale: a legacy
+ * gallery keeps it running for seconds, another tab can be deleting the
+ * whole time, and `backfillStarted` is per-page so it doesn't serialise
+ * anything across tabs. Blind-writing the snapshot's record would therefore
+ * RESURRECT a photo the user just deleted. Two rules keep that impossible:
+ * a key that has since vanished is left vanished, and the blob written is
+ * the one currently in the store, never the snapshot's copy.
+ */
+export function healedRecord(existing: unknown, thumb: Blob): StoredUpload | null {
+  if (existing === undefined || existing === null) return null // deleted meanwhile
+  const current = toUpload('', existing)
+  if (current.thumb) return null // already healed (another tab), or replaced
+  if (!(current.blob instanceof Blob)) return null // unrecognisable — leave it alone
+  return { blob: current.blob, thumb }
+}
+
+/**
+ * Generates the missing placeholder for every thumbless upload and hands it
+ * to `heal`, which is responsible for the store-side existence re-check (see
+ * healedRecord). Only the thumbnail crosses that boundary — the snapshot's
+ * blob deliberately does not. Best-effort by construction: a photo whose
+ * thumbnail can't be produced or stored is left exactly as it was and the
+ * rest still get healed, because this runs unattended, off the render path,
+ * and must never be able to take the gallery down with it.
  */
 export async function backfillThumbs(
   uploads: Upload[],
-  put: (key: string, record: StoredUpload) => Promise<void>,
+  heal: (key: string, thumb: Blob) => Promise<void>,
 ): Promise<void> {
   for (const upload of uploads) {
     if (upload.thumb) continue
     try {
       const thumb = await makeThumb(upload.blob)
       if (!thumb) continue
-      await put(upload.key, { blob: upload.blob, thumb })
+      await heal(upload.key, thumb)
     } catch {
       // keep going — see the doc comment
     }
   }
+}
+
+/**
+ * Re-reads `key` and writes the healed record in ONE readwrite transaction.
+ * The `put` is issued from inside the `get`'s success handler, which keeps
+ * both in the same transaction — nothing can delete the key in the gap,
+ * because there is no gap.
+ */
+async function healInStore(key: string, thumb: Blob): Promise<void> {
+  const db = await openDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(STORE, 'readwrite')
+    const store = tx.objectStore(STORE)
+    const req = store.get(key)
+    req.onsuccess = () => {
+      const record = healedRecord(req.result, thumb)
+      if (record) store.put(record, key)
+    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
 }
 
 let backfillStarted = false
@@ -93,7 +136,21 @@ function startBackfillOnce(uploads: Upload[]): void {
   // are picked up by the next read (a new tab). Blocking the first paint of
   // the gallery on re-encoding every old photo would be a far worse trade
   // than one more tab-open before the placeholders appear.
-  void backfillThumbs(uploads, (key, record) => withStore('readwrite', (s) => s.put(record, key)).then(() => undefined))
+  void backfillThumbs(uploads, healInStore)
+}
+
+/**
+ * Records for a whole multi-file pick, decoded ONE AT A TIME. Doing these
+ * concurrently is the obvious shape and the wrong one: a pick of eight phone
+ * photos would hold eight full-resolution bitmaps decoded simultaneously
+ * (~750MB at 24MP), which is a renderer OOM during upload and defeats the
+ * prompt bitmap release makeThumb goes out of its way to do. The photos are
+ * already on disk; taking a beat longer to add them is free.
+ */
+export async function toStoredUploads(files: File[]): Promise<StoredUpload[]> {
+  const records: StoredUpload[] = []
+  for (const file of files) records.push(await toStoredUpload(file))
+  return records
 }
 
 /** Store each file under its own `photo:<uuid>` key, in a single transaction. */
@@ -103,7 +160,7 @@ export async function addUploads(files: File[]): Promise<void> {
   // IndexedDB transaction commits as soon as control returns to the event
   // loop with no pending requests, so awaiting anything inside one is a
   // guaranteed TransactionInactiveError.
-  const records = await Promise.all(files.map(toStoredUpload))
+  const records = await toStoredUploads(files)
   const db = await openDb()
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite')
