@@ -23,6 +23,7 @@ import BookmarksBar from './widgets/bookmarks/BookmarksBar'
 import WorldClocks from './widgets/clocks/WorldClocks'
 import CountdownLine from './widgets/countdown/CountdownLine'
 import RssWidget from './widgets/rss/RssWidget'
+import GithubWidget from './widgets/github/GithubWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -328,6 +329,24 @@ export default function App() {
                 comments), so it anchors with a plain top offset. */}
             <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[22vh]">
               <RssWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="github">
+            {/* DEFAULT placement — the right-middle column, mirroring the RSS
+                widget on the left. `top-[24vh]` starts it well below the
+                collapsed weather chip (which defaults to the top band at
+                `right-4`) and its `right-8` anchor keeps it clear of the
+                centred clock/greeting column and the bottom-right Tasks pill /
+                settings gear. A stored arrange-mode `pos` still wins
+                (PositionedBlock drops this className on that branch).
+                GithubWidget self-gates on the connector's enabled+token state,
+                so this wrapper renders an empty box until the connector is
+                connected — same as every other toggle-gated peripheral here.
+                Transform-free per the house rule (App's quote/bookmarks
+                comments): a plain top/right offset, no translate. */}
+            <PositionedBlock id="github" pos={layout?.github} className="fixed right-8 top-[24vh]">
+              <GithubWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

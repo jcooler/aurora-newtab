@@ -48,6 +48,16 @@ vi.mock('../services/permissions', async (importActual) => {
 })
 import { ensureOrigin, removeOrigin } from '../services/permissions'
 
+// The GitHub connector card's connect flow calls whoamiGithub (a real network
+// GET /user) — mock ONLY that. githubDescriptor and fetchGithub stay REAL via
+// importActual, so the registry still registers github and releasableOrigins
+// (used by onDisconnect below) runs its real path.
+vi.mock('../services/connectors/github', async (importActual) => {
+  const actual = await importActual<typeof import('../services/connectors/github')>()
+  return { ...actual, whoamiGithub: vi.fn() }
+})
+import { whoamiGithub } from '../services/connectors/github'
+
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
 // suite (e.g. Background.test.tsx's querySelector/toBeNull checks) rather
@@ -1217,6 +1227,122 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (GitHub card — first token connector)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(whoamiGithub).mockReset()
+  })
+
+  async function renderWithGithub(github?: GithubConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (github) await storage.set('connectors', { github })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readGithub(storage: AuroraStorage): Promise<GithubConfig | undefined> {
+    return (await storage.get('connectors')).github as GithubConfig | undefined
+  }
+
+  it('the card shell renders the GitHub descriptor (label, blurb, enable toggle)', async () => {
+    await renderWithGithub()
+    expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy()
+    expect(screen.getByText('PRs waiting on you, your issues, notifications')).toBeTruthy()
+    expect(screen.getByLabelText('Enable GitHub')).toBeTruthy()
+    // Not connected -> no status chip yet, and the token form only appears once
+    // the connector is enabled (the shell gates the body on `enabled`).
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByLabelText('Fine-grained personal access token')).toBeNull()
+  })
+
+  it('connect happy path: ensureOrigin (api.github.com) -> whoami -> persists { enabled, token, username }', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: true, identity: 'octocat' })
+    // Enabled but no token yet -> the token form renders.
+    const storage = await renderWithGithub({ enabled: true, token: '', username: '' })
+
+    const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'github_pat_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.github.com/*')
+    expect(whoamiGithub).toHaveBeenCalledWith('github_pat_123')
+    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_123', username: 'octocat' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a rejected token surfaces whoami\'s status message as an inline alert and stores nothing', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: false, message: 'GitHub rejected that token (status 401).' })
+    const storage = await renderWithGithub({ enabled: true, token: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), {
+        target: { value: 'github_pat_bad' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('401')
+    // Nothing persisted: the token field stays empty in storage.
+    expect((await readGithub(storage))?.token).toBe('')
+  })
+
+  it('a denied origin grant blocks the connect: whoami is never called and nothing is stored', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithGithub({ enabled: true, token: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), {
+        target: { value: 'github_pat_123' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(whoamiGithub).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readGithub(storage))?.token).toBe('')
+  })
+
+  it('connected state renders "Connected as {login}" + Disconnect; disconnecting revokes api.github.com and clears the config', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+
+    // The shell's own status chip AND the form's connected row both name the
+    // login (Task 46 chip + Task 47 form row).
+    expect(screen.getAllByText('Connected as octocat').length).toBeGreaterThan(0)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins (github's sole
+    // origin, claimed by no other enabled connector).
+    expect(removeOrigin).toHaveBeenCalledWith('https://api.github.com/*')
+    // The config entry is cleared entirely.
+    expect(await readGithub(storage)).toBeUndefined()
+  })
+
+  it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
+    await renderWithGithub({ enabled: true, token: '', username: 'octocat' })
+    // The card shell flags it, and the body offers the form to re-enter a token.
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
 })
 

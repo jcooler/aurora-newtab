@@ -1,9 +1,11 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, RssConfig } from '../../services/connectors/types'
-import { CONNECTORS } from '../../services/connectors/registry'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, RssConfig } from '../../services/connectors/types'
+import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
+import { whoamiGithub } from '../../services/connectors/github'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
+import { TokenConnectForm } from './TokenConnectForm'
 import { control } from './shared'
 
 const MAX_FEEDS = 5
@@ -82,6 +84,7 @@ export default function Connectors({
 // (a lookup for an unregistered id is simply undefined -> no body rendered).
 const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
   rss: RssBody,
+  github: GithubBody,
 }
 
 function ConnectorCard({
@@ -307,5 +310,72 @@ function RssBody({ config, storage }: BodyProps) {
         </select>
       </div>
     </div>
+  )
+}
+
+// The GitHub connector's card body — the first token connector, and the
+// template Tasks 49-51 (gitlab/vercel/jira) copy. All the connect/disconnect
+// mechanics (the gesture-safe ensureOrigin-first chain, the single inline
+// alert, the per-instance field ids) live in the shared TokenConnectForm
+// (Task 47); this body only supplies the pure, connector-specific callbacks.
+function GithubBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as RssBody above: BodyProps.config is the generic
+  // union (the body map is shared across ids), and this component is registered
+  // only under 'github', so it is always GithubConfig at runtime — one
+  // documented cast. Defensive reads (a backup can restore { enabled: true }
+  // with neither field) keep the connected/reconnect decision honest.
+  const github = config as GithubConfig | undefined
+  const username = typeof github?.username === 'string' ? github.username : ''
+  const token = typeof github?.token === 'string' ? github.token : ''
+  // Show the Disconnect row only when BOTH identity and secret are present.
+  // Identity present + secret empty (a backup restores username but never the
+  // stripped token) -> connectedAs null, so the FORM renders and the user can
+  // re-enter the token; the card shell's own "Reconnect needed" chip
+  // (authState) already flags that state above.
+  const connectedAs = username && token ? username : null
+
+  return (
+    <TokenConnectForm
+      fields={[
+        {
+          id: 'token',
+          label: 'Fine-grained personal access token',
+          type: 'password',
+          placeholder: 'github_pat_…',
+        },
+      ]}
+      // Synchronous by contract (TokenConnectForm awaits ensureOrigin FIRST, in
+      // the gesture): a single constant origin, never derived from the token.
+      originsFor={() => ['https://api.github.com/*']}
+      // Runs AFTER the grant. GET /user resolves the login the config is
+      // persisted under; a bad token funnels its status-bearing message to the
+      // form's inline alert with nothing stored.
+      validate={(values) => whoamiGithub(values.token)}
+      onConnected={async (values, identity) => {
+        // Replace the whole github config (dropping any feeds/shownCount cruft
+        // the generic enable-toggle's RSS default may have seeded) with exactly
+        // the token connector's three fields.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          github: { enabled: true, token: values.token, username: identity },
+        }))
+      }}
+      connectedAs={connectedAs}
+      onDisconnect={async () => {
+        // Compute what's safe to revoke BEFORE clearing the config (releasable-
+        // Origins needs github's own config present to derive its origins), then
+        // drop the entry and revoke each released origin. releasableOrigins runs
+        // through the REAL registry, so an origin another enabled connector also
+        // claimed would be withheld — api.github.com is github's alone today.
+        const current = await storage.get('connectors')
+        const releasable = releasableOrigins('github', current)
+        await storage.update('connectors', (prev) => {
+          const next = { ...prev }
+          delete next.github
+          return next
+        })
+        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+      }}
+    />
   )
 }

@@ -10,13 +10,20 @@
 // it in here doesn't add a load-time chrome.* dependency.
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId } from './types'
 import { rssDescriptor } from './rss'
+import { githubDescriptor } from './github'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
 // ConnectorDescriptor<RssConfig> is no longer assignable to the base
-// ConnectorDescriptor, so registering rss needs the one honest cast below —
-// rssDescriptor itself stays typed ConnectorDescriptor<RssConfig>.
-export const CONNECTORS: ConnectorDescriptor[] = [rssDescriptor as ConnectorDescriptor]
+// ConnectorDescriptor, so each descriptor needs the one honest per-entry cast
+// below — each descriptor itself stays typed to its own specific config
+// (ConnectorDescriptor<RssConfig>, ConnectorDescriptor<GithubConfig>, …). Task
+// 48 adds github as connector #2, the first to actually exercise the "two
+// entries" path the registry-invariant tests assert.
+export const CONNECTORS: ConnectorDescriptor[] = [
+  rssDescriptor as ConnectorDescriptor,
+  githubDescriptor as ConnectorDescriptor,
+]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan
  *  is fine: the catalog is tiny and fixed at build time. */

@@ -32,6 +32,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   notes: 'Notes',
   bookmarks: 'Bookmarks',
   rss: 'Headlines',
+  github: 'GitHub',
 }
 
 interface DragState {

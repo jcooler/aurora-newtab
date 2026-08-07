@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, RssConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -71,6 +71,21 @@ describe('connector config / snapshot handling (Task 39)', () => {
     // The object handed in (what's actually sitting in storage) must not have
     // been mutated by stripping.
     expect(stored.apiKey).toBe('super-secret')
+  })
+
+  it('a real serializeBackup strips the github token but keeps the username; storage is untouched (Task 48)', () => {
+    // The REAL registry path (not a fake descriptor): github is registered with
+    // secretFields: ['token'], so a full serialize -> parse round-trip must emit
+    // a github config shorn of its token but keeping enabled/username, and must
+    // never mutate what's sitting in storage.
+    const stored: GithubConfig = { enabled: true, token: 'github_pat_supersecret', username: 'jon' }
+    const input = { ...defaults(), connectors: { github: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.github).toEqual({ enabled: true, username: 'jon' })
+    expect('token' in envelope.data.connectors.github).toBe(false)
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.token).toBe('github_pat_supersecret')
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {

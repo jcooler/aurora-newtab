@@ -1539,6 +1539,187 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// GitHub connector (Task 48) — the FIRST full token connector, and the
+// template Tasks 49-51 copy. NO live network: seed an enabled + connected
+// config (a token so the widget's gate opens, a username so the card reads
+// "Connected as") and a fresh snapshot (fetchedAt stamped in the page so the
+// ttl is fresh at read time and useConnectorSnapshot renders straight from
+// cache). Runs right after the RSS block (rss left disabled), captures, then
+// DISABLES + clears so every block below (viewport matrix, default-state,
+// worst-case bookmarks) is undisturbed — same snapshot/restore discipline.
+{
+  const FIXTURE = {
+    prs: [
+      { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+      { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+    ],
+    issues: [
+      { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+      { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+    ],
+    notifications: 3,
+    etags: {},
+  }
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+      },
+      // fetchedAt stamped HERE, in the page, so the snapshot is fresh relative
+      // to whenever this run happens — the SWR hook renders from cache and never
+      // touches the network.
+      connectorSnapshots: { github: { fetchedAt: Date.now(), data } },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the widget renders the seeded rows (2 PRs + 2 issues = 4 links)
+  // from cache, first title + the unread chip. Link attributes captured in the
+  // same read for probe 2.
+  await page.waitForSelector(githubSel, { timeout: 5000 }).catch(() => {})
+  const rows = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const links = [...sec.querySelectorAll('a')]
+    return {
+      count: links.length,
+      firstTitle: links[0]?.getAttribute('title') ?? null,
+      firstTarget: links[0]?.getAttribute('target') ?? null,
+      firstRel: links[0]?.getAttribute('rel') ?? null,
+      firstHref: links[0]?.getAttribute('href') ?? null,
+      unread: sec.textContent.includes('3 unread'),
+    }
+  }, githubSel)
+  const rowsOk =
+    rows !== null &&
+    rows.count === 4 &&
+    rows.firstTitle === 'Fix the flaky auth test on CI' &&
+    rows.unread === true
+  console.log(
+    rowsOk
+      ? `PASS: the GitHub widget renders the seeded PRs + issues and unread count from cache (${rows.count} rows, first "${rows.firstTitle}", "3 unread" present)`
+      : `FAIL: the GitHub widget renders the seeded PRs + issues and unread count from cache (${JSON.stringify(rows)})`,
+  )
+
+  // Probe 2: interaction correctness — each row is a REAL external link.
+  // Asserted in-DOM (attributes), never by navigating away: a new tab, and rel
+  // that severs window.opener and strips the referrer, href intact.
+  const rel = (rows?.firstRel ?? '').split(/\s+/)
+  const linkOk =
+    rows !== null &&
+    rows.firstTarget === '_blank' &&
+    rel.includes('noopener') &&
+    rel.includes('noreferrer') &&
+    rows.firstHref === 'https://github.com/acme/app/pull/128'
+  console.log(
+    linkOk
+      ? 'PASS: each GitHub row is an external link (target=_blank, rel=noopener noreferrer, href intact)'
+      : `FAIL: each GitHub row is an external link (target=${rows?.firstTarget}, rel=${rows?.firstRel}, href=${rows?.firstHref})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-github.png` })
+  console.log('captured connectors-github.png')
+
+  // Probe 3: combined-defaults collision — the GitHub widget at its default
+  // placement (right-middle: fixed right-8 top-[24vh]) must clear the collapsed
+  // weather chip (top-right band) and the timer pill (top-left), plus the
+  // bottom-right Tasks pill and settings gear it is nearest to. Same
+  // rect-intersection idiom as the RSS collision probe above.
+  const collision = await page.evaluate((s) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const gh = rect(s)
+    const weather = rect('[data-block-id="weather"]')
+    const timer = rect('[data-block-id="timer"]')
+    const tasks = rect('[data-block-id="tasks"]')
+    const gear = rect('button[aria-label="Open settings"]')
+    return {
+      found: !!gh,
+      weatherFound: !!weather,
+      timerFound: !!timer,
+      ghWeather: hits(gh, weather),
+      ghTimer: hits(gh, timer),
+      ghTasks: hits(gh, tasks),
+      ghGear: hits(gh, gear),
+      gh: gh ? { top: +gh.top.toFixed(1), bottom: +gh.bottom.toFixed(1), left: +gh.left.toFixed(1), right: +gh.right.toFixed(1) } : null,
+    }
+  }, githubSel)
+  const collisionOk =
+    collision.found &&
+    collision.weatherFound &&
+    collision.timerFound &&
+    !collision.ghWeather &&
+    !collision.ghTimer &&
+    !collision.ghTasks &&
+    !collision.ghGear
+  console.log(
+    collisionOk
+      ? `PASS: the GitHub widget clears the weather chip, timer pill, Tasks pill and gear at defaults (github ${JSON.stringify(collision.gh)})`
+      : `FAIL: the GitHub widget clears the weather chip, timer pill, Tasks pill and gear at defaults (${JSON.stringify(collision)})`,
+  )
+
+  // Refresh drawer-connectors.png now that a token connector is CONNECTED — the
+  // card this task adds. (The RSS block's own capture above photographed the
+  // feed-list state; this refresh shows the github card's connected row.)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-github-enabled')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      connectedAs: sec.textContent.includes('Connected as octocat'),
+      hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
+    }
+  })
+  const cardOk = card !== null && card.enabled === true && card.connectedAs && card.hasDisconnect
+  console.log(
+    cardOk
+      ? `PASS: the GitHub card reads connected (enabled=${card.enabled}, "Connected as octocat" + Disconnect present)`
+      : `FAIL: the GitHub card reads connected (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable the connector and clear its cache, then reload so the
+  // widget is gone for every block below — same restore discipline as the RSS
+  // block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, github: { ...connectors.github, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const githubGone = (await page.locator(githubSel).count()) === 0
+  console.log(
+    githubGone
+      ? 'GitHub connector disabled; page restored to idle'
+      : 'WARNING: GitHub widget still present after disabling the connector',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided
