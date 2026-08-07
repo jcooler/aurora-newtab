@@ -174,14 +174,22 @@ export default function Background({
             The source is an inline data URI for bundled photos and an
             object URL for uploads: no network, no origin, and — the actual
             point — nothing that needs loading at the instant the gap opens.
-            `scale-110` overscales past the blur radius so the blur has real
-            pixels to sample at the edges instead of transparency. */}
+            The overscale exists so the blur has real pixels to sample at the
+            edges instead of transparency, and it has to beat the blur RADIUS
+            in px: the margin it buys is a percentage of the layer (which is
+            the viewport), the radius is a constant. `scale-110` put only 5%
+            of each axis outside the frame — 25px at a 500px-wide window
+            against `blur-2xl`'s 40px — so on exactly the narrow windows this
+            underlay is most needed, its own edges faded out. `scale-125`
+            puts 12.5% outside, which clears 40px on any axis down to 320px.
+            Background.test.tsx checks the sum; scripts/preview.mjs measures
+            the real rect against the real computed filter at 500x900. */}
         {lqip && (
           <div
             aria-hidden
             data-lqip=""
             data-photo={photoKey ?? undefined}
-            className="absolute inset-0 -z-10 scale-110 bg-cover bg-center blur-2xl"
+            className="absolute inset-0 -z-10 scale-125 bg-cover bg-center blur-2xl"
             style={{ backgroundImage: `url("${lqip}")` }}
           />
         )}

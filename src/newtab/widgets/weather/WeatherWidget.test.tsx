@@ -64,6 +64,43 @@ describe('WeatherWidget collapsed chip', () => {
     expect(screen.queryByRole('img', { name: /next 12 hours/i })).toBeNull()
   })
 
+  // Narrow-window pass. At ~500px Jon's chip rendered "Clear ·" / "New" /
+  // "York" stacked over three lines with the chevron stranded beside the
+  // middle one. Two independent causes, fixed together below: the summary
+  // line was allowed to WRAP, and the chip's width cap was a raw viewport
+  // FRACTION (`tight:max-w-[30vw]` — 150px at 500px) while the chip's own
+  // furniture (32px icon + 2rem temperature + chevron + padding ≈ 160px)
+  // is a fixed number that doesn't shrink with the viewport, so the text
+  // was handed a negative budget.
+  it('keeps condition and location on one line, with the full text in a title', async () => {
+    await renderWidget()
+    const summary = screen.getByTitle('Partly cloudy · New York')
+    expect(summary.textContent).toBe('Partly cloudy · New York')
+    // `truncate` is white-space:nowrap + ellipsis + overflow:hidden: the
+    // line can shorten but can never become two lines, so the chevron
+    // beside it can never be orphaned.
+    expect(summary.classList.contains('truncate')).toBe(true)
+  })
+
+  it('caps the collapsed chip against the room left beside the timer pill, not a viewport fraction', async () => {
+    await renderWidget()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    // 8.5rem reserves both 1rem gutters plus the timer pill that bookends
+    // the same row (App.tsx: timer `left-4`, weather `right-4`).
+    expect(section.className).toContain('max-w-[min(24rem,calc(100vw_-_8.5rem))]')
+    expect(section.className).not.toContain('tight:max-w-[30vw]')
+  })
+
+  it('opens as a compact sheet rather than a sliver below the compact threshold', async () => {
+    await renderWidget()
+    await expandPanel()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    // 30vw of a 500px window is 150px — narrower than the panel's own
+    // header furniture. Below `compact` the panel takes a real width
+    // instead, still stopping short of the timer pill.
+    expect(section.className).toContain('compact:w-[min(20rem,calc(100vw_-_8.5rem))]')
+  })
+
   it('keeps the rain callout visible even while collapsed', async () => {
     await renderWidget({
       snapshot: makeSnapshot({

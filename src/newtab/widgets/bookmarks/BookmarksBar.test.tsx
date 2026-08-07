@@ -185,11 +185,126 @@ describe('BookmarksBar', () => {
       expect(slotOf(el).classList.contains('shrink')).toBe(true)
       expect(slotOf(el).classList.contains('shrink-0')).toBe(false)
       // …and every label carries the same font-relative floor, so shrinking
-      // can never take one down to a bare ellipsis.
-      const label = el.querySelector('span')!
+      // can never take one down to a bare ellipsis. Selected by
+      // `data-chip-label`, not by tag: a folder chip also carries a
+      // compact-mode monogram span (see the compact-mode tests below), and
+      // scripts/preview.mjs measures label widths through the same
+      // attribute for the same reason.
+      const label = el.querySelector('[data-chip-label]')!
       expect(label.classList.contains('min-w-[4ch]')).toBe(true)
       expect(label.classList.contains('truncate')).toBe(true)
     }
+  })
+
+  // ── Compact mode (narrow-window pass) ──────────────────────────────────
+  // Jon's ~500px-wide window rendered the bar as "Lei…", "Refe…", "Ga…",
+  // "A…" — technically one row, and technically above the `min-w-[4ch]`
+  // floor, but 4ch of Inter at 14px is ~31px, which buys about TWO
+  // characters plus an ellipsis. A crumb is not a label. Below the
+  // `compact` threshold (index.css: viewport width <= 720px) the bar drops
+  // labels entirely and renders one mark per chip instead — a favicon for a
+  // bookmark, the folder's own initial for a folder — in a circle the size
+  // of the chip row itself. jsdom has no layout engine and never evaluates
+  // a media query, so these are className/structure assertions; the real
+  // measurement (circle geometry, hidden labels, live popovers) is
+  // scripts/preview.mjs's 500x900 leg.
+  it('gives every chip a title attribute carrying its full name, at every width', async () => {
+    const nineLooseModel: BarModel = {
+      folders: [{ id: 'f1', title: 'Design system', items: [], folders: [] }],
+      loose: Array.from({ length: 9 }, (_, i) => ({
+        id: `i${i}`,
+        title: `Bookmark ${i}`,
+        url: `https://example.com/${i}`,
+      })),
+    }
+    await renderBar(nineLooseModel)
+    // A truncated label is unreadable to a SIGHTED user too — the title is
+    // the only way back to the full name short of opening the thing.
+    expect((await screen.findByRole('button', { name: 'Design system' })).getAttribute('title')).toBe(
+      'Design system',
+    )
+    expect(screen.getByRole('link', { name: 'Bookmark 0' }).getAttribute('title')).toBe('Bookmark 0')
+    expect(screen.getByRole('button', { name: 'More bookmarks' }).getAttribute('title')).toBe(
+      'More bookmarks',
+    )
+  })
+
+  it('renders chips icon-only below the compact threshold: label out of sight but not out of the a11y tree', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    const looseChip = screen.getByRole('link', { name: 'Docs' })
+
+    for (const chip of [folderChip, looseChip]) {
+      const label = chip.querySelector('[data-chip-label]')!
+      // `sr-only`, not `hidden`: the title text IS the chip's accessible
+      // name, so removing it from the a11y tree would leave a nameless
+      // control. It is also position:absolute, so it stops being a flex
+      // item and cannot widen the circle.
+      expect(label.classList.contains('compact:sr-only')).toBe(true)
+      // …and the 4ch floor has to come off with it, or an absolutely
+      // positioned 31px box would still push the nav's scroll width out.
+      expect(label.classList.contains('compact:min-w-0')).toBe(true)
+      // A circle: the chip's width becomes the same token as its height, so
+      // the compact rail and the top band stay one number (index.css).
+      expect(chip.classList.contains('compact:w-[var(--bookmarks-chip-h)]')).toBe(true)
+      expect(chip.classList.contains('compact:justify-center')).toBe(true)
+      expect(chip.classList.contains('rounded-full')).toBe(true)
+    }
+  })
+
+  it('swaps a folder chip\'s generic glyph for its own initial in compact mode', async () => {
+    const model: BarModel = {
+      folders: [
+        { id: 'f1', title: 'reading list', items: [], folders: [] },
+        { id: 'f2', title: '天気予報', items: [], folders: [] },
+      ],
+      loose: [],
+    }
+    await renderBar(model)
+    const reading = await screen.findByRole('button', { name: 'reading list' })
+    const weather = screen.getByRole('button', { name: '天気予報' })
+
+    // Eight identical folder glyphs in a row say nothing. The initial says
+    // which folder — the one thing the label was there to tell you.
+    const mark = reading.querySelector('[data-chip-mark]')!
+    expect(mark.textContent).toBe('R')
+    expect(mark.getAttribute('aria-hidden')).toBe('true')
+    expect(mark.classList.contains('hidden')).toBe(true)
+    expect(mark.classList.contains('compact:block')).toBe(true)
+    // Code points, not UTF-16 units, and uppercasing a CJK glyph is the
+    // identity — a folder named with an emoji or a Han character keeps it.
+    expect(weather.querySelector('[data-chip-mark]')!.textContent).toBe('天')
+    // The generic folder glyph steps aside for it rather than doubling up.
+    expect(reading.querySelector('svg')!.classList.contains('compact:hidden')).toBe(true)
+  })
+
+  it('keeps a loose bookmark\'s favicon as its compact mark, sized up to carry the chip alone', async () => {
+    await renderBar(nestedModel)
+    const looseChip = await screen.findByRole('link', { name: 'Docs' })
+    const favicon = looseChip.querySelector('[data-chip-mark]')!
+    expect(favicon.tagName).toBe('IMG')
+    expect(favicon.classList.contains('size-3')).toBe(true)
+    expect(favicon.classList.contains('compact:size-4')).toBe(true)
+  })
+
+  it('advertises chips as clickable (Tailwind preflight makes a bare <button> cursor:default)', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    expect(folderChip.classList.contains('cursor-pointer')).toBe(true)
+    expect(screen.getByRole('link', { name: 'Docs' }).classList.contains('cursor-pointer')).toBe(true)
+  })
+
+  it('an icon-only chip still opens its popover', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    // Nothing about the compact classes touches the handler, but the mark
+    // is what the click actually lands on in that mode, so the structure
+    // that carries it has to stay inside the button.
+    expect(folderChip.querySelector('[data-chip-mark]')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(folderChip.querySelector('[data-chip-mark]')!)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Work bookmarks' })).toBeTruthy()
   })
 
   // Review finding: `--bookmarks-chip-h` used to be a hand-transcribed copy

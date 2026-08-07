@@ -34,9 +34,35 @@ describe('index.css — responsive custom variants', () => {
     expect(indexCss).toMatch(/@custom-variant xshort \(@media \(max-height: 450px\)\);/)
   })
 
-  it('declares tight (width <=1300px, bookmarks/weather only) and narrow (width <=1024px)', () => {
-    expect(indexCss).toMatch(/@custom-variant tight \(@media \(max-width: 1300px\)\);/)
+  // `tight` and `compact` both set `width` on the weather panel, so they are
+  // a non-overlapping pair for the same reason `short`/`xshort` are: disjoint
+  // ranges settle the conflict outright instead of leaning on generated-CSS
+  // source order. `narrow` overlaps both and is allowed to — it sets neither
+  // of their properties on that element.
+  it('declares tight (width 721-1300px) and compact (width <=720px) as a non-overlapping pair', () => {
+    expect(indexCss).toMatch(
+      /@custom-variant tight \(@media \(max-width: 1300px\) and \(min-width: 721px\)\);/,
+    )
+    expect(indexCss).toMatch(/@custom-variant compact \(@media \(max-width: 720px\)\);/)
+  })
+
+  it('declares narrow (width <=1024px)', () => {
     expect(indexCss).toMatch(/@custom-variant narrow \(@media \(max-width: 1024px\)\);/)
+  })
+
+  // The bar's horizontal metrics are custom properties stepped by width
+  // media queries, NOT variant-prefixed utilities — see index.css. The
+  // step order is load-bearing (narrowest last wins), and the compact step
+  // is what collapses the chip to a circle, so both the tokens and their
+  // narrowest-last ordering are asserted here rather than trusted.
+  it('steps the bookmarks bar\'s horizontal tokens narrowest-last, ending at zero chip padding', () => {
+    expect(indexCss).toMatch(/--bookmarks-chip-px: 0\.625rem;/)
+    expect(indexCss).toMatch(/--bookmarks-gap: 0\.375rem;/)
+    const narrowStep = indexCss.indexOf('@media (max-width: 1024px)')
+    const compactStep = indexCss.indexOf('@media (max-width: 720px)')
+    expect(narrowStep).toBeGreaterThan(-1)
+    expect(compactStep).toBeGreaterThan(narrowStep)
+    expect(indexCss.slice(compactStep)).toMatch(/--bookmarks-chip-px: 0;/)
   })
 })
 

@@ -209,6 +209,33 @@ describe('Background', () => {
       expect(layer.className).toMatch(/scale-1\d\d/)
     })
 
+    // Deferred minor from the LQIP review, closed by the narrow-window pass.
+    // The overscale has to be big enough to cover the blur RADIUS, and the
+    // margin it buys is a PERCENTAGE of the layer (which is the viewport)
+    // while the radius is a fixed px: `scale-110` puts (1.10 - 1) / 2 = 5%
+    // of each axis outside the frame, i.e. 25px at a 500px-wide window
+    // against `blur-2xl`'s 40px radius — so the blur sampled transparency
+    // and the underlay faded off at the edges on exactly the narrow windows
+    // this pass exists for. `scale-125` puts 12.5% outside, clearing 40px
+    // on any axis down to 320px. Asserted as the arithmetic rather than as
+    // a magic class so a future blur change has to re-do the sum;
+    // scripts/preview.mjs measures the real rect against the real computed
+    // filter at 500x900.
+    it('overscales far enough that the blur never samples past its own edge', () => {
+      const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+      const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+
+      const className = lqipLayer(container)!.className
+      const blurPx = { 'blur-lg': 16, 'blur-xl': 24, 'blur-2xl': 40, 'blur-3xl': 64 }
+      const scalePct = { 'scale-110': 10, 'scale-125': 25, 'scale-150': 50 }
+      const blur = Object.entries(blurPx).find(([c]) => className.includes(c))
+      const scale = Object.entries(scalePct).find(([c]) => className.includes(c))
+      expect(blur).toBeTruthy()
+      expect(scale).toBeTruthy()
+      const NARROWEST_SUPPORTED_AXIS = 320
+      expect((scale![1] / 2 / 100) * NARROWEST_SUPPORTED_AXIS).toBeGreaterThanOrEqual(blur![1])
+    })
+
     it('renders no placeholder in gradient mode — the gradient is the no-photo fallback', () => {
       const prefs: PhotoPrefs = { mode: 'gradient', index: 0, lastRotated: '2026-07-26' }
       const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)

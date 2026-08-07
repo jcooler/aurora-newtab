@@ -132,6 +132,52 @@
   --top-band-gap: 1rem;
   --bookmarks-chip-h: calc(1.25rem + 2 * 0.25rem + 2 * 1px);
   --top-band: calc(2 * var(--top-band-gap) + var(--bookmarks-chip-h));
+
+  /* ── The bar's HORIZONTAL metrics ──────────────────────────────────────
+     The other axis of the same idea. `--bookmarks-chip-h` above is the
+     chip's height AND the band's; these two are the chip's padding and the
+     row's gap, stepped by viewport WIDTH the way the band's gap is stepped
+     by viewport height (the media query above). They live here, as tokens,
+     rather than as `narrow:`/`compact:` utility variants on the chip
+     itself, for a cascade reason: two variant-prefixed utilities setting
+     the same property on the same element resolve by generated-CSS SOURCE
+     ORDER, not by which media query is narrower, and this file's other
+     variants are careful never to depend on that (see the `short`/`xshort`
+     and `tight`/`compact` disjointness notes below). One custom property,
+     redeclared per breakpoint, has no such ambiguity — the last matching
+     :root rule wins, and they are written narrowest-last.
+
+     Three steps, and the third is a mode change rather than a tightening:
+       default   px-2.5 / gap-1.5 — the roomy row.
+       <=1024px  (`narrow`) chip padding and row gap tighten so the row has
+                 more to give before flex shrink starts eating labels.
+       <=720px   (`compact`) padding goes to ZERO, which is what turns the
+                 chip into a circle exactly `--bookmarks-chip-h` across:
+                 below this width BookmarksBar drops labels entirely and
+                 renders one mark per chip (see its own comment). The gap
+                 goes back UP because that row is no longer under width
+                 pressure — nine icon-only chips are ~318px inside a
+                 ~468px cap at 500px — and a rail of circles needs a little
+                 more air between them than a row of pills does. */
+  --bookmarks-chip-px: 0.625rem;
+  --bookmarks-gap: 0.375rem;
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --bookmarks-chip-px: 0.5rem;
+    --bookmarks-gap: 0.25rem;
+  }
+}
+
+/* Same threshold as the `compact` variant below; see the note on the
+   height-axis pair above for why a raw media query is the only way to
+   redeclare a custom property. Keep the two in sync. */
+@media (max-width: 720px) {
+  :root {
+    --bookmarks-chip-px: 0;
+    --bookmarks-gap: 0.375rem;
+  }
 }
 
 /* Same threshold as the `xshort` variant below, spelled out as a raw media
@@ -160,29 +206,54 @@
                the tie where two same-specificity rules would otherwise both
                match at once).
      narrow  — viewport width <=1024px: shrinks the center column's own wide
-               children (search input, focus input, quote line-length), and
-               tightens the bookmarks bar's HORIZONTAL chip metrics — chip
-               padding, both gaps, the label cap — so the row has more to
-               give before flex shrink starts truncating labels (see
-               BookmarksBar.tsx; its vertical metrics stay invariant on
-               purpose, since `--top-band` above is derived from them).
-     tight   — viewport width <=1300px: since the top-band pass moved the
+               children (search input, focus input, quote line-length). It
+               used to carry the bookmarks bar's horizontal chip metrics
+               too; those are custom properties now (`--bookmarks-chip-px`
+               / `--bookmarks-gap` above), because the bar gained a THIRD
+               width step and two variants setting one property on one
+               element would have resolved by source order. The bar's
+               vertical metrics stay invariant on purpose, since
+               `--top-band` above is derived from them.
+     tight   — viewport width 721-1300px: since the top-band pass moved the
                weather chip out from beside the bookmarks bar, the ONLY
-               remaining consumer is WeatherWidget's own `tight:max-w-[30vw]`
-               / `tight:w-[30vw]` — keeping the card a proportion of a small
-               viewport instead of a fixed px width. (It used to be a PAIR of
-               caps, one on each of those two widgets, sized against each
-               other to hold a constant-width horizontal gap; that gap is
-               vertical now.) It remains a strict superset of `narrow` rather
-               than a separate tier, and the two still never set the same
-               property on the same element, so the overlap stays harmless.
+               remaining consumer is WeatherWidget's `tight:w-[30vw]` —
+               keeping the expanded card a proportion of a small viewport
+               instead of a fixed px width. (It used to be a PAIR of caps,
+               one on each of those two widgets, sized against each other to
+               hold a constant-width horizontal gap; that gap is vertical
+               now.) The lower bound is new: `compact` below takes over from
+               here down, and the two are a NON-OVERLAPPING pair for the
+               same reason `short`/`xshort` are — both set `width` on the
+               weather panel, and disjoint ranges settle that without
+               depending on generated-CSS source order. `narrow` still
+               OVERLAPS both, harmlessly: it sets neither of their
+               properties on that element.
+     compact  — viewport width <=720px: the width below which the bookmarks
+               bar stops trying to render labels at all and switches to one
+               mark per chip, and the weather chip stops being sized as a
+               fraction of the viewport. DERIVED, not guessed. The bar's
+               existing quality rule — asserted at every matrix viewport in
+               scripts/preview.mjs — is that a truncated title keeps at
+               least half of itself. Measured against the harness's own
+               10-bookmark seed, the bar's label budget is (viewport - 32px
+               of gutters) minus ~337px of fixed chip furniture, shared out
+               by flex-shrink in proportion to each title's width; that
+               budget puts the worst-off title at exactly 50% of itself at
+               ~703px, and below it labels fall away fast (measured at
+               500px: 31px of label for a 92px title — "De…", which is the
+               crumb Jon reported). 720px is that crossover rounded up for
+               margin. The `min-w-[4ch]` floor in BookmarksBar.tsx is the
+               same number seen from the other side — 8 floored labels plus
+               the row's furniture is ~585px, i.e. still inside the cap at
+               this threshold, so the floor is never the thing that breaks.
    The clock's own type scale is deliberately NOT stepped by `short`/`xshort`
    — see the min(vw,vh) term on its clamp() in Clock.tsx, which degrades
    continuously with height instead of jumping at these steps. */
 @custom-variant short (@media (max-height: 600px) and (min-height: 451px));
 @custom-variant xshort (@media (max-height: 450px));
-@custom-variant tight (@media (max-width: 1300px));
+@custom-variant tight (@media (max-width: 1300px) and (min-width: 721px));
 @custom-variant narrow (@media (max-width: 1024px));
+@custom-variant compact (@media (max-width: 720px));
 
 /* Belt and braces for platforms that style option rows from the page: */
 select > option {

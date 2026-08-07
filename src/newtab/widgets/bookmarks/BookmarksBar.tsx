@@ -58,8 +58,32 @@ const OVERFLOW_ID = '__overflow__'
 // The tightening steps are HORIZONTAL ONLY (px, gaps, label caps). The chip's
 // height is fixed above and shared with the band, so every viewport gets the
 // same band.
+//
+// COMPACT MODE (`compact:` — viewport width <= 720px; see index.css for how
+// that number was derived). Below it the row stops rendering labels and
+// renders one MARK per chip instead. This is a mode, not a degradation, and
+// the classes below are what make it read as one:
+//   compact:w-[var(--bookmarks-chip-h)]  the chip becomes a CIRCLE — the
+//              same token as its own height, with `--bookmarks-chip-px`
+//              (index.css) at 0 to match — so the row turns into an even
+//              rail of round tokens the size of the band itself, which is
+//              the vocabulary the app's other small controls already speak
+//              (the gear, the photo-refresh button, the timer's own round
+//              buttons are `rounded-full` in every theme, Mono included).
+//              A truncated pill looks broken; a circle looks chosen.
+//   compact:justify-center  one mark, centred in it.
+// The label goes `sr-only` rather than `hidden` (see CHIP_LABEL) and the
+// full title is on every chip's `title` attribute at EVERY width, so the
+// name is one hover or one screen-reader stop away in both modes.
+//
+// cursor-pointer: Tailwind v4's preflight sets `button { cursor: default }`,
+// so a folder chip used to give no pointer feedback at all while the loose
+// bookmarks beside it (real anchors) did — the same inverted affordance
+// that was fixed in WeatherWidget, in the same row of the page. In compact
+// mode the chip is a 30px circle with no text to hint at it, which makes
+// the cursor the main affordance rather than a nicety.
 const CHIP =
-  'flex h-[var(--bookmarks-chip-h)] min-w-0 max-w-full shrink items-center gap-1.5 narrow:gap-1 rounded-full border border-panel-border bg-panel px-2.5 narrow:px-2 py-1 text-sm leading-5 font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+  'flex h-[var(--bookmarks-chip-h)] min-w-0 max-w-full shrink cursor-pointer items-center gap-[var(--bookmarks-gap)] rounded-full border border-panel-border bg-panel px-[var(--bookmarks-chip-px)] py-1 text-sm leading-5 font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent compact:w-[var(--bookmarks-chip-h)] compact:justify-center'
 // Folder + overflow chips only: the wrapper div is the nav's flex item (it
 // anchors the popover), so the flex permissions belong on it, and `relative`
 // stays for FolderPopover's `absolute` panel. The flex-shrink value is
@@ -84,7 +108,45 @@ const CHIP_SLOT = 'relative min-w-0'
 // chips at `narrow` metrics (16px padding + 2px border + 14px icon + 4px gap
 // = 36px, plus a 4ch ≈ 32px label) + the "»" chip (~30px) + 8 × 4px gaps
 // ≈ 610px, inside the 768px cap at 800px wide, whatever the titles say.
-const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate'
+//
+// …and the floor is also where the labelled mode ENDS. 4ch of Inter at 14px
+// is ~31px, which renders about two characters plus an ellipsis — enough to
+// keep the row's fit an invariant, nowhere near enough to identify a folder
+// ("Leisure" → "Le…"). Below `compact` (index.css) the label therefore stops
+// being drawn at all:
+//   compact:sr-only  visually gone, still in the accessibility tree — this
+//                    text IS each chip's accessible name, so `hidden` would
+//                    leave a row of nameless controls. `sr-only` is also
+//                    position:absolute, which takes the span out of flow so
+//                    it can't widen the circle it sits in.
+//   compact:min-w-0  the 4ch floor has to come off with it. `sr-only`'s own
+//                    `width: 1px` loses to a `min-width: 4ch` declared
+//                    without a variant, and a 31px absolutely-positioned box
+//                    still contributes to the nav's SCROLL width even while
+//                    it paints nothing — which would trip the harness's
+//                    barOverflowX assertion for a label nobody can see.
+// `data-chip-label` is a selector hook, not styling: a folder chip carries
+// a second span (its compact-mode monogram), so "the label" has to be
+// nameable by something other than its tag — both here, in the unit tests,
+// and in scripts/preview.mjs's per-label measurements.
+const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-only compact:min-w-0'
+
+/** The compact-mode mark for a FOLDER chip: its own initial.
+ *
+ *  A row of eight identical folder glyphs identifies nothing — it's the
+ *  same failure as eight identical crumbs, one layer down. The initial is
+ *  the one character of the title that was never in doubt, set in the
+ *  page's display face (Space Grotesk — the clock and greeting speak it)
+ *  so it reads as a MARK rather than as a label that lost the rest of
+ *  itself. Loose bookmarks need none of this: their favicon is already a
+ *  distinct mark, and the '»' chip is its own.
+ *
+ *  Split on code points, not UTF-16 units, so an emoji-prefixed folder
+ *  ("📚 Reading") keeps its emoji instead of half a surrogate pair.
+ *  toUpperCase() is the identity for CJK and emoji. */
+function folderInitial(title: string): string {
+  return Array.from(title.trim())[0]?.toUpperCase() ?? '•'
+}
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
@@ -258,7 +320,9 @@ function BookmarksBarInner({
       // the viewport carved out so a CENTERED bar could never reach the
       // peripherals sitting at its own elevation (52vw ⇒ a right edge at
       // 76vw; the `tight` step tightened it to 62vw to stay clear of the
-      // weather panel's own `tight:max-w-[30vw]`). Nothing shares this row
+      // weather chip's own cap of the day, then a matching `tight:max-w-`
+      // that no longer exists — the chip is bounded by the room beside the
+      // timer pill now, see WeatherWidget.tsx). Nothing shares this row
       // any more, so the only real constraint left is the viewport itself:
       // `calc(100vw - 2rem)` keeps the 1rem gutter the rest of the page's
       // peripherals use, and the 72rem ceiling stops a full bar from
@@ -277,7 +341,7 @@ function BookmarksBarInner({
       // the same chips. scripts/preview.mjs asserts the single row directly
       // (measured nav height vs. measured chip height, with a seeded profile
       // at the full 8-chips-plus-overflow maximum) at every matrix viewport.
-      className={`relative flex max-w-[min(72rem,calc(100vw_-_2rem))] flex-nowrap items-center justify-center gap-1.5 narrow:gap-1 ${
+      className={`relative flex max-w-[min(72rem,calc(100vw_-_2rem))] flex-nowrap items-center justify-center gap-[var(--bookmarks-gap)] ${
         openId ? 'z-50' : 'z-20'
       }`}
     >
@@ -288,11 +352,26 @@ function BookmarksBarInner({
               type="button"
               aria-haspopup="dialog"
               aria-expanded={openId === chip.folder.id}
+              // The full title, at every width. Sighted users had no way
+              // back to a truncated label before this (screen readers
+              // always did — the label span is the accessible name); in
+              // compact mode, where there is no label at all, this and the
+              // popover are the only ways to read the name.
+              title={chip.folder.title}
               onClick={() => toggle(chip.folder.id)}
               className={CHIP}
             >
-              <FolderIcon />
-              <span className={CHIP_LABEL}>{chip.folder.title}</span>
+              <FolderIcon className="compact:hidden" />
+              <span
+                aria-hidden
+                data-chip-mark
+                className="hidden compact:block font-display font-medium"
+              >
+                {folderInitial(chip.folder.title)}
+              </span>
+              <span data-chip-label className={CHIP_LABEL}>
+                {chip.folder.title}
+              </span>
             </button>
             {openId === chip.folder.id && (
               <FolderPopover
@@ -307,9 +386,24 @@ function BookmarksBarInner({
           // No CHIP_SLOT wrapper: a loose bookmark has no popover to anchor,
           // so the anchor IS the nav's flex item, and CHIP's own
           // `min-w-0`/`shrink` land on it directly.
-          <a key={chip.item.id} href={chip.item.url} className={CHIP}>
-            <img src={faviconUrl(chip.item.url)} alt="" width={12} height={12} className="shrink-0" />
-            <span className={CHIP_LABEL}>{chip.item.title}</span>
+          <a key={chip.item.id} href={chip.item.url} title={chip.item.title} className={CHIP}>
+            {/* The favicon is already this chip's compact-mode mark — it is
+                the one thing that identifies the site without words — so it
+                only needs to grow into the space the label vacates. The
+                width/height attributes stay for the intrinsic size before
+                CSS arrives; the size utilities are what the breakpoint can
+                actually address. */}
+            <img
+              src={faviconUrl(chip.item.url)}
+              alt=""
+              width={12}
+              height={12}
+              data-chip-mark
+              className="size-3 compact:size-4 shrink-0"
+            />
+            <span data-chip-label className={CHIP_LABEL}>
+              {chip.item.title}
+            </span>
           </a>
         ),
       )}
@@ -325,10 +419,16 @@ function BookmarksBarInner({
             aria-haspopup="dialog"
             aria-expanded={openId === OVERFLOW_ID}
             aria-label="More bookmarks"
+            title="More bookmarks"
             onClick={() => toggle(OVERFLOW_ID)}
             className={CHIP}
           >
-            »
+            {/* Wrapped rather than a bare text node so the compact-mode
+                probe can find one mark per chip through a single selector —
+                this chip's mark is the same glyph in both modes. */}
+            <span aria-hidden data-chip-mark>
+              »
+            </span>
           </button>
           {openId === OVERFLOW_ID && (
             <FolderPopover

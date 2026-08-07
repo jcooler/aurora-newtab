@@ -96,12 +96,46 @@ export default function WeatherWidget() {
   //   · `tight:30vw` keeps the card proportional rather than letting a fixed
   //     px width swallow a small viewport whole (30vw of 800 = 240px).
   //
+  // NARROW-WINDOW PASS (2026-08-07). A viewport FRACTION is the wrong tool
+  // for the COLLAPSED chip, and Jon's ~500px window is where that showed:
+  // 30vw is 150px there, while the chip's own furniture — 32px icon + a
+  // 2rem temperature + the chevron + 2rem of padding — is a fixed ~160px
+  // that doesn't shrink with the viewport. The condition/location line was
+  // therefore handed a NEGATIVE budget and did the only thing it could,
+  // which is wrap: "Clear ·" / "New" / "York" over three lines with the
+  // chevron stranded beside the middle one, exactly as reported.
+  //
+  // What actually bounds this chip is not a share of the viewport but the
+  // room left in its own row: the timer pill bookends it (App.tsx —
+  // `left-4` against this widget's `right-4`), so the honest cap is the
+  // viewport minus both 1rem gutters minus the pill. `8.5rem` is that: 2rem
+  // of gutters plus 6.5rem for a pill measured at 77px, with margin for a
+  // three-digit countdown. It needs no breakpoint at all — `min()` picks
+  // whichever of the reading measure and the available room binds, at every
+  // width — so `tight:` comes off the collapsed cap entirely and the chip
+  // gets a full one-line summary at 500px (~270px of content in a 364px
+  // cap) exactly as it does at 1600px.
+  //
+  // The EXPANDED panel keeps its breakpoints, because it has a second
+  // constraint the chip doesn't: it is tall enough to reach down into the
+  // centre column, so its width is what keeps it clear of the clock and
+  // greeting at desktop sizes (asserted in scripts/preview.mjs). Below
+  // `compact` that clearance is arithmetically unreachable — the greeting is
+  // centred and ~254px wide, so at 500px a right-anchored panel would have
+  // to be ~107px to miss it, narrower than this panel's own header — so the
+  // panel stops chasing it and becomes a proper compact SHEET instead: 20rem
+  // where there's room, still stopping short of the timer pill, deliberately
+  // overlaying the column the way any disclosure panel does at that size.
+  // The harness asserts that overlay is disciplined (opaque, on top, on
+  // screen, clear of the band and the pill) rather than pretending it isn't
+  // there.
+  //
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
   // class name assembled at runtime is never generated at build time.
   const widthClass = expanded
-    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[30vw]'
-    : 'w-max max-w-[min(24rem,calc(24vw_-_2rem))] tight:max-w-[30vw]'
+    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[30vw] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
+    : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))]'
 
   return (
     <section
@@ -177,7 +211,18 @@ export default function WeatherWidget() {
               <span className="font-display text-[2rem] font-light leading-none tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
               </span>
-              <span className="min-w-0 flex-1 text-sm leading-snug text-fg-muted">
+              {/* ONE LINE, always. `truncate` is white-space:nowrap plus an
+                  ellipsis, so this can shorten but can never become two
+                  lines — which is what used to strand the chevron beside a
+                  three-line block of text at ~500px. The width cap above is
+                  what makes the ellipsis a rare event rather than the normal
+                  state; this is the guarantee that holds even when a long
+                  condition meets a long city ("Thunderstorm · San Francisco"),
+                  and `title` is where the rest of it goes when it does. */}
+              <span
+                title={`${describeCode(snapshot.current.code).label} · ${snapshot.locationLabel}`}
+                className="min-w-0 flex-1 truncate text-sm leading-snug text-fg-muted"
+              >
                 {describeCode(snapshot.current.code).label} · {snapshot.locationLabel}
               </span>
               <Chevron expanded={expanded} />

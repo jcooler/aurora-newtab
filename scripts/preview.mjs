@@ -600,6 +600,15 @@ async function weatherOverflow() {
         bad.push(`${el.tagName} is a scroll container (overflow ${cs.overflowX}/${cs.overflowY})`)
         continue
       }
+      // Deliberate single-line truncation is not overflow, it's the
+      // ellipsis mechanism: `overflow: hidden` + `text-overflow: ellipsis`
+      // can never produce a scrollbar (that needs auto/scroll, checked
+      // above), and the shortened text is a designed state with the full
+      // string on a `title` — see the collapsed chip's condition/location
+      // line in WeatherWidget.tsx, which used to WRAP here instead and
+      // strand the chevron beside it. Clipping WITHOUT an ellipsis stays a
+      // failure: that is content disappearing with nothing to say so.
+      if (cs.textOverflow === 'ellipsis' && cs.overflowX === 'hidden') continue
       // SVG child elements (path/rect/…) have no clientWidth at all — the
       // subtraction is NaN there, and NaN > 1 is false, so they skip
       // themselves without a special case.
@@ -790,15 +799,19 @@ console.log('captured weather-expanded.png')
 // Narrow-viewport expanded captures — the trend graphic, the meta grid, and
 // the full-forecast link all need to keep reading cleanly (and, per the
 // no-overflow probe repeated at each size below, keep fitting their box) at
-// the two tightest shapes this app is tuned for, not just the roomy 1600x900
+// the tightest shapes this app is tuned for, not just the roomy 1600x900
 // launch size above. 1420x437 is the owner's own
 // short-wide window that originally motivated the xshort/tight/narrow
 // variants (xshort height, but width stays over the 1300px `tight`
 // threshold — see index.css's custom-variant comment); 800x450 stacks
 // xshort height on top of BOTH narrow and tight width, the tightest
-// combination the panel's own `tight:max-w-[30vw]` cap ever sees (30vw of
-// 800 is only 240px). The panel is already expanded from the capture just
-// above — a resize alone reflows it, no re-click needed.
+// combination the panel's own `tight:w-[30vw]` cap ever sees (30vw of 800 is
+// only 240px); 500x900 is the owner's other window and the one below
+// `compact`, where the panel stops being a viewport fraction at all — the
+// state that has to be checked for overflow precisely because its width is
+// now decided by a different rule than the other two. The panel is already
+// expanded from the capture just above — a resize alone reflows it, no
+// re-click needed.
 async function waitForPhotoSettle() {
   // Same condition-wait as the viewport matrix further down: the photo
   // layer's own opacity-100 class (Background.tsx's resize-triggered tier
@@ -822,6 +835,7 @@ async function waitForPhotoSettle() {
 for (const { w, h } of [
   { w: 1420, h: 437 }, // the owner's own window — xshort height only
   { w: 800, h: 450 }, // narrow + tight + xshort, all at once
+  { w: 500, h: 900 }, // the owner's side window — narrow + compact
 ]) {
   await page.setViewportSize({ width: w, height: h })
   await page.waitForTimeout(300) // let resize listeners + layout settle
@@ -1270,8 +1284,19 @@ const viewportMatrix = [
   { w: 1280, h: 500 },
   { w: 1024, h: 600 },
   { w: 800, h: 450 },
+  // Jon's own ~500px-wide side window (2026-08-07). Below the `compact`
+  // threshold on BOTH widgets in the top row: the bookmarks bar renders one
+  // mark per chip instead of labels, and the weather chip stops being sized
+  // as a fraction of the viewport. Every assertion in the loop below runs
+  // here too — the two that can't mean the same thing in compact mode (the
+  // label-legibility one, and the expanded panel's clearance of the centre
+  // column) branch rather than skip.
+  { w: 500, h: 900 },
   { w: 2560, h: 1440 },
 ]
+// index.css's `compact` variant, repeated here because a media query can't
+// be read back out of the page. Keep in sync.
+const COMPACT_MAX_WIDTH = 720
 // THE RULE, stated as a measurement: the air BELOW the band equals the
 // air ABOVE it. index.css builds both out of one `--top-band-gap` token
 // (`--top-band` is gap + one chip row + gap), so the bar's own distance
@@ -1323,12 +1348,43 @@ const measureBand = () =>
     // item is its `relative` wrapper div, a loose bookmark's is the
     // anchor itself). Their heights are what set the row height.
     const chips = [...nav.children].map(r)
+    // The interactive chip inside each of those items, and everything the
+    // narrow-window pass needs to know about it. A loose bookmark IS the
+    // flex item; a folder/overflow chip's button sits inside its
+    // popover-anchoring wrapper.
+    const chipDetails = [...nav.children].map((slot) => {
+      const el = slot.matches('a') ? slot : slot.querySelector('button')
+      const b = el.getBoundingClientRect()
+      const label = el.querySelector('[data-chip-label]')
+      const labelRect = label ? label.getBoundingClientRect() : null
+      // A chip's MARK: the favicon, the folder's compact-mode initial, or
+      // the "»" glyph. Filtered to the ones actually taking up space, so
+      // the display:none half of the compact swap doesn't count.
+      const marks = [...el.querySelectorAll('[data-chip-mark]')].filter((m) => {
+        const mr = m.getBoundingClientRect()
+        return mr.width > 0 && mr.height > 0
+      })
+      return {
+        w: +b.width.toFixed(1),
+        h: +b.height.toFixed(1),
+        title: el.getAttribute('title'),
+        cursor: getComputedStyle(el).cursor,
+        // `sr-only` clamps to a 1px box, so "visible" is a height test, not
+        // a class test — this measures the rendered result of the compact
+        // swap rather than trusting the class that was supposed to cause it.
+        labelVisible: labelRect ? labelRect.height > 1.5 : false,
+        markCount: marks.length,
+      }
+    })
     // Every chip's label. `truncate` means overflow:hidden, so clientWidth
     // is what's actually READABLE and scrollWidth is the full title —
     // their ratio is how much of each title survived the squeeze. (The
     // "»" chip has no label span, which is correct: it has nothing to
-    // truncate and is exempt from shrinking.)
-    const labelEls = [...nav.querySelectorAll('span')]
+    // truncate and is exempt from shrinking.) Selected by `data-chip-label`
+    // rather than by tag: a folder chip also carries a monogram span, and a
+    // 9px monogram counted as a "label" would read as a catastrophically
+    // truncated title.
+    const labelEls = [...nav.querySelectorAll('[data-chip-label]')]
     const labels = labelEls.map((el) => ({
       w: el.clientWidth,
       natural: el.scrollWidth,
@@ -1351,6 +1407,19 @@ const measureBand = () =>
       barMaxWidth: +maxW.toFixed(1),
       chipCount: chips.length,
       tallestChip: Math.max(...chips.map((c) => c.height)),
+      chipDetails,
+      // COMPACT MODE, measured. Not "is the viewport under 720px" — that
+      // would just restate the media query back at itself. This is the
+      // rendered consequence: no chip is showing a label, and every chip is
+      // showing exactly one mark instead.
+      iconOnly:
+        chipDetails.length > 0 &&
+        chipDetails.every((c) => !c.labelVisible && c.markCount === 1),
+      // …and in that mode each chip is a CIRCLE — width equal to the same
+      // `--bookmarks-chip-h` token the band is built from.
+      allCircular: chipDetails.every((c) => Math.abs(c.w - c.h) <= 1),
+      allTitled: chipDetails.every((c) => typeof c.title === 'string' && c.title.length > 0),
+      allPointer: chipDetails.every((c) => c.cursor === 'pointer'),
       labelCount: labels.length,
       labelFloor,
       narrowestLabel: labels.length ? Math.min(...labels.map((l) => l.w)) : 0,
@@ -1499,17 +1568,90 @@ for (const { w, h } of viewportMatrix) {
       // Two halves, because either alone is satisfiable the wrong way: a row
       // that simply fit would pass every check above while proving nothing
       // about the shrink path, and a row that shrank to a line of ellipses
-      // would "fit" too. So: the narrowest viewport in the matrix must
-      // actually put the cap under pressure (`capBinding`), and wherever
-      // titles are truncated, at least half of each must survive.
-      const mustBind = w === 800
-      const legible = band.worstLabelRatio >= 0.5
-      const exercised = !mustBind || band.capBinding
+      // would "fit" too. So: the narrowest LABELLED viewport in the matrix
+      // must actually put the cap under pressure (`capBinding`), and
+      // wherever titles are truncated, at least half of each must survive.
+      //
+      // Below `compact` that rule stops being satisfiable at all — which is
+      // the whole finding behind this threshold. Measured at 500x900 before
+      // the change: a 92px title rendered in 31px, 34% of itself, and the
+      // two shortest rendered as a bare glyph. So at those widths the claim
+      // BECOMES the compact one — no labels at all, one mark per chip —
+      // rather than being skipped. Either the labels are readable or they
+      // are gone; the middle is what this whole pass exists to delete.
+      const compact = w <= COMPACT_MAX_WIDTH
+      if (compact) {
+        const ok = band.iconOnly && band.allCircular
+        console.log(
+          ok
+            ? `PASS: bookmarks chips are icon-only rather than unreadable at ${w}x${h} (${band.chipCount} chips, no label wider than 1px, one mark each, every chip a ${band.chipDetails[0].w}x${band.chipDetails[0].h}px circle)`
+            : `FAIL: bookmarks chips are icon-only rather than unreadable at ${w}x${h} (iconOnly=${band.iconOnly}, circular=${band.allCircular}; ${JSON.stringify(band.chipDetails)})`,
+        )
+      } else {
+        const mustBind = w === 800
+        const legible = band.worstLabelRatio >= 0.5
+        const exercised = !mustBind || band.capBinding
+        const labelled = !band.iconOnly
+        console.log(
+          legible && exercised && labelled
+            ? `PASS: bookmarks chips shrink rather than wrap at ${w}x${h} (cap ${band.capBinding ? 'binding' : 'not binding'}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps ${(band.worstLabelRatio * 100).toFixed(0)}% of itself)`
+            : `FAIL: bookmarks chips shrink rather than wrap at ${w}x${h} (cap binding=${band.capBinding}${mustBind ? ' — required at the matrix\'s narrowest labelled viewport' : ''}; labels rendered=${labelled}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps only ${(band.worstLabelRatio * 100).toFixed(0)}%, need >=50%)`,
+        )
+      }
+
+      // 1d. Both modes, every viewport. The `title` closes the deferred
+      // minor that a truncated label left a SIGHTED user with no way back
+      // to the full name (a screen reader always had one — the label span
+      // is the chip's accessible name); in compact mode, where there is no
+      // label at all, it is that route for everyone. The cursor is the
+      // other half of the same idea: Tailwind v4's preflight sets
+      // `button { cursor: default }`, so a folder chip advertised itself as
+      // inert next to the real anchors beside it — the same inverted
+      // affordance already fixed one row down in the weather widget, and it
+      // matters more on a 30px circle with no text on it.
       console.log(
-        legible && exercised
-          ? `PASS: bookmarks chips shrink rather than wrap at ${w}x${h} (cap ${band.capBinding ? 'binding' : 'not binding'}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps ${(band.worstLabelRatio * 100).toFixed(0)}% of itself)`
-          : `FAIL: bookmarks chips shrink rather than wrap at ${w}x${h} (cap binding=${band.capBinding}${mustBind ? ' — required at the matrix\'s narrowest viewport' : ''}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps only ${(band.worstLabelRatio * 100).toFixed(0)}%, need >=50%)`,
+        band.allTitled && band.allPointer
+          ? `PASS: every bookmarks chip carries its full title and a pointer cursor at ${w}x${h}`
+          : `FAIL: every bookmarks chip carries its full title and a pointer cursor at ${w}x${h} (${JSON.stringify(band.chipDetails.map((c) => ({ title: c.title, cursor: c.cursor })))})`,
       )
+
+      // 1e. A mark is still a control. The chip's click handler never
+      // changed, but everything AROUND it did — the label that used to be
+      // the click target is now an out-of-flow 1px box, the button is a
+      // 30px circle, and the thing under the cursor is a <span> or an
+      // <img>. A real click on the mark itself is the only way to know
+      // that still opens the popover it's supposed to (and that the
+      // popover, anchored to a chip a third of its former width, isn't
+      // pushed off-screen by FolderPopover's own edge clamp).
+      if (compact) {
+        const devChip = 'nav[aria-label="Bookmarks bar"] button[title="Dev"] [data-chip-mark]'
+        let opened = false
+        try {
+          await page.click(devChip, { timeout: 3000 })
+          opened = await page
+            .waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]', { timeout: 2000 })
+            .then(() => true, () => false)
+        } catch {
+          opened = false
+        }
+        const onScreen = opened
+          ? await page.evaluate(() => {
+              const r = document
+                .querySelector('[role="dialog"][aria-label="Dev bookmarks"]')
+                .getBoundingClientRect()
+              return r.left >= 0 && r.right <= window.innerWidth + 1
+            })
+          : false
+        console.log(
+          opened && onScreen
+            ? `PASS: an icon-only chip still opens its folder popover, fully on screen, at ${w}x${h}`
+            : `FAIL: an icon-only chip still opens its folder popover, fully on screen, at ${w}x${h} (opened=${opened}, on-screen=${onScreen})`,
+        )
+        // Escape rather than an outside click: at this width almost every
+        // point on the page is over some other widget.
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(150)
+      }
     }
 
     // 1c. ABSOLUTE FLOOR — see BAR_TOP_FLOOR above. bar.top doesn't depend
@@ -1610,14 +1752,106 @@ for (const { w, h } of viewportMatrix) {
       })
       const clockHit = centerColumn.clock ? hits(expanded.weather, centerColumn.clock) : false
       const greetingHit = centerColumn.greeting ? hits(expanded.weather, centerColumn.greeting) : false
-      console.log(
-        !clockHit && !greetingHit
-          ? `PASS: no expanded-weather/clock-greeting overlap at ${w}x${h}`
-          : `FAIL: no expanded-weather/clock-greeting overlap at ${w}x${h} (clock-hit=${clockHit}, greeting-hit=${greetingHit}, weather ${JSON.stringify(expanded.weather)}, clock ${JSON.stringify(centerColumn.clock)}, greeting ${JSON.stringify(centerColumn.greeting)})`,
-      )
+      if (w > COMPACT_MAX_WIDTH) {
+        console.log(
+          !clockHit && !greetingHit
+            ? `PASS: no expanded-weather/clock-greeting overlap at ${w}x${h}`
+            : `FAIL: no expanded-weather/clock-greeting overlap at ${w}x${h} (clock-hit=${clockHit}, greeting-hit=${greetingHit}, weather ${JSON.stringify(expanded.weather)}, clock ${JSON.stringify(centerColumn.clock)}, greeting ${JSON.stringify(centerColumn.greeting)})`,
+        )
+      } else {
+        // Below `compact`, clearing the centre column is ARITHMETICALLY
+        // impossible, and saying so is more useful than a check that can
+        // only ever fail. The greeting is centred and ~254px wide, so at
+        // 500px its right edge is at 377px; the panel is anchored `right-4`,
+        // which leaves 107px between them — narrower than this panel's own
+        // header row (32px icon + a 2rem temperature + chevron + padding).
+        // Any panel a user could read overlaps. So the claim changes shape:
+        // it must OCCLUDE rather than collide — a real surface, painted and
+        // hit-tested on top wherever it covers the column, the way every
+        // other floating panel in this app (Tasks, Notes, the timer) already
+        // behaves at every size. The geometry checks that still mean
+        // something at this width — clear of the band, clear of the timer
+        // pill, fully on screen — are asserted directly above and below.
+        const overlay = await page.evaluate(
+          ({ s, rects }) => {
+            const sec = document.querySelector(s)
+            if (!sec) return null
+            const r = sec.getBoundingClientRect()
+            const cs = getComputedStyle(sec)
+            const alpha = (() => {
+              const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/)
+              if (!m) return 0
+              const parts = m[1].split(',').map((v) => parseFloat(v))
+              return parts.length > 3 ? parts[3] : 1
+            })()
+            // Sample the CENTRE of each overlap region: if the panel really
+            // owns those pixels, that is what hit-testing finds there.
+            const covered = []
+            for (const [name, box] of Object.entries(rects)) {
+              if (!box) continue
+              const left = Math.max(r.left, box.left)
+              const right = Math.min(r.right, box.right)
+              const top = Math.max(r.top, box.top)
+              const bottom = Math.min(r.bottom, box.bottom)
+              if (right <= left || bottom <= top) continue
+              const el = document.elementFromPoint((left + right) / 2, (top + bottom) / 2)
+              covered.push({ name, onTop: !!el && !!el.closest('[data-block-id="weather"]') })
+            }
+            return {
+              alpha,
+              blurred: (cs.backdropFilter || cs.webkitBackdropFilter || '').includes('blur'),
+              covered,
+            }
+          },
+          { s: weatherSel, rects: centerColumn },
+        )
+        const ok =
+          overlay !== null &&
+          overlay.alpha > 0 &&
+          overlay.blurred &&
+          overlay.covered.every((c) => c.onTop)
+        console.log(
+          ok
+            ? `PASS: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (covers ${overlay.covered.map((c) => c.name).join(', ') || 'nothing'}; opaque surface, topmost at every covered point)`
+            : `FAIL: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (${JSON.stringify(overlay)})`,
+        )
+      }
     }
     await setWeatherExpanded(false) // leave the page as this loop found it
     await page.waitForTimeout(150)
+  }
+
+  // LQIP OVERSCALE vs BLUR RADIUS (deferred minor from the LQIP review,
+  // closed here because it is a narrow-VIEWPORT bug and this is the narrow
+  // viewport). The underlay is a blurred copy of the photo; the blur samples
+  // past the layer's own edges, so the layer is scaled up to give it real
+  // pixels to sample instead of transparency. The margin that buys is a
+  // PERCENTAGE of the viewport, the blur radius is a constant in px — so the
+  // cover only holds above some width. `scale-110` covered 5% per side: 25px
+  // at 500px against `blur-2xl`'s 40px radius, i.e. the underlay faded off at
+  // its own left and right edges on exactly the windows it exists for.
+  // Measured, not read off the class list: the computed filter gives the real
+  // radius (including any future theme override) and the layer's own rect
+  // against the viewport gives the real margin, on both axes.
+  if (w === 500) {
+    const cover = await page.evaluate(() => {
+      const layer = document.querySelector('[data-lqip]')
+      if (!layer) return null
+      const filter = getComputedStyle(layer).filter
+      const m = filter.match(/blur\(([\d.]+)px\)/)
+      const r = layer.getBoundingClientRect()
+      return {
+        blur: m ? parseFloat(m[1]) : null,
+        marginX: +Math.min(-r.left, r.right - window.innerWidth).toFixed(1),
+        marginY: +Math.min(-r.top, r.bottom - window.innerHeight).toFixed(1),
+      }
+    })
+    const ok = cover !== null && cover.blur !== null && cover.marginX >= cover.blur && cover.marginY >= cover.blur
+    console.log(
+      ok
+        ? `PASS: the LQIP underlay overscales past its own blur radius at ${w}x${h} (${cover.marginX}px/${cover.marginY}px of overscale for a ${cover.blur}px blur)`
+        : `FAIL: the LQIP underlay overscales past its own blur radius at ${w}x${h} (${JSON.stringify(cover)})`,
+    )
   }
 }
 
@@ -1718,8 +1952,8 @@ for (const { w, h } of viewportMatrix) {
 // layout rather than a property of the seeded titles. This probe is what
 // proves that: it replaces the whole bookmarks bar with the adversarial case
 // — uppercase Latin, CJK, and the widest Latin glyphs there are, every title
-// at or under the old six-character exemption — and measures at 800x450, the
-// matrix's narrowest viewport.
+// at or under the old six-character exemption — and measures it at both ends
+// of the responsive range (see the loop's own comment below).
 //
 // Placed last on purpose. It DESTROYS the seeded bookmarks tree, which no
 // capture above would survive; nothing after it reads the bar, and the
@@ -1749,19 +1983,33 @@ if (hasBookmarksPermission) {
       await chrome.bookmarks.create({ parentId: bar, title, url: `https://example.com/${title}` })
     }
   })
-  await page.setViewportSize({ width: 800, height: 450 })
-  // The bar model is loaded once, in a mount-time effect — a tree edit needs
-  // a reload to be seen at all.
-  await page.reload()
-  await page.waitForSelector('nav[aria-label="Bookmarks bar"]', { timeout: 10_000 })
-  await page.waitForTimeout(800) // photo fade-in, same as every other reload here
-  await page.screenshot({ path: `${outDir}/bookmarks-worst-case-800x450.png` })
-  console.log('captured bookmarks-worst-case-800x450.png')
+  // Run at BOTH ends of the responsive range, because the adversarial case
+  // is answered differently at each and only the pair proves there is no gap
+  // between the two answers. At 800x450 the row is still LABELLED, so the
+  // answer is the `min-w-[4ch]` floor plus proportional shrink. At 500x900
+  // it is below `compact`, where the answer is structural instead: with no
+  // labels to shrink, nine chips are nine circles and the row's width stops
+  // depending on the titles at all — which is what makes the fit an
+  // invariant rather than a measurement that happened to come out right.
+  for (const { w, h } of [
+    { w: 800, h: 450 },
+    { w: 500, h: 900 },
+  ]) {
+    await page.setViewportSize({ width: w, height: h })
+    // The bar model is loaded once, in a mount-time effect — a tree edit needs
+    // a reload to be seen at all. (Also re-run per viewport here so each leg
+    // starts from a clean mount rather than a resized one.)
+    await page.reload()
+    await page.waitForSelector('nav[aria-label="Bookmarks bar"]', { timeout: 10_000 })
+    await page.waitForTimeout(800) // photo fade-in, same as every other reload here
+    await page.screenshot({ path: `${outDir}/bookmarks-worst-case-${w}x${h}.png` })
+    console.log(`captured bookmarks-worst-case-${w}x${h}.png`)
 
-  const worst = await measureBand()
-  if (!worst) {
-    console.log('FAIL: a bar of short-but-wide titles still fits at 800x450 (no bookmarks bar in the DOM)')
-  } else {
+    const worst = await measureBand()
+    if (!worst) {
+      console.log(`FAIL: a bar of short-but-wide titles still fits at ${w}x${h} (no bookmarks bar in the DOM)`)
+      continue
+    }
     const singleRow = worst.bar.height <= worst.tallestChip + 2
     const enoughChips = worst.chipCount >= 9
     const withinCap = worst.bar.width <= worst.barMaxWidth + 1
@@ -1769,19 +2017,34 @@ if (hasBookmarksPermission) {
     const fitsBox = worst.barOverflowX <= 1
     console.log(
       singleRow && enoughChips && withinCap && onScreen && fitsBox
-        ? `PASS: a bar of short-but-wide titles still fits at 800x450 (${worst.chipCount} chips — uppercase Latin, CJK, WWWWWW — in ${worst.bar.width}px of a ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px; one ${worst.bar.height}px row)`
-        : `FAIL: a bar of short-but-wide titles still fits at 800x450 (${worst.chipCount} chips (need >=9), ${worst.bar.width}px vs ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px, overflowX ${worst.barOverflowX}px, nav ${worst.bar.height}px vs tallest chip ${worst.tallestChip}px)`,
+        ? `PASS: a bar of short-but-wide titles still fits at ${w}x${h} (${worst.chipCount} chips — uppercase Latin, CJK, WWWWWW — in ${worst.bar.width}px of a ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px; one ${worst.bar.height}px row)`
+        : `FAIL: a bar of short-but-wide titles still fits at ${w}x${h} (${worst.chipCount} chips (need >=9), ${worst.bar.width}px vs ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px, overflowX ${worst.barOverflowX}px, nav ${worst.bar.height}px vs tallest chip ${worst.tallestChip}px)`,
     )
 
-    // …and the floor did its job: nothing collapsed to an ellipsis. 4ch is
-    // roughly two Latin characters plus the ellipsis, so requiring every
-    // label to still render at least that much is the difference between a
-    // squeezed chip and a meaningless one.
-    console.log(
-      worst.narrowestLabel >= worst.labelFloor - 1
-        ? `PASS: no chip is squeezed below its label floor at 800x450 (narrowest label ${worst.narrowestLabel}px vs a ${worst.labelFloor}px 4ch floor)`
-        : `FAIL: no chip is squeezed below its label floor at 800x450 (narrowest label ${worst.narrowestLabel}px, floor ${worst.labelFloor}px)`,
-    )
+    if (w > COMPACT_MAX_WIDTH) {
+      // …and the floor did its job: nothing collapsed to an ellipsis. 4ch is
+      // roughly two Latin characters plus the ellipsis, so requiring every
+      // label to still render at least that much is the difference between a
+      // squeezed chip and a meaningless one.
+      console.log(
+        worst.narrowestLabel >= worst.labelFloor - 1
+          ? `PASS: no chip is squeezed below its label floor at ${w}x${h} (narrowest label ${worst.narrowestLabel}px vs a ${worst.labelFloor}px 4ch floor)`
+          : `FAIL: no chip is squeezed below its label floor at ${w}x${h} (narrowest label ${worst.narrowestLabel}px, floor ${worst.labelFloor}px)`,
+      )
+    } else {
+      // Below `compact` there is no floor to test, because there is no
+      // label. The claim instead is the one that makes this whole seed
+      // moot: the adversarial titles — the ones that used to be able to
+      // push a "short titles" row past its cap — cannot influence the
+      // row's width at all once every chip is a fixed-size circle, and the
+      // names they stand for are still reachable via `title`.
+      const ok = worst.iconOnly && worst.allCircular && worst.allTitled
+      console.log(
+        ok
+          ? `PASS: short-but-wide titles collapse to marks rather than crumbs at ${w}x${h} (${worst.chipCount} circles, one mark each, every full title on a title attribute — ${worst.chipDetails.map((c) => c.title).join(', ')})`
+          : `FAIL: short-but-wide titles collapse to marks rather than crumbs at ${w}x${h} (iconOnly=${worst.iconOnly}, circular=${worst.allCircular}, titled=${worst.allTitled}; ${JSON.stringify(worst.chipDetails)})`,
+      )
+    }
   }
 }
 
