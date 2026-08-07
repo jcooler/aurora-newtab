@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react'
 import { listUploads } from '../idb'
+import type { Upload } from '../idb'
 
-export type Upload = { key: string; blob: Blob }
+// The shape lives with the store that produces it (src/lib/idb.ts) now that
+// a gallery entry carries a thumbnail as well as the photo; re-exported here
+// so the existing `import type { Upload } from '.../hooks/useUploads'`
+// call sites keep working.
+export type { Upload }
 
 /**
  * Loads the uploaded-photo gallery while `active`, re-fetching whenever

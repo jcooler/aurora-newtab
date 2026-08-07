@@ -3,6 +3,7 @@ import type { PhotoPrefs } from '../../lib/storage/schema'
 import { useUploads } from '../../lib/hooks/useUploads'
 import {
   BUNDLED,
+  bundledLqip,
   bundledUrl,
   nextPhoto,
   pickTier,
@@ -36,7 +37,17 @@ export default function Background({
   // persisted in upload mode too — see the effect below) must not re-fetch
   // an unchanged gallery on every rotation.
   const uploads = useUploads(prefs.mode === 'upload', prefs.uploadedAt, null)
-  const [uploadPhotoUrl, setUploadPhotoUrl] = useState<string | null>(null)
+  // ONE piece of state holding the photo, its placeholder, and the gallery
+  // key they both came from — not three. That is what makes "the placeholder
+  // swaps in the same render as the photo" true by construction rather than
+  // by careful sequencing: there is no render in which the object URL of
+  // photo B can be on screen over the thumbnail of photo A, because a single
+  // setState publishes both.
+  const [uploadPhoto, setUploadPhoto] = useState<{
+    key: string
+    url: string
+    lqip: string | null
+  } | null>(null)
   const today = todayKey()
 
   // Empty gallery in upload mode cascades to the bundled set, same as 'auto'
@@ -55,17 +66,24 @@ export default function Background({
 
   useEffect(() => {
     if (effectiveMode !== 'upload') {
-      setUploadPhotoUrl(null)
+      setUploadPhoto(null)
       return
     }
-    const blob = uploads?.[index]?.blob
-    if (!blob) {
-      setUploadPhotoUrl(null)
+    const upload = uploads?.[index]
+    if (!upload) {
+      setUploadPhoto(null)
       return
     }
-    const url = URL.createObjectURL(blob)
-    setUploadPhotoUrl(url)
-    return () => URL.revokeObjectURL(url)
+    const url = URL.createObjectURL(upload.blob)
+    // Uploads added before placeholders existed have no thumb yet (idb.ts
+    // backfills them in the background); those simply get no underlay, i.e.
+    // exactly the pre-2026-08-07 behaviour, rather than a wrong one.
+    const lqip = upload.thumb ? URL.createObjectURL(upload.thumb) : null
+    setUploadPhoto({ key: upload.key, url, lqip })
+    return () => {
+      URL.revokeObjectURL(url)
+      if (lqip) URL.revokeObjectURL(lqip)
+    }
   }, [effectiveMode, uploads, index])
 
   useEffect(() => {
@@ -109,12 +127,13 @@ export default function Background({
 
   // bundledUrl must never run with an empty set (or in gradient mode) — an
   // out-of-range access would throw during render and blank the whole page.
-  const src =
-    effectiveMode === 'upload'
-      ? uploadPhotoUrl
-      : effectiveMode === 'auto' && BUNDLED.length > 0
-        ? bundledUrl(index, tier)
-        : null
+  const bundledActive = effectiveMode === 'auto' && BUNDLED[index] !== undefined
+  const src = effectiveMode === 'upload' ? (uploadPhoto?.url ?? null) : bundledActive ? bundledUrl(index, tier) : null
+  // The placeholder and the identity it belongs to are derived from the same
+  // `index` in the same render pass as `src` above (bundled) or read off the
+  // same single state object (uploads) — see the useState comment.
+  const lqip = effectiveMode === 'upload' ? (uploadPhoto?.lqip ?? null) : bundledActive ? bundledLqip(index) : null
+  const photoKey = effectiveMode === 'upload' ? (uploadPhoto?.key ?? null) : bundledActive ? BUNDLED[index]!.id : null
   const showPhoto = src !== null
   const credit = effectiveMode === 'auto' && BUNDLED[index] ? BUNDLED[index] : null
   // Auto keeps its original ">0" threshold (rotating a single bundled photo
@@ -131,12 +150,47 @@ export default function Background({
   // even though sighted keyboard users could still Tab to it and see a focus ring.
   return (
     <>
-      <div aria-hidden className="fixed inset-0 -z-10" style={{ background: 'var(--bg-fallback)' }}>
+      <div aria-hidden className="fixed inset-0 -z-10 overflow-hidden" style={{ background: 'var(--bg-fallback)' }}>
+        {/* LQIP underlay (2026-08-07). Chrome drops the decoded/rasterized
+            image memory of background tabs under memory pressure; when the
+            tab is shown again the photo above has to re-decode (36-165ms for
+            these files, measured — see scripts/encode-photos.mjs), and for
+            that gap whatever sits BEHIND the <img> is what's on screen. That
+            used to be the --bg-fallback gradient, i.e. a photo→gradient→photo
+            flash on every already-open tab. It is now a blurred copy of the
+            same photo, so the gap reads as a soft focus-in rather than a
+            different background. Same layer also covers first paint, where
+            the decode gap is guaranteed rather than occasional.
+
+            `-z-10` is load-bearing, not decoration. Painting order inside
+            this fixed (stacking-context-forming) div is: its own background,
+            then NEGATIVE-z-index descendants, then in-flow non-positioned
+            content, then positioned descendants. The photo below is in-flow
+            and the scrim is positioned; an absolutely positioned underlay at
+            the default z-index would therefore paint ON TOP of the photo —
+            which is exactly why the scrim, four lines down, works the way it
+            does. `-z-10` puts this above the gradient and below the photo.
+
+            The source is an inline data URI for bundled photos and an
+            object URL for uploads: no network, no origin, and — the actual
+            point — nothing that needs loading at the instant the gap opens.
+            `scale-110` overscales past the blur radius so the blur has real
+            pixels to sample at the edges instead of transparency. */}
+        {lqip && (
+          <div
+            aria-hidden
+            data-lqip=""
+            data-photo={photoKey ?? undefined}
+            className="absolute inset-0 -z-10 scale-110 bg-cover bg-center blur-2xl"
+            style={{ backgroundImage: `url("${lqip}")` }}
+          />
+        )}
         {showPhoto && src && (
           <img
             key={src}
             src={src}
             alt=""
+            data-photo={photoKey ?? undefined}
             className="h-full w-full object-cover opacity-0 transition-opacity duration-700 motion-reduce:transition-none"
             onLoad={(e) => e.currentTarget.classList.replace('opacity-0', 'opacity-100')}
           />

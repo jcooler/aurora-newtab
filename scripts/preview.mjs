@@ -13,6 +13,9 @@
 import { mkdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { chromium } from 'playwright'
+// Dev-only image measurement for the LQIP-underlay probe below (already a
+// devDependency — it is what encodes the photos in the first place).
+import sharp from 'sharp'
 
 const dist = resolve('dist')
 const outDir = resolve('screenshots')
@@ -274,6 +277,108 @@ console.log('captured newtab.png')
   }
 
   await flickerPageB.close()
+}
+
+// LQIP underlay (2026-08-07). The companion to the cross-tab probe above:
+// that one locks down the causes this repo CAN control, this one covers the
+// one it can't. Chrome purges the decoded image memory of background tabs
+// under pressure, and on re-display the photo re-decodes (36-165ms for these
+// files) with whatever is behind the <img> on screen for the gap — which
+// used to be the --bg-fallback gradient. Background.tsx now paints a blurred
+// copy of the same photo there instead.
+//
+// Two things have to be true at once and they pull in opposite directions,
+// so both are asserted rather than eyeballed: the underlay must be
+// COMPLETELY invisible while the photo is up (it is a fallback, not a
+// filter), and it must actually be a blurred copy of THAT photo, not the
+// gradient, when the photo isn't painting. The second is measured by hiding
+// the photo — the only way to see what the decode gap sees — and comparing
+// what's left against the same view with the underlay removed, which is
+// exactly the pre-fix gradient. A reload at the end puts the page back;
+// nothing here writes storage.
+{
+  const meanRGB = async (buffer) => {
+    const { data, info } = await sharp(buffer).raw().toBuffer({ resolveWithObject: true })
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < data.length; i += info.channels) {
+      r += data[i]; g += data[i + 1]; b += data[i + 2]; n++
+    }
+    return [r / n, g / n, b / n]
+  }
+  const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+  const pairing = await page.evaluate(() => {
+    const layer = document.querySelector('[data-lqip]')
+    const img = document.querySelector('div[aria-hidden] > img')
+    if (!layer || !img) return { ok: false, why: `layer=${!!layer} img=${!!img}` }
+    const bg = layer.style.backgroundImage
+    return {
+      ok: true,
+      inline: bg.includes('data:image/'),
+      // The underlay names the photo it belongs to, and the photo names the
+      // same one — a stale underlay under a fresh photo fails right here.
+      paired: layer.dataset.photo === img.dataset.photo && img.src.includes(img.dataset.photo),
+      photo: img.dataset.photo,
+      zIndex: getComputedStyle(layer).zIndex,
+      blurred: getComputedStyle(layer).filter.includes('blur'),
+      hidden: layer.getAttribute('aria-hidden') === 'true',
+    }
+  })
+  const underlayOk =
+    pairing.ok && pairing.inline && pairing.paired && pairing.blurred && pairing.hidden && pairing.zIndex === '-10'
+  console.log(
+    underlayOk
+      ? `PASS: the background photo has a blurred, inline, aria-hidden LQIP underlay paired with it (${pairing.photo})`
+      : `FAIL: the background photo has a blurred, inline, aria-hidden LQIP underlay paired with it (${JSON.stringify(pairing)})`,
+  )
+
+  // (a) invisible in steady state: removing the underlay must change nothing
+  // on screen, because the photo covers it completely.
+  const withUnderlay = await page.screenshot()
+  await page.evaluate(() => {
+    document.querySelector('[data-lqip]').style.display = 'none'
+  })
+  const withoutUnderlay = await page.screenshot()
+  const steadyDelta = dist(await meanRGB(withUnderlay), await meanRGB(withoutUnderlay))
+  console.log(
+    steadyDelta < 0.5
+      ? `PASS: the LQIP underlay is invisible while the photo is up (mean-RGB delta ${steadyDelta.toFixed(3)})`
+      : `FAIL: the LQIP underlay is invisible while the photo is up (mean-RGB delta ${steadyDelta.toFixed(3)}, expected ~0)`,
+  )
+
+  // (b) what the decode gap actually sees. Photo hidden, underlay restored =
+  // the new behaviour; photo hidden, underlay gone = the old behaviour (bare
+  // gradient). The new one has to look far more like the photo than the old
+  // one does, which is the entire point of the change.
+  await page.evaluate(() => {
+    const img = document.querySelector('div[aria-hidden] > img')
+    img.style.transition = 'none'
+    img.style.opacity = '0'
+    document.querySelector('[data-lqip]').style.display = ''
+  })
+  const gapWithUnderlay = await page.screenshot()
+  await page.screenshot({ path: `${outDir}/background-lqip.png` })
+  await page.evaluate(() => {
+    document.querySelector('[data-lqip]').style.display = 'none'
+  })
+  const gapWithGradient = await page.screenshot()
+  await page.screenshot({ path: `${outDir}/background-gradient-only.png` })
+
+  const photoMean = await meanRGB(withUnderlay)
+  const underlayGapDist = dist(await meanRGB(gapWithUnderlay), photoMean)
+  const gradientGapDist = dist(await meanRGB(gapWithGradient), photoMean)
+  console.log(
+    underlayGapDist < gradientGapDist / 2
+      ? `PASS: during a decode gap the underlay reads as the same photo, not the gradient (distance to photo ${underlayGapDist.toFixed(1)} with underlay vs ${gradientGapDist.toFixed(1)} with the old gradient fallback)`
+      : `FAIL: during a decode gap the underlay reads as the same photo, not the gradient (distance to photo ${underlayGapDist.toFixed(1)} with underlay vs ${gradientGapDist.toFixed(1)} with the old gradient fallback)`,
+  )
+  console.log('captured background-lqip.png, background-gradient-only.png')
+
+  // Undo the inline styles above — they are DOM-only, so a reload is enough.
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(2500) // weather fetch
+  await page.waitForTimeout(800) // photo fade-in
 }
 
 // Bookmarks-bar popover: REAL click on a folder chip (real hit-testing — the

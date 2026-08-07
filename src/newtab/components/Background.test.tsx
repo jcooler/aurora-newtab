@@ -9,9 +9,22 @@ import type { PhotoPrefs } from '../../lib/storage/schema'
 // upload-mode cases below don't need real IndexedDB (unavailable in jsdom).
 vi.mock('../../lib/idb', () => ({ listUploads: vi.fn() }))
 
+/** The LQIP underlay Background paints beneath the photo. */
+function lqipLayer(container: HTMLElement): HTMLElement | null {
+  return container.querySelector<HTMLElement>('[data-lqip]')
+}
+/** The url(...) inside the underlay's background-image, or null. */
+function lqipSource(container: HTMLElement): string | null {
+  const raw = lqipLayer(container)?.style.backgroundImage
+  return raw ? (raw.match(/url\(["']?(.*?)["']?\)/)?.[1] ?? null) : null
+}
+
 describe('Background', () => {
   let originalCreate: typeof URL.createObjectURL
   let originalRevoke: typeof URL.revokeObjectURL
+  // blob -> the object URL handed out for it, so the upload tests can say
+  // WHICH photo a rendered blob: URL actually points at.
+  let objectUrls: Map<Blob, string>
 
   beforeEach(() => {
     // Pin "today" so lastRotated comparisons are deterministic regardless of
@@ -25,7 +38,16 @@ describe('Background', () => {
     // directly rather than spied-on.
     originalCreate = URL.createObjectURL
     originalRevoke = URL.revokeObjectURL
-    URL.createObjectURL = vi.fn(() => 'blob:mock-url') as typeof URL.createObjectURL
+    // A DISTINCT url per blob (v1 handed the same string to everything):
+    // the LQIP tests have to be able to tell "the thumb of photo B" from
+    // "the thumb of photo A", which a constant stub makes impossible.
+    objectUrls = new Map()
+    let n = 0
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      const url = `blob:mock-${n++}`
+      objectUrls.set(blob, url)
+      return url
+    }) as typeof URL.createObjectURL
     URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
   })
 
@@ -68,7 +90,7 @@ describe('Background', () => {
     // act(async) drains microtasks directly instead.
     await act(async () => {})
 
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('blob:mock-url')
+    expect(container.querySelector('img')?.getAttribute('src')).toMatch(/^blob:mock-/)
     expect(screen.getByRole('button', { name: 'New background photo' })).toBeTruthy()
 
     // Unmount now, while URL.revokeObjectURL is still the stub installed
@@ -129,5 +151,139 @@ describe('Background', () => {
     // identical — React's setState bail-out means the <img> (keyed on src)
     // never remounts.
     expect(container.querySelector('img')?.getAttribute('src')).toBe(initialSrc)
+  })
+
+  // --- LQIP underlay (2026-08-07 flicker mitigation) ------------------------
+  // Chrome purges the decoded image memory of background tabs under pressure;
+  // on re-display the 4K AVIF re-decodes and whatever sits behind the <img>
+  // is what's on screen for that gap. These lock in "a blurred copy of the
+  // SAME photo" rather than the gradient.
+
+  describe('LQIP underlay', () => {
+    it('paints the bundled photo’s inline placeholder beneath the img', () => {
+      const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+      const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+
+      // Inline data URI, not a path: needing a load is the one thing a
+      // placeholder for a decode gap cannot afford.
+      expect(lqipSource(container)).toMatch(/^data:image\//)
+    })
+
+    it('pairs the placeholder with the photo actually being shown', () => {
+      const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+      const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+
+      const photoId = lqipLayer(container)?.dataset.photo
+      expect(photoId).toBeTruthy()
+      expect(container.querySelector('img')?.getAttribute('src')).toContain(photoId)
+    })
+
+    it('swaps the placeholder in the same render as the photo it sits under', () => {
+      const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+      const { container, rerender } = render(
+        <Background prefs={prefs} onPrefsChange={vi.fn()} />,
+      )
+      const firstLqip = lqipSource(container)
+      const firstPhoto = lqipLayer(container)?.dataset.photo
+
+      rerender(<Background prefs={{ ...prefs, index: 1 }} onPrefsChange={vi.fn()} />)
+
+      // One DOM read, no awaits: a placeholder resolved through any extra
+      // async hop would still be showing the previous photo right here.
+      expect(lqipSource(container)).not.toBe(firstLqip)
+      expect(lqipLayer(container)?.dataset.photo).not.toBe(firstPhoto)
+      expect(container.querySelector('img')?.getAttribute('src')).toContain(
+        lqipLayer(container)?.dataset.photo,
+      )
+    })
+
+    it('hides the placeholder from assistive tech and blurs it', () => {
+      const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+      const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+
+      const layer = lqipLayer(container)!
+      expect(layer.getAttribute('aria-hidden')).toBe('true')
+      // Blur plus overscale: the scale hides the transparent edge the blur
+      // would otherwise sample from.
+      expect(layer.className).toMatch(/blur/)
+      expect(layer.className).toMatch(/scale-1\d\d/)
+    })
+
+    it('renders no placeholder in gradient mode — the gradient is the no-photo fallback', () => {
+      const prefs: PhotoPrefs = { mode: 'gradient', index: 0, lastRotated: '2026-07-26' }
+      const { container } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+
+      expect(lqipLayer(container)).toBeNull()
+    })
+
+    it('paints an upload’s stored thumbnail beneath it', async () => {
+      const blob = new Blob(['a'], { type: 'image/png' })
+      const thumb = new Blob(['a-thumb'], { type: 'image/webp' })
+      vi.mocked(listUploads).mockResolvedValue([{ key: 'photo:a', blob, thumb }])
+      const prefs: PhotoPrefs = { mode: 'upload', index: 0, lastRotated: '2026-07-26' }
+      const { container, unmount } = render(
+        <Background prefs={prefs} onPrefsChange={vi.fn()} />,
+      )
+      await act(async () => {})
+
+      expect(lqipSource(container)).toBe(objectUrls.get(thumb))
+      expect(container.querySelector('img')?.getAttribute('src')).toBe(objectUrls.get(blob))
+      unmount()
+    })
+
+    it('swaps an upload’s thumbnail in the same render as the upload’s photo', async () => {
+      const blobA = new Blob(['a'], { type: 'image/png' })
+      const thumbA = new Blob(['a-thumb'], { type: 'image/webp' })
+      const blobB = new Blob(['b'], { type: 'image/png' })
+      const thumbB = new Blob(['b-thumb'], { type: 'image/webp' })
+      vi.mocked(listUploads).mockResolvedValue([
+        { key: 'photo:a', blob: blobA, thumb: thumbA },
+        { key: 'photo:b', blob: blobB, thumb: thumbB },
+      ])
+      const prefs: PhotoPrefs = { mode: 'upload', index: 0, lastRotated: '2026-07-26' }
+      const { container, rerender, unmount } = render(
+        <Background prefs={prefs} onPrefsChange={vi.fn()} />,
+      )
+      await act(async () => {})
+      expect(lqipSource(container)).toBe(objectUrls.get(thumbA))
+
+      act(() => {
+        rerender(<Background prefs={{ ...prefs, index: 1 }} onPrefsChange={vi.fn()} />)
+      })
+
+      // Both must be photo B's, read in the same tick — this is the
+      // stale-placeholder-under-a-new-photo case.
+      expect(container.querySelector('img')?.getAttribute('src')).toBe(objectUrls.get(blobB))
+      expect(lqipSource(container)).toBe(objectUrls.get(thumbB))
+      unmount()
+    })
+
+    it('renders no placeholder for an upload stored before thumbnails existed', async () => {
+      const blob = new Blob(['a'], { type: 'image/png' })
+      vi.mocked(listUploads).mockResolvedValue([{ key: 'photo:a', blob }])
+      const prefs: PhotoPrefs = { mode: 'upload', index: 0, lastRotated: '2026-07-26' }
+      const { container, unmount } = render(
+        <Background prefs={prefs} onPrefsChange={vi.fn()} />,
+      )
+      await act(async () => {})
+
+      expect(container.querySelector('img')?.getAttribute('src')).toBe(objectUrls.get(blob))
+      expect(lqipLayer(container)).toBeNull()
+      unmount()
+    })
+
+    it('releases the thumbnail object URL along with the photo’s on unmount', async () => {
+      const blob = new Blob(['a'], { type: 'image/png' })
+      const thumb = new Blob(['a-thumb'], { type: 'image/webp' })
+      vi.mocked(listUploads).mockResolvedValue([{ key: 'photo:a', blob, thumb }])
+      const prefs: PhotoPrefs = { mode: 'upload', index: 0, lastRotated: '2026-07-26' }
+      const { unmount } = render(<Background prefs={prefs} onPrefsChange={vi.fn()} />)
+      await act(async () => {})
+
+      unmount()
+
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith(objectUrls.get(blob))
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith(objectUrls.get(thumb))
+    })
   })
 })

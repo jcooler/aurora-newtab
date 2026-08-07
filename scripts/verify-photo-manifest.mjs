@@ -69,5 +69,30 @@ check(
   'every manifest entry has a source URL',
 )
 
+// LQIP (2026-08-07). Background.tsx paints these under the photo to cover
+// its decode gap, so a missing one silently reverts that photo to the old
+// photo→gradient→photo flash — invisible in every screenshot, which is
+// exactly why it's checked here. Regenerate with:
+//   node scripts/encode-photos.mjs --lqip-only
+const missingLqip = manifest.filter((p) => typeof p.lqip !== 'string' || p.lqip.length === 0)
+check(
+  missingLqip.length === 0,
+  `every manifest entry has an lqip placeholder${missingLqip.length ? ` (missing: ${missingLqip.map((p) => p.id).join(', ')})` : ''}`,
+)
+// Inline, not a path: a placeholder for a decode gap must not need a load
+// of its own to appear.
+const notInline = manifest.filter((p) => !String(p.lqip).startsWith('data:image/'))
+check(
+  notInline.length === 0,
+  `every lqip is an inline data URI${notInline.length ? ` (not inline: ${notInline.map((p) => p.id).join(', ')})` : ''}`,
+)
+// Budget: these ride in the JS bundle, parsed on every new tab.
+const LQIP_BUDGET = 200 * 1024
+const lqipBytes = manifest.reduce((sum, p) => sum + String(p.lqip ?? '').length, 0)
+check(
+  lqipBytes < LQIP_BUDGET,
+  `the whole lqip set fits the bundle budget (${(lqipBytes / 1024).toFixed(1)}KB of ${LQIP_BUDGET / 1024}KB)`,
+)
+
 console.log(failed ? '\nFAIL: photo manifest verification failed' : `\nPASS: photo manifest verification passed (${manifest.length} photos, ${manifest.length * 2} tier files)`)
 process.exit(failed ? 1 : 0)

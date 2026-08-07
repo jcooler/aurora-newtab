@@ -25,6 +25,32 @@
 // stall, so no quality was traded away. If snappier photo-in is ever
 // wanted, the right fix is a blur-up swap (paint the 2560 tier immediately,
 // swap to 3840 when decoded) — not lowering q.
+//
+// LQIP (2026-08-07): that decode cost is also what makes a purged background
+// tab flash. Chrome drops the decoded/rasterized image memory of background
+// tabs under pressure; on re-display the tier above has to re-decode, and
+// for those 36-165ms whatever sits BEHIND the <img> is what's on screen —
+// which used to be the bg-fallback gradient, i.e. a photo→gradient→photo
+// flash. So every photo also gets a 32x20 WebP placeholder, emitted as an
+// inline base64 data URI in the manifest rather than a file under
+// public/photos/. Inline is the whole point: at the instant the decode gap
+// opens, a placeholder that still needs a load (even an extension-local one,
+// and even more so right after memory pressure evicted caches) is a
+// placeholder that isn't there yet. In the manifest it is already parsed,
+// already resident, and re-decodes in well under a frame. The 23 of them
+// together cost ~8KB.
+//
+// USAGE
+//   node scripts/encode-photos.mjs             full run (re-encodes both tiers)
+//   node scripts/encode-photos.mjs --lqip-only refresh just the `lqip` fields
+// The --lqip-only mode exists because the two AVIF tiers are committed
+// binaries totalling ~58MB: re-encoding all 46 of them to change one string
+// field per entry would churn the repo for no reason. Both modes derive the
+// LQIP from the SAME source — the already-written 2560x1600 tier file — so
+// they produce identical bytes, and the placeholder is guaranteed to be the
+// exact crop that ships (the 2560 tier is 16:10 and so is 32x20, making the
+// downscale a pure resize with no second attention-crop decision that could
+// frame it differently from the photo it sits under).
 import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import sharp from 'sharp'
 
@@ -35,6 +61,18 @@ const TIERS = {
   '2560x1600': { width: 2560, height: 1600 },
   '3840x2400': { width: 3840, height: 2400 },
 }
+
+// The tier the LQIP is downscaled from — 16:10, same as LQIP_SIZE, so no crop.
+const LQIP_SOURCE_TIER = '2560x1600'
+// 32px wide is the standard blur-up size: enough to carry the photo's colour
+// composition and gross shapes through a heavy CSS blur, small enough that
+// the encode is a couple of hundred bytes. WebP beats AVIF and JPEG at this
+// size by a wide margin — measured on four of the bundled photos, WebP q60
+// lands at 186-256B where AVIF q50 is 384-452B (its container overhead
+// dominates at this resolution) and mozjpeg q50 is 435-481B. Quality is
+// almost irrelevant here since the layer is rendered under `blur(40px)`.
+const LQIP_SIZE = { width: 32, height: 20 }
+const LQIP_QUALITY = 60
 
 // Default AVIF quality (sharp's 1-100 scale, higher = better/larger),
 // targeting per-image visual transparency: for every kept candidate, a
@@ -76,9 +114,34 @@ async function encodeTier(candidate, tierName, tierSize, quality) {
   return { outFile, bytes: info.size }
 }
 
+/** Inline base64 data URI of a 32x20 WebP downscale of the given tier file. */
+async function encodeLqip(tierFile) {
+  const buf = await sharp(`${OUT_DIR}/${tierFile}`)
+    .resize(LQIP_SIZE.width, LQIP_SIZE.height, { fit: 'cover' })
+    .webp({ quality: LQIP_QUALITY, effort: 6 })
+    .toBuffer()
+  return `data:image/webp;base64,${buf.toString('base64')}`
+}
+
 async function main() {
+  const lqipOnly = process.argv.includes('--lqip-only')
   const all = JSON.parse(await readFile('scripts/photo-candidates.json', 'utf8'))
   const kept = all.filter((c) => !c.excluded)
+
+  // --lqip-only reuses the manifest and the committed tier files as-is and
+  // rewrites nothing but each entry's `lqip`; see the header comment.
+  if (lqipOnly) {
+    const manifest = JSON.parse(await readFile('src/services/photos/photos.json', 'utf8'))
+    let total = 0
+    for (const photo of manifest) {
+      photo.lqip = await encodeLqip(photo.tiers[LQIP_SOURCE_TIER])
+      total += photo.lqip.length
+      console.log(`lqip ${photo.id}: ${photo.lqip.length} B (data URI)`)
+    }
+    await writeFile('src/services/photos/photos.json', JSON.stringify(manifest, null, 2) + '\n')
+    console.log(`\nwrote ${manifest.length} LQIP data URIs, ${(total / 1024).toFixed(1)}KB total`)
+    return
+  }
 
   await rm(OUT_DIR, { recursive: true, force: true })
   await mkdir(OUT_DIR, { recursive: true })
@@ -102,6 +165,7 @@ async function main() {
       photographer: c.photographer,
       license: c.license,
       source: c.source,
+      lqip: await encodeLqip(tiers[LQIP_SOURCE_TIER]),
     })
     console.log(`encoded ${c.id} (q${quality}): ${Object.values(tiers).join(', ')} [${Object.values(bytes).map((b) => (b / 1024).toFixed(0) + 'KB').join(', ')}]`)
   }
