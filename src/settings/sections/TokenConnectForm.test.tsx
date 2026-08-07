@@ -176,10 +176,13 @@ describe('TokenConnectForm — connect gesture', () => {
 })
 
 describe('TokenConnectForm — connected state', () => {
-  it('connectedAs set replaces the form with a connected row + Disconnect button', () => {
+  it('connectedAs set replaces the form with just a Disconnect button — the identity is shown by the card shell, not repeated here', () => {
     renderForm({ connectedAs: 'octocat' })
 
-    expect(screen.getByText(/octocat/)).toBeTruthy()
+    // `connectedAs` still SELECTS the connected branch, but the identity is NOT
+    // displayed here: the card shell's authState chip (Connectors.tsx) is the
+    // single source of "Connected as X". Repeating it in the form was redundant.
+    expect(screen.queryByText(/octocat/)).toBeNull()
     expect(screen.queryByLabelText('Personal access token')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()

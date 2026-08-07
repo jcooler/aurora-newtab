@@ -1322,9 +1322,11 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
   it('connected state renders "Connected as {login}" + Disconnect; disconnecting revokes api.github.com and clears the config', async () => {
     const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
 
-    // The shell's own status chip AND the form's connected row both name the
-    // login (Task 46 chip + Task 47 form row).
-    expect(screen.getAllByText('Connected as octocat').length).toBeGreaterThan(0)
+    // EXACTLY one "Connected as" indicator — the card SHELL's authState chip.
+    // The Task-47 form's connected branch no longer repeats the identity (it's
+    // just the Disconnect action now), so this must be a single match, not
+    // "at least one" (the loose form silently blessed the old duplication).
+    expect(screen.getAllByText('Connected as octocat')).toHaveLength(1)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))

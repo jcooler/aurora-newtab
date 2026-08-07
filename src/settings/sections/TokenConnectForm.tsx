@@ -52,13 +52,17 @@ export function TokenConnectForm(props: {
   const [connecting, setConnecting] = useState(false)
 
   if (connectedAs !== null) {
+    // `connectedAs` still SELECTS this connected branch, but the identity itself
+    // is shown by the card SHELL's authState-driven chip (Connectors.tsx) — the
+    // single source of that indicator, and the only one present in the
+    // Off-but-connected state, where this form isn't rendered at all. Repeating
+    // it here was redundant, so this branch is now just the Disconnect action.
     return (
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-panel-border pt-3">
-        <span className="text-xs text-emerald-400">Connected as {connectedAs}</span>
+      <div className="mt-3 flex border-t border-panel-border pt-3">
         <button
           type="button"
           onClick={() => void onDisconnect()}
-          className="shrink-0 cursor-pointer text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
+          className="shrink-0 cursor-pointer self-start text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
         >
           Disconnect
         </button>

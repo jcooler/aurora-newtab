@@ -131,11 +131,19 @@ function ConnectorCard({
             checked={enabled}
             onChange={(e) => {
               const checked = e.currentTarget.checked
-              // First enable seeds the full default; a later toggle just flips
-              // `enabled` while preserving the feeds/shownCount already set.
+              // Only rss seeds default FIELDS here (its feeds/shownCount, which
+              // RssBody needs present the moment it renders). Every other
+              // connector supplies its real fields through its OWN body — token
+              // connectors (github + Tasks 49-51) at connect time via
+              // onConnected — so seeding them with RSS_DEFAULT would persist,
+              // and EXPORT, an RSS-shaped {feeds, shownCount} object under an id
+              // it doesn't belong to. Keyed to 'rss' specifically (not
+              // auth-gated) so no non-rss id ever gets an RSS-shaped seed; a
+              // first enable of any other connector writes just { enabled }.
+              const seed = descriptor.id === 'rss' ? RSS_DEFAULT : {}
               void storage.update('connectors', (prev) => ({
                 ...prev,
-                [descriptor.id]: { ...RSS_DEFAULT, ...prev[descriptor.id], enabled: checked },
+                [descriptor.id]: { ...seed, ...prev[descriptor.id], enabled: checked },
               }))
             }}
             className="size-4 accent-(--accent)"
