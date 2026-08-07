@@ -98,17 +98,25 @@ describe('healedRecord', () => {
     expect(healedRecord({ blob: stored }, thumb)).toEqual({ blob: stored, thumb })
   })
 
-  it('leaves a record that already has a thumb alone', () => {
+  it('overwrites a record that already has a thumb — the caller (backfillThumbs) is the one that decided this key needs healing, e.g. an under-spec thumb being upgraded', () => {
     const stored = new Blob(['full'], { type: 'image/png' })
-    const existing = new Blob(['other'], { type: 'image/webp' })
-    expect(healedRecord({ blob: stored, thumb: existing }, thumb)).toBeNull()
+    const existing = new Blob(['old-32px-thumb'], { type: 'image/webp' })
+    expect(healedRecord({ blob: stored, thumb: existing }, thumb)).toEqual({ blob: stored, thumb })
   })
 })
 
 describe('backfillThumbs', () => {
-  it('generates and heals only uploads that lack one', async () => {
+  it('generates and heals uploads that lack a thumb entirely', async () => {
     const made = new Blob(['tiny'], { type: 'image/webp' })
     vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(made)
+    // Already at spec — thumbIntrinsicWidth is mocked per-blob (same
+    // distinct-return idiom the other suites in this repo use for
+    // per-blob object URLs) so this test doesn't depend on jsdom's
+    // (absent) createImageBitmap to prove the "leave it alone" half.
+    const alreadyThumb = new Blob(['t'], { type: 'image/webp' })
+    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockImplementation(async (b) =>
+      b === alreadyThumb ? thumbs.THUMB_WIDTH : null,
+    )
     const legacy = new Blob(['legacy'], { type: 'image/png' })
     const already = new Blob(['already'], { type: 'image/png' })
     const heal = vi.fn().mockResolvedValue(undefined)
@@ -116,7 +124,7 @@ describe('backfillThumbs', () => {
     await backfillThumbs(
       [
         { key: 'photo:1', blob: legacy, thumb: undefined },
-        { key: 'photo:2', blob: already, thumb: new Blob(['t'], { type: 'image/webp' }) },
+        { key: 'photo:2', blob: already, thumb: alreadyThumb },
       ],
       heal,
     )
@@ -125,6 +133,57 @@ describe('backfillThumbs', () => {
     // moved on from by now.
     expect(heal).toHaveBeenCalledTimes(1)
     expect(heal).toHaveBeenCalledWith('photo:1', made)
+    vi.restoreAllMocks()
+  })
+
+  it('regenerates an upload whose thumb is narrower than the current THUMB_WIDTH spec (upgrade path)', async () => {
+    // The scenario the review finding was about: a gallery whose photos were
+    // all added back when THUMB_WIDTH was 32 has a thumb for every upload,
+    // so the OLD "lacks one" check would leave them mushy forever.
+    const upgraded = new Blob(['sharper'], { type: 'image/webp' })
+    vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(upgraded)
+    const undersizedThumb = new Blob(['old-32px'], { type: 'image/webp' })
+    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockResolvedValue(32)
+    const full = new Blob(['full'], { type: 'image/png' })
+    const heal = vi.fn().mockResolvedValue(undefined)
+
+    await backfillThumbs([{ key: 'photo:1', blob: full, thumb: undersizedThumb }], heal)
+
+    expect(heal).toHaveBeenCalledWith('photo:1', upgraded)
+    vi.restoreAllMocks()
+  })
+
+  it('leaves an upload whose thumb already meets the spec alone', async () => {
+    const makeThumbSpy = vi.spyOn(thumbs, 'makeThumb')
+    vi.spyOn(thumbs, 'thumbIntrinsicWidth').mockResolvedValue(thumbs.THUMB_WIDTH)
+    const heal = vi.fn().mockResolvedValue(undefined)
+
+    await backfillThumbs(
+      [{ key: 'photo:1', blob: new Blob(['full']), thumb: new Blob(['spec'], { type: 'image/webp' }) }],
+      heal,
+    )
+
+    expect(heal).not.toHaveBeenCalled()
+    expect(makeThumbSpy).not.toHaveBeenCalled() // no wasted re-encode either
+    vi.restoreAllMocks()
+  })
+
+  it('treats an undecodable existing thumb as needing an upgrade rather than skipping it silently', async () => {
+    // thumbIntrinsicWidth returns null on a decode failure (or no
+    // createImageBitmap) — same as jsdom's real behaviour, not mocked away
+    // here. Given no way to tell "under spec" from "fine", attempting a
+    // fresh thumb from the still-good full-res blob is the more useful
+    // failure than leaving a possibly-corrupt one in place forever.
+    const upgraded = new Blob(['fresh'], { type: 'image/webp' })
+    vi.spyOn(thumbs, 'makeThumb').mockResolvedValue(upgraded)
+    const heal = vi.fn().mockResolvedValue(undefined)
+
+    await backfillThumbs(
+      [{ key: 'photo:1', blob: new Blob(['full']), thumb: new Blob(['undecodable']) }],
+      heal,
+    )
+
+    expect(heal).toHaveBeenCalledWith('photo:1', upgraded)
     vi.restoreAllMocks()
   })
 

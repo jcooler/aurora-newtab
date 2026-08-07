@@ -1,22 +1,33 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { THUMB_WIDTH, makeThumb, thumbSize } from './thumbs'
+import { THUMB_WIDTH, makeThumb, thumbIntrinsicWidth, thumbSize } from './thumbs'
+
+describe('THUMB_WIDTH', () => {
+  it('covers a size-14 (56px CSS) gallery tile at 2x device-pixel-ratio', () => {
+    // 56px CSS * 2 = 112 device px is the floor a tile can be shown at
+    // without visibly upscaling the thumb (Background.tsx's gallery grid,
+    // src/settings/sections/Background.tsx) — the regression this constant
+    // fixes. Not pinned to the exact 160 value: the invariant that matters
+    // is the DPR floor, so a future retune stays honest to it.
+    expect(THUMB_WIDTH).toBeGreaterThanOrEqual(112)
+  })
+})
 
 describe('thumbSize', () => {
   it('scales a landscape photo down to the placeholder width', () => {
-    expect(thumbSize(4000, 2500)).toEqual({ width: 32, height: 20 })
+    expect(thumbSize(4000, 2500)).toEqual({ width: 160, height: 100 })
   })
 
   it('keeps the aspect ratio of a portrait photo instead of forcing 16:10', () => {
-    expect(thumbSize(2000, 4000)).toEqual({ width: 32, height: 64 })
+    expect(thumbSize(2000, 4000)).toEqual({ width: 160, height: 320 })
   })
 
   it('never scales a photo smaller than the placeholder up', () => {
-    expect(thumbSize(16, 10)).toEqual({ width: 16, height: 10 })
+    expect(thumbSize(100, 60)).toEqual({ width: 100, height: 60 })
   })
 
   it('never rounds a dimension down to zero', () => {
-    expect(thumbSize(1000, 4)).toEqual({ width: 32, height: 1 })
+    expect(thumbSize(1000, 4)).toEqual({ width: 160, height: 1 })
   })
 })
 
@@ -72,10 +83,43 @@ describe('makeThumb', () => {
     const thumb = await makeThumb(new Blob(['x'], { type: 'image/png' }))
 
     expect(thumb).toBe(out)
-    expect(canvasSize).toEqual({ width: THUMB_WIDTH, height: 20 })
-    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, THUMB_WIDTH, 20)
+    expect(canvasSize).toEqual({ width: THUMB_WIDTH, height: 100 })
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, THUMB_WIDTH, 100)
     expect(convertOptions?.type).toBe('image/webp')
+    // 0.8, up from the original 0.6 — locks in the review finding that the
+    // gallery grid (unblurred, unlike the LQIP underlay) needed more than
+    // the old spec gave it.
+    expect(convertOptions?.quality).toBe(0.8)
     // The bitmap holds decoded pixels; leaking one per upload is a real cost.
+    expect(close).toHaveBeenCalled()
+  })
+})
+
+describe('thumbIntrinsicWidth', () => {
+  const originalCreateImageBitmap = globalThis.createImageBitmap
+
+  afterEach(() => {
+    globalThis.createImageBitmap = originalCreateImageBitmap
+  })
+
+  it('returns null instead of throwing when the platform has no createImageBitmap', async () => {
+    expect(await thumbIntrinsicWidth(new Blob(['x'], { type: 'image/webp' }))).toBeNull()
+  })
+
+  it('returns null when the blob cannot be decoded', async () => {
+    globalThis.createImageBitmap = vi.fn(() =>
+      Promise.reject(new Error('not an image')),
+    ) as unknown as typeof createImageBitmap
+    expect(await thumbIntrinsicWidth(new Blob(['x'], { type: 'image/webp' }))).toBeNull()
+  })
+
+  it('returns the decoded width and releases the bitmap', async () => {
+    const close = vi.fn()
+    globalThis.createImageBitmap = vi.fn(() =>
+      Promise.resolve({ width: 160, height: 100, close } as unknown as ImageBitmap),
+    ) as unknown as typeof createImageBitmap
+
+    expect(await thumbIntrinsicWidth(new Blob(['x'], { type: 'image/webp' }))).toBe(160)
     expect(close).toHaveBeenCalled()
   })
 })

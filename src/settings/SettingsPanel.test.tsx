@@ -521,6 +521,11 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 describe('SettingsPanel Background section (upload gallery)', () => {
   let originalCreate: typeof URL.createObjectURL
   let originalRevoke: typeof URL.revokeObjectURL
+  // blob -> the object URL handed out for it, so a test can say WHICH blob
+  // (thumb vs. full photo) a rendered tile's `src` actually points to — same
+  // idiom src/newtab/components/Background.test.tsx uses for its LQIP-vs-
+  // photo assertions, needed here for the thumb-vs-full-blob ones below.
+  let objectUrls: Map<Blob, string>
 
   beforeEach(() => {
     vi.mocked(addUploads).mockReset().mockResolvedValue(undefined)
@@ -531,7 +536,13 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     // directly, same as Background.test.tsx.
     originalCreate = URL.createObjectURL
     originalRevoke = URL.revokeObjectURL
-    URL.createObjectURL = vi.fn(() => 'blob:mock-url') as typeof URL.createObjectURL
+    objectUrls = new Map()
+    let n = 0
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      const url = `blob:mock-${n++}`
+      objectUrls.set(blob, url)
+      return url
+    }) as typeof URL.createObjectURL
     URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
   })
 
@@ -596,6 +607,40 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     // effect calls revokeObjectURL, and this describe block's afterEach
     // restores the (jsdom-absent) original before RTL's automatic
     // post-test cleanup would otherwise unmount it — see Background.test.tsx.
+    unmount()
+  })
+
+  it('a gallery tile renders the THUMB object URL, not the full photo, when a thumb exists', async () => {
+    // The regression this covers: the grid used to build every tile's URL
+    // from the full-resolution blob unconditionally, forcing a multi-MB
+    // decode for a ~56px tile even though a ~32px placeholder already sat
+    // right next to it in the same IndexedDB record.
+    const blob = new Blob(['full-a'], { type: 'image/png' })
+    const thumb = new Blob(['thumb-a'], { type: 'image/webp' })
+    vi.mocked(listUploads).mockResolvedValue([{ key: 'photo:a', blob, thumb }])
+    const { unmount } = await renderPanelInUploadMode()
+
+    const [item] = await screen.findAllByRole('listitem')
+    const img = item!.querySelector('img')
+    expect(img?.getAttribute('src')).toBe(objectUrls.get(thumb))
+    expect(img?.getAttribute('src')).not.toBe(objectUrls.get(blob))
+
+    unmount()
+  })
+
+  it('a gallery tile falls back to the full photo when the upload has no thumb yet (pre-heal)', async () => {
+    // Tolerant-migration case: an upload added before placeholders existed
+    // (or mid-backfill — idb.ts's backfillThumbs runs unattended) has no
+    // `thumb`. The grid must still show something for it rather than an
+    // empty tile.
+    const blob = new Blob(['full-a'], { type: 'image/png' })
+    vi.mocked(listUploads).mockResolvedValue([{ key: 'photo:a', blob }])
+    const { unmount } = await renderPanelInUploadMode()
+
+    const [item] = await screen.findAllByRole('listitem')
+    const img = item!.querySelector('img')
+    expect(img?.getAttribute('src')).toBe(objectUrls.get(blob))
+
     unmount()
   })
 

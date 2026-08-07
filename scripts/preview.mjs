@@ -2176,6 +2176,129 @@ for (const { w, h } of viewportMatrix) {
 }
 
 // ---------------------------------------------------------------------------
+// GREETING WIDTH CAP — worst-case custom name (batch item 1, prior-phase
+// review finding). Every capture up to this point ran with the default,
+// empty `settings.name` (see the top-of-file seed — it never touches it), so
+// the greeting was always short ("Good afternoon.") and nothing in this
+// script had ever exercised what a real `Settings -> General -> "Your name"`
+// can do to it. Greeting.tsx now caps the line's width and truncates
+// (`title` carries the full text) rather than growing unbounded; this seeds
+// a worst-case name — 40+ Latin characters AND the same CJK title the
+// bookmarks worst-case block below uses — one string that is wide by BOTH
+// measures the review called out, so a cap that survives this can't be
+// passing by accident on either axis alone.
+//
+// Two viewports, same reasoning as the weather-expanded matrix above: 730x900
+// is the narrowest point of `tight`, where WeatherWidget's own EXPANDED-panel
+// width formula is calibrated on the assumption that this greeting never
+// exceeds its widest DEFAULT rendering (284.5px, ~3px of clearance measured
+// there — see WeatherWidget.tsx's own comment); 800x450 stacks `tight` width
+// with `xshort` height, where the greeting drops to 18px type — checked here
+// because the cap is a WIDTH media query and doesn't care about the smaller
+// face, so the same truncation is expected to hold there too.
+//
+// Not reloaded: a `chrome.storage.local.set` on `settings` propagates live
+// via `chrome.storage.onChanged` (same as the location-typeahead block
+// above), so this is a real "user types a long name while the page is open"
+// scenario, not a fresh-mount one.
+{
+  const originalSettings = await page.evaluate(
+    async () => (await chrome.storage.local.get('settings')).settings,
+  )
+  const WORST_CASE_NAME = 'BARTHOLOMEW-MAXIMILIAN-FEATHERSTONEHAUGH 天気予報'
+  await page.evaluate(
+    ({ settings, name }) => chrome.storage.local.set({ settings: { ...settings, name } }),
+    { settings: originalSettings, name: WORST_CASE_NAME },
+  )
+  await page.waitForFunction(
+    () => document.querySelector('[data-block-id="greeting"] p')?.getAttribute('title')?.includes('BARTHOLOMEW'),
+    { timeout: 5000 },
+  )
+
+  // The `<p>` itself, not the `[data-block-id]` wrapper div the other
+  // overlap probes in this script measure: the wrapper shrink-wraps the
+  // paragraph (see PositionedBlock.tsx — it carries no width of its own), so
+  // its rect is the same box, but only the `<p>` has `overflow:hidden` set,
+  // and `scrollWidth`/`clientWidth` are what make truncation FALSIFIABLE
+  // (measured against measured, not "renders without a visible complaint") —
+  // the same idiom the bookmarks label-truncation check above uses.
+  const measureGreeting = () =>
+    page.evaluate((s) => {
+      const p = document.querySelector('[data-block-id="greeting"] p')
+      if (!p) return null
+      const r = p.getBoundingClientRect()
+      const weatherEl = document.querySelector(s)
+      const wr = weatherEl ? weatherEl.getBoundingClientRect() : null
+      return {
+        rect: { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), left: +r.left.toFixed(1), right: +r.right.toFixed(1) },
+        clientWidth: p.clientWidth,
+        scrollWidth: p.scrollWidth,
+        title: p.getAttribute('title'),
+        weather: wr ? { top: +wr.top.toFixed(1), bottom: +wr.bottom.toFixed(1), left: +wr.left.toFixed(1), right: +wr.right.toFixed(1) } : null,
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+      }
+    }, weatherSel)
+
+  for (const { w, h } of [
+    { w: 730, h: 900 },
+    { w: 800, h: 450 },
+  ]) {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(300) // let resize listeners + layout settle
+
+    const collapsed = await measureGreeting()
+    await page.screenshot({ path: `${outDir}/greeting-worst-case-${w}x${h}.png` })
+    console.log(`captured greeting-worst-case-${w}x${h}.png`)
+
+    if (!collapsed) {
+      console.log(`FAIL: greeting cap binds for a worst-case name at ${w}x${h} (greeting not found)`)
+    } else {
+      // The falsifiable half of the claim: the cap doesn't just "look fine"
+      // today, it is actually BINDING — the natural (untruncated) line is
+      // wider than the box truncation clipped it to.
+      const capBinds = collapsed.scrollWidth > collapsed.clientWidth + 1
+      const titled = typeof collapsed.title === 'string' && collapsed.title.includes('BARTHOLOMEW')
+      const onScreen = collapsed.rect.left >= -1 && collapsed.rect.right <= collapsed.viewport.w + 1
+      const clearOfCollapsedWeather = !collapsed.weather || !hits(collapsed.rect, collapsed.weather)
+      console.log(
+        capBinds && titled && onScreen && clearOfCollapsedWeather
+          ? `PASS: greeting cap binds and stays clear of the collapsed weather chip for a worst-case name at ${w}x${h} (${collapsed.clientWidth}px shown of ${collapsed.scrollWidth}px natural, full name on \`title\`)`
+          : `FAIL: greeting cap binds and stays clear of the collapsed weather chip for a worst-case name at ${w}x${h} (capBinds=${capBinds} [${collapsed.clientWidth}px vs ${collapsed.scrollWidth}px natural], titled=${titled}, onScreen=${onScreen} (${collapsed.rect.left}..${collapsed.rect.right} of ${collapsed.viewport.w}px), weatherClear=${clearOfCollapsedWeather} (greeting ${JSON.stringify(collapsed.rect)}, weather ${JSON.stringify(collapsed.weather)}))`,
+      )
+    }
+
+    // The EXPANDED panel — the state WeatherWidget.tsx's own `tight:` cap is
+    // actually calibrated against (see that file's comment); the collapsed
+    // chip above is anchored `right-4` and stays narrow regardless.
+    await setWeatherExpanded(true)
+    await page.waitForTimeout(200)
+    const expanded = await measureGreeting()
+    if (!expanded) {
+      console.log(`FAIL: greeting cap stays clear of the EXPANDED weather panel for a worst-case name at ${w}x${h} (greeting not found)`)
+    } else {
+      const clearOfExpandedWeather = !expanded.weather || !hits(expanded.rect, expanded.weather)
+      console.log(
+        clearOfExpandedWeather
+          ? `PASS: greeting cap stays clear of the EXPANDED weather panel for a worst-case name at ${w}x${h} (greeting ${expanded.rect.left}..${expanded.rect.right}, weather ${expanded.weather ? `${expanded.weather.left}..${expanded.weather.right}` : 'not found'} of ${expanded.viewport.w}px)`
+          : `FAIL: greeting cap stays clear of the EXPANDED weather panel for a worst-case name at ${w}x${h} (greeting ${JSON.stringify(expanded.rect)}, weather ${JSON.stringify(expanded.weather)})`,
+      )
+    }
+    await setWeatherExpanded(false)
+    await page.waitForTimeout(150)
+  }
+
+  // Restore: the seeded name (nothing else changed), same discipline as
+  // every other seed/restore point in this script.
+  await page.evaluate((settings) => chrome.storage.local.set({ settings }), originalSettings)
+  await page.waitForFunction(
+    () => !document.querySelector('[data-block-id="greeting"] p')?.getAttribute('title')?.includes('BARTHOLOMEW'),
+    { timeout: 5000 },
+  )
+  await page.setViewportSize(launchViewport)
+  await page.waitForTimeout(150)
+}
+
+// ---------------------------------------------------------------------------
 // Fresh-install DEFAULT state (final review finding 2). Storage defaults
 // (src/lib/storage/schema.ts's defaults()) ship bookmarks:false, timer:false
 // — every capture up to this point in this script ran with BOTH seeded ON

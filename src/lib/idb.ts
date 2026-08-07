@@ -1,13 +1,17 @@
 // src/lib/idb.ts — multi-photo store for user-uploaded backgrounds.
 //
 // RECORD SHAPE. Each `photo:<uuid>` key holds a `StoredUpload`:
-// `{ blob, thumb }`, where `thumb` is the tiny WebP placeholder
-// Background.tsx paints under the full photo (src/lib/thumbs.ts explains
-// why). Galleries filled before placeholders existed hold the File itself
-// as the value instead, with no wrapper — `toUpload` reads both shapes, so
-// no store version bump and no destructive migration was needed, and
-// `backfillThumbs` heals the old ones in the background on first read.
-import { makeThumb } from './thumbs'
+// `{ blob, thumb }`, where `thumb` is the WebP placeholder both the LQIP
+// underlay AND the settings gallery grid paint (src/lib/thumbs.ts explains
+// why one thumb serves both). Galleries filled before placeholders existed
+// hold the File itself as the value instead, with no wrapper — `toUpload`
+// reads both shapes, so no store version bump and no destructive migration
+// was needed, and `backfillThumbs` heals the old ones in the background on
+// first read. That same heal path is also how a thumb generated under an
+// OLDER, smaller THUMB_WIDTH spec gets upgraded — see its own comment; there
+// is deliberately no separate schema field recording which spec a stored
+// thumb was made under.
+import { THUMB_WIDTH, makeThumb, thumbIntrinsicWidth } from './thumbs'
 
 const DB_NAME = 'aurora'
 const STORE = 'photos'
@@ -72,30 +76,55 @@ export async function toStoredUpload(file: File): Promise<StoredUpload> {
  * RESURRECT a photo the user just deleted. Two rules keep that impossible:
  * a key that has since vanished is left vanished, and the blob written is
  * the one currently in the store, never the snapshot's copy.
+ *
+ * Does NOT refuse just because `current` already has a thumb. It used to —
+ * "already healed (another tab), or replaced" — back when the only reason to
+ * heal was a MISSING thumb, so any existing one meant nothing to do. Now the
+ * caller (`backfillThumbs`) can also call this to UPGRADE a thumb that's
+ * present but under the current THUMB_WIDTH spec, and by the time that
+ * decision reaches here it has already been made — this function has no way
+ * to re-check it itself (it's synchronous, deliberately, to stay inside one
+ * IndexedDB transaction with the `get` that reads `existing`; checking a
+ * width means decoding the blob, which is async). The only failure mode this
+ * gives up is two tabs racing to heal the SAME key at once, where the loser
+ * overwrites the winner's equally-fresh thumb with a redundant one encoded
+ * from the same immutable `blob` — wasted CPU, not a wrong result, and far
+ * rarer than the thing this function still refuses unconditionally: writing
+ * over a key that no longer exists.
  */
 export function healedRecord(existing: unknown, thumb: Blob): StoredUpload | null {
   if (existing === undefined || existing === null) return null // deleted meanwhile
   const current = toUpload('', existing)
-  if (current.thumb) return null // already healed (another tab), or replaced
   if (!(current.blob instanceof Blob)) return null // unrecognisable — leave it alone
   return { blob: current.blob, thumb }
 }
 
 /**
- * Generates the missing placeholder for every thumbless upload and hands it
- * to `heal`, which is responsible for the store-side existence re-check (see
+ * Generates a fresh placeholder for every upload that needs one — missing
+ * entirely, OR present but narrower than the current THUMB_WIDTH spec (a
+ * thumb made before that constant was last bumped) — and hands it to `heal`,
+ * which is responsible for the store-side existence re-check (see
  * healedRecord). Only the thumbnail crosses that boundary — the snapshot's
  * blob deliberately does not. Best-effort by construction: a photo whose
- * thumbnail can't be produced or stored is left exactly as it was and the
- * rest still get healed, because this runs unattended, off the render path,
- * and must never be able to take the gallery down with it.
+ * thumbnail can't be produced, decoded for a width check, or stored is left
+ * exactly as it was and the rest still get healed, because this runs
+ * unattended, off the render path, and must never be able to take the
+ * gallery down with it. A stored thumb whose width can't be determined
+ * (`thumbIntrinsicWidth` returns null — decode failure, or no
+ * createImageBitmap) is treated as needing an upgrade rather than left
+ * alone: the only two outcomes are "redundant regenerate" and "correctly
+ * skip", and given the choice with no way to tell which is true, attempting
+ * a fresh thumb from the still-good `blob` is the more useful failure.
  */
 export async function backfillThumbs(
   uploads: Upload[],
   heal: (key: string, thumb: Blob) => Promise<void>,
 ): Promise<void> {
   for (const upload of uploads) {
-    if (upload.thumb) continue
+    if (upload.thumb) {
+      const width = await thumbIntrinsicWidth(upload.thumb)
+      if (width !== null && width >= THUMB_WIDTH) continue // already at spec
+    }
     try {
       const thumb = await makeThumb(upload.blob)
       if (!thumb) continue
@@ -130,7 +159,13 @@ async function healInStore(key: string, thumb: Blob): Promise<void> {
 let backfillStarted = false
 function startBackfillOnce(uploads: Upload[]): void {
   if (backfillStarted) return
-  if (uploads.every((u) => u.thumb)) return
+  // No `uploads.every((u) => u.thumb)` fast exit here any more. That used to
+  // be a safe, synchronous "nothing to do" check when the only reason to
+  // heal was a MISSING thumb — now a thumb can be present but under-spec,
+  // and telling those two cases apart needs a decode (thumbIntrinsicWidth,
+  // async), which backfillThumbs already does per-upload. Skipping the whole
+  // pass here on thumb PRESENCE alone would leave every pre-160px thumb
+  // mushy forever for a gallery that never adds a new photo.
   backfillStarted = true
   // Fire-and-forget: the caller already has its list, and the healed thumbs
   // are picked up by the next read (a new tab). Blocking the first paint of
