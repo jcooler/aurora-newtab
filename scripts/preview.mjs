@@ -1154,10 +1154,12 @@ console.log(
 // thing under test here.
 const viewportMatrix = [
   // 1600x900 is this script's own launch size, so the setViewportSize below
-  // is a no-op for it — it's in the matrix because the weather/bookmarks
-  // overlap assertion has to cover it: it is the widest viewport where the
-  // bookmarks bar still gets its full un-tightened `max-w-[52vw]` cap, and
-  // therefore the tightest squeeze the expanded weather panel ever faces.
+  // is a no-op for it — it's in the matrix because the top-band assertions
+  // have to cover it too: it is the roomiest ordinary desktop shape, where
+  // the bookmarks bar renders every title in full and the expanded weather
+  // panel is at its widest, so it's the size that proves the band is a
+  // deliberate layout rather than a squeeze that only looks right when
+  // something is being compressed.
   { w: 1600, h: 900 },
   { w: 1420, h: 437 }, // the owner's own window — the original bug report
   { w: 1280, h: 500 },
@@ -1165,6 +1167,102 @@ const viewportMatrix = [
   { w: 800, h: 450 },
   { w: 2560, h: 1440 },
 ]
+// THE RULE, stated as a measurement: the air BELOW the band equals the
+// air ABOVE it. index.css builds both out of one `--top-band-gap` token
+// (`--top-band` is gap + one chip row + gap), so the bar's own distance
+// from the top of the viewport — measured, not assumed — is exactly what
+// each peripheral's clearance underneath it should be. Comparing the two
+// measured sides against each other keeps this honest in a way a
+// hardcoded 16 could not: it follows the token when it compresses on
+// xshort viewports, AND it fails if a chip ever renders taller than
+// `--bookmarks-chip-h` assumes (the band would stop covering the bar,
+// eating the clearance) or if either peripheral drifts back up to the
+// bar's own `top` (clearance would go sharply negative).
+const GAP_TOLERANCE = 1 // sub-pixel layout only
+
+// Returns null ONLY when the bar itself is missing — and that is a FAIL,
+// not a skip: this whole block is already gated on the bookmarks
+// permission, and the seed at the top of the script guarantees a
+// populated bar. The peripherals come back as null INDEPENDENTLY, so a
+// missing timer can't silently take the single-row and shrink assertions
+// (which don't involve it at all) down with it — the earlier version
+// returned one null for any of the three and collapsed all four
+// assertions into a single SKIP line.
+const measureBand = () =>
+  page.evaluate((s) => {
+    const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+    if (!nav) return null
+    const timerEl = document.querySelector('[data-block-id="timer"]')
+    const weatherEl = document.querySelector(s)
+    const r = (el) => {
+      const b = el.getBoundingClientRect()
+      return {
+        top: +b.top.toFixed(1),
+        bottom: +b.bottom.toFixed(1),
+        left: +b.left.toFixed(1),
+        right: +b.right.toFixed(1),
+        width: +b.width.toFixed(1),
+        height: +b.height.toFixed(1),
+      }
+    }
+    const bar = r(nav)
+    // The nav's own flex items — one per chip (a folder/overflow chip's
+    // item is its `relative` wrapper div, a loose bookmark's is the
+    // anchor itself). Their heights are what set the row height.
+    const chips = [...nav.children].map(r)
+    // Every chip's label. `truncate` means overflow:hidden, so clientWidth
+    // is what's actually READABLE and scrollWidth is the full title —
+    // their ratio is how much of each title survived the squeeze. (The
+    // "»" chip has no label span, which is correct: it has nothing to
+    // truncate and is exempt from shrinking.)
+    const labelEls = [...nav.querySelectorAll('span')]
+    const labels = labelEls.map((el) => ({
+      w: el.clientWidth,
+      natural: el.scrollWidth,
+    }))
+    // The `min-w-[4ch]` floor, resolved to px by the browser against the
+    // label's OWN font — read rather than assumed, so this tracks a user's
+    // Chrome minimum-font-size setting the same way the CSS does.
+    const labelFloor = labelEls.length
+      ? +parseFloat(getComputedStyle(labelEls[0]).minWidth).toFixed(1)
+      : 0
+    // Worst case: a profile whose titles are long enough to fill the cap
+    // completely. The bar is centred and shrink-to-fit, so its ACTUAL
+    // width depends on the seeded titles; the cap is the number the
+    // layout is designed against.
+    const maxW = parseFloat(getComputedStyle(nav).maxWidth)
+    const cx = bar.left + bar.width / 2
+    return {
+      bar,
+      barWorst: { left: cx - maxW / 2, right: cx + maxW / 2, top: bar.top, bottom: bar.bottom },
+      barMaxWidth: +maxW.toFixed(1),
+      chipCount: chips.length,
+      tallestChip: Math.max(...chips.map((c) => c.height)),
+      labelCount: labels.length,
+      labelFloor,
+      narrowestLabel: labels.length ? Math.min(...labels.map((l) => l.w)) : 0,
+      truncatedLabels: labels.filter((l) => l.natural > l.w + 1).length,
+      // Worst survival ratio across the labels that ARE truncated; 1 when
+      // none are.
+      worstLabelRatio: Math.min(
+        1,
+        ...labels.filter((l) => l.natural > l.w + 1).map((l) => l.w / l.natural),
+      ),
+      // True when the row's used width is pinned to the cap — i.e. flex
+      // shrink is doing work, rather than the chips happening to fit.
+      capBinding: Math.abs(bar.width - maxW) <= 1,
+      // A nowrap row that can't shrink far enough would overflow its own
+      // box instead of wrapping — same failure, different shape.
+      barOverflowX: nav.scrollWidth - nav.clientWidth,
+      timer: timerEl ? r(timerEl) : null,
+      weather: weatherEl ? r(weatherEl) : null,
+      viewport: { w: window.innerWidth, h: window.innerHeight },
+    }
+  }, weatherSel)
+
+const hits = (a, b) =>
+  !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+
 const launchViewport = { width: 1600, height: 900 } // this script's own launch size (top of file) — restored after
 let errorsSeenSoFar = errors.length
 for (const { w, h } of viewportMatrix) {
@@ -1259,85 +1357,6 @@ for (const { w, h } of viewportMatrix) {
   // hasBookmarksPermission SKIP line near the top): a production build never
   // renders the bar at all, so there is no band to measure.
   if (hasBookmarksPermission) {
-    // THE RULE, stated as a measurement: the air BELOW the band equals the
-    // air ABOVE it. index.css builds both out of one `--top-band-gap` token
-    // (`--top-band` is gap + one chip row + gap), so the bar's own distance
-    // from the top of the viewport — measured, not assumed — is exactly what
-    // each peripheral's clearance underneath it should be. Comparing the two
-    // measured sides against each other keeps this honest in a way a
-    // hardcoded 16 could not: it follows the token when it compresses on
-    // xshort viewports, AND it fails if a chip ever renders taller than
-    // `--bookmarks-chip-h` assumes (the band would stop covering the bar,
-    // eating the clearance) or if either peripheral drifts back up to the
-    // bar's own `top` (clearance would go sharply negative).
-    const GAP_TOLERANCE = 1 // sub-pixel layout only
-
-    const measureBand = () =>
-      page.evaluate((s) => {
-        const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
-        const timerEl = document.querySelector('[data-block-id="timer"]')
-        const weatherEl = document.querySelector(s)
-        if (!nav || !timerEl || !weatherEl) return null
-        const r = (el) => {
-          const b = el.getBoundingClientRect()
-          return {
-            top: +b.top.toFixed(1),
-            bottom: +b.bottom.toFixed(1),
-            left: +b.left.toFixed(1),
-            right: +b.right.toFixed(1),
-            width: +b.width.toFixed(1),
-            height: +b.height.toFixed(1),
-          }
-        }
-        const bar = r(nav)
-        // The nav's own flex items — one per chip (a folder/overflow chip's
-        // item is its `relative` wrapper div, a loose bookmark's is the
-        // anchor itself). Their heights are what set the row height.
-        const chips = [...nav.children].map(r)
-        // Every chip's label. `truncate` means overflow:hidden, so clientWidth
-        // is what's actually READABLE and scrollWidth is the full title —
-        // their ratio is how much of each title survived the squeeze. (The
-        // "»" chip has no label span, which is correct: it has nothing to
-        // truncate and is exempt from shrinking.)
-        const labels = [...nav.querySelectorAll('span')].map((el) => ({
-          w: el.clientWidth,
-          natural: el.scrollWidth,
-        }))
-        // Worst case: a profile whose titles are long enough to fill the cap
-        // completely. The bar is centred and shrink-to-fit, so its ACTUAL
-        // width depends on the seeded titles; the cap is the number the
-        // layout is designed against.
-        const maxW = parseFloat(getComputedStyle(nav).maxWidth)
-        const cx = bar.left + bar.width / 2
-        return {
-          bar,
-          barWorst: { left: cx - maxW / 2, right: cx + maxW / 2, top: bar.top, bottom: bar.bottom },
-          barMaxWidth: +maxW.toFixed(1),
-          chipCount: chips.length,
-          tallestChip: Math.max(...chips.map((c) => c.height)),
-          labelCount: labels.length,
-          truncatedLabels: labels.filter((l) => l.natural > l.w + 1).length,
-          // Worst survival ratio across the labels that ARE truncated; 1 when
-          // none are.
-          worstLabelRatio: Math.min(
-            1,
-            ...labels.filter((l) => l.natural > l.w + 1).map((l) => l.w / l.natural),
-          ),
-          // True when the row's used width is pinned to the cap — i.e. flex
-          // shrink is doing work, rather than the chips happening to fit.
-          capBinding: Math.abs(bar.width - maxW) <= 1,
-          // A nowrap row that can't shrink far enough would overflow its own
-          // box instead of wrapping — same failure, different shape.
-          barOverflowX: nav.scrollWidth - nav.clientWidth,
-          timer: r(timerEl),
-          weather: r(weatherEl),
-          viewport: { w: window.innerWidth, h: window.innerHeight },
-        }
-      }, weatherSel)
-
-    const hits = (a, b) =>
-      !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
-
     const band = await measureBand()
 
     // 1. ONE ROW. The bar used to be `flex-wrap`, and at 800x450 three chips
@@ -1349,7 +1368,9 @@ for (const { w, h } of viewportMatrix) {
     // sized so the bar renders its structural maximum of 9 flex items —
     // MAX_VISIBLE_CHIPS (8) plus the "»" overflow chip.
     if (!band) {
-      console.log(`SKIP: bookmarks single-row check at ${w}x${h} (element(s) not found)`)
+      // Not a SKIP: the permission is held and the seed populated the tree,
+      // so a missing bar is a real regression, not an absent precondition.
+      console.log(`FAIL: bookmarks bar is a single row at ${w}x${h} (no nav[aria-label="Bookmarks bar"] in the DOM)`)
     } else {
       const singleRow = band.bar.height <= band.tallestChip + 2
       const enoughChips = band.chipCount >= 9
@@ -1379,13 +1400,20 @@ for (const { w, h } of viewportMatrix) {
     }
 
     // 2. The timer pill clears the band. 3a. So does the weather chip, in
-    // its COLLAPSED state.
+    // its COLLAPSED state. Both are guaranteed present by the seed (it flips
+    // the timer widget on and sets a manual location), so a missing element
+    // is a FAIL in its own right rather than a reason to say nothing.
     for (const [label, key] of [
       ['timer', 'timer'],
       ['weather', 'weather'],
     ]) {
-      if (!band) break
-      const rect = band[key]
+      const rect = band && band[key]
+      if (!rect) {
+        console.log(
+          `FAIL: no bookmarks/${label} overlap at ${w}x${h} (${band ? `the ${label} element is not in the DOM` : 'the bookmarks bar is not in the DOM'})`,
+        )
+        continue
+      }
       const clear = +(rect.top - band.bar.bottom).toFixed(1)
       const ok =
         !hits(band.bar, rect) &&
@@ -1410,8 +1438,10 @@ for (const { w, h } of viewportMatrix) {
     await setWeatherExpanded(true)
     await page.waitForTimeout(200)
     const expanded = await measureBand()
-    if (!expanded) {
-      console.log(`SKIP: expanded bookmarks/weather overlap check at ${w}x${h} (element(s) not found)`)
+    if (!expanded || !expanded.weather) {
+      console.log(
+        `FAIL: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expanded ? 'the weather element is not in the DOM' : 'the bookmarks bar is not in the DOM'})`,
+      )
     } else {
       const clear = +(expanded.weather.top - expanded.bar.bottom).toFixed(1)
       const bottomRoom = +(expanded.viewport.h - expanded.weather.bottom).toFixed(1)
@@ -1428,6 +1458,91 @@ for (const { w, h } of viewportMatrix) {
     }
     await setWeatherExpanded(false) // leave the page as this loop found it
     await page.waitForTimeout(150)
+  }
+}
+
+// ---------------------------------------------------------------------------
+// WORST-CASE FIT: eight chips whose titles are SHORT but WIDE.
+//
+// Review finding. An earlier version of the shrink pass exempted chips whose
+// TITLE was short from shrinking at all, on the reasoning that truncating
+// "Dev" to "D…" costs the chip its meaning. A character count is not a width:
+// six uppercase Latin characters ("GITHUB") or four full-width CJK glyphs
+// render around 90px, so eight "short" titles came to roughly 800px against a
+// 768px cap — and with every chip exempt from shrinking, a centred row that
+// never clips or scrolls spills off BOTH viewport edges. The main matrix
+// can't catch it: its seed keeps only two short titles, so nothing there ever
+// exercises the exempt path at scale.
+//
+// The fix moved the floor onto the LABEL (`min-w-[4ch]`, font-relative) and
+// put `shrink` back on every chip, which makes the fit an invariant of the
+// layout rather than a property of the seeded titles. This probe is what
+// proves that: it replaces the whole bookmarks bar with the adversarial case
+// — uppercase Latin, CJK, and the widest Latin glyphs there are, every title
+// at or under the old six-character exemption — and measures at 800x450, the
+// matrix's narrowest viewport.
+//
+// Placed last on purpose. It DESTROYS the seeded bookmarks tree, which no
+// capture above would survive; nothing after it reads the bar, and the
+// profile directory is wiped at the top of every run (see the rmSync at the
+// top of this file), so there is no state to hand back.
+if (hasBookmarksPermission) {
+  await page.evaluate(async () => {
+    const bar = '1'
+    for (const node of await chrome.bookmarks.getChildren(bar)) {
+      await chrome.bookmarks.removeTree(node.id)
+    }
+    // Eight visible chips (MAX_VISIBLE_CHIPS) plus two more to force the "»"
+    // overflow chip — the row at its structural maximum, same as the main
+    // seed, but every title is <= 6 characters/glyphs AND wide.
+    for (const title of [
+      'GITHUB', // the reviewer's own example: uppercase Latin, 6 chars
+      'REDDIT',
+      'GITLAB',
+      'DOCKER',
+      '天気予報', //  4 full-width CJK glyphs — the other named case
+      'ニュース',
+      'WWWWWW', // the widest six Latin characters available
+      'MMMMMM',
+      'ZZZZZZ', // overflow
+      'QQQQQQ', // overflow
+    ]) {
+      await chrome.bookmarks.create({ parentId: bar, title, url: `https://example.com/${title}` })
+    }
+  })
+  await page.setViewportSize({ width: 800, height: 450 })
+  // The bar model is loaded once, in a mount-time effect — a tree edit needs
+  // a reload to be seen at all.
+  await page.reload()
+  await page.waitForSelector('nav[aria-label="Bookmarks bar"]', { timeout: 10_000 })
+  await page.waitForTimeout(800) // photo fade-in, same as every other reload here
+  await page.screenshot({ path: `${outDir}/bookmarks-worst-case-800x450.png` })
+  console.log('captured bookmarks-worst-case-800x450.png')
+
+  const worst = await measureBand()
+  if (!worst) {
+    console.log('FAIL: a bar of short-but-wide titles still fits at 800x450 (no bookmarks bar in the DOM)')
+  } else {
+    const singleRow = worst.bar.height <= worst.tallestChip + 2
+    const enoughChips = worst.chipCount >= 9
+    const withinCap = worst.bar.width <= worst.barMaxWidth + 1
+    const onScreen = worst.bar.left >= 0 && worst.bar.right <= worst.viewport.w + 1
+    const fitsBox = worst.barOverflowX <= 1
+    console.log(
+      singleRow && enoughChips && withinCap && onScreen && fitsBox
+        ? `PASS: a bar of short-but-wide titles still fits at 800x450 (${worst.chipCount} chips — uppercase Latin, CJK, WWWWWW — in ${worst.bar.width}px of a ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px; one ${worst.bar.height}px row)`
+        : `FAIL: a bar of short-but-wide titles still fits at 800x450 (${worst.chipCount} chips (need >=9), ${worst.bar.width}px vs ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px, overflowX ${worst.barOverflowX}px, nav ${worst.bar.height}px vs tallest chip ${worst.tallestChip}px)`,
+    )
+
+    // …and the floor did its job: nothing collapsed to an ellipsis. 4ch is
+    // roughly two Latin characters plus the ellipsis, so requiring every
+    // label to still render at least that much is the difference between a
+    // squeezed chip and a meaningless one.
+    console.log(
+      worst.narrowestLabel >= worst.labelFloor - 1
+        ? `PASS: no chip is squeezed below its label floor at 800x450 (narrowest label ${worst.narrowestLabel}px vs a ${worst.labelFloor}px 4ch floor)`
+        : `FAIL: no chip is squeezed below its label floor at 800x450 (narrowest label ${worst.narrowestLabel}px, floor ${worst.labelFloor}px)`,
+    )
   }
 }
 

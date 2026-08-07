@@ -97,20 +97,30 @@
                            reserved band is 14% of a 437px-tall window, and
                            the widget that pays for it is the expanded
                            weather panel directly underneath.
-       --bookmarks-chip-h  ONE chip row, which is the bar's full height —
-                           it can never wrap to two (BookmarksBar.tsx is
-                           `flex-nowrap`, chips shrink instead), and its
-                           `items-center` line box is set by the tallest
-                           chip content: the `text-sm` label's 1.25rem line
-                           height (the 14px folder icon / 12px favicon are
-                           both shorter), plus `py-1` top and bottom, plus
-                           the chip's own 1px border on each edge.
-                           The chip's VERTICAL metrics are deliberately
-                           breakpoint-INVARIANT — the narrow-viewport
-                           tightening in BookmarksBar.tsx only ever touches
-                           horizontal ones (padding-x, gaps, label caps), so
-                           this height, and therefore this band, is the same
-                           at every viewport in the matrix.
+       --bookmarks-chip-h  ONE chip row, which is the bar's full height — it
+                           can never wrap to two (BookmarksBar.tsx is
+                           `flex-nowrap`, chips shrink instead).
+                           This token is not a DESCRIPTION of the chip's
+                           height, it IS the chip's height: BookmarksBar's
+                           CHIP carries `h-[var(--bookmarks-chip-h)]`, so the
+                           band and the bar are the same number by
+                           construction and cannot drift apart in either
+                           direction — not when a chip is restyled here, and
+                           not at runtime when a user's Chrome
+                           minimum-font-size setting grows the text (which
+                           would silently have grown a line-box-sized chip
+                           straight through the band underneath it).
+                           The value is written as the arithmetic that
+                           JUSTIFIES it rather than a bare 1.875rem: the
+                           `text-sm`/`leading-5` label's 1.25rem line box
+                           (the 14px folder icon and 12px favicon are both
+                           shorter), plus `py-1` top and bottom, plus the
+                           chip's 1px border on each edge. Its VERTICAL
+                           metrics are deliberately breakpoint-INVARIANT —
+                           the narrow-viewport tightening in BookmarksBar.tsx
+                           only ever touches horizontal ones (padding-x,
+                           gaps, label caps) — so this height, and therefore
+                           this band, is the same at every viewport.
        --top-band          the whole band: gap + bar + gap. This is what the
                            peripherals below it use as their `top`; the bar
                            itself uses `--top-band-gap` as its own.

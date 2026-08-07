@@ -19,7 +19,16 @@ const OVERFLOW_ID = '__overflow__'
 // when chips briefly used rounded-panel.
 //
 // SHRINK, NOT WRAP (this row must stay ONE row at every viewport — see the
-// nav's own comment below). Two classes carry that here:
+// nav's own comment below). Four classes carry that here:
+//   shrink     every chip gives ground, without exception. An earlier pass
+//              exempted chips whose TITLE was short (see CHIP_LABEL below for
+//              why a floor is needed at all) — but a character count is not a
+//              width: six uppercase Latin characters ("GITHUB") or four
+//              full-width CJK glyphs render ~90px wide, so eight "short"
+//              titles could exceed the row's cap with nothing left able to
+//              shrink, and a centred, non-clipping row spills off BOTH
+//              viewport edges. The floor belongs on the label, in font-
+//              relative units, where it bounds width instead of guessing it.
 //   min-w-0    a flex item's automatic minimum size is its MIN-CONTENT width
 //              unless overridden — and `truncate` sets `white-space: nowrap`,
 //              which makes a label's min-content its FULL width (there is no
@@ -31,49 +40,51 @@ const OVERFLOW_ID = '__overflow__'
 //              flex item is the `relative` wrapper div (the popover's
 //              positioning context), not the button, so the button needs to
 //              be told to follow the wrapper down rather than spill out of it.
+//   h-[…]      the chip's height IS index.css's `--bookmarks-chip-h` — the
+//              same token the top band's height is built from — rather than a
+//              value that token separately re-derives from `py-1` + the type
+//              metrics. Two copies of one number can drift in either
+//              direction (a chip restyled here, or a user's Chrome
+//              minimum-font-size setting growing the line box at runtime);
+//              one token cannot. `leading-5` pins the text block to the 20px
+//              this height budgets for it (30px − 2px border − 8px `py-1`),
+//              so the label stays inside the box it is given. `py-1` is kept
+//              for intent, but `items-center` on a fixed height is what
+//              actually places the content.
 // The label span's own `truncate` (overflow-hidden) is what absorbs the
 // shrink, and — because a non-visible overflow zeroes the automatic minimum
 // size — is also what lets the span shrink at all.
 //
-// flex-shrink itself is NOT here; it's per-chip (see shrinkFor below).
-//
 // The tightening steps are HORIZONTAL ONLY (px, gaps, label caps). The chip's
-// vertical metrics — `py-1`, `text-sm`'s line height, the 1px border — are
-// deliberately breakpoint-invariant, because index.css's `--top-band` is
-// derived from them and every viewport shares one band.
+// height is fixed above and shared with the band, so every viewport gets the
+// same band.
 const CHIP =
-  'flex min-w-0 max-w-full items-center gap-1.5 narrow:gap-1 rounded-full border border-panel-border bg-panel px-2.5 narrow:px-2 py-1 text-sm font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
+  'flex h-[var(--bookmarks-chip-h)] min-w-0 max-w-full shrink items-center gap-1.5 narrow:gap-1 rounded-full border border-panel-border bg-panel px-2.5 narrow:px-2 py-1 text-sm leading-5 font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent'
 // Folder + overflow chips only: the wrapper div is the nav's flex item (it
 // anchors the popover), so the flex permissions belong on it, and `relative`
-// stays for FolderPopover's `absolute` panel.
+// stays for FolderPopover's `absolute` panel. The flex-shrink value is
+// appended per call site rather than baked in here, because `shrink` and
+// `shrink-0` are the same CSS property — both in one className would resolve
+// by generated-CSS source order, not by the order they're written.
 const CHIP_SLOT = 'relative min-w-0'
-// Upper bound on a label when there IS room; below that, flex shrink takes
-// over. Tightened on narrow viewports so the squeeze starts from a smaller
-// number and fewer chips need truncating at all.
-const CHIP_LABEL = 'max-w-32 narrow:max-w-24 truncate'
-
-// WHICH chips give ground. flex-shrink distributes in proportion to each
-// item's own width — which sounds right (the longest titles lose the most
-// pixels) but is wrong in the only place it matters: a chip's icon, padding
-// and border can't shrink, so the whole reduction lands on the label, and for
-// a SHORT title that reduction is most of it. Measured at 800x450 with a full
-// bar: "Dev" and "News" rendered as "D…" and "N…" — chips that cost the same
-// space as before and no longer say anything.
-//
-// So the floor is per-chip, not per-pixel: a title short enough to read whole
-// is exempt, and the compression lands entirely on the titles long enough to
-// survive losing a few characters. `shrink`/`shrink-0` are appended at each
-// call site rather than baked into CHIP above, because they are the same CSS
-// property — both in one className would resolve by generated-CSS source
-// order, not by the order they're written.
-//
-// The exemption can't overflow the row: a title this short makes a chip at
-// most ~86px wide, so even the degenerate case (all 8 visible chips exempt,
-// plus the "»" chip and the gaps) tops out around 750px — inside the 768px
-// cap at 800px wide, the narrowest viewport in the harness matrix.
-const SHRINK_EXEMPT_CHARS = 6
-const shrinkFor = (title: string) =>
-  title.trim().length <= SHRINK_EXEMPT_CHARS ? 'shrink-0' : 'shrink'
+// A label's bounds, both ends:
+//   max-w   upper bound when there IS room, so one long title can't hog the
+//           row. Tightened on narrow viewports so the squeeze starts from a
+//           smaller number and fewer chips need truncating at all.
+//   min-w   lower bound once flex shrink takes over. Without it, shrink —
+//           which is proportional to each item's FULL width, while a chip's
+//           icon, padding and border can't shrink at all — puts the whole
+//           reduction on the label, and a short title loses most of itself:
+//           measured at 800x450 with a full bar, "Dev" and "News" rendered as
+//           "D…" and "N…". `ch` (the font's "0" advance) rather than a px
+//           value so the floor tracks the rendered text — including a user's
+//           Chrome minimum-font-size setting — instead of assuming a metric.
+// The floor is what makes the row's fit an INVARIANT rather than a property
+// of the seeded titles. Worst case at the matrix's narrowest viewport: 8
+// chips at `narrow` metrics (16px padding + 2px border + 14px icon + 4px gap
+// = 36px, plus a 4ch ≈ 32px label) + the "»" chip (~30px) + 8 × 4px gaps
+// ≈ 610px, inside the 768px cap at 800px wide, whatever the titles say.
+const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate'
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
@@ -272,7 +283,7 @@ function BookmarksBarInner({
     >
       {visible.map((chip) =>
         chip.kind === 'folder' ? (
-          <div key={chip.folder.id} className={`${CHIP_SLOT} ${shrinkFor(chip.folder.title)}`}>
+          <div key={chip.folder.id} className={`${CHIP_SLOT} shrink`}>
             <button
               type="button"
               aria-haspopup="dialog"
@@ -294,19 +305,20 @@ function BookmarksBarInner({
           </div>
         ) : (
           // No CHIP_SLOT wrapper: a loose bookmark has no popover to anchor,
-          // so the anchor IS the nav's flex item — CHIP's own `min-w-0` and
-          // this chip's shrink class both land on it directly.
-          <a key={chip.item.id} href={chip.item.url} className={`${CHIP} ${shrinkFor(chip.item.title)}`}>
+          // so the anchor IS the nav's flex item, and CHIP's own
+          // `min-w-0`/`shrink` land on it directly.
+          <a key={chip.item.id} href={chip.item.url} className={CHIP}>
             <img src={faviconUrl(chip.item.url)} alt="" width={12} height={12} className="shrink-0" />
             <span className={CHIP_LABEL}>{chip.item.title}</span>
           </a>
         ),
       )}
       {overflow.length > 0 && (
-        // Always exempt, whatever shrinkFor would say about a title: this
-        // chip is a single glyph with nothing to truncate, and it is the only
-        // way to reach the bookmarks it stands for. Squeezing it buys a
-        // couple of pixels and costs the row its escape hatch.
+        // The one chip that does NOT shrink: a single glyph with no label to
+        // truncate, and the only way to reach the bookmarks it stands for.
+        // Squeezing it buys a couple of pixels and costs the row its escape
+        // hatch. Its width is fixed and tiny (~30px), so it is a constant in
+        // the row's worst-case fit rather than a risk to it.
         <div className={`${CHIP_SLOT} shrink-0`}>
           <button
             type="button"

@@ -145,20 +145,27 @@ describe('BookmarksBar', () => {
     expect(folderChip.classList.contains('max-w-full')).toBe(true)
   })
 
-  // Which chips actually give ground. flex-shrink is proportional to each
-  // item's width, but a chip's icon/padding/border can't shrink — the whole
-  // reduction lands on the label, so a SHORT title loses most of itself.
-  // Measured at 800x450 with a full bar, "Dev" and "News" came out as "D…"
-  // and "N…". Titles short enough to read whole are exempt; the long ones
-  // absorb the compression.
-  it('short titles are exempt from shrinking; long ones absorb the squeeze', async () => {
+  // Review finding. flex-shrink is proportional to each item's width, but a
+  // chip's icon/padding/border can't shrink — the whole reduction lands on
+  // the label, so a SHORT title loses most of itself (measured at 800x450
+  // with a full bar: "Dev" and "News" came out as "D…" and "N…"). The first
+  // fix exempted short TITLES from shrinking, which was width-blind: six
+  // uppercase Latin characters ("GITHUB") or four full-width CJK glyphs
+  // render ~90px, so eight "short" titles could exceed the row's cap with
+  // nothing left able to shrink — and a centred row that never clips or
+  // scrolls then spills off BOTH viewport edges, the exact failure this
+  // whole pass exists to prevent. The floor belongs on the LABEL instead,
+  // in font-relative units, where it bounds width rather than guessing it.
+  // (The real fit measurement is scripts/preview.mjs's worst-case probe:
+  // eight short-but-wide titles at 800x450. jsdom has no layout engine.)
+  it('every chip shrinks — the legibility floor is on the label, not an exemption keyed to title length', async () => {
     const mixedModel: BarModel = {
       folders: [
         { id: 'f1', title: 'Dev', items: [], folders: [] },
         { id: 'f2', title: 'Design system', items: [], folders: [] },
       ],
       loose: [
-        { id: 'i1', title: 'Mail', url: 'https://mail.example' },
+        { id: 'i1', title: 'GITHUB', url: 'https://gh.example' }, // wide, but 6 chars
         { id: 'i2', title: 'Engineering docs', url: 'https://docs.example' },
       ],
     }
@@ -166,22 +173,39 @@ describe('BookmarksBar', () => {
     await screen.findByRole('button', { name: 'Dev' })
 
     const slotOf = (el: HTMLElement) => (el.tagName === 'BUTTON' ? el.parentElement! : el)
-    const exempt = [
-      screen.getByRole('button', { name: 'Dev' }), // 3 chars
-      screen.getByRole('link', { name: 'Mail' }), // 4 chars
+    const chips = [
+      screen.getByRole('button', { name: 'Dev' }),
+      screen.getByRole('button', { name: 'Design system' }),
+      screen.getByRole('link', { name: 'GITHUB' }),
+      screen.getByRole('link', { name: 'Engineering docs' }),
     ]
-    const shrinkable = [
-      screen.getByRole('button', { name: 'Design system' }), // 13 chars
-      screen.getByRole('link', { name: 'Engineering docs' }), // 16 chars
-    ]
-    for (const el of exempt) {
-      expect(slotOf(el).classList.contains('shrink-0')).toBe(true)
-      expect(slotOf(el).classList.contains('shrink')).toBe(false)
-    }
-    for (const el of shrinkable) {
+    for (const el of chips) {
+      // No title-length branch: short and long, folder and bookmark, all
+      // give ground, which is what keeps the row's fit an invariant.
       expect(slotOf(el).classList.contains('shrink')).toBe(true)
       expect(slotOf(el).classList.contains('shrink-0')).toBe(false)
+      // …and every label carries the same font-relative floor, so shrinking
+      // can never take one down to a bare ellipsis.
+      const label = el.querySelector('span')!
+      expect(label.classList.contains('min-w-[4ch]')).toBe(true)
+      expect(label.classList.contains('truncate')).toBe(true)
     }
+  })
+
+  // Review finding: `--bookmarks-chip-h` used to be a hand-transcribed copy
+  // of the chip's type metrics in index.css, guarded only by the preview
+  // harness — and silently wrong at runtime under Chrome's minimum-font-size
+  // accessibility setting, which grows a line-box-sized chip straight
+  // through the band below it. The chip is now sized BY the token, so the
+  // bar and the band it reserves are the same number by construction.
+  it('the chip is sized by the same token the top band is built from', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    expect(folderChip.classList.contains('h-[var(--bookmarks-chip-h)]')).toBe(true)
+    // The text block is pinned to what that height budgets for it (30px less
+    // the 1px borders and `py-1`), so the label stays inside its box.
+    expect(folderChip.classList.contains('leading-5')).toBe(true)
+    expect(screen.getByRole('link', { name: 'Docs' }).classList.contains('h-[var(--bookmarks-chip-h)]')).toBe(true)
   })
 
   // The overflow chip is exempt whatever its (nonexistent) title would say:
