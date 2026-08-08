@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
@@ -81,16 +81,17 @@ export default function Connectors({
   )
 }
 
-// Body slot per connector id. Partial (not a full Record): crypto/ics land in
-// their own later sub-project-2 tasks, and this map carries no placeholder
-// entries for them (a lookup for an unregistered id is simply undefined -> no
-// body rendered).
+// Body slot per connector id. Partial (not a full Record): ics lands in its
+// own later sub-project-2 task, and this map carries no placeholder entry
+// for it (a lookup for an unregistered id is simply undefined -> no body
+// rendered).
 const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
   rss: RssBody,
   github: GithubBody,
   gitlab: GitlabBody,
   jira: JiraBody,
   vercel: VercelBody,
+  crypto: CryptoBody,
 }
 
 function ConnectorCard({
@@ -641,5 +642,168 @@ function VercelBody({ config, storage }: BodyProps) {
         await Promise.all(releasable.map((origin) => removeOrigin(origin)))
       }}
     />
+  )
+}
+
+// The one URL passed to ensureOrigin/originPattern for crypto's connect
+// gesture below — resolves to the same 'https://api.coingecko.com/*' pattern
+// cryptoDescriptor.origins() derives, so what's granted here always matches
+// what the service's own fetchCrypto call targets.
+const CRYPTO_ORIGIN_URL = 'https://api.coingecko.com/api/v3/'
+// CoinGecko's own id format: lowercase letters, digits, and hyphens (e.g.
+// 'bitcoin', 'usd-coin') — the SAME shape whoamiGithub/whoamiVercel would
+// validate server-side for a token, except crypto has no server round-trip
+// to validate against (auth 'none'), so this is the one and only check a
+// bad id ever gets before it's persisted and handed to fetchCrypto.
+const CRYPTO_ID_RE = /^[a-z0-9-]+$/
+const CRYPTO_MIN_COINS = 2
+const CRYPTO_MAX_COINS = 5
+
+/** 'bitcoin, ETH , ,dogecoin' -> ['bitcoin', 'eth', 'dogecoin'] — split on
+ *  commas, trim, lowercase, drop empties. Pure (no validation here; the
+ *  count/shape checks happen at the call site so their error messages can
+ *  name the exact rule that failed). */
+function parseCoinIds(raw: string): string[] {
+  return raw
+    .split(',')
+    .map((id) => id.trim().toLowerCase())
+    .filter((id) => id.length > 0)
+}
+
+// The Crypto connector's card body — the first NO-AUTH connector body since
+// RSS's own (Task 44): no TokenConnectForm here at all (that component's
+// whole shape is built around a token + a whoami validate() round-trip,
+// neither of which a no-auth connector has), just one labelled text input
+// (CoinGecko ids, comma-separated) and a Save button, closest in spirit to
+// RssBody's own handleAddFeed above.
+function CryptoBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as every other body above: BodyProps.config is
+  // the generic union (the body map is shared across ids), and this
+  // component is registered only under 'crypto', so it is always
+  // CryptoConfig at runtime — one documented cast. Array.isArray guards a
+  // hand-edited backup restoring { enabled: true } with no coins field.
+  const crypto = config as CryptoConfig | undefined
+  const coins = Array.isArray(crypto?.coins) ? crypto.coins : []
+
+  const [value, setValue] = useState(() => coins.join(', '))
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+
+    // SYNCHRONOUS validation FIRST — this boundary is load-bearing, same
+    // discipline as RssBody's handleAddFeed and TokenConnectForm's
+    // handleConnect: ensureOrigin (chrome.permissions.request) below must be
+    // the FIRST await in this handler, with ZERO awaits ahead of it, or the
+    // gesture window chrome.permissions.request needs can close before the
+    // call lands.
+    const ids = parseCoinIds(value)
+    if (ids.length < CRYPTO_MIN_COINS || ids.length > CRYPTO_MAX_COINS) {
+      setError(`Enter ${CRYPTO_MIN_COINS} to ${CRYPTO_MAX_COINS} CoinGecko ids, separated by commas.`)
+      return
+    }
+    const bad = ids.find((id) => !CRYPTO_ID_RE.test(id))
+    if (bad) {
+      setError(`"${bad}" isn't a valid CoinGecko id — use only lowercase letters, numbers, and hyphens.`)
+      return
+    }
+
+    setSaving(true)
+    try {
+      // ensureOrigin -> chrome.permissions.request is the first await, per
+      // the comment above.
+      let granted: boolean
+      try {
+        granted = await ensureOrigin(CRYPTO_ORIGIN_URL)
+      } catch {
+        granted = false
+      }
+      if (!granted) {
+        setError('Permission to read CoinGecko was denied, so nothing was saved.')
+        return
+      }
+
+      // Replace the whole crypto config (dropping any stray cruft the
+      // generic enable-toggle's `{}` seed left) with exactly the connector's
+      // two fields.
+      await storage.update('connectors', (prev) => ({
+        ...prev,
+        crypto: { enabled: true, coins: ids },
+      }))
+      setValue(ids.join(', '))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleClear() {
+    // Compute what's safe to revoke BEFORE clearing the config (releasable-
+    // Origins needs crypto's own config present to derive its origins), then
+    // drop the entry entirely and revoke each released origin — mirrors the
+    // token connector bodies' own onDisconnect above (GithubBody et al.),
+    // even though crypto has no token to forget: api.coingecko.com is
+    // crypto's alone today, so this always releases it.
+    const current = await storage.get('connectors')
+    const releasable = releasableOrigins('crypto', current)
+    await storage.update('connectors', (prev) => {
+      const next = { ...prev }
+      delete next.crypto
+      return next
+    })
+    setValue('')
+    setError(null)
+    await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+  }
+
+  return (
+    <form
+      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
+      onSubmit={(e) => void handleSave(e)}
+    >
+      <div>
+        <label htmlFor="connector-crypto-coins" className="mb-1 block text-xs text-fg-muted">
+          Coins (CoinGecko ids, comma-separated)
+        </label>
+        <input
+          id="connector-crypto-coins"
+          type="text"
+          placeholder="bitcoin, ethereum"
+          value={value}
+          onChange={(e) => {
+            setValue(e.currentTarget.value)
+            setError(null)
+          }}
+          aria-describedby={error ? 'connector-crypto-error' : undefined}
+          className={`${control} w-full`}
+        />
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="shrink-0 text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+        >
+          Save
+        </button>
+        {coins.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void handleClear()}
+            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p id="connector-crypto-error" role="alert" className="text-xs text-fg-muted">
+          {error}
+        </p>
+      )}
+    </form>
   )
 }

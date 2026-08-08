@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -152,6 +152,24 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect('token' in envelope.data.connectors.vercel).toBe(false)
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.token).toBe('vercel_supersecret')
+  })
+
+  it('a real serializeBackup leaves the crypto coins config UNstripped — its descriptor declares secretFields: [] (Task 52, no-auth connector)', () => {
+    // The negative case documenting secretFields: []: unlike github/gitlab/
+    // jira/vercel (each stripped of exactly its token/apiToken above), crypto
+    // has nothing sensitive to strip at all — CoinGecko ids are not secrets —
+    // so a real serializeBackup must round-trip the WHOLE config, enabled and
+    // coins both, byte-for-byte.
+    const stored: CryptoConfig = { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] }
+    const input = { ...defaults(), connectors: { crypto: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.crypto).toEqual({
+      enabled: true,
+      coins: ['bitcoin', 'ethereum', 'dogecoin'],
+    })
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.coins).toEqual(['bitcoin', 'ethereum', 'dogecoin'])
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {

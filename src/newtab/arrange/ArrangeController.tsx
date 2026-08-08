@@ -36,6 +36,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   gitlab: 'GitLab',
   jira: 'Jira',
   vercel: 'Deploys',
+  crypto: 'Crypto',
 }
 
 interface DragState {

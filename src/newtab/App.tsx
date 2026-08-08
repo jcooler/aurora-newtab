@@ -27,6 +27,7 @@ import GithubWidget from './widgets/github/GithubWidget'
 import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import JiraWidget from './widgets/jira/JiraWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
+import CryptoWidget from './widgets/crypto/CryptoWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -451,6 +452,63 @@ export default function App() {
                 translate. */}
             <PositionedBlock id="vercel" pos={layout?.vercel} className="fixed left-8 top-[64vh]">
               <VercelWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="crypto">
+            {/* DEFAULT placement — a slim CENTERED strip, not another
+                left/right column entry: unlike every other connector
+                (RSS/GitHub/GitLab/Jira/Vercel, each a tall card anchored to
+                a screen edge), CryptoWidget renders a single row capped at
+                MAX_COINS=5 cells, so it reads best centered under the
+                clock/search/focus/quote column rather than stacked into
+                either side column. `left-[calc(50%-11rem)]` centers a
+                w-88 (22rem) box — half of 22rem is 11rem — the same
+                transform-free calc-centering technique PositionedBlock's own
+                arrange-mode branch uses (App's quote/bookmarks comments:
+                translate/transform on a `position: fixed` ancestor breaks
+                any fixed-position DESCENDANT and creates an unwanted
+                stacking context; CryptoWidget has neither today, but the
+                house rule is calc-over-transform for every default-placement
+                peripheral regardless).
+
+                `top-[85vh]` (765px at the 900px launch viewport) is a
+                REVISED value, off the brief's own starting hypothesis
+                (`top-[76vh]`, 684px) — implemented first, then REJECTED by
+                direct measurement in scripts/preview.mjs's own probe, not
+                just class-name reasoning (the same "measure, don't assume"
+                correction Vercel's own PositionedBlock comment documents for
+                ITS placement): the centered column is TALLER than the
+                clock/greeting/search/focus/links skeleton alone once
+                worldClocks + countdown are also on (both widgets the preview
+                harness enables for its own captures, and either a real user
+                could enable too) — at 1600x900 with both on, the links row's
+                own bottom edge measures y=752.5, so 76vh (684, bottom 704)
+                actually landed INSIDE the links row's own vertical span
+                (664.5-752.5), not below it. The real gap this widget has to
+                fit in is narrow: links.bottom=752.5 to quote.top=804 is only
+                51.5px total, against a ~20px single-line row — 85vh (top
+                765, bottom 785) splits the remaining 31.5px of slack as
+                ~12.5px above (clears links) and 19px below (clears quote,
+                comfortably over the 16px minimum scripts/preview.mjs's own
+                gap probe asserts). quote's own position is invariant to the
+                worldClocks/countdown toggle (it's `bottom-6` off the
+                viewport's bottom edge, not part of the centered column), so
+                this same 19px below-margin holds regardless of what else is
+                enabled; disabling worldClocks/countdown only SHRINKS the
+                column and shifts it toward vertical center, which can only
+                move links' own bottom edge UP (more clearance above, never
+                less) — so the harder (widgets-on) case validated here is
+                also safe for the default (both off) case. A stored
+                arrange-mode `pos` still wins (PositionedBlock drops this
+                className on that branch). CryptoWidget self-gates on the
+                connector's enabled+coins state, so this wrapper renders an
+                empty box until the connector is configured — same as every
+                other toggle-gated peripheral here. Transform-free per the
+                house rule: a plain left/top offset via calc(), no
+                translate. */}
+            <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[85vh]">
+              <CryptoWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

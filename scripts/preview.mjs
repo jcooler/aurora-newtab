@@ -2698,6 +2698,228 @@ console.log(
   )
 }
 
+// Crypto ticker (Task 52) — the sixth connector, and the first NO-AUTH one
+// since RSS itself: `auth: 'none'` means no token, no whoami round-trip, no
+// identity/reconnect state — the card body is a bare "coins" text field +
+// Save/Clear, not a TokenConnectForm instance (see Connectors.tsx's own
+// CryptoBody). The widget itself is also structurally different from every
+// other connector card here: not a left/right-column panel, but a single
+// CENTERED strip capped at 5 cells — see App.tsx's own comment on the crypto
+// PositionedBlock for the full placement writeup (`top-[85vh]` — REVISED off
+// the brief's own `top-[76vh]` starting hypothesis, rejected by direct
+// measurement: it landed inside the links row's own vertical span once
+// worldClocks + countdown are on, same as this script leaves them for the
+// rest of this run — centered via `left-[calc(50%-11rem)]` against its own
+// w-88, 22rem, half of which is 11rem). NO live network: seed an enabled
+// config (3 coins) + a fresh
+// snapshot whose fetchedAt is computed inside the page (so the ttl is fresh
+// at read time and useConnectorSnapshot renders straight from cache) — the
+// fixture spans all three tint states (positive, negative, and exactly
+// zero), so the tint probe below exercises every branch of CryptoWidget's
+// own tintClass, not just a lucky all-green fixture.
+{
+  const FIXTURE = {
+    coins: [
+      { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67_412, change24h: 2.4 },
+      { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3_245, change24h: -1.2 },
+      { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+    ],
+  }
+  // The CONFIGURED order (below) — fetchCrypto's own reorder step (crypto.ts)
+  // is what the service-layer tests already cover; this harness proves the
+  // WIDGET renders that order as-is, from cache, in a real browser.
+  const EXPECTED_ORDER = ['btc', 'eth', 'doge']
+  const cryptoSel = '[data-block-id="crypto"] section[aria-label="Crypto"]'
+
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] },
+      },
+      // fetchedAt stamped HERE, in the page, so the snapshot is fresh
+      // relative to whenever this run happens — the SWR hook renders from
+      // cache and never touches the network.
+      connectorSnapshots: { crypto: { fetchedAt: Date.now(), data } },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the widget renders all 3 seeded coins, in the CONFIGURED order,
+  // each cell's change24h formatted+tinted correctly — positive emerald with
+  // a leading '+', negative red with a REAL minus sign (U+2212, not an ASCII
+  // hyphen), and exactly zero muted with no sign at all.
+  await page.waitForSelector(cryptoSel, { timeout: 5000 }).catch(() => {})
+  const cells = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const rows = [...sec.querySelectorAll(':scope > div > span')]
+    return rows.map((row) => {
+      const spans = row.querySelectorAll('span')
+      return {
+        symbol: spans[0]?.textContent ?? null,
+        price: spans[1]?.textContent ?? null,
+        change: spans[2]?.textContent ?? null,
+        changeClass: spans[2]?.className ?? null,
+      }
+    })
+  }, cryptoSel)
+  const cellsOk =
+    cells !== null && cells.length === 3 && cells.map((c) => c.symbol).join(',') === EXPECTED_ORDER.join(',')
+  console.log(
+    cellsOk
+      ? `PASS: the Crypto widget renders all 3 seeded coins in the configured order from cache (${JSON.stringify(cells.map((c) => c.symbol))})`
+      : `FAIL: the Crypto widget renders all 3 seeded coins in the configured order from cache (${JSON.stringify(cells)}, expected ${JSON.stringify(EXPECTED_ORDER)})`,
+  )
+
+  const tintsOk =
+    cells !== null &&
+    cells[0]?.change === '+2.4%' &&
+    (cells[0]?.changeClass ?? '').includes('text-emerald-300') &&
+    cells[1]?.change === '−1.2%' &&
+    (cells[1]?.changeClass ?? '').includes('text-red-400') &&
+    !(cells[1]?.change ?? '').includes('-') && // real minus sign, not a hyphen
+    cells[2]?.change === '0.0%' &&
+    (cells[2]?.changeClass ?? '').includes('text-fg-muted')
+  console.log(
+    tintsOk
+      ? `PASS: the Crypto widget tints each 24h change correctly (emerald positive / red negative with a real minus sign / muted zero) (${JSON.stringify(cells)})`
+      : `FAIL: the Crypto widget tints each 24h change correctly (emerald positive / red negative with a real minus sign / muted zero) (${JSON.stringify(cells)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-crypto.png` })
+  console.log('captured connectors-crypto.png')
+
+  // Probe 2: collision — the measured gap to the quote block below it (the
+  // real question this placement has to answer, not just the arithmetic
+  // App.tsx's own comment works through), PLUS non-overlap against the
+  // centered search/focus column and the links row directly above it
+  // (explicitly the two neighbours this task's own brief calls out), and the
+  // usual peripherals every other connector probe in this script also checks
+  // (weather chip, timer pill, Tasks pill, gear, Notes pill, photo refresh).
+  const gap = await page.evaluate((selCr) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const weather = rect('[data-block-id="weather"]')
+    const timer = rect('[data-block-id="timer"]')
+    const tasks = rect('[data-block-id="tasks"]')
+    const gear = rect('button[aria-label="Open settings"]')
+    const search = rect('[data-block-id="search"]')
+    const focus = rect('[data-block-id="focus"]')
+    const links = rect('[data-block-id="links"]')
+    const quote = rect('[data-block-id="quote"]')
+    const notes = rect('[data-block-id="notes"]')
+    const photoRefresh = rect('button[aria-label="New background photo"]')
+    const cr = rect(selCr)
+    return {
+      crFound: !!cr,
+      quoteFound: !!quote,
+      searchFound: !!search,
+      focusFound: !!focus,
+      linksFound: !!links,
+      pxGapBelow: cr && quote ? quote.top - cr.bottom : null,
+      crWeather: hits(cr, weather),
+      crTimer: hits(cr, timer),
+      crTasks: hits(cr, tasks),
+      crGear: hits(cr, gear),
+      crSearch: hits(cr, search),
+      crFocus: hits(cr, focus),
+      crLinks: hits(cr, links),
+      crQuote: hits(cr, quote),
+      crNotes: hits(cr, notes),
+      crPhotoRefresh: hits(cr, photoRefresh),
+      cr: cr
+        ? { top: +cr.top.toFixed(1), bottom: +cr.bottom.toFixed(1), left: +cr.left.toFixed(1), right: +cr.right.toFixed(1) }
+        : null,
+      quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
+    }
+  }, cryptoSel)
+  const gapBelowOk = gap.crFound && gap.quoteFound && !gap.crQuote && gap.pxGapBelow !== null && gap.pxGapBelow >= 16
+  console.log(
+    gapBelowOk
+      ? `PASS: the Crypto widget's slot clears the quote block below it by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — crypto bottom ${gap.cr?.bottom}, quote top ${gap.quote?.top})`
+      : `FAIL: the Crypto widget's slot clears the quote block below it by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const collisionOk =
+    gap.searchFound &&
+    gap.focusFound &&
+    gap.linksFound &&
+    !gap.crWeather &&
+    !gap.crTimer &&
+    !gap.crTasks &&
+    !gap.crGear &&
+    !gap.crSearch &&
+    !gap.crFocus &&
+    !gap.crLinks &&
+    !gap.crNotes &&
+    !gap.crPhotoRefresh
+  console.log(
+    collisionOk
+      ? 'PASS: the Crypto widget clears the search/focus column and the links row above it, plus the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button'
+      : `FAIL: the Crypto widget clears the search/focus column and the links row above it, plus the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
+  )
+
+  // Refresh drawer-connectors.png now that crypto is CONFIGURED — the card
+  // this task adds. (The Vercel block's own refresh above photographed ITS
+  // connected row, with vercel back to disabled by now.)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-crypto-enabled')
+    const input = sec.querySelector('#connector-crypto-coins')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      coinsValue: input ? input.value : null,
+      hasClear: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear'),
+    }
+  })
+  const cardOk =
+    card !== null && card.enabled === true && card.coinsValue === 'bitcoin, ethereum, dogecoin' && card.hasClear
+  console.log(
+    cardOk
+      ? `PASS: the Crypto card reads configured (enabled=${card.enabled}, coins="${card.coinsValue}", Clear present)`
+      : `FAIL: the Crypto card reads configured (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable the connector and clear its cache, then reload so the
+  // widget is gone for every block below (viewport matrix, default-state,
+  // worst-case bookmarks) — same restore discipline as every other connector
+  // block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, crypto: { ...connectors.crypto, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const cryptoGone = (await page.locator(cryptoSel).count()) === 0
+  console.log(
+    cryptoGone
+      ? 'Crypto connector disabled; page restored to idle'
+      : 'WARNING: Crypto widget still present after disabling the connector',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

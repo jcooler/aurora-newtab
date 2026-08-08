@@ -6,7 +6,7 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -1838,6 +1838,172 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+  })
+
+  async function renderWithCrypto(crypto?: CryptoConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (crypto) await storage.set('connectors', { crypto })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readCrypto(storage: AuroraStorage): Promise<CryptoConfig | undefined> {
+    return (await storage.get('connectors')).crypto as CryptoConfig | undefined
+  }
+
+  it('the card shell renders the Crypto descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+    await renderWithCrypto()
+    expect(screen.getByRole('heading', { name: 'Crypto' })).toBeTruthy()
+    expect(screen.getByText('Prices for the coins you watch')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Crypto')).toBeTruthy()
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+    expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
+  })
+
+  it('enabling the connector via the shell toggle writes ONLY { enabled: true } — crypto is not RSS-shaped, so nothing extra is seeded', async () => {
+    const storage = await renderWithCrypto()
+    const toggle = screen.getByLabelText('Enable Crypto') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(await readCrypto(storage)).toEqual({ enabled: true })
+    // The now-enabled body renders with an EMPTY input (no coins seeded).
+    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe('')
+  })
+
+  it('save happy path: validates, requests api.coingecko.com, then persists the parsed/normalized ids', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    const input = screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: ' Bitcoin, ETHEREUM ,,dogecoin' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/api/v3/')
+    expect(await readCrypto(storage)).toEqual({
+      enabled: true,
+      coins: ['bitcoin', 'ethereum', 'dogecoin'],
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(input.value).toBe('bitcoin, ethereum, dogecoin') // normalized back into the field
+  })
+
+  it('fewer than 2 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'bitcoin' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/2 to 5/)
+    expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('more than 5 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'a,b,c,d,e,f' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/2 to 5/)
+    expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('an id with an invalid character is rejected with an alert naming the offending id; ensureOrigin is never called', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'bitcoin, bit_coin' }, // underscore is not in [a-z0-9-]
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('bit_coin')
+    expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('a denied origin grant blocks the save: nothing is persisted', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'bitcoin, ethereum' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('when already configured, the input shows the current ids joined', async () => {
+    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
+      'bitcoin, ethereum',
+    )
+  })
+
+  it('Clear empties the config entirely and revokes api.coingecko.com', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins (crypto's sole
+    // origin, claimed by no other enabled connector).
+    expect(removeOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
+    expect(await readCrypto(storage)).toBeUndefined()
+  })
+
+  it('the Clear button is absent when no coins are configured yet', async () => {
+    await renderWithCrypto({ enabled: true, coins: [] })
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
+
+  // Crypto is auth 'none' — the card shell's status chip (Task 46) is a
+  // 'token'-auth-only affordance, so Crypto's card must never show one,
+  // enabled or not.
+  it('auth "none" (Crypto) never shows a status chip, enabled or not', async () => {
+    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
   })
 })
 
