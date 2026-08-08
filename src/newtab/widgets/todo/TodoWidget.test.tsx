@@ -7,15 +7,18 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import TodoWidget, { TODO_CORNER_HUG_PX, TODO_PANEL_SIZE } from './TodoWidget'
 
-async function renderWidget() {
+async function renderWidget({
+  onOpenChange,
+}: { onOpenChange?: (open: boolean) => void } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
-  render(
+  const view = render(
     <StorageProvider storage={storage}>
-      <TodoWidget />
+      <TodoWidget onOpenChange={onOpenChange} />
     </StorageProvider>,
   )
   await act(async () => {})
+  return { storage, view }
 }
 
 describe('TodoWidget', () => {
@@ -138,5 +141,55 @@ describe('TodoWidget', () => {
     rectSpy.mockRestore()
     widthSpy.mockRestore()
     heightSpy.mockRestore()
+  })
+})
+
+// Final-review fix wave, Fix 1 — mirrors WeatherWidget.test.tsx's own
+// onExpandedChange describe block exactly (same idiom, same reason): jsdom
+// can't verify real stacking/paint order (that's scripts/preview.mjs's own
+// panel-vs-connector probe's job — it's what caught the Tasks panel
+// painting under Jira's card in the first place), but it CAN verify the
+// mechanism App.tsx's conditional `z-30` depends on: the callback fires
+// true on open, false on close, and false again on unmount, never a stale
+// value.
+describe('TodoWidget onOpenChange (final-review fix wave, Fix 1)', () => {
+  it('calls onOpenChange(true) on open and onOpenChange(false) on close', async () => {
+    const onOpenChange = vi.fn()
+    await renderWidget({ onOpenChange })
+
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    onOpenChange.mockClear()
+
+    const pill = screen.getByRole('button', { name: 'Tasks' })
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(true)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
+  // Same rationale as WeatherWidget's own unmount-cleanup test: without
+  // this, App's mirrored `tasksOpen` state would stick at `true` forever if
+  // TodoWidget ever unmounts while open (e.g. the widget toggle is
+  // switched off mid-session — TodoWidget's own outer gate now unmounts
+  // TodoInner on exactly that transition, see its own comment), permanently
+  // outranking every connector card's own z-index:auto wrapper.
+  it('calls onOpenChange(false) on unmount, even while open', async () => {
+    const onOpenChange = vi.fn()
+    const { view } = await renderWidget({ onOpenChange })
+    const pill = screen.getByRole('button', { name: 'Tasks' })
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(true)
+
+    onOpenChange.mockClear()
+    view.unmount()
+    expect(onOpenChange).toHaveBeenCalledTimes(1)
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
   })
 })

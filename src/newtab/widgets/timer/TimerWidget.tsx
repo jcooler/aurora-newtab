@@ -31,17 +31,29 @@ function formatRemaining(ms: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-export default function TimerWidget() {
+export default function TimerWidget({
+  onOpenChange,
+}: { onOpenChange?: (open: boolean) => void } = {}) {
   // Gate BEFORE any of the ticking/reducer machinery exists: disabled tabs
   // (the default — settings.widgets.timer starts false) mount none of that
   // and so run zero interval work. Only useStoredKey is called out here, so
-  // Rules of Hooks stay satisfied regardless of the toggle.
+  // Rules of Hooks stay satisfied regardless of the toggle. This is also
+  // what makes the onOpenChange cleanup below (in TimerInner) fire reliably
+  // on a mid-session disable: TimerInner actually UNMOUNTS rather than one
+  // instance persisting across the toggle. See WeatherWidget's own
+  // onExpandedChange comment for the full writeup of why that matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.timer) return null
-  return <TimerInner settings={settings} />
+  return <TimerInner settings={settings} onOpenChange={onOpenChange} />
 }
 
-function TimerInner({ settings }: { settings: Settings }) {
+function TimerInner({
+  settings,
+  onOpenChange,
+}: {
+  settings: Settings
+  onOpenChange?: (open: boolean) => void
+}) {
   const [timerConfig, saveTimerConfig] = useStoredKey('timerConfig')
   const config = timerConfig ?? DEFAULT_CONFIG
 
@@ -121,6 +133,27 @@ function TimerInner({ settings }: { settings: Settings }) {
   // Newest-first shared stack (src/lib/dialogStack.ts), active only while
   // the panel is open.
   useDialogEscape(() => setOpen(false), open)
+
+  // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
+  // `onExpandedChange` uses (see its comment for the full writeup): a ref
+  // keeps this always calling the LATEST callback, never a stale closure,
+  // and the cleanup resets the mirrored App state to false on unmount so a
+  // disabled/removed widget can never strand the wrapper's elevated z-index
+  // open. Same root cause as weather's: this widget's own PositionedBlock
+  // wrapper is `fixed` (an unconditional new stacking context), every
+  // connector PositionedBlock mounts LATER in App.tsx than this one, and
+  // this panel's own internal z-30 is trapped inside that wrapper's local
+  // stacking order — so a connector card the open panel geometrically
+  // covers paints ON TOP of it at matched (auto) stacking, the DOM-order
+  // defect a real-Chromium reviewer probe confirmed (Focus-timer panel
+  // under Calendar's card). App.tsx turns this into a conditional `z-30`
+  // on the wrapper, only while open.
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+  useEffect(() => {
+    onOpenChangeRef.current?.(open)
+    return () => onOpenChangeRef.current?.(false)
+  }, [open])
 
   if (timerConfig === undefined) return null
 

@@ -83,6 +83,22 @@ export default function App() {
   // expanded panel at 1600x900). See WeatherWidget's own comment on
   // `onExpandedChange` for the full writeup.
   const [weatherExpanded, setWeatherExpanded] = useState(false)
+  // Final-review fix wave, Fix 1 — same mirrored-state idiom as
+  // `weatherExpanded` above, one paragraph up, for the identical structural
+  // reason, for the three ALWAYS-AVAILABLE panels rather than a toggle-
+  // gated connector-adjacent one: NotesWidget/TodoWidget/TimerWidget's own
+  // open panels are each rendered inside a `fixed` PositionedBlock wrapper
+  // (an unconditional new stacking context), and every connector
+  // PositionedBlock mounts LATER in this file than notes/tasks/timer do, so
+  // at matched (auto) stacking a connector card an open panel geometrically
+  // covers would paint ON TOP of it — confirmed by a real-Chromium
+  // whole-plan-review probe against the actual overlapping connectors
+  // (Notes under Vercel's card, Tasks under Jira's, Focus-timer under
+  // Calendar's). See each widget's own `onOpenChange` comment for the full
+  // writeup.
+  const [notesOpen, setNotesOpen] = useState(false)
+  const [tasksOpen, setTasksOpen] = useState(false)
+  const [timerOpen, setTimerOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   // Tracks whether the PREVIOUS render had `arranging` true, so the
   // focus-restore effect below only fires on a real on->off transition, never
@@ -319,25 +335,47 @@ export default function App() {
             {/* Same move as weather above, mirrored: DEFAULT placement drops
                 out of the bookmarks bar's band to `top-[var(--top-band)]`,
                 keeping its `left-4` anchor so the two peripherals bookend
-                one row under the bar. See index.css's `--top-band`. */}
+                one row under the bar. See index.css's `--top-band`.
+
+                `timerOpen`-gated `z-30` (final-review fix wave, Fix 1) —
+                ONLY while the panel is open, same conditional shape as
+                weather's own `weatherExpanded`-gated `z-30` above. Idle,
+                this wrapper stays at z-index:auto — unchanged from before
+                this fix. */}
             <PositionedBlock
               id="timer"
               pos={layout?.timer}
-              className="fixed left-4 top-[var(--top-band)]"
+              className={`fixed left-4 top-[var(--top-band)]${timerOpen ? ' z-30' : ''}`}
             >
-              <TimerWidget />
+              <TimerWidget onOpenChange={setTimerOpen} />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="notes">
-            <PositionedBlock id="notes" pos={layout?.notes} className="fixed bottom-4 left-16">
-              <NotesWidget />
+            {/* `notesOpen`-gated `z-30` (final-review fix wave, Fix 1) — see
+                the timer PositionedBlock's own comment just above for the
+                shared rationale; this is the pair the reviewer's own probe
+                found first (Notes panel painting under Vercel's card). */}
+            <PositionedBlock
+              id="notes"
+              pos={layout?.notes}
+              className={`fixed bottom-4 left-16${notesOpen ? ' z-30' : ''}`}
+            >
+              <NotesWidget onOpenChange={setNotesOpen} />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="todo">
-            <PositionedBlock id="tasks" pos={layout?.tasks} className="fixed bottom-4 right-16">
-              <TodoWidget />
+            {/* `tasksOpen`-gated `z-30` (final-review fix wave, Fix 1) — see
+                the timer PositionedBlock's own comment above for the shared
+                rationale; this is the pair the reviewer's own probe found
+                (Tasks panel painting under Jira's card). */}
+            <PositionedBlock
+              id="tasks"
+              pos={layout?.tasks}
+              className={`fixed bottom-4 right-16${tasksOpen ? ' z-30' : ''}`}
+            >
+              <TodoWidget onOpenChange={setTasksOpen} />
             </PositionedBlock>
           </WidgetBoundary>
 

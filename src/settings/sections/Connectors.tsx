@@ -42,10 +42,12 @@ export function authState(
   return secretMissing ? 'reconnect' : 'connected'
 }
 
-/** The origin match pattern for a feed URL, or null if it can't be derived
- *  (non-https / unparseable). Used only to decide whether a REMAINING feed
- *  still claims the origin of a feed being removed, so a bad entry simply
- *  doesn't count as sharing — it never throws out of the remove handler. */
+/** The origin match pattern for a URL, or null if it can't be derived
+ *  (non-https / unparseable). Two call sites: RssBody's remove-feed handler
+ *  (deciding whether a REMAINING feed still claims the origin of a feed
+ *  being removed) and IcsBody's save handler (deciding whether a save-over-
+ *  save actually changed the origin) — in both, a bad entry simply doesn't
+ *  count as sharing/matching, so it never throws out of the caller. */
 function originOf(url: string): string | null {
   try {
     return originPattern(url)
@@ -81,10 +83,11 @@ export default function Connectors({
   )
 }
 
-// Body slot per connector id. Partial (not a full Record): ics lands in its
-// own later sub-project-2 task, and this map carries no placeholder entry
-// for it (a lookup for an unregistered id is simply undefined -> no body
-// rendered).
+// Body slot per connector id. Partial (not a full Record): every registered
+// connector has an entry below (ics included, added alongside icsDescriptor
+// in the registry), but Partial keeps a lookup for any FUTURE unregistered id
+// safe — simply undefined -> no body rendered — rather than a total Record
+// that would force a placeholder entry into existence for one.
 const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
   rss: RssBody,
   github: GithubBody,
@@ -856,6 +859,10 @@ function IcsBody({ config, storage }: BodyProps) {
       setError('Enter a calendar address that starts with https://')
       return
     }
+    // Captured BEFORE persisting anything — the origin-release check below
+    // (Fix 2, final-review fix wave) needs the url this card was configured
+    // with a moment ago, not whatever `url` ends up being.
+    const previousUrl = configuredUrl
 
     setSaving(true)
     try {
@@ -875,11 +882,27 @@ function IcsBody({ config, storage }: BodyProps) {
       // Replace the whole ics config (dropping any stray cruft the generic
       // enable-toggle's `{}` seed left) with exactly the connector's two
       // fields.
+      const prevConnectors = await storage.get('connectors')
       await storage.update('connectors', (prev) => ({
         ...prev,
         ics: { enabled: true, url },
       }))
       setValue(url)
+
+      // A save-over-save used to grant the NEW origin and never revoke the
+      // OLD one — a leaked grant, violating PRIVACY.md's "released
+      // automatically" promise. Same sharing-aware releasableOrigins path
+      // handleClear (below) and every other body's own onDisconnect use,
+      // just fed the PRIOR connectors record instead of the just-persisted
+      // one, so an origin another enabled connector still derives is never
+      // revoked out from under it. No gesture needed: unlike ensureOrigin,
+      // removeOrigin carries no chrome.permissions.request-style gesture
+      // requirement, so this can safely run AFTER the grant+persist above.
+      const oldOrigin = originOf(previousUrl)
+      if (oldOrigin && oldOrigin !== originOf(url)) {
+        const releasable = releasableOrigins('ics', prevConnectors)
+        if (releasable.includes(oldOrigin)) await removeOrigin(oldOrigin)
+      }
     } finally {
       setSaving(false)
     }

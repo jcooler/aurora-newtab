@@ -3957,6 +3957,212 @@ console.log(
   )
 }
 
+// Open-panel-vs-connector disciplined-occlusion gate (final-review fix
+// wave, Fix 1) — the SAME structural defect the expanded-weather-vs-
+// connectors check just above exists for, for the three ALWAYS-AVAILABLE
+// panels (Notes/Tasks/Focus-timer) rather than a toggle-gated connector-
+// adjacent one: each panel is rendered inside a `fixed` PositionedBlock
+// wrapper (an unconditional new stacking context), and every connector
+// PositionedBlock mounts LATER in App.tsx than notes/tasks/timer's own, so
+// at matched (auto) stacking a connector card an open panel geometrically
+// covers painted ON TOP of it — confirmed by the whole-plan reviewer
+// against a real Chromium session (Notes under Vercel's card, Tasks under
+// Jira's, Focus-timer under Calendar's; their own probe scripts are what
+// this block is adapted from). Fixed in App.tsx + NotesWidget.tsx/
+// TodoWidget.tsx/TimerWidget.tsx: an `onOpenChange` callback (the exact
+// idiom WeatherWidget's own `onExpandedChange` uses) mirrors each panel's
+// own open state up to a conditional `z-30` on that widget's own
+// PositionedBlock wrapper, applied ONLY while open.
+//
+// Seeds ONLY the three overlapping connectors — vercel, jira, ics — the
+// smallest fixture that reproduces the exact collision the reviewer found,
+// reusing the combined-defaults gate's own fixture shapes just above rather
+// than inventing new ones (same 5-deployment vercel worst case, same
+// 3-issue jira worst case, same midnight-proof same-day event spacing the
+// ics block above uses).
+{
+  const VERCEL_FIXTURE = {
+    deployments: [
+      { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: Date.now() - 6 * 60 * 60 * 1000 },
+      { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: Date.now() - 3 * 60 * 1000 },
+      { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: Date.now() - 10 * 60 * 1000 },
+      { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: Date.now() - 20 * 60 * 1000 },
+      { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: Date.now() - 60 * 60 * 1000 },
+    ],
+  }
+  const JIRA_FIXTURE = {
+    issues: [
+      { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+      { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+      { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+    ],
+    counts: { 'In Progress': 2, 'To Do': 1 },
+  }
+
+  const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+
+  await page.evaluate(
+    async ({ vercelFixture, jiraFixture }) => {
+      const now = Date.now()
+      // Same midnight-proof step idiom as the calendar/combined-defaults
+      // blocks above: space the three same-day fixture events
+      // proportionally across whatever time is actually LEFT in today,
+      // floored at 1000ms, so this stays provably before local midnight
+      // regardless of when this run happens.
+      const d = new Date(now)
+      const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+      const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
+      const icsEvents = [
+        { summary: 'Standup', start: now + step, end: now + step + 30_000 },
+        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
+        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
+      ]
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
+          jira: {
+            enabled: true,
+            email: 'jon@acme.com',
+            apiToken: 'atlassian_preview',
+            site: 'yoursite.atlassian.net',
+            displayName: 'Jon Cooler',
+          },
+          ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+        },
+        connectorSnapshots: {
+          vercel: { fetchedAt: now, data: vercelFixture },
+          jira: { fetchedAt: now, data: jiraFixture },
+          ics: { fetchedAt: now, data: { events: icsEvents } },
+        },
+      })
+    },
+    { vercelFixture: VERCEL_FIXTURE, jiraFixture: JIRA_FIXTURE },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(vercelSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(jiraSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
+
+  let panelGateErrorsSeen = errors.length
+
+  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.95 in Aurora), same floor as the expanded-weather precedent above
+
+  // Opens `pillSel`, waits for the `dialogLabel`-named dialog, checks it
+  // against `cardSel` (found + disciplined-occluded if it overlaps, plain
+  // non-overlap otherwise — same two-branch shape the expanded-weather
+  // check above uses), screenshots, then closes via Escape (dialogStack-
+  // aware, same close path every panel in this app already uses) so the
+  // NEXT probe starts from a clean idle-panel state.
+  const panelOcclusionCheck = async (pillSel, dialogLabel, cardSel, cardName) => {
+    await page.click(pillSel)
+    const panelSel = `[role="dialog"][aria-label="${dialogLabel}"]`
+    await page.waitForSelector(panelSel)
+    await page.waitForTimeout(200)
+    const res = await page.evaluate(
+      ({ panelSel: pSel, cardSel: cSel }) => {
+        const panel = document.querySelector(pSel)
+        const card = document.querySelector(cSel)
+        if (!panel || !card) return { found: false }
+        const p = panel.getBoundingClientRect()
+        const c = card.getBoundingClientRect()
+        const cs = getComputedStyle(panel)
+        const alpha = (() => {
+          const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/)
+          if (!m) return 0
+          const parts = m[1].split(',').map((v) => parseFloat(v))
+          return parts.length > 3 ? parts[3] : 1
+        })()
+        const overlap = !(p.right <= c.left || p.left >= c.right || p.bottom <= c.top || p.top >= c.bottom)
+        if (!overlap) {
+          return {
+            found: true,
+            overlap: false,
+            alpha: +alpha.toFixed(2),
+            p: { t: +p.top.toFixed(1), b: +p.bottom.toFixed(1), l: +p.left.toFixed(1), r: +p.right.toFixed(1) },
+            c: { t: +c.top.toFixed(1), b: +c.bottom.toFixed(1), l: +c.left.toFixed(1), r: +c.right.toFixed(1) },
+          }
+        }
+        // Sample the CENTRE of the overlap region: if the panel really owns
+        // those pixels, that is what hit-testing finds there.
+        const left = Math.max(p.left, c.left)
+        const right = Math.min(p.right, c.right)
+        const top = Math.max(p.top, c.top)
+        const bottom = Math.min(p.bottom, c.bottom)
+        const sample = document.elementFromPoint((left + right) / 2, (top + bottom) / 2)
+        return {
+          found: true,
+          overlap: true,
+          onTop: !!sample && panel.contains(sample),
+          alpha: +alpha.toFixed(2),
+          p: { t: +p.top.toFixed(1), b: +p.bottom.toFixed(1), l: +p.left.toFixed(1), r: +p.right.toFixed(1) },
+          c: { t: +c.top.toFixed(1), b: +c.bottom.toFixed(1), l: +c.left.toFixed(1), r: +c.right.toFixed(1) },
+        }
+      },
+      { panelSel, cardSel },
+    )
+    const ok = res.found && (!res.overlap || (res.alpha >= SOLID_SURFACE_ALPHA && res.onTop))
+    console.log(
+      ok && res.overlap
+        ? `PASS: the open ${dialogLabel} panel disciplined-occludes ${cardName} (surface alpha ${res.alpha} >= ${SOLID_SURFACE_ALPHA}, topmost at the covered point; panel=${JSON.stringify(res.p)}, card=${JSON.stringify(res.c)})`
+        : ok
+          ? `PASS: the open ${dialogLabel} panel does not overlap ${cardName} (panel=${JSON.stringify(res.p)}, card=${JSON.stringify(res.c)})`
+          : `FAIL: the open ${dialogLabel} panel disciplined-occlusion check vs ${cardName} (${JSON.stringify(res)})`,
+    )
+    await page.screenshot({ path: `${outDir}/panel-${dialogLabel.toLowerCase().replace(/\s+/g, '-')}-vs-${cardName}.png` })
+    // Close via Escape (dialogStack-aware) so the page is back to its idle,
+    // closed-panel state before the next probe (or the restore below) runs.
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+    return ok
+  }
+
+  await panelOcclusionCheck('[data-block-id="notes"] button[aria-expanded]', 'Notes', vercelSel, 'vercel')
+  await panelOcclusionCheck('[data-block-id="tasks"] button[aria-expanded]', 'Tasks', jiraSel, 'jira')
+  await panelOcclusionCheck('[data-block-id="timer"] button[aria-expanded]', 'Focus timer', icsSel, 'ics')
+
+  const panelGateNewErrors = errors.length - panelGateErrorsSeen
+  console.log(
+    panelGateNewErrors === 0
+      ? 'PASS: no console errors across the notes/tasks/timer panel-vs-connector occlusion gate'
+      : `FAIL: no console errors across the notes/tasks/timer panel-vs-connector occlusion gate (${panelGateNewErrors} new: ${errors.slice(-panelGateNewErrors).join('; ')})`,
+  )
+
+  // Restore: disable the three seeded connectors and clear their cache, then
+  // reload so nothing here leaks into the viewport matrix / default-state /
+  // worst-case blocks below — same restore discipline as every connector
+  // block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        vercel: { ...connectors.vercel, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+        ics: { ...connectors.ics, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const panelGateAllGone = await page.evaluate(
+    (sels) => Object.values(sels).every((s) => document.querySelector(s) === null),
+    { vercel: vercelSel, jira: jiraSel, ics: icsSel },
+  )
+  console.log(
+    panelGateAllGone
+      ? 'Notes/Tasks/Focus-timer panel-vs-connector gate: vercel/jira/ics disabled; page restored to idle'
+      : 'WARNING: at least one connector widget still present after the notes/tasks/timer panel-vs-connector gate',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

@@ -196,7 +196,16 @@ function parseRRule(value: string): RRule {
   }
   const freq = (parts.get('FREQ') ?? '').toUpperCase()
   const interval = Math.max(1, Math.trunc(Number(parts.get('INTERVAL') ?? 1)) || 1)
-  const count = parts.has('COUNT') ? Math.trunc(Number(parts.get('COUNT'))) : null
+  // Number(...) on a malformed value ("3x") yields NaN, not a thrown error —
+  // left uncoerced, `rr.count !== null && counted >= rr.count` and
+  // `rr.count === null && start >= winEnd` (the expander's two stop
+  // conditions, below) both evaluate false against NaN, so a bad COUNT used
+  // to defeat BOTH loop guards at once (bounded only by MAX_ITERATIONS,
+  // wastefully). Number.isFinite folds that case to `null` — the same
+  // "no COUNT" the field already means when absent entirely — restoring the
+  // window-bounded stop.
+  const countN = parts.has('COUNT') ? Number(parts.get('COUNT')) : NaN
+  const count = Number.isFinite(countN) ? Math.trunc(countN) : null
   const until = parts.has('UNTIL') ? tryParseDate(parts.get('UNTIL')!) : null
 
   // Which BY* parts appear determines whether we can honor the rule exactly.

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
 
@@ -19,19 +19,46 @@ export const NOTES_PANEL_SIZE = { w: 320, h: 256 }
 // so a dragged pill still hugs the correct (nearest) corner (Task 36).
 export const NOTES_CORNER_HUG_PX = 48
 
-export default function NotesWidget() {
+export default function NotesWidget({
+  onOpenChange,
+}: { onOpenChange?: (open: boolean) => void } = {}) {
   // Gate BEFORE the panel's open/close state exists, same shape as
   // TimerWidget: a disabled widget (settings.widgets.notes starts true, but
-  // can be turned off) mounts nothing past the settings read.
+  // can be turned off) mounts nothing past the settings read — which is also
+  // what makes the onOpenChange cleanup below (in NotesInner) fire reliably
+  // on a mid-session disable: NotesInner actually UNMOUNTS rather than one
+  // instance persisting across the toggle. See WeatherWidget's own
+  // onExpandedChange comment for the full writeup of why that matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.notes) return null
-  return <NotesInner />
+  return <NotesInner onOpenChange={onOpenChange} />
 }
 
-function NotesInner() {
+function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+
+  // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
+  // `onExpandedChange` uses (see its comment for the full writeup): a ref
+  // keeps this always calling the LATEST callback, never a stale closure,
+  // and the cleanup resets the mirrored App state to false on unmount so a
+  // disabled/removed widget can never strand the wrapper's elevated z-index
+  // open. Same root cause as weather's: this widget's own PositionedBlock
+  // wrapper is `fixed` (an unconditional new stacking context), every
+  // connector PositionedBlock mounts LATER in App.tsx than this one, and
+  // NotesPanel's own internal z-30 is trapped inside that wrapper's local
+  // stacking order — so a connector card the open panel geometrically
+  // covers paints ON TOP of it at matched (auto) stacking, the DOM-order
+  // defect a real-Chromium reviewer probe confirmed (Notes panel under
+  // Vercel's card). App.tsx turns this into a conditional `z-30` on the
+  // wrapper, only while open.
+  const onOpenChangeRef = useRef(onOpenChange)
+  onOpenChangeRef.current = onOpenChange
+  useEffect(() => {
+    onOpenChangeRef.current?.(open)
+    return () => onOpenChangeRef.current?.(false)
+  }, [open])
 
   // The panel follows the pill: measured on open (not live-tracked — the
   // pill can't move while the panel is open today, since arrange mode closes

@@ -477,3 +477,98 @@ describe('App — weather wrapper z-index elevation while the panel is expanded 
     expect(wrapper!.classList.contains('z-30')).toBe(false)
   })
 })
+
+// Final-review fix wave, Fix 1 — same structural pair as the weather/
+// bookmarks wrapper z-index tests above: WeatherWidget.test.tsx's own
+// pattern (this file's own onOpenChange describe blocks in NotesWidget/
+// TodoWidget/TimerWidget.test.tsx) already proves the onOpenChange CALLBACK
+// fires correctly in isolation; this proves the INTEGRATION, that App.tsx
+// actually wires each into a 'z-30' class on that widget's own wrapper.
+// Real stacking/paint order is jsdom-unverifiable (that's
+// scripts/preview.mjs's own panel-vs-connector probe's job — it's what
+// caught the real defect this fix addresses: open Notes/Tasks/Focus-timer
+// panels painted BELOW the connector card(s) they geometrically covered,
+// because every connector PositionedBlock mounts later in App.tsx than
+// notes/tasks/timer's own and all are `fixed` (independent stacking
+// contexts), so DOM order decided the paint order with neither side's
+// z-index in play until this).
+describe('App — notes/tasks/timer wrapper z-index elevation while their panels are open (final-review fix wave, Fix 1)', () => {
+  it('the notes wrapper gains z-30 only while the panel is open', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    const pill = await screen.findByRole('button', { name: 'Notes' })
+    const wrapper = document.querySelector('[data-block-id="notes"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+  })
+
+  it('the tasks wrapper gains z-30 only while the panel is open', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    const pill = await screen.findByRole('button', { name: 'Tasks' })
+    const wrapper = document.querySelector('[data-block-id="tasks"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+  })
+
+  it('the timer wrapper gains z-30 only while the panel is open', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, timer: true },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    const pill = await screen.findByRole('button', { name: /Focus timer/ })
+    const wrapper = document.querySelector('[data-block-id="timer"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close focus timer' }))
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+  })
+})

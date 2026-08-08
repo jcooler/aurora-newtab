@@ -8,19 +8,22 @@ import { defaults } from '../../../lib/storage/schema'
 import { anchorPanel } from '../../../lib/layout/anchor'
 import TimerWidget, { TIMER_PANEL_SIZE } from './TimerWidget'
 
-async function renderWidget() {
+async function renderWidget({
+  onOpenChange,
+}: { onOpenChange?: (open: boolean) => void } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('settings', {
     ...defaults().settings,
     widgets: { ...defaults().settings.widgets, timer: true },
   })
-  render(
+  const view = render(
     <StorageProvider storage={storage}>
-      <TimerWidget />
+      <TimerWidget onOpenChange={onOpenChange} />
     </StorageProvider>,
   )
   await act(async () => {})
+  return { storage, view }
 }
 
 describe('TimerWidget', () => {
@@ -78,5 +81,54 @@ describe('TimerWidget', () => {
     rectSpy.mockRestore()
     widthSpy.mockRestore()
     heightSpy.mockRestore()
+  })
+})
+
+// Final-review fix wave, Fix 1 — mirrors WeatherWidget.test.tsx's own
+// onExpandedChange describe block exactly (same idiom, same reason): jsdom
+// can't verify real stacking/paint order (that's scripts/preview.mjs's own
+// panel-vs-connector probe's job — it's what caught the Focus-timer panel
+// painting under Calendar's card in the first place), but it CAN verify the
+// mechanism App.tsx's conditional `z-30` depends on: the callback fires
+// true on open, false on close, and false again on unmount, never a stale
+// value.
+describe('TimerWidget onOpenChange (final-review fix wave, Fix 1)', () => {
+  it('calls onOpenChange(true) on open and onOpenChange(false) on close', async () => {
+    const onOpenChange = vi.fn()
+    await renderWidget({ onOpenChange })
+
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+    onOpenChange.mockClear()
+
+    const pill = await screen.findByRole('button', { name: /Focus timer/ })
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close focus timer' }))
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
+  })
+
+  // Same rationale as WeatherWidget's own unmount-cleanup test: without
+  // this, App's mirrored `timerOpen` state would stick at `true` forever if
+  // TimerWidget ever unmounts while open (e.g. the widget toggle is
+  // switched off mid-session), permanently outranking every connector
+  // card's own z-index:auto wrapper.
+  it('calls onOpenChange(false) on unmount, even while open', async () => {
+    const onOpenChange = vi.fn()
+    const { view } = await renderWidget({ onOpenChange })
+    const pill = await screen.findByRole('button', { name: /Focus timer/ })
+    await act(async () => {
+      fireEvent.click(pill)
+    })
+    expect(onOpenChange).toHaveBeenLastCalledWith(true)
+
+    onOpenChange.mockClear()
+    view.unmount()
+    expect(onOpenChange).toHaveBeenCalledTimes(1)
+    expect(onOpenChange).toHaveBeenLastCalledWith(false)
   })
 })

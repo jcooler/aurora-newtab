@@ -2156,6 +2156,49 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
     expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
   })
 
+  // Final-review fix wave, Fix 2 — a save-over-save used to grant the NEW
+  // url's origin and never revoke the OLD one: PRIVACY.md promises a
+  // released-automatically grant, and a leaked one broke that silently,
+  // since nothing about the UI (or the connector working fine on the new
+  // url) would ever surface it.
+  const OTHER_HOST_URL = 'https://calendar.other-host.com/private-xyz789/basic.ics'
+
+  it('save-over-save with a DIFFERENT host revokes the previously-configured origin after persisting the new one', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: OTHER_HOST_URL },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith(OTHER_HOST_URL)
+    expect(await readIcs(storage)).toEqual({ enabled: true, url: OTHER_HOST_URL })
+    // Revoked through the same origin-pattern shape releasableOrigins
+    // derives everywhere else in this file (scheme+host+/*), for the OLD
+    // host — never the new one, which just received the grant.
+    expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
+    expect(removeOrigin).not.toHaveBeenCalledWith('https://calendar.other-host.com/*')
+  })
+
+  it('save-over-save on the SAME host does not revoke anything — the origin never actually changed', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const SAME_HOST_URL = 'https://calendar.example.com/private-xyz789/basic.ics'
+    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: SAME_HOST_URL },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(await readIcs(storage)).toEqual({ enabled: true, url: SAME_HOST_URL })
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
   // Calendar is auth 'none' — the card shell's status chip (Task 46) is a
   // 'token'-auth-only affordance, so Calendar's card must never show one,
   // enabled or not (same rule Crypto's own case above documents).

@@ -190,6 +190,47 @@ describe('parseIcs — RRULE DAILY', () => {
       Date.UTC(2026, 5, 7, 12, 0, 0),
     ])
   })
+
+  // Final-review fix wave, Fix 3b — a malformed COUNT (e.g. a stray trailing
+  // character) used to coerce to NaN, which is not `null`, so it silently
+  // defeated BOTH of the expander's stop conditions at once: the
+  // COUNT-reached check (`counted >= rr.count`, always false against NaN)
+  // AND the COUNT-less window check (`rr.count === null`, also false, since
+  // NaN !== null) — bounded only by MAX_ITERATIONS, not the window. The fix
+  // (parseRRule's own Number.isFinite coercion) folds a NaN COUNT to `null`,
+  // the same value the field already carries when it's absent entirely, so
+  // this asserts the malformed and genuinely-absent cases produce the
+  // IDENTICAL window-bounded result — not just "eventually terminates".
+  it('a malformed COUNT (e.g. COUNT=3x) is treated as no-COUNT — window-bounded expansion matching the genuinely COUNT-less rule exactly', () => {
+    const malformed = cal(
+      vevent([
+        'UID:daily4@test',
+        'SUMMARY:Malformed count',
+        'DTSTART:20260601T120000Z',
+        'DTEND:20260601T130000Z',
+        'RRULE:FREQ=DAILY;COUNT=3x',
+      ]),
+    )
+    const noCount = cal(
+      vevent([
+        'UID:daily4@test',
+        'SUMMARY:Malformed count',
+        'DTSTART:20260601T120000Z',
+        'DTEND:20260601T130000Z',
+        'RRULE:FREQ=DAILY',
+      ]),
+    )
+    const malformedEvents = parseIcs(malformed, JUNE_START, 5)
+    const noCountEvents = parseIcs(noCount, JUNE_START, 5)
+    expect(malformedEvents.map((e) => e.start)).toEqual(noCountEvents.map((e) => e.start))
+    expect(malformedEvents.map((e) => e.start)).toEqual([
+      Date.UTC(2026, 5, 1, 12, 0, 0),
+      Date.UTC(2026, 5, 2, 12, 0, 0),
+      Date.UTC(2026, 5, 3, 12, 0, 0),
+      Date.UTC(2026, 5, 4, 12, 0, 0),
+      Date.UTC(2026, 5, 5, 12, 0, 0),
+    ])
+  })
 })
 
 describe('parseIcs — RRULE WEEKLY', () => {
