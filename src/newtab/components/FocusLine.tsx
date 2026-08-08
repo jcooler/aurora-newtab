@@ -54,13 +54,37 @@ export default function FocusLine() {
       className="group mt-10 short:mt-3 xshort:mt-1 flex items-center gap-3 short:gap-2 xshort:gap-1"
       aria-live="polite"
     >
-      <input
-        id="focus-done"
-        type="checkbox"
-        checked={focus.done}
-        onChange={() => save({ ...focus, done: !focus.done })}
-        className="size-5 accent-(--accent)"
-      />
+      {/* Round check — the same completion-checkmark control family as
+          TodoPanel's task checks, but tuned for the PHOTO: the hairline uses the
+          fixed light canvas ink (visible over any image, with a contact shadow)
+          rather than the panel's fg-derived token. The real <input> stays
+          underneath (sr-only) so keyboard toggle, focus and <label htmlFor>
+          association remain the platform's; the `peer` span reflects its state. */}
+      <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+        <input
+          id="focus-done"
+          type="checkbox"
+          checked={focus.done}
+          onChange={() => save({ ...focus, done: !focus.done })}
+          className="peer sr-only"
+        />
+        <span
+          aria-hidden
+          className="grid size-5 place-items-center rounded-full border border-canvas-fg-muted text-transparent shadow-[0_1px_3px_rgb(0_0_0/0.45)] transition-colors peer-checked:border-accent peer-checked:bg-accent peer-checked:text-[#0a0a0a] peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent motion-reduce:transition-none"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="size-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={3}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 13l4 4L19 7" />
+          </svg>
+        </span>
+      </label>
       <label
         htmlFor="focus-done"
         className={`text-photo text-xl short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${

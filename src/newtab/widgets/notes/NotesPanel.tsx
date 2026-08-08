@@ -17,6 +17,11 @@ export default function NotesPanel({
   const storage = useStorage()
   const [notes] = useStoredKey('notes')
   const [text, setText] = useState('')
+  // Quiet autosave hint: flipped true when the debounced save commits, then
+  // cleared a beat later so the 'Saved' word fades out via a CSS opacity
+  // transition (snaps under prefers-reduced-motion). Pure component state — it
+  // never touches the 500ms save debounce below, per the panel's freeze.
+  const [saved, setSaved] = useState(false)
 
   const panelRef = useRef<HTMLDivElement>(null)
   const focusedRef = useRef(false)
@@ -24,6 +29,7 @@ export default function NotesPanel({
   textRef.current = text
   const seeded = useRef(false)
   const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Seed local state from storage the first time it resolves, unconditionally
   // (the textarea starts empty and unfocused, so there's nothing local to
@@ -54,6 +60,9 @@ export default function NotesPanel({
   // the same up-to-500ms window the debounce already accepts.
   useEffect(() => {
     return () => {
+      // Clear the 'Saved'-flash timer first (always), so it can't fire a
+      // setState after unmount — independent of the save-flush below.
+      if (flashTimeoutRef.current !== null) clearTimeout(flashTimeoutRef.current)
       if (saveTimeoutRef.current === null) return
       clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = null
@@ -92,6 +101,14 @@ export default function NotesPanel({
     saveTimeoutRef.current = setTimeout(() => {
       saveTimeoutRef.current = null
       void storage.set('notes', { text: value, updatedAt: Date.now() })
+      // Quiet 'Saved' flash on commit (never blocks or alters the write above):
+      // show it, then clear after a beat so the label fades back out.
+      setSaved(true)
+      if (flashTimeoutRef.current !== null) clearTimeout(flashTimeoutRef.current)
+      flashTimeoutRef.current = setTimeout(() => {
+        flashTimeoutRef.current = null
+        setSaved(false)
+      }, 1400)
     }, SAVE_DEBOUNCE_MS)
   }
 
@@ -113,15 +130,28 @@ export default function NotesPanel({
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 h-64 w-80 rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className="z-30 flex h-64 w-80 flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
+      <div className="flex items-center justify-between px-3.5 pb-1 pt-2.5">
+        <h2 className="text-sm font-semibold tracking-tight text-fg">Notes</h2>
+        {/* Autosave hint — decorative (the textarea is the accessible control);
+            fades on the opacity transition, snaps under motion-reduce. */}
+        <span
+          aria-hidden
+          className={`text-xs text-fg-muted transition-opacity duration-500 motion-reduce:transition-none ${
+            saved ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          Saved
+        </span>
+      </div>
       <label htmlFor="notes-textarea" className="sr-only">
         Scratchpad
       </label>
       <textarea
         id="notes-textarea"
         value={text}
-        placeholder="Jot something down…"
+        placeholder="Jot a thought, a link, a to-do…"
         onFocus={() => {
           focusedRef.current = true
         }}
@@ -129,7 +159,7 @@ export default function NotesPanel({
           focusedRef.current = false
         }}
         onChange={(e) => handleChange(e.currentTarget.value)}
-        className="h-full w-full resize-none bg-transparent p-3 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:outline-2 focus-visible:outline-accent"
+        className="w-full flex-1 resize-none bg-transparent px-3.5 pb-3.5 pt-1 text-sm leading-relaxed text-fg outline-none placeholder:text-fg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       />
     </div>
   )

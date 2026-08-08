@@ -35,6 +35,29 @@ describe('Switch (the control kit — Task 61)', () => {
     expect(onChange).toHaveBeenLastCalledWith(false)
   })
 
+  it('honours the native-button keyboard contract: Space/Enter activate it (no hand-rolled key handler)', () => {
+    // The whole reason this is a <button role="switch"> and not a styled div:
+    // Space and Enter activation come from the PLATFORM's default action, which
+    // dispatches a click. The component deliberately owns NO onKeyDown of its
+    // own — so a bare keyDown must do nothing on its own, and it's the click
+    // that default action raises that flips the switch. jsdom does not simulate
+    // that default action (verified: keyDown alone never reaches onClick), so
+    // here each key press is modelled as the user's keyDown PLUS the click the
+    // browser raises in response — documenting the contract Space/Enter rely on.
+    const onChange = vi.fn()
+    render(<Switch id="s" checked={false} onChange={onChange} label="Wifi" />)
+    const el = screen.getByRole('switch')
+    el.focus()
+    expect(document.activeElement).toBe(el)
+
+    fireEvent.keyDown(el, { key: ' ', code: 'Space' })
+    fireEvent.keyDown(el, { key: 'Enter', code: 'Enter' })
+    expect(onChange).not.toHaveBeenCalled() // no rogue key handler intercepts
+
+    fireEvent.click(el) // the default action Space/Enter raise on a native button
+    expect(onChange).toHaveBeenLastCalledWith(true)
+  })
+
   it('associates with an EXTERNAL <label htmlFor> (button is labelable), so the row label finds and toggles it', () => {
     const onChange = vi.fn()
     render(

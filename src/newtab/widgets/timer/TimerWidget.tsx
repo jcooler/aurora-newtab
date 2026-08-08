@@ -7,17 +7,25 @@ import type { Settings, TimerConfig } from '../../../lib/storage/schema'
 import { anchorPanel, type PanelPlacement } from '../../../lib/layout/anchor'
 import { playChime } from './chime'
 import { initialTimer, timerReducer, type TimerAction, type TimerState } from './timerReducer'
+// The control kit (Task 61) — start/pause is the primary action, reset the
+// quiet one, and the work/break minutes fields reuse the exact Settings input
+// class, so the panel's controls speak the same language as the drawer's.
+import { btnPrimary, btnQuiet, control } from '../../../settings/sections/shared'
 
 const DEFAULT_CONFIG: TimerConfig = { workMinutes: 25, breakMinutes: 5 }
 const MIN_MINUTES = 1
 const MAX_MINUTES = 180
 
 // The panel has no fixed-height class (auto, sized to its content — header,
-// countdown, controls, work/break inputs, and an optional "N sessions
-// completed" line once cycles > 0); this is its measured height in the
-// deterministic default-open state (cycles === 0, that line absent). Width
-// matches the panel's w-64 class exactly.
-export const TIMER_PANEL_SIZE = { w: 256, h: 175 }
+// countdown, progress rail, controls, work/break inputs, and an optional "N
+// sessions completed" line once cycles > 0); this is its measured height in
+// the deterministic default-open state (cycles === 0, that line absent). Width
+// matches the panel's w-64 class exactly. Re-measured after the Task-62 polish
+// pass (display-face digits + the progress rail grew it from 175) — the value
+// is read straight off scripts/preview.mjs's timer-panel occlusion probe,
+// which prints the live rendered rect (t=108, b=326 → 218), so it can't
+// silently drift.
+export const TIMER_PANEL_SIZE = { w: 256, h: 218 }
 
 function clampMinutes(value: number): number {
   if (!Number.isFinite(value)) return MIN_MINUTES
@@ -163,6 +171,18 @@ function TimerInner({
       : state.remainingMs
   const display = formatRemaining(liveRemainingMs)
 
+  // Fraction of the current session already elapsed, for the progress bar.
+  // Purely derived from the same live remaining time the digits show — no new
+  // state, no new clock read — so it stays in lockstep with the countdown and
+  // reads 0% at rest (idle remaining === session length). Clamped both ends
+  // against a config edit that could momentarily make remaining exceed total.
+  const sessionTotalMs =
+    (state.mode === 'work' ? config.workMinutes : config.breakMinutes) * 60_000
+  const progressPct =
+    sessionTotalMs > 0
+      ? Math.min(100, Math.max(0, ((sessionTotalMs - liveRemainingMs) / sessionTotalMs) * 100))
+      : 0
+
   const start = () => dispatch({ type: 'start', now: Date.now() })
   const pause = () => dispatch({ type: 'pause', now: Date.now() })
   const reset = () => dispatch({ type: 'reset', now: Date.now() })
@@ -222,42 +242,46 @@ function TimerInner({
           className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold capitalize">{state.mode} session</h2>
+            <h2 className="text-sm font-semibold capitalize tracking-tight">{state.mode} session</h2>
             <button
               type="button"
               aria-label="Close focus timer"
               onClick={() => setOpen(false)}
-              className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="-mr-1 rounded p-1 text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
             >
               ✕
             </button>
           </div>
 
-          <p className="text-center text-3xl font-light tabular-nums">{display}</p>
+          <p className="text-center font-display text-5xl font-light tabular-nums tracking-tight leading-none">
+            {display}
+          </p>
 
-          <div className="flex items-center justify-center gap-2 text-sm">
+          {/* Progress rail — thin, fg-derived track with an accent fill that
+              tracks the elapsed fraction; decorative (the time is announced via
+              the pill's aria-label + the live region), width eased so it glides
+              with the 500ms tick and snaps under motion-reduce. */}
+          <div
+            aria-hidden
+            className="h-1.5 w-full overflow-hidden rounded-full bg-control-bg"
+          >
+            <div
+              className="h-full rounded-full bg-accent transition-[width] duration-500 ease-linear motion-reduce:transition-none"
+              style={{ width: `${progressPct}%` }}
+            />
+          </div>
+
+          <div className="flex items-center justify-center gap-2">
             {state.running ? (
-              <button
-                type="button"
-                onClick={pause}
-                className="rounded-full border border-panel-border px-3 py-1 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-              >
+              <button type="button" onClick={pause} className={`${btnPrimary} justify-center px-5`}>
                 Pause
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={start}
-                className="rounded-full border border-panel-border px-3 py-1 hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-              >
+              <button type="button" onClick={start} className={`${btnPrimary} justify-center px-5`}>
                 Start
               </button>
             )}
-            <button
-              type="button"
-              onClick={reset}
-              className="rounded-full border border-panel-border px-3 py-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-            >
+            <button type="button" onClick={reset} className={`${btnQuiet} justify-center`}>
               Reset
             </button>
           </div>
@@ -277,7 +301,7 @@ function TimerInner({
                     workMinutes: clampMinutes(e.currentTarget.valueAsNumber),
                   })
                 }
-                className="w-14 border-b border-panel-border bg-transparent px-1 py-0.5 text-fg outline-none focus-visible:border-accent disabled:opacity-50"
+                className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
               />
               min
             </label>
@@ -295,14 +319,14 @@ function TimerInner({
                     breakMinutes: clampMinutes(e.currentTarget.valueAsNumber),
                   })
                 }
-                className="w-14 border-b border-panel-border bg-transparent px-1 py-0.5 text-fg outline-none focus-visible:border-accent disabled:opacity-50"
+                className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
               />
               min
             </label>
           </div>
 
           {state.cycles > 0 && (
-            <p className="text-center text-xs text-fg-muted">
+            <p className="border-t border-hairline pt-2.5 text-center text-xs text-fg-muted">
               {state.cycles} focus {state.cycles === 1 ? 'session' : 'sessions'} completed
             </p>
           )}

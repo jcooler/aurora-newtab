@@ -1227,6 +1227,33 @@ await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/todo-panel.png` })
 console.log('captured todo-panel.png')
 
+// Round-check interaction probe (Task 62): the task check is now a styled
+// round control with the real <input type=checkbox> sr-only underneath.
+// Clicking it must still flip the task's `done` in storage — and clicking
+// again must flip it back — proving the visual restyle didn't sever the wired
+// control. Also capture the checked state so the accent fill + glyph is judged.
+const shipDone = async () =>
+  (await page.evaluate(() => chrome.storage.local.get('todoLists'))).todoLists
+    .flatMap((l) => l.items)
+    .find((i) => i.text === 'Ship Aurora')?.done
+const roundCheck = page
+  .locator('[role="dialog"][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
+  .first()
+const doneBefore = await shipDone()
+await roundCheck.click()
+await page.waitForTimeout(150)
+const doneAfter = await shipDone()
+await page.screenshot({ path: `${outDir}/todo-panel-checked.png` })
+console.log('captured todo-panel-checked.png')
+await roundCheck.click()
+await page.waitForTimeout(150)
+const doneBack = await shipDone()
+console.log(
+  doneBefore === false && doneAfter === true && doneBack === false
+    ? 'PASS: round check flips task done in storage and back (before/after/back = false/true/false)'
+    : `FAIL: round check storage toggle (before=${doneBefore}, after=${doneAfter}, back=${doneBack})`,
+)
+
 // Open the focus timer pill and capture its panel
 await page.click('button[aria-label^="Focus timer"]')
 await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
