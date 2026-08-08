@@ -4977,6 +4977,149 @@ console.log(
       : `FAIL: clicking the Meditate chip again unmarks today in storage (log=${JSON.stringify(afterUnmark)})`,
   )
 
+  // ── Greeting-collision fix: worst-name cap + hide-below-breakpoint ────────
+  // The two permanent proofs for `fix: the greeting and the mid-left column
+  // can no longer meet`. They live in THIS gate because it already owns the
+  // mid-left column's floor measurements (above) — the same seam, one more
+  // failure mode. THE MEASURED BREAKPOINT is 1593px: the width at which the
+  // WIDEST default centered member that overlaps this column — the forced-wide
+  // clock, whose 2-digit-hour box (425px, ~193.5-397.5 at 900h) overlaps BOTH
+  // monthCal's band AND habits' — first clears the column's fixed 568px right
+  // edge by this file's >=16px floor (clock.left rises through 568+16=584
+  // exactly at 1593; the search bar (320px) and focus line (288px) clear far
+  // earlier, ~1488/1450px, so the CLOCK governs, not the search bar the review
+  // first guessed). Greeting.tsx caps the greeting at
+  // `min(40rem,calc(100vw-1168px))` for >=1593px (its own left edge >=584 by
+  // construction), and App.tsx hides monthCal+habits below 1593
+  // (`max-[1593px]:hidden`); the two share the 1593 boundary exactly (a
+  // min-width media query vs. its not-all-min-width complement), so the column
+  // is on-screen iff the greeting cap is engaged. Neither assertion below
+  // forces the clock: the worst-name greeting's width/position is independent
+  // of the hour, and the hide check is a display:none test that is hour-proof
+  // by construction — the clock is a factor in DERIVING 1593, not in verifying
+  // these two facts AT their bands.
+  const monthCalSel = '[data-block-id="monthCal"]'
+  const greetingPSel = '[data-block-id="greeting"] p'
+
+  // (a) WORST-NAME cap. At 1600x900 (column visible) an UNCAPPED greeting with
+  // a 12+ char custom name penetrated habits by ~37.7px (live-probed: "Good
+  // morning, Christopherson." reached left=530.3 vs habits.right 568). Seed
+  // that same name and assert the CAPPED greeting's left edge now clears the
+  // habits right edge by >=16px AND that the cap actually engaged (the line is
+  // truncated, scrollWidth > clientWidth — so this cannot pass merely because
+  // the name happened to be short). Name restored right after.
+  const nameBeforeProbe = await page.evaluate(
+    async () => (await chrome.storage.local.get('settings')).settings.name ?? '',
+  )
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, name: 'Christopherson' } })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForTimeout(200)
+  const worst = await page.evaluate(
+    ({ gSel, hSel }) => {
+      const r = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1) }
+      }
+      const gEl = document.querySelector(gSel)
+      return {
+        greeting: r(gSel),
+        greetingText: gEl?.textContent ?? null,
+        clipped: gEl ? gEl.scrollWidth > gEl.clientWidth : null,
+        habits: r(hSel),
+      }
+    },
+    { gSel: greetingPSel, hSel: habitsSel },
+  )
+  const WORST_FLOOR = 16
+  const worstGap = worst.greeting && worst.habits ? +(worst.greeting.left - worst.habits.right).toFixed(1) : null
+  const worstOverlap =
+    worst.greeting && worst.habits
+      ? !(worst.greeting.bottom <= worst.habits.top || worst.greeting.top >= worst.habits.bottom)
+      : false
+  const worstOk = worstGap !== null && worstGap >= WORST_FLOOR && worstOverlap && worst.clipped === true
+  console.log(
+    worstOk
+      ? `PASS: a 12+ char custom name ("${worst.greetingText}") is capped so the greeting's left edge clears the habits column right edge by >=${WORST_FLOOR}px (${worstGap}px; greeting.left=${worst.greeting.left}, habits.right=${worst.habits.right}; line truncated=${worst.clipped}, bands overlap=${worstOverlap})`
+      : `FAIL: a 12+ char custom name greeting cap (gap=${worstGap}px, overlap=${worstOverlap}, clipped=${worst.clipped}, greeting=${JSON.stringify(worst.greeting)}, habits=${JSON.stringify(worst.habits)}, text=${JSON.stringify(worst.greetingText)})`,
+  )
+  await page.evaluate(async (name) => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, name } })
+  }, nameBeforeProbe)
+
+  // (b) HIDE BELOW THE BREAKPOINT. Enable monthCal too so the WHOLE mid-left
+  // column is under test, then read `display` for both blocks at four widths:
+  // the column must be VISIBLE at and above 1593 and HIDDEN below it. 1420 is
+  // the review's named default-board width (well below the breakpoint); the
+  // 1592/1593 pair pins the EXACT measured breakpoint so any future drift in
+  // the column's width, the floor, or the 1593 literal is caught here rather
+  // than shipping. Falsifiable both ways: drop the hide rule and 1420/1592
+  // fail; hide too aggressively and 1600/1593 fail.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: true } } })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(200)
+  const displaysAt = async (w) => {
+    await page.setViewportSize({ width: w, height: 900 })
+    await page.waitForTimeout(180)
+    return page.evaluate(
+      ({ mSel, hSel }) => {
+        const d = (sel) => {
+          const el = document.querySelector(sel)
+          if (!el) return { present: false }
+          const b = el.getBoundingClientRect()
+          return {
+            present: true,
+            display: getComputedStyle(el).display,
+            w: +(b.right - b.left).toFixed(1),
+            h: +(b.bottom - b.top).toFixed(1),
+          }
+        }
+        return { monthCal: d(mSel), habits: d(hSel) }
+      },
+      { mSel: monthCalSel, hSel: habitsSel },
+    )
+  }
+  const shownBlock = (x) => x.present && x.display !== 'none' && x.w > 0 && x.h > 0
+  const hiddenBlock = (x) => x.present && x.display === 'none'
+  const at1600 = await displaysAt(1600)
+  const at1593 = await displaysAt(1593)
+  const at1592 = await displaysAt(1592)
+  const at1420 = await displaysAt(1420)
+  const hideOk =
+    shownBlock(at1600.monthCal) && shownBlock(at1600.habits) &&
+    shownBlock(at1593.monthCal) && shownBlock(at1593.habits) &&
+    hiddenBlock(at1592.monthCal) && hiddenBlock(at1592.habits) &&
+    hiddenBlock(at1420.monthCal) && hiddenBlock(at1420.habits)
+  console.log(
+    hideOk
+      ? `PASS: the mid-left column (monthCal+habits) is visible at >=1593px and hidden below it — visible@1600 (mc ${at1600.monthCal.display}/${at1600.monthCal.w}px, hb ${at1600.habits.display}), visible@1593 (mc ${at1593.monthCal.display}), hidden@1592 (mc ${at1592.monthCal.display}, hb ${at1592.habits.display}), hidden@1420 (mc ${at1420.monthCal.display}, hb ${at1420.habits.display})`
+      : `FAIL: the mid-left column hide-below-1593 behavior (1600=${JSON.stringify(at1600)}, 1593=${JSON.stringify(at1593)}, 1592=${JSON.stringify(at1592)}, 1420=${JSON.stringify(at1420)})`,
+  )
+
+  // Restore this gate's own steady state before Probe 3's restore below:
+  // viewport back to 1600x900 and monthCal off again (habits stays on, its
+  // fixture intact — the interaction probe above already ran on it).
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: false } } })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(200)
+
   // Restore: widget off, habits cleared, RSS disabled + cache cleared — same
   // restore discipline as every widget/connector block above, so nothing
   // here leaks into the viewport matrix / default-state / worst-case

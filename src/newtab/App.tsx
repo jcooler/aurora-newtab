@@ -572,6 +572,33 @@ export default function App() {
                 every date) and assert the header's own measured height is
                 identical with the Today control present vs. absent.
 
+                HIDDEN BELOW 1593px (the greeting-collision fix, MERGE-BLOCKING
+                — a measured landmine for enabled-local-widgets users, not a
+                daily-use fire): this column's right edge is a FIXED 368+200=
+                568px, but the centered clock/greeting/search column marches
+                LEFT as the viewport narrows, so below a measured breakpoint the
+                two can no longer coexist. `max-[1593px]:hidden` (which compiles
+                to `@media not all and (min-width:1593px)`, i.e. strictly under
+                1593px) drops the whole mid-left column there. 1593 is MEASURED,
+                not guessed: it is the width at which the WIDEST default
+                centered member that overlaps this column — the forced-wide
+                clock, whose 2-digit-hour box (425px, 193.5-397.5 at 900h)
+                overlaps BOTH this widget's band AND habits' — first clears this
+                widget's right edge by the file's >=16px floor (clock.left rises
+                through 584 = 568+16 exactly at 1593; the search bar/focus line
+                clear far earlier, ~1488/1450px, so the clock governs). Greeting
+                (also centered) is handled instead by a width CAP that keeps its
+                own left edge >=584 at these widths — Greeting.tsx's own
+                `min-[1593px]:` cap shares this 1593 boundary exactly (min-width
+                vs. its complement), so the column is on-screen iff that cap is
+                engaged. THE HIDE APPLIES TO DEFAULT PLACEMENT ONLY, which is
+                correct: PositionedBlock drops this className for a user-ARRANGED
+                `pos`, and an arranged user OWNS their layout — they chose where
+                this block sits and we do not second-guess it by viewport width.
+                scripts/preview.mjs's habits floor block proves both halves live
+                (column hidden at 1420, visible at 1600; worst-name greeting
+                clears at 1600).
+
                 A stored arrange-mode `pos` still wins (PositionedBlock drops
                 this className on that branch). MonthCalWidget self-gates on
                 settings.widgets.monthCal alone (no data-emptiness check —
@@ -581,7 +608,7 @@ export default function App() {
                 other toggle-gated peripheral here. Transform-free per the
                 house rule (App's quote/bookmarks comments): a plain
                 left/top offset, no translate. */}
-            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-[200px]">
+            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-[200px] max-[1593px]:hidden">
               <MonthCalWidget />
             </PositionedBlock>
           </WidgetBoundary>
@@ -668,13 +695,22 @@ export default function App() {
                 widgets-habits.png capture at the 6-chip worst case,
                 including the deliberately long "Practice deep breathing..."
                 fixture name, no visible crowding.
+
+                HIDDEN BELOW 1593px alongside MonthCalWidget above — the whole
+                mid-left column drops together via the SAME `max-[1593px]:
+                hidden` (see that widget's PositionedBlock comment for the
+                measured-breakpoint derivation and why the forced-wide clock,
+                not this widget or the search bar, governs it). Default
+                placement only: PositionedBlock drops this className for an
+                ARRANGED `pos`, so a user who has arranged their board owns its
+                layout at every width.
                 HabitsWidget self-gates on
                 settings.widgets.habits + a non-empty habits list, so this
                 wrapper renders an empty box until at least one habit exists
                 — same as every other toggle-gated peripheral here.
                 Transform-free per the house rule (App's quote/bookmarks
                 comments): a plain left/top offset, no translate. */}
-            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[43vh] w-[200px]">
+            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[43vh] w-[200px] max-[1593px]:hidden">
               <HabitsWidget />
             </PositionedBlock>
           </WidgetBoundary>

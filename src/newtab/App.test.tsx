@@ -572,3 +572,67 @@ describe('App — notes/tasks/timer wrapper z-index elevation while their panels
     expect(wrapper!.classList.contains('z-30')).toBe(false)
   })
 })
+
+// Greeting-collision fix — the mid-left column (monthCal + habits) HIDES below
+// the measured 1593px breakpoint on DEFAULT placement only. jsdom has no media
+// queries or layout, so the real "visible >=1593 / hidden below" pixel proof
+// lives in scripts/preview.mjs's habits floor block; what IS verifiable here —
+// and is the whole contract that proof depends on — is that both wrappers
+// carry the `max-[1593px]:hidden` class on default placement, and that a
+// stored arrange-mode layout DROPS it (so an arranged user, who owns their
+// layout, is never second-guessed by viewport width). The PositionedBlock
+// wrapper always renders even while the widget self-gates to null (both
+// default off), so the class is inspectable without enabling either widget.
+describe('App — the mid-left column hides below the 1593px breakpoint (greeting-collision fix)', () => {
+  it('monthCal and habits default-placement wrappers carry max-[1593px]:hidden alongside their fixed placement classes', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    for (const id of ['monthCal', 'habits']) {
+      const block = document.querySelector(`[data-block-id="${id}"]`)
+      expect(block).toBeTruthy()
+      // The hide rule (compiles to @media not all and (min-width:1593px) —
+      // strictly under 1593px), applied to default placement only.
+      expect(block!.classList.contains('max-[1593px]:hidden')).toBe(true)
+      // Still carries its normal default placement — the column, when shown,
+      // sits where it always did (left-[23rem] / w-[200px], right edge 568).
+      expect(block!.classList.contains('fixed')).toBe(true)
+      expect(block!.classList.contains('left-[23rem]')).toBe(true)
+      expect(block!.classList.contains('w-[200px]')).toBe(true)
+    }
+  })
+
+  it('a stored arrange-mode layout drops the hide class — an arranged user owns their layout at every width', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { monthCal: { x: 30, y: 20 }, habits: { x: 30, y: 55 } })
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    for (const [id, pos] of [
+      ['monthCal', { x: 30, y: 20 }],
+      ['habits', { x: 30, y: 55 }],
+    ] as const) {
+      const block = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement
+      // PositionedBlock drops className entirely on the positioned branch, so
+      // the hide rule cannot reach an arranged block (nor fight its coords).
+      expect(block.className).toBe('')
+      expect(block.classList.contains('max-[1593px]:hidden')).toBe(false)
+      expect(block.style.position).toBe('fixed')
+      // jsdom measures 0x0, so these stay the raw percent center with no
+      // calc() offset — same as the timer/weather stored-layout test above.
+      expect(block.style.left).toBe(`${pos.x}%`)
+      expect(block.style.top).toBe(`${pos.y}%`)
+    }
+  })
+})
