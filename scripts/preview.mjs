@@ -4163,6 +4163,274 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// Habits widget (Task 57) — chips, one-tap today, pure streak math. NO live
+// network (there is none for this widget): seed the `habits` key plus
+// `settings.widgets.habits` via a merge write, same idiom as every widget
+// block above. `localDateKey`/`prevDayKey` are re-derived HERE, inline,
+// rather than imported (page.evaluate's function argument runs inside the
+// browser page, not this Node process, and can't reach src/lib/habits.ts) —
+// byte-for-byte the same algorithm as that module (local Date parts, never
+// UTC/ms-subtraction; see its own doc comment for why), so the fixture's
+// "today"/"yesterday" always agree with whatever HabitsWidget.tsx itself
+// computes from the SAME browser clock.
+//
+// ONE seed serves both jobs this block needs, same economy as Task 55's own
+// vercel block (its 5-deployment MAX_DEPLOYMENTS seed doubles as both the
+// interaction fixture and the worst-case gap measurement): six habits is
+// simultaneously (a) the specific streak shapes the brief's probes need
+// (12-day streak ending today, a streak ending yesterday with today still
+// unmarked, and an empty log) and (b) HabitsWidget.tsx's own MAX_HABIT_CHIPS
+// cap, so every floor measured below is already the real worst-case column
+// height, not a shorter stand-in.
+{
+  const habitsSel = '[data-block-id="habits"]'
+  const rssSel = '[data-block-id="rss"] section[aria-label="Headlines"]'
+  const linksSel = '[data-block-id="links"]'
+  // Every block-id in App.tsx's centered flex column (clock/greeting/
+  // worldClocks/countdown/search/focus/links), plus quote (bottom-anchored
+  // but still horizontally centered) for good measure — "the centered
+  // column's measured left edge at this band" means whichever of these
+  // actually occupies the habits widget's own vertical span, discovered by
+  // measurement below, not assumed to be any one of them by name.
+  const centeredSels = [
+    '[data-block-id="clock"]',
+    '[data-block-id="greeting"]',
+    '[data-block-id="worldClocks"]',
+    '[data-block-id="countdown"]',
+    '[data-block-id="search"]',
+    '[data-block-id="focus"]',
+    '[data-block-id="links"]',
+    '[data-block-id="quote"]',
+  ]
+
+  // RSS is enabled ONLY here, briefly, so its column's real right edge (not
+  // an assumed constant) is what the left-floor assertion below is measured
+  // against — the brief's own "measured, not assumed" discipline applies to
+  // a neighbor's geometry just as much as to this widget's own. Minimal
+  // one-headline fixture, same shape as the dedicated RSS block far above.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    function localDateKey(d) {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+    function prevDayKey(key) {
+      const [y, m, day] = key.split('-').map(Number)
+      return localDateKey(new Date(y, m - 1, day - 1))
+    }
+    function runEndingAt(endKey, n) {
+      const keys = []
+      let cursor = endKey
+      for (let i = 0; i < n; i++) {
+        keys.push(cursor)
+        cursor = prevDayKey(cursor)
+      }
+      return keys
+    }
+    const todayKey = localDateKey(new Date())
+    const yesterdayKey = prevDayKey(todayKey)
+    const habits = [
+      { id: 'h1', name: 'Read daily', createdAt: Date.now(), log: runEndingAt(todayKey, 12) },
+      { id: 'h2', name: 'Stretch', createdAt: Date.now(), log: runEndingAt(yesterdayKey, 5) },
+      { id: 'h3', name: 'Meditate', createdAt: Date.now(), log: [] },
+      { id: 'h4', name: 'Journal', createdAt: Date.now(), log: [todayKey] },
+      { id: 'h5', name: 'Walk', createdAt: Date.now(), log: [] },
+      {
+        id: 'h6',
+        name: 'Practice deep breathing exercises every single morning without fail',
+        createdAt: Date.now(),
+        log: [],
+      },
+    ]
+    await chrome.storage.local.set({
+      habits,
+      settings: { ...settings, widgets: { ...settings.widgets, habits: true } },
+      connectors: { rss: { enabled: true, feeds: ['https://example.com/rss'], shownCount: 5 } },
+      connectorSnapshots: {
+        rss: {
+          fetchedAt: Date.now(),
+          data: [{ source: 'Example', title: 'A measured headline', url: 'https://example.com/1', publishedAt: 1 }],
+        },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(rssSel, { timeout: 5000 }).catch(() => {})
+
+  // Probe 1: one chip per seeded habit, capped at 6 by construction (this
+  // fixture IS the cap, so this also proves the widget renders its true
+  // worst-case column rather than a shorter stand-in).
+  const chips = await page.evaluate((sel) => {
+    const root = document.querySelector(sel)
+    if (!root) return null
+    return [...root.querySelectorAll('button')].map((b) => ({
+      text: b.textContent.trim(),
+      pressed: b.getAttribute('aria-pressed'),
+    }))
+  }, habitsSel)
+  const chipsOk = chips !== null && chips.length === 6
+  console.log(
+    chipsOk
+      ? `PASS: the habits widget renders one chip per seeded habit, 6 total (${chips.map((c) => c.text).join(' | ')})`
+      : `FAIL: the habits widget renders one chip per seeded habit, 6 total (found=${JSON.stringify(chips)})`,
+  )
+
+  // Probe 2: streak text matches each seeded log's known shape — the
+  // 12-day streak ending today (today pressed), the 5-day streak ending
+  // YESTERDAY (today NOT pressed — the yesterday-keeps-it-alive rule), and
+  // the empty log (no flame, not pressed).
+  const byName = (name) => chips?.find((c) => c.text.includes(name))
+  const readDaily = byName('Read daily')
+  const stretch = byName('Stretch')
+  const meditate = byName('Meditate')
+  const streaksOk =
+    !!readDaily && readDaily.text.includes('🔥 12') && readDaily.pressed === 'true' &&
+    !!stretch && stretch.text.includes('🔥 5') && stretch.pressed === 'false' &&
+    !!meditate && !meditate.text.includes('🔥') && meditate.pressed === 'false'
+  console.log(
+    streaksOk
+      ? `PASS: seeded streak texts match their known shapes (Read daily "${readDaily.text}", Stretch "${stretch.text}", Meditate "${meditate.text}")`
+      : `FAIL: seeded streak texts match their known shapes (Read daily=${JSON.stringify(readDaily)}, Stretch=${JSON.stringify(stretch)}, Meditate=${JSON.stringify(meditate)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/widgets-habits.png` })
+  console.log('captured widgets-habits.png')
+
+  // Measured floor assertions for the slot (Global Constraints: the mid-left
+  // second column, `left-[21rem] top-[43vh] w-56` — the plan's own starting
+  // hypothesis was `47vh`, corrected here after this exact block first
+  // measured a real 12.5px overlap with the links row at the 6-chip worst
+  // case; see App.tsx's own PositionedBlock comment for the full writeup.
+  // Provisional until Task 58 re-derives this jointly with the month grid
+  // above it).
+  const rectsRaw = await page.evaluate(
+    ({ habitsSel: hSel, rssSel: rSel, linksSel: lSel, centeredSels: cSels }) => {
+      const r = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return { top: +rect.top.toFixed(1), bottom: +rect.bottom.toFixed(1), left: +rect.left.toFixed(1), right: +rect.right.toFixed(1) }
+      }
+      return {
+        habits: r(hSel),
+        rss: r(rSel),
+        links: r(lSel),
+        centered: cSels.map((sel) => ({ sel, rect: r(sel) })),
+      }
+    },
+    { habitsSel, rssSel, linksSel, centeredSels },
+  )
+
+  const FLOOR = 16
+  const h = rectsRaw.habits
+
+  // Left floor: RSS's own column right edge. Structurally deterministic
+  // (left-8 + w-72 = 320px) but measured here against the REAL rendered
+  // card, not assumed — and asserted EXACT per the brief ("16px gap to
+  // 336 — assert it"), since both widths are fixed Tailwind classes with no
+  // worst-case growth to defend against the way RSS's headline COUNT does
+  // elsewhere in this file.
+  const leftGap = rectsRaw.rss && h ? +(h.left - rectsRaw.rss.right).toFixed(1) : null
+  const leftOk = leftGap === FLOOR
+  console.log(
+    leftOk
+      ? `PASS: habits column left edge clears RSS's own column right edge by exactly ${FLOOR}px (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right})`
+      : `FAIL: habits column left edge clears RSS's own column right edge by exactly ${FLOOR}px (gap=${leftGap}, habits=${JSON.stringify(h)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+  )
+
+  // Right floor: whichever centered-column element(s) actually occupy the
+  // habits widget's own vertical span at THIS band — discovered by
+  // measurement (vertical-overlap test), not assumed to be any one widget by
+  // name, per the brief ("measure at YOUR band").
+  const overlapping = h
+    ? rectsRaw.centered.filter(({ rect }) => rect && !(rect.bottom <= h.top || rect.top >= h.bottom))
+    : []
+  const centeredLeftAtBand = overlapping.length > 0 ? Math.min(...overlapping.map((o) => o.rect.left)) : null
+  const rightGap = h && centeredLeftAtBand !== null ? +(centeredLeftAtBand - h.right).toFixed(1) : null
+  const rightOk = rightGap === null || rightGap >= FLOOR // no vertical overlap at all is trivially clear
+  console.log(
+    rightOk
+      ? `PASS: habits column right edge clears the centered column's measured left edge at this band by >=${FLOOR}px (${rightGap === null ? 'no centered element overlaps this band' : `${rightGap}px, overlapping: ${overlapping.map((o) => o.sel).join(', ')}`}; habits.right=${h?.right})`
+      : `FAIL: habits column right edge clears the centered column's measured left edge at this band by >=${FLOOR}px (gap=${rightGap}px, overlapping: ${JSON.stringify(overlapping)})`,
+  )
+
+  // Bottom floor: the links row, at THIS run's 6-chip worst case (the seeded
+  // fixture above IS the cap — see the block's own top comment).
+  const bottomGap = rectsRaw.links && h ? +(rectsRaw.links.top - h.bottom).toFixed(1) : null
+  const bottomOk = bottomGap !== null && bottomGap >= FLOOR
+  console.log(
+    bottomOk
+      ? `PASS: habits column bottom (6-chip worst case) clears the links row by >=${FLOOR}px (${bottomGap}px; habits.bottom=${h?.bottom}, links.top=${rectsRaw.links?.top})`
+      : `FAIL: habits column bottom (6-chip worst case) clears the links row by >=${FLOOR}px (gap=${bottomGap}px, habits=${JSON.stringify(h)}, links=${JSON.stringify(rectsRaw.links)})`,
+  )
+
+  // Probe 3: the interaction the quality bar demands — a REAL click (not a
+  // storage write) on the whole chip, on the ONE seeded habit that starts
+  // with an empty log (Meditate), asserted against storage both ways: today
+  // gained, then gone again.
+  const meditateSel = `${habitsSel} button:has-text("Meditate")`
+  await page.click(meditateSel)
+  await page.waitForTimeout(100)
+  const afterMark = await page.evaluate(async () => {
+    const { habits } = await chrome.storage.local.get('habits')
+    return habits.find((x) => x.id === 'h3')?.log ?? null
+  })
+  const gainedOk = Array.isArray(afterMark) && afterMark.length === 1
+  console.log(
+    gainedOk
+      ? `PASS: clicking the Meditate chip marks today in storage (log=${JSON.stringify(afterMark)})`
+      : `FAIL: clicking the Meditate chip marks today in storage (log=${JSON.stringify(afterMark)})`,
+  )
+
+  await page.click(meditateSel)
+  await page.waitForTimeout(100)
+  const afterUnmark = await page.evaluate(async () => {
+    const { habits } = await chrome.storage.local.get('habits')
+    return habits.find((x) => x.id === 'h3')?.log ?? null
+  })
+  const goneOk = Array.isArray(afterUnmark) && afterUnmark.length === 0
+  console.log(
+    goneOk
+      ? 'PASS: clicking the Meditate chip again unmarks today in storage (log=[])'
+      : `FAIL: clicking the Meditate chip again unmarks today in storage (log=${JSON.stringify(afterUnmark)})`,
+  )
+
+  // Restore: widget off, habits cleared, RSS disabled + cache cleared — same
+  // restore discipline as every widget/connector block above, so nothing
+  // here leaks into the viewport matrix / default-state / worst-case
+  // bookmarks blocks below.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({
+      habits: [],
+      settings: { ...settings, widgets: { ...settings.widgets, habits: false } },
+      connectors: { rss: { enabled: false, feeds: [], shownCount: 5 } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  // The PositionedBlock WRAPPER (`[data-block-id="habits"]`) always renders,
+  // gated or not (see PositionedBlock.tsx's own early-return branch) — the
+  // "gone" signal is its own gate returning null, i.e. zero chip buttons
+  // inside it, same distinction RSS's own gone-check makes against its inner
+  // `section`, not its wrapper.
+  const habitsGone = (await page.locator(`${habitsSel} button`).count()) === 0
+  const rssGone = (await page.locator(rssSel).count()) === 0
+  console.log(
+    habitsGone && rssGone
+      ? 'Habits widget disabled and RSS re-disabled; page restored to idle'
+      : `WARNING: still present after the habits block's own restore (habitsGone=${habitsGone}, rssGone=${rssGone})`,
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

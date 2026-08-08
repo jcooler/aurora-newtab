@@ -16,6 +16,7 @@ export interface WidgetToggles {
   notes: boolean
   clocks: boolean
   countdown: boolean
+  habits: boolean
 }
 
 export interface Settings {
@@ -167,6 +168,7 @@ export function defaults(): AuroraData {
         notes: true,
         clocks: false,
         countdown: false,
+        habits: false,
       },
     },
     focus: null,

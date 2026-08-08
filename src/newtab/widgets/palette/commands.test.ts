@@ -20,6 +20,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
       notes: true,
       clocks: false,
       countdown: false,
+      habits: false,
     },
   }
   return {

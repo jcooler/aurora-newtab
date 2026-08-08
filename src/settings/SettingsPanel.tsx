@@ -57,6 +57,7 @@ export default function SettingsPanel({
   const [location] = useStoredKey('location')
   const [worldClocks] = useStoredKey('worldClocks')
   const [countdowns] = useStoredKey('countdowns')
+  const [habits] = useStoredKey('habits')
   const [connectors] = useStoredKey('connectors')
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
@@ -120,7 +121,7 @@ export default function SettingsPanel({
 
       {tab === 'widgets' && (
         <>
-          <Widgets settings={settings} patch={patch} />
+          <Widgets settings={settings} patch={patch} habits={habits} storage={storage} />
 
           {location && <Weather location={location} storage={storage} />}
 

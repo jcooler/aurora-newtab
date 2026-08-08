@@ -38,6 +38,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   vercel: 'Deploys',
   crypto: 'Crypto',
   ics: 'Calendar',
+  habits: 'Habits',
 }
 
 interface DragState {

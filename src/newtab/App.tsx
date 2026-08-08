@@ -29,6 +29,7 @@ import JiraWidget from './widgets/jira/JiraWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import CryptoWidget from './widgets/crypto/CryptoWidget'
 import CalendarWidget from './widgets/calendar/CalendarWidget'
+import HabitsWidget from './widgets/habits/HabitsWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -393,6 +394,57 @@ export default function App() {
                 comments), so it anchors with a plain top offset. */}
             <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[22vh]">
               <RssWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="habits">
+            {/* DEFAULT placement — Task 57, the mid-left SECOND column (not a
+                new column of its own): between the RSS column and the
+                centered clock/greeting stack, a slot the plan reserves for
+                habit chips now and Task 58's month grid ABOVE them later —
+                both share this column, so the exact top offset here is
+                PROVISIONAL UNTIL TASK 58 LANDS and the two are re-measured
+                jointly (Task 59's own gate is what seeds both together).
+
+                `left-[21rem]` (336px at 1600x900) is pinned, not measured
+                here: RSS's own card sits at `left-8` (32px) and is `w-72`
+                (288px wide — see RssWidget.tsx), so its right edge is
+                EXACTLY 320px; 336px opens an exact 16px gap, the same floor
+                this file uses everywhere else, asserted (not just computed)
+                by scripts/preview.mjs's own habits block.
+
+                `top-[43vh]` (387px) and `w-56` (224px) are MEASURED against
+                the real harness, not assumed — and this exact value is a
+                CORRECTION, not the first guess. scripts/preview.mjs's habits
+                block seeds its own 6-habit worst-case fixture (this widget's
+                own MAX_HABIT_CHIPS cap) and probe-logs all three floors;
+                `top-[47vh]` (423px), the plan's own starting hypothesis,
+                MEASURED a real 12.5px OVERLAP with the links row at that
+                worst case (habits.bottom 667 vs links.top 654.5 — links'
+                own row shifts with viewport-band spacing, so this is a real
+                collision, not a rounding artifact), failing the >=16px
+                floor this file uses everywhere else. Raised to `43vh`
+                instead of dropping MAX_HABIT_CHIPS to 5 — the brief's other
+                escape hatch — because the interfaces spec pins 6 as the
+                widget's cap elsewhere (falsifiable in HabitsWidget.test.tsx:
+                7 seeded habits render only 6) and moving the column up costs
+                nothing else: MEASURED at `43vh`, all three floors clear with
+                real (not knife-edge) margin — left edge exactly 16px off
+                RSS's own column right edge (336 vs rss.right 320, asserted
+                exact per the brief), right edge 80px off the centered
+                column's own measured left edge at this band (640, i.e.
+                greeting/worldClocks/countdown/search/focus/links — whichever
+                actually overlaps this band, not assumed by name), and
+                bottom 23.5px clear of the links row at the same 6-chip
+                worst case that failed at 47vh. See scripts/preview.mjs's own
+                habits block for the exact PASS lines. HabitsWidget
+                self-gates on settings.widgets.habits + a non-empty habits
+                list, so this wrapper renders an empty box until at least one
+                habit exists — same as every other toggle-gated peripheral
+                here. Transform-free per the house rule (App's quote/
+                bookmarks comments): a plain left/top offset, no translate. */}
+            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[21rem] top-[43vh] w-56">
+              <HabitsWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

@@ -949,6 +949,130 @@ describe('SettingsPanel Countdowns section', () => {
   })
 })
 
+describe('SettingsPanel Habits section', () => {
+  function habitsRegion() {
+    return screen.getByRole('region', { name: 'Habits' })
+  }
+
+  it('the Habits label is present on the Widgets tab, off by default', async () => {
+    await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText('Habits') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+    // The editor stays absent until the toggle is on — unlike World clocks/
+    // Countdowns (always-mounted sections a user can pre-populate before
+    // turning the widget on), the brief scopes this editor to the toggled-on
+    // state specifically.
+    expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
+  })
+
+  it('turning the toggle on writes widgets.habits and reveals the editor below it', async () => {
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText('Habits') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(toggle.checked).toBe(true)
+    expect((await storage.get('settings')).widgets.habits).toBe(true)
+    expect(habitsRegion()).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+    expect((await storage.get('settings')).widgets.habits).toBe(false)
+    expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
+  })
+
+  async function renderWithHabits(habits: { id: string; name: string; createdAt: number; log: string[] }[]) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, habits: true },
+    })
+    await storage.set('habits', habits)
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Widgets')
+    return storage
+  }
+
+  it('adding a habit persists a new row (id, name, empty log) and resets the form', async () => {
+    const storage = await renderWithHabits([])
+    const nameInput = screen.getByLabelText('New habit name') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'Read' } })
+      fireEvent.click(within(habitsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    const stored = await storage.get('habits')
+    expect(stored).toHaveLength(1)
+    expect(stored[0]).toMatchObject({ name: 'Read', log: [] })
+    expect(typeof stored[0]!.id).toBe('string')
+    expect(typeof stored[0]!.createdAt).toBe('number')
+    expect(nameInput.value).toBe('')
+  })
+
+  it('a blank name is not added', async () => {
+    const storage = await renderWithHabits([])
+
+    await act(async () => {
+      fireEvent.click(within(habitsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(await storage.get('habits')).toEqual([])
+  })
+
+  it('the remove button on a habit row deletes just that habit — the log goes with it, no confirm', async () => {
+    const storage = await renderWithHabits([
+      { id: 'a', name: 'Read', createdAt: 0, log: ['2026-08-01'] },
+      { id: 'b', name: 'Write', createdAt: 0, log: [] },
+    ])
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Read' }))
+    })
+
+    expect(await storage.get('habits')).toEqual([{ id: 'b', name: 'Write', createdAt: 0, log: [] }])
+  })
+
+  it('renaming a habit edits it in place by id (blur-equivalent change)', async () => {
+    const storage = await renderWithHabits([{ id: 'a', name: 'Read', createdAt: 0, log: [] }])
+
+    const nameInput = screen.getByLabelText('Habit name') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(nameInput, { target: { value: 'Read daily' } })
+      fireEvent.blur(nameInput)
+    })
+
+    expect(await storage.get('habits')).toEqual([
+      { id: 'a', name: 'Read daily', createdAt: 0, log: [] },
+    ])
+  })
+
+  it('hides the add row and shows a quiet note once 6 habits are stored (the max)', async () => {
+    const habits = Array.from({ length: 6 }, (_, i) => ({
+      id: `h${i}`,
+      name: `Habit ${i}`,
+      createdAt: 0,
+      log: [],
+    }))
+    await renderWithHabits(habits)
+
+    expect(screen.getByDisplayValue('Habit 5')).toBeTruthy()
+    expect(screen.queryByLabelText('New habit name')).toBeNull()
+    expect(within(habitsRegion()).getByText(/Max 6 habits/)).toBeTruthy()
+  })
+})
+
 describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   afterEach(() => {
     // Only the premium-gating test below ever flips this — reset so it never
