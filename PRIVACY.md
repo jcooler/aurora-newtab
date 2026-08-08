@@ -30,8 +30,8 @@ All of the following is stored locally in the extension's
 `chrome.storage.local`, on your device only, and is never transmitted
 anywhere except as explicitly described under "Network calls" below:
 
-- Your settings (name/greeting text, theme, units, sound, and which widgets
-  are turned on)
+- Your settings (name/greeting text, widget color, units, sound, and which
+  widgets are turned on)
 - Quick links (the tiles you add)
 - To-do lists and their items
 - Focus timer configuration and session state

@@ -42,13 +42,19 @@ no backend — everything lives on your machine.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
   jotting anything down; saves locally as you type.
 - **Daily quote** — one quote a day from a small bundled set.
-- **Command palette** — `Ctrl+K` / `Cmd+K` to jump to a link, switch theme,
+- **Command palette** — `Ctrl+K` / `Cmd+K` to jump to a link, open Settings,
   search the web, or quick-add a to-do (`todo: buy milk`).
-- **Three themes** — Aurora, Glass, and Mono, each a small set of CSS custom
-  properties layered over the chosen background.
+- **Widget color** — one default surface (an Aurora-accent glow over a deep
+  neutral panel); open Settings → General → Appearance and pick any color
+  instead — every panel's text adapts automatically to stay readable against
+  it, light pick or dark. "Reset" returns to the default surface. Switches,
+  inputs, and every other control in Settings use one modernized, consistent
+  kit.
 - **Keyboard accessible** — every widget is reachable and operable from the
-  keyboard; the theme picker is a proper APG radiogroup (arrow keys move and
-  apply the selection, roving tabindex).
+  keyboard; Settings' own tab bar is a proper APG tabs pattern (arrow keys
+  move and apply the selection, roving tabindex), and every switch is a
+  native `<button role="switch">` (Space/Enter, platform focus/disabled
+  semantics) rather than a styled checkbox.
 - **Rearrange the layout** — press and hold an empty spot on a widget (its
   non-interactive surface, not a button/link/input — those keep their own
   click behavior) to drag it anywhere on the page, with snap guides toward
@@ -60,7 +66,7 @@ no backend — everything lives on your machine.
   accident. Positions are stored locally, same as everything else.
 
 Settings is organized into four tabs: **General** (name/greeting, 24-hour
-clock, theme, units, mute, background), **Widgets** (per-widget on/off
+clock, widget color, units, mute, background), **Widgets** (per-widget on/off
 toggles, weather location, world clocks, countdowns, and layout/arrange),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
 and **Data** (backup/restore, plus the About footer). Every widget can be
@@ -226,19 +232,22 @@ under [`public/fonts/`](public/fonts)) — no runtime font requests, per
 - [Inter](https://fonts.google.com/specimen/Inter) by Rasmus Andersson —
   body/UI type (everything else).
 
-## Adding a theme
+## Widget color
 
-1. Add a CSS block to `src/theme/themes.css` keyed on `[data-theme='yourid']`
-   defining the same custom properties the existing themes use: `--fg`,
-   `--fg-muted`, `--accent`, `--panel`, `--panel-border`, `--panel-blur`,
-   `--radius`, `--scrim`, `--bg-fallback`. Optionally add a matching override
-   under the `@media (prefers-color-scheme: light)` block at the bottom.
-2. Add `{ id: 'yourid', label: 'Your Label' }` to the `THEMES` array in
-   `src/theme/index.ts`.
-3. Add `'yourid'` to the `ThemeId` union in `src/lib/storage/schema.ts`.
-
-The settings radiogroup and command palette both pick up new themes
-automatically from `THEMES`.
+There's one default surface — an Aurora-accent glow (`--accent: #7dd3fc`)
+over a deep neutral panel — defined once in `src/theme/themes.css`'s `:root`
+block (the collapse of an earlier three-theme system into a single surface).
+Settings → General → Appearance lets you pick any color instead:
+`settings.panelColor` (a `#rrggbb` hex, or `null` for the default) re-tints
+`--panel`/`--panel-solid` at runtime via `applyPanelColor` in
+[`src/theme/index.ts`](src/theme/index.ts), deriving `--fg`/`--fg-muted` and
+the `color-scheme` flip from the pick's own relative luminance
+([`src/lib/color.ts`](src/lib/color.ts)) so panel text stays readable
+against whatever you choose, light or dark. Text that floats directly on the
+background photo (the clock, greeting, quote, and similar) keeps its own
+fixed light ink (`--canvas-fg`/`--canvas-fg-muted`) regardless of your pick,
+since the photo behind it never changes color. "Reset" clears `panelColor`
+back to `null`, restoring the default surface.
 
 ## Adding a widget
 

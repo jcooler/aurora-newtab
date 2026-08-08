@@ -349,3 +349,51 @@ The "Web history: No — stays on-device" reasoning used for bookmarks/search/
 RSS above extends the same way to the six new connectors' own read-only
 fetches (issues, PRs, deployments, prices, calendar events) — none of it is
 retained or transmitted by Aurora beyond the request itself.
+
+---
+
+### v1.6.0 addendum — widget color + a real control kit (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.6.0 retires the three-theme system (Aurora/Glass/Mono) that the LIVE
+v1.2.1 listing above still describes, replacing it with one default surface
+— an Aurora-accent glow over a deep neutral panel — plus a widget-color
+customizer: Settings → General → Appearance now offers a single color
+picker (any color, not a fixed list of named themes) that re-tints every
+panel, with panel text adapting automatically to stay readable against
+whatever's chosen, and a "Reset" back to the default. Every switch, input,
+and other control in Settings was also rebuilt onto one consistent control
+kit (native button-role switches, not styled checkboxes). No new permission
+and no new network call: `panelColor` is a local setting, stored and read
+the same way every other Settings field already is (see PRIVACY.md's "What
+Aurora stores"), so neither the Summary, Category, Single purpose
+statement, nor the Data Usage disclosure table above need any change.
+
+#### Detailed description delta
+
+REPLACE the existing bullet (added for v1.2.1 and still live above, under
+FEATURES):
+
+    - Three themes — Aurora, Glass, and Mono — and a rearrange mode
+      (press and hold, or Settings → Layout) to move any widget wherever
+      you want it on the page.
+
+with two bullets — the named-theme claim is gone; rearrange mode is
+unrelated to color and keeps its own line:
+
+    - One default look, or pick any color for the widgets yourself —
+      panel text adapts automatically to stay readable against whatever
+      you choose, and "Reset" always brings the default back.
+    - A rearrange mode (press and hold, or Settings → Layout) to move
+      any widget wherever you want it on the page.
+
+**[Jon: this is a REPLACE, not an ADD, unlike the v1.3.0/v1.4.0 addenda
+above — the feature the old bullet described (named themes) no longer
+exists in the product, so leaving it in the listing copy would describe
+something Aurora can no longer do.]**

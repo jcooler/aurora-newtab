@@ -3761,7 +3761,7 @@ console.log(
 // vercel); crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
 // its fixed-width `flex-nowrap` strip doesn't change height with coin
 // count); mid-left second column monthCal top-[12vh] (forced to its 6-row
-// worst case) / habits top-[42vh] (seeded at its own 6-chip MAX_HABIT_CHIPS
+// worst case) / habits top-[43vh] (seeded at its own 6-chip MAX_HABIT_CHIPS
 // worst case) — see App.tsx's own monthCal/habits PositionedBlock comments
 // for the joint-column arithmetic, and the quantified `mid-left column gap
 // floor` probe below for this gate's own measured proof with all nine
@@ -4864,16 +4864,20 @@ console.log(
   console.log('captured widgets-habits.png')
 
   // Measured floor assertions for the slot (Global Constraints: the mid-left
-  // second column, `left-[23rem] top-[42vh] w-56` — the plan's own starting
-  // hypothesis was `47vh`; Task 57 first corrected it to `43vh` after this
-  // exact block measured a real 12.5px overlap with the links row at the
-  // 6-chip worst case; Task 58 then re-derived it ONE MORE STEP, jointly
-  // with the month grid now above it, landing here at `42vh` — see
-  // App.tsx's own habits/monthCal PositionedBlock comments for the full
-  // joint-column arithmetic, and this file's own monthCal block below,
+  // second column, `left-[23rem] top-[43vh] w-[200px]` — the plan's own
+  // starting hypothesis was `47vh`; Task 57 first corrected it to `43vh`
+  // after this exact block measured a real 12.5px overlap with the links
+  // row at the 6-chip worst case; Task 58 then re-derived it ONE MORE STEP,
+  // jointly with the month grid now above it, landing at `42vh`; Task 63
+  // (the wrap task) moved it back to `43vh` and narrowed the width from
+  // `w-56` to `w-[200px]`, acting on the re-review's pixel-measured
+  // recommendation (the wide-clock fix's own forced-wide clock left only a
+  // thin 0.5px real clearance at `42vh` — see App.tsx's own habits
+  // PositionedBlock comment for that history and the re-measured numbers)
+  // — see App.tsx's own habits/monthCal PositionedBlock comments for the
+  // full joint-column arithmetic, and this file's own monthCal block below,
   // which re-measures this same seam at BOTH widgets' worst cases
-  // simultaneously. No longer provisional — this IS the joint re-derivation
-  // the earlier version of this comment used to defer to Task 58.
+  // simultaneously.
   const rectsRaw = await page.evaluate(
     ({ habitsSel: hSel, rssSel: rSel, linksSel: lSel, centeredSels: cSels }) => {
       const r = (sel) => {
@@ -5326,9 +5330,12 @@ console.log(
 
   // Bottom floor: habits' own bottom (6-chip worst case) to the links row —
   // the SAME check the habits block above makes in isolation, repeated here
-  // because habits' effective top has moved (42vh, not 43vh) as part of
-  // this task's joint re-derivation: this is the pass that proves the PAIR,
-  // not just habits alone, still clears the row below it.
+  // because habits' effective top has moved (42vh, not 43vh, at the time
+  // this check was added) as part of this task's joint re-derivation: this
+  // is the pass that proves the PAIR, not just habits alone, still clears
+  // the row below it. (Task 63 moved habits' top back to `43vh` again — see
+  // App.tsx's own habits PositionedBlock comment — this dynamic `>=FLOOR`
+  // check needed no code change, only re-measurement, to keep covering it.)
   const bottomGap = rectsRaw.links && h ? +(rectsRaw.links.top - h.bottom).toFixed(1) : null
   const bottomOk = bottomGap !== null && bottomGap >= FLOOR
   console.log(

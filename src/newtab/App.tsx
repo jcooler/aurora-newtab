@@ -421,9 +421,12 @@ export default function App() {
             {/* DEFAULT placement — Task 58, the TOP of the mid-left SECOND
                 column (`left-[23rem]`, x-aligned with HabitsWidget directly
                 below it — see that PositionedBlock's own comment for how
-                THAT half of the column is derived; THIS widget's own width
-                is `w-[200px]`, narrower than habits' `w-56`/224px since the
-                wide-clock fix below — the two no longer share one width).
+                THAT half of the column is derived; THIS widget's own width,
+                `w-[200px]`, now matches habits' own width too — Task 63
+                narrowed habits from `w-56`/224px to the same `w-[200px]`,
+                closing the gap the wide-clock fix below opened between the
+                two; see habits' own comment for that correction's
+                arithmetic and the re-review recommendation behind it).
                 Task 57 shipped habits
                 alone at a PROVISIONAL `top-[43vh]`, explicitly flagged for
                 re-measurement once this task's own widget landed above it;
@@ -514,20 +517,25 @@ export default function App() {
                 `w-[200px]` — right edge 368+200=568px, clearing the
                 MEASURED worst-case clock.left (587.5px) by 19.5px, still
                 >=16px with real (if modest) margin, not shaved to the exact
-                floor. HabitsWidget's own `w-56` is intentionally left
-                UNTOUCHED — its whole vertical band (378-622) sits BELOW the
-                clock's real measured bottom edge (377.5px, itself measured
-                for the first time by this same forced-wide block — earlier
-                comments estimated it near monthCal's own 355px bottom
-                without live-measuring it) rather than beside it, so it never
-                shares this widget's clock-width collision; the resulting
-                24px right-edge mismatch between the two widgets (568 vs
-                592) is a known, accepted asymmetry, not an oversight — see
-                the report this fix landed with. That said, the measured
-                clock-to-habits clearance is only 0.5px (377.5 to 378) — real
-                but thin, asserted (not just observed) by the same forced-
-                wide block so a future regression there fails loudly instead
-                of silently. Asserted permanently, every run, regardless of
+                floor. HabitsWidget's own `w-56` was left UNTOUCHED by THIS
+                fix — its whole vertical band (378-622 at the time) sat
+                BELOW the clock's real measured bottom edge (377.5px, itself
+                measured for the first time by this same forced-wide block —
+                earlier comments estimated it near monthCal's own 355px
+                bottom without live-measuring it) rather than beside it, so
+                it never shared this widget's clock-width collision. That
+                said, the measured clock-to-habits clearance was only 0.5px
+                (377.5 to 378) — real but thin, flagged in the report this
+                fix landed with as a concern for the controller rather than
+                fixed blind. Task 63 (the wrap task) acted on that flag
+                together with the re-review's own column-alignment
+                recommendation: habits' top moved `42vh`->`43vh` (378->387px,
+                clock gap 0.5px->9.5px) and its width now matches THIS
+                widget's `w-[200px]` (368+200=568, IDENTICAL to this widget's
+                own right edge — the 568-vs-592 mismatch this paragraph used
+                to describe as an accepted asymmetry is gone; see habits' own
+                comment for the full re-derivation). Asserted permanently,
+                every run, regardless of
                 the hour the wall clock shows: scripts/preview.mjs's own
                 dedicated forced-wide-clock block (immediately after the
                 monthCal block it re-uses the seeding shape of), which forces
@@ -606,51 +614,61 @@ export default function App() {
                 live vercel render, by the combined-defaults gate's own
                 `mid-left column gap floor` block.
 
-                `top-[42vh]` (378px) is this task's correction of Task 57's
-                `43vh` (387px) — one whole-vh step higher, picked (per
-                MonthCalWidget's own comment) for landing both widgets on
-                clean vh numbers simultaneously, not because 43vh itself was
-                wrong in isolation. MEASURED (scripts/preview.mjs's monthCal
-                block, 1600x900, MonthCalWidget forced to a real 6-row month,
-                this widget seeded at its own 6-chip MAX_HABIT_CHIPS worst
-                case, worldClocks+countdown+timer on): this widget
-                top=378/bottom=622; gap above (to MonthCalWidget's own
-                bottom, 355): 23px; gap below (to the links row, 654.5):
-                32.5px; left edge exactly 48px off RSS's own column right
-                edge (368 vs rss.right 320, no longer the binding constraint
-                — see this widget's own left-edge paragraph above) and
-                exactly 16px off vercel's own column right edge (368 vs
-                vercel.right 352, the REAL binding constraint, live-measured
-                by the combined-defaults gate's own `mid-left column gap
-                floor` block since vercel isn't part of this isolated
-                fixture); right edge 48px off the centered
-                column's own measured left edge at THIS widget's band (640 —
-                whichever of greeting/worldClocks/countdown/search/focus/
-                links actually overlaps this band at measurement time, not
-                assumed by name). Every floor clears with real margin, not
-                shaved to the edge — same discipline Task 57's own `43vh`
-                correction established.
-
-                WIDTH left at `w-56` (224px), deliberately NOT narrowed to
-                `w-[200px]` alongside MonthCalWidget's own width above — the
-                wide-clock fix that forced that change is a collision between
-                MonthCalWidget's right edge and the clock's real worst-case
-                left edge, and this widget's band (378-622) sits BELOW the
-                clock's real measured bottom edge (377.5px — see
+                `top-[43vh]` (387px) is Task 63's (the wrap task's) own
+                correction of Task 58's `42vh` (378px), acting on the
+                re-review's pixel-measured recommendation: the wide-clock fix
+                (Task 62) found this widget's clock-to-top clearance at `42vh`
+                was only 0.5px against the clock's REAL forced-wide bottom
+                edge (377.5px) — real but thin, flagged in that fix's own
+                report as a concern rather than fixed blind (see
                 MonthCalWidget's own PositionedBlock comment, "WIDE-CLOCK
-                FIX", for the full derivation and the forced-wide harness
-                block that proves it, including the thin-but-real 0.5px
-                clock-to-habits clearance), so this widget never shares that
-                collision regardless of the hour. The two widgets' right
-                edges no longer align (568 vs 592) as a result — a known,
-                accepted asymmetry from that fix, not an oversight here.
+                FIX", for that history). `43vh` restores Task 57's original
+                whole-vh value, this time verified against the SAME
+                forced-wide clock rather than Task 57's own single-digit-hour
+                reading. MEASURED (scripts/preview.mjs's monthCal block AND
+                its dedicated forced-wide-clock block, 1600x900,
+                MonthCalWidget forced to a real 6-row month, this widget
+                seeded at its own 6-chip MAX_HABIT_CHIPS worst case,
+                worldClocks+countdown+timer on): this widget top=387/
+                bottom=631; gap above (to MonthCalWidget's own bottom, 355):
+                32px; gap below (to the links row, 654.5): 23.5px; clock gap
+                (forced-wide clock.bottom 377.5 to this widget's top 387):
+                9.5px, up from the thin 0.5px the old `42vh` reading left;
+                left edge exactly 48px off RSS's own column right edge (368
+                vs rss.right 320, not the binding constraint — see this
+                widget's own left-edge paragraph above) and exactly 16px off
+                vercel's own column right edge (368 vs vercel.right 352, the
+                REAL binding constraint, live-measured by the
+                combined-defaults gate's own `mid-left column gap floor`
+                block since vercel isn't part of this isolated fixture).
+                Every floor clears with real margin, not shaved to the edge
+                — same discipline Task 57/58's own corrections established.
+
+                WIDTH changed by Task 63 from `w-56` (224px) to `w-[200px]`,
+                matching MonthCalWidget's own width above — the re-review's
+                second recommendation, acted on together with the top move:
+                narrowing was never required by the wide-clock fix itself
+                (this widget's band never shared MonthCalWidget's
+                clock-width collision, sitting below the clock's real
+                measured bottom edge regardless of width — see
+                MonthCalWidget's own "WIDE-CLOCK FIX" paragraph), but the
+                568-vs-592 right-edge stagger that fix's narrowing of
+                MonthCalWidget alone left behind read as unintentional, not
+                a deliberate design choice. Right edge now 368+200=568px,
+                IDENTICAL to MonthCalWidget's own — the mid-left column's two
+                widgets share one right edge again. Labels still truncate
+                safely at the narrower width (`truncate` on the name span,
+                unchanged in HabitsWidget.tsx) — verified against the
+                widgets-habits.png capture at the 6-chip worst case,
+                including the deliberately long "Practice deep breathing..."
+                fixture name, no visible crowding.
                 HabitsWidget self-gates on
                 settings.widgets.habits + a non-empty habits list, so this
                 wrapper renders an empty box until at least one habit exists
                 — same as every other toggle-gated peripheral here.
                 Transform-free per the house rule (App's quote/bookmarks
                 comments): a plain left/top offset, no translate. */}
-            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[42vh] w-56">
+            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[43vh] w-[200px]">
               <HabitsWidget />
             </PositionedBlock>
           </WidgetBoundary>

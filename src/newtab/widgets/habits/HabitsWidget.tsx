@@ -52,7 +52,7 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
     )
 
   return (
-    <div className="flex flex-col gap-2 short:gap-1.5 xshort:gap-1">
+    <div className="w-[200px] flex flex-col gap-2 short:gap-1.5 xshort:gap-1">
       {habits.slice(0, MAX_HABIT_CHIPS).map((h) => {
         const todayDone = h.log.includes(todayKey)
         const count = streak(h.log, todayKey)
