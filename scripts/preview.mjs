@@ -2974,12 +2974,27 @@ console.log(
     // `now`, and the "today's remaining" agenda comes back empty — a real
     // FAIL this harness caught, not a hypothetical. Fixed instead: space
     // the three same-day events proportionally across whatever time is
-    // actually LEFT in today (clamped to a sane 1-60 minute step), which
-    // keeps them provably before local midnight — and therefore "today" —
-    // no matter what wall-clock hour this script happens to run at.
+    // actually LEFT in today, which keeps them provably before local
+    // midnight — and therefore "today" — for any run with at least a few
+    // seconds left before midnight (see the review-round-1 fix note below
+    // for the residual ~4s window and why it's accepted rather than chased
+    // further).
+    //
+    // Review round 1 fix: the ORIGINAL version of this line floored `step`
+    // at 60_000ms (a 1-minute minimum "for readability"), which is what
+    // actually reintroduced the same midnight bug in miniature — with
+    // todayEnd - now < ~180s, `now + step*3` (step pinned to the 60s floor
+    // regardless of how little time was actually left) could itself cross
+    // midnight, dropping the fixture events from "today" and spuriously
+    // FAILing the `agenda.length === 2` probe. Chronological ORDERING
+    // (next < design review < 1:1 with Sam) needs no minimum gap at all —
+    // 1 second apart sorts exactly as correctly as 60 — so the floor is
+    // now 1000ms, and the divisor reserves a 1000ms buffer before
+    // todayEnd so `step*3` always lands strictly before local midnight
+    // whenever there's more than ~4 seconds of today left to divide.
     const d = new Date(now)
     const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
-    const step = Math.min(3_600_000, Math.max(60_000, Math.floor((todayEnd - now) / 5)))
+    const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
     const events = [
       { summary: 'Standup', start: now + step, end: now + step + 30_000 }, // "next"
       { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 }, // today, later
