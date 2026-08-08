@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
@@ -38,11 +38,36 @@ function Chevron({ expanded }: { expanded: boolean }) {
   )
 }
 
-export default function WeatherWidget() {
+export default function WeatherWidget({
+  onExpandedChange,
+}: { onExpandedChange?: (expanded: boolean) => void } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   const { snapshot, stale, loading, error, refresh } = useWeather()
   const [expanded, setExpanded] = useState(false)
+
+  // Mirrors BookmarksBar's own `onPopoverOpenChange` idiom (App.tsx): a ref
+  // keeps this always calling the LATEST callback (never a stale closure
+  // from an earlier render), and the cleanup resets the mirrored App state
+  // to false on unmount so a disabled/removed widget can never strand the
+  // wrapper's elevated z-index open. Task 55's combined-defaults gate is WHY
+  // this exists: expanded, this panel is tall/wide enough to legitimately
+  // reach into the right column's connector cards (github's own slot
+  // starts right where this panel's own worst-case height gets to) — but
+  // every connector PositionedBlock mounts LATER in this file than this
+  // one, so at equal (auto) stacking those cards would paint ON TOP of an
+  // expanded panel that geometrically covers them: the exact inverse of the
+  // disciplined-occlusion contract the narrow-viewport case already proves
+  // for the centre column below. App.tsx turns this into a conditional
+  // `z-30` on weather's OWN wrapper — the same value TodoPanel/NotesPanel/
+  // TimerWidget's own open-state panels already use — only while expanded,
+  // so the collapsed chip (which never reaches that far) is unaffected.
+  const onExpandedChangeRef = useRef(onExpandedChange)
+  onExpandedChangeRef.current = onExpandedChange
+  useEffect(() => {
+    onExpandedChangeRef.current?.(expanded)
+    return () => onExpandedChangeRef.current?.(false)
+  }, [expanded])
 
   if (!settings?.widgets.weather) return null
 

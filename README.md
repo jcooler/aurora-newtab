@@ -26,11 +26,11 @@ no backend — everything lives on your machine.
   existing bookmarks, never creates or modifies any.
 - **Connectors** — an extensible framework for pulling outside data into the
   dashboard, one card per source under Settings → Connectors, each asking
-  Chrome for access to exactly the site you add and nothing more. The first
-  connector is **RSS**: add up to 5 feed URLs and see the latest headlines
-  from all of them merged into one widget, refreshed roughly every 30
-  minutes. See [Connectors](#connectors) below for how the permission model
-  works.
+  Chrome for access to exactly the site you add and nothing more. Seven
+  connectors ship today: **RSS**, **GitHub**, **GitLab**, **Jira**,
+  **Vercel**, **Crypto**, and **Calendar** (any ICS/iCal feed). See
+  [Connectors](#connectors) below for what each one shows, what it reads,
+  and how the permission model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer** — a Pomodoro-style work/break timer with a chime.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
@@ -128,10 +128,10 @@ which always talks to Open-Meteo). Each connector is a small, self-contained
 package — a config card in Settings → Connectors, a widget, and a service
 module — but the generic plumbing around all of them (caching what was last
 fetched, asking Chrome for permission to reach a site, and keeping anything
-sensitive out of backup exports) is written once and shared. **RSS** is the
-first connector; the framework is built so adding another source later
-means writing that connector's own card/widget/service, not re-solving
-caching, permissions, or backups again.
+sensitive out of backup exports) is written once and shared. **RSS** was the
+first connector; the framework was built so adding another source meant
+writing that connector's own card/widget/service, not re-solving caching,
+permissions, or backups again — the other six below are exactly that.
 
 **RSS**, concretely: turn it on in Settings → Connectors, add up to 5
 `https://` feed URLs, and pick how many headlines to show (3–8). Aurora
@@ -140,15 +140,37 @@ the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
 once every 30 minutes, or sooner if you refresh).
 
+The other six, briefly — what you see, and what Aurora reads to show it:
+
+- **GitHub** — your open PRs waiting on your review and issues assigned to
+  you, plus an unread-notifications count. Connect with a personal access
+  token; reads `api.github.com`.
+- **GitLab** — merge requests assigned to you and a to-dos count. Connect
+  with a personal access token against your instance (`gitlab.com` unless
+  you point it at your own).
+- **Jira** — issues assigned to you (unresolved, newest first) with a
+  status-count line. Connect with your email and an API token against your
+  own Jira Cloud site (`yoursite.atlassian.net`).
+- **Vercel** — your most recent deployments, failed ones surfaced first,
+  then newest to oldest. Connect with a personal access token; reads
+  `api.vercel.com`.
+- **Crypto** — live price and 24-hour change for up to 5 coins you choose.
+  No account, no token — reads the public `api.coingecko.com` markets
+  endpoint.
+- **Calendar** — your next event and today's remaining agenda (two rows,
+  by design — a glance, not a full month view), from any calendar app's
+  ICS/iCal feed. No account, no token — just paste the feed's URL, which
+  Aurora treats as a secret (see [Privacy](#privacy)).
+
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
-you act: the moment you click "Add" on a feed URL, Chrome shows its own
-native permission prompt scoped to that one site only (the same kind of
-prompt Bookmarks bar uses) — decline it, and the feed simply isn't added.
-Remove the last feed pointed at a given site, and Aurora releases that
-site's permission automatically; feeds on other sites are unaffected. Every
-connector added or removed follows the same site-by-site rule going
-forward.
+you act: the moment you click "Add" on a feed URL or "Connect" on a
+token-based connector, Chrome shows its own native permission prompt scoped
+to that one site only (the same kind of prompt Bookmarks bar uses) —
+decline it, and the connector simply isn't added. Remove the last
+feed/connection pointed at a given site, and Aurora releases that site's
+permission automatically; other sites are unaffected. Every connector added
+or removed follows the same site-by-site rule.
 
 ## Photo credits
 
@@ -238,8 +260,9 @@ as a single JSON file:
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
   notes, world clocks, countdowns, and connector configuration (e.g. your
-  RSS feed list) — with any field a connector marks as secret stripped out
-  first (see [Connectors](#connectors); RSS has none today).
+  RSS feed list) — with any field a connector marks as secret (a GitHub/
+  GitLab/Jira/Vercel token, or the Calendar connector's ICS URL) stripped
+  out first (see [Connectors](#connectors)).
 - **Background photo uploads are not included**, and neither is connectors'
   cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
   blob and connector caches are disposable, re-fetched automatically —
@@ -285,10 +308,13 @@ moment you click "Use my location", so the widget can label your weather
 with a real place name. That lookup happens once, only for device location,
 and sends the same ~1 km-rounded coordinates the forecast call already
 uses. Beyond those fixed calls, the **Connectors** framework lets you point
-Aurora at outside sites yourself — today, RSS: any feed URL you add is
-fetched directly from your browser to that feed's host, with no Aurora
-server in between, only for feeds you've actually added, roughly every 30
-minutes. There is no analytics, no telemetry, and no tracking of any kind.
+Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
+Crypto, and Calendar today: every connector fetch goes directly from your
+browser to that connector's own host, with no Aurora server in between,
+only for connectors you've actually configured. GitHub/GitLab/Jira/Vercel
+send only the token (or, for Jira, email + token) you connected with;
+Crypto and Calendar need no account at all. There is no analytics, no
+telemetry, and no tracking of any kind.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.
@@ -302,10 +328,11 @@ Aurora only reads your bookmarks, it never creates, edits, or deletes any.
 **Connectors** work similarly, but per-site rather than as one on/off
 switch: Aurora's manifest lists every `https://` origin as *requestable*
 (`optional_host_permissions`), but none is granted at install. Adding a
-feed in Settings → Connectors triggers Chrome's native permission prompt
-for that one origin only — decline, and the feed isn't added; grant, and
-Aurora can fetch just that site. Removing the last feed on a site revokes
-that site's permission automatically.
+feed or clicking "Connect" on a token-based connector in Settings →
+Connectors triggers Chrome's native permission prompt for that one origin
+only — decline, and the connector isn't added; grant, and Aurora can fetch
+just that site. Removing the last feed/connection on a site revokes that
+site's permission automatically.
 
 The `geolocation` permission works differently: Chrome does not allow
 geolocation to be requested as an optional, runtime permission (only a

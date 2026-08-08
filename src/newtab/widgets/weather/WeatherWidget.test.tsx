@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
@@ -33,18 +33,23 @@ function makeSnapshot(overrides: Partial<WeatherSnapshot> = {}): WeatherSnapshot
 async function renderWidget({
   location = NEW_YORK,
   snapshot = makeSnapshot(),
-}: { location?: StoredLocation | null; snapshot?: WeatherSnapshot | null } = {}) {
+  onExpandedChange,
+}: {
+  location?: StoredLocation | null
+  snapshot?: WeatherSnapshot | null
+  onExpandedChange?: (expanded: boolean) => void
+} = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('location', location)
   await storage.set('weatherCache', snapshot)
-  render(
+  const view = render(
     <StorageProvider storage={storage}>
-      <WeatherWidget />
+      <WeatherWidget onExpandedChange={onExpandedChange} />
     </StorageProvider>,
   )
   await act(async () => {})
-  return storage
+  return { storage, view }
 }
 
 const toggle = () => screen.getByRole('button', { expanded: false })
@@ -283,5 +288,49 @@ describe('WeatherWidget stale data', () => {
 
     await expandPanel()
     expect(screen.getByRole('button', { name: /refresh/i })).toBeTruthy()
+  })
+})
+
+// Task 55 (combined-defaults gate) — mirrors BookmarksBar's own
+// onPopoverOpenChange coverage (BookmarksBar.test.tsx): jsdom can't verify
+// real stacking/paint order (that's the real-Chromium preview probe's job —
+// scripts/preview.mjs's own combined-defaults gate is what actually caught
+// the github card painting on top of an expanded weather panel that
+// geometrically covered it), but it CAN verify the mechanism App.tsx's
+// conditional `z-30` depends on: the callback fires true on open, false on
+// close, and false again on unmount, never a stale value.
+describe('WeatherWidget onExpandedChange (Task 55)', () => {
+  it('calls onExpandedChange(true) on open and onExpandedChange(false) on close', async () => {
+    const onExpandedChange = vi.fn()
+    await renderWidget({ onExpandedChange })
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false)
+    onExpandedChange.mockClear()
+
+    await expandPanel()
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true)
+
+    await act(async () => {
+      fireEvent.click(openToggle())
+    })
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false)
+  })
+
+  // Same rationale as BookmarksBar's own unmount-cleanup test: without this,
+  // App's mirrored `weatherExpanded` state would stick at `true` forever if
+  // WeatherWidget ever unmounts while expanded (e.g. the connector's own
+  // slot is dropped by arrange mode, or the widget toggle is switched off
+  // mid-session), permanently outranking every connector card's own
+  // z-index:auto wrapper.
+  it('calls onExpandedChange(false) on unmount, even while expanded', async () => {
+    const onExpandedChange = vi.fn()
+    const { view } = await renderWidget({ onExpandedChange })
+    await expandPanel()
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true)
+
+    onExpandedChange.mockClear()
+    view.unmount()
+    expect(onExpandedChange).toHaveBeenCalledTimes(1)
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false)
   })
 })

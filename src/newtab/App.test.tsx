@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { defaults } from '../lib/storage/schema'
+import type { StoredLocation, WeatherSnapshot } from '../lib/storage/schema'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import App from './App'
 
@@ -414,5 +415,65 @@ describe('App — bookmarks wrapper z-index elevation while a popover is open (b
       fireEvent.click(folderChip) // toggle the same chip closed
     })
     expect(wrapper!.classList.contains('z-50')).toBe(false)
+  })
+})
+
+// Task 55 (combined-defaults gate) — same structural pair as the bookmarks
+// wrapper z-50 test above: WeatherWidget.test.tsx already proves the
+// onExpandedChange CALLBACK fires correctly in isolation; this proves the
+// INTEGRATION, that App.tsx actually wires it into a 'z-30' class on
+// weather's own wrapper. Real stacking/paint order is jsdom-unverifiable
+// (that's scripts/preview.mjs's own combined-defaults gate — it caught the
+// real defect this fix addresses: an expanded weather panel that
+// geometrically covers github's connector card painted BELOW it, because
+// every connector PositionedBlock mounts later in App.tsx than weather's
+// own and both are `fixed` (independent stacking contexts), so DOM order
+// decided the paint order with neither side's z-index in play until this).
+describe('App — weather wrapper z-index elevation while the panel is expanded (Task 55)', () => {
+  const NEW_YORK: StoredLocation = { lat: 40.71, lon: -74.01, label: 'New York', manual: true }
+  const SNAPSHOT: WeatherSnapshot = {
+    current: { tempC: 21, feelsLikeC: 19, code: 2, windKmh: 14, humidity: 55, isDay: true },
+    hourly: Array.from({ length: 12 }, (_, i) => ({
+      time: `2026-08-06T${String(9 + i).padStart(2, '0')}:00`,
+      tempC: 20 + i,
+      precipProb: 10,
+      code: 2,
+      isDay: true,
+    })),
+    fetchedAt: Date.now(), // fresh — useWeather's SWR check must not refetch
+    locationLabel: 'New York',
+    sunriseISO: '2026-08-06T06:12',
+    sunsetISO: '2026-08-06T19:58',
+  }
+
+  it('the weather wrapper gains z-30 only while the panel is expanded', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', NEW_YORK)
+    await storage.set('weatherCache', SNAPSHOT)
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    // Notes/Tasks (their own collapsed pills) ALSO carry aria-expanded=false,
+    // so the query is scoped through the weather region specifically —
+    // `expanded` alone isn't a unique-enough filter across the whole page.
+    const weatherRegion = await screen.findByRole('region', { name: 'Weather' })
+    const toggle = within(weatherRegion).getByRole('button', { expanded: false })
+    const wrapper = document.querySelector('[data-block-id="weather"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(within(weatherRegion).getByRole('button', { expanded: true }))
+    })
+    expect(wrapper!.classList.contains('z-30')).toBe(false)
   })
 })

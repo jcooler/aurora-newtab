@@ -222,7 +222,7 @@ change, not just a form change.
 
 ---
 
-## STAGED FOR v1.3.0 — NOT YET SUBMITTED, DO NOT PASTE INTO CWS YET
+## STAGED — NOT YET SUBMITTED, DO NOT PASTE INTO CWS YET (v1.3.0 + v1.4.0 deltas)
 
 Everything above this line is the live v1.2.1 listing (Red Argon
 remediation), which is **still awaiting Google's review** as of this
@@ -294,3 +294,58 @@ bullet:
       is included in your backup export; anything a connector marks as
       a secret (e.g. a future connector's API token) is automatically
       stripped from that export before it's written to disk.
+
+---
+
+### v1.4.0 addendum — six more connectors (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, staged v1.3.0
+material included. If a verdict has landed since this was written, stop and
+consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.4.0 keeps the Connectors framework's tab/permission model exactly as
+v1.3.0 introduced it and adds six more connectors to the one RSS shipped
+with: **GitHub**, **GitLab**, **Jira**, and **Vercel** (each token-based —
+a personal access token, or for Jira, an email + API token, entered through
+a "Connect" form and stored the same way RSS's config already is), plus
+**Crypto** and **Calendar** (no account or token — a chosen coin list and a
+pasted ICS/iCal URL, respectively). No new permission is added: all six
+reach their sites through the SAME `optional_host_permissions` grant
+v1.3.0's addendum above already justifies, one origin at a time, on the
+same "Add"/"Connect" gesture. The Summary, Category, and Single purpose
+statement remain unaffected for the same reason v1.3.0's own addendum gave
+— six more sources inside the existing single purpose, not a new one.
+
+#### Detailed description delta
+
+Extend the Connectors bullet added by the v1.3.0 addendum above (replacing
+it, since it now describes seven connectors, not one):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your next calendar events, each reading only what its
+      own card describes.
+
+#### Data Usage disclosure update
+
+**[Jon: needs your read before submission, same as the Location and Web
+history flags above.]** Four of the six new connectors (GitHub, GitLab,
+Jira, Vercel) ask the user for a credential to authenticate to their own
+account on that service — the Data Usage table's existing "Authentication
+information: No — No accounts exist" row (line ~192, live section above)
+stops being accurate once this ships and needs updating to:
+
+| Category | Collected? | Notes |
+|---|---|---|
+| **Authentication information** | **Yes — stored locally, never transmitted except to the service it belongs to.** | A personal access token (GitHub, GitLab, Vercel) or an email + API token (Jira), entered by the user through each connector's own "Connect" form. Stored only in `chrome.storage.local`, stripped from backup exports automatically (see PRIVACY.md's "Connectors" section), and sent only as an Authorization header (Bearer, or Basic for Jira) on requests to that one service — never to Aurora's developer, and there is no Aurora server for it to pass through. Crypto and Calendar need no such credential (Calendar's ICS URL is itself treated as a secret, disclosed separately in PRIVACY.md, but it authenticates nothing — it's a capability URL, not a sign-in). |
+
+The "Web history: No — stays on-device" reasoning used for bookmarks/search/
+RSS above extends the same way to the six new connectors' own read-only
+fetches (issues, PRs, deployments, prices, calendar events) — none of it is
+retained or transmitted by Aurora beyond the request itself.

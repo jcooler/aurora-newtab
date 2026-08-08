@@ -70,6 +70,19 @@ export default function App() {
   // that found this (a real-Chromium preview-probe FAIL, not something
   // caught by inspection or by jsdom).
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
+  // Task 55 (combined-defaults gate) — same mirrored-state idiom as
+  // `bookmarksPopoverOpen` above, one paragraph up, for the identical
+  // structural reason: WeatherWidget's own expanded panel is `fixed`
+  // (via this wrapper), which unconditionally opens a new stacking
+  // context, so WeatherWidget's internal z-index can never win against a
+  // SIBLING PositionedBlock's own stacking context — only this wrapper's
+  // own class can. Every connector widget mounts LATER in this file than
+  // weather does, so at matched (auto) stacking a connector card that the
+  // expanded panel geometrically covers would paint on top of it — the
+  // gate caught exactly that (github ended up `onTop: false` under the
+  // expanded panel at 1600x900). See WeatherWidget's own comment on
+  // `onExpandedChange` for the full writeup.
+  const [weatherExpanded, setWeatherExpanded] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   // Tracks whether the PREVIOUS render had `arranging` true, so the
   // focus-restore effect below only fires on a real on->off transition, never
@@ -197,13 +210,21 @@ export default function App() {
               anchor is what makes this "the weather corner", and the timer
               keeps `left-4` for the same reason: the two share one row, one
               top edge, opposite ends.
+
+              `weatherExpanded`-gated `z-30` (Task 55) — ONLY while the
+              panel is open, same conditional shape as the bookmarks
+              wrapper's own `bookmarksPopoverOpen`-gated `z-50` above, and
+              the same z-30 value TodoPanel/NotesPanel/TimerWidget's own
+              expanded-state panels already use. Idle, this wrapper stays
+              at z-index:auto — unchanged from before this fix, and no
+              different from any other connector card's own wrapper.
             */}
             <PositionedBlock
               id="weather"
               pos={layout?.weather}
-              className="fixed right-4 top-[var(--top-band)]"
+              className={`fixed right-4 top-[var(--top-band)]${weatherExpanded ? ' z-30' : ''}`}
             >
-              <WeatherWidget />
+              <WeatherWidget onExpandedChange={setWeatherExpanded} />
             </PositionedBlock>
           </WidgetBoundary>
 
@@ -357,10 +378,18 @@ export default function App() {
 
           <WidgetBoundary name="gitlab">
             {/* DEFAULT placement — the right-middle column, BELOW the GitHub
-                widget's own default slot. `top-[46vh]` clears github's
-                `top-[24vh]` card (w-80, p-4 content — comfortably under
-                46vh regardless of PR/issue row count at the widths this app
-                targets) while sharing its `right-8` anchor, so a reader who
+                widget's own default slot. `top-[54vh]` (moved down from an
+                original `46vh` — Task 55's combined-defaults gate) clears
+                github's `top-[24vh]` card by a MEASURED margin: with BOTH
+                connectors' own default fixtures rendered together (github's
+                real 2 PRs + 2 issues, not an empty stand-in), github's card
+                reaches y=461px at 1600x900, and the original `46vh` (414px)
+                started 47px INSIDE it — a real collision every earlier stack
+                probe (Tasks 49-51) missed, because each one seeded the OTHER
+                connectors EMPTY while proving a single connector's own slot,
+                never all seven with real content at once. `54vh` (486px)
+                reopens a 25px gap below github's real default height, while
+                still sharing github's `right-8` anchor so a reader who
                 connects both sees them stacked as one column rather than
                 overlapping. A stored arrange-mode `pos` still wins
                 (PositionedBlock drops this className on that branch).
@@ -370,28 +399,33 @@ export default function App() {
                 toggle-gated peripheral here. Transform-free per the house
                 rule (App's quote/bookmarks comments): a plain top/right
                 offset, no translate. */}
-            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[46vh]">
+            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[54vh]">
               <GitlabWidget />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="jira">
             {/* DEFAULT placement — the right column, lower still: BELOW both
-                the GitHub (`top-[24vh]`) and GitLab (`top-[46vh]`) default
+                the GitHub (`top-[24vh]`) and GitLab (`top-[54vh]`) default
                 slots, sharing their `right-8` anchor so a reader who connects
                 all three sees one stacked column rather than any overlap.
-                `top-[66vh]` also has to clear the bottom-right Tasks pill
-                (`fixed bottom-4 right-16`) and the settings gear beside it —
-                the harness's own collision probe is what actually pins this
-                number, same discipline as every other connector default
-                here. A stored arrange-mode `pos` still wins (PositionedBlock
-                drops this className on that branch). JiraWidget self-gates
-                on the connector's enabled+site+email+apiToken state, so this
+                `top-[72vh]` (moved down from an original `66vh` — the SAME
+                Task 55 combined-defaults fix that moved gitlab: gitlab's own
+                real card, 2 MRs + a to-dos chip, is taller than the empty
+                stand-in every earlier stack probe used, so gitlab's real
+                bottom now sits lower than `66vh` cleared) also has to clear
+                the bottom-right Tasks pill (`fixed bottom-4 right-16`) and
+                the settings gear beside it — the harness's own
+                combined-defaults gate is what actually pins this number,
+                same discipline as every other connector default here. A
+                stored arrange-mode `pos` still wins (PositionedBlock drops
+                this className on that branch). JiraWidget self-gates on the
+                connector's enabled+site+email+apiToken state, so this
                 wrapper renders an empty box until the connector is
                 connected — same as every other toggle-gated peripheral
                 here. Transform-free per the house rule (App's quote/
                 bookmarks comments): a plain top/right offset, no translate. */}
-            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[66vh]">
+            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[72vh]">
               <JiraWidget />
             </PositionedBlock>
           </WidgetBoundary>

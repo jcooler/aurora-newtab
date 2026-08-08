@@ -1729,10 +1729,15 @@ console.log(
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitHub block (github left disabled), captures, probes its own defaults,
 // THEN — since github's default slot (top-[24vh]) sits directly above
-// gitlab's (top-[46vh]) — momentarily re-enables github alongside gitlab to
-// prove the two stack without overlapping when BOTH are connected at once,
-// before restoring everything off so every block below (viewport matrix,
-// default-state, worst-case bookmarks) is undisturbed.
+// gitlab's (top-[54vh] as of Task 55 — see the combined-defaults gate near
+// the end of this file for why it moved down from an original 46vh) —
+// momentarily re-enables github alongside gitlab to prove the two stack
+// without overlapping when BOTH are connected at once, before restoring
+// everything off so every block below (viewport matrix, default-state,
+// worst-case bookmarks) is undisturbed. NOTE: this probe's own github
+// stand-in is EMPTY (0 prs/issues, seeded below), so it does not by itself
+// exercise the real collision Task 55 found and fixed — see that gate's own
+// comment for the full writeup.
 {
   const FIXTURE = {
     mrs: [
@@ -1816,11 +1821,11 @@ console.log(
   console.log('captured connectors-gitlab.png')
 
   // Probe 3: combined-defaults collision — the GitLab widget at its default
-  // placement (right-middle, below github: fixed right-8 top-[46vh]) must
-  // clear the collapsed weather chip (top-right band), the timer pill
-  // (top-left), plus the bottom-right Tasks pill and settings gear it is
-  // nearest to. Same rect-intersection idiom as the GitHub collision probe
-  // above.
+  // placement (right-middle, below github: fixed right-8 top-[54vh] as of
+  // Task 55) must clear the collapsed weather chip (top-right band), the
+  // timer pill (top-left), plus the bottom-right Tasks pill and settings
+  // gear it is nearest to. Same rect-intersection idiom as the GitHub
+  // collision probe above.
   const collision = await page.evaluate((s) => {
     const rect = (sel) => {
       const el = document.querySelector(sel)
@@ -1975,13 +1980,16 @@ console.log(
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitLab block (github + gitlab both left disabled), captures, probes its
 // own defaults (including the bottom-right Tasks pill it sits closest to —
-// jira's `top-[66vh]` default is the LOWEST of the three right-column
-// connectors), THEN — since github's/gitlab's default slots (top-[24vh],
-// top-[46vh]) sit directly above jira's own (top-[66vh]) — momentarily
-// re-enables ALL THREE alongside jira to prove the full right-column stack
-// never overlaps itself, before restoring everything off so every block
-// below (viewport matrix, default-state, worst-case bookmarks) is
-// undisturbed.
+// jira's `top-[72vh]` default, as of Task 55, is the LOWEST of the three
+// right-column connectors), THEN — since github's/gitlab's default slots
+// (top-[24vh], top-[54vh] as of Task 55) sit directly above jira's own
+// (top-[72vh]) — momentarily re-enables ALL THREE alongside jira to prove
+// the full right-column stack never overlaps itself, before restoring
+// everything off so every block below (viewport matrix, default-state,
+// worst-case bookmarks) is undisturbed. NOTE: this probe's own github/
+// gitlab stand-ins are EMPTY (seeded below), so — like the gitlab-vs-github
+// probe above — it does not by itself exercise the real all-real-content
+// collision Task 55's own combined-defaults gate found and fixed.
 {
   const FIXTURE = {
     issues: [
@@ -2079,10 +2087,11 @@ console.log(
   console.log('captured connectors-jira.png')
 
   // Probe 3: combined-defaults collision — the Jira widget at its default
-  // placement (right column, lowest: fixed right-8 top-[66vh]) must clear the
-  // collapsed weather chip (top-right band), the timer pill (top-left), and —
-  // the one this default sits closest to — the bottom-right Tasks pill and
-  // settings gear. Same rect-intersection idiom as the GitHub/GitLab collision
+  // placement (right column, lowest: fixed right-8 top-[72vh] as of Task 55)
+  // must clear the collapsed weather chip (top-right band), the timer pill
+  // (top-left), and — the one this default sits closest to — the
+  // bottom-right Tasks pill and settings gear. Same rect-intersection idiom
+  // as the GitHub/GitLab collision
   // probes above.
   const collision = await page.evaluate((s) => {
     const rect = (sel) => {
@@ -3194,6 +3203,442 @@ console.log(
     icsGone
       ? 'ics connector disabled; page restored to idle'
       : 'WARNING: Calendar widget still present after disabling the connector',
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Combined-defaults gate (Task 55) — THE phase gate the whole connector
+// roster (Tasks 44, 48-52, 54) has been building toward. Every block above
+// proved its OWN default clears its immediate neighbours, and the growing
+// stack probes along the way proved widening SUBSETS coexist (github+gitlab
+// in Task 49, +jira in Task 50, +vercel in Task 51) — but every one of those
+// stack probes seeded the OTHER connectors EMPTY (0 rows) while proving a
+// single connector's own slot, so nothing before this block had ever
+// rendered all SEVEN with their REAL default content at once. This gate
+// found exactly the gap that left: with github's real 2-PR/2-issue card
+// (245px tall, y=216..461 at 1600x900) rendered alongside gitlab's original
+// `top-[46vh]` (414px) default, github's real card reached 47px INSIDE
+// gitlab's slot — invisible to every earlier probe because each one's
+// github/gitlab stand-in was an empty shell only ~50px tall. Fixed by moving
+// gitlab to `top-[54vh]` and, since it pushed gitlab's own real bottom lower
+// too, jira to `top-[72vh]` (both in App.tsx; see those PositionedBlock
+// comments for the full measured writeup) — NOT relaunching a rewritten
+// stack probe here first, because the earlier per-task stack probes remain
+// useful for what they DO prove (empty-connector geometry) and are cheaper
+// to keep than to redo; this gate is what now covers the real-content case
+// they never could. Reusing the calendar block's own midnight-proof step
+// idiom for ics's fixture (baked epoch offsets would flake within seconds of
+// local midnight, exactly as that block's history documents; fetchedAt for
+// every connector is likewise stamped INSIDE the page, at evaluate time,
+// never baked into this script) — every other fixture here is each
+// connector's own default shape (not a worst-case variant; vercel's own
+// default fixture already IS its worst case, MAX_DEPLOYMENTS).
+//
+// At 1600x900 defaults (measured, post-fix): right column github top-[24vh]
+// / gitlab top-[54vh] / jira top-[72vh]; left column ics top-[13vh] / rss
+// top-[22vh] / vercel top-[64vh]; crypto centered top-[86vh]. Runs after the
+// calendar block (every connector left disabled by its own block above),
+// captures connectors-all.png, then runs a pairwise rect-intersection over
+// EVERY pair drawn from an 18-element set — the 7 connector widgets plus
+// every peripheral a user's eye actually shares the page with (timer pill,
+// the COLLAPSED weather chip, Notes pill, photo refresh button, Tasks pill,
+// settings gear, quote, links row, search bar, clock, greeting) — C(18,2) =
+// 153 pairs, every one asserted (never eyeballed), `found` required for all
+// 18 rects first so a vanished element can't report a false PASS by
+// omission. Repeats the CAPTURE ONLY (plus a console-error check — no
+// re-assertion of the 153 pairs; `setViewportSize` reflows the identical
+// seeded DOM into a different layout of the SAME scenario, not a different
+// one) at 1280x800 and 2560x1440. Back at 1600x900, expands the weather
+// panel: anchored `right-4` at a measured ~352px wide there, it sits
+// squarely over github's own `right-8`/w-80 slot on the x-axis, and reaches
+// down to y=451.4px (hourly trend graphic + rain callout + sunrise/sunset
+// row) — well into github's `top-[24vh]` (y=216) slot. This gate is also
+// what found THAT: a real, intentional geometric overlap, but every
+// connector PositionedBlock mounts later in App.tsx than weather's own, so
+// at matched (auto) stacking github's card painted ON TOP of the expanded
+// panel — the inverse of the disciplined-occlusion contract the 500x900
+// case in the viewport matrix below already proves for the centered
+// clock/greeting column. Fixed in App.tsx + WeatherWidget.tsx: an
+// `onExpandedChange` callback mirrors weather's own expanded state up to a
+// conditional `z-30` on weather's PositionedBlock wrapper (same value
+// TodoPanel/NotesPanel/TimerWidget's own open-state panels already use),
+// applied ONLY while expanded. With that fix, whichever connector(s) the
+// expanded panel actually covers are asserted OCCLUDED (surface alpha >=
+// the bg-panel-solid contract, topmost at every covered point) rather than
+// non-overlapping; any connector it doesn't reach is simply not covered,
+// which needs no separate claim. Restores every connector off and the panel
+// collapsed before returning control to the viewport matrix below — same
+// snapshot/restore discipline as every block above it.
+{
+  const RSS_FEEDS = [
+    'https://news.ycombinator.com/rss',
+    'https://www.theverge.com/rss/index.xml',
+  ]
+  const RSS_HEADLINES = [
+    { source: 'Hacker News', title: 'A local-first dashboard people actually keep open', url: 'https://news.ycombinator.com/item?id=100', publishedAt: 5 },
+    { source: 'The Verge', title: 'The quiet return of the RSS reader', url: 'https://www.theverge.com/rss-returns', publishedAt: 4 },
+    { source: 'Hacker News', title: 'Show HN: I built a new-tab page just for me', url: 'https://news.ycombinator.com/item?id=101', publishedAt: 3 },
+    { source: 'The Verge', title: 'Browser extensions and the per-site permission prompt', url: 'https://www.theverge.com/permissions', publishedAt: 2 },
+    { source: 'Hacker News', title: 'Ask HN: what lives on your new-tab page?', url: 'https://news.ycombinator.com/item?id=102', publishedAt: 1 },
+  ]
+  const GITHUB_FIXTURE = {
+    prs: [
+      { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+      { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+    ],
+    issues: [
+      { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+      { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+    ],
+    notifications: 3,
+    etags: {},
+  }
+  const GITLAB_FIXTURE = {
+    mrs: [
+      { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+      { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+    ],
+    todos: 6,
+  }
+  const JIRA_FIXTURE = {
+    issues: [
+      { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+      { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+      { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+    ],
+    counts: { 'In Progress': 2, 'To Do': 1 },
+  }
+  // Five deployments — MAX_DEPLOYMENTS, vercel's own worst-case row count,
+  // same fixture its own block above uses. This is vercel's default AND its
+  // worst case at once, so this gate never renders a shorter-than-real card.
+  const VERCEL_FIXTURE = {
+    deployments: [
+      { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: Date.now() - 6 * 60 * 60 * 1000 },
+      { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: Date.now() - 3 * 60 * 1000 },
+      { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: Date.now() - 10 * 60 * 1000 },
+      { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: Date.now() - 20 * 60 * 1000 },
+      { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: Date.now() - 60 * 60 * 1000 },
+    ],
+  }
+  const CRYPTO_FIXTURE = {
+    coins: [
+      { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67_412, change24h: 2.4 },
+      { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3_245, change24h: -1.2 },
+      { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+    ],
+  }
+
+  const rssSel = '[data-block-id="rss"] section[aria-label="Headlines"]'
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
+  const cryptoSel = '[data-block-id="crypto"] section[aria-label="Crypto"]'
+  const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+  const CONNECTOR_SELS = {
+    rss: rssSel,
+    github: githubSel,
+    gitlab: gitlabSel,
+    jira: jiraSel,
+    vercel: vercelSel,
+    crypto: cryptoSel,
+    ics: icsSel,
+  }
+
+  await page.evaluate(
+    async ({ rssFeeds, rssHeadlines, githubFixture, gitlabFixture, jiraFixture, vercelFixture, cryptoFixture }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      const now = Date.now()
+      const H = 3_600_000
+      // Same midnight-proof step idiom as the calendar block above (review-
+      // round-1 fixed there, reused verbatim here): space the three same-day
+      // fixture events proportionally across whatever time is actually LEFT
+      // in today, floored at 1000ms, so they stay provably before local
+      // midnight regardless of when this run happens.
+      const d = new Date(now)
+      const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+      const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
+      const icsEvents = [
+        { summary: 'Standup', start: now + step, end: now + step + 30_000 },
+        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
+        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
+        { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+      ]
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          rss: { enabled: true, feeds: rssFeeds, shownCount: 5 },
+          github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+          gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+          jira: {
+            enabled: true,
+            email: 'jon@acme.com',
+            apiToken: 'atlassian_preview',
+            site: 'yoursite.atlassian.net',
+            displayName: 'Jon Cooler',
+          },
+          vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
+          crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] },
+          ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+        },
+        // fetchedAt stamped HERE, in the page, for every connector at once —
+        // the SWR hook renders every one of them from cache and never
+        // touches the network.
+        connectorSnapshots: {
+          rss: { fetchedAt: now, data: rssHeadlines },
+          github: { fetchedAt: now, data: githubFixture },
+          gitlab: { fetchedAt: now, data: gitlabFixture },
+          jira: { fetchedAt: now, data: jiraFixture },
+          vercel: { fetchedAt: now, data: vercelFixture },
+          crypto: { fetchedAt: now, data: cryptoFixture },
+          ics: { fetchedAt: now, data: { events: icsEvents } },
+        },
+      })
+    },
+    {
+      rssFeeds: RSS_FEEDS,
+      rssHeadlines: RSS_HEADLINES,
+      githubFixture: GITHUB_FIXTURE,
+      gitlabFixture: GITLAB_FIXTURE,
+      jiraFixture: JIRA_FIXTURE,
+      vercelFixture: VERCEL_FIXTURE,
+      cryptoFixture: CRYPTO_FIXTURE,
+    },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Let every connector's own section mount before measuring anything —
+  // best-effort per selector, same as every per-connector block above; the
+  // `found` requirement in the pairwise probe below is what actually catches
+  // a widget that never showed up.
+  for (const sel of Object.values(CONNECTOR_SELS)) {
+    await page.waitForSelector(sel, { timeout: 5000 }).catch(() => {})
+  }
+
+  let gateErrorsSeen = errors.length
+
+  await page.screenshot({ path: `${outDir}/connectors-all.png` })
+  console.log('captured connectors-all.png')
+
+  // The full 18-element set: the 7 connector widgets plus every peripheral a
+  // user's eye actually shares the page with at defaults.
+  const PAGE_ELEMENTS = {
+    ...CONNECTOR_SELS,
+    timer: '[data-block-id="timer"]',
+    weather: '[data-block-id="weather"]', // COLLAPSED chip — expanded is its own step below
+    notes: '[data-block-id="notes"]',
+    refresh: 'button[aria-label="New background photo"]',
+    tasks: '[data-block-id="tasks"]',
+    gear: 'button[aria-label="Open settings"]',
+    quote: '[data-block-id="quote"]',
+    links: '[data-block-id="links"]',
+    search: '[data-block-id="search"]',
+    clock: '[data-block-id="clock"]',
+    greeting: '[data-block-id="greeting"]',
+  }
+  const pairwise = await page.evaluate((elements) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const rects = Object.fromEntries(Object.entries(elements).map(([name, sel]) => [name, rect(sel)]))
+    const names = Object.keys(rects)
+    const found = Object.fromEntries(names.map((n) => [n, !!rects[n]]))
+    const pairs = []
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        pairs.push({ pair: `${names[i]}/${names[j]}`, hit: hits(rects[names[i]], rects[names[j]]) })
+      }
+    }
+    return {
+      found,
+      pairCount: pairs.length,
+      collisions: pairs.filter((p) => p.hit).map((p) => p.pair),
+      rects: Object.fromEntries(
+        names.map((n) => [
+          n,
+          rects[n]
+            ? { top: +rects[n].top.toFixed(1), bottom: +rects[n].bottom.toFixed(1), left: +rects[n].left.toFixed(1), right: +rects[n].right.toFixed(1) }
+            : null,
+        ]),
+      ),
+    }
+  }, PAGE_ELEMENTS)
+  const allFound = Object.values(pairwise.found).every(Boolean)
+  const noCollisions = pairwise.collisions.length === 0
+  console.log(
+    allFound && noCollisions
+      ? `PASS: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions)`
+      : `FAIL: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
+  )
+
+  const newErrorsAtDefault = errors.length - gateErrorsSeen
+  console.log(
+    newErrorsAtDefault === 0
+      ? 'PASS: no console errors with all seven connectors combined at 1600x900'
+      : `FAIL: no console errors with all seven connectors combined at 1600x900 (${newErrorsAtDefault} new: ${errors.slice(-newErrorsAtDefault).join('; ')})`,
+  )
+  gateErrorsSeen = errors.length
+
+  // Repeat the CAPTURE ONLY (plus a console-error check) at the narrowest and
+  // widest ordinary viewports — the identical seeded DOM reflowed by a real
+  // `setViewportSize`, same idiom as the viewport matrix below, never a
+  // relaunch. No re-assertion of the 153 pairs here: a different width is a
+  // different LAYOUT of the same combined-defaults scenario already proven
+  // above, not a new one to re-derive from scratch.
+  //
+  // RECORDED, NOT FIXED (out of this task's connector scope): a manual
+  // review of connectors-all-1280x800.png found the crypto strip's text
+  // visually touching the quote block below it. Measured (not eyeballed,
+  // one-off): at 1280x800 with worldClocks+countdown ALSO on (this script's
+  // own top-of-file seed, not a Task 55 fixture), links.bottom=707.7 already
+  // sits BELOW quote.top=704 — the centered column itself overlaps quote's
+  // fixed `bottom-6` anchor by ~4px BEFORE crypto (top-[86vh], unchanged by
+  // this task) even enters the picture; crypto only makes the overlap
+  // visible by sitting in the gap. Root cause is the centered column's own
+  // height (clock/greeting/worldClocks/countdown/search/focus/links) vs.
+  // quote's fixed-pixel bottom anchor at a height no probe tested before
+  // this gate (the existing viewport matrix jumps 600->900) — an
+  // interaction between two non-connector widgets, unrelated to any of the
+  // seven connectors this task adds, and outside this task's file scope
+  // (App.tsx's centered-column layout, index.css's `short`/`xshort`
+  // thresholds). Not reproduced at 2560x1440 (gaps of 205.9px/85.6px,
+  // healthy) or at this gate's own primary 1600x900 (gap 10.0px, the
+  // existing Task 52 floor). Flagged for a follow-up task rather than fixed
+  // here blind — see task-55-report.md.
+  for (const { w, h } of [
+    { w: 1280, h: 800 },
+    { w: 2560, h: 1440 },
+  ]) {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(300)
+    await page.screenshot({ path: `${outDir}/connectors-all-${w}x${h}.png` })
+    console.log(`captured connectors-all-${w}x${h}.png`)
+
+    const newErrors = errors.length - gateErrorsSeen
+    console.log(
+      newErrors === 0
+        ? `PASS: no console errors with all seven connectors combined at ${w}x${h}`
+        : `FAIL: no console errors with all seven connectors combined at ${w}x${h} (${newErrors} new: ${errors.slice(-newErrors).join('; ')})`,
+    )
+    gateErrorsSeen = errors.length
+  }
+
+  // Back to 1600x900 for the expanded-weather step.
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(300)
+
+  // Expanded weather vs. the right column: a real, intentional overlap when
+  // it happens (see the block comment above), so whichever connector(s) it
+  // actually covers are held to the disciplined-occlusion rule instead of
+  // plain non-overlap — checked against all 7 rather than just github/
+  // gitlab/jira, since "whichever it covers" should be discovered by
+  // measurement, not assumed from the class names.
+  await setWeatherExpanded(true)
+  await page.waitForTimeout(200)
+  await page.screenshot({ path: `${outDir}/connectors-all-weather-expanded.png` })
+  console.log('captured connectors-all-weather-expanded.png')
+
+  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.95 in Aurora), same floor as the 500x900 precedent
+  const expandedCheck = await page.evaluate(
+    ({ weatherSel: wSel, connectorSels }) => {
+      const wEl = document.querySelector(wSel)
+      if (!wEl) return null
+      const w = wEl.getBoundingClientRect()
+      const cs = getComputedStyle(wEl)
+      const alpha = (() => {
+        const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/)
+        if (!m) return 0
+        const parts = m[1].split(',').map((v) => parseFloat(v))
+        return parts.length > 3 ? parts[3] : 1
+      })()
+      const hits = (a, b) =>
+        !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+      const results = {}
+      for (const [name, sel] of Object.entries(connectorSels)) {
+        const el = document.querySelector(sel)
+        if (!el) {
+          results[name] = { found: false, overlap: false, onTop: null }
+          continue
+        }
+        const r = el.getBoundingClientRect()
+        const overlap = hits(w, r)
+        if (!overlap) {
+          results[name] = { found: true, overlap: false, onTop: null }
+          continue
+        }
+        // Sample the CENTRE of the overlap region: if the panel really owns
+        // those pixels, that is what hit-testing finds there.
+        const left = Math.max(w.left, r.left)
+        const right = Math.min(w.right, r.right)
+        const top = Math.max(w.top, r.top)
+        const bottom = Math.min(w.bottom, r.bottom)
+        const sample = document.elementFromPoint((left + right) / 2, (top + bottom) / 2)
+        results[name] = {
+          found: true,
+          overlap: true,
+          onTop: !!sample && !!sample.closest('[data-block-id="weather"]'),
+        }
+      }
+      return {
+        alpha: +alpha.toFixed(2),
+        weather: { top: +w.top.toFixed(1), bottom: +w.bottom.toFixed(1), left: +w.left.toFixed(1), right: +w.right.toFixed(1) },
+        results,
+      }
+    },
+    { weatherSel, connectorSels: CONNECTOR_SELS },
+  )
+  const allFoundExpanded = expandedCheck !== null && Object.values(expandedCheck.results).every((r) => r.found)
+  const covered = expandedCheck ? Object.entries(expandedCheck.results).filter(([, r]) => r.overlap).map(([n]) => n) : []
+  const occlusionOk =
+    allFoundExpanded &&
+    (covered.length === 0 || (expandedCheck.alpha >= SOLID_SURFACE_ALPHA && covered.every((n) => expandedCheck.results[n].onTop)))
+  console.log(
+    occlusionOk && covered.length > 0
+      ? `PASS: the expanded weather panel disciplined-occludes the connector(s) it covers at 1600x900 (covers: ${covered.join(', ')}; surface alpha ${expandedCheck.alpha} >= ${SOLID_SURFACE_ALPHA}, topmost at every covered point)`
+      : occlusionOk
+        ? `PASS: the expanded weather panel does not reach any connector's default slot at 1600x900 (weather ${JSON.stringify(expandedCheck?.weather)})`
+        : `FAIL: the expanded weather panel disciplined-occlusion check at 1600x900 (found=${allFoundExpanded}, ${JSON.stringify(expandedCheck)})`,
+  )
+
+  await setWeatherExpanded(false)
+  await page.waitForTimeout(150)
+
+  // Restore: disable ALL SEVEN connectors and clear their cache, then reload
+  // so nothing here leaks into the viewport matrix / default-state /
+  // worst-case bookmarks blocks below — same restore discipline as every
+  // connector block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        rss: { ...connectors.rss, enabled: false },
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+        vercel: { ...connectors.vercel, enabled: false },
+        crypto: { ...connectors.crypto, enabled: false },
+        ics: { ...connectors.ics, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const allGone = await page.evaluate(
+    (sels) => Object.values(sels).every((s) => document.querySelector(s) === null),
+    CONNECTOR_SELS,
+  )
+  console.log(
+    allGone
+      ? 'All seven connectors disabled; page restored to idle'
+      : 'WARNING: at least one connector widget still present after the combined-defaults gate',
   )
 }
 
