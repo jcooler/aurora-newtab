@@ -15,6 +15,7 @@ import { gitlabDescriptor } from './gitlab'
 import { jiraDescriptor } from './jira'
 import { vercelDescriptor } from './vercel'
 import { cryptoDescriptor } from './crypto'
+import { icsDescriptor } from './ics'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -35,7 +36,10 @@ import { cryptoDescriptor } from './crypto'
 // vercel.ts's fetch, not here. Task 52 adds crypto as #6, the first
 // connector since rss itself with `auth: 'none'` — no token, no whoami
 // probe, no identityField, and (per its own secretFields: []) nothing ever
-// stripped from its config on export.
+// stripped from its config on export. Task 53 adds ics as #7 — also
+// `auth: 'none'`, but the FIRST no-auth connector that DOES strip a secret:
+// its whole `url` is the secret (secretFields: ['url'], see backup.test.ts's
+// ics case), with a per-config derived https origin like gitlab's/jira's.
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,
@@ -43,6 +47,7 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   jiraDescriptor as ConnectorDescriptor,
   vercelDescriptor as ConnectorDescriptor,
   cryptoDescriptor as ConnectorDescriptor,
+  icsDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

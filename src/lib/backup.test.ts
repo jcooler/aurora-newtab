@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -170,6 +170,24 @@ describe('connector config / snapshot handling (Task 39)', () => {
     })
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.coins).toEqual(['bitcoin', 'ethereum', 'dogecoin'])
+  })
+
+  it('a real serializeBackup strips the ics url — the WHOLE url IS the secret (Task 53, first auth-none connector that strips)', () => {
+    // The FIRST of its kind: an auth:'none' connector (like crypto/rss — no
+    // token, no identity) that STILL declares a secretField. The ICS url is a
+    // calendar's "private address" — it grants read access to the entire
+    // calendar, so it must never leave the device on export. Unlike crypto
+    // (secretFields: [], round-trips whole), a real serialize -> parse must
+    // emit an ics config shorn of its url but keeping `enabled`, and must never
+    // mutate what's sitting in storage.
+    const stored: IcsConfig = { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' }
+    const input = { ...defaults(), connectors: { ics: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.ics).toEqual({ enabled: true })
+    expect('url' in envelope.data.connectors.ics).toBe(false)
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.url).toBe('https://calendar.example.com/private-abc123/basic.ics')
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {
