@@ -48,11 +48,32 @@ function MonthCalInner() {
 
   const isCurrentMonth = view.y === now.getFullYear() && view.m0 === now.getMonth()
 
-  // No modulo/bounds-checking needed on either side — monthGrid's own
-  // out-of-range normalization (via Date's rollover) means passing m0-1 from
-  // January (0-1=-1) or m0+1 from December (11+1=12) is already correct.
-  const goPrev = () => setView((v) => ({ y: v.y, m0: v.m0 - 1 }))
-  const goNext = () => setView((v) => ({ y: v.y, m0: v.m0 + 1 }))
+  // Normalize (y, m0) through Date's own rollover on EVERY step, the same
+  // technique monthGrid.ts's own top-of-function normalization uses (bug
+  // fix, final-review wave — probe-logged: the harness's own forcing loop,
+  // walking Next enough times to cross a year boundary, is what surfaced
+  // this). monthGrid(view.y, view.m0) below DOES already normalize an
+  // out-of-range month0 internally (its own doc comment is correct about
+  // that), so the GRID itself never broke — but `view.y`/`view.m0` are also
+  // read RAW by monthLabel() and isCurrentMonth above, and neither of those
+  // gets monthGrid's normalization for free. Leaving `view` itself
+  // unnormalized meant `m0` could drift outside 0-11 after enough clicks
+  // (December's 11+1=12 has no 13th entry in MONTH_NAMES) while `y` never
+  // even incremented on the way past December — `monthLabel` would then
+  // render "undefined 2026" instead of "January 2027" for a perfectly
+  // ordinary sequence of Next clicks. Normalizing here, once, keeps EVERY
+  // reader of `view` (this file's own label/isCurrentMonth, monthGrid) on
+  // the same always-valid (0-11, carried-year) representation.
+  const goPrev = () =>
+    setView((v) => {
+      const d = new Date(v.y, v.m0 - 1, 1)
+      return { y: d.getFullYear(), m0: d.getMonth() }
+    })
+  const goNext = () =>
+    setView((v) => {
+      const d = new Date(v.y, v.m0 + 1, 1)
+      return { y: d.getFullYear(), m0: d.getMonth() }
+    })
   const goToday = () => setView({ y: now.getFullYear(), m0: now.getMonth() })
 
   const weeks = monthGrid(view.y, view.m0)
@@ -61,44 +82,77 @@ function MonthCalInner() {
 
   return (
     <div className="w-56 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
-      <div className="flex items-center justify-between">
+      {/* data-monthcal-header — a stable hook (same convention as
+          data-cell-key below) for this file's own tests and the harness's
+          zero-height-guarantee probe: the Today affordance (below) lives
+          INSIDE this row precisely so navigating never changes ITS height,
+          and both consumers need a selector for "this row" to prove that,
+          not just "the widget". */}
+      <div data-monthcal-header className="flex items-center justify-between gap-1">
         <button
           type="button"
           aria-label="Previous month"
           onClick={goPrev}
-          className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
-        <span className="text-sm font-medium text-fg">{label}</span>
+        {/* Label + (conditionally) the Today control share ONE line in the
+            header row — a fix-wave correction (final review, MERGE-
+            BLOCKING): this button used to render on its OWN line below the
+            header, which added 21px of card height whenever it appeared
+            (i.e. on any off-current month) and silently collapsed this
+            column's floor to this widget's neighbor below in an off-current
+            6-row month. Living here instead means the button changes WHICH
+            controls the header row contains, never how TALL the row is —
+            navigating months (or the widget sitting open across a midnight
+            rollover into a new month) can no longer move anything below it.
+            `min-w-0` lets this flex item shrink below its content's natural
+            width (the flex default is `min-width: auto`, which would
+            otherwise refuse to shrink and push the Next button off the
+            right edge); `truncate` on the label span (data-monthcal-label,
+            below) is a defensive floor for that same squeeze, not a design
+            choice — scripts/preview.mjs's own monthCal block forces the
+            header to "September" (this file's own MONTH_NAMES' longest
+            entry) with the Today button showing and asserts the label
+            renders in FULL (`scrollWidth === clientWidth`, i.e. `truncate`
+            never actually engages) and the Next button stays inside the
+            card's own right edge — if a future change ever makes it
+            engage, that's the signal to revisit this layout (option (a) in
+            the fix-wave ledger: raise the whole widget instead of
+            shrinking the header), not to let the month name silently
+            clip. */}
+        <span className="flex min-w-0 items-center justify-center gap-1.5">
+          <span data-monthcal-label className="truncate text-sm font-medium text-fg">{label}</span>
+          {/* Re-derived from the ticking `now` (not the mount-time `view`
+              seed), so it's correct even across a midnight rollover while
+              the widget sat open on a past/future month. This, plus the two
+              chevrons, are the ENTIRE tab surface — see the a11y doc comment
+              on the table below. */}
+          {!isCurrentMonth && (
+            <button
+              type="button"
+              onClick={goToday}
+              aria-label="Back to today"
+              className="shrink-0 rounded text-[10px] font-medium text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Today
+            </button>
+          )}
+        </span>
         <button
           type="button"
           aria-label="Next month"
           onClick={goNext}
-          className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
       </div>
-
-      {/* Only rendered off the current month — snaps back to it, re-derived
-          from the ticking `now` (not the mount-time `view` seed), so it's
-          correct even across a midnight rollover while the widget sat open
-          on a past/future month. This, plus the two chevrons above, are the
-          ENTIRE tab surface — see the a11y doc comment on the table below. */}
-      {!isCurrentMonth && (
-        <button
-          type="button"
-          onClick={goToday}
-          className="mt-1 text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
-        >
-          Today
-        </button>
-      )}
 
       {/* A11y decision (spec-sanctioned lighter path, taken deliberately):
           this grid is a STATIC <table>, not an interactive ARIA grid. The

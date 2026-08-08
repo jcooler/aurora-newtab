@@ -73,6 +73,17 @@ export const migrations: Record<number, Migration> = {
   // widget key missing from an older snapshot gets backfilled (stored
   // values always win), without needing a THIRD version of this same fix
   // the next time a widget toggle ships without its own migration.
+  //
+  // CLARIFICATION (final-review fix wave — the wording above actively
+  // invites the wrong reading): this step only RUNS for a snapshot whose
+  // stored version is <=6 (see `migrate()`'s own loop below — `registry[v]`
+  // runs only for `v` from `fromVersion` up to `CURRENT_VERSION - 1`). Once
+  // a store has been upgraded to v7, this step never runs for it again. A
+  // FUTURE widget toggle added without its own CURRENT_VERSION bump + a NEW
+  // migration step (see WidgetToggles' own doc comment in schema.ts) is
+  // NOT automatically backfilled by this one for anyone already sitting at
+  // v7 — "generic" means "not hardcoded to today's key names", not "covers
+  // every future addition for free".
   6: (data) => {
     const d = defaults()
     const settings = isPlainObject(data.settings) ? data.settings : {}

@@ -467,8 +467,32 @@ export default function App() {
                 column's measured left edge at ITS OWN band (the clock, the
                 only centered element overlapping y=108-355 here): 43.5px
                 (592 vs clock.left 635.5). Every floor clears with real
-                margin, not shaved to the edge. A
-                stored arrange-mode `pos` still wins (PositionedBlock drops
+                margin, not shaved to the edge.
+
+                FINAL-REVIEW FIX WAVE, MERGE-BLOCKING (post-Task 59): the
+                widget's own "Today" snap-back control used to render on its
+                OWN line below the nav row (only while viewing an off-current
+                month), adding 21px of card height whenever it appeared —
+                collapsing THIS seam from 23px to 2px in any off-current
+                6-row month, and invisible to every harness run on a date
+                where the CURRENT month already happened to be 6-row (this
+                repo's own August 2026 reference worst case), since the
+                forcing loop then made zero Next clicks and never rendered
+                the off-current state at all. Fixed by moving the control
+                INSIDE the nav row itself (MonthCalWidget.tsx's own doc
+                comment), next to the month label — navigating now changes
+                WHICH controls that row holds, never how TALL the row is, so
+                the 247px worst case and every number above are the exact
+                SAME ones Task 58 measured, unchanged by this fix (a true
+                zero-height guarantee, not a re-derivation): re-measured
+                after the fix by scripts/preview.mjs's own monthCal block AND
+                the combined-defaults gate, both of which now force the
+                off-current state deterministically (an unconditional first
+                Next click before the 42-cell forcing loop, on every run,
+                every date) and assert the header's own measured height is
+                identical with the Today control present vs. absent.
+
+                A stored arrange-mode `pos` still wins (PositionedBlock drops
                 this className on that branch). MonthCalWidget self-gates on
                 settings.widgets.monthCal alone (no data-emptiness check —
                 unlike habits/worldClocks, there's nothing to be "empty",

@@ -139,6 +139,12 @@ function isOptional(v: unknown, pred: (v: unknown) => boolean): boolean {
 
 const WIDGET_KEYS = Object.keys(defaults().settings.widgets) as (keyof AuroraData['settings']['widgets'])[]
 
+// Deliberately strict on purpose (not defensive-loosened to "extra keys ok,
+// missing keys default"): requiring EVERY known widget key present as a
+// boolean is the tripwire that catches a widget toggle shipped without its
+// CURRENT_VERSION bump + migration step (see WidgetToggles' own doc comment
+// in schema.ts) — a backup missing a key fails validation loudly here
+// instead of silently importing with that toggle undefined.
 function isWidgetToggles(v: unknown): boolean {
   return isPlainObject(v) && WIDGET_KEYS.every((k) => isBoolean(v[k]))
 }

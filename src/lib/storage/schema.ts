@@ -5,6 +5,22 @@ export const CURRENT_VERSION = 7
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
+/** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
+ *  58, before review caught it, see migrations.ts's own v6->v7 step for the
+ *  generic catch-up fix and its own limits): adding a member here REQUIRES,
+ *  in the SAME change, both (1) bumping CURRENT_VERSION below and (2) adding
+ *  a migration step keyed to the version being upgraded FROM (migrations.ts)
+ *  that backfills the new key — copying migrations[6]'s generic
+ *  `{...defaults().settings.widgets, ...stored}` shape under the next
+ *  version number is sufficient, no need to hardcode the new key by name.
+ *  Skip either half and this is the failure mode: `defaults()`'s own merge
+ *  only backfills MISSING TOP-LEVEL KEYS, never new fields nested inside an
+ *  already-present `settings.widgets` object, so an EXISTING user's stored
+ *  settings simply won't have the new key — and backup.ts's own
+ *  `isWidgetToggles` validator (deliberately strict, see its comment)
+ *  requires EVERY key here present as a boolean, so any backup captured
+ *  before this member existed gets rejected WHOLESALE on import, not
+ *  partially degraded. */
 export interface WidgetToggles {
   search: boolean
   weather: boolean

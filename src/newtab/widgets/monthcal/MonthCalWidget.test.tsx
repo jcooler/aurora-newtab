@@ -81,15 +81,15 @@ describe('MonthCalWidget', () => {
     expect(trailingJune1!.querySelector('span')!.className).not.toContain('ring-accent')
   })
 
-  it('the Today button is hidden while viewing the current month', async () => {
+  it('the Today button is absent (not just hidden) while viewing the current month', async () => {
     await renderWithMonthCal()
-    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Back to today' })).toBeNull()
     // Only the two nav chevrons are tabbable — the a11y-lighter static-table
     // path (see the component's own doc comment): no interactive cells.
     expect(screen.getAllByRole('button')).toHaveLength(2)
   })
 
-  it('Previous month navigates (header + matrix swap), hides the ring even on a matching day-of-month, and reveals the Today button; clicking it snaps back', async () => {
+  it('Previous month navigates (header + matrix swap), hides the ring even on a matching day-of-month, and reveals the Today button IN THE HEADER ROW; clicking it snaps back', async () => {
     const { container } = await renderWithMonthCal()
 
     await act(async () => {
@@ -103,15 +103,29 @@ describe('MonthCalWidget', () => {
     expect(container.querySelectorAll('.ring-accent')).toHaveLength(0)
     expect(cell(container, '2026-04-15')).toBeTruthy()
 
-    const todayBtn = screen.getByRole('button', { name: 'Today' })
+    const todayBtn = screen.getByRole('button', { name: 'Back to today' })
     expect(todayBtn).toBeTruthy()
+    // Position assertion (fix-wave, MERGE-BLOCKING regression test): the
+    // Today button must live INSIDE the header row (data-monthcal-header),
+    // not on its own line below the header and above the table — that's
+    // the exact structural shape whose extra 21px of height collapsed the
+    // monthCal->habits column seam in any off-current 6-row month. Asserting
+    // containment (not just presence) is what would catch a regression back
+    // to the old below-header placement.
+    const header = container.querySelector('[data-monthcal-header]')
+    expect(header).toBeTruthy()
+    expect(header!.contains(todayBtn)).toBe(true)
+    // ...and it must appear BEFORE the table in document order (still part
+    // of the header, never sunk below the grid).
+    const table = screen.getByRole('table')
+    expect(todayBtn.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await act(async () => {
       todayBtn.click()
     })
 
     expect(screen.getByText('May 2026')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Today' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Back to today' })).toBeNull()
     expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')
   })
 
@@ -125,6 +139,41 @@ describe('MonthCalWidget', () => {
     expect(screen.getByText('June 2026')).toBeTruthy()
     expect(cell(container, '2026-06-15')).toBeTruthy()
     expect(cell(container, TODAY_KEY)).toBeNull() // May's own cells are gone
+  })
+
+  it('Next month navigation carries the year across a December->January boundary (regression: the harness\'s own forcing loop surfaced "Calendar: undefined 2026" here before the fix)', async () => {
+    const { container } = await renderWithMonthCal()
+
+    // May 2026 -> January 2027 is 8 Next clicks. Before the fix, `view.m0`
+    // was never normalized back into 0-11 by goNext itself (only monthGrid's
+    // OWN internal call normalized, which is why the grid always looked
+    // right while the header text silently broke) — MONTH_NAMES[12] is
+    // undefined, and `view.y` never incremented on the way past December,
+    // so the header rendered "undefined 2026" instead of "January 2027".
+    await act(async () => {
+      for (let i = 0; i < 8; i++) {
+        screen.getByRole('button', { name: 'Next month' }).click()
+      }
+    })
+
+    expect(screen.getByText('January 2027')).toBeTruthy()
+    expect(screen.queryByText(/undefined/)).toBeNull()
+    expect(cell(container, '2027-01-15')).toBeTruthy()
+  })
+
+  it('Previous month navigation carries the year across a January->December boundary', async () => {
+    const { container } = await renderWithMonthCal()
+
+    // May 2026 -> December 2025 is 5 Previous clicks.
+    await act(async () => {
+      for (let i = 0; i < 5; i++) {
+        screen.getByRole('button', { name: 'Previous month' }).click()
+      }
+    })
+
+    expect(screen.getByText('December 2025')).toBeTruthy()
+    expect(screen.queryByText(/undefined/)).toBeNull()
+    expect(cell(container, '2025-12-15')).toBeTruthy()
   })
 
   it('countdown dot parity: a countdown dated exactly TODAY dots today\'s cell — the identical date string daysUntil (CountdownLine\'s own parser) treats as day 0', async () => {

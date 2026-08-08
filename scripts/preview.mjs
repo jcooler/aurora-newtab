@@ -3766,6 +3766,22 @@ console.log(
   // and every measurement in this gate reflect monthCal's REAL worst-case
   // height, not whatever row count the calendar happens to have on the date
   // this script runs.
+  //
+  // ALWAYS click Next at least ONCE before the loop even starts (final-
+  // review fix wave, MERGE-BLOCKING): the Today button only renders off the
+  // CURRENT month, so without this unconditional first move, a 6-row
+  // CURRENT month (August 2026 — this repo's own reference worst case, see
+  // monthGrid.ts's own doc comment) would satisfy the 42-cell check on the
+  // very first iteration with zero clicks, forcing the worst-case row count
+  // while landing on the one state where the Today button is invisible —
+  // exactly the harness time bomb review caught: run this same loop from
+  // Sept 1 (a 5-row month) and it lands on an off-current 6-row month WITH
+  // the button for the first time, changing what gets measured with no code
+  // change. One guaranteed Next click first makes every run of this loop,
+  // on every date, measure the off-current shape the button actually ships
+  // in.
+  await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+  await page.waitForTimeout(30)
   let monthCalCellCount = 0
   for (let i = 0; i < 14; i++) {
     monthCalCellCount = await page.evaluate(
@@ -3780,6 +3796,18 @@ console.log(
     monthCalCellCount === 42
       ? 'PASS: forced monthCal to its 6-row worst case inside the combined-defaults gate'
       : `FAIL: forced monthCal to its 6-row worst case inside the combined-defaults gate (cellCount=${monthCalCellCount})`,
+  )
+  // Defensive, not redundant: proves the state above is actually off-current
+  // (the Today button renders), rather than trusting the "one prior click"
+  // reasoning alone — the one scenario that reasoning doesn't cover (landing
+  // back on the current month after a multiple-of-12 wrap) would silently
+  // reintroduce the exact bug this whole change exists to prevent, and this
+  // is what would catch it.
+  const todayBtnPresentCombined = (await page.locator(`${monthCalSel} button[aria-label="Back to today"]`).count()) > 0
+  console.log(
+    todayBtnPresentCombined
+      ? 'PASS: the header Today button is present in the forced (off-current, 6-row) state — combined-defaults gate'
+      : 'FAIL: the header Today button is present in the forced (off-current, 6-row) state — combined-defaults gate',
   )
 
   let gateErrorsSeen = errors.length
@@ -4062,6 +4090,42 @@ console.log(
 
   await setWeatherExpanded(false)
   await page.waitForTimeout(150)
+
+  // Zero-height guarantee (final-review fix wave, MERGE-BLOCKING bug class)
+  // — the Today affordance now lives INSIDE the header row next to the
+  // month label instead of on its own line below it (App.tsx's own
+  // monthCal PositionedBlock comment carries the full writeup of the bug
+  // this replaced: a below-header button added 21px and silently collapsed
+  // the monthCal->habits seam whenever it appeared). This is the falsifying
+  // assertion for that whole bug class: compare the HEADER ROW's own
+  // measured height (not the whole card — the card's height also depends on
+  // row count, 5 vs 6 rows, which is unrelated to the button and would
+  // confound a whole-card comparison) in the current forced state (off-
+  // current, button present, from the loop above) against the same header
+  // once back on the current month (button absent, via the SAME "Back to
+  // today" control the unit tests exercise). Still monthCal's own 6-row
+  // worst case throughout — this doesn't touch row count, only which
+  // controls the header row holds.
+  const monthCalHeaderSel = `${monthCalSel} [data-monthcal-header]`
+  const headerHeightWithButton = await page.evaluate(
+    (sel) => document.querySelector(sel)?.getBoundingClientRect().height ?? null,
+    monthCalHeaderSel,
+  )
+  await page.click(`${monthCalSel} button[aria-label="Back to today"]`)
+  await page.waitForTimeout(100)
+  const headerHeightWithoutButton = await page.evaluate(
+    (sel) => document.querySelector(sel)?.getBoundingClientRect().height ?? null,
+    monthCalHeaderSel,
+  )
+  const zeroHeightOkCombined =
+    headerHeightWithButton !== null &&
+    headerHeightWithoutButton !== null &&
+    Math.abs(headerHeightWithButton - headerHeightWithoutButton) < 0.5
+  console.log(
+    zeroHeightOkCombined
+      ? `PASS: monthCal's header row height is identical with and without the Today button — zero-height guarantee (${headerHeightWithButton}px both, combined-defaults gate)`
+      : `FAIL: monthCal's header row height is identical with and without the Today button — zero-height guarantee (withButton=${headerHeightWithButton}, withoutButton=${headerHeightWithoutButton}, combined-defaults gate)`,
+  )
 
   // Restore: disable ALL SEVEN connectors plus monthCal/habits, clear
   // habits/connector cache, then reload so nothing here leaks into the
@@ -4452,7 +4516,7 @@ console.log(
   console.log('captured widgets-habits.png')
 
   // Measured floor assertions for the slot (Global Constraints: the mid-left
-  // second column, `left-[21rem] top-[42vh] w-56` — the plan's own starting
+  // second column, `left-[23rem] top-[42vh] w-56` — the plan's own starting
   // hypothesis was `47vh`; Task 57 first corrected it to `43vh` after this
   // exact block measured a real 12.5px overlap with the links row at the
   // 6-chip worst case; Task 58 then re-derived it ONE MORE STEP, jointly
@@ -4781,6 +4845,22 @@ console.log(
   // after every click (instead of hand-computing an offset) means this is
   // correct regardless of the date, same "measure, don't assume" discipline
   // every placement comment in this file follows.
+  //
+  // ALWAYS click Next at least ONCE before the loop even starts (final-
+  // review fix wave, MERGE-BLOCKING): we just snapped back to the CURRENT
+  // month via the Today button above, and that button only renders OFF the
+  // current month. Without this unconditional first move, a 6-row current
+  // month (August 2026 — this repo's own reference worst case, see
+  // monthGrid.ts's own doc comment) would satisfy the 42-cell check on the
+  // very first iteration with zero clicks, forcing the worst-case row count
+  // while landing on the one state where the Today button is invisible —
+  // the harness time bomb review caught: this same loop, run from Sept 1 (a
+  // 5-row month), would land on an off-current 6-row month WITH the button
+  // for the first time and change what gets measured with no code change.
+  // One guaranteed Next click first makes every run of this loop, on every
+  // date, measure the off-current shape the button actually ships in.
+  await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+  await page.waitForTimeout(30)
   let sixRowMonth = null
   for (let i = 0; i < 14; i++) {
     const cellCount = await page.evaluate(
@@ -4802,6 +4882,18 @@ console.log(
     forcedOk
       ? `PASS: forced the month grid to its 6-row worst case (${sixRowMonth})`
       : 'FAIL: could not force a 6-row month within 14 Next-month clicks',
+  )
+  // Defensive, not redundant: proves the state above is actually off-current
+  // (the Today button renders), rather than trusting the "one prior click"
+  // reasoning alone — the one scenario that reasoning doesn't cover (landing
+  // back on the current month after a multiple-of-12 wrap) would silently
+  // reintroduce the exact bug this whole change exists to prevent, and this
+  // is what would catch it.
+  const todayBtnPresentForced = (await page.locator(`${monthCalSel} button[aria-label="Back to today"]`).count()) > 0
+  console.log(
+    todayBtnPresentForced
+      ? 'PASS: the header Today button is present in the forced (off-current, 6-row) state'
+      : 'FAIL: the header Today button is present in the forced (off-current, 6-row) state',
   )
 
   await page.screenshot({ path: `${outDir}/widgets-monthcal.png` })
@@ -4895,6 +4987,94 @@ console.log(
     bottomOk
       ? `PASS: habits' 6-chip worst-case bottom clears the links row by >=${FLOOR}px (${bottomGap}px; habits.bottom=${h?.bottom}, links.top=${rectsRaw.links?.top})`
       : `FAIL: habits' 6-chip worst-case bottom clears the links row by >=${FLOOR}px (gap=${bottomGap}px, habits=${JSON.stringify(h)}, links=${JSON.stringify(rectsRaw.links)})`,
+  )
+
+  // Zero-height guarantee (final-review fix wave, MERGE-BLOCKING bug class)
+  // — the Today affordance now lives INSIDE the header row next to the
+  // month label instead of on its own line below it (App.tsx's own
+  // monthCal PositionedBlock comment carries the full writeup of the bug
+  // this replaced: a below-header button added 21px and silently collapsed
+  // this exact seam whenever it appeared, in any off-current 6-row month).
+  // This is the falsifying assertion for that whole bug class: compare the
+  // HEADER ROW's own measured height (not the whole card — the card's
+  // height also depends on row count, 5 vs 6 rows, which is unrelated to
+  // the button and would confound a whole-card comparison) in the current
+  // forced state (off-current, button present, from the loop above)
+  // against the same header once back on the current month (button absent,
+  // via the SAME "Back to today" control the unit tests exercise). Still
+  // monthCal's own 6-row worst case throughout — this doesn't touch row
+  // count, only which controls the header row holds.
+  const monthCalHeaderSel = `${monthCalSel} [data-monthcal-header]`
+  const headerHeightWithButton = await page.evaluate(
+    (sel) => document.querySelector(sel)?.getBoundingClientRect().height ?? null,
+    monthCalHeaderSel,
+  )
+  await page.click(`${monthCalSel} button[aria-label="Back to today"]`)
+  await page.waitForTimeout(100)
+  const headerHeightWithoutButton = await page.evaluate(
+    (sel) => document.querySelector(sel)?.getBoundingClientRect().height ?? null,
+    monthCalHeaderSel,
+  )
+  const zeroHeightOk =
+    headerHeightWithButton !== null &&
+    headerHeightWithoutButton !== null &&
+    Math.abs(headerHeightWithButton - headerHeightWithoutButton) < 0.5
+  console.log(
+    zeroHeightOk
+      ? `PASS: monthCal's header row height is identical with and without the Today button — zero-height guarantee (${headerHeightWithButton}px both)`
+      : `FAIL: monthCal's header row height is identical with and without the Today button — zero-height guarantee (withButton=${headerHeightWithButton}, withoutButton=${headerHeightWithoutButton})`,
+  )
+
+  // Worst-case label width (final-review fix wave) — the zero-height check
+  // above proves the header row never GROWS at whatever month the 6-row
+  // forcing loop happened to land on this run; this additionally forces the
+  // header to "September" (MonthCalWidget.tsx's own MONTH_NAMES array's
+  // longest entry, 9 characters — the real worst case for the label+Today
+  // fit this task's own doc comment claims), with the Today button visible,
+  // and asserts the label renders in FULL (no CSS truncation swallowing the
+  // month name — `truncate` on `[data-monthcal-label]` is a defensive floor,
+  // not a design choice) and the Next button stays inside the card's own
+  // right edge. Click count is unbounded by the current date (up to 12
+  // covers any starting month) rather than assumed.
+  let septemberCaption = null
+  for (let i = 0; i < 12; i++) {
+    septemberCaption = await page.evaluate(
+      (sel) => document.querySelector(`${sel} table caption`)?.textContent ?? null,
+      monthCalSel,
+    )
+    if (septemberCaption && septemberCaption.includes('September')) break
+    await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+    await page.waitForTimeout(20)
+  }
+  const labelFit = await page.evaluate(
+    ({ headerSel, labelSel }) => {
+      const header = document.querySelector(headerSel)
+      const label = document.querySelector(labelSel)
+      const nextBtn = header?.querySelector('button[aria-label="Next month"]')
+      const todayBtn = header?.querySelector('button[aria-label="Back to today"]')
+      if (!header || !label || !nextBtn) return null
+      const hRect = header.getBoundingClientRect()
+      const nRect = nextBtn.getBoundingClientRect()
+      return {
+        labelText: label.textContent,
+        clipped: label.scrollWidth > label.clientWidth + 0.5,
+        todayBtnPresent: !!todayBtn,
+        nextBtnWithinHeader: nRect.right <= hRect.right + 0.5,
+      }
+    },
+    { headerSel: monthCalHeaderSel, labelSel: `${monthCalSel} [data-monthcal-label]` },
+  )
+  const labelFitOk =
+    septemberCaption !== null &&
+    septemberCaption.includes('September') &&
+    labelFit !== null &&
+    !labelFit.clipped &&
+    labelFit.todayBtnPresent &&
+    labelFit.nextBtnWithinHeader
+  console.log(
+    labelFitOk
+      ? `PASS: monthCal's header row fits its own longest label ("${labelFit.labelText}") with the Today button showing, uncropped, Next button still inside the card`
+      : `FAIL: monthCal's header row fits its own longest label with the Today button showing (caption=${JSON.stringify(septemberCaption)}, ${JSON.stringify(labelFit)})`,
   )
 
   // Restore: both widgets off, habits cleared, RSS disabled + cache
