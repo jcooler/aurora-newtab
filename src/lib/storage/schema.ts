@@ -1,7 +1,7 @@
 import type { Layout } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 6
+export const CURRENT_VERSION = 7
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 

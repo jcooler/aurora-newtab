@@ -5,7 +5,7 @@ import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { defaults, type Countdown } from '../../../lib/storage/schema'
-import { localDateKey } from '../../../lib/habits'
+import { todayKey } from '../../../lib/dates'
 import { daysUntil } from '../../../lib/worldTime'
 import MonthCalWidget from './MonthCalWidget'
 
@@ -128,11 +128,17 @@ describe('MonthCalWidget', () => {
   })
 
   it('countdown dot parity: a countdown dated exactly TODAY dots today\'s cell — the identical date string daysUntil (CountdownLine\'s own parser) treats as day 0', async () => {
-    // Parity anchor, proven against the REAL function CountdownLine.tsx
-    // imports (not a re-implementation): the same date key this widget dots
-    // is the one daysUntil calls "0 days away" for the same todayKey.
+    // Parity anchor, proven against the REAL functions CountdownLine.tsx
+    // itself imports (not equivalent-but-differently-named
+    // re-implementations): `todayKey` from lib/dates.ts is the literal
+    // function CountdownLine.tsx calls to get "today"; `daysUntil` from
+    // worldTime.ts is the literal function it calls to compare a countdown's
+    // date against it. Both agreeing with MonthCalWidget's own
+    // (independently written, habits.ts-derived) date key is the actual
+    // parity proof — letter-exact against the consumer, not just
+    // functionally-equivalent-by-construction.
     expect(daysUntil(TODAY_KEY, TODAY_KEY)).toBe(0)
-    expect(localDateKey(NOW)).toBe(TODAY_KEY)
+    expect(todayKey(NOW)).toBe(TODAY_KEY)
 
     const { container } = await renderWithMonthCal({
       countdowns: [{ id: 'c1', name: 'Launch day', date: TODAY_KEY }],

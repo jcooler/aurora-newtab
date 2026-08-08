@@ -4303,12 +4303,16 @@ console.log(
   console.log('captured widgets-habits.png')
 
   // Measured floor assertions for the slot (Global Constraints: the mid-left
-  // second column, `left-[21rem] top-[43vh] w-56` — the plan's own starting
-  // hypothesis was `47vh`, corrected here after this exact block first
-  // measured a real 12.5px overlap with the links row at the 6-chip worst
-  // case; see App.tsx's own PositionedBlock comment for the full writeup.
-  // Provisional until Task 58 re-derives this jointly with the month grid
-  // above it).
+  // second column, `left-[21rem] top-[42vh] w-56` — the plan's own starting
+  // hypothesis was `47vh`; Task 57 first corrected it to `43vh` after this
+  // exact block measured a real 12.5px overlap with the links row at the
+  // 6-chip worst case; Task 58 then re-derived it ONE MORE STEP, jointly
+  // with the month grid now above it, landing here at `42vh` — see
+  // App.tsx's own habits/monthCal PositionedBlock comments for the full
+  // joint-column arithmetic, and this file's own monthCal block below,
+  // which re-measures this same seam at BOTH widgets' worst cases
+  // simultaneously. No longer provisional — this IS the joint re-derivation
+  // the earlier version of this comment used to defer to Task 58.
   const rectsRaw = await page.evaluate(
     ({ habitsSel: hSel, rssSel: rSel, linksSel: lSel, centeredSels: cSels }) => {
       const r = (sel) => {

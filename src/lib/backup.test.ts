@@ -456,6 +456,34 @@ describe('validateBackupShape: migration-then-validate order', () => {
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.settings.name).toBe('Jon')
   })
+
+  // Fix round 1 (post-review, Task 58): a REAL v6-tagged backup — exported
+  // by an app instance sometime between Task 57 (habits) and Task 58
+  // (monthCal) landing, so its settings.widgets has `habits` but not yet
+  // `monthCal` — was being REJECTED WHOLESALE on import: isWidgetToggles
+  // (backup.ts) requires EVERY WIDGET_KEYS entry present as a boolean, and
+  // `monthCal` was simply absent from a genuinely v6-era snapshot (neither
+  // Task 57 nor Task 58 bumped CURRENT_VERSION when its own widget toggle
+  // landed). migrations.ts's new v6->v7 step is what closes this — proven
+  // here via the exact migrate-then-validate order Data.tsx's real import
+  // handler uses (parseBackup -> migrate(data, version) ->
+  // validateBackupShape(migrated)), same as every other era's test in this
+  // describe block.
+  it('a v6-era backup whose settings.widgets predates monthCal migrates forward and then still passes validation', () => {
+    const v6Widgets = {
+      search: true, weather: true, links: true, todo: true, timer: false,
+      quote: true, bookmarks: false, notes: true, clocks: false, countdown: false,
+      habits: true, // v6 already had this one (Task 57) — the point of this test is monthCal, not habits
+      // monthCal intentionally absent — the actual v6-era gap
+    }
+    const migrated = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: v6Widgets } }, 6)
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.settings.widgets.habits).toBe(true) // stored choice preserved
+      expect(result.data.settings.widgets.monthCal).toBe(false) // backfilled by the v6->v7 step
+    }
+  })
 })
 
 describe('validateBackupShape: unknown-key dropping', () => {

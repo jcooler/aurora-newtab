@@ -18,7 +18,8 @@ describe('migrate', () => {
     const registry: Record<number, Migration> = {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
-      // v4 -> v5, registry[5] upgrades v5 -> v6 (CURRENT_VERSION)
+      // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7
+      // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -43,9 +44,13 @@ describe('migrate', () => {
         calls.push(5)
         return data
       },
+      6: (data) => {
+        calls.push(6)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -230,5 +235,91 @@ describe('v5 -> v6', () => {
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
+  })
+})
+
+// Fix round 1 (post-review, Task 58): habits (Task 57) and monthCal (this
+// task) BOTH added a new WidgetToggles member without bumping
+// CURRENT_VERSION — the exact "nested keys are exactly what the final
+// default-merge does NOT backfill" gap v1->v2 already exists to close (see
+// that step's own comment), just reopened a second time. Any snapshot still
+// tagged v6 can therefore be missing EITHER key depending on when it was
+// captured relative to those two tasks landing (a backup taken between them
+// has `habits` but not `monthCal`; one taken before both has neither) — this
+// step is deliberately GENERIC (spreads defaults().settings.widgets under
+// whatever's already stored, same shape as v1->v2's own step) rather than
+// naming the two keys specifically, so it backfills whichever are actually
+// missing and doesn't need a THIRD version of itself the next time a widget
+// toggle lands without its own migration.
+describe('v6 -> v7', () => {
+  it('backfills habits AND monthCal while preserving a user choice for a key that already existed in v6', () => {
+    const v6Widgets = {
+      search: true, weather: false, links: true, todo: true, timer: false,
+      quote: true, bookmarks: false, notes: true, clocks: false, countdown: false,
+      habits: true, // already existed in v6's WidgetToggles (Task 57) — an explicit user choice
+      // monthCal absent — the actual v6-era gap this step exists to close
+    }
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: v6Widgets } }, 6)
+    expect(out.settings.name).toBe('Jon')
+    expect(out.settings.widgets.weather).toBe(false) // stored choice survives
+    expect(out.settings.widgets.habits).toBe(true) // stored choice survives (an explicitly-true nested key)
+    expect(out.settings.widgets.monthCal).toBe(false) // new key backfilled from defaults()
+  })
+
+  it('tolerates a v6 snapshot with no settings at all', () => {
+    const out = migrate({}, 6)
+    expect(out.settings.widgets.habits).toBe(false)
+    expect(out.settings.widgets.monthCal).toBe(false)
+  })
+
+  it('guards against a non-object settings (e.g. a hand-edited string): defaults win, no garbage keys', () => {
+    const out = migrate({ settings: 'oops' }, 6)
+    expect(out.settings).toEqual(defaults().settings)
+    expect(Object.keys(out.settings)).toEqual(Object.keys(defaults().settings))
+  })
+
+  it('guards against a non-object widgets nested inside a valid settings object', () => {
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: 'oops' } }, 6)
+    expect(out.settings.name).toBe('Jon') // rest of settings still preserved
+    expect(out.settings.widgets).toEqual(defaults().settings.widgets)
+  })
+
+  it('guards against an array settings (arrays are typeof "object" too)', () => {
+    const out = migrate({ settings: ['oops'] }, 6)
+    expect(out.settings).toEqual(defaults().settings)
+  })
+
+  it('spread-preserves the rest of the snapshot untouched by this step', () => {
+    const out = migrate(
+      { settings: defaults().settings, habits: [{ id: 'h1', name: 'Read', createdAt: 0, log: [] }] },
+      6,
+    )
+    expect(out.habits).toEqual([{ id: 'h1', name: 'Read', createdAt: 0, log: [] }])
+  })
+
+  it('a v1 snapshot chains through all six migrations, ending with habits AND monthCal present and every v6-era key intact', () => {
+    const out = migrate({}, 1)
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
+    expect(out.connectors).toEqual({}) // v4->v5 ran
+    expect(out.habits).toEqual([]) // v5->v6 ran
+    expect(out.settings.widgets.habits).toBe(false) // v6->v7 ran (backfilled)
+    expect(out.settings.widgets.monthCal).toBe(false) // v6->v7 ran (backfilled)
+  })
+
+  it('an explicitly-true widget already present in a v1 snapshot survives the full v1->v7 chain untouched', () => {
+    const v1Settings = {
+      name: 'Jon',
+      use24Hour: false,
+      theme: 'aurora',
+      units: 'metric',
+      muted: false,
+      widgets: { search: false, weather: true, links: true, todo: true, timer: true, quote: false },
+    }
+    const out = migrate({ settings: v1Settings }, 1)
+    expect(out.settings.widgets.weather).toBe(true) // user's v1-era choice, still honored 6 steps later
+    expect(out.settings.widgets.habits).toBe(false) // backfilled default (v1->v2 step, unaffected by v6->v7)
+    expect(out.settings.widgets.monthCal).toBe(false) // backfilled default (v6->v7 step)
   })
 })

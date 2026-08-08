@@ -57,6 +57,35 @@ export const migrations: Record<number, Migration> = {
   // so this is a plain top-level backfill, same style as v4->v5's
   // `connectors: {}` / `connectorSnapshots: {}`.
   5: (data) => ({ ...data, habits: [] }),
+  // v6 -> v7: widget toggles gained MORE nested keys — `habits` (Task 57)
+  // and `monthCal` (Task 58) — and NEITHER task bumped CURRENT_VERSION when
+  // it landed (each merely added a new WidgetToggles member and a
+  // defaults() entry). That reopened the exact gap v1->v2 exists to close
+  // (see that step's own comment: "Nested keys are exactly what the final
+  // default-merge does NOT backfill") — caught in review when a real v6
+  // backup (predating one or both keys, depending on when it was captured)
+  // was rejected wholesale by backup.ts's isWidgetToggles, which requires
+  // EVERY known widget key present as a boolean.
+  //
+  // Deliberately GENERIC, not hardcoded to `habits`/`monthCal` by name —
+  // byte-identical shape to v1->v2's own step, spreading
+  // `defaults().settings.widgets` under whatever's already stored so any
+  // widget key missing from an older snapshot gets backfilled (stored
+  // values always win), without needing a THIRD version of this same fix
+  // the next time a widget toggle ships without its own migration.
+  6: (data) => {
+    const d = defaults()
+    const settings = isPlainObject(data.settings) ? data.settings : {}
+    const widgets = isPlainObject(settings.widgets) ? settings.widgets : {}
+    return {
+      ...data,
+      settings: {
+        ...d.settings,
+        ...settings,
+        widgets: { ...d.settings.widgets, ...widgets },
+      },
+    }
+  },
 }
 
 export function migrate(
