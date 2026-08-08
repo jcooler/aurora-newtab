@@ -18,7 +18,7 @@ describe('migrate', () => {
     const registry: Record<number, Migration> = {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
-      // v4 -> v5 (CURRENT_VERSION)
+      // v4 -> v5, registry[5] upgrades v5 -> v6 (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -39,9 +39,13 @@ describe('migrate', () => {
         calls.push(4)
         return data
       },
+      5: (data) => {
+        calls.push(5)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -197,5 +201,34 @@ describe('v4 -> v5', () => {
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
+  })
+})
+
+// Task 56: habits key (SP4). Brand new, like connectors/connectorSnapshots
+// before it — a plain top-level backfill, same style as v4->v5.
+describe('v5 -> v6', () => {
+  it('backfills an empty habits array', () => {
+    const out = migrate({ settings: defaults().settings, connectors: {}, connectorSnapshots: {} }, 5)
+    expect(out.habits).toEqual([])
+  })
+
+  it('tolerates a v5 snapshot with no habits at all', () => {
+    const out = migrate({}, 5)
+    expect(out.habits).toEqual([])
+  })
+
+  it('spread-preserves the rest of the snapshot untouched by this step', () => {
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon' } }, 5)
+    expect(out.settings.name).toBe('Jon')
+  })
+
+  it('a v1 snapshot chains through all five migrations, ending with habits present and every v5-era key intact', () => {
+    const out = migrate({}, 1)
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
+    expect(out.connectors).toEqual({}) // v4->v5 ran
+    expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
+    expect(out.habits).toEqual([]) // v5->v6 ran
   })
 })

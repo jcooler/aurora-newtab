@@ -223,6 +223,60 @@ describe('connector config / snapshot handling (Task 39)', () => {
   })
 })
 
+// Task 56: schema v6 habits key. Unlike connectors/layout (whole-key
+// validation, then drop-unknown-id cleaning), habits cleaning drops
+// individual malformed ROWS and filters malformed log entries within an
+// otherwise-valid row — a corrupted or hand-edited backup should not lose
+// every habit because one row is bad.
+describe('habits export / import (Task 56)', () => {
+  it('export includes habits verbatim', () => {
+    const habit = { id: 'h1', name: 'Read', createdAt: 1000, log: ['2026-07-01', '2026-07-02'] }
+    const input = { ...defaults(), habits: [habit] }
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.habits).toEqual([habit])
+  })
+
+  it('import drops a malformed row but keeps valid siblings', () => {
+    const good = { id: 'h1', name: 'Read', createdAt: 1000, log: ['2026-07-01'] }
+    const data = {
+      ...defaults(),
+      habits: [good, { id: 42, name: 'Bad id', createdAt: 1000, log: [] }, { id: 'h3', log: [] }],
+    }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.habits).toEqual([good])
+    }
+  })
+
+  it("a log entry 'not-a-date' is filtered while its habit survives", () => {
+    const data = {
+      ...defaults(),
+      habits: [{ id: 'h1', name: 'Read', createdAt: 1000, log: ['2026-07-01', 'not-a-date', '2026-07-03'] }],
+    }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.habits).toEqual([
+        { id: 'h1', name: 'Read', createdAt: 1000, log: ['2026-07-01', '2026-07-03'] },
+      ])
+    }
+  })
+
+  it('rejects habits as a string, naming the key', () => {
+    const bad = { ...defaults(), habits: 'oops' }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "habits" data is invalid.' })
+  })
+
+  it('drops a habit row whose log is not an array', () => {
+    const data = { ...defaults(), habits: [{ id: 'h1', name: 'Read', createdAt: 1000, log: 'oops' }] }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.habits).toEqual([])
+  })
+})
+
 describe('parseBackup rejections', () => {
   it('rejects non-JSON with a distinct reason', () => {
     const result = parseBackup('not json at all {')

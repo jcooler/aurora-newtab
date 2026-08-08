@@ -1,7 +1,7 @@
 import type { Layout } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 5
+export const CURRENT_VERSION = 6
 
 export type ThemeId = 'glass' | 'mono' | 'aurora'
 
@@ -117,6 +117,17 @@ export interface Countdown {
   date: string // YYYY-MM-DD
 }
 
+/** log = local YYYY-MM-DD keys, days marked done. Unordered-tolerant and
+ *  duplicate-tolerant — src/lib/habits.ts reads it via Set membership, never
+ *  by position. Capped at 6 habits at the UI boundary; tolerated structurally
+ *  (an imported backup over the cap is not rejected here). */
+export interface Habit {
+  id: string
+  name: string
+  createdAt: number
+  log: string[]
+}
+
 export interface AuroraData {
   settings: Settings
   focus: Focus | null
@@ -132,6 +143,7 @@ export interface AuroraData {
   layout: Layout
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
+  habits: Habit[]
 }
 
 export type DataKey = keyof AuroraData
@@ -170,5 +182,6 @@ export function defaults(): AuroraData {
     layout: {},
     connectors: {},
     connectorSnapshots: {},
+    habits: [],
   }
 }

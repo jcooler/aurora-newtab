@@ -53,6 +53,10 @@ export const migrations: Record<number, Migration> = {
   // isPlainObject-guarded style v1->v2 needs (there's no prior shape to
   // corrupt or nested user data to preserve here).
   4: (data) => ({ ...data, connectors: {}, connectorSnapshots: {} }),
+  // v5 -> v6: habits key (Task 56). Brand new — no v5 user has ever had it —
+  // so this is a plain top-level backfill, same style as v4->v5's
+  // `connectors: {}` / `connectorSnapshots: {}`.
+  5: (data) => ({ ...data, habits: [] }),
 }
 
 export function migrate(

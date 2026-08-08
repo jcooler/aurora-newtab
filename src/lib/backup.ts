@@ -284,6 +284,15 @@ function isConnectors(v: unknown): boolean {
   return isPlainObject(v) && Object.values(v).every(isConnectorConfig)
 }
 
+// Habits gets its own, more lenient top-level check than e.g. isTodoLists:
+// only the container shape (an array) is validated here. Individual rows
+// (and log entries within a row) are validated and dropped one at a time by
+// cleanHabits below, rather than failing the whole import — a single
+// corrupted habit shouldn't cost the user every other one.
+function isHabits(v: unknown): boolean {
+  return Array.isArray(v)
+}
+
 const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
@@ -298,6 +307,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots'>, (v: unknown) =>
   countdowns: isCountdowns,
   layout: isLayout,
   connectors: isConnectors,
+  habits: isHabits,
 }
 
 const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
@@ -321,6 +331,33 @@ function cleanConnectors(v: unknown): AuroraData['connectors'] {
   const cleaned: AuroraData['connectors'] = {}
   for (const id of Object.keys(connectors) as ConnectorId[]) {
     if (CONNECTOR_ID_SET.has(id)) cleaned[id] = connectors[id]
+  }
+  return cleaned
+}
+
+const LOG_KEY_RE = /^\d{4}-\d{2}-\d{2}$/
+
+/** Drops any habit row with a non-string id/name or non-array log entirely
+ *  (isHabits above only confirmed the container is an array — row shape is
+ *  this function's job); a surviving row's log is filtered down to
+ *  well-formed date-key entries one at a time, same restraint as
+ *  cleanLayout/cleanConnectors: never throw, drop the bad part, keep the
+ *  rest. createdAt isn't part of the drop criteria (not user-facing
+ *  identity like id/name) — a malformed value falls back to 0 rather than
+ *  losing the whole row. */
+function cleanHabits(v: unknown): AuroraData['habits'] {
+  const rows = v as unknown[]
+  const cleaned: AuroraData['habits'] = []
+  for (const row of rows) {
+    if (!isPlainObject(row)) continue
+    const { id, name, createdAt, log } = row
+    if (!isString(id) || !isString(name) || !Array.isArray(log)) continue
+    cleaned.push({
+      id,
+      name,
+      createdAt: isNumber(createdAt) ? createdAt : 0,
+      log: log.filter((entry): entry is string => isString(entry) && LOG_KEY_RE.test(entry)),
+    })
   }
   return cleaned
 }
@@ -356,9 +393,18 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
     // Known block/connector ids pass VALIDATORS as-is; unknown ones (extra
     // keys inside an otherwise-valid layout/connectors object) are dropped
     // here, matching the unknown-top-level-key convention above rather than
-    // failing the import.
+    // failing the import. habits follows the same drop-rather-than-fail
+    // spirit, but per malformed ROW (and per malformed log entry within an
+    // otherwise-valid row) rather than by a fixed id whitelist — see
+    // cleanHabits.
     cleaned[key] =
-      key === 'layout' ? cleanLayout(value) : key === 'connectors' ? cleanConnectors(value) : value
+      key === 'layout'
+        ? cleanLayout(value)
+        : key === 'connectors'
+          ? cleanConnectors(value)
+          : key === 'habits'
+            ? cleanHabits(value)
+            : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
 }
