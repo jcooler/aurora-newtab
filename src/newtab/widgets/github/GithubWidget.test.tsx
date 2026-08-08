@@ -85,13 +85,15 @@ describe('GithubWidget', () => {
     expect(screen.queryByText(/unread/)).toBeNull()
   })
 
-  // Caps added/lowered (Task 55 fix round): this is a glance panel sharing
-  // the right column's ~630px budget with gitlab's and jira's own cards (see
-  // GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment). Seeds cap+1 of each
-  // so a regression back to a looser cap (or no cap) fails visibly.
-  it('caps PR rows at 3', async () => {
+  // Caps added/lowered (Task 55 fix round 1, MAX_PRS lowered again in fix
+  // round 2): this is a glance panel sharing the right column's budget with
+  // gitlab's and jira's own cards, AND with the collapsed weather chip's own
+  // worst-case height above it (see GithubWidget.tsx's own MAX_PRS/
+  // MAX_ISSUES comment). Seeds cap+1 of each so a regression back to a
+  // looser cap (or no cap) fails visibly.
+  it('caps PR rows at 2', async () => {
     const many: GithubData = {
-      prs: Array.from({ length: 4 }, (_, i) => ({
+      prs: Array.from({ length: 3 }, (_, i) => ({
         title: `PR ${i}`,
         url: `https://github.com/o/r/pull/${i}`,
         repo: 'o/r',
@@ -103,8 +105,8 @@ describe('GithubWidget', () => {
     const storage = await seededStorage(CONNECTED, many)
     mount(storage)
     await screen.findByText('PR 0')
-    expect(screen.getByText('PR 2')).toBeTruthy()
-    expect(screen.queryByText('PR 3')).toBeNull()
+    expect(screen.getByText('PR 1')).toBeTruthy()
+    expect(screen.queryByText('PR 2')).toBeNull()
   })
 
   it('caps issue rows at 2', async () => {

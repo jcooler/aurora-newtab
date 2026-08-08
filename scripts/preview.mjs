@@ -1628,9 +1628,12 @@ console.log(
   console.log('captured connectors-github.png')
 
   // Probe 3: combined-defaults collision — the GitHub widget at its default
-  // placement (right-middle: fixed right-8 top-[14vh] as of the Task 55 fix
-  // round — see the combined-defaults gate near the end of this file for why
-  // it moved up from top-[24vh]) must clear the collapsed
+  // placement (right-middle: fixed right-8 top-[21vh] as of Task 55 fix
+  // round 2 — see the combined-defaults gate and the weather chip
+  // worst-case probe near the end of this file for the full history: 24vh
+  // -> 14vh in fix round 1, 14vh -> 21vh in round 2, once review found the
+  // chip's real worst-case height, not its lucky-day observed one) must
+  // clear the collapsed
   // weather chip (top-right band) and the timer pill (top-left), plus the
   // bottom-right Tasks pill and settings gear it is nearest to. Same
   // rect-intersection idiom as the RSS collision probe above.
@@ -1730,13 +1733,16 @@ console.log(
 // (fetchedAt stamped in the page so the ttl is fresh at read time and
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitHub block (github left disabled), captures, probes its own defaults,
-// THEN — since github's default slot (top-[14vh] as of the Task 55 fix
-// round) sits directly above gitlab's (top-[48vh], same fix round — see the
-// combined-defaults gate near the end of this file for the full history:
-// 46vh -> 54vh in Task 55's own combined-defaults gate, then 54vh -> 48vh
-// in the fix round that lowered every right-column connector's display cap
-// and moved github up too) — momentarily re-enables github alongside gitlab
-// to prove the two stack
+// THEN — since github's default slot (top-[21vh] as of Task 55 fix round 2)
+// sits directly above gitlab's (top-[50vh], same round — see the
+// combined-defaults gate and the weather chip worst-case probe near the end
+// of this file for the full history: 46vh -> 54vh in Task 55's own
+// combined-defaults gate, 54vh -> 48vh in fix round 1 (lowered every
+// right-column connector's display cap and moved github up), then
+// 48vh -> 50vh in fix round 2 (the weather chip's real, forced worst-case
+// height pushed github up again, from 14vh to 21vh, which pushed gitlab
+// down in turn)) — momentarily re-enables github alongside gitlab to prove
+// the two stack
 // without overlapping when BOTH are connected at once, before restoring
 // everything off so every block below (viewport matrix, default-state,
 // worst-case bookmarks) is undisturbed. NOTE: this probe's own github
@@ -1826,8 +1832,8 @@ console.log(
   console.log('captured connectors-gitlab.png')
 
   // Probe 3: combined-defaults collision — the GitLab widget at its default
-  // placement (right-middle, below github: fixed right-8 top-[48vh] as of
-  // the Task 55 fix round) must clear the collapsed weather chip (top-right band), the
+  // placement (right-middle, below github: fixed right-8 top-[50vh] as of
+  // Task 55 fix round 2) must clear the collapsed weather chip (top-right band), the
   // timer pill (top-left), plus the bottom-right Tasks pill and settings
   // gear it is nearest to. Same rect-intersection idiom as the GitHub
   // collision probe above.
@@ -1985,10 +1991,10 @@ console.log(
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitLab block (github + gitlab both left disabled), captures, probes its
 // own defaults (including the bottom-right Tasks pill it sits closest to —
-// jira's `top-[71vh]` default, as of the Task 55 fix round, is the LOWEST of
+// jira's `top-[72vh]` default, as of Task 55 fix round 2, is the LOWEST of
 // the three right-column connectors), THEN — since github's/gitlab's
-// default slots (top-[14vh], top-[48vh] as of that same fix round) sit
-// directly above jira's own (top-[71vh]) — momentarily re-enables ALL THREE
+// default slots (top-[21vh], top-[50vh] as of that same fix round) sit
+// directly above jira's own (top-[72vh]) — momentarily re-enables ALL THREE
 // alongside jira to prove
 // the full right-column stack never overlaps itself, before restoring
 // everything off so every block below (viewport matrix, default-state,
@@ -2093,8 +2099,8 @@ console.log(
   console.log('captured connectors-jira.png')
 
   // Probe 3: combined-defaults collision — the Jira widget at its default
-  // placement (right column, lowest: fixed right-8 top-[71vh] as of the
-  // Task 55 fix round)
+  // placement (right column, lowest: fixed right-8 top-[72vh] as of Task 55
+  // fix round 2)
   // must clear the collapsed weather chip (top-right band), the timer pill
   // (top-left), and — the one this default sits closest to — the
   // bottom-right Tasks pill and settings gear. Same rect-intersection idiom
@@ -3214,6 +3220,173 @@ console.log(
 }
 
 // ---------------------------------------------------------------------------
+// Weather chip WORST-CASE height probe (Task 55 fix round 2) — a review
+// catch on the fix round above: github's `top-[14vh]` (fix round 1's own
+// number) was pinned against the collapsed weather chip's OBSERVED bottom
+// (~120px at 1600x900) — but that observation came from this file's live
+// Open-Meteo fetch, which returns whatever New York's real weather happens
+// to be on the day this harness
+// runs. The chip is variable-height (WeatherWidget.tsx): a second line (the
+// rain callout, `text-sm text-accent`) renders whenever ANY of the next 12
+// hours has `precipProb >= NOTABLE_PRECIP` (30% — a routine, far-from-rare
+// threshold; see callout.ts/trend.ts), and a THIRD line (`text-xs
+// text-fg-muted`, "Updated a while ago" / "Offline — showing cached")
+// renders whenever the cached snapshot is stale (`useWeather.ts`'s
+// `MAX_AGE_MS`, 30 minutes) or the last fetch failed. The boolean-only
+// github-vs-weather collision probe earlier in this file (search "clears
+// the weather chip") only ever proves NO overlap against WHATEVER state the
+// live fetch happened to land in that run — it would pass on a dry day and
+// silently ship an overlap the first time it rains, exactly the class of
+// "lucky on some runs" bug the combined-defaults gate above exists to rule
+// out for connector content, just not yet for weather.
+//
+// Fix: force the chip's REAL worst case deterministically by seeding
+// `weatherCache` directly (chrome.storage.local, the same fixture-seeding
+// idiom every connector snapshot in this file already uses) instead of
+// depending on the live fetch — one hourly point at `precipProb: 45` (over
+// NOTABLE_PRECIP, under the 50% LIKELY_PRECIP threshold that would produce
+// the exact same ONE line anyway — see callout.ts) forces the callout line,
+// and a `fetchedAt` stamped `MAX_AGE_MS` well in the past (computed INSIDE
+// the page at evaluate time from the live `Date.now()`, the same
+// never-bake-a-raw-epoch discipline as the calendar/combined-defaults
+// blocks' own midnight-proof step idiom) forces the stale line — both
+// deterministic, independent of today's actual weather. Measures the
+// chip's real rendered bottom in this 3-line state, then asserts the gap to
+// `[data-block-id="github"]`'s own top against the same >=16px floor the
+// combined-defaults gate's own right-column probe uses — read directly off
+// the live DOM rather than a hardcoded top value, so this probe
+// re-validates itself if github's own `top-[Nvh]` is ever tuned again.
+// github does not
+// need to be CONNECTED for this: `PositionedBlock` always renders the
+// `[data-block-id="github"]` wrapper div with its default-placement
+// className (App.tsx) regardless of whether `GithubWidget` itself renders
+// content or null (PositionedBlock.tsx's own `if (!valid) return <div
+// data-block-id={id} className={className}>{children}</div>` branch — the
+// div, and therefore its CSS `top`, exists either way), so this probe can
+// run standalone, before any connector is ever seeded elsewhere in this
+// file. Restores `weatherCache` to `null` afterward — the same "unset"
+// state every block before this one already left it in (nothing in this
+// file seeds weatherCache — the live fetch is the norm) — and reloads, so
+// every block after this one resumes depending on the real Open-Meteo
+// fetch exactly as before this probe existed.
+//
+// MEASURED (this run, real headless Chromium, probe-logged below, never
+// assumed): the forced 3-line chip is 102px taller than its normal 1-line
+// ~58px height — top 62 (unchanged; `top-[var(--top-band)]`, content-
+// independent), bottom **164px** (vs. ~120px normal/lucky). That 164px
+// floor, +16px, is what pushed github's own default from `top-[14vh]`
+// (fix round 1) to `top-[21vh]` (189px, a real, measured, probe-logged
+// 25px gap below 164 — not the bare 16px minimum, since fix round 2 also
+// trimmed the three right-column cards' own chrome, see GithubWidget.tsx's
+// MAX_PRS comment, to buy back enough room for real margin everywhere
+// rather than landing exactly on every floor at once). See App.tsx's
+// github/gitlab/jira PositionedBlock comments for the full re-derived
+// right-column arithmetic this number feeds into.
+{
+  const hourlySeed = await page.evaluate(() => {
+    const MAX_AGE_MS = 30 * 60 * 1000
+    const now = Date.now()
+    const hourly = Array.from({ length: 12 }, (_, i) => {
+      const t = new Date(now + i * 3_600_000)
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+      return {
+        time: iso,
+        tempC: 18 + i * 0.3,
+        // Index 2 sits over NOTABLE_PRECIP (30%) but under LIKELY_PRECIP
+        // (50%) — forces callout.ts's "Possible rain" branch, the routine
+        // case, not the rarer "likely" one; either renders the same ONE
+        // line, so the choice doesn't change the height being measured.
+        precipProb: i === 2 ? 45 : 5,
+        code: i === 2 ? 61 : 1, // 61 = slight rain (WMO), 1 = mainly clear
+      }
+    })
+    return { hourly, staleFetchedAt: now - (MAX_AGE_MS + 10 * 60_000) } // 10min past the 30min floor
+  })
+  // Block the live Open-Meteo endpoint FIRST, before seeding or reloading.
+  // Without this, seeding a STALE `fetchedAt` backfires: `useWeather.ts`'s
+  // own mount effect treats "stale" and "needs a refetch" as the SAME
+  // condition (`Date.now() - fetchedAt >= MAX_AGE_MS`), so the instant this
+  // page reloads with an old `fetchedAt`, the widget fires a REAL network
+  // refresh — found by running this probe once without the block: it
+  // measured the chip back at its normal 1-line ~120px bottom
+  // (`hasCallout:false, hasStale:false`), because the live fetch resolved
+  // inside the post-reload wait and overwrote the seeded snapshot with
+  // today's real (rainless) weather before the measurement ran. Aborting
+  // the request instead lets that refresh FAIL (sets the widget's own
+  // `error` state, which renders the exact same "stale/offline" line as a
+  // merely-old `fetchedAt` would — `(stale || error)` in WeatherWidget.tsx
+  // — so either condition proves the height) without ever touching
+  // `chrome.storage.local`, so the seeded snapshot (forced rain hour AND
+  // old `fetchedAt`) survives on screen for the measurement below.
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+
+  await page.evaluate(
+    async ({ hourly, staleFetchedAt }) => {
+      await chrome.storage.local.set({
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: staleFetchedAt,
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { hourly: hourlySeed.hourly, staleFetchedAt: hourlySeed.staleFetchedAt },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(weatherSel, { timeout: 5000 }).catch(() => {})
+
+  const worst = await page.evaluate(
+    ({ wSel, ghSel }) => {
+      const w = document.querySelector(wSel)
+      const gh = document.querySelector(ghSel)
+      if (!w || !gh) return null
+      const wr = w.getBoundingClientRect()
+      const ghr = gh.getBoundingClientRect()
+      return {
+        chipFound: true,
+        text: w.textContent ?? '',
+        hasCallout: /rain/i.test(w.textContent ?? ''),
+        hasStale: /Updated a while ago|Offline/.test(w.textContent ?? ''),
+        chip: { top: +wr.top.toFixed(1), bottom: +wr.bottom.toFixed(1) },
+        github: { top: +ghr.top.toFixed(1) },
+      }
+    },
+    { wSel: weatherSel, ghSel: '[data-block-id="github"]' },
+  )
+  const WEATHER_GAP_FLOOR = 16
+  const forcedOk =
+    worst !== null &&
+    worst.hasCallout &&
+    worst.hasStale &&
+    worst.github.top - worst.chip.bottom >= WEATHER_GAP_FLOOR
+  const gap = worst ? +(worst.github.top - worst.chip.bottom).toFixed(1) : null
+  console.log(
+    forcedOk
+      ? `PASS: the collapsed weather chip's forced 3-line worst case (rain callout + stale line) clears github's default slot by >=${WEATHER_GAP_FLOOR}px (chip bottom ${worst.chip.bottom}, github top ${worst.github.top}, gap ${gap}px)`
+      : `FAIL: the collapsed weather chip's forced 3-line worst case clears github's slot by >=${WEATHER_GAP_FLOOR}px (${JSON.stringify(worst)}, gap ${gap}px)`,
+  )
+  await page.screenshot({ path: `${outDir}/weather-chip-worst-case.png` })
+  console.log('captured weather-chip-worst-case.png')
+
+  // Restore: unblock the Open-Meteo endpoint FIRST — otherwise the reload
+  // below would inherit the block and every subsequent live weather fetch
+  // in this file would fail too — then weatherCache back to unset (`null`),
+  // the state every block before this one already left it in, so the live
+  // fetch resumes normally for everything after this block, same restore
+  // discipline as every connector block in this file.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({ weatherCache: null })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
 // Combined-defaults gate (Task 55, revised in a later fix round) — THE phase
 // gate the whole connector roster (Tasks 44, 48-52, 54) has been building
 // toward. Every block above proved its OWN default clears its immediate
@@ -3257,6 +3430,33 @@ console.log(
 // fix round specifically because a boolean-only check is exactly what let
 // the regression ship unnoticed the first time.
 //
+// FIX ROUND 2 (a SECOND post-ship regression, also review-verified): the
+// fix round above re-pinned github's `top-[14vh]` against the collapsed
+// weather chip's bottom as OBSERVED from this file's live Open-Meteo fetch
+// (~120px, whatever New York's real weather happened to be that run) — but
+// the chip is variable-height (WeatherWidget.tsx: a rain-callout line
+// whenever any forecast hour has precipProb >= NOTABLE_PRECIP, 30%, a
+// routine threshold; a stale/offline line whenever the cache is >=30min old
+// or a fetch fails), and its REAL, deterministically-forced worst case is
+// 164px (see the "Weather chip WORST-CASE height probe" block right above
+// this one, which forces both lines via a seeded `weatherCache` plus a
+// blocked network route rather than trusting the day's actual weather) —
+// 44px more than the lucky 1-line observation fix round 1 was pinned
+// against, and enough to put github's then-current `top-[14vh]` (126px)
+// 38px INSIDE the chip's real worst-case span. Fixed the same way as fix
+// round 1 — a design change, not a point patch — but with TWO levers this
+// time, both explicitly sanctioned by the controller ruling that scoped
+// this round: GithubWidget's `MAX_PRS` dropped one more row (3->2, jira
+// held at its own floor of >=3 per that same ruling), AND all three
+// right-column cards' own CHROME was trimmed modestly (`p-4`->`p-3`,
+// header `mb-2`->`mb-1.5` — see each widget's own comment; vercel, on the
+// left column, wasn't touched, since it isn't part of this budget). Right
+// column re-measured end to end again: github `top-[14vh]` -> `top-[21vh]`,
+// gitlab `top-[48vh]` -> `top-[50vh]`, jira `top-[71vh]` -> `top-[72vh]`
+// (landing back on fix round 1's ORIGINAL Task-55-ship number, coincidentally
+// — the arithmetic that produces it this time is entirely different, not a
+// revert).
+//
 // Reusing the calendar block's own midnight-proof step idiom for ics's
 // fixture (baked epoch offsets would flake within seconds of local
 // midnight, exactly as that block's history documents; fetchedAt for every
@@ -3264,11 +3464,14 @@ console.log(
 // baked into this script).
 //
 // At 1600x900, EVERY connector at its own display max (measured, post-fix-
-// round): right column github top-[14vh]=126 (bottom 415, 3 PRs + 2 issues)
-// / gitlab top-[48vh]=432 (bottom 616, 3 MRs) / jira top-[71vh]=639 (bottom
-// 823, 3 issues) — gaps 17px / 23px / 23px, jira clears the Tasks pill
-// (top 846) by 23px, all >=16px, all probe-logged verbatim by the
-// quantified gap probe below, not estimated; left column ics top-[13vh] /
+// round-2): right column github top-[21vh]=189 (bottom 424, 2 PRs + 2
+// issues, tightened chrome) / gitlab top-[50vh]=450 (bottom 624, 3 MRs,
+// tightened chrome) / jira top-[72vh]=648 (bottom 822, 3 issues, tightened
+// chrome) — gaps (weather chip's own forced worst-case bottom, 164px, to
+// github) 25px / (github to gitlab) 26px / (gitlab to jira) 24px / (jira to
+// the Tasks pill, top 846) 24px, all >=16px, all probe-logged verbatim by
+// the weather chip worst-case probe above and the quantified `right-column
+// gaps` probe below, not estimated; left column ics top-[13vh] /
 // rss top-[22vh] (now shownCount:8, its own display max) / vercel
 // top-[64vh]; crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
 // its fixed-width `flex-nowrap` strip doesn't change height with coin
@@ -3286,11 +3489,12 @@ console.log(
 // scenario, not a different one) at 1280x800 and 2560x1440. Back at
 // 1600x900, expands the weather panel: anchored `right-4` at a measured
 // ~352px wide there, it sits squarely over github's (and, since github
-// moved up this fix round, now also gitlab's) own `right-8`/w-80 slot on
-// the x-axis, and reaches down into both cards' y-range — well past
-// github's new `top-[14vh]` (y=126) AND gitlab's new `top-[48vh]` (y=432)
-// slots (the panel reaches gitlab's slot now specifically BECAUSE github
-// moved up this fix round — it did not before). This gate is also what
+// moved up in fix round 1 (and again in fix round 2), now also gitlab's)
+// own `right-8`/w-80 slot on the x-axis, and reaches down into both cards'
+// y-range — well past github's `top-[21vh]` (y=189) AND gitlab's
+// `top-[50vh]` (y=450) slots (the panel reaches gitlab's slot now
+// specifically BECAUSE github moved up — it did not before either fix
+// round). This gate is also what
 // first found the underlying stacking defect: a real, intentional
 // geometric overlap, but every connector PositionedBlock mounts later in
 // App.tsx than weather's own, so at matched (auto) stacking the connector
@@ -3337,11 +3541,13 @@ console.log(
   // review that first shipped this gate (jira was seeded at 3 of its old
   // MAX_ISSUES=5, so the gate never rendered the card tall enough to reach
   // the pill).
+  // MAX_PRS lowered again 3->2 in fix round 2 (GithubWidget.tsx's own
+  // comment) — this fixture is display max, so it drops the third PR here
+  // too.
   const GITHUB_FIXTURE = {
     prs: [
       { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
       { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
-      { title: 'Add retry/backoff to the connector http helper', url: 'https://github.com/acme/app/pull/133', repo: 'acme/app' },
     ],
     issues: [
       { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },

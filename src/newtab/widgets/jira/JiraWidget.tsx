@@ -5,13 +5,16 @@ import type { ConnectorConfig, JiraConfig } from '../../../services/connectors/t
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
-// right column's ~630px budget (github top-[24vh]=216 to the Tasks pill's
-// top=846, minus two 16px inter-card gaps and the 16px Tasks-pill clearance)
-// with github's and gitlab's cards above it — the LOWEST of the three, so
-// its own bottom edge is what has to clear the Tasks pill. Lowered from 5 —
-// see GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment for the full
-// rationale; this connector's own regression (jira's max-issue card
-// overlapping the Tasks pill) is what the fix round was scoped to fix.
+// right column's budget below the collapsed weather chip's own tallest
+// state with github's and gitlab's cards above it — the LOWEST of the
+// three, so its own bottom edge is what has to clear the Tasks pill.
+// Lowered from 5 — see GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment
+// for the full rationale; this connector's own regression (jira's max-issue
+// card overlapping the Tasks pill) is what fix round 1 was scoped to fix.
+// Held at 3 (not lowered further) through fix round 2's follow-up
+// regression (the weather chip's forced-worst-case floor) per the
+// controller ruling that jira stays >=3 — the card's own CHROME absorbed
+// that round's savings instead (`p-4`->`p-3`, `mb-2`->`mb-1.5` below).
 const MAX_ISSUES = 3
 
 /** Narrow `connectors.jira` (a ConnectorConfig union member, or undefined) to
@@ -70,9 +73,12 @@ function JiraInner({ site, email, apiToken }: { site: string; email: string; api
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's/
     // GitlabWidget's section (the house rule for floating surfaces): the
-    // solid panel token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width.
-    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-4 text-fg shadow-lg">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    // solid panel token, rounded-2xl/shadow-lg, w-80 fixed card width.
+    // `p-4`->`p-3` (Task 55 fix round 2 — see GithubWidget.tsx's own
+    // MAX_PRS comment): a modest, right-column-only chrome trim, not a
+    // shape change.
+    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
         {/* Counts line renders only when there's at least one status to show —
             'when non-empty' per the brief. Never present alongside the empty

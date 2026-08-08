@@ -8,10 +8,13 @@ import type { ConnectorConfig, GitlabConfig } from '../../../services/connectors
 const TODOS_CAP = 20
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the "N to-dos" chip above already says "there's more"), and it shares the
-// right column's ~630px budget (github top-[24vh]=216 to the Tasks pill's
-// top=846, minus two 16px inter-card gaps and the 16px Tasks-pill clearance)
-// with github's card above it and jira's below. Lowered from 5 — see
-// GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment for the full rationale.
+// right column's budget below the collapsed weather chip's own tallest
+// state with github's card above it and jira's below. Lowered from 5 — see
+// GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment for the full rationale
+// (fix round 1) and its follow-up (fix round 2, the weather-chip forced-
+// state probe) — MAX_MRS itself did not need to move again in round 2; the
+// card's own CHROME did (`p-4`->`p-3`, `mb-2`->`mb-1.5` below), the same
+// modest trim github/jira also got.
 const MAX_MRS = 3
 
 /** Narrow `connectors.gitlab` (a ConnectorConfig union member, or undefined)
@@ -61,9 +64,11 @@ function GitlabInner({ token, instanceUrl }: { token: string; instanceUrl: strin
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's
     // section (the house rule for floating surfaces): the solid panel token,
-    // rounded-2xl/shadow-lg/p-4, w-80 fixed card width.
-    <section aria-label="GitLab" className="w-80 rounded-2xl bg-panel-solid p-4 text-fg shadow-lg">
-      <div className="mb-2 flex items-center justify-between gap-2">
+    // rounded-2xl/shadow-lg, w-80 fixed card width. `p-4`->`p-3` (Task 55
+    // fix round 2 — see GithubWidget.tsx's own MAX_PRS comment): a modest,
+    // right-column-only chrome trim, not a shape change.
+    <section aria-label="GitLab" className="w-80 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
         {/* To-dos chip renders only when > 0 — todos is a plain number here
             (no null/"unavailable" case, unlike github's notifications), so
