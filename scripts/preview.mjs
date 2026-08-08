@@ -1302,6 +1302,88 @@ console.log(
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
 
+// ── FocusLine round-check probe (Task 62 review, IMPORTANT 1) ──────────────
+// The completion check on the focus line only renders once a focus entry
+// exists for TODAY (FocusLine reads `focus` = { text, date: local YYYY-MM-DD,
+// done }; an absent/stale date shows the prompt form instead), which the
+// harness otherwise never seeds — so the styled CANVAS round check went
+// uncaptured in every shot. Seed one, prove BOTH visual states via computed
+// styles (off = canvas-ink hairline ring on a transparent fill; on = accent
+// border + accent fill + near-black glyph), capture the off-state so its
+// visibility over the photo can be judged, then clear `focus` back to null so
+// the later (form-state) probes are undisturbed. The <input> is sr-only, so
+// it's queried by presence (state:attached), and the styled circle is its
+// aria-hidden next sibling.
+const seedFocus = (done) =>
+  page.evaluate((isDone) => {
+    const n = new Date()
+    const date = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+    return chrome.storage.local.set({ focus: { text: 'Ship the round check', date, done: isDone } })
+  }, done)
+const readFocusCheck = () =>
+  page.evaluate(() => {
+    const input = document.getElementById('focus-done')
+    if (!input) return null
+    const span = input.nextElementSibling // the aria-hidden styled circle
+    const cs = getComputedStyle(span)
+    const r = span.getBoundingClientRect()
+    return {
+      checked: input.checked,
+      w: +r.width.toFixed(1),
+      h: +r.height.toFixed(1),
+      border: cs.borderTopColor,
+      bg: cs.backgroundColor,
+      glyph: cs.color,
+    }
+  })
+
+await seedFocus(false)
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800) // photo fade-in
+await page.waitForSelector('#focus-done', { state: 'attached' })
+const focusOff = await readFocusCheck()
+await page.screenshot({ path: `${outDir}/focus-line-check.png` })
+console.log('captured focus-line-check.png')
+
+await seedFocus(true)
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800)
+await page.waitForSelector('#focus-done', { state: 'attached' })
+const focusOn = await readFocusCheck()
+await page.screenshot({ path: `${outDir}/focus-line-check-on.png` })
+console.log('captured focus-line-check-on.png')
+
+const ACCENT_RGB = 'rgb(125, 211, 252)' // --accent #7dd3fc
+const isTransparentColor = (c) => c === 'rgba(0, 0, 0, 0)' || c === 'transparent'
+const focusOffOk =
+  focusOff &&
+  focusOff.checked === false &&
+  focusOff.w >= 18 &&
+  focusOff.w <= 22 &&
+  isTransparentColor(focusOff.bg) &&
+  focusOff.border.includes('245, 245, 244') && // canvas-fg-muted hairline, not accent
+  focusOff.border !== ACCENT_RGB
+const focusOnOk =
+  focusOn &&
+  focusOn.checked === true &&
+  focusOn.bg === ACCENT_RGB &&
+  focusOn.border === ACCENT_RGB &&
+  focusOn.glyph === 'rgb(10, 10, 10)' // near-black #0a0a0a check glyph
+console.log(
+  focusOffOk && focusOnOk
+    ? `PASS: focus round check renders both states (off = ${focusOff.w}px hairline ring ${focusOff.border} on transparent; on = accent fill ${focusOn.bg} + near-black glyph ${focusOn.glyph})`
+    : `FAIL: focus round check states (off=${JSON.stringify(focusOff)}, on=${JSON.stringify(focusOn)})`,
+)
+
+// Restore: clear the seeded focus so the focus line returns to its prompt
+// form (the schema default is `focus: null`) for every later probe.
+await page.evaluate(() => chrome.storage.local.set({ focus: null }))
+await page.reload()
+await page.waitForSelector('time')
+await page.waitForTimeout(800)
+
 // Multi-photo background gallery: switching to "My photo" and populating it
 // can't be driven through a real OS file-chooser dialog under automation, so
 // seed it directly via setInputFiles on the (now-visible) file input. Placed
@@ -4577,6 +4659,69 @@ console.log(
       ? 'Notes/Tasks/Focus-timer panel-vs-connector gate: vercel/jira/ics disabled; page restored to idle'
       : 'WARNING: at least one connector widget still present after the notes/tasks/timer panel-vs-connector gate',
   )
+}
+
+// ── Timer panel small-viewport clamp probe (Task 62 review, IMPORTANT 2) ────
+// TIMER_PANEL_SIZE.h grew 175 -> 218 in this pass, which tightens
+// anchorPanel's vertical clamp (maxOffset = viewport.h - panel.h - margin).
+// The OPEN timer panel was asserted only at 1600x900, never at a small
+// viewport where a 218px panel actually presses against the clamp. Prove it
+// at the matrix's tightest shape (800x450): open the panel, assert with real
+// rects that it stays FULLY on-screen, CLEARS the bookmarks band, and is a
+// disciplined occluder (solid surface, topmost at its own centre) — the same
+// rules the notes/tasks/timer-vs-connector gate just above applies. Measured,
+// not assumed: if the clamp fails here it FAILs honestly. Restores 1600x900.
+{
+  await page.setViewportSize({ width: 800, height: 450 })
+  await page.waitForTimeout(300) // reflow
+  await page.click('[data-block-id="timer"] button[aria-expanded]')
+  await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
+  await page.waitForTimeout(200)
+  const clamp = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"][aria-label="Focus timer"]')
+    if (!panel) return { found: false }
+    const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+    const p = panel.getBoundingClientRect()
+    const cs = getComputedStyle(panel)
+    const alpha = (() => {
+      const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/)
+      if (!m) return 0
+      const parts = m[1].split(',').map((v) => parseFloat(v))
+      return parts.length > 3 ? parts[3] : 1
+    })()
+    // Topmost at the panel's own centre — proves nothing over-paints it where
+    // it overlaps stacked center-column content at this tight viewport.
+    const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
+    const bar = nav ? nav.getBoundingClientRect() : null
+    return {
+      found: true,
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      p: { t: +p.top.toFixed(1), b: +p.bottom.toFixed(1), l: +p.left.toFixed(1), r: +p.right.toFixed(1) },
+      onScreen:
+        p.left >= -0.5 &&
+        p.top >= -0.5 &&
+        p.right <= window.innerWidth + 0.5 &&
+        p.bottom <= window.innerHeight + 0.5,
+      alpha: +alpha.toFixed(2),
+      onTop: !!sample && panel.contains(sample),
+      barBottom: bar ? +bar.bottom.toFixed(1) : null,
+      clearsBand: bar ? p.top >= bar.bottom : true,
+    }
+  })
+  await page.screenshot({ path: `${outDir}/timer-panel-800x450.png` })
+  console.log('captured timer-panel-800x450.png')
+  const timerClampOk =
+    clamp.found && clamp.onScreen && clamp.clearsBand && clamp.alpha >= 0.9 && clamp.onTop
+  console.log(
+    timerClampOk
+      ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      : `FAIL: the open Focus timer panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(200)
 }
 
 // ---------------------------------------------------------------------------

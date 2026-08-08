@@ -73,4 +73,26 @@ describe('TodoPanel', () => {
 
     document.body.removeChild(pillStandIn)
   })
+
+  it("keeps the round check reachable by its task label — getByLabelText(item.text) resolves to the checkbox (guards the sr-only <input> + dual-<label> wiring the styling introduced)", async () => {
+    // The task check is now a styled round span with the real checkbox sr-only
+    // underneath, wrapped in its own (text-less) <label> AND still targeted by
+    // the task-text <label htmlFor>. If that association ever broke, the
+    // control would be unreachable by its accessible name — this asserts it
+    // resolves straight to the checkbox, which is what keeps clicking the task
+    // text (and any getByLabelText query) toggling the item.
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [
+      { id: 'list-1', name: 'Today', items: [{ id: 'item-1', text: 'Water the plants', done: false }] },
+    ])
+    render(
+      <StorageProvider storage={storage}>
+        <TodoPanel anchor={{ left: 1264, top: 619 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+    const check = (await screen.findByLabelText('Water the plants')) as HTMLInputElement
+    expect(check.getAttribute('type')).toBe('checkbox')
+    expect(check.checked).toBe(false)
+  })
 })
