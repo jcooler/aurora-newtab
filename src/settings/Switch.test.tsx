@@ -1,0 +1,90 @@
+// @vitest-environment jsdom
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
+import Switch from './Switch'
+
+// No jest-dom matchers are registered in this project (see vitest.config.ts),
+// so attribute checks go through getAttribute() — the same idiom
+// SettingsPanel.test.tsx's own attr() helper documents.
+function attr(el: Element, name: string) {
+  return el.getAttribute(name)
+}
+
+describe('Switch (the control kit — Task 61)', () => {
+  it('is a native role=switch button whose aria-checked reflects state', () => {
+    const { rerender } = render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
+    const el = screen.getByRole('switch', { name: 'Wifi' })
+    // A NATIVE <button> is what gives Space/Enter activation, focus and label
+    // association for free — the whole reason this isn't a styled div.
+    expect(el.tagName).toBe('BUTTON')
+    expect(attr(el, 'type')).toBe('button')
+    expect(attr(el, 'aria-checked')).toBe('false')
+
+    rerender(<Switch id="s" checked={true} onChange={() => {}} label="Wifi" />)
+    expect(attr(screen.getByRole('switch', { name: 'Wifi' }), 'aria-checked')).toBe('true')
+  })
+
+  it('clicking an off switch calls onChange(true); clicking an on switch calls onChange(false)', () => {
+    const onChange = vi.fn()
+    const { rerender } = render(<Switch id="s" checked={false} onChange={onChange} label="Wifi" />)
+    fireEvent.click(screen.getByRole('switch'))
+    expect(onChange).toHaveBeenLastCalledWith(true)
+
+    rerender(<Switch id="s" checked={true} onChange={onChange} label="Wifi" />)
+    fireEvent.click(screen.getByRole('switch'))
+    expect(onChange).toHaveBeenLastCalledWith(false)
+  })
+
+  it('associates with an EXTERNAL <label htmlFor> (button is labelable), so the row label finds and toggles it', () => {
+    const onChange = vi.fn()
+    render(
+      <>
+        <label htmlFor="s">Wifi</label>
+        <Switch id="s" checked={false} onChange={onChange} />
+      </>,
+    )
+    // getByLabelText resolves the external label to the button via htmlFor —
+    // this is exactly what keeps SettingsPanel.test.tsx's getByLabelText(...)
+    // toggle queries working after the checkbox→switch swap.
+    const el = screen.getByLabelText('Wifi')
+    expect(attr(el, 'role')).toBe('switch')
+    fireEvent.click(el)
+    expect(onChange).toHaveBeenCalledWith(true)
+  })
+
+  it('forwards describedBy to aria-describedby (the bookmarks permission alert relies on it)', () => {
+    render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" describedBy="err-id" />)
+    expect(attr(screen.getByRole('switch'), 'aria-describedby')).toBe('err-id')
+  })
+
+  it('disabled is inert: aria-disabled + disabled set, and a click does nothing', () => {
+    const onChange = vi.fn()
+    render(<Switch id="s" checked={false} onChange={onChange} label="Wifi" disabled />)
+    const el = screen.getByRole('switch') as HTMLButtonElement
+    expect(attr(el, 'aria-disabled')).toBe('true')
+    expect(el.disabled).toBe(true)
+    fireEvent.click(el)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('carries the signature affordances: cursor-pointer + focus-visible ring on the track, a sliding thumb with a reduced-motion opt-out', () => {
+    render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
+    const el = screen.getByRole('switch')
+    const thumb = el.querySelector('span')
+    expect(el.className).toContain('cursor-pointer')
+    expect(el.className).toContain('focus-visible')
+    expect(thumb).not.toBeNull()
+    // The thumb owns the translate slide AND the prefers-reduced-motion opt-out.
+    expect(thumb!.className).toContain('transition-transform')
+    expect(thumb!.className).toContain('motion-reduce:transition-none')
+  })
+
+  it('the track styling differs on vs off (accent fill on, fg-derived neutral off)', () => {
+    const { rerender } = render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
+    const off = screen.getByRole('switch').className
+    rerender(<Switch id="s" checked={true} onChange={() => {}} label="Wifi" />)
+    const on = screen.getByRole('switch').className
+    expect(off).not.toBe(on)
+    expect(on).toContain('bg-accent')
+  })
+})

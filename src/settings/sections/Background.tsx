@@ -2,7 +2,8 @@ import { addUploads, removeUpload } from '../../lib/idb'
 import type { Upload } from '../../lib/hooks/useUploads'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { PhotoPrefs } from '../../lib/storage/schema'
-import { row, label, control } from './shared'
+import Section from '../Section'
+import { row, label, select } from './shared'
 
 /** Background photo source (daily/upload/gradient) + the upload gallery.
  *  `photoPrefs`/`savePhotoPrefs` and the loaded `uploads`/`thumbUrls` stay
@@ -65,8 +66,7 @@ export default function Background({
   }
 
   return (
-    <section aria-label="Background">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Background</h3>
+    <Section title="Background">
       <div className={row}>
         <label htmlFor="set-bg-mode" className={label}>
           Source
@@ -78,7 +78,7 @@ export default function Background({
             photoPrefs &&
             savePhotoPrefs({ ...photoPrefs, mode: e.currentTarget.value as PhotoPrefs['mode'] })
           }
-          className={control}
+          className={select}
         >
           <option value="auto">Daily photo</option>
           <option value="upload">My photo</option>
@@ -103,7 +103,7 @@ export default function Background({
                 void handleAddUploads(files)
               }}
               aria-describedby={galleryError ? 'bg-gallery-error' : undefined}
-              className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
+              className="max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
             />
           </div>
           {uploads.length > 0 && (
@@ -145,6 +145,6 @@ export default function Background({
           )}
         </>
       )}
-    </section>
+    </Section>
   )
 }

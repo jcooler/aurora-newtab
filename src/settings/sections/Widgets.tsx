@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { ensureBookmarksPermission } from '../../services/bookmarks'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { Habit, Settings, WidgetToggles } from '../../lib/storage/schema'
-import { row, label, control } from './shared'
+import Section from '../Section'
+import Switch from '../Switch'
+import { row, label, control, submitBtn } from './shared'
 
 const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
   search: 'Search bar',
@@ -95,23 +97,25 @@ export default function Widgets({
   }
 
   return (
-    <section aria-label="Widgets">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Widgets</h3>
+    <Section title="Widgets">
       {(Object.entries(WIDGET_LABELS) as [keyof WidgetToggles, string][]).map(
         ([key, widgetLabel]) => (
           <div key={key} className={row}>
             <label htmlFor={`w-${key}`} className={label}>
               {widgetLabel}
             </label>
-            <input
+            <Switch
               id={`w-${key}`}
-              type="checkbox"
               checked={settings.widgets[key]}
-              onChange={(e) => void handleWidgetToggle(key, e.currentTarget.checked)}
-              aria-describedby={
+              // The bookmarks branch of handleWidgetToggle awaits
+              // ensureBookmarksPermission FIRST inside this click gesture — the
+              // Switch's onClick calls onChange synchronously with zero awaits
+              // ahead of it, so chrome.permissions.request stays gesture-bound
+              // exactly as it was for the checkbox.
+              onChange={(checked) => void handleWidgetToggle(key, checked)}
+              describedBy={
                 key === 'bookmarks' && bookmarksPermissionDenied ? 'w-bookmarks-error' : undefined
               }
-              className="size-4 accent-(--accent)"
             />
           </div>
         ),
@@ -131,7 +135,7 @@ export default function Widgets({
           other list editor on this tab is (worldClocksRegion/
           countdownsRegion in SettingsPanel.test.tsx). */}
       {settings.widgets.habits && (
-        <section aria-label="Habits" className="mt-1 border-t border-panel-border pt-2">
+        <section aria-label="Habits" className="mt-3 border-t border-hairline pt-3">
           {(habits ?? []).map((h) => (
             <div key={h.id} className={row}>
               <label htmlFor={`habit-name-${h.id}`} className="sr-only">
@@ -171,10 +175,7 @@ export default function Widgets({
                 placeholder="Habit name"
                 className={`${control} w-32`}
               />
-              <button
-                type="submit"
-                className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
-              >
+              <button type="submit" className={submitBtn}>
                 Add
               </button>
             </form>
@@ -183,6 +184,6 @@ export default function Widgets({
           )}
         </section>
       )}
-    </section>
+    </Section>
   )
 }

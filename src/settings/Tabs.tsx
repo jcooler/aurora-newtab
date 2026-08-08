@@ -99,11 +99,15 @@ export default function Tabs<T extends string>({
         })}
       </div>
 
+      {/* Hairline dividers between sections (the control kit's rhythm pass,
+          Task 61): each Section owns its own py-6, and divide-y draws the
+          fg-derived hairline in the seam between siblings — one consistent
+          rhythm the sections can't individually break. */}
       <div
         role="tabpanel"
         id={`settings-tabpanel-${active}`}
         aria-labelledby={`settings-tab-${active}`}
-        className="flex flex-col gap-6"
+        className="flex flex-col divide-y divide-hairline"
       >
         {children}
       </div>

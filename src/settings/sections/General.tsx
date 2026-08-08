@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Settings } from '../../lib/storage/schema'
-import { row, label, control } from './shared'
+import Section from '../Section'
+import Switch from '../Switch'
+import { row, label, control, select } from './shared'
 
 // The default panel surface color — themes.css's :root --panel-solid base is
 // rgb(10 10 10), i.e. #0a0a0a — shown in the swatch when the user hasn't picked
@@ -88,7 +90,7 @@ export default function General({
 
   return (
     <>
-      <section aria-label="Profile">
+      <Section title="Profile">
         <div className={row}>
           <label htmlFor="set-name" className={label}>
             Your name
@@ -102,9 +104,9 @@ export default function General({
             className={control}
           />
         </div>
-      </section>
+      </Section>
 
-      <section aria-label="Appearance">
+      <Section title="Appearance">
         <div className={row}>
           <span className={label} id="panel-color-label">
             Widget color
@@ -148,19 +150,17 @@ export default function General({
           </div>
         </div>
         <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically.</p>
-      </section>
+      </Section>
 
-      <section aria-label="Clock and units">
+      <Section title="Clock and units">
         <div className={row}>
           <label htmlFor="set-24h" className={label}>
             24-hour clock
           </label>
-          <input
+          <Switch
             id="set-24h"
-            type="checkbox"
             checked={settings.use24Hour}
-            onChange={(e) => patch({ use24Hour: e.currentTarget.checked })}
-            className="size-4 accent-(--accent)"
+            onChange={(checked) => patch({ use24Hour: checked })}
           />
         </div>
         <div className={row}>
@@ -171,7 +171,7 @@ export default function General({
             id="set-units"
             value={settings.units}
             onChange={(e) => patch({ units: e.currentTarget.value as Settings['units'] })}
-            className={control}
+            className={select}
           >
             <option value="metric">Celsius</option>
             <option value="imperial">Fahrenheit</option>
@@ -181,15 +181,13 @@ export default function General({
           <label htmlFor="set-muted" className={label}>
             Mute sounds
           </label>
-          <input
+          <Switch
             id="set-muted"
-            type="checkbox"
             checked={settings.muted}
-            onChange={(e) => patch({ muted: e.currentTarget.checked })}
-            className="size-4 accent-(--accent)"
+            onChange={(checked) => patch({ muted: checked })}
           />
         </div>
-      </section>
+      </Section>
     </>
   )
 }

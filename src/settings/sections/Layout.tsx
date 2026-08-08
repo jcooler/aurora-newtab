@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
-import { row, label } from './shared'
+import Section from '../Section'
+import { row, label, btnQuiet, btnDanger } from './shared'
 
 /** Widget-arrangement entry points. Both gated on `isPremium()` and hidden
  *  ENTIRELY (not disabled/greyed) when it's false — the no-placeholder-UI
@@ -49,26 +50,17 @@ export default function Layout({
   if (!isPremium()) return null
 
   return (
-    <section aria-label="Layout">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Layout</h3>
+    <Section title="Layout">
       <div className={row}>
         <span className={label}>Widget positions</span>
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onArrangeLayout}
-            className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-          >
+          <button type="button" onClick={onArrangeLayout} className={btnQuiet}>
             Arrange layout
           </button>
           {/* Danger-styled to match the arrange pill's own Reset button —
               same restrained-red convention (ResetLayoutDialog's doc
               comment), since this opens the identical destructive dialog. */}
-          <button
-            type="button"
-            onClick={() => setResetDialogOpen(true)}
-            className="rounded border border-panel-border px-2 py-1 text-sm text-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent"
-          >
+          <button type="button" onClick={() => setResetDialogOpen(true)} className={btnDanger}>
             Reset layout
           </button>
         </div>
@@ -82,6 +74,6 @@ export default function Layout({
           void storage.set('layout', {})
         }}
       />
-    </section>
+    </Section>
   )
 }

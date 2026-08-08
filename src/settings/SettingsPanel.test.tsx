@@ -309,15 +309,15 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(false)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
       fireEvent.click(toggle)
     })
 
     expect(ensureBookmarksPermission).toHaveBeenCalledOnce()
-    expect(toggle.checked).toBe(false)
+    expect(attr(toggle, 'aria-checked')).toBe('false')
     const error = await screen.findByRole('alert')
     expect(error.textContent).toBeTruthy()
     expect(toggle.getAttribute('aria-describedby')).toBe(error.id)
@@ -328,13 +328,13 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockRejectedValue(new Error('gesture context lost'))
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
     })
 
-    expect(toggle.checked).toBe(false)
+    expect(attr(toggle, 'aria-checked')).toBe('false')
     const error = await screen.findByRole('alert')
     expect(error.textContent).toBeTruthy()
     expect(toggle.getAttribute('aria-describedby')).toBe(error.id)
@@ -345,13 +345,13 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
     })
 
-    expect(toggle.checked).toBe(true)
+    expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.bookmarks).toBe(true)
     expect(screen.queryByRole('alert')).toBeNull()
     expect(toggle.getAttribute('aria-describedby')).toBeNull()
@@ -371,15 +371,15 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
-    expect(toggle.checked).toBe(true)
+    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('true')
 
     await act(async () => {
       fireEvent.click(toggle)
     })
 
     expect(ensureBookmarksPermission).not.toHaveBeenCalled()
-    expect(toggle.checked).toBe(false)
+    expect(attr(toggle, 'aria-checked')).toBe('false')
     expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
   })
 })
@@ -921,8 +921,8 @@ describe('SettingsPanel Habits section', () => {
   it('the Habits label is present on the Widgets tab, off by default', async () => {
     await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Habits') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
     // The editor stays absent until the toggle is on — unlike World clocks/
     // Countdowns (always-mounted sections a user can pre-populate before
     // turning the widget on), the brief scopes this editor to the toggled-on
@@ -933,13 +933,13 @@ describe('SettingsPanel Habits section', () => {
   it('turning the toggle on writes widgets.habits and reveals the editor below it', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Habits') as HTMLInputElement
+    const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
     })
 
-    expect(toggle.checked).toBe(true)
+    expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.habits).toBe(true)
     expect(habitsRegion()).toBeTruthy()
 
@@ -1046,25 +1046,25 @@ describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
   it('the Month calendar label is present on the Widgets tab, off by default', async () => {
     await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Month calendar') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Month calendar') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
   })
 
   it('turning the toggle on writes widgets.monthCal; turning it back off writes false', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Month calendar') as HTMLInputElement
+    const toggle = screen.getByLabelText('Month calendar') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
     })
-    expect(toggle.checked).toBe(true)
+    expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.monthCal).toBe(true)
 
     await act(async () => {
       fireEvent.click(toggle)
     })
-    expect(toggle.checked).toBe(false)
+    expect(attr(toggle, 'aria-checked')).toBe('false')
     expect((await storage.get('settings')).widgets.monthCal).toBe(false)
   })
 })
@@ -1213,8 +1213,8 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
 
   it('enabling the connector writes the default config (enabled, no feeds, shownCount 5)', async () => {
     const storage = await renderWithConnectors()
-    const toggle = screen.getByLabelText('Enable RSS') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Enable RSS') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -1997,8 +1997,8 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
 
   it('enabling the connector via the shell toggle writes ONLY { enabled: true } — crypto is not RSS-shaped, so nothing extra is seeded', async () => {
     const storage = await renderWithCrypto()
-    const toggle = screen.getByLabelText('Enable Crypto') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Enable Crypto') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -2165,8 +2165,8 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
 
   it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type field', async () => {
     const storage = await renderWithIcs()
-    const toggle = screen.getByLabelText('Enable Calendar') as HTMLInputElement
-    expect(toggle.checked).toBe(false)
+    const toggle = screen.getByLabelText('Enable Calendar') as HTMLButtonElement
+    expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
       fireEvent.click(toggle)

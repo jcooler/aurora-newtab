@@ -1,6 +1,6 @@
 import { useId, useState } from 'react'
 import { ensureOrigin } from '../../services/permissions'
-import { control } from './shared'
+import { control, submitBtn } from './shared'
 
 export interface TokenField {
   id: string
@@ -58,11 +58,11 @@ export function TokenConnectForm(props: {
     // Off-but-connected state, where this form isn't rendered at all. Repeating
     // it here was redundant, so this branch is now just the Disconnect action.
     return (
-      <div className="mt-3 flex border-t border-panel-border pt-3">
+      <div className="mt-3 flex border-t border-hairline pt-3">
         <button
           type="button"
           onClick={() => void onDisconnect()}
-          className="shrink-0 cursor-pointer self-start text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
+          className={`${submitBtn} self-start`}
         >
           Disconnect
         </button>
@@ -141,7 +141,7 @@ export function TokenConnectForm(props: {
 
   return (
     <form
-      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
+      className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3"
       onSubmit={(e) => void handleConnect(e)}
     >
       {fields.map((field) => (
@@ -166,11 +166,7 @@ export function TokenConnectForm(props: {
         </div>
       ))}
 
-      <button
-        type="submit"
-        disabled={connecting}
-        className="shrink-0 cursor-pointer self-start text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-      >
+      <button type="submit" disabled={connecting} className={`${submitBtn} self-start`}>
         {connectLabel}
       </button>
 

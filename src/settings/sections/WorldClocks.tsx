@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { WorldClock } from '../../lib/storage/schema'
-import { row, label, control } from './shared'
+import Section from '../Section'
+import { row, label, control, submitBtn } from './shared'
 
 const MAX_WORLD_CLOCKS = 4
 const TIME_ZONES = Intl.supportedValuesOf('timeZone')
@@ -51,8 +52,7 @@ export default function WorldClocks({
   }
 
   return (
-    <section aria-label="World clocks">
-      <h3 className="mb-1 text-sm font-semibold text-fg">World clocks</h3>
+    <Section title="World clocks">
       {(worldClocks ?? []).map((wc, i) => (
         <div key={`${wc.zone}-${i}`} className={row}>
           <span className={label}>{wc.zone}</span>
@@ -124,10 +124,7 @@ export default function WorldClocks({
               }}
               className={`${control} w-24`}
             />
-            <button
-              type="submit"
-              className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
-            >
+            <button type="submit" className={submitBtn}>
               Add
             </button>
           </div>
@@ -138,6 +135,6 @@ export default function WorldClocks({
           Pick a time zone from the list.
         </p>
       )}
-    </section>
+    </Section>
   )
 }

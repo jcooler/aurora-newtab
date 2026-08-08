@@ -11,7 +11,9 @@
 // fetch, no prefetch of the domain) and PRIVACY.md needs no update for it.
 export default function About() {
   return (
-    <footer className="border-t border-panel-border pt-4 text-xs text-fg-muted">
+    // The hairline above this footer comes from the tabpanel's divide-y (Task
+    // 61 rhythm pass); pt-6 matches the sections' own vertical rhythm.
+    <footer className="pt-6 text-xs text-fg-muted">
       Aurora v{__APP_VERSION__} ·{' '}
       <a
         href="https://buymeacoffee.com/joncooler"

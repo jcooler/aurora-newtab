@@ -1,6 +1,7 @@
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { Countdown } from '../../lib/storage/schema'
-import { row, control } from './shared'
+import Section from '../Section'
+import { row, control, submitBtn } from './shared'
 
 /** Existing countdowns (edit date / remove) plus the add-countdown form.
  *  `countdowns` is owned by SettingsPanel (its useStoredKey read) and flows
@@ -27,8 +28,7 @@ export default function Countdowns({
   }
 
   return (
-    <section aria-label="Countdowns">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Countdowns</h3>
+    <Section title="Countdowns">
       {(countdowns ?? []).map((c) => (
         <div key={c.id} className={row}>
           <label htmlFor={`cd-name-${c.id}`} className="sr-only">
@@ -89,14 +89,11 @@ export default function Countdowns({
             New countdown date
           </label>
           <input id="cd-new-date" name="date" type="date" className={control} />
-          <button
-            type="submit"
-            className="text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent"
-          >
+          <button type="submit" className={submitBtn}>
             Add
           </button>
         </div>
       </form>
-    </section>
+    </Section>
   )
 }

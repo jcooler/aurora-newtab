@@ -550,6 +550,44 @@ async function readSurface() {
   })
 }
 
+// Reads the control kit's fg-DERIVED surfaces off two real drawer controls: a
+// Switch OFF track (#set-24h — use24Hour defaults off, so it's the fg-derived
+// neutral, not the accent fill) and a text input's border (#set-name). The
+// token mechanism (color-mix off --fg, themes.css) must resolve these to LIGHT
+// overlays on the dark default and DARK overlays on a light panelColor pick —
+// the exact thing a fixed bg-white/5 + border-white/10 would get wrong on a
+// light panel. Also reports the switch cursor (must be pointer, Task 61).
+async function readControlStyles() {
+  return page.evaluate(() => {
+    // Chrome resolves a color-mix() (which every fg-derived control token is)
+    // to the color(srgb r g b / a) form in computed style — 0..1 channels — NOT
+    // rgb(); handle both so these reads don't silently come back null.
+    const parse = (c) => {
+      if (!c) return null
+      let m = c.match(/rgba?\(([^)]+)\)/)
+      if (m) {
+        const [r, g, b] = m[1].split(/[,\s/]+/).map(Number)
+        return { r, g, b }
+      }
+      m = c.match(/color\(srgb\s+([^)]+)\)/)
+      if (m) {
+        const [r, g, b] = m[1].split(/[\s/]+/).map(Number)
+        return { r: r * 255, g: g * 255, b: b * 255 }
+      }
+      return null
+    }
+    const track = document.querySelector('#set-24h')
+    const input = document.querySelector('#set-name')
+    return {
+      trackBg: track ? parse(getComputedStyle(track).backgroundColor) : null,
+      inputBorder: input ? parse(getComputedStyle(input).borderTopColor) : null,
+      switchCursor: track ? getComputedStyle(track).cursor : null,
+    }
+  })
+}
+const isLightOverlay = (c) => !!c && c.r > 180 && c.g > 180 && c.b > 180
+const isDarkOverlay = (c) => !!c && c.r < 90 && c.g < 90 && c.b < 90
+
 // A DARK custom color (#3b2f6b -> rgb 59 47 107): --panel-solid becomes it at
 // 95%, fg stays the default off-white, no light-scheme stamp.
 await pickPanelColor('#3b2f6b')
@@ -565,6 +603,11 @@ if (hasBookmarksPermission) {
 }
 console.log(darkPick.scheme === null ? 'PASS: dark pick keeps light fg (no data-scheme flip)' : `FAIL: dark pick stamped data-scheme=${darkPick.scheme}`)
 console.log(darkPick.fg === '#f5f5f4' ? 'PASS: dark pick fg stays the default off-white' : `FAIL: dark pick fg is ${darkPick.fg}`)
+// Control kit in the DARK scheme: fg-derived surfaces read as LIGHT overlays.
+const darkControls = await readControlStyles()
+console.log(isLightOverlay(darkControls.trackBg) ? `PASS: Switch OFF track is a fg-derived LIGHT overlay on the dark surface (rgb ${darkControls.trackBg.r} ${darkControls.trackBg.g} ${darkControls.trackBg.b})` : `FAIL: switch track bg is ${JSON.stringify(darkControls.trackBg)} (should be a light overlay)`)
+console.log(isLightOverlay(darkControls.inputBorder) ? `PASS: text input border is a fg-derived LIGHT overlay on the dark surface (rgb ${darkControls.inputBorder.r} ${darkControls.inputBorder.g} ${darkControls.inputBorder.b})` : `FAIL: input border is ${JSON.stringify(darkControls.inputBorder)} (should be a light overlay)`)
+console.log(darkControls.switchCursor === 'pointer' ? 'PASS: the Switch shows cursor-pointer' : `FAIL: switch cursor is ${darkControls.switchCursor} (should be pointer)`)
 await page.screenshot({ path: `${outDir}/widget-color-custom.png` })
 console.log('captured widget-color-custom.png')
 
@@ -608,6 +651,14 @@ if (hasBookmarksPermission) {
   console.log(isDarkInk(inkSplit.chip) ? `PASS: bookmarks chip label ink adapts dark on the now-light panel (rgb ${inkSplit.chip.r} ${inkSplit.chip.g} ${inkSplit.chip.b})` : `FAIL: chip label ink is ${JSON.stringify(inkSplit.chip)} (should adapt dark)`)
 }
 
+// Control kit in the LIGHT scheme: the SAME fg-derived tokens now resolve to
+// DARK overlays — the falsifiable proof the control styling adapts to a light
+// panelColor pick instead of washing out (a fixed white-alpha would stay near-
+// invisible here). Direction must FLIP versus the dark read above.
+const lightControls = await readControlStyles()
+console.log(isDarkOverlay(lightControls.trackBg) ? `PASS: Switch OFF track FLIPS to a fg-derived DARK overlay on the light pick (rgb ${lightControls.trackBg.r} ${lightControls.trackBg.g} ${lightControls.trackBg.b})` : `FAIL: switch track bg is ${JSON.stringify(lightControls.trackBg)} (should flip dark on a light panel)`)
+console.log(isDarkOverlay(lightControls.inputBorder) ? `PASS: text input border FLIPS to a fg-derived DARK overlay on the light pick (rgb ${lightControls.inputBorder.r} ${lightControls.inputBorder.g} ${lightControls.inputBorder.b})` : `FAIL: input border is ${JSON.stringify(lightControls.inputBorder)} (should flip dark on a light panel)`)
+
 await page.screenshot({ path: `${outDir}/widget-color-light.png` })
 console.log('captured widget-color-light.png')
 
@@ -623,6 +674,49 @@ const resetStored = await page.evaluate(
 console.log(resetStored === null ? 'PASS: Reset cleared panelColor to null' : `FAIL: Reset left panelColor ${resetStored}`)
 console.log(afterReset.inlinePanelSolid === '' ? 'PASS: Reset removed the inline --panel-solid override' : `FAIL: inline --panel-solid still ${afterReset.inlinePanelSolid}`)
 console.log(afterReset.scheme === null ? 'PASS: Reset cleared the light-scheme stamp' : `FAIL: data-scheme still ${afterReset.scheme}`)
+
+// ── The Switch, end to end (the control kit, Task 61) ───────────────────────
+// A real click on the 24-hour Switch must flip aria-checked AND the stored
+// value AND the rendered clock format — the whole onChange path through to
+// Clock.tsx re-rendering, which jsdom can't prove. use24Hour defaults false
+// (12-hour "h:mm"); the expected 12h/24h strings are derived from the clock's
+// OWN `datetime` attribute (Clock.tsx stamps its render instant there), so the
+// text-vs-format comparison is deterministic regardless of the wall clock. The
+// drawer is still open on General from the widget-color block above.
+async function readClock() {
+  return page.evaluate(() => {
+    const t = document.querySelector('time')
+    const d = new Date(t?.getAttribute('datetime') ?? Date.now())
+    const mm = String(d.getMinutes()).padStart(2, '0')
+    return {
+      text: t ? t.textContent.trim() : null,
+      h12: `${d.getHours() % 12 || 12}:${mm}`,
+      h24: `${String(d.getHours()).padStart(2, '0')}:${mm}`,
+      checked: document.querySelector('#set-24h')?.getAttribute('aria-checked') ?? null,
+    }
+  })
+}
+const clockBefore = await readClock()
+console.log(clockBefore.checked === 'false' ? 'PASS: the 24-hour Switch reads aria-checked=false by default' : `FAIL: 24-hour switch aria-checked=${clockBefore.checked}`)
+console.log(clockBefore.text === clockBefore.h12 ? `PASS: the clock renders 12-hour form before the toggle (${clockBefore.text})` : `FAIL: clock is "${clockBefore.text}", expected 12h "${clockBefore.h12}"`)
+
+await page.click('#set-24h')
+await page.waitForTimeout(150) // let onChange -> storage -> Clock re-render settle
+const clockAfter = await readClock()
+const stored24 = await page.evaluate(
+  async () => (await chrome.storage.local.get('settings')).settings.use24Hour,
+)
+console.log(clockAfter.checked === 'true' ? 'PASS: clicking the 24-hour Switch flips aria-checked to true' : `FAIL: after click aria-checked=${clockAfter.checked}`)
+console.log(stored24 === true ? 'PASS: the click stored settings.use24Hour = true' : `FAIL: stored use24Hour = ${stored24}`)
+console.log(clockAfter.text === clockAfter.h24 ? `PASS: the clock re-rendered in 24-hour form end to end ("${clockBefore.text}" -> "${clockAfter.text}")` : `FAIL: clock is "${clockAfter.text}", expected 24h "${clockAfter.h24}"`)
+
+// Restore the default (12h) so every capture/block downstream is undisturbed.
+await page.click('#set-24h')
+await page.waitForTimeout(120)
+const restored24 = await page.evaluate(
+  async () => (await chrome.storage.local.get('settings')).settings.use24Hour,
+)
+console.log(restored24 === false ? '24-hour switch restored to its default (off)' : `WARNING: use24Hour left ${restored24}`)
 
 // One capture per tab, replacing the old scroll-position ones (drawer-data /
 // drawer-footer, which had to hunt down a single long column with
@@ -1575,7 +1669,7 @@ console.log(
     const toggle = sec.querySelector('#connector-rss-enabled')
     const count = sec.querySelector('#connector-rss-count')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       removeButtons: sec.querySelectorAll('button[aria-label^="Remove https"]').length,
       shownCount: count ? count.value : null,
     }
@@ -1761,7 +1855,7 @@ console.log(
     if (!sec) return null
     const toggle = sec.querySelector('#connector-github-enabled')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       connectedAs: sec.textContent.includes('Connected as octocat'),
       hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
     }
@@ -1962,7 +2056,7 @@ console.log(
     if (!sec) return null
     const toggle = sec.querySelector('#connector-gitlab-enabled')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       connectedAs: sec.textContent.includes('Connected as jcooler'),
       hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
     }
@@ -2234,7 +2328,7 @@ console.log(
     if (!sec) return null
     const toggle = sec.querySelector('#connector-jira-enabled')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       connectedAs: sec.textContent.includes('Connected as Jon Cooler'),
       hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
     }
@@ -2651,7 +2745,7 @@ console.log(
     if (!sec) return null
     const toggle = sec.querySelector('#connector-vercel-enabled')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       connectedAs: sec.textContent.includes('Connected as jcooler'),
       hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
     }
@@ -3006,7 +3100,7 @@ console.log(
     const toggle = sec.querySelector('#connector-crypto-enabled')
     const input = sec.querySelector('#connector-crypto-coins')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       coinsValue: input ? input.value : null,
       hasClear: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear'),
     }
@@ -3254,7 +3348,7 @@ console.log(
     const toggle = sec.querySelector('#connector-ics-enabled')
     const input = sec.querySelector('#connector-ics-url')
     return {
-      enabled: toggle ? toggle.checked : null,
+      enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
       urlValue: input ? input.value : null,
       inputType: input ? input.type : null,
       hasClear: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear'),

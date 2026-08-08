@@ -4,7 +4,8 @@ import { migrate } from '../../lib/storage/migrations'
 import { todayKey } from '../../lib/dates'
 import { defaults, type AuroraData, type DataKey } from '../../lib/storage/schema'
 import type { AuroraStorage } from '../../lib/storage/index'
-import { row, label } from './shared'
+import Section from '../Section'
+import { row, label, btnQuiet, btnPrimary } from './shared'
 
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 
@@ -88,15 +89,10 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
   }
 
   return (
-    <section aria-label="Data">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Data</h3>
+    <Section title="Data">
       <div className={row}>
         <span className={label}>Export backup</span>
-        <button
-          type="button"
-          onClick={() => void handleExport()}
-          className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-        >
+        <button type="button" onClick={() => void handleExport()} className={btnQuiet}>
           Export
         </button>
       </div>
@@ -111,7 +107,7 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
           accept=".json,application/json"
           onChange={(e) => void handleImportChange(e)}
           aria-describedby={importError ? 'import-error' : undefined}
-          className="max-w-48 text-sm text-fg-muted file:mr-2 file:rounded file:border file:border-panel-border file:bg-transparent file:px-2 file:py-1 file:text-fg"
+          className="max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
         />
       </div>
       {importError && (
@@ -120,29 +116,21 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
         </p>
       )}
       {pendingImport && (
-        <div className="mt-2 flex flex-col gap-2 rounded border border-panel-border p-2">
+        <div className="mt-3 flex flex-col gap-3 rounded-lg border border-control-border p-3">
           <p className="text-sm text-fg-muted">{pendingImport.summary}</p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => void handleConfirmImport()}
-              className="rounded border border-panel-border px-2 py-1 text-sm text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-            >
+            <button type="button" onClick={() => void handleConfirmImport()} className={btnPrimary}>
               Confirm
             </button>
-            <button
-              type="button"
-              onClick={handleCancelImport}
-              className="rounded border border-panel-border px-2 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-            >
+            <button type="button" onClick={handleCancelImport} className={btnQuiet}>
               Cancel
             </button>
           </div>
         </div>
       )}
-      <p className="mt-2 text-xs text-fg-muted">
+      <p className="mt-3 text-xs text-fg-muted">
         Background photo uploads, connector sign-in secrets, and cached connector data are not included.
       </p>
-    </section>
+    </Section>
   )
 }

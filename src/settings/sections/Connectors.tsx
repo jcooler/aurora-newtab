@@ -9,7 +9,9 @@ import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
 import { whoamiVercel } from '../../services/connectors/vercel'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
-import { control } from './shared'
+import Section from '../Section'
+import Switch from '../Switch'
+import { control, select, submitBtn } from './shared'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -69,8 +71,7 @@ export default function Connectors({
   storage: AuroraStorage
 }) {
   return (
-    <section aria-label="Connectors">
-      <h3 className="mb-1 text-sm font-semibold text-fg">Connectors</h3>
+    <Section title="Connectors">
       {CONNECTORS.map((descriptor) => (
         <ConnectorCard
           key={descriptor.id}
@@ -79,7 +80,7 @@ export default function Connectors({
           storage={storage}
         />
       ))}
-    </section>
+    </Section>
   )
 }
 
@@ -113,7 +114,7 @@ function ConnectorCard({
   const Body = BODY_COMPONENTS[descriptor.id]
 
   return (
-    <div className="mt-2 rounded border border-panel-border p-3">
+    <div className="mt-3 rounded-xl border border-control-border p-3 first:mt-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-fg">{descriptor.label}</h4>
@@ -136,12 +137,14 @@ function ConnectorCard({
           <label htmlFor={`connector-${descriptor.id}-enabled`} className="sr-only">
             Enable {descriptor.label}
           </label>
-          <input
+          {/* A plain storage write — NO permission gesture rides on this enable
+              toggle (each connector body requests chrome.permissions at
+              connect/add-feed time, not here), so the checkbox→Switch swap
+              carries no gesture-ordering concern. */}
+          <Switch
             id={`connector-${descriptor.id}-enabled`}
-            type="checkbox"
             checked={enabled}
-            onChange={(e) => {
-              const checked = e.currentTarget.checked
+            onChange={(checked) => {
               // Only rss seeds default FIELDS here (its feeds/shownCount, which
               // RssBody needs present the moment it renders). Every other
               // connector supplies its real fields through its OWN body — token
@@ -157,7 +160,6 @@ function ConnectorCard({
                 [descriptor.id]: { ...seed, ...prev[descriptor.id], enabled: checked },
               }))
             }}
-            className="size-4 accent-(--accent)"
           />
         </div>
       </div>
@@ -289,11 +291,7 @@ function RssBody({ config, storage }: BodyProps) {
           aria-describedby={error ? 'connector-rss-error' : undefined}
           className={`${control} min-w-0 flex-1 disabled:opacity-50`}
         />
-        <button
-          type="submit"
-          disabled={atCap}
-          className="shrink-0 text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-        >
+        <button type="submit" disabled={atCap} className={submitBtn}>
           Add
         </button>
       </form>
@@ -319,7 +317,7 @@ function RssBody({ config, storage }: BodyProps) {
             const count = Number(e.currentTarget.value)
             void updateRss((rss) => ({ ...rss, shownCount: count }))
           }}
-          className={control}
+          className={select}
         >
           {SHOWN_COUNT_OPTIONS.map((n) => (
             <option key={n} value={n}>
@@ -785,11 +783,7 @@ function CryptoBody({ config, storage }: BodyProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="shrink-0 text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className={submitBtn}>
           Save
         </button>
         {coins.length > 0 && (
@@ -954,11 +948,7 @@ function IcsBody({ config, storage }: BodyProps) {
       </div>
 
       <div className="flex items-center gap-3">
-        <button
-          type="submit"
-          disabled={saving}
-          className="shrink-0 text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
-        >
+        <button type="submit" disabled={saving} className={submitBtn}>
           Save
         </button>
         {configuredUrl && (

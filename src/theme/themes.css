@@ -35,6 +35,23 @@
      for legibility over a photo background — Mono's flat near-black at 92%. */
   --panel-solid: rgb(10 10 10 / 0.92);
 
+  /* Control kit (Task 61) — fg-DERIVED so inputs/selects/switch tracks and
+     hairlines read correctly in BOTH schemes by construction. On the dark
+     default --fg is off-white, so these resolve to subtle LIGHT overlays; the
+     instant the widget-color engine flips --fg to near-black for a LIGHT
+     panelColor pick (src/theme/index.ts), the SAME tokens re-resolve to subtle
+     DARK overlays. A fixed white-alpha (bg-white/5, border-white/10) would wash
+     out to near-invisible on a light panel — the bug this mechanism avoids. The
+     color-mix's var(--fg) is substituted against the live --fg wherever the
+     token is used, so no JS re-computation is needed when the pick changes.
+     Surfaced to Tailwind as bg-control-bg / border-control-border /
+     bg-switch-off / divide-hairline in src/newtab/index.css's @theme. */
+  --control-bg: color-mix(in srgb, var(--fg) 6%, transparent);
+  --control-bg-hover: color-mix(in srgb, var(--fg) 11%, transparent);
+  --control-border: color-mix(in srgb, var(--fg) 14%, transparent);
+  --switch-off: color-mix(in srgb, var(--fg) 22%, transparent);
+  --hairline: color-mix(in srgb, var(--fg) 9%, transparent);
+
   --panel-blur: 14px;
   --radius: 1rem;
   --scrim: linear-gradient(rgb(2 6 23 / 0.10), rgb(2 6 23 / 0.22));
