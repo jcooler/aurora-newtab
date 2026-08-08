@@ -384,16 +384,32 @@ export default function App() {
           <WidgetBoundary name="rss">
             {/* DEFAULT placement — the left-middle column, clear of the Notes
                 pill (bottom-left) and the photo refresh button at defaults, and
-                well left of the centred clock/greeting column. A stored
-                arrange-mode `pos` still wins (PositionedBlock drops this
-                className on that branch). RssWidget self-gates on the
+                well left of the centred clock/greeting column.
+
+                `top-[24vh]` (216px at 1600x900) — moved DOWN 2vh from the old
+                `top-[22vh]` (198px) by Jon's darker-color ruling (this batch),
+                which turned RssWidget from bare photo-floating text into a
+                SOLID CARD (bg-panel-solid + rounded-2xl + shadow-lg + p-2.5 —
+                see RssWidget.tsx). Carding adds padding+radius height, so the
+                whole left column was re-measured from the real harness and the
+                two carded slots (ics above, rss here) re-derived to hold every
+                floor >=16px at each widget's WORST case. MEASURED
+                (scripts/preview.mjs, 1600x900, rss at its shownCount=8 display
+                max, ics carded above, vercel below): ics carded bottom 195 ->
+                21px gap -> rss top 216; rss carded 8-row bottom 552 -> 24px gap
+                -> vercel top-[64vh]=576. Both clear the >=16px floor with real
+                margin — vercel itself did NOT have to move (its 60px gap to the
+                quote below absorbed nothing; the room came from tightening the
+                cards' own chrome to p-2.5 + gap-1 rows, RssWidget.tsx's own
+                comment). A stored arrange-mode `pos` still wins (PositionedBlock
+                drops this className on that branch). RssWidget self-gates on the
                 connector's enabled+feeds state, so this wrapper renders an
                 empty box until the connector is turned on — same as every other
                 toggle-gated peripheral here. No `translate`: this widget has no
                 `position: fixed` descendants, but the house rule is to keep
                 default-placement wrappers transform-free (App's quote/bookmarks
                 comments), so it anchors with a plain top offset. */}
-            <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[22vh]">
+            <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[24vh]">
               <RssWidget />
             </PositionedBlock>
           </WidgetBoundary>
@@ -895,19 +911,28 @@ export default function App() {
                 see its own top-of-file comment) sits in the one band that
                 survived, BELOW the timer pill (fixed left-4
                 top-[var(--top-band)]) and ABOVE RSS's own default top
-                (`top-[22vh]` = 198px). MEASURED (this run, both neighbors
-                on, CalendarWidget at its own worst case — 1 next-line + 2
-                capped agenda rows, see below): timer bottom = 100px, ics
-                top = 117px (17.0px clear above); ics bottom = 175px, rss
-                top = 198px (23.0px clear below) — both comfortably over the
-                8px floor. CalendarWidget is capped by CONSTRUCTION at 1
-                next-line + 2 agenda rows (the controller's own amendment to
-                the brief's original 4-row spec — see CalendarWidget.tsx's
-                own doc comment), so — like CryptoWidget's own placement
-                comment below documents for ITS tight band — there is no
-                unbounded "worst case" height beyond what was just measured,
-                which is why an 8px floor (not this file's usual >=16px) is
-                the right bar here, same reasoning as crypto's own. A stored
+                (`top-[24vh]` = 216px). RE-MEASURED for Jon's darker-color
+                ruling (this batch), which turned CalendarWidget from bare
+                photo-floating text into a SOLID CARD (bg-panel-solid +
+                rounded-2xl + shadow-lg + p-2.5 — see CalendarWidget.tsx):
+                carding grew the widget's height (p-2.5 padding + radius),
+                so both this slot and RSS's below it were re-derived from the
+                real harness. MEASURED (this run, both neighbors on,
+                CalendarWidget at its own worst case — 1 next-line + 2 capped
+                agenda rows, carded — and RSS at its shownCount=8 max, also
+                carded): timer bottom = 100px, ics top = 117px (17.0px clear
+                above); ics carded bottom = 195px (was 175 bare), rss
+                top = 216px (21.0px clear below). CalendarWidget is capped by
+                CONSTRUCTION at 1 next-line + 2 agenda rows (the controller's
+                own amendment to the brief's original 4-row spec — see
+                CalendarWidget.tsx's own doc comment), so there is no
+                unbounded "worst case" height beyond what was just measured.
+                The old 8px floor (a bare-text-tight-band exception, like
+                CryptoWidget's own) was RAISED to this file's usual >=16px for
+                this batch: now that both this widget and RSS are cards, the
+                ruling required every re-derived left-column floor to clear
+                16px, and the measured 17/21px gaps do (scripts/preview.mjs's
+                ics gap probe now asserts >=16, not >=8). A stored
                 arrange-mode `pos` still wins (PositionedBlock drops this
                 className on that branch). CalendarWidget self-gates on the
                 connector's enabled+url state, so this wrapper renders an
@@ -925,7 +950,7 @@ export default function App() {
             type="button"
             aria-label="Open settings"
             onClick={() => setSettingsOpen(true)}
-            className="fixed bottom-4 right-4 rounded-full bg-panel p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            className="fixed bottom-4 right-4 rounded-full bg-panel-solid p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
               <circle cx="12" cy="12" r="3" />

@@ -41,27 +41,37 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
   if (headlines.length === 0) return null
 
   return (
-    // w-72 measured against the collision probe: ~380px of clearance to the
-    // centered column at defaults, so this width cuts title truncation
-    // substantially while staying comfortably clear (review-verified).
-    <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52">
-      <ul className="flex flex-col gap-2 short:gap-1.5 xshort:gap-1">
+    // Solid card (Jon's darker-color ruling — "put a background on the news
+    // rss stuff"): the same bg-panel-solid + rounded-2xl + shadow-lg card
+    // language GithubWidget uses, so the news column reads as a finished
+    // surface rather than bare photo-floating text. `p-2.5` + `gap-1`
+    // (tighter than GitHub's own p-3/gap-2) is deliberate and LOAD-BEARING,
+    // not cosmetic: carding adds padding+radius height, and the left column's
+    // measured floors are pinned against this card's WORST case — shownCount
+    // 8, its tallest — clearing the calendar card above and vercel's slot
+    // below by >=16px each (scripts/preview.mjs's ics + vercel gap probes,
+    // and the combined-defaults gate's 190-pair check, all re-measured for
+    // this batch). w-72 is unchanged (the horizontal extent, and the ~380px
+    // of clearance to the centered column, are the same as the bare version).
+    <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg">
+      <ul className="flex flex-col gap-1">
         {headlines.map((h) => (
           <li key={h.url}>
             {/* External site, so target/rel differ from the in-page launcher
                 links: a new tab, and rel that severs window.opener and strips
                 the referrer. The whole row is one link — title is the click
                 target, the source label rides above it as quiet context. */}
-            {/* text-photo (index.css @utility) carries the dual text-shadow
-                that keeps text legible over any photograph; text-shadow is an
-                inherited property, so declaring it once on the row applies to
-                both the source label and the title beneath it. */}
+            {/* No text-photo here anymore: this row now sits inside the solid
+                card above, whose own surface carries legibility — text-photo
+                is only for text floating DIRECTLY on the photo (the plain
+                text-fg/text-fg-muted rows GithubWidget uses inside its own
+                card are the precedent). */}
             <a
               href={h.url}
               target="_blank"
               rel="noopener noreferrer"
               title={h.title}
-              className="text-photo group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
+              className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
             >
               <span className="block truncate text-xs text-fg-muted">{h.source}</span>
               {/* truncate is a single-line ellipsis — never a wrap, never a

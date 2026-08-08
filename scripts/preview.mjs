@@ -3122,16 +3122,18 @@ console.log(
       rss: rss ? { top: +rss.top.toFixed(1), bottom: +rss.bottom.toFixed(1) } : null,
     }
   }, icsSel)
-  // Same reasoned 8px floor as CryptoWidget's own probe above, not this
-  // file's usual >=16px convention — same two-part rationale: (1) this is a
-  // TIGHT band (the timer pill's bottom to RSS's default top, ~98px total
-  // at 1600x900 — nowhere near RSS's/Vercel's own 100px+ of slack); (2)
-  // CalendarWidget is capped by CONSTRUCTION at 1 next-line + 2 agenda rows
-  // (App.tsx's own placement comment), so there is no unbounded "worst
-  // case" growth to defend against beyond what's measured here — arrange
-  // mode lets a user who dislikes the tight default fit simply drag it
-  // elsewhere.
-  const GAP_FLOOR = 8
+  // >=16px floor — this file's usual convention, RAISED from the old 8px
+  // this probe used while CalendarWidget was bare photo-floating text.
+  // Jon's darker-color ruling (this batch) turned both CalendarWidget and
+  // RssWidget into SOLID CARDS (bg-panel-solid + rounded-2xl + p-2.5), and
+  // the ruling required every re-derived left-column floor to clear 16px at
+  // each widget's worst case. Carding grew both cards' heights, so ics's
+  // slot (top-[13vh]) and RSS's (top-[24vh], moved down 2vh) were
+  // re-measured from this harness until timer->ics and ics->rss both clear
+  // 16px (measured 17px / 21px this run). The cards' own chrome was
+  // tightened to p-2.5 + gap-1 rows to buy that room without moving vercel
+  // (see RssWidget.tsx / App.tsx's rss+ics PositionedBlock comments).
+  const GAP_FLOOR = 16
   const gapAboveOk = gap.icsFound && gap.timerFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
   console.log(
     gapAboveOk
@@ -3471,9 +3473,13 @@ console.log(
 // github) 25px / (github to gitlab) 26px / (gitlab to jira) 24px / (jira to
 // the Tasks pill, top 846) 24px, all >=16px, all probe-logged verbatim by
 // the weather chip worst-case probe above and the quantified `right-column
-// gaps` probe below, not estimated; left column ics top-[13vh] /
-// rss top-[22vh] (now shownCount:8, its own display max) / vercel
-// top-[64vh]; crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
+// gaps` probe below, not estimated; left column ics top-[13vh] (now a
+// SOLID CARD, carded bottom 195) / rss top-[24vh] (moved down 2vh from
+// top-[22vh] for the carding — Jon's darker-color ruling this batch — now
+// a solid card too, shownCount:8 display max, carded bottom 552, clearing
+// vercel by 24px) / vercel top-[64vh] (unchanged — the carding room came
+// from the cards' own tightened p-2.5/gap-1 chrome, not from moving
+// vercel); crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
 // its fixed-width `flex-nowrap` strip doesn't change height with coin
 // count); mid-left second column monthCal top-[12vh] (forced to its 6-row
 // worst case) / habits top-[42vh] (seeded at its own 6-chip MAX_HABIT_CHIPS

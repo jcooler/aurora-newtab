@@ -20,7 +20,7 @@ export default function SearchBar() {
         placeholder="Search the web"
         aria-label="Search the web"
         autoComplete="off"
-        className="w-80 narrow:w-64 rounded-panel border border-panel-border bg-panel px-4 py-2 short:py-1 xshort:py-0.5 text-center text-fg placeholder:text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] outline-none focus-visible:border-accent"
+        className="w-80 narrow:w-64 rounded-panel border border-panel-border bg-panel-solid px-4 py-2 short:py-1 xshort:py-0.5 text-center text-fg placeholder:text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] outline-none focus-visible:border-accent"
       />
     </form>
   )

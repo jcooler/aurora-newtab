@@ -12,7 +12,9 @@ import FolderPopover, { FolderIcon } from './FolderPopover'
 
 const MAX_VISIBLE_CHIPS = 8
 const OVERFLOW_ID = '__overflow__'
-// Chips carry the themed surface (bg-panel fill, theme blur, theme border) but
+// Chips carry the themed surface (bg-panel-solid fill — Jon's darker-color
+// ruling: the connector cards' opaque token, now shared by every on-page
+// surface — plus theme blur and theme border) but
 // keep rounded-full like the app's other SMALL controls (gear, photo-refresh,
 // timer buttons) — those stay round in every theme, including Mono, whose
 // --radius: 0 only squares off PANELS. Jon flagged the square-in-Mono look
@@ -83,7 +85,7 @@ const OVERFLOW_ID = '__overflow__'
 // mode the chip is a 30px circle with no text to hint at it, which makes
 // the cursor the main affordance rather than a nicety.
 const CHIP =
-  'flex h-[var(--bookmarks-chip-h)] min-w-0 max-w-full shrink cursor-pointer items-center gap-[var(--bookmarks-gap)] rounded-full border border-panel-border bg-panel px-[var(--bookmarks-chip-px)] py-1 text-sm leading-5 font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent compact:w-[var(--bookmarks-chip-h)] compact:justify-center'
+  'flex h-[var(--bookmarks-chip-h)] min-w-0 max-w-full shrink cursor-pointer items-center gap-[var(--bookmarks-gap)] rounded-full border border-panel-border bg-panel-solid px-[var(--bookmarks-chip-px)] py-1 text-sm leading-5 font-medium text-fg-muted shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent compact:w-[var(--bookmarks-chip-h)] compact:justify-center'
 // Folder + overflow chips only: the wrapper div is the nav's flex item (it
 // anchors the popover), so the flex permissions belong on it, and `relative`
 // stays for FolderPopover's `absolute` panel. The flex-shrink value is

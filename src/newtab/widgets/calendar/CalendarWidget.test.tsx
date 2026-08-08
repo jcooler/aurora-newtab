@@ -107,7 +107,13 @@ describe('CalendarWidget', () => {
     await act(async () => {})
 
     const message = screen.getByText('No more events today.')
-    expect(message.className).toContain('text-photo')
+    // The empty copy now sits inside the solid card (Jon's darker-color
+    // ruling), not as bare photo-floating text — so it no longer carries
+    // text-photo; the card surface (bg-panel-solid) is what provides
+    // legibility, matching GithubWidget's own in-card empty state.
+    expect(message.className).not.toContain('text-photo')
+    const card = message.closest('section[aria-label="Calendar"]') as HTMLElement
+    expect(card.className).toContain('bg-panel-solid')
   })
 
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {

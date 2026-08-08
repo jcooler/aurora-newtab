@@ -43,7 +43,7 @@ export default function LinkTile({
             onMove(index, index + 1)
           }
         }}
-        className="flex size-12 short:size-10 xshort:size-9 items-center justify-center rounded-panel border border-panel-border bg-panel shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="flex size-12 short:size-10 xshort:size-9 items-center justify-center rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition group-hover:border-accent focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         {iconFailed ? (
           <span aria-hidden className="text-lg text-fg-muted">
@@ -64,7 +64,7 @@ export default function LinkTile({
         type="button"
         aria-label={`Remove ${link.title}`}
         onClick={() => onRemove(link.id)}
-        className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-xs text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+        className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel-solid text-xs text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
       >
         ×
       </button>

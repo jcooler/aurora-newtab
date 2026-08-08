@@ -197,12 +197,11 @@ export default function WeatherWidget({
       // controls (the toggle, the refresh button, the forecast link) puts the
       // signal back where it belongs and nowhere else.
       //
-      // Surface: bg-panel (50%) as a chip, bg-panel-solid (95%) once expanded
-      // — the convention floating panels follow (TimerWidget's pill vs. its
-      // own expanded dialog is the same-file precedent).
-      className={`cursor-default rounded-panel border border-panel-border text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass} ${
-        expanded ? 'bg-panel-solid' : 'bg-panel'
-      }`}
+      // Surface: bg-panel-solid in BOTH states (Jon's darker-color ruling —
+      // every on-page surface now carries the connector cards' opaque token).
+      // The collapsed chip used to be the translucent bg-panel; it now matches
+      // the expanded panel and the rest of the page.
+      className={`cursor-default rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] ${widthClass}`}
     >
       {location === null && (
         <div className="p-4">

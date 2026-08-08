@@ -68,7 +68,7 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
             type="button"
             aria-pressed={todayDone}
             onClick={() => toggleToday(h.id)}
-            className="flex cursor-pointer items-center gap-2 rounded-full border border-panel-border bg-panel px-3 py-1.5 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
+            className="flex cursor-pointer items-center gap-2 rounded-full border border-panel-border bg-panel-solid px-3 py-1.5 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
           >
             <span
               aria-hidden

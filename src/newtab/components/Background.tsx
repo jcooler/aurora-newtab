@@ -220,7 +220,7 @@ export default function Background({
           aria-label="New background photo"
           title={credit ? `${credit.label} — click for a new photo` : 'New photo'}
           onClick={() => onPrefsChange(nextPhoto(prefs, today, count))}
-          className="absolute bottom-4 left-4 rounded-full bg-panel p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="absolute bottom-4 left-4 rounded-full bg-panel-solid p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 12a9 9 0 1 1-2.64-6.36" />

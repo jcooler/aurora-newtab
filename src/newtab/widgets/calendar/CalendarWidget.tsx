@@ -5,10 +5,17 @@ import { fetchIcs, type IcsData, type IcsEvent } from '../../../services/connect
 import type { IcsConfig } from '../../../services/connectors/types'
 
 // The calendar widget — Task 54, the seventh connector and the second
-// no-auth one (ics.ts, Task 53) to reach the newtab page. Photo-floating
-// TEXT, not a panel (controller ruling on the Task 54 brief): no
-// bg-panel-solid/border/shadow surface, same idiom as RssWidget's headline
-// rows and CryptoWidget's ticker strip.
+// no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
+// Jon's darker-color ruling (this batch): it sits directly above RSS's own
+// new card, and a bare-text widget above a card reads unfinished — so it now
+// wears the same bg-panel-solid + rounded-2xl + shadow-lg + p-2.5 card
+// language as RssWidget/GithubWidget, dropping the text-photo shadow the bare
+// version used (that utility is only for text floating directly on the
+// photo). This was a JUDGMENT-CALL consistency completion — Jon named the
+// "news rss stuff"; the calendar is the widget one row up that would look
+// half-done left bare — he can veto it. The card's chrome (p-2.5) and its
+// placement are pinned against the left-column floors just like RSS's — see
+// App.tsx's ics PositionedBlock and scripts/preview.mjs's ics gap probe.
 //
 // COMPACT-FORMAT AMENDMENT (controller ruling, this task): the brief's own
 // starting spec called for up to 4 agenda rows below the "Next: …" line at
@@ -73,8 +80,11 @@ function CalendarInner({ url }: { url: string }) {
 
   if (!next) {
     return (
-      <section aria-label="Calendar" className="w-72 short:w-60 xshort:w-52">
-        <p className="text-photo text-sm text-fg-muted">No more events today.</p>
+      <section
+        aria-label="Calendar"
+        className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg"
+      >
+        <p className="text-sm text-fg-muted">No more events today.</p>
       </section>
     )
   }
@@ -82,8 +92,11 @@ function CalendarInner({ url }: { url: string }) {
   const relative = isAllDay(next) ? 'All day' : relNext(nowMs, next.start)
 
   return (
-    <section aria-label="Calendar" className="w-72 short:w-60 xshort:w-52">
-      <p className="text-photo block truncate text-sm font-medium text-fg">
+    <section
+      aria-label="Calendar"
+      className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg"
+    >
+      <p className="block truncate text-sm font-medium text-fg">
         Next: {next.summary} · {relative}
       </p>
       {rows.length > 0 && (
@@ -91,7 +104,7 @@ function CalendarInner({ url }: { url: string }) {
           {rows.map((ev) => (
             <li
               key={`${ev.start}-${ev.summary}`}
-              className="text-photo block truncate text-xs text-fg-muted"
+              className="block truncate text-xs text-fg-muted"
             >
               {formatAgendaRow(ev)}
             </li>
