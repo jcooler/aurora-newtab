@@ -419,9 +419,12 @@ export default function App() {
 
           <WidgetBoundary name="monthCal">
             {/* DEFAULT placement — Task 58, the TOP of the mid-left SECOND
-                column (`left-[23rem] w-56`, shared with HabitsWidget directly
+                column (`left-[23rem]`, x-aligned with HabitsWidget directly
                 below it — see that PositionedBlock's own comment for how
-                THAT half of the column is derived). Task 57 shipped habits
+                THAT half of the column is derived; THIS widget's own width
+                is `w-[200px]`, narrower than habits' `w-56`/224px since the
+                wide-clock fix below — the two no longer share one width).
+                Task 57 shipped habits
                 alone at a PROVISIONAL `top-[43vh]`, explicitly flagged for
                 re-measurement once this task's own widget landed above it;
                 this pass is that re-derivation, and it moves BOTH tops, not
@@ -482,11 +485,55 @@ export default function App() {
                 habits' top: 23px; habits' bottom to the links row: 32.5px;
                 RSS's own column right edge to this widget's left edge (no
                 longer the binding constraint, Task 59): exactly 48px (368 vs
-                rss.right 320); this widget's right edge to the centered
-                column's measured left edge at ITS OWN band (the clock, the
-                only centered element overlapping y=108-355 here): 43.5px
-                (592 vs clock.left 635.5). Every floor clears with real
-                margin, not shaved to the edge.
+                rss.right 320). The right-edge-to-clock number that USED to
+                sit here (592 vs clock.left 635.5) was measured at whichever
+                hour the wall clock happened to show at the time — see the
+                WIDE-CLOCK paragraph below for why that made it wrong, and
+                for the number that replaced it.
+
+                WIDE-CLOCK FIX (post-Task 62, MERGE-BLOCKING — diagnosed
+                across two reviews): Clock.tsx's tabular-nums clock is
+                horizontally CENTERED and renders a DOUBLE-digit hour
+                ("10:44"/"11:44"/"12:44") for roughly half of every 12-hour
+                cycle (settings.use24Hour defaults false) — one digit-glyph
+                WIDER than the single-digit hours ("9:44") every prior
+                measurement in this file happened to run at. Centering means
+                the extra glyph pushes the clock's own LEFT edge further
+                left, not just its right edge further right — 635.5 above was
+                a single-digit-hour reading; scripts/preview.mjs's own
+                deterministic forced-wide-clock block (Playwright's
+                `page.clock.setFixedTime`, forced to a real 10:44 — 10/11/12
+                all measure identically under tabular-nums, so which one is
+                picked doesn't matter) measures the clock's REAL worst-case
+                left edge at 587.5px — 48px further left than the
+                single-digit reading, and 4.5px INSIDE the OLD `w-56`
+                (224px) card's 592px right edge, an actual collision
+                (`monthCal/clock` in the combined-defaults gate's pairwise
+                set) invisible at every single-digit hour. Fixed by
+                narrowing THIS widget's own width from `w-56` (224px) to
+                `w-[200px]` — right edge 368+200=568px, clearing the
+                MEASURED worst-case clock.left (587.5px) by 19.5px, still
+                >=16px with real (if modest) margin, not shaved to the exact
+                floor. HabitsWidget's own `w-56` is intentionally left
+                UNTOUCHED — its whole vertical band (378-622) sits BELOW the
+                clock's real measured bottom edge (377.5px, itself measured
+                for the first time by this same forced-wide block — earlier
+                comments estimated it near monthCal's own 355px bottom
+                without live-measuring it) rather than beside it, so it never
+                shares this widget's clock-width collision; the resulting
+                24px right-edge mismatch between the two widgets (568 vs
+                592) is a known, accepted asymmetry, not an oversight — see
+                the report this fix landed with. That said, the measured
+                clock-to-habits clearance is only 0.5px (377.5 to 378) — real
+                but thin, asserted (not just observed) by the same forced-
+                wide block so a future regression there fails loudly instead
+                of silently. Asserted permanently, every run, regardless of
+                the hour the wall clock shows: scripts/preview.mjs's own
+                dedicated forced-wide-clock block (immediately after the
+                monthCal block it re-uses the seeding shape of), which forces
+                the clock to 10:44, re-measures both this widget's right edge
+                and habits' top against the clock's real rendered box, and
+                restores real time before continuing.
 
                 FINAL-REVIEW FIX WAVE, MERGE-BLOCKING (post-Task 59): the
                 widget's own "Today" snap-back control used to render on its
@@ -520,7 +567,7 @@ export default function App() {
                 other toggle-gated peripheral here. Transform-free per the
                 house rule (App's quote/bookmarks comments): a plain
                 left/top offset, no translate. */}
-            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-56">
+            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-[200px]">
               <MonthCalWidget />
             </PositionedBlock>
           </WidgetBoundary>
@@ -582,7 +629,22 @@ export default function App() {
                 links actually overlaps this band at measurement time, not
                 assumed by name). Every floor clears with real margin, not
                 shaved to the edge — same discipline Task 57's own `43vh`
-                correction established. HabitsWidget self-gates on
+                correction established.
+
+                WIDTH left at `w-56` (224px), deliberately NOT narrowed to
+                `w-[200px]` alongside MonthCalWidget's own width above — the
+                wide-clock fix that forced that change is a collision between
+                MonthCalWidget's right edge and the clock's real worst-case
+                left edge, and this widget's band (378-622) sits BELOW the
+                clock's real measured bottom edge (377.5px — see
+                MonthCalWidget's own PositionedBlock comment, "WIDE-CLOCK
+                FIX", for the full derivation and the forced-wide harness
+                block that proves it, including the thin-but-real 0.5px
+                clock-to-habits clearance), so this widget never shares that
+                collision regardless of the hour. The two widgets' right
+                edges no longer align (568 vs 592) as a result — a known,
+                accepted asymmetry from that fix, not an oversight here.
+                HabitsWidget self-gates on
                 settings.widgets.habits + a non-empty habits list, so this
                 wrapper renders an empty box until at least one habit exists
                 — same as every other toggle-gated peripheral here.

@@ -81,7 +81,7 @@ function MonthCalInner() {
   const label = monthLabel(view.y, view.m0)
 
   return (
-    <div className="w-56 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
+    <div className="w-[200px] rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
       {/* data-monthcal-header — a stable hook (same convention as
           data-cell-key below) for this file's own tests and the harness's
           zero-height-guarantee probe: the Today affordance (below) lives
@@ -123,9 +123,25 @@ function MonthCalInner() {
             engage, that's the signal to revisit this layout (option (a) in
             the fix-wave ledger: raise the whole widget instead of
             shrinking the header), not to let the month name silently
-            clip. */}
+            clip.
+
+            LABEL FONT DROPPED text-sm -> text-xs (App.tsx's monthCal
+            PositionedBlock comment, "WIDE-CLOCK FIX") when the card itself
+            narrowed 224px -> 200px to clear the clock's real forced-wide
+            left edge: at the old text-sm, "September 2026" + a visible
+            Today button no longer fit the narrower 176px content row
+            (176px = 200px card - the p-3 padding) — scrollWidth(104) >
+            clientWidth(91), i.e. `truncate` actually DID engage, exactly
+            the regression this comment's own probe exists to catch. text-xs
+            (already the day-cell digits' own size, two lines down) closes
+            it with real margin, not a squeak-by: measured (a throwaway
+            harness run, numbers not asserted anywhere) at 89.4px label +
+            22px x2 chevrons + 26.9px Today = 160.3px of actual content
+            against the 176px row, 15.7px of which is the row's own
+            intentional gaps (gap-1 x2 + gap-1.5 here) rendering exactly as
+            designed, not stretched or squeezed to fit. */}
         <span className="flex min-w-0 items-center justify-center gap-1.5">
-          <span data-monthcal-label className="truncate text-sm font-medium text-fg">{label}</span>
+          <span data-monthcal-label className="truncate text-xs font-medium text-fg">{label}</span>
           {/* Re-derived from the ticking `now` (not the mount-time `view`
               seed), so it's correct even across a midnight rollover while
               the widget sat open on a past/future month. This, plus the two

@@ -5461,6 +5461,215 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// WIDE-CLOCK worst case (fix for the ledger's diagnosed bug — "the centered
+// clock is one digit-glyph WIDER at 2-digit hours"). Every measurement above
+// this point — including the monthCal block just above and the
+// combined-defaults gate's own mid-left column floor further up this file —
+// ran the clock at WHATEVER hour the wall clock happened to show when the
+// script ran. Clock.tsx's `formatClock` (12-hour mode — settings.use24Hour
+// defaults false and nothing in this file ever flips it) renders a
+// SINGLE-digit hour (e.g. "9:44") at 1-9am/1-9pm and a DOUBLE-digit hour
+// ("10:44"/"11:44"/"12:44") the rest of the day, and Clock is horizontally
+// CENTERED (App.tsx's flex column), so the wider string pushes the clock's
+// own LEFT edge further left — monthCal's right edge floor was pinned
+// against whatever that left edge measured to be at whatever moment each of
+// those checks' own arithmetic ran, always a single-digit hour in practice
+// since nothing had ever forced the wide state. This block forces it
+// deterministically via Playwright's `page.clock` (installed playwright is
+// ^1.62.0 — `page.clock.setFixedTime` shipped in 1.45, so it's available),
+// so this floor can never again pass "by accident" merely because the wall
+// clock happened to be narrow when the harness ran.
+{
+  const monthCalSel = '[data-block-id="monthCal"]'
+  const habitsSel = '[data-block-id="habits"]'
+  const clockSel = '[data-block-id="clock"]'
+
+  // Force 10:44 — a 2-digit hour. 10/11/12 all render as 2 digits, and
+  // tabular-nums gives every digit the SAME advance width regardless of
+  // which one it is, so which of the three gets picked doesn't change the
+  // measured width (verified: this is a monospace-per-digit property, not
+  // an assumption) — 10:44 chosen arbitrarily, documented here rather than
+  // left to guesswork so a future reader doesn't have to re-derive it.
+  // Only the HOUR/MINUTE are overridden — the real year/month/day are read
+  // from the actual system clock and carried through unchanged, so every
+  // date-dependent computation this block's own fixtures touch (monthCal's
+  // "current month" caption, the 6-row forcing loop below) still lands on
+  // the real current month. This is a WIDTH probe, not a date probe;
+  // conflating the two would risk quietly changing what "today" means for
+  // this block's own measurements for no reason connected to the bug being
+  // fixed here.
+  const realNow = new Date()
+  const forcedTime = new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate(), 10, 44, 0, 0)
+  await page.clock.setFixedTime(forcedTime)
+
+  const countdownsBeforeThisBlock = await page.evaluate(async () => {
+    const { countdowns } = await chrome.storage.local.get('countdowns')
+    return countdowns ?? []
+  })
+
+  // Seed: monthCal + habits ON, habits at its own 6-chip MAX_HABIT_CHIPS
+  // worst case (same fixture shape the isolated monthCal block above uses)
+  // — this block's own screenshot and habits-vs-clock check should reflect
+  // the same worst case every other monthCal/habits probe in this file
+  // does, not a shorter stand-in.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    const habits = [
+      { id: 'h1', name: 'Read daily', createdAt: Date.now(), log: [] },
+      { id: 'h2', name: 'Stretch', createdAt: Date.now(), log: [] },
+      { id: 'h3', name: 'Meditate', createdAt: Date.now(), log: [] },
+      { id: 'h4', name: 'Journal', createdAt: Date.now(), log: [] },
+      { id: 'h5', name: 'Walk', createdAt: Date.now(), log: [] },
+      {
+        id: 'h6',
+        name: 'Practice deep breathing exercises every single morning without fail',
+        createdAt: Date.now(),
+        log: [],
+      },
+    ]
+    await chrome.storage.local.set({
+      habits,
+      settings: { ...settings, widgets: { ...settings.widgets, monthCal: true, habits: true } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(monthCalSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
+
+  // Falsify the forcing itself before trusting anything measured under it —
+  // same discipline as every other forced-state probe in this file (the
+  // 6-row month loop's own `forcedOk` above, the bookmarks worst-case
+  // block's own count assertions): a probe that silently measured the WRONG
+  // state would be worse than no probe at all.
+  const clockText = await page.evaluate((sel) => document.querySelector(sel)?.textContent ?? null, clockSel)
+  const clockForcedOk = clockText === '10:44'
+  console.log(
+    clockForcedOk
+      ? `PASS: the clock is deterministically forced to a real 2-digit hour ("${clockText}")`
+      : `FAIL: the clock is deterministically forced to a real 2-digit hour (text=${JSON.stringify(clockText)})`,
+  )
+
+  // Force monthCal to its own 6-row worst case too (reusing the same
+  // measure-don't-assume click loop every other monthCal block in this file
+  // uses) — not load-bearing for the width floor below (monthCal's measured
+  // RIGHT edge is a fixed Tailwind width, independent of row count), but it
+  // keeps this block's own capture and the habits-vs-clock check consistent
+  // with every other worst-case monthCal render in this file.
+  await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+  await page.waitForTimeout(30)
+  let wideClockCellCount = 0
+  for (let i = 0; i < 14; i++) {
+    wideClockCellCount = await page.evaluate(
+      (sel) => document.querySelectorAll(`${sel} [data-cell-key]`).length,
+      monthCalSel,
+    )
+    if (wideClockCellCount === 42) break
+    await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+    await page.waitForTimeout(30)
+  }
+  console.log(
+    wideClockCellCount === 42
+      ? 'PASS: forced monthCal to its 6-row worst case under the forced-wide clock'
+      : `FAIL: forced monthCal to its 6-row worst case under the forced-wide clock (cellCount=${wideClockCellCount})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/widgets-monthcal-wide-clock.png` })
+  console.log('captured widgets-monthcal-wide-clock.png')
+
+  const wideRects = await page.evaluate(
+    ({ mSel, hSel, cSel }) => {
+      const r = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return {
+          top: +rect.top.toFixed(1),
+          bottom: +rect.bottom.toFixed(1),
+          left: +rect.left.toFixed(1),
+          right: +rect.right.toFixed(1),
+        }
+      }
+      return { monthCal: r(mSel), habits: r(hSel), clock: r(cSel) }
+    },
+    { mSel: monthCalSel, hSel: habitsSel, cSel: clockSel },
+  )
+
+  // THE floor this whole block exists to make permanent: monthCal's right
+  // edge vs. the clock's REAL forced-wide left edge, >=16px, every run,
+  // regardless of the hour the wall clock happens to show. App.tsx's own
+  // monthCal PositionedBlock comment carries the width arithmetic this
+  // number is pinned against (368 + width <= worst clock.left - 16).
+  const FLOOR = 16
+  const wideClockGap =
+    wideRects.clock && wideRects.monthCal ? +(wideRects.clock.left - wideRects.monthCal.right).toFixed(1) : null
+  const wideClockOk = wideClockGap !== null && wideClockGap >= FLOOR
+  console.log(
+    wideClockOk
+      ? `PASS: monthCal's right edge clears the clock's REAL forced-wide (2-digit-hour) left edge by >=${FLOOR}px (${wideClockGap}px; monthCal.right=${wideRects.monthCal?.right}, clock.left=${wideRects.clock?.left})`
+      : `FAIL: monthCal's right edge clears the clock's REAL forced-wide (2-digit-hour) left edge by >=${FLOOR}px (gap=${wideClockGap}px, monthCal=${JSON.stringify(wideRects.monthCal)}, clock=${JSON.stringify(wideRects.clock)})`,
+  )
+
+  // HABITS sits BELOW the clock's own vertical band, not beside it in x — a
+  // claim every placement comment in this file repeats but which nothing
+  // had actually measured against the clock's REAL rendered height before
+  // this fix (earlier comments estimate the clock's bottom edge without
+  // live-measuring it). Falsified here, at the SAME forced-wide state,
+  // rather than assumed.
+  const habitsHitsClock =
+    wideRects.habits && wideRects.clock
+      ? !(
+          wideRects.habits.right <= wideRects.clock.left ||
+          wideRects.habits.left >= wideRects.clock.right ||
+          wideRects.habits.bottom <= wideRects.clock.top ||
+          wideRects.habits.top >= wideRects.clock.bottom
+        )
+      : null
+  const habitsClockGap =
+    wideRects.habits && wideRects.clock ? +(wideRects.habits.top - wideRects.clock.bottom).toFixed(1) : null
+  console.log(
+    habitsHitsClock === false
+      ? `PASS: habits' top clears the clock's REAL forced-wide bottom edge (${habitsClockGap}px; habits.top=${wideRects.habits?.top}, clock.bottom=${wideRects.clock?.bottom}) — MEASURED, not assumed; this margin is real but thin, see the fix report`
+      : `FAIL: habits' top clears the clock's REAL forced-wide bottom edge (gap=${habitsClockGap}px, habits=${JSON.stringify(wideRects.habits)}, clock=${JSON.stringify(wideRects.clock)})`,
+  )
+
+  // Restore: widgets off, habits cleared, countdowns put back exactly as
+  // captured before this block ran, and the clock handed back to a FRESH
+  // real snapshot rather than left pinned at 10:44 forever. Playwright's
+  // Clock API exposes no true "uninstall" once any clock method has been
+  // called — re-pinning to `Date.now()` here is equivalent, for every
+  // purpose the rest of this file cares about, to restoring real time: no
+  // block below this point reads `Date.now()`/`new Date()` inside the page
+  // for freshness/staleness math or relative-time labels (every connector's
+  // own "N minutes ago" fixture runs earlier in this file, above this
+  // block), so nothing downstream depends on the fake clock continuing to
+  // tick forward in real time after this line.
+  await page.clock.setFixedTime(Date.now())
+  await page.evaluate(
+    async (countdowns) => {
+      const { settings } = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({
+        habits: [],
+        countdowns,
+        settings: { ...settings, widgets: { ...settings.widgets, monthCal: false, habits: false } },
+      })
+    },
+    countdownsBeforeThisBlock,
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const monthCalGoneWide = (await page.locator(`${monthCalSel} table`).count()) === 0
+  const habitsGoneWide = (await page.locator(`${habitsSel} button`).count()) === 0
+  console.log(
+    monthCalGoneWide && habitsGoneWide
+      ? 'Month calendar disabled, habits re-disabled; wide-clock probe restored to idle, real time restored'
+      : `WARNING: still present after the wide-clock block's own restore (monthCalGone=${monthCalGoneWide}, habitsGone=${habitsGoneWide})`,
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided
