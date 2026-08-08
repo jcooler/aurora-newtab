@@ -289,7 +289,7 @@ export default function LocationSetup() {
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => selectResult(i)}
                 className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm ${
-                  i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
+                  i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
                 }`}
               >
                 <span className="truncate">{m.name}</span>

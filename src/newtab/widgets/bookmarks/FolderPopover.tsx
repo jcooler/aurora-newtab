@@ -133,7 +133,7 @@ export default function FolderPopover({
                   <button
                     type="button"
                     onClick={() => setStack((s) => [...s, folder])}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
                   >
                     <FolderIcon />
                     <span className="truncate">{folder.title}</span>
@@ -144,7 +144,7 @@ export default function FolderPopover({
                 <li key={item.id}>
                   <a
                     href={item.url}
-                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
                   >
                     <img
                       src={faviconUrl(item.url)}

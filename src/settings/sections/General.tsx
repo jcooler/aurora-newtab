@@ -132,7 +132,7 @@ export default function General({
               <span
                 aria-hidden
                 style={{ backgroundColor: draftHex }}
-                className="size-7 rounded-full border border-white/25 shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent"
+                className="size-7 rounded-full border border-control-border shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent"
               />
             </label>
             {/* Quiet Reset, present only when a color is actually set (null =

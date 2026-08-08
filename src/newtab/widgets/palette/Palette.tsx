@@ -133,7 +133,7 @@ export default function Palette({
                 onMouseEnter={() => setActiveIndex(i)}
                 onClick={() => runResult(i)}
                 className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2 text-sm ${
-                  i === activeIndex ? 'bg-white/10 text-fg' : 'text-fg-muted'
+                  i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
                 }`}
               >
                 <span className="truncate">{cmd.label}</span>
