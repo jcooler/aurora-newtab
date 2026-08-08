@@ -92,7 +92,10 @@ describe('CryptoWidget', () => {
     const storage = await seededStorage({ enabled: true, coins: ['bitcoin'] }, zeroData)
     mount(storage)
     const zeroChip = await screen.findByText('0.0%')
-    expect(zeroChip.className).toContain('text-fg-muted')
+    // Canvas ink (Task 60 fix round): the crypto strip floats on the photo, so
+    // even the muted zero-change tint uses the fixed --canvas-fg-muted, not the
+    // panelColor-adaptive --fg-muted.
+    expect(zeroChip.className).toContain('text-canvas-fg-muted')
 
     // Re-mount fresh for the positive/negative cases (the DOGE/BTC/ETH fixture).
     document.body.innerHTML = ''

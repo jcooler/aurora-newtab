@@ -104,4 +104,4 @@ Fable whole-plan review (base `79355d6`, head Task 63; ledger minors triaged), O
 
 ## Out of scope
 
-Crypto strip backgrounding (open Jon question); arrange-mode UI changes; new widgets; per-widget individual colors (ONE global color this phase — note as future if Jon asks); light-photo legibility work beyond the derived-fg flip.
+Crypto strip backgrounding (open Jon question); arrange-mode UI changes; new widgets; per-widget individual colors (ONE global color this phase — note as future if Jon asks); light-photo legibility work beyond the derived-fg flip and the fixed canvas-fg split (landed in Task 60's fix round — photo-floating text keeps fixed light ink via `--canvas-fg`/`--canvas-fg-muted` while panels adapt; deeper work like per-region scrims remains out).

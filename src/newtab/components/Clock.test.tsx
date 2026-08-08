@@ -88,6 +88,11 @@ describe('Clock — text-photo legibility utility', () => {
     const time = container.querySelector('time')
     expect(time).toBeTruthy()
     expect(time?.classList.contains('text-photo')).toBe(true)
+    // Task 60 fix round: the clock paints with the FIXED canvas ink, not the
+    // panelColor-adaptive --fg, so a light panel pick can't darken it over the
+    // photo. (Panels keep text-fg and adapt — src/theme/index.test.ts.)
+    expect(time?.classList.contains('text-canvas-fg')).toBe(true)
+    expect(time?.classList.contains('text-fg')).toBe(false)
   })
 })
 

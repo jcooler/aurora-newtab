@@ -27,7 +27,7 @@ export default function Clock() {
       // skinny side-window isn't dominated by a floor-clamped clock. At
       // standard sizes (1600x900 and up) both old and new saturate against
       // the shared 10rem ceiling and render identically.
-      className="text-photo font-display text-[clamp(3rem,min(12vw,20vh),10rem)] font-medium tabular-nums tracking-[-0.02em]"
+      className="text-photo text-canvas-fg font-display text-[clamp(3rem,min(12vw,20vh),10rem)] font-medium tabular-nums tracking-[-0.02em]"
     >
       {formatClock(now, settings.use24Hour)}
     </time>

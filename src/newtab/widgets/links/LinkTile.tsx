@@ -59,7 +59,7 @@ export default function LinkTile({
           />
         )}
       </a>
-      <span className="text-photo max-w-full truncate text-xs text-fg-muted">{link.title}</span>
+      <span className="text-photo max-w-full truncate text-xs text-canvas-fg-muted">{link.title}</span>
       <button
         type="button"
         aria-label={`Remove ${link.title}`}

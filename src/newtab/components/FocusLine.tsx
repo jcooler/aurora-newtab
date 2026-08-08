@@ -28,7 +28,7 @@ export default function FocusLine() {
       >
         <label
           htmlFor="focus-input"
-          className="text-photo text-base short:text-sm xshort:text-xs font-medium text-fg-muted"
+          className="text-photo text-base short:text-sm xshort:text-xs font-medium text-canvas-fg-muted"
         >
           What&rsquo;s your main focus today?
         </label>
@@ -43,7 +43,7 @@ export default function FocusLine() {
               setEditing(false)
             }
           }}
-          className="text-photo mt-2 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl short:text-base xshort:text-sm text-fg outline-none focus-visible:border-accent"
+          className="text-photo mt-2 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
         />
       </form>
     )
@@ -64,7 +64,7 @@ export default function FocusLine() {
       <label
         htmlFor="focus-done"
         className={`text-photo text-xl short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${
-          focus.done ? 'text-fg-muted line-through opacity-70' : 'text-fg'
+          focus.done ? 'text-canvas-fg-muted line-through opacity-70' : 'text-canvas-fg'
         }`}
       >
         {focus.text}
@@ -76,7 +76,7 @@ export default function FocusLine() {
           committed.current = false
           setEditing(true)
         }}
-        className="text-photo text-sm text-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="text-photo text-sm text-canvas-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         Edit
       </button>

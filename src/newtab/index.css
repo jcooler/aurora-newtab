@@ -29,6 +29,11 @@
 @theme inline {
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
+  /* Fixed light ink for text on the photograph — the panelColor engine leaves
+     the --canvas-* vars alone, so text-canvas-fg/-muted never adapt (Task 60
+     fix round; see themes.css). Panel/card/drawer text keeps text-fg/-muted. */
+  --color-canvas-fg: var(--canvas-fg);
+  --color-canvas-fg-muted: var(--canvas-fg-muted);
   --color-accent: var(--accent);
   --color-panel: var(--panel);
   --color-panel-solid: var(--panel-solid);

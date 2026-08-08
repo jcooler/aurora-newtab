@@ -51,6 +51,18 @@ describe('applyPanelColor', () => {
     expect(e.getAttribute('data-scheme')).toBe('light')
   })
 
+  it('a light pick adapts the PANEL ink (--fg) but NEVER the CANVAS ink (--canvas-fg)', () => {
+    // The photo-floating text set reads --canvas-fg/--canvas-fg-muted, which the
+    // engine must leave entirely alone (Task 60 fix round): a light panel pick
+    // darkens panel text for legibility on the now-light panels, but the clock/
+    // greeting/quote sit on the unchanged photograph and must keep light ink.
+    const e = el()
+    applyPanelColor(e, '#f5f5f5')
+    expect(e.style.getPropertyValue('--fg')).toBe('#1a1a1a') // panel ink adapts
+    expect(e.style.getPropertyValue('--canvas-fg')).toBe('') // canvas ink untouched
+    expect(e.style.getPropertyValue('--canvas-fg-muted')).toBe('') // ditto
+  })
+
   it('re-applying a dark color after a light one clears the light scheme stamp', () => {
     const e = el()
     applyPanelColor(e, '#ffffff')

@@ -52,7 +52,7 @@ function CryptoInner({ coins }: { coins: string[] }) {
     // the crypto PositionedBlock for the placement rationale.
     <section aria-label="Crypto" className="w-88 text-center">
       {empty ? (
-        <p className="text-photo text-sm text-fg-muted">No prices right now.</p>
+        <p className="text-photo text-sm text-canvas-fg-muted">No prices right now.</p>
       ) : (
         <div className="flex flex-nowrap items-baseline justify-center gap-4">
           {rows.map((coin) => (
@@ -68,12 +68,14 @@ function CryptoInner({ coins }: { coins: string[] }) {
  *  truncated (numeric data truncating mid-digit would be actively
  *  misleading, unlike a headline title). The symbol/price share the
  *  baseline `text-photo` legibility shadow (index.css's @utility, a
- *  text-shadow only — it carries no color of its own, so it composes
- *  cleanly with the change span's own tint below); the change span is the
- *  ONLY part with a state-driven color. */
+ *  text-shadow only — it carries no color of its own) plus the fixed
+ *  `text-canvas-fg` photo ink (Task 60 fix round: this strip floats on the
+ *  photo, so its ink must NOT follow the panelColor-adaptive --fg), so it
+ *  composes cleanly with the change span's own tint below; the change span is
+ *  the ONLY part with a state-driven color. */
 function CoinCell({ coin }: { coin: CoinRow }) {
   return (
-    <span className="text-photo flex items-baseline gap-1 text-sm font-medium">
+    <span className="text-photo text-canvas-fg flex items-baseline gap-1 text-sm font-medium">
       <span className="uppercase">{coin.symbol}</span>
       <span>{formatPrice(coin.price)}</span>
       <span className={tintClass(coin.change24h)}>{formatChange(coin.change24h)}</span>
@@ -119,5 +121,5 @@ function formatChange(change: number): string {
 function tintClass(change: number): string {
   if (change > 0) return 'text-emerald-300'
   if (change < 0) return 'text-red-400'
-  return 'text-fg-muted'
+  return 'text-canvas-fg-muted'
 }

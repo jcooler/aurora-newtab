@@ -19,6 +19,12 @@ const PANEL_FROST_ALPHA = '66' // 0.40
  *  `data-scheme="light"` for a bright pick so the [data-scheme="light"]
  *  color-scheme flip (src/newtab/index.css) makes native controls match.
  *
+ *  Deliberately touches only the PANEL tokens (--panel-solid/--panel) and the
+ *  PANEL ink (--fg/--fg-muted). It NEVER touches --canvas-fg/--canvas-fg-muted:
+ *  text on the photograph (clock/greeting/quote/etc.) keeps its fixed light ink
+ *  regardless of the pick, because the photo behind it doesn't change (Task 60
+ *  fix round; see themes.css).
+ *
  *  Deterministic w.r.t. `el`: the same input always leaves `el` in the same
  *  style/attribute state (every branch either sets or removes each property),
  *  so it is safe to call on every settings change. */

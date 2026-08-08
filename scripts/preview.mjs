@@ -577,6 +577,37 @@ console.log(lightPick.scheme === 'light' ? 'PASS: light pick stamped data-scheme
 console.log(lightPick.colorScheme === 'light' ? 'PASS: native color-scheme flipped to light' : `FAIL: color-scheme is ${lightPick.colorScheme}`)
 console.log(lightPick.fg === '#1a1a1a' ? 'PASS: derived fg flipped to near-black' : `FAIL: light pick fg is ${lightPick.fg}`)
 console.log(lightPick.gearBg && lightPick.gearBg.includes('245, 245, 245') ? 'PASS: surface re-tinted to the light pick' : `FAIL: gear bg is ${lightPick.gearBg}`)
+
+// The fix-round core, made FALSIFIABLE: on a LIGHT pick the CANVAS ink stays
+// fixed-light (the clock/greeting/quote sit on the unchanged photo) while the
+// PANEL ink adapts dark (a bookmarks chip LABEL sits on a now-light panel).
+// Before the fix, the clock read --fg too and went dark — near-invisible over
+// a bright photo. `--canvas-fg` must be untouched by the engine.
+const inkSplit = await page.evaluate(() => {
+  const parse = (c) => {
+    const m = c && c.match(/rgba?\(([^)]+)\)/)
+    if (!m) return null
+    const [r, g, b] = m[1].split(',').map((v) => parseFloat(v))
+    return { r, g, b }
+  }
+  const clock = document.querySelector('time')
+  const chip = document.querySelector(
+    'nav[aria-label="Bookmarks bar"] button, nav[aria-label="Bookmarks bar"] a',
+  )
+  return {
+    clock: clock ? parse(getComputedStyle(clock).color) : null,
+    chip: chip ? parse(getComputedStyle(chip).color) : null,
+    canvasFg: getComputedStyle(document.documentElement).getPropertyValue('--canvas-fg').trim(),
+  }
+})
+const isLightInk = (c) => !!c && c.r > 200 && c.g > 200 && c.b > 200
+const isDarkInk = (c) => !!c && c.r < 80 && c.g < 80 && c.b < 80
+console.log(isLightInk(inkSplit.clock) ? `PASS: clock keeps fixed light canvas ink on a light pick (rgb ${inkSplit.clock.r} ${inkSplit.clock.g} ${inkSplit.clock.b})` : `FAIL: clock ink is ${JSON.stringify(inkSplit.clock)} (should stay light)`)
+console.log(inkSplit.canvasFg === '#f5f5f4' ? 'PASS: --canvas-fg untouched by the panelColor engine (#f5f5f4)' : `FAIL: --canvas-fg is ${inkSplit.canvasFg}`)
+if (hasBookmarksPermission) {
+  console.log(isDarkInk(inkSplit.chip) ? `PASS: bookmarks chip label ink adapts dark on the now-light panel (rgb ${inkSplit.chip.r} ${inkSplit.chip.g} ${inkSplit.chip.b})` : `FAIL: chip label ink is ${JSON.stringify(inkSplit.chip)} (should adapt dark)`)
+}
+
 await page.screenshot({ path: `${outDir}/widget-color-light.png` })
 console.log('captured widget-color-light.png')
 
@@ -2851,7 +2882,9 @@ console.log(
     (cells[1]?.changeClass ?? '').includes('text-red-400') &&
     !(cells[1]?.change ?? '').includes('-') && // real minus sign, not a hyphen
     cells[2]?.change === '0.0%' &&
-    (cells[2]?.changeClass ?? '').includes('text-fg-muted')
+    // Task 60 fix round: the crypto strip is canvas (floats on the photo), so
+    // even its muted zero-change tint uses the fixed --canvas-fg-muted.
+    (cells[2]?.changeClass ?? '').includes('text-canvas-fg-muted')
   console.log(
     tintsOk
       ? `PASS: the Crypto widget tints each 24h change correctly (emerald positive / red negative with a real minus sign / muted zero) (${JSON.stringify(cells)})`
