@@ -3475,16 +3475,25 @@ console.log(
 // rss top-[22vh] (now shownCount:8, its own display max) / vercel
 // top-[64vh]; crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
 // its fixed-width `flex-nowrap` strip doesn't change height with coin
-// count). Runs after the calendar block (every connector left disabled by
-// its own block above), captures connectors-all.png, then runs a pairwise
-// rect-intersection over EVERY pair drawn from an 18-element set — the 7
-// connector widgets plus every peripheral a user's eye actually shares the
-// page with (timer pill, the COLLAPSED weather chip, Notes pill, photo
-// refresh button, Tasks pill, settings gear, quote, links row, search bar,
-// clock, greeting) — C(18,2) = 153 pairs, every one asserted (never
-// eyeballed), `found` required for all 18 rects first so a vanished element
-// can't report a false PASS by omission. Repeats the CAPTURE ONLY (plus a
-// console-error check — no re-assertion of the 153 pairs; `setViewportSize`
+// count); mid-left second column monthCal top-[12vh] (forced to its 6-row
+// worst case) / habits top-[42vh] (seeded at its own 6-chip MAX_HABIT_CHIPS
+// worst case) — see App.tsx's own monthCal/habits PositionedBlock comments
+// for the joint-column arithmetic, and the quantified `mid-left column gap
+// floor` probe below for this gate's own measured proof with all nine
+// widgets on at once (Task 59 — the two widgets Task 57/58 shipped, joining
+// this gate for the first time; every fixture above them is unchanged from
+// Task 55). Runs after the calendar block (every connector left disabled by
+// its own block above), captures connectors-all.png — now the FULL vision:
+// all seven connectors, monthCal, and habits, every widget on the page
+// simultaneously — then runs a pairwise rect-intersection over EVERY pair
+// drawn from a 20-element set — the 7 connector widgets, monthCal, habits,
+// plus every peripheral a user's eye actually shares the page with (timer
+// pill, the COLLAPSED weather chip, Notes pill, photo refresh button, Tasks
+// pill, settings gear, quote, links row, search bar, clock, greeting) —
+// C(20,2) = 190 pairs, every one asserted (never eyeballed), `found`
+// required for all 20 rects first so a vanished element can't report a
+// false PASS by omission. Repeats the CAPTURE ONLY (plus a
+// console-error check — no re-assertion of the 190 pairs; `setViewportSize`
 // reflows the identical seeded DOM into a different layout of the SAME
 // scenario, not a different one) at 1280x800 and 2560x1440. Back at
 // 1600x900, expands the weather panel: anchored `right-4` at a measured
@@ -3621,10 +3630,15 @@ console.log(
     crypto: cryptoSel,
     ics: icsSel,
   }
+  // Task 59: the mid-left column's own two widgets join the all-on scenario
+  // at their own worst cases too — same selectors the Task 57/58 isolated
+  // blocks below use.
+  const habitsSel = '[data-block-id="habits"]'
+  const monthCalSel = '[data-block-id="monthCal"]'
 
   await page.evaluate(
     async ({ rssFeeds, rssHeadlines, githubFixture, gitlabFixture, jiraFixture, vercelFixture, cryptoFixture }) => {
-      const { connectors } = await chrome.storage.local.get('connectors')
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
       const now = Date.now()
       const H = 3_600_000
       // Same midnight-proof step idiom as the calendar block above (review-
@@ -3641,7 +3655,54 @@ console.log(
         { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
         { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
       ]
+      // Habits + monthCal (Task 59) join the all-on scenario at their own
+      // worst cases too — the SAME 6-item MAX_HABIT_CHIPS fixture and inline
+      // localDateKey/prevDayKey re-derivation the Task 57/58 isolated blocks
+      // below use (reused in shape, not imported: page.evaluate's function
+      // argument runs inside the browser page, not this Node process, and
+      // can't reach src/lib/habits.ts), so the mid-left column's worst case
+      // in THIS all-nine-widgets-on scenario is identical in shape to its
+      // own isolated-block worst case — only the surrounding scenario
+      // differs. monthCal itself needs no fixture (it self-gates on the
+      // toggle alone, per App.tsx's own comment) — its 6-row worst case is
+      // forced by navigation, right after this seed, below.
+      function localDateKey(dt) {
+        const y = dt.getFullYear()
+        const m = String(dt.getMonth() + 1).padStart(2, '0')
+        const day = String(dt.getDate()).padStart(2, '0')
+        return `${y}-${m}-${day}`
+      }
+      function prevDayKey(key) {
+        const [y, m, day] = key.split('-').map(Number)
+        return localDateKey(new Date(y, m - 1, day - 1))
+      }
+      function runEndingAt(endKey, n) {
+        const keys = []
+        let cursor = endKey
+        for (let i = 0; i < n; i++) {
+          keys.push(cursor)
+          cursor = prevDayKey(cursor)
+        }
+        return keys
+      }
+      const todayKey = localDateKey(new Date(now))
+      const yesterdayKey = prevDayKey(todayKey)
+      const habits = [
+        { id: 'h1', name: 'Read daily', createdAt: now, log: runEndingAt(todayKey, 12) },
+        { id: 'h2', name: 'Stretch', createdAt: now, log: runEndingAt(yesterdayKey, 5) },
+        { id: 'h3', name: 'Meditate', createdAt: now, log: [] },
+        { id: 'h4', name: 'Journal', createdAt: now, log: [todayKey] },
+        { id: 'h5', name: 'Walk', createdAt: now, log: [] },
+        {
+          id: 'h6',
+          name: 'Practice deep breathing exercises every single morning without fail',
+          createdAt: now,
+          log: [],
+        },
+      ]
       await chrome.storage.local.set({
+        habits,
+        settings: { ...settings, widgets: { ...settings.widgets, habits: true, monthCal: true } },
         connectors: {
           ...connectors,
           // shownCount:8 — RSS's own display-max option (SHOWN_COUNT_OPTIONS
@@ -3696,16 +3757,44 @@ console.log(
   for (const sel of Object.values(CONNECTOR_SELS)) {
     await page.waitForSelector(sel, { timeout: 5000 }).catch(() => {})
   }
+  await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(monthCalSel, { timeout: 5000 }).catch(() => {})
+
+  // Force monthCal to its 6-row worst case BEFORE capturing anything or
+  // measuring a single rect — same click-until-42-cells loop the Task 58
+  // isolated block below uses (reused, not reinvented), so connectors-all.png
+  // and every measurement in this gate reflect monthCal's REAL worst-case
+  // height, not whatever row count the calendar happens to have on the date
+  // this script runs.
+  let monthCalCellCount = 0
+  for (let i = 0; i < 14; i++) {
+    monthCalCellCount = await page.evaluate(
+      (sel) => document.querySelectorAll(`${sel} [data-cell-key]`).length,
+      monthCalSel,
+    )
+    if (monthCalCellCount === 42) break
+    await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+    await page.waitForTimeout(30)
+  }
+  console.log(
+    monthCalCellCount === 42
+      ? 'PASS: forced monthCal to its 6-row worst case inside the combined-defaults gate'
+      : `FAIL: forced monthCal to its 6-row worst case inside the combined-defaults gate (cellCount=${monthCalCellCount})`,
+  )
 
   let gateErrorsSeen = errors.length
 
   await page.screenshot({ path: `${outDir}/connectors-all.png` })
   console.log('captured connectors-all.png')
 
-  // The full 18-element set: the 7 connector widgets plus every peripheral a
-  // user's eye actually shares the page with at defaults.
+  // The full 20-element set (Task 59): the 7 connector widgets, monthCal
+  // (forced to its 6-row worst case above), habits (seeded at its own
+  // 6-chip MAX_HABIT_CHIPS worst case), plus every peripheral a user's eye
+  // actually shares the page with at defaults.
   const PAGE_ELEMENTS = {
     ...CONNECTOR_SELS,
+    habits: habitsSel,
+    monthCal: monthCalSel,
     timer: '[data-block-id="timer"]',
     weather: '[data-block-id="weather"]', // COLLAPSED chip — expanded is its own step below
     notes: '[data-block-id="notes"]',
@@ -3752,8 +3841,8 @@ console.log(
   const noCollisions = pairwise.collisions.length === 0
   console.log(
     allFound && noCollisions
-      ? `PASS: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions)`
-      : `FAIL: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
+      ? `PASS: combined-defaults pairwise non-overlap over all 20 page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions)`
+      : `FAIL: combined-defaults pairwise non-overlap over all 20 page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
   )
 
   // Quantified right-column gap floor (Task 55 fix round) — the pairwise
@@ -3791,18 +3880,69 @@ console.log(
       : `FAIL: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (${JSON.stringify(rcGaps)}, rects: github=${JSON.stringify(rc.github)}, gitlab=${JSON.stringify(rc.gitlab)}, jira=${JSON.stringify(rc.jira)}, tasks=${JSON.stringify(rc.tasks)})`,
   )
 
+  // Quantified mid-left column gap floor (Task 59) — same discipline as the
+  // right-column gap floor just above: the pairwise check only proves NO
+  // overlap, this quantifies the ACTUAL gaps at the mid-left column's own
+  // worst case (monthCal forced to its 6-row month, habits seeded at its own
+  // 6-chip MAX_HABIT_CHIPS fixture — both already seeded/forced above) now
+  // that this column shares the page with all seven connectors too, rather
+  // than being measured in isolation the way the Task 57/58 blocks below do.
+  //
+  // THIS is exactly the check that FOUND a real collision the isolated
+  // blocks structurally could never catch: vercel (`left-8 w-80` =
+  // 32-352px) is the left column's actual WIDEST card — wider than RSS/ics
+  // (`w-72` = 288px) — and vercel's own worst-case band (5 deployments)
+  // crosses habits' band whenever both widgets are on. The isolated Task
+  // 57/58 blocks below only ever seed RSS, never vercel, so they had no way
+  // to render that collision; this gate, seeding all seven connectors AND
+  // both mid-left widgets at once, is the first to. Fixed by moving the
+  // WHOLE mid-left column's left edge from `left-[21rem]` to `left-[23rem]`
+  // (App.tsx's monthCal/habits PositionedBlock comments carry the full
+  // writeup) — RSS's own gap widens to a non-binding 48px as a result; the
+  // REAL governing floor is now vercel's right edge to habits' left edge
+  // (monthCal's own band never overlaps vercel's, regardless of x, so it has
+  // no vercel-based floor of its own — only the RSS-based one, kept for
+  // column-alignment symmetry with habits). RSS is seeded at shownCount:8
+  // (this gate's own display-max fixture) and vercel at its own
+  // MAX_DEPLOYMENTS — both change card HEIGHT, not column WIDTH (fixed
+  // Tailwind classes), so every left-edge floor below is asserted exact.
+  // Reuses `pairwise.rects` (aliased `rc` above), already captured from the
+  // SAME render — no second DOM read needed.
+  const mc = rc.monthCal
+  const hb = rc.habits
+  const MID_LEFT_GAP_FLOOR = 16
+  const RSS_GAP = 48
+  const midLeftLeftGapMonthCal = rc.rss && mc ? +(mc.left - rc.rss.right).toFixed(1) : null
+  const midLeftLeftGapHabits = rc.rss && hb ? +(hb.left - rc.rss.right).toFixed(1) : null
+  const midLeftVercelGapHabits = rc.vercel && hb ? +(hb.left - rc.vercel.right).toFixed(1) : null
+  const midLeftSeamGap = mc && hb ? +(hb.top - mc.bottom).toFixed(1) : null
+  const midLeftBottomGap = rc.links && hb ? +(rc.links.top - hb.bottom).toFixed(1) : null
+  const midLeftOk =
+    midLeftLeftGapMonthCal === RSS_GAP &&
+    midLeftLeftGapHabits === RSS_GAP &&
+    midLeftVercelGapHabits === MID_LEFT_GAP_FLOOR &&
+    midLeftSeamGap !== null &&
+    midLeftSeamGap >= MID_LEFT_GAP_FLOOR &&
+    midLeftBottomGap !== null &&
+    midLeftBottomGap >= MID_LEFT_GAP_FLOOR
+  console.log(
+    midLeftOk
+      ? `PASS: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case, all nine widgets on at once, clear their floors (RSS->monthCal ${midLeftLeftGapMonthCal}px, RSS->habits ${midLeftLeftGapHabits}px, vercel->habits ${midLeftVercelGapHabits}px, monthCal->habits ${midLeftSeamGap}px, habits->links ${midLeftBottomGap}px)`
+      : `FAIL: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case, all nine widgets on at once, clear their floors (RSS->monthCal=${midLeftLeftGapMonthCal}, RSS->habits=${midLeftLeftGapHabits}, vercel->habits=${midLeftVercelGapHabits}, monthCal->habits=${midLeftSeamGap}, habits->links=${midLeftBottomGap}, rects: monthCal=${JSON.stringify(mc)}, habits=${JSON.stringify(hb)}, rss=${JSON.stringify(rc.rss)}, vercel=${JSON.stringify(rc.vercel)}, links=${JSON.stringify(rc.links)})`,
+  )
+
   const newErrorsAtDefault = errors.length - gateErrorsSeen
   console.log(
     newErrorsAtDefault === 0
-      ? 'PASS: no console errors with all seven connectors combined at 1600x900'
-      : `FAIL: no console errors with all seven connectors combined at 1600x900 (${newErrorsAtDefault} new: ${errors.slice(-newErrorsAtDefault).join('; ')})`,
+      ? 'PASS: no console errors with all seven connectors, monthCal, and habits combined at 1600x900'
+      : `FAIL: no console errors with all seven connectors, monthCal, and habits combined at 1600x900 (${newErrorsAtDefault} new: ${errors.slice(-newErrorsAtDefault).join('; ')})`,
   )
   gateErrorsSeen = errors.length
 
   // Repeat the CAPTURE ONLY (plus a console-error check) at the narrowest and
   // widest ordinary viewports — the identical seeded DOM reflowed by a real
   // `setViewportSize`, same idiom as the viewport matrix below, never a
-  // relaunch. No re-assertion of the 153 pairs here: a different width is a
+  // relaunch. No re-assertion of the 190 pairs here: a different width is a
   // different LAYOUT of the same combined-defaults scenario already proven
   // above, not a new one to re-derive from scratch.
   //
@@ -3837,8 +3977,8 @@ console.log(
     const newErrors = errors.length - gateErrorsSeen
     console.log(
       newErrors === 0
-        ? `PASS: no console errors with all seven connectors combined at ${w}x${h}`
-        : `FAIL: no console errors with all seven connectors combined at ${w}x${h} (${newErrors} new: ${errors.slice(-newErrors).join('; ')})`,
+        ? `PASS: no console errors with all seven connectors, monthCal, and habits combined at ${w}x${h}`
+        : `FAIL: no console errors with all seven connectors, monthCal, and habits combined at ${w}x${h} (${newErrors} new: ${errors.slice(-newErrors).join('; ')})`,
     )
     gateErrorsSeen = errors.length
   }
@@ -3923,12 +4063,12 @@ console.log(
   await setWeatherExpanded(false)
   await page.waitForTimeout(150)
 
-  // Restore: disable ALL SEVEN connectors and clear their cache, then reload
-  // so nothing here leaks into the viewport matrix / default-state /
-  // worst-case bookmarks blocks below — same restore discipline as every
-  // connector block above.
+  // Restore: disable ALL SEVEN connectors plus monthCal/habits, clear
+  // habits/connector cache, then reload so nothing here leaks into the
+  // viewport matrix / default-state / worst-case bookmarks blocks below —
+  // same restore discipline as every connector block above.
   await page.evaluate(async () => {
-    const { connectors } = await chrome.storage.local.get('connectors')
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
     await chrome.storage.local.set({
       connectors: {
         ...connectors,
@@ -3941,6 +4081,8 @@ console.log(
         ics: { ...connectors.ics, enabled: false },
       },
       connectorSnapshots: {},
+      habits: [],
+      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } },
     })
   })
   await page.reload()
@@ -3950,10 +4092,17 @@ console.log(
     (sels) => Object.values(sels).every((s) => document.querySelector(s) === null),
     CONNECTOR_SELS,
   )
+  // habits/monthCal's own PositionedBlock WRAPPER always renders, gated or
+  // not (see PositionedBlock.tsx's own early-return branch) — the "gone"
+  // signal is the gate returning null, i.e. no chip buttons / no table
+  // inside it, same distinction the Task 57/58 isolated blocks' own
+  // gone-checks make against their inner content, not their wrapper.
+  const habitsGone = (await page.locator(`${habitsSel} button`).count()) === 0
+  const monthCalGone = (await page.locator(`${monthCalSel} table`).count()) === 0
   console.log(
-    allGone
-      ? 'All seven connectors disabled; page restored to idle'
-      : 'WARNING: at least one connector widget still present after the combined-defaults gate',
+    allGone && habitsGone && monthCalGone
+      ? 'All seven connectors, monthCal, and habits disabled; page restored to idle'
+      : `WARNING: at least one connector/habits/monthCal widget still present after the combined-defaults gate (allGone=${allGone}, habitsGone=${habitsGone}, monthCalGone=${monthCalGone})`,
   )
 }
 
@@ -4336,16 +4485,23 @@ console.log(
 
   // Left floor: RSS's own column right edge. Structurally deterministic
   // (left-8 + w-72 = 320px) but measured here against the REAL rendered
-  // card, not assumed — and asserted EXACT per the brief ("16px gap to
-  // 336 — assert it"), since both widths are fixed Tailwind classes with no
-  // worst-case growth to defend against the way RSS's headline COUNT does
-  // elsewhere in this file.
+  // card, not assumed. NOT the binding constraint (Task 59 correction): the
+  // left column's actual WIDEST card is vercel's (`left-8 w-80` = 32-352px,
+  // 32px wider than RSS/ics), and vercel shares a vertical band with habits
+  // whenever both are on — the combined-defaults gate's own `mid-left
+  // column gap floor` block (scripts/preview.mjs, the connectors-all
+  // section) asserts that REAL exact 16px gap against a live vercel render,
+  // since vercel isn't part of this isolated fixture. This assertion just
+  // confirms RSS's own (now non-binding, more generous) exact clearance
+  // still holds: 368 (`left-[23rem]`) - 320 (rss.right) = 48px, unchanged
+  // unless either widget's fixed Tailwind width changes.
+  const RSS_GAP = 48
   const leftGap = rectsRaw.rss && h ? +(h.left - rectsRaw.rss.right).toFixed(1) : null
-  const leftOk = leftGap === FLOOR
+  const leftOk = leftGap === RSS_GAP
   console.log(
     leftOk
-      ? `PASS: habits column left edge clears RSS's own column right edge by exactly ${FLOOR}px (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right})`
-      : `FAIL: habits column left edge clears RSS's own column right edge by exactly ${FLOOR}px (gap=${leftGap}, habits=${JSON.stringify(h)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+      ? `PASS: habits column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right})`
+      : `FAIL: habits column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (gap=${leftGap}, habits=${JSON.stringify(h)}, rss=${JSON.stringify(rectsRaw.rss)})`,
   )
 
   // Right floor: whichever centered-column element(s) actually occupy the
@@ -4682,13 +4838,23 @@ console.log(
 
   // Left floor: RSS's own column right edge — asserted EXACT, same
   // discipline as the habits block above (both widths are fixed Tailwind
-  // classes with no worst-case growth to defend against).
+  // classes with no worst-case growth to defend against). NOT the binding
+  // constraint (Task 59 correction, same reasoning as the habits block's own
+  // left-floor comment below in this file): vercel's card is the left
+  // column's actual widest (`left-8 w-80` = 32-352px), so this column's real
+  // left-edge floor is pinned against vercel, not RSS — but monthCal's OWN
+  // vertical band (108-355 at 1600x900) never overlaps vercel's (576-768 at
+  // its own worst case), so unlike habits, monthCal never actually risks
+  // colliding with vercel regardless of x; this column shares habits' own
+  // `left-[23rem]` purely for visual alignment, and RSS's own gap here (48px
+  // now, up from 16px) is exact but non-binding for the same reason.
+  const RSS_GAP = 48
   const leftGap = rectsRaw.rss && m ? +(m.left - rectsRaw.rss.right).toFixed(1) : null
-  const leftOk = leftGap === FLOOR
+  const leftOk = leftGap === RSS_GAP
   console.log(
     leftOk
-      ? `PASS: monthCal column left edge clears RSS's own column right edge by exactly ${FLOOR}px (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right})`
-      : `FAIL: monthCal column left edge clears RSS's own column right edge by exactly ${FLOOR}px (gap=${leftGap}, monthCal=${JSON.stringify(m)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+      ? `PASS: monthCal column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right})`
+      : `FAIL: monthCal column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (gap=${leftGap}, monthCal=${JSON.stringify(m)}, rss=${JSON.stringify(rectsRaw.rss)})`,
   )
 
   // Right floor: whichever centered-column element(s) actually occupy

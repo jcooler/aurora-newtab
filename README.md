@@ -24,6 +24,12 @@ no backend — everything lives on your machine.
   of folder and favicon chips; click a folder to drill into it (with a
   breadcrumb back button for nested subfolders). Off by default; reads your
   existing bookmarks, never creates or modifies any.
+- **Habit streaks** — a small set of daily habits as tap-to-mark chips, each
+  showing its current streak; yesterday keeps a streak alive until you mark
+  today, so one slow morning doesn't cost you the count. Off by default.
+- **Month calendar** — a glance-sized month grid for "what date is the 3rd
+  Friday" questions, with today ringed and a dot on any date you've added a
+  countdown for. Off by default.
 - **Connectors** — an extensible framework for pulling outside data into the
   dashboard, one card per source under Settings → Connectors, each asking
   Chrome for access to exactly the site you add and nothing more. Seven
@@ -292,8 +298,8 @@ audited line-by-line against this codebase) lives in
 Aurora has no backend and no accounts. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
-widget layout, and connector configuration (e.g. your RSS feed list) —
-is stored locally in `chrome.storage.local`. The one exception is an
+habits, widget layout, and connector configuration (e.g. your RSS feed
+list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 

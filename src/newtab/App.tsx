@@ -400,7 +400,7 @@ export default function App() {
 
           <WidgetBoundary name="monthCal">
             {/* DEFAULT placement — Task 58, the TOP of the mid-left SECOND
-                column (`left-[21rem] w-56`, shared with HabitsWidget directly
+                column (`left-[23rem] w-56`, shared with HabitsWidget directly
                 below it — see that PositionedBlock's own comment for how
                 THAT half of the column is derived). Task 57 shipped habits
                 alone at a PROVISIONAL `top-[43vh]`, explicitly flagged for
@@ -409,6 +409,26 @@ export default function App() {
                 just this one, because the two widgets' worst-case heights
                 don't leave room for a stack starting anywhere near either
                 task's original guess.
+
+                LEFT EDGE CORRECTED (Task 59): `left-[21rem]` (336px) was
+                derived against RSS's own column right edge (`left-8 w-72` =
+                32-320px), the only left-column neighbor either isolated
+                fixture seeded. Task 59's combined-defaults gate — the first
+                to render every widget, including vercel, at once — found
+                habits' 336px-wide left edge actually OVERLAPPING vercel's
+                card (`left-8 w-80` = 32-352px, 32px WIDER than RSS/ics)
+                whenever both are on: vercel's own worst-case band (576-768,
+                5 deployments) crosses habits' band (378-622), and 336 sits
+                16px INSIDE vercel's 352px right edge. The left column's true
+                governing width is whichever of ics/rss/vercel is widest —
+                vercel, not RSS — so this column's own left edge now clears
+                vercel's box instead: `left-[23rem]` (368px) = 352 (vercel's
+                right edge) + 16 (this file's own floor). RSS's own gap
+                widens to a non-binding 48px as a result — see
+                scripts/preview.mjs's own combined-defaults gate (the
+                `mid-left column gap floor` block) for the live-measured
+                proof against both neighbors, and habits' own PositionedBlock
+                comment below for its matching correction.
 
                 THE ARITHMETIC THAT FORCES THE WHOLE COLUMN UP: MonthCalWidget
                 at its own worst case (a 6-row month — May/August 2026 and
@@ -441,13 +461,13 @@ export default function App() {
                 top=108/bottom=355; HabitsWidget top=378/bottom=622 (`top-
                 [42vh]`, see its own comment); gaps — this widget's bottom to
                 habits' top: 23px; habits' bottom to the links row: 32.5px;
-                RSS's own column right edge to this widget's left edge:
-                exactly 16px (336 vs rss.right 320, same exact-floor
-                convention the old habits comment used); this widget's right
-                edge to the centered column's measured left edge at ITS OWN
-                band (the clock, the only centered element overlapping
-                y=108-355 here): 75.5px (560 vs clock.left 635.5). Every
-                floor clears with real margin, not shaved to the edge. A
+                RSS's own column right edge to this widget's left edge (no
+                longer the binding constraint, Task 59): exactly 48px (368 vs
+                rss.right 320); this widget's right edge to the centered
+                column's measured left edge at ITS OWN band (the clock, the
+                only centered element overlapping y=108-355 here): 43.5px
+                (592 vs clock.left 635.5). Every floor clears with real
+                margin, not shaved to the edge. A
                 stored arrange-mode `pos` still wins (PositionedBlock drops
                 this className on that branch). MonthCalWidget self-gates on
                 settings.widgets.monthCal alone (no data-emptiness check —
@@ -457,7 +477,7 @@ export default function App() {
                 other toggle-gated peripheral here. Transform-free per the
                 house rule (App's quote/bookmarks comments): a plain
                 left/top offset, no translate. */}
-            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[21rem] top-[12vh] w-56">
+            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-56">
               <MonthCalWidget />
             </PositionedBlock>
           </WidgetBoundary>
@@ -477,13 +497,24 @@ export default function App() {
                 MonthCalWidget's own top at 131.5px — well above Task 57's
                 original 43vh/387px for THIS widget alone).
 
-                `left-[21rem]` (336px at 1600x900) is unchanged from Task 57
-                and still pinned the same way: RSS's own card sits at `left-8`
-                (32px) and is `w-72` (288px wide — see RssWidget.tsx), so its
-                right edge is EXACTLY 320px; 336px opens an exact 16px gap,
-                the same floor this file uses everywhere else, asserted (not
-                just computed) by scripts/preview.mjs's own monthCal block
-                (which now owns this measurement jointly with habits').
+                `left-[23rem]` (368px at 1600x900) is Task 59's correction of
+                Task 57/58's `left-[21rem]` (336px): that number was pinned
+                against RSS's own card (`left-8 w-72` = 32-320px), the only
+                left-column neighbor either isolated fixture ever seeded, but
+                the left column's actual WIDEST card is vercel's (`left-8
+                w-80` = 32-352px, see VercelWidget.tsx — 32px wider than
+                RSS/ics). Task 59's combined-defaults gate — the first to
+                render vercel and habits together — found 336px sat 16px
+                INSIDE vercel's 352px right edge whenever both are on
+                (vercel's own worst-case band, 576-768 at 5 deployments,
+                crosses this widget's band, 378-622). `left-[23rem]` = 352
+                (vercel's right edge) + 16 (this file's own floor everywhere
+                else) clears BOTH left-column neighbors; RSS's own gap widens
+                to a non-binding 48px as a result. Asserted (not just
+                computed) by scripts/preview.mjs's own monthCal block (which
+                owns this measurement jointly with monthCal's) AND, against a
+                live vercel render, by the combined-defaults gate's own
+                `mid-left column gap floor` block.
 
                 `top-[42vh]` (378px) is this task's correction of Task 57's
                 `43vh` (387px) — one whole-vh step higher, picked (per
@@ -495,8 +526,14 @@ export default function App() {
                 case, worldClocks+countdown+timer on): this widget
                 top=378/bottom=622; gap above (to MonthCalWidget's own
                 bottom, 355): 23px; gap below (to the links row, 654.5):
-                32.5px; left edge exactly 16px off RSS's own column right
-                edge (336 vs rss.right 320); right edge 80px off the centered
+                32.5px; left edge exactly 48px off RSS's own column right
+                edge (368 vs rss.right 320, no longer the binding constraint
+                — see this widget's own left-edge paragraph above) and
+                exactly 16px off vercel's own column right edge (368 vs
+                vercel.right 352, the REAL binding constraint, live-measured
+                by the combined-defaults gate's own `mid-left column gap
+                floor` block since vercel isn't part of this isolated
+                fixture); right edge 48px off the centered
                 column's own measured left edge at THIS widget's band (640 —
                 whichever of greeting/worldClocks/countdown/search/focus/
                 links actually overlaps this band at measurement time, not
@@ -508,7 +545,7 @@ export default function App() {
                 — same as every other toggle-gated peripheral here.
                 Transform-free per the house rule (App's quote/bookmarks
                 comments): a plain left/top offset, no translate. */}
-            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[21rem] top-[42vh] w-56">
+            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[42vh] w-56">
               <HabitsWidget />
             </PositionedBlock>
           </WidgetBoundary>

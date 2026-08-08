@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** August 7, 2026
+**Effective date:** August 8, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -43,6 +43,8 @@ anywhere except as explicitly described under "Network calls" below:
   i.e. roughly 1 km precision, plus a display label)
 - Notes (the scratchpad text)
 - World clocks and countdowns you've configured
+- Habits (the habit names you've added and which days you've marked each
+  one done)
 - Widget layout (the on-screen position of each widget, if you've used
   "Arrange layout" to move anything from its default spot)
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
