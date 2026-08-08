@@ -472,33 +472,59 @@ export default function App() {
                 house rule is calc-over-transform for every default-placement
                 peripheral regardless).
 
-                `top-[85vh]` (765px at the 900px launch viewport) is a
-                REVISED value, off the brief's own starting hypothesis
-                (`top-[76vh]`, 684px) — implemented first, then REJECTED by
-                direct measurement in scripts/preview.mjs's own probe, not
-                just class-name reasoning (the same "measure, don't assume"
-                correction Vercel's own PositionedBlock comment documents for
-                ITS placement): the centered column is TALLER than the
-                clock/greeting/search/focus/links skeleton alone once
-                worldClocks + countdown are also on (both widgets the preview
-                harness enables for its own captures, and either a real user
-                could enable too) — at 1600x900 with both on, the links row's
-                own bottom edge measures y=752.5, so 76vh (684, bottom 704)
-                actually landed INSIDE the links row's own vertical span
-                (664.5-752.5), not below it. The real gap this widget has to
-                fit in is narrow: links.bottom=752.5 to quote.top=804 is only
-                51.5px total, against a ~20px single-line row — 85vh (top
-                765, bottom 785) splits the remaining 31.5px of slack as
-                ~12.5px above (clears links) and 19px below (clears quote,
-                comfortably over the 16px minimum scripts/preview.mjs's own
-                gap probe asserts). quote's own position is invariant to the
-                worldClocks/countdown toggle (it's `bottom-6` off the
-                viewport's bottom edge, not part of the centered column), so
-                this same 19px below-margin holds regardless of what else is
-                enabled; disabling worldClocks/countdown only SHRINKS the
-                column and shifts it toward vertical center, which can only
-                move links' own bottom edge UP (more clearance above, never
-                less) — so the harder (widgets-on) case validated here is
+                `top-[86vh]` (774px at the 900px launch viewport) is a
+                MEASURED, CENTERED value — the second revision this
+                placement has needed, both times by direct measurement in
+                scripts/preview.mjs's own probe rather than class-name
+                reasoning (the same "measure, don't assume" correction
+                Vercel's own PositionedBlock comment documents for ITS
+                placement):
+
+                Revision 1 (initial ship) — the brief's own starting
+                hypothesis, `top-[76vh]` (684px), landed INSIDE the links
+                row's own vertical span once worldClocks + countdown are
+                also on (both widgets the preview harness enables for its
+                own captures, and either a real user could enable too).
+                Corrected to `top-[85vh]` (765px), verified only against the
+                gap BELOW (to quote) — the probe at the time asserted
+                `pxGapBelow >= 16` but only a boolean, un-quantified
+                non-overlap check against the links row above.
+
+                Revision 2 (fix round 1, post-review) — the reviewer
+                reproduced the exact harness state in a fresh Chromium
+                session and measured `links.bottom = 762.5` (not the 752.5
+                estimate revision 1's comment had used — the two-link seed's
+                row wraps slightly differently than the ad hoc probe script
+                that first produced 752.5), making 85vh's REAL gap above the
+                strip 765 - 762.5 = **2.5px** — comfortably overlap-free by
+                the old boolean check, but nowhere near a safe margin. The
+                probe was rewritten to assert BOTH `pxGapAbove` and
+                `pxGapBelow` quantified, each against an explicit >=8px floor
+                (HALF this file's usual >=16px convention elsewhere — a
+                deliberate exception: this is the tightest band on the page,
+                42.5px total between two FIXED-HEIGHT single-line neighbors,
+                against this widget's own ~20px single-line height, so
+                there's no "worst case" growth to defend against the way
+                RSS's shownCount or vercel's deployment count need, and
+                arrange mode lets a user who dislikes the tight default
+                simply drag it elsewhere).
+
+                MEASURED (scripts/preview.mjs's crypto block, this run,
+                1600x900, worldClocks+countdown+timer on, 2 configured
+                links): `links.bottom = 762.5`, `quote.top = 804` — a
+                41.5px band. `top-[86vh]` (774, bottom 794, the strip's own
+                ~20px single-line height unchanged) splits that band's
+                21.5px of slack as `pxGapAbove = 11.5px` and
+                `pxGapBelow = 10.0px` — both over the 8px floor, both
+                asserted and logged verbatim by the probe (not estimated).
+                quote's own position is invariant to the worldClocks/
+                countdown toggle (it's `bottom-6` off the viewport's bottom
+                edge, not part of the centered column), so the below-margin
+                holds regardless of what else is enabled; disabling
+                worldClocks/countdown only SHRINKS the centered column and
+                shifts it toward vertical center, which can only move
+                links' own bottom edge UP (more clearance above, never
+                less) — so the harder (widgets-on) case measured here is
                 also safe for the default (both off) case. A stored
                 arrange-mode `pos` still wins (PositionedBlock drops this
                 className on that branch). CryptoWidget self-gates on the
@@ -507,7 +533,7 @@ export default function App() {
                 other toggle-gated peripheral here. Transform-free per the
                 house rule: a plain left/top offset via calc(), no
                 translate. */}
-            <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[85vh]">
+            <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[86vh]">
               <CryptoWidget />
             </PositionedBlock>
           </WidgetBoundary>

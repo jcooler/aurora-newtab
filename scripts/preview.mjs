@@ -2705,13 +2705,16 @@ console.log(
 // CryptoBody). The widget itself is also structurally different from every
 // other connector card here: not a left/right-column panel, but a single
 // CENTERED strip capped at 5 cells — see App.tsx's own comment on the crypto
-// PositionedBlock for the full placement writeup (`top-[85vh]` — REVISED off
-// the brief's own `top-[76vh]` starting hypothesis, rejected by direct
-// measurement: it landed inside the links row's own vertical span once
-// worldClocks + countdown are on, same as this script leaves them for the
-// rest of this run — centered via `left-[calc(50%-11rem)]` against its own
-// w-88, 22rem, half of which is 11rem). NO live network: seed an enabled
-// config (3 coins) + a fresh
+// PositionedBlock for the full placement writeup (`top-[86vh]` — CENTERED in
+// the links→quote band by direct measurement, the second revision this
+// placement has needed: the brief's own `top-[76vh]` hypothesis landed
+// inside the links row once worldClocks + countdown are on, same as this
+// script leaves them for the rest of this run; the first correction,
+// `top-[85vh]`, only asserted the gap BELOW quantified and left the gap
+// ABOVE a boolean, un-quantified check, which a post-ship review caught
+// passing at a real 2.5px of clearance — centered via
+// `left-[calc(50%-11rem)]` against its own w-88, 22rem, half of which is
+// 11rem). NO live network: seed an enabled config (3 coins) + a fresh
 // snapshot whose fetchedAt is computed inside the page (so the ttl is fresh
 // at read time and useConnectorSnapshot renders straight from cache) — the
 // fixture spans all three tint states (positive, negative, and exactly
@@ -2793,12 +2796,11 @@ console.log(
   await page.screenshot({ path: `${outDir}/connectors-crypto.png` })
   console.log('captured connectors-crypto.png')
 
-  // Probe 2: collision — the measured gap to the quote block below it (the
-  // real question this placement has to answer, not just the arithmetic
-  // App.tsx's own comment works through), PLUS non-overlap against the
-  // centered search/focus column and the links row directly above it
-  // (explicitly the two neighbours this task's own brief calls out), and the
-  // usual peripherals every other connector probe in this script also checks
+  // Probe 2: collision — BOTH the measured gap to the links row above and to
+  // the quote block below (the real question this placement has to answer,
+  // not just the arithmetic App.tsx's own comment works through), PLUS
+  // non-overlap against the centered search/focus column and the usual
+  // peripherals every other connector probe in this script also checks
   // (weather chip, timer pill, Tasks pill, gear, Notes pill, photo refresh).
   const gap = await page.evaluate((selCr) => {
     const rect = (sel) => {
@@ -2824,6 +2826,7 @@ console.log(
       searchFound: !!search,
       focusFound: !!focus,
       linksFound: !!links,
+      pxGapAbove: cr && links ? cr.top - links.bottom : null,
       pxGapBelow: cr && quote ? quote.top - cr.bottom : null,
       crWeather: hits(cr, weather),
       crTimer: hits(cr, timer),
@@ -2831,17 +2834,42 @@ console.log(
       crGear: hits(cr, gear),
       crSearch: hits(cr, search),
       crFocus: hits(cr, focus),
-      crLinks: hits(cr, links),
-      crQuote: hits(cr, quote),
       crNotes: hits(cr, notes),
       crPhotoRefresh: hits(cr, photoRefresh),
       cr: cr
         ? { top: +cr.top.toFixed(1), bottom: +cr.bottom.toFixed(1), left: +cr.left.toFixed(1), right: +cr.right.toFixed(1) }
         : null,
+      links: links ? { top: +links.top.toFixed(1), bottom: +links.bottom.toFixed(1) } : null,
       quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
     }
   }, cryptoSel)
-  const gapBelowOk = gap.crFound && gap.quoteFound && !gap.crQuote && gap.pxGapBelow !== null && gap.pxGapBelow >= 16
+  // Fix round 1 (post-review): this band gets an explicit >=8px floor, HALF
+  // this file's usual >=16px convention (RSS/vercel's own gap probes) — a
+  // deliberate, reasoned exception, not a fudge. Rationale: (1) this is the
+  // TIGHTEST vertical band on the page at 1600x900 — links.bottom to
+  // quote.top is only ~40px total against this widget's own ~20px
+  // single-line height, nowhere near the ~100px+ of slack RSS/vercel's own
+  // >=16px gaps were measured against; (2) both neighbors are FIXED-HEIGHT,
+  // SINGLE-LINE static elements (the links row never wraps at this seed's
+  // 2-link count, quote's own figure is a fixed two-line block) — neither
+  // grows unpredictably the way RSS's user-configurable shownCount does, so
+  // there's no "worst case" to defend against beyond what's measured here;
+  // (3) CryptoWidget itself is also single-line, fixed-height (MAX_COINS
+  // caps cell count, but height is line-height-only regardless of count);
+  // (4) arrange mode (Task 36) lets a user who dislikes the tight default
+  // fit simply drag it elsewhere — this default only has to be safe, not
+  // spacious. The review that mandated this also caught the PRIOR version of
+  // this probe: it computed pxGapBelow but only a boolean hits() check
+  // above, which reads PASS at literally 0.5px of clearance — replaced here
+  // with the same quantified pxGapAbove/gapAboveOk shape as pxGapBelow's.
+  const GAP_FLOOR = 8
+  const gapAboveOk = gap.crFound && gap.linksFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
+  console.log(
+    gapAboveOk
+      ? `PASS: the Crypto widget's slot clears the links row above it by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — crypto top ${gap.cr?.top}, links bottom ${gap.links?.bottom})`
+      : `FAIL: the Crypto widget's slot clears the links row above it by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const gapBelowOk = gap.crFound && gap.quoteFound && gap.pxGapBelow !== null && gap.pxGapBelow >= GAP_FLOOR
   console.log(
     gapBelowOk
       ? `PASS: the Crypto widget's slot clears the quote block below it by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — crypto bottom ${gap.cr?.bottom}, quote top ${gap.quote?.top})`
@@ -2850,20 +2878,18 @@ console.log(
   const collisionOk =
     gap.searchFound &&
     gap.focusFound &&
-    gap.linksFound &&
     !gap.crWeather &&
     !gap.crTimer &&
     !gap.crTasks &&
     !gap.crGear &&
     !gap.crSearch &&
     !gap.crFocus &&
-    !gap.crLinks &&
     !gap.crNotes &&
     !gap.crPhotoRefresh
   console.log(
     collisionOk
-      ? 'PASS: the Crypto widget clears the search/focus column and the links row above it, plus the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button'
-      : `FAIL: the Crypto widget clears the search/focus column and the links row above it, plus the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
+      ? 'PASS: the Crypto widget clears the search/focus column, the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button'
+      : `FAIL: the Crypto widget clears the search/focus column, the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
   )
 
   // Refresh drawer-connectors.png now that crypto is CONFIGURED — the card
