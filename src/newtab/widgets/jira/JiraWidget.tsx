@@ -3,7 +3,16 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchJira, type JiraData, type JiraIssue } from '../../../services/connectors/jira'
 import type { ConnectorConfig, JiraConfig } from '../../../services/connectors/types'
 
-const MAX_ISSUES = 5
+// GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
+// (the counts line above already says "there's more"), and it shares the
+// right column's ~630px budget (github top-[24vh]=216 to the Tasks pill's
+// top=846, minus two 16px inter-card gaps and the 16px Tasks-pill clearance)
+// with github's and gitlab's cards above it — the LOWEST of the three, so
+// its own bottom edge is what has to clear the Tasks pill. Lowered from 5 —
+// see GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment for the full
+// rationale; this connector's own regression (jira's max-issue card
+// overlapping the Tasks pill) is what the fix round was scoped to fix.
+const MAX_ISSUES = 3
 
 /** Narrow `connectors.jira` (a ConnectorConfig union member, or undefined) to
  *  a CONNECTED JiraConfig, defensively — same rationale and shape as

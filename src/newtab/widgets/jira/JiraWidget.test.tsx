@@ -113,20 +113,26 @@ describe('JiraWidget', () => {
     expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
   })
 
-  it('caps issue rows at 5', async () => {
+  // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing
+  // the right column's ~630px budget with github's and gitlab's own cards
+  // (see JiraWidget.tsx's own MAX_ISSUES comment) — jira's card sits lowest,
+  // so its bottom edge is what has to clear the Tasks pill. Seeds cap+1 so a
+  // regression back to a looser cap (or no cap) fails visibly.
+  it('caps issue rows at 3', async () => {
     const many: JiraData = {
-      issues: Array.from({ length: 8 }, (_, i) => ({
+      issues: Array.from({ length: 4 }, (_, i) => ({
         key: `AUR-${i}`,
         summary: `Issue ${i}`,
         status: 'To Do',
         url: `https://yoursite.atlassian.net/browse/AUR-${i}`,
       })),
-      counts: { 'To Do': 8 },
+      counts: { 'To Do': 4 },
     }
     const storage = await seededStorage(CONNECTED, many)
     mount(storage)
     await screen.findByText('AUR-0')
-    expect(screen.queryByText('AUR-5')).toBeNull()
+    expect(screen.getByText('AUR-2')).toBeTruthy()
+    expect(screen.queryByText('AUR-3')).toBeNull()
   })
 
   it('each row is an external link (target=_blank, rel carries noopener + noreferrer, href + title intact)', async () => {

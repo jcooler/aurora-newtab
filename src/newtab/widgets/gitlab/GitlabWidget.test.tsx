@@ -93,9 +93,13 @@ describe('GitlabWidget', () => {
     expect(await screen.findByText('No MRs assigned to you.')).toBeTruthy()
   })
 
-  it('caps MR rows at 5', async () => {
+  // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing
+  // the right column's ~630px budget with github's and jira's own cards
+  // (see GitlabWidget.tsx's own MAX_MRS comment). Seeds cap+1 so a
+  // regression back to a looser cap (or no cap) fails visibly.
+  it('caps MR rows at 3', async () => {
     const many: GitlabData = {
-      mrs: Array.from({ length: 8 }, (_, i) => ({
+      mrs: Array.from({ length: 4 }, (_, i) => ({
         title: `MR ${i}`,
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',
@@ -105,7 +109,8 @@ describe('GitlabWidget', () => {
     const storage = await seededStorage(CONNECTED, many)
     mount(storage)
     await screen.findByText('MR 0')
-    expect(screen.queryByText('MR 5')).toBeNull()
+    expect(screen.getByText('MR 2')).toBeTruthy()
+    expect(screen.queryByText('MR 3')).toBeNull()
   })
 
   it('each row is an external link (target=_blank, rel carries noopener + noreferrer, href + title intact)', async () => {

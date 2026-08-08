@@ -360,38 +360,93 @@ export default function App() {
 
           <WidgetBoundary name="github">
             {/* DEFAULT placement — the right-middle column, mirroring the RSS
-                widget on the left. `top-[24vh]` starts it well below the
-                collapsed weather chip (which defaults to the top band at
-                `right-4`) and its `right-8` anchor keeps it clear of the
-                centred clock/greeting column and the bottom-right Tasks pill /
-                settings gear. A stored arrange-mode `pos` still wins
-                (PositionedBlock drops this className on that branch).
-                GithubWidget self-gates on the connector's enabled+token state,
-                so this wrapper renders an empty box until the connector is
-                connected — same as every other toggle-gated peripheral here.
-                Transform-free per the house rule (App's quote/bookmarks
-                comments): a plain top/right offset, no translate. */}
-            <PositionedBlock id="github" pos={layout?.github} className="fixed right-8 top-[24vh]">
+                widget on the left, and the TOP of a three-card stack (gitlab,
+                then jira, below it — see their own comments).
+
+                `top-[14vh]` (126px at 1600x900) — moved UP from an original
+                `24vh` (216px) by the Task 55 FIX ROUND below, a review-caught
+                regression fix, not the original ship. History: Task 55's own
+                combined-defaults gate first shipped this at `24vh`, with
+                gitlab at `54vh` and jira at `72vh`, defended only against
+                each connector's own DEFAULT-shaped fixture (2 PRs/2 issues,
+                2 MRs, 3 issues) — NOT each widget's own display MAX. Review
+                caught the gap: jira's real MAX_ISSUES=5 card (bottom
+                876-920px at the old `72vh`) collided with the bottom-right
+                Tasks pill (top 846px) — a real, user-reachable regression no
+                earlier probe saw, because none of them ever seeded jira at
+                its own cap.
+
+                The fix is a design change, not a point patch: every
+                right-column widget's display cap is now LOWER — glance
+                panels, not full lists, and each one's own header chip/counts
+                line already says "there's more" (GithubWidget's own
+                MAX_PRS/MAX_ISSUES comment has the full rationale; GitlabWidget/
+                JiraWidget mirror it). Even at the new, smaller caps, the
+                THREE cards' combined worst-case height still doesn't fit
+                below `24vh` with 16px floors everywhere, so github itself
+                had to move up too — re-derived BY MEASUREMENT (probe-logged
+                by scripts/preview.mjs's combined-defaults gate, never a side
+                script — see its own top-of-block comment for the full
+                arithmetic and history), not by class-name reasoning:
+
+                  · MEASURED at 1600x900, every right-column widget at its
+                    own display max (github 3 PRs + 2 issues, gitlab 3 MRs,
+                    jira 3 issues): github top 126 / bottom 415 (height 289);
+                    gitlab top 432 / bottom 616 (height 184); jira top 639 /
+                    bottom 823 (height 184); the Tasks pill's own top sits at
+                    846.
+                  · Gaps (all probe-logged, all >=16px): github->gitlab
+                    17px, gitlab->jira 23px, jira->Tasks-pill 23px.
+                  · `14vh` (126px) is the LOWEST github can sit and still
+                    clear the collapsed weather chip's own bottom (120px at
+                    this viewport) without overlapping it — one vh lower
+                    (`13vh` = 117px) lands INSIDE the weather chip's own
+                    62-120px vertical span. `14vh` is also the ONLY whole-vh
+                    value that leaves enough room below for gitlab AND jira
+                    to each land on a whole-vh value of their own while
+                    still clearing every 16px floor — the full search space
+                    (every whole-vh github/gitlab/jira combination) was
+                    walked by hand against these exact measured heights
+                    before picking this one, not assumed.
+
+                `right-8` anchor keeps it clear of the centred clock/greeting
+                column and the bottom-right Tasks pill / settings gear. A
+                stored arrange-mode `pos` still wins (PositionedBlock drops
+                this className on that branch). GithubWidget self-gates on
+                the connector's enabled+token state, so this wrapper renders
+                an empty box until the connector is connected — same as
+                every other toggle-gated peripheral here. Transform-free per
+                the house rule (App's quote/bookmarks comments): a plain
+                top/right offset, no translate. */}
+            <PositionedBlock id="github" pos={layout?.github} className="fixed right-8 top-[14vh]">
               <GithubWidget />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="gitlab">
             {/* DEFAULT placement — the right-middle column, BELOW the GitHub
-                widget's own default slot. `top-[54vh]` (moved down from an
-                original `46vh` — Task 55's combined-defaults gate) clears
-                github's `top-[24vh]` card by a MEASURED margin: with BOTH
-                connectors' own default fixtures rendered together (github's
-                real 2 PRs + 2 issues, not an empty stand-in), github's card
-                reaches y=461px at 1600x900, and the original `46vh` (414px)
-                started 47px INSIDE it — a real collision every earlier stack
-                probe (Tasks 49-51) missed, because each one seeded the OTHER
-                connectors EMPTY while proving a single connector's own slot,
-                never all seven with real content at once. `54vh` (486px)
-                reopens a 25px gap below github's real default height, while
-                still sharing github's `right-8` anchor so a reader who
-                connects both sees them stacked as one column rather than
-                overlapping. A stored arrange-mode `pos` still wins
+                widget's own default slot (`top-[14vh]` as of the Task 55 fix
+                round — see its own PositionedBlock comment for the full
+                writeup and the measured arithmetic behind every number
+                here).
+
+                `top-[48vh]` (432px at 1600x900) — history: originally
+                `46vh`, moved to `54vh` by Task 55's own combined-defaults
+                gate (github's real 2-PR/2-issue card reached 47px inside the
+                original `46vh` slot), then to `48vh` by the fix round that
+                also moved github up and lowered every right-column widget's
+                display cap (GitlabWidget's own MAX_MRS comment has the
+                rationale). MEASURED (this fix round, scripts/preview.mjs's
+                combined-defaults gate, probe-logged): with github at its OWN
+                display max (3 PRs + 2 issues, bottom 415px) and gitlab at
+                ITS OWN display max (3 MRs, height 184px), `48vh` (432px)
+                opens a real 17px gap below github's max-height card —
+                >=16px, and the tightest of the three right-column gaps by
+                design (see github's own comment: the whole-vh search space
+                was walked by hand, and this is the only combination that
+                fits at all). Shares github's `right-8` anchor so a reader
+                who connects both sees them stacked as one column rather
+                than overlapping. A stored arrange-mode `pos` still wins
                 (PositionedBlock drops this className on that branch).
                 GitlabWidget self-gates on the connector's enabled+token+
                 instanceUrl state, so this wrapper renders an empty box until
@@ -399,33 +454,50 @@ export default function App() {
                 toggle-gated peripheral here. Transform-free per the house
                 rule (App's quote/bookmarks comments): a plain top/right
                 offset, no translate. */}
-            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[54vh]">
+            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[48vh]">
               <GitlabWidget />
             </PositionedBlock>
           </WidgetBoundary>
 
           <WidgetBoundary name="jira">
             {/* DEFAULT placement — the right column, lower still: BELOW both
-                the GitHub (`top-[24vh]`) and GitLab (`top-[54vh]`) default
-                slots, sharing their `right-8` anchor so a reader who connects
-                all three sees one stacked column rather than any overlap.
-                `top-[72vh]` (moved down from an original `66vh` — the SAME
-                Task 55 combined-defaults fix that moved gitlab: gitlab's own
-                real card, 2 MRs + a to-dos chip, is taller than the empty
-                stand-in every earlier stack probe used, so gitlab's real
-                bottom now sits lower than `66vh` cleared) also has to clear
-                the bottom-right Tasks pill (`fixed bottom-4 right-16`) and
-                the settings gear beside it — the harness's own
-                combined-defaults gate is what actually pins this number,
-                same discipline as every other connector default here. A
-                stored arrange-mode `pos` still wins (PositionedBlock drops
-                this className on that branch). JiraWidget self-gates on the
-                connector's enabled+site+email+apiToken state, so this
-                wrapper renders an empty box until the connector is
-                connected — same as every other toggle-gated peripheral
-                here. Transform-free per the house rule (App's quote/
-                bookmarks comments): a plain top/right offset, no translate. */}
-            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[72vh]">
+                the GitHub (`top-[14vh]`) and GitLab (`top-[48vh]`) default
+                slots (both as of the Task 55 fix round — see their own
+                PositionedBlock comments), sharing their `right-8` anchor so
+                a reader who connects all three sees one stacked column
+                rather than any overlap.
+
+                `top-[71vh]` (639px at 1600x900) — history: originally
+                `66vh`, moved to `72vh` by Task 55's own combined-defaults
+                gate (gitlab's real 2-MR card sat lower than `66vh` cleared),
+                then to `71vh` by the fix round that is THE reason this
+                comment exists: the `72vh` slot was reviewed and found to
+                collide with the bottom-right Tasks pill (`fixed bottom-4
+                right-16`, top 846px) once jira actually rendered near its
+                OWN display max — the gate that shipped `72vh` had only ever
+                seeded jira with 3 of its then-current MAX_ISSUES=5, never
+                the real worst case, so the collision was invisible until a
+                real user connected jira and saw 4-5 issues (measured at the
+                time: bottom 876-920px, the latter also clipping the 900px
+                viewport). Fixed as a design change (JiraWidget's own
+                MAX_ISSUES comment has the rationale: lowered to 3, a glance
+                cap, not a point-patched position). MEASURED (this fix
+                round, scripts/preview.mjs's combined-defaults gate,
+                probe-logged, jira seeded at its OWN new display max, 3
+                issues): jira bottom 823px, Tasks pill top 846px — a real
+                23px gap, >=16px, and probe-asserted by a NEW quantified gap
+                check this fix round added specifically because the old
+                boolean-only pairwise probe could never have caught how
+                close this was (it only proves "no overlap," never "how much
+                room is left"). A stored arrange-mode `pos` still wins
+                (PositionedBlock drops this className on that branch).
+                JiraWidget self-gates on the connector's enabled+site+email+
+                apiToken state, so this wrapper renders an empty box until
+                the connector is connected — same as every other
+                toggle-gated peripheral here. Transform-free per the house
+                rule (App's quote/bookmarks comments): a plain top/right
+                offset, no translate. */}
+            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[71vh]">
               <JiraWidget />
             </PositionedBlock>
           </WidgetBoundary>

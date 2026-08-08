@@ -1628,7 +1628,9 @@ console.log(
   console.log('captured connectors-github.png')
 
   // Probe 3: combined-defaults collision — the GitHub widget at its default
-  // placement (right-middle: fixed right-8 top-[24vh]) must clear the collapsed
+  // placement (right-middle: fixed right-8 top-[14vh] as of the Task 55 fix
+  // round — see the combined-defaults gate near the end of this file for why
+  // it moved up from top-[24vh]) must clear the collapsed
   // weather chip (top-right band) and the timer pill (top-left), plus the
   // bottom-right Tasks pill and settings gear it is nearest to. Same
   // rect-intersection idiom as the RSS collision probe above.
@@ -1728,10 +1730,13 @@ console.log(
 // (fetchedAt stamped in the page so the ttl is fresh at read time and
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitHub block (github left disabled), captures, probes its own defaults,
-// THEN — since github's default slot (top-[24vh]) sits directly above
-// gitlab's (top-[54vh] as of Task 55 — see the combined-defaults gate near
-// the end of this file for why it moved down from an original 46vh) —
-// momentarily re-enables github alongside gitlab to prove the two stack
+// THEN — since github's default slot (top-[14vh] as of the Task 55 fix
+// round) sits directly above gitlab's (top-[48vh], same fix round — see the
+// combined-defaults gate near the end of this file for the full history:
+// 46vh -> 54vh in Task 55's own combined-defaults gate, then 54vh -> 48vh
+// in the fix round that lowered every right-column connector's display cap
+// and moved github up too) — momentarily re-enables github alongside gitlab
+// to prove the two stack
 // without overlapping when BOTH are connected at once, before restoring
 // everything off so every block below (viewport matrix, default-state,
 // worst-case bookmarks) is undisturbed. NOTE: this probe's own github
@@ -1821,8 +1826,8 @@ console.log(
   console.log('captured connectors-gitlab.png')
 
   // Probe 3: combined-defaults collision — the GitLab widget at its default
-  // placement (right-middle, below github: fixed right-8 top-[54vh] as of
-  // Task 55) must clear the collapsed weather chip (top-right band), the
+  // placement (right-middle, below github: fixed right-8 top-[48vh] as of
+  // the Task 55 fix round) must clear the collapsed weather chip (top-right band), the
   // timer pill (top-left), plus the bottom-right Tasks pill and settings
   // gear it is nearest to. Same rect-intersection idiom as the GitHub
   // collision probe above.
@@ -1980,10 +1985,11 @@ console.log(
 // useConnectorSnapshot renders straight from cache). Runs right after the
 // GitLab block (github + gitlab both left disabled), captures, probes its
 // own defaults (including the bottom-right Tasks pill it sits closest to —
-// jira's `top-[72vh]` default, as of Task 55, is the LOWEST of the three
-// right-column connectors), THEN — since github's/gitlab's default slots
-// (top-[24vh], top-[54vh] as of Task 55) sit directly above jira's own
-// (top-[72vh]) — momentarily re-enables ALL THREE alongside jira to prove
+// jira's `top-[71vh]` default, as of the Task 55 fix round, is the LOWEST of
+// the three right-column connectors), THEN — since github's/gitlab's
+// default slots (top-[14vh], top-[48vh] as of that same fix round) sit
+// directly above jira's own (top-[71vh]) — momentarily re-enables ALL THREE
+// alongside jira to prove
 // the full right-column stack never overlaps itself, before restoring
 // everything off so every block below (viewport matrix, default-state,
 // worst-case bookmarks) is undisturbed. NOTE: this probe's own github/
@@ -2087,7 +2093,8 @@ console.log(
   console.log('captured connectors-jira.png')
 
   // Probe 3: combined-defaults collision — the Jira widget at its default
-  // placement (right column, lowest: fixed right-8 top-[72vh] as of Task 55)
+  // placement (right column, lowest: fixed right-8 top-[71vh] as of the
+  // Task 55 fix round)
   // must clear the collapsed weather chip (top-right band), the timer pill
   // (top-left), and — the one this default sits closest to — the
   // bottom-right Tasks pill and settings gear. Same rect-intersection idiom
@@ -3207,58 +3214,90 @@ console.log(
 }
 
 // ---------------------------------------------------------------------------
-// Combined-defaults gate (Task 55) — THE phase gate the whole connector
-// roster (Tasks 44, 48-52, 54) has been building toward. Every block above
-// proved its OWN default clears its immediate neighbours, and the growing
-// stack probes along the way proved widening SUBSETS coexist (github+gitlab
-// in Task 49, +jira in Task 50, +vercel in Task 51) — but every one of those
-// stack probes seeded the OTHER connectors EMPTY (0 rows) while proving a
-// single connector's own slot, so nothing before this block had ever
-// rendered all SEVEN with their REAL default content at once. This gate
-// found exactly the gap that left: with github's real 2-PR/2-issue card
-// (245px tall, y=216..461 at 1600x900) rendered alongside gitlab's original
-// `top-[46vh]` (414px) default, github's real card reached 47px INSIDE
-// gitlab's slot — invisible to every earlier probe because each one's
-// github/gitlab stand-in was an empty shell only ~50px tall. Fixed by moving
-// gitlab to `top-[54vh]` and, since it pushed gitlab's own real bottom lower
-// too, jira to `top-[72vh]` (both in App.tsx; see those PositionedBlock
-// comments for the full measured writeup) — NOT relaunching a rewritten
-// stack probe here first, because the earlier per-task stack probes remain
-// useful for what they DO prove (empty-connector geometry) and are cheaper
-// to keep than to redo; this gate is what now covers the real-content case
-// they never could. Reusing the calendar block's own midnight-proof step
-// idiom for ics's fixture (baked epoch offsets would flake within seconds of
-// local midnight, exactly as that block's history documents; fetchedAt for
-// every connector is likewise stamped INSIDE the page, at evaluate time,
-// never baked into this script) — every other fixture here is each
-// connector's own default shape (not a worst-case variant; vercel's own
-// default fixture already IS its worst case, MAX_DEPLOYMENTS).
+// Combined-defaults gate (Task 55, revised in a later fix round) — THE phase
+// gate the whole connector roster (Tasks 44, 48-52, 54) has been building
+// toward. Every block above proved its OWN default clears its immediate
+// neighbours, and the growing stack probes along the way proved widening
+// SUBSETS coexist (github+gitlab in Task 49, +jira in Task 50, +vercel in
+// Task 51) — but every one of those stack probes seeded the OTHER
+// connectors EMPTY (0 rows) while proving a single connector's own slot, so
+// nothing before this block had ever rendered all SEVEN with their REAL
+// default content at once. This gate found exactly the gap that left: with
+// github's real 2-PR/2-issue card (245px tall, y=216..461 at 1600x900)
+// rendered alongside gitlab's original `top-[46vh]` (414px) default,
+// github's real card reached 47px INSIDE gitlab's slot — invisible to every
+// earlier probe because each one's github/gitlab stand-in was an empty
+// shell only ~50px tall. Fixed at the time by moving gitlab to `top-[54vh]`
+// and, since it pushed gitlab's own real bottom lower too, jira to
+// `top-[72vh]`.
 //
-// At 1600x900 defaults (measured, post-fix): right column github top-[24vh]
-// / gitlab top-[54vh] / jira top-[72vh]; left column ics top-[13vh] / rss
-// top-[22vh] / vercel top-[64vh]; crypto centered top-[86vh]. Runs after the
-// calendar block (every connector left disabled by its own block above),
-// captures connectors-all.png, then runs a pairwise rect-intersection over
-// EVERY pair drawn from an 18-element set — the 7 connector widgets plus
-// every peripheral a user's eye actually shares the page with (timer pill,
-// the COLLAPSED weather chip, Notes pill, photo refresh button, Tasks pill,
-// settings gear, quote, links row, search bar, clock, greeting) — C(18,2) =
-// 153 pairs, every one asserted (never eyeballed), `found` required for all
-// 18 rects first so a vanished element can't report a false PASS by
-// omission. Repeats the CAPTURE ONLY (plus a console-error check — no
-// re-assertion of the 153 pairs; `setViewportSize` reflows the identical
-// seeded DOM into a different layout of the SAME scenario, not a different
-// one) at 1280x800 and 2560x1440. Back at 1600x900, expands the weather
-// panel: anchored `right-4` at a measured ~352px wide there, it sits
-// squarely over github's own `right-8`/w-80 slot on the x-axis, and reaches
-// down to y=451.4px (hourly trend graphic + rain callout + sunrise/sunset
-// row) — well into github's `top-[24vh]` (y=216) slot. This gate is also
-// what found THAT: a real, intentional geometric overlap, but every
-// connector PositionedBlock mounts later in App.tsx than weather's own, so
-// at matched (auto) stacking github's card painted ON TOP of the expanded
-// panel — the inverse of the disciplined-occlusion contract the 500x900
-// case in the viewport matrix below already proves for the centered
-// clock/greeting column. Fixed in App.tsx + WeatherWidget.tsx: an
+// FIX ROUND (post-ship regression, review-verified): that first fix only
+// ever seeded jira with 3 of its THEN-current MAX_ISSUES=5 — a leftover
+// default-looking fixture, not jira's own true display max — so this gate
+// never rendered jira's card tall enough to notice it overlapping the
+// bottom-right Tasks pill once a real user actually saw 4-5 issues (jira's
+// own real worst case at the time: bottom 876-920 at top-[72vh], the Tasks
+// pill's own top sitting at 846 — a real, user-reachable collision this
+// gate's own boolean pairwise check couldn't have caught even if it HAD
+// seeded jira at max, since that check only proves "no overlap," never "how
+// much room is left"). Fixed as a design change, not a point patch: every
+// right-column widget's own display cap is now LOWER (GithubWidget
+// MAX_PRS 4->3 / MAX_ISSUES 3->2, GitlabWidget MAX_MRS 5->3, JiraWidget
+// MAX_ISSUES 5->3 — see each widget's own comment; these are GLANCE panels,
+// and each header chip/counts-line already says "there's more"), EVERY
+// connector fixture in this gate now seeds its widget's TRUE display max
+// (not a shorter "default-looking" shape — see each fixture's own comment
+// below), and the right column was re-measured end to end: github moved UP
+// from `top-[24vh]` to `top-[14vh]` (the only way to fit all three cards'
+// new, still-nonzero max heights plus 16px floors below it — see App.tsx's
+// own github/gitlab/jira PositionedBlock comments for the full arithmetic),
+// gitlab `top-[54vh]` -> `top-[48vh]`, jira `top-[72vh]` -> `top-[71vh]`.
+// The pairwise boolean check below is no longer the only right-column proof
+// — see the quantified `right-column gaps` probe right after it, added this
+// fix round specifically because a boolean-only check is exactly what let
+// the regression ship unnoticed the first time.
+//
+// Reusing the calendar block's own midnight-proof step idiom for ics's
+// fixture (baked epoch offsets would flake within seconds of local
+// midnight, exactly as that block's history documents; fetchedAt for every
+// connector is likewise stamped INSIDE the page, at evaluate time, never
+// baked into this script).
+//
+// At 1600x900, EVERY connector at its own display max (measured, post-fix-
+// round): right column github top-[14vh]=126 (bottom 415, 3 PRs + 2 issues)
+// / gitlab top-[48vh]=432 (bottom 616, 3 MRs) / jira top-[71vh]=639 (bottom
+// 823, 3 issues) — gaps 17px / 23px / 23px, jira clears the Tasks pill
+// (top 846) by 23px, all >=16px, all probe-logged verbatim by the
+// quantified gap probe below, not estimated; left column ics top-[13vh] /
+// rss top-[22vh] (now shownCount:8, its own display max) / vercel
+// top-[64vh]; crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
+// its fixed-width `flex-nowrap` strip doesn't change height with coin
+// count). Runs after the calendar block (every connector left disabled by
+// its own block above), captures connectors-all.png, then runs a pairwise
+// rect-intersection over EVERY pair drawn from an 18-element set — the 7
+// connector widgets plus every peripheral a user's eye actually shares the
+// page with (timer pill, the COLLAPSED weather chip, Notes pill, photo
+// refresh button, Tasks pill, settings gear, quote, links row, search bar,
+// clock, greeting) — C(18,2) = 153 pairs, every one asserted (never
+// eyeballed), `found` required for all 18 rects first so a vanished element
+// can't report a false PASS by omission. Repeats the CAPTURE ONLY (plus a
+// console-error check — no re-assertion of the 153 pairs; `setViewportSize`
+// reflows the identical seeded DOM into a different layout of the SAME
+// scenario, not a different one) at 1280x800 and 2560x1440. Back at
+// 1600x900, expands the weather panel: anchored `right-4` at a measured
+// ~352px wide there, it sits squarely over github's (and, since github
+// moved up this fix round, now also gitlab's) own `right-8`/w-80 slot on
+// the x-axis, and reaches down into both cards' y-range — well past
+// github's new `top-[14vh]` (y=126) AND gitlab's new `top-[48vh]` (y=432)
+// slots (the panel reaches gitlab's slot now specifically BECAUSE github
+// moved up this fix round — it did not before). This gate is also what
+// first found the underlying stacking defect: a real, intentional
+// geometric overlap, but every connector PositionedBlock mounts later in
+// App.tsx than weather's own, so at matched (auto) stacking the connector
+// card(s) painted ON TOP of the expanded panel — the inverse of the
+// disciplined-occlusion contract the 500x900 case in the viewport matrix
+// below already proves for the centered clock/greeting column. Fixed in
+// App.tsx + WeatherWidget.tsx: an
 // `onExpandedChange` callback mirrors weather's own expanded state up to a
 // conditional `z-30` on weather's PositionedBlock wrapper (same value
 // TodoPanel/NotesPanel/TimerWidget's own open-state panels already use),
@@ -3274,17 +3313,35 @@ console.log(
     'https://news.ycombinator.com/rss',
     'https://www.theverge.com/rss/index.xml',
   ]
+  // 8 headlines — the RSS shownCount ceiling (SHOWN_COUNT_OPTIONS in
+  // Connectors.tsx tops out at 8), so this gate seeds it at ITS display max
+  // too, same discipline as every other connector fixture below (Task 55 fix
+  // round: the gate must render every card at its true worst case, not
+  // whatever shorter shape happened to be convenient).
   const RSS_HEADLINES = [
-    { source: 'Hacker News', title: 'A local-first dashboard people actually keep open', url: 'https://news.ycombinator.com/item?id=100', publishedAt: 5 },
-    { source: 'The Verge', title: 'The quiet return of the RSS reader', url: 'https://www.theverge.com/rss-returns', publishedAt: 4 },
-    { source: 'Hacker News', title: 'Show HN: I built a new-tab page just for me', url: 'https://news.ycombinator.com/item?id=101', publishedAt: 3 },
-    { source: 'The Verge', title: 'Browser extensions and the per-site permission prompt', url: 'https://www.theverge.com/permissions', publishedAt: 2 },
-    { source: 'Hacker News', title: 'Ask HN: what lives on your new-tab page?', url: 'https://news.ycombinator.com/item?id=102', publishedAt: 1 },
+    { source: 'Hacker News', title: 'A local-first dashboard people actually keep open', url: 'https://news.ycombinator.com/item?id=100', publishedAt: 8 },
+    { source: 'The Verge', title: 'The quiet return of the RSS reader', url: 'https://www.theverge.com/rss-returns', publishedAt: 7 },
+    { source: 'Hacker News', title: 'Show HN: I built a new-tab page just for me', url: 'https://news.ycombinator.com/item?id=101', publishedAt: 6 },
+    { source: 'The Verge', title: 'Browser extensions and the per-site permission prompt', url: 'https://www.theverge.com/permissions', publishedAt: 5 },
+    { source: 'Hacker News', title: 'Ask HN: what lives on your new-tab page?', url: 'https://news.ycombinator.com/item?id=102', publishedAt: 4 },
+    { source: 'The Verge', title: 'A field guide to the modern extension review queue', url: 'https://www.theverge.com/review-queue', publishedAt: 3 },
+    { source: 'Hacker News', title: 'Show HN: a calendar widget with a hard row cap', url: 'https://news.ycombinator.com/item?id=103', publishedAt: 2 },
+    { source: 'The Verge', title: 'Why glance panels beat infinite lists', url: 'https://www.theverge.com/glance-panels', publishedAt: 1 },
   ]
+  // DISPLAY MAX fixtures (Task 55 fix round) — every token connector below is
+  // seeded at its widget's own row cap (MAX_PRS/MAX_ISSUES/MAX_MRS, all
+  // lowered this round — see each widget's own comment), not a shorter
+  // "default-looking" shape. This gate exists to prove the right column
+  // fits every card's TRUE worst case at once; seeding anything less than
+  // max is exactly the gap that let jira-vs-Tasks-pill regress past the
+  // review that first shipped this gate (jira was seeded at 3 of its old
+  // MAX_ISSUES=5, so the gate never rendered the card tall enough to reach
+  // the pill).
   const GITHUB_FIXTURE = {
     prs: [
       { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
       { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+      { title: 'Add retry/backoff to the connector http helper', url: 'https://github.com/acme/app/pull/133', repo: 'acme/app' },
     ],
     issues: [
       { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
@@ -3297,9 +3354,16 @@ console.log(
     mrs: [
       { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
       { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+      { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
     ],
     todos: 6,
   }
+  // Already 3 issues — jira's own MAX_ISSUES post-fix-round, so this fixture
+  // (unchanged in content from before this fix round) is now genuinely the
+  // display max too, not a coincidentally-equal smaller number. This is
+  // jira's own worst case: the LOWEST card in the right column, so ITS
+  // bottom edge is what has to clear the Tasks pill below — see App.tsx's
+  // jira PositionedBlock comment for the measured writeup.
   const JIRA_FIXTURE = {
     issues: [
       { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
@@ -3320,11 +3384,18 @@ console.log(
       { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: Date.now() - 60 * 60 * 1000 },
     ],
   }
+  // FIVE coins — MAX_COINS (crypto's own display cap), this gate's display-
+  // max discipline applied here too. CryptoWidget's own strip is a fixed
+  // w-88 `flex-nowrap` row regardless of coin count (see its own comment),
+  // so this doesn't change the strip's HEIGHT or its already-measured gap to
+  // quote/links — it only makes the row-count fixture honest.
   const CRYPTO_FIXTURE = {
     coins: [
       { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67_412, change24h: 2.4 },
       { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3_245, change24h: -1.2 },
       { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+      { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+      { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
     ],
   }
 
@@ -3367,7 +3438,10 @@ console.log(
       await chrome.storage.local.set({
         connectors: {
           ...connectors,
-          rss: { enabled: true, feeds: rssFeeds, shownCount: 5 },
+          // shownCount:8 — RSS's own display-max option (SHOWN_COUNT_OPTIONS
+          // tops out at 8), same display-max discipline as every connector
+          // fixture in this gate (Task 55 fix round).
+          rss: { enabled: true, feeds: rssFeeds, shownCount: 8 },
           github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
           gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
           jira: {
@@ -3378,7 +3452,7 @@ console.log(
             displayName: 'Jon Cooler',
           },
           vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
-          crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] },
+          crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] },
           ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
         },
         // fetchedAt stamped HERE, in the page, for every connector at once —
@@ -3474,6 +3548,41 @@ console.log(
     allFound && noCollisions
       ? `PASS: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions)`
       : `FAIL: combined-defaults pairwise non-overlap over all 18 page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
+  )
+
+  // Quantified right-column gap floor (Task 55 fix round) — the pairwise
+  // check above only proves NO overlap (a 0.1px gap would still pass it);
+  // the controller ruling that lowered github/gitlab/jira's display caps
+  // requires each of the three right-column gaps to clear a real >=16px
+  // floor at every connector's OWN display max simultaneously (github
+  // MAX_PRS/MAX_ISSUES, gitlab MAX_MRS, jira MAX_ISSUES — all seeded at cap
+  // by this block's own fixtures above), same >=16px convention this file
+  // uses everywhere else (vercel-vs-quote's own pxGapBelow probe). Reuses
+  // `pairwise.rects`, already captured above from the SAME render — no
+  // second DOM read needed. This is what actually caught (pre-fix) jira's
+  // max-issue card overlapping the Tasks pill: the boolean pairwise probe
+  // above never quantified how close it was, and the gate that first shipped
+  // this block seeded jira below its own true display max, so it never
+  // rendered the card tall enough to expose the gap collapsing to zero.
+  const rc = pairwise.rects
+  const rcGaps =
+    rc.github && rc.gitlab && rc.jira && rc.tasks
+      ? {
+          githubToGitlab: +(rc.gitlab.top - rc.github.bottom).toFixed(1),
+          gitlabToJira: +(rc.jira.top - rc.gitlab.bottom).toFixed(1),
+          jiraToTasks: +(rc.tasks.top - rc.jira.bottom).toFixed(1),
+        }
+      : null
+  const RIGHT_COLUMN_GAP_FLOOR = 16
+  const rcGapsOk =
+    rcGaps !== null &&
+    rcGaps.githubToGitlab >= RIGHT_COLUMN_GAP_FLOOR &&
+    rcGaps.gitlabToJira >= RIGHT_COLUMN_GAP_FLOOR &&
+    rcGaps.jiraToTasks >= RIGHT_COLUMN_GAP_FLOOR
+  console.log(
+    rcGapsOk
+      ? `PASS: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (github->gitlab ${rcGaps.githubToGitlab}px, gitlab->jira ${rcGaps.gitlabToJira}px, jira->Tasks-pill ${rcGaps.jiraToTasks}px)`
+      : `FAIL: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (${JSON.stringify(rcGaps)}, rects: github=${JSON.stringify(rc.github)}, gitlab=${JSON.stringify(rc.gitlab)}, jira=${JSON.stringify(rc.jira)}, tasks=${JSON.stringify(rc.tasks)})`,
   )
 
   const newErrorsAtDefault = errors.length - gateErrorsSeen

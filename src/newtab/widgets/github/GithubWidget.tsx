@@ -6,8 +6,16 @@ import type { ConnectorConfig, GithubConfig } from '../../../services/connectors
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
 const NOTIF_CAP = 50
-const MAX_PRS = 4
-const MAX_ISSUES = 3
+// GLANCE caps (Task 55 fix round) — this is a glance panel, not a full list
+// (the "N unread" chip above already says "there's more"), and it shares the
+// right column's ~630px budget (github top-[24vh]=216 to the Tasks pill's
+// top=846, minus two 16px inter-card gaps and the 16px Tasks-pill clearance)
+// with gitlab's and jira's own cards below it. Lowered from 4/3 — the
+// combined-defaults gate (App.tsx's right-column PositionedBlock comments)
+// found the THREE cards could not all fit their old maxes in that band
+// without either colliding with each other or clipping the Tasks pill.
+const MAX_PRS = 3
+const MAX_ISSUES = 2
 
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id

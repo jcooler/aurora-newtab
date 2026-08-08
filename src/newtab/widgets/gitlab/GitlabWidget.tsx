@@ -6,7 +6,13 @@ import type { ConnectorConfig, GitlabConfig } from '../../../services/connectors
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
 const TODOS_CAP = 20
-const MAX_MRS = 5
+// GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
+// (the "N to-dos" chip above already says "there's more"), and it shares the
+// right column's ~630px budget (github top-[24vh]=216 to the Tasks pill's
+// top=846, minus two 16px inter-card gaps and the 16px Tasks-pill clearance)
+// with github's card above it and jira's below. Lowered from 5 — see
+// GithubWidget.tsx's own MAX_PRS/MAX_ISSUES comment for the full rationale.
+const MAX_MRS = 3
 
 /** Narrow `connectors.gitlab` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GitlabConfig, defensively — same rationale and shape as
