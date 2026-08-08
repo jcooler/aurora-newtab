@@ -426,13 +426,21 @@ export default function App() {
                 y=410 at the default 5) — measured directly, not
                 estimated, since the row math (gap-2 plus two text lines)
                 isn't obvious from the className alone. `top-[64vh]`
-                (576px) still clears that worst case by ~34px, and vercel's
-                own card (capped at MAX_DEPLOYMENTS=5, so this IS its own
-                worst-case height too) still ends around y=768, ~36px
-                clear of the quote block's own top (y=804) below it. The
-                harness's own gap-measurement probe (scripts/preview.mjs,
-                the vercel block) is what actually measures and pins these
-                numbers against the real rendered cards. A stored
+                (576px) clears that worst case by a measured 34.0px, and
+                vercel's own card (capped at MAX_DEPLOYMENTS=5, so a
+                5-row fixture IS its own worst-case height, not a
+                shorter stand-in) ends at y=768, a measured 36.0px clear
+                of the quote block's own top (y=804) below it. Fix round
+                1 (post-review) caught that the harness's OWN
+                gap-measurement probe was, at the time this paragraph was
+                first written, seeding vercel with only 3 rows — so the
+                "~768/~36px" figures here were an (accurate, as it turned
+                out) hand-computed estimate, not yet an actual
+                measurement of the real worst case. scripts/preview.mjs's
+                vercel block now seeds all 5 MAX_DEPLOYMENTS rows and
+                asserts this exact gap (`pxGapBelow >= 16`, logged
+                verbatim), so these are now genuinely pinned against the
+                real rendered card, not just arithmetic. A stored
                 arrange-mode `pos` still wins
                 (PositionedBlock drops this className on that branch).
                 VercelWidget self-gates on the connector's enabled+token

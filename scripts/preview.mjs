@@ -2258,42 +2258,72 @@ console.log(
 // measured writeup, including why `top-[64vh]` (not a naive same-rhythm
 // 44vh) is what actually clears RSS even at ITS worst case (shownCount=8).
 // NO live network: seed an enabled + connected config (just a token +
-// username, github's own shape) and a fresh snapshot (fetchedAt stamped in
-// the page so the ttl is fresh at read time and useConnectorSnapshot renders
-// straight from cache). Runs right after the Jira block (github/gitlab/jira
-// all left disabled), captures its own defaults ALONE (per the brief: "seed
-// vercel alone") — then a gap probe against RSS at ITS worst case plus the
-// full centered-content column (the exact invariant the rejected placement
-// violated) — then the FOUR-stack probe: re-enable github, gitlab AND jira
-// alongside vercel and assert every pair among all four panels is
-// non-overlapping, before restoring everything off so every block below
-// (viewport matrix, default-state, worst-case bookmarks) is undisturbed.
+// username, github's own shape) and a fresh snapshot at FIVE deployments —
+// MAX_DEPLOYMENTS, vercel's OWN worst-case row count, so the widget rendered
+// throughout this whole block (including the drawer-connectors.png capture
+// and the four-stack probe) is genuinely its tallest possible card, not a
+// shorter stand-in — fetchedAt stamped in the page so the ttl is fresh at
+// read time and useConnectorSnapshot renders straight from cache. Runs right
+// after the Jira block (github/gitlab/jira all left disabled), captures its
+// own defaults ALONE (per the brief: "seed vercel alone") — then a gap probe
+// against RSS at ITS worst case AND the quote block below it (vercel's OWN
+// worst-case height is what actually reaches closest to quote), plus the
+// full centered-content column and its two bottom-left neighbours (the Notes
+// pill, the photo refresh button) — the exact invariants the rejected
+// right-side placement violated and a fix-round-1 review caught missing here
+// — then the FOUR-stack probe: re-enable github, gitlab AND jira alongside
+// vercel and assert every pair among all four panels is non-overlapping and
+// every panel clears weather/Tasks/Notes/photo-refresh too, before restoring
+// everything off so every block below (viewport matrix, default-state,
+// worst-case bookmarks) is undisturbed.
 {
+  // FIVE deployments — MAX_DEPLOYMENTS (vercel.ts / VercelWidget.tsx), i.e.
+  // the widget's actual row cap. A shorter fixture here would make every
+  // "clears its neighbour" measurement in this block a measurement of a
+  // SHORTER-than-worst-case card — fix-round-1 review caught exactly that
+  // gap (the block used to seed only 3). ERROR is the OLDEST of the five, so
+  // a naive recency-only sort would put it LAST — proving the render
+  // actually exercises the failed-first rule, not just a lucky ordering; the
+  // four READY/BUILDING entries are each a different age so the recency-desc
+  // half of the sort is exercised too, not just a two-item tiebreak.
   const FIXTURE = {
     deployments: [
       {
         project: 'marketing-site',
         state: 'ERROR',
         url: 'https://vercel.com/acme/marketing-site/dep-err',
-        // Deliberately the OLDEST timestamp of the three, so a naive
-        // recency-only sort would put it LAST — proving the capture actually
-        // exercises the failed-first rule, not just a lucky ordering.
-        createdAt: Date.now() - 6 * 60 * 60 * 1000, // 6h old
+        createdAt: Date.now() - 6 * 60 * 60 * 1000, // 6h old — oldest overall, still sorts FIRST
       },
       {
         project: 'app-web',
         state: 'READY',
         url: 'https://vercel.com/acme/app-web/dep-ready',
-        createdAt: Date.now() - 3 * 60 * 1000, // 3m old
+        createdAt: Date.now() - 3 * 60 * 1000, // 3m old — newest non-error
+      },
+      {
+        project: 'admin',
+        state: 'READY',
+        url: 'https://vercel.com/acme/admin/dep-ready',
+        createdAt: Date.now() - 10 * 60 * 1000, // 10m old
+      },
+      {
+        project: 'landing',
+        state: 'READY',
+        url: 'https://vercel.com/acme/landing/dep-ready',
+        createdAt: Date.now() - 20 * 60 * 1000, // 20m old
       },
       {
         project: 'docs',
         state: 'BUILDING',
         url: 'https://vercel.com/acme/docs/dep-building',
-        createdAt: Date.now() - 60 * 60 * 1000, // 1h old
+        createdAt: Date.now() - 60 * 60 * 1000, // 1h old — oldest non-error
       },
     ],
   }
+  // Expected render order per fetchVercel's failed-first-then-recency sort:
+  // the ERROR row first regardless of age, then the four READY/BUILDING rows
+  // newest-to-oldest.
+  const EXPECTED_ORDER = ['marketing-site', 'app-web', 'admin', 'landing', 'docs']
   const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
 
   await page.evaluate(async (data) => {
@@ -2313,9 +2343,13 @@ console.log(
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
 
-  // Probe 1: the widget renders the seeded rows (3 deployments) from cache,
-  // failed-first — the ERROR row (oldest by createdAt) must render FIRST, not
-  // last. Link attributes captured in the same read for probe 2.
+  // Probe 1: the widget renders the seeded rows — all FIVE (MAX_DEPLOYMENTS,
+  // vercel's own worst-case row count, not a truncated stand-in) — from
+  // cache, in the FULL failed-first-then-recency order, not just "the ERROR
+  // row is first": every one of the five positions is checked against
+  // EXPECTED_ORDER, so a bug in the recency half of the sort (not just the
+  // failed-first half) would fail this too. Link attributes captured in the
+  // same read for probe 2.
   await page.waitForSelector(vercelSel, { timeout: 5000 }).catch(() => {})
   const rows = await page.evaluate((s) => {
     const sec = document.querySelector(s)
@@ -2332,13 +2366,12 @@ console.log(
   }, vercelSel)
   const rowsOk =
     rows !== null &&
-    rows.count === 3 &&
-    rows.projects[0] === 'marketing-site' && // ERROR, despite being the OLDEST
-    rows.projects[1] === 'app-web' // the newest READY row, right behind it
+    rows.count === 5 &&
+    JSON.stringify(rows.projects) === JSON.stringify(EXPECTED_ORDER)
   console.log(
     rowsOk
-      ? `PASS: the Vercel widget renders the seeded deployments failed-first from cache (${rows.count} rows, order ${JSON.stringify(rows.projects)})`
-      : `FAIL: the Vercel widget renders the seeded deployments failed-first from cache (${JSON.stringify(rows)})`,
+      ? `PASS: the Vercel widget renders all 5 seeded deployments (its own worst-case row count) failed-first-then-recency from cache (order ${JSON.stringify(rows.projects)})`
+      : `FAIL: the Vercel widget renders all 5 seeded deployments (its own worst-case row count) failed-first-then-recency from cache (${JSON.stringify(rows)}, expected ${JSON.stringify(EXPECTED_ORDER)})`,
   )
 
   // Probe 2: interaction correctness — each row is a REAL external link.
@@ -2360,19 +2393,27 @@ console.log(
   await page.screenshot({ path: `${outDir}/connectors-vercel.png` })
   console.log('captured connectors-vercel.png')
 
-  // Probe 3: the measured gap to RSS's own slot directly above vercel's — the
-  // one placement number this task actually has to justify (App.tsx's own
-  // comment has the full writeup on why the FIRST placement idea, a second
-  // column beside github, was measured and rejected). RSS's shownCount is
-  // user-configurable 3-8 (Connectors.tsx's SHOWN_COUNT_OPTIONS), so this
-  // seeds RSS at its OWN worst case (8 headlines, its tallest) rather than
-  // its default 5 — the real question isn't "does it clear the default",
-  // it's "does it clear the worst case", same discipline as the bookmarks
-  // worst-case probes elsewhere in this script. Also re-checks the full
-  // centered-content column (clock/greeting/search/focus/quote) alongside
-  // the usual weather/timer/tasks/gear peripherals — that centered-column
-  // check is the exact invariant the REJECTED right-side placement violated,
-  // so it stays asserted here permanently, not just eyeballed once.
+  // Probe 3: the measured gap to RSS's own slot directly above vercel's, AND
+  // to the quote block below it — the two placement numbers this task
+  // actually has to justify (App.tsx's own comment has the full writeup on
+  // why the FIRST placement idea, a second column beside github, was
+  // measured and rejected). RSS's shownCount is user-configurable 3-8
+  // (Connectors.tsx's SHOWN_COUNT_OPTIONS), so this seeds RSS at its OWN
+  // worst case (8 headlines, its tallest) rather than its default 5 — the
+  // real question isn't "does it clear the default", it's "does it clear the
+  // worst case", same discipline as the bookmarks worst-case probes
+  // elsewhere in this script. The vercel card itself is ALREADY at its own
+  // worst case here (the FIXTURE seeded above the block is all 5
+  // MAX_DEPLOYMENTS rows), so the quote-gap measurement below is the real
+  // bottom-edge number, not an estimate from a shorter card. Also re-checks
+  // the full centered-content column (clock/greeting/search/focus/quote) AND
+  // its two bottom-left neighbours — the Notes pill and the photo refresh
+  // button (Background.tsx's `absolute bottom-4 left-4`) — alongside the
+  // usual weather/timer/tasks/gear peripherals; the centered-column check is
+  // the exact invariant the REJECTED right-side placement violated, and the
+  // Notes/photo-refresh check is what a fix-round-1 review caught this block
+  // never asserting even though vercel's new left-column slot sits directly
+  // above both of them.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
@@ -2419,11 +2460,26 @@ console.log(
     const focus = rect('[data-block-id="focus"]')
     const quote = rect('[data-block-id="quote"]')
     const rss = rect('[data-block-id="rss"] section[aria-label="Headlines"]')
+    // The two bottom-left neighbours vercel's new slot sits directly above —
+    // Background.tsx's photo-refresh button (`absolute bottom-4 left-4`) and
+    // the Notes pill (`fixed bottom-4 left-16`) — never checked before this
+    // fix round even though both are geometrically closer to vercel's slot
+    // than anything already asserted here.
+    const notes = rect('[data-block-id="notes"]')
+    const photoRefresh = rect('button[aria-label="New background photo"]')
     const vc = rect(selVc)
     return {
       vcFound: !!vc,
       rssFound: !!rss,
-      pxGap: vc && rss ? vc.top - rss.bottom : null,
+      quoteFound: !!quote,
+      notesFound: !!notes,
+      photoRefreshFound: !!photoRefresh,
+      // Gap ABOVE vercel (to RSS's bottom edge) and BELOW vercel (to quote's
+      // top edge) — vercel's card is seeded at its own worst-case height
+      // (5/5 MAX_DEPLOYMENTS rows) for this whole block, so pxGapBelow is
+      // the real worst-case bottom-edge clearance, not an estimate.
+      pxGapAbove: vc && rss ? vc.top - rss.bottom : null,
+      pxGapBelow: vc && quote ? quote.top - vc.bottom : null,
       overlapRss: hits(vc, rss),
       vcWeather: hits(vc, weather),
       vcTimer: hits(vc, timer),
@@ -2434,17 +2490,28 @@ console.log(
       vcSearch: hits(vc, search),
       vcFocus: hits(vc, focus),
       vcQuote: hits(vc, quote),
+      vcNotes: hits(vc, notes),
+      vcPhotoRefresh: hits(vc, photoRefresh),
       vc: vc ? { top: +vc.top.toFixed(1), bottom: +vc.bottom.toFixed(1), left: +vc.left.toFixed(1), right: +vc.right.toFixed(1) } : null,
       rss: rss ? { top: +rss.top.toFixed(1), bottom: +rss.bottom.toFixed(1) } : null,
+      quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
     }
   }, vercelSel)
-  const gapOk = gap.vcFound && gap.rssFound && !gap.overlapRss && gap.pxGap !== null && gap.pxGap >= 16
+  const gapAboveOk = gap.vcFound && gap.rssFound && !gap.overlapRss && gap.pxGapAbove !== null && gap.pxGapAbove >= 16
   console.log(
-    gapOk
-      ? `PASS: the Vercel widget's slot clears RSS's own slot — even at RSS's worst-case 8 headlines — by a real, measured gap (${gap.pxGap?.toFixed(1)}px — vercel ${JSON.stringify(gap.vc)}, rss bottom ${gap.rss?.bottom})`
-      : `FAIL: the Vercel widget's slot clears RSS's own slot — even at RSS's worst-case 8 headlines — by a real, measured gap (${JSON.stringify(gap)})`,
+    gapAboveOk
+      ? `PASS: the Vercel widget's slot clears RSS's own slot above it — even at RSS's worst-case 8 headlines — by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — vercel ${JSON.stringify(gap.vc)}, rss bottom ${gap.rss?.bottom})`
+      : `FAIL: the Vercel widget's slot clears RSS's own slot above it — even at RSS's worst-case 8 headlines — by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const gapBelowOk = gap.vcFound && gap.quoteFound && !gap.vcQuote && gap.pxGapBelow !== null && gap.pxGapBelow >= 16
+  console.log(
+    gapBelowOk
+      ? `PASS: the Vercel widget's slot clears the quote block below it — at vercel's OWN worst case (5/5 MAX_DEPLOYMENTS rows) — by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — vercel bottom ${gap.vc?.bottom}, quote top ${gap.quote?.top})`
+      : `FAIL: the Vercel widget's slot clears the quote block below it — at vercel's OWN worst case (5/5 MAX_DEPLOYMENTS rows) — by a real, measured gap (${JSON.stringify(gap)})`,
   )
   const collisionOk =
+    gap.notesFound &&
+    gap.photoRefreshFound &&
     !gap.vcWeather &&
     !gap.vcTimer &&
     !gap.vcTasks &&
@@ -2453,11 +2520,13 @@ console.log(
     !gap.vcGreeting &&
     !gap.vcSearch &&
     !gap.vcFocus &&
-    !gap.vcQuote
+    !gap.vcQuote &&
+    !gap.vcNotes &&
+    !gap.vcPhotoRefresh
   console.log(
     collisionOk
-      ? 'PASS: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear AND the full centered column (clock/greeting/search/focus/quote) at defaults'
-      : `FAIL: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear AND the full centered column (clock/greeting/search/focus/quote) at defaults (${JSON.stringify(gap)})`,
+      ? 'PASS: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear, the Notes pill, the photo refresh button, AND the full centered column (clock/greeting/search/focus/quote) at defaults'
+      : `FAIL: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear, the Notes pill, the photo refresh button, AND the full centered column (clock/greeting/search/focus/quote) at defaults (${JSON.stringify(gap)})`,
   )
 
   // Restore RSS back to disabled — its own block already ran and left it that
@@ -2503,14 +2572,16 @@ console.log(
 
   // Probe 4: FOUR-stack non-overlap — github, gitlab, jira AND vercel all
   // enabled together. The collision probe above only proves vercel clears
-  // its NEIGHBOURS (weather/timer/tasks/gear) and github's slot specifically;
-  // this is the full right-column-plus-second-column picture, asserting
-  // every PAIR among all four panels is non-overlapping, and that each
-  // still individually clears the collapsed weather chip and the Tasks
-  // pill (the two peripherals every earlier per-connector probe already
-  // checked alone — re-checked here because FOUR simultaneously-rendered
-  // cards is the actual worst case for the page, not any one of them
-  // alone).
+  // its NEIGHBOURS (weather/timer/tasks/gear/notes/photo-refresh) and
+  // github's slot specifically; this is the full right-column-plus-
+  // second-column picture, asserting every PAIR among all four panels is
+  // non-overlapping, and that each still individually clears the collapsed
+  // weather chip, the Tasks pill, the Notes pill AND the photo refresh
+  // button (the four peripherals every earlier per-connector/per-widget
+  // probe already checked alone — re-checked here because FOUR
+  // simultaneously-rendered cards is the actual worst case for the page,
+  // not any one of them alone; Notes/photo-refresh added in fix round 1,
+  // same reviewer finding as probe 3's).
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
@@ -2548,8 +2619,14 @@ console.log(
         !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
       const weather = rect('[data-block-id="weather"]')
       const tasks = rect('[data-block-id="tasks"]')
+      // Same two bottom-left neighbours probe 3 measures alone — checked
+      // here too, against ALL FOUR panels, since the four-stack is the
+      // page's actual worst case, not any single connector's card alone.
+      const notes = rect('[data-block-id="notes"]')
+      const photoRefresh = rect('button[aria-label="New background photo"]')
       const panels = { gh: rect(selGh), gl: rect(selGl), jr: rect(selJr), vc: rect(selVc) }
       const found = Object.fromEntries(Object.entries(panels).map(([k, v]) => [k, !!v]))
+      const peripheralsFound = !!weather && !!tasks && !!notes && !!photoRefresh
       const pairs = [
         ['ghGl', hits(panels.gh, panels.gl)],
         ['ghJr', hits(panels.gh, panels.jr)],
@@ -2560,12 +2637,17 @@ console.log(
       ]
       const clearsWeather = Object.values(panels).every((p) => !hits(p, weather))
       const clearsTasks = Object.values(panels).every((p) => !hits(p, tasks))
+      const clearsNotes = Object.values(panels).every((p) => !hits(p, notes))
+      const clearsPhotoRefresh = Object.values(panels).every((p) => !hits(p, photoRefresh))
       return {
         found,
+        peripheralsFound,
         pairs: Object.fromEntries(pairs),
         anyOverlap: pairs.some(([, hit]) => hit),
         clearsWeather,
         clearsTasks,
+        clearsNotes,
+        clearsPhotoRefresh,
       }
     },
     [
@@ -2576,11 +2658,17 @@ console.log(
     ],
   )
   const stackOk =
-    Object.values(stack.found).every(Boolean) && !stack.anyOverlap && stack.clearsWeather && stack.clearsTasks
+    Object.values(stack.found).every(Boolean) &&
+    stack.peripheralsFound &&
+    !stack.anyOverlap &&
+    stack.clearsWeather &&
+    stack.clearsTasks &&
+    stack.clearsNotes &&
+    stack.clearsPhotoRefresh
   console.log(
     stackOk
-      ? `PASS: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed) and Tasks pill (${JSON.stringify(stack.pairs)})`
-      : `FAIL: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed) and Tasks pill (${JSON.stringify(stack)})`,
+      ? `PASS: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed), Tasks pill, Notes pill AND the photo refresh button (${JSON.stringify(stack.pairs)})`
+      : `FAIL: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed), Tasks pill, Notes pill AND the photo refresh button (${JSON.stringify(stack)})`,
   )
 
   // Restore: disable ALL FOUR connectors and clear their cache, then reload so
