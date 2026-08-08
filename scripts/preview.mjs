@@ -46,7 +46,7 @@ await page.waitForSelector('time', { timeout: 10_000 })
 // Seed a manual location so weather renders deterministically-ish (live
 // Open-Meteo call; acceptable for preview, never for unit tests). Also flip
 // on the timer, clocks, and countdown widgets, which default to off — merge
-// into the existing settings so other keys (theme, etc.) aren't clobbered.
+// into the existing settings so other keys (panelColor, etc.) aren't clobbered.
 //
 // bookmarks is now an OPTIONAL permission (src/manifest.ts), requested at
 // runtime from Settings' click handler rather than held at install. Chrome
@@ -196,8 +196,8 @@ console.log('captured newtab.png')
   // it, so it can be restored afterward — otherwise every downstream
   // capture (weather-expanded*, the viewport-* matrix, arrange-mode,
   // panels, palette) would render one photo ahead of a clean run. Same
-  // restoration discipline this file already uses for Source/theme/layout/
-  // location/viewport (see the "Restore the …" comments further down).
+  // restoration discipline this file already uses for Source/widget-color/
+  // layout/location/viewport (see the "Restore the …" comments further down).
   const originalPhotoPrefs = await page.evaluate(
     async () => (await chrome.storage.local.get('photoPrefs')).photoPrefs,
   )
@@ -491,66 +491,107 @@ async function openSettingsTab(name) {
   await page.waitForTimeout(100) // let the swapped-in panel lay out
 }
 
-// Open the settings drawer and capture it per theme, plus a floating panel
-// (Tasks) per theme — the drawer's own bg-panel was already themed before
-// this fix; the bug Jon reported (folders widget not re-theming) lived in
-// the OTHER kind of surface, floating popovers/panels, which used to
-// hardcode bg-[#17171c]/95 regardless of theme. Gating only the drawer per
-// theme, as this loop used to, would never have caught that.
+// ── Widget color customizer (Task 60) ──────────────────────────────────────
+// The three-theme system collapsed into ONE surface that settings.panelColor
+// re-tints live (src/theme/index.ts's applyPanelColor + src/lib/color.ts). The
+// old per-theme loop — drawer-{aurora,glass,mono}.png, theme-*-panel.png,
+// theme-mono-popover.png, and the Aurora-restore click — is gone with it. This
+// block drives the customizer instead: a DARK pick (fg stays light), a LIGHT
+// pick (derived fg + native color-scheme both flip), and Reset (back to the
+// default surface). Every capture AFTER this block must show the default again,
+// so the block ends by resetting — the same restore-discipline the old
+// Aurora-restore click provided.
 await page.click('button[aria-label="Open settings"]')
 await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
 await page.waitForTimeout(400) // slide-in transition
-// The theme radiogroup lives on General (the tab the drawer opens on) — named
-// explicitly anyway, so this loop doesn't depend on being the first block in
-// the script to touch the drawer.
+// The widget-color row lives on General (the tab the drawer opens on) — named
+// explicitly anyway, so this block doesn't depend on being the first to touch
+// the drawer. drawer-general.png itself is captured later (the per-tab loop
+// below), at the restored default, and shows this row.
 await openSettingsTab('General')
-for (const theme of ['Aurora', 'Glass', 'Mono']) {
-  await page.click(`[role="radio"]:has-text("${theme}")`)
-  await page.waitForTimeout(150)
-  await page.screenshot({ path: `${outDir}/drawer-${theme.toLowerCase()}.png` })
-  console.log(`captured drawer-${theme.toLowerCase()}.png`)
+await page.waitForSelector('#set-panel-color')
 
-  // A floating panel, same theme. The drawer's own z-40 backdrop covers the
-  // whole viewport while open and would eat a real click on the Tasks pill
-  // underneath it, so close the drawer first.
-  await page.keyboard.press('Escape')
-  await page.waitForTimeout(400) // slide-out transition
-  await page.click('button:has-text("Tasks")')
-  await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
-  await page.waitForTimeout(150)
-  await page.screenshot({ path: `${outDir}/theme-${theme.toLowerCase()}-panel.png` })
-  console.log(`captured theme-${theme.toLowerCase()}-panel.png`)
-  await page.click('button:has-text("Tasks")') // close it again
-  await page.waitForTimeout(150)
-
-  // Jon's actual reported widget — the bookmarks folder popover — re-themes
-  // too. Gated on Mono specifically (the theme with no border/blur to lean
-  // on, so a wrong fill is most visible there) and on hasBookmarksPermission
-  // the same way the main bookmarks probes above are (only real under a
-  // preview build; see that block's header comment).
-  if (hasBookmarksPermission && theme === 'Mono') {
-    await page.click('nav[aria-label="Bookmarks bar"] button:has-text("Dev")')
-    await page.waitForSelector('[role="dialog"][aria-label="Dev bookmarks"]')
-    await page.waitForTimeout(150)
-    await page.screenshot({ path: `${outDir}/theme-mono-popover.png` })
-    console.log('captured theme-mono-popover.png')
-    await page.mouse.click(800, 500) // outside click closes it
-    await page.waitForTimeout(150)
-  }
-
-  // Reopen the drawer — either for the next theme iteration, or (on the
-  // last one) for the Data-section capture that immediately follows this
-  // loop, which expects the drawer already open.
-  await page.click('button[aria-label="Open settings"]')
-  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
-  await page.waitForTimeout(400)
+// Drive the native <input type="color"> the way a real pick + drag does: set
+// the value, fire `input` (the component debounces the live re-tint) then
+// `change` (it commits immediately), then wait out the debounce + the engine's
+// settings-change effect before measuring.
+async function pickPanelColor(hex) {
+  await page.$eval(
+    '#set-panel-color',
+    (el, value) => {
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      el.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+    hex,
+  )
+  await page.waitForTimeout(300)
 }
 
-// Restore the default theme: every capture from here on (todo/timer/notes/
-// palette/arrange/gallery) must show Aurora, matching what's already
-// committed — not whatever theme the loop above happened to end on.
-await page.click('[role="radio"]:has-text("Aurora")')
-await page.waitForTimeout(150)
+// Reads the live surface: the engine's inline override on <html>, the derived
+// fg + scheme, and a real rendered surface's computed background — the
+// always-present settings gear (bg-panel-solid, App.tsx) plus a bookmarks chip
+// (bg-panel-solid, BookmarksBar.tsx) when the preview build granted bookmarks.
+async function readSurface() {
+  return page.evaluate(() => {
+    const root = document.documentElement
+    const gear = document.querySelector('button[aria-label="Open settings"]')
+    const chip = document.querySelector(
+      'nav[aria-label="Bookmarks bar"] button, nav[aria-label="Bookmarks bar"] a',
+    )
+    return {
+      inlinePanelSolid: root.style.getPropertyValue('--panel-solid'),
+      fg: getComputedStyle(root).getPropertyValue('--fg').trim(),
+      scheme: root.getAttribute('data-scheme'),
+      colorScheme: getComputedStyle(root).colorScheme,
+      gearBg: gear ? getComputedStyle(gear).backgroundColor : null,
+      chipBg: chip ? getComputedStyle(chip).backgroundColor : null,
+    }
+  })
+}
+
+// A DARK custom color (#3b2f6b -> rgb 59 47 107): --panel-solid becomes it at
+// 95%, fg stays the default off-white, no light-scheme stamp.
+await pickPanelColor('#3b2f6b')
+const darkPick = await readSurface()
+const darkStored = await page.evaluate(
+  async () => (await chrome.storage.local.get('settings')).settings.panelColor,
+)
+console.log(darkStored === '#3b2f6b' ? 'PASS: dark pick stored panelColor #3b2f6b' : `FAIL: dark pick stored ${darkStored}`)
+console.log(darkPick.inlinePanelSolid === '#3b2f6bf2' ? 'PASS: --panel-solid re-tinted to #3b2f6bf2 (95%)' : `FAIL: --panel-solid is ${darkPick.inlinePanelSolid}`)
+console.log(darkPick.gearBg && darkPick.gearBg.includes('59, 47, 107') ? 'PASS: settings gear surface re-tinted (rgb 59 47 107)' : `FAIL: gear bg is ${darkPick.gearBg}`)
+if (hasBookmarksPermission) {
+  console.log(darkPick.chipBg && darkPick.chipBg.includes('59, 47, 107') ? 'PASS: bookmarks chip surface re-tinted (rgb 59 47 107)' : `FAIL: chip bg is ${darkPick.chipBg}`)
+}
+console.log(darkPick.scheme === null ? 'PASS: dark pick keeps light fg (no data-scheme flip)' : `FAIL: dark pick stamped data-scheme=${darkPick.scheme}`)
+console.log(darkPick.fg === '#f5f5f4' ? 'PASS: dark pick fg stays the default off-white' : `FAIL: dark pick fg is ${darkPick.fg}`)
+await page.screenshot({ path: `${outDir}/widget-color-custom.png` })
+console.log('captured widget-color-custom.png')
+
+// A LIGHT color (#f5f5f5 -> rgb 245 245 245): derived fg flips to near-black
+// and the native color-scheme flips to light.
+await pickPanelColor('#f5f5f5')
+const lightPick = await readSurface()
+console.log(lightPick.inlinePanelSolid === '#f5f5f5f2' ? 'PASS: --panel-solid re-tinted to #f5f5f5f2' : `FAIL: --panel-solid is ${lightPick.inlinePanelSolid}`)
+console.log(lightPick.scheme === 'light' ? 'PASS: light pick stamped data-scheme="light"' : `FAIL: light pick data-scheme=${lightPick.scheme}`)
+console.log(lightPick.colorScheme === 'light' ? 'PASS: native color-scheme flipped to light' : `FAIL: color-scheme is ${lightPick.colorScheme}`)
+console.log(lightPick.fg === '#1a1a1a' ? 'PASS: derived fg flipped to near-black' : `FAIL: light pick fg is ${lightPick.fg}`)
+console.log(lightPick.gearBg && lightPick.gearBg.includes('245, 245, 245') ? 'PASS: surface re-tinted to the light pick' : `FAIL: gear bg is ${lightPick.gearBg}`)
+await page.screenshot({ path: `${outDir}/widget-color-light.png` })
+console.log('captured widget-color-light.png')
+
+// Reset: back to the default surface — panelColor null, inline override gone,
+// scheme back to dark. The Reset button only exists while a color is set (it is
+// now), so this also exercises its presence.
+await page.click('button[aria-label="Reset widget color"]')
+await page.waitForTimeout(200)
+const afterReset = await readSurface()
+const resetStored = await page.evaluate(
+  async () => (await chrome.storage.local.get('settings')).settings.panelColor,
+)
+console.log(resetStored === null ? 'PASS: Reset cleared panelColor to null' : `FAIL: Reset left panelColor ${resetStored}`)
+console.log(afterReset.inlinePanelSolid === '' ? 'PASS: Reset removed the inline --panel-solid override' : `FAIL: inline --panel-solid still ${afterReset.inlinePanelSolid}`)
+console.log(afterReset.scheme === null ? 'PASS: Reset cleared the light-scheme stamp' : `FAIL: data-scheme still ${afterReset.scheme}`)
 
 // One capture per tab, replacing the old scroll-position ones (drawer-data /
 // drawer-footer, which had to hunt down a single long column with
@@ -729,11 +770,11 @@ await page.waitForTimeout(400) // slide-out transition
 // The nine points below are all unambiguously ON the chip: four edge
 // midpoints (the padding gutters that used to be dead), four corners inset by
 // CORNER_INSET, and the centre. The inset is not a hedge — the panel is
-// `rounded-panel` (16px in Aurora, 20px in Glass), so the literal corner of
-// its bounding RECT is outside the painted shape in every theme: no pixel of
-// the widget is drawn there, and a click there is a click on the photo. 7px
-// in from the corner is inside the arc for both radii (√(10²+10²) = 14.1 < 16;
-// √(14²+14²) = 19.8 < 20) and outside the old button's box entirely.
+// `rounded-panel` (16px, the one surface's --radius, Task 60), so the literal
+// corner of its bounding RECT is outside the painted shape: no pixel of the
+// widget is drawn there, and a click there is a click on the photo. 7px in
+// from the corner is well inside the 16px arc (√(7²+7²) = 9.9 < 16) and
+// outside the old button's box entirely.
 {
   await setWeatherExpanded(false)
   const box = await page.evaluate((s) => {
@@ -955,7 +996,7 @@ for (const { w, h } of [
 }
 // Restore this script's own launch viewport before continuing — same
 // restoration discipline as every other resize in this script (Source,
-// theme, layout, location, arrange overlay, and the viewport matrix below).
+// widget color, layout, location, arrange overlay, and the viewport matrix below).
 await page.setViewportSize({ width: 1600, height: 900 })
 await page.waitForTimeout(150)
 
@@ -4034,7 +4075,7 @@ console.log(
   await page.screenshot({ path: `${outDir}/connectors-all-weather-expanded.png` })
   console.log('captured connectors-all-weather-expanded.png')
 
-  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.95 in Aurora), same floor as the 500x900 precedent
+  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.92 on the one surface, Task 60), same floor as the 500x900 precedent
   const expandedCheck = await page.evaluate(
     ({ weatherSel: wSel, connectorSels }) => {
       const wEl = document.querySelector(wSel)
@@ -4272,7 +4313,7 @@ console.log(
 
   let panelGateErrorsSeen = errors.length
 
-  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.95 in Aurora), same floor as the expanded-weather precedent above
+  const SOLID_SURFACE_ALPHA = 0.9 // the bg-panel-solid contract (0.92 on the one surface, Task 60), same floor as the expanded-weather precedent above
 
   // Opens `pillSel`, waits for the `dialogLabel`-named dialog, checks it
   // against `cardSel` (found + disciplined-occluded if it overlaps, plain
@@ -5126,7 +5167,7 @@ console.log(
 // clock's old width-only clamp() rendered ~160px tall there and collided
 // with the greeting below it (see Clock.tsx's own comment on the fix). Reuses
 // this already-loaded, already-seeded page (idle at this point — default
-// Aurora theme, default layout, "Daily photo" source, timer/clocks/countdown
+// default surface, default layout, "Daily photo" source, timer/clocks/countdown
 // on, bookmarks on if the permission was grantable — see the seed block way
 // up top) rather than relaunching: a plain `page.setViewportSize` reflows the
 // existing DOM exactly like a real window resize would, which is the actual
@@ -5664,18 +5705,18 @@ for (const { w, h } of viewportMatrix) {
         // pill, fully on screen — are asserted directly above.
         //
         // Written to be FALSIFIABLE, which took three tries:
-        //   · the alpha floor is the `bg-panel-solid` CONTRACT (0.95 in
-        //     Aurora, the theme this matrix runs in), not "greater than
-        //     zero" — a regression to the 50%-opaque `bg-panel` the
+        //   · the alpha floor is the `bg-panel-solid` CONTRACT (0.92 on the
+        //     one surface Task 60 collapsed the themes into), not "greater
+        //     than zero" — a regression to the 40%-opaque `bg-panel` the
         //     COLLAPSED chip uses would sail through a >0 test while
         //     leaving the greeting legible straight through the panel.
         //   · `covered` must be non-empty. `[].every()` is `true`, so a
         //     panel that had stopped overlapping anything — or a page whose
         //     clock and greeting had vanished — would have reported the
         //     strongest possible PASS for having proved nothing.
-        //   · there is deliberately no backdrop-filter term: `--panel-blur`
-        //     is `0px` in the Mono theme, and `blur(0px)` still contains the
-        //     substring "blur", so that clause could only ever be true.
+        //   · there is deliberately no backdrop-filter term: `blur(0px)`
+        //     still contains the substring "blur", so a blur clause could
+        //     only ever be true even if the radius were ever zeroed.
         const SOLID_SURFACE_ALPHA = 0.9
         const overlay = await page.evaluate(
           ({ s, rects }) => {
@@ -5733,7 +5774,7 @@ for (const { w, h } of viewportMatrix) {
   // at 500px against `blur-2xl`'s 40px radius, i.e. the underlay faded off at
   // its own left and right edges on exactly the windows it exists for.
   // Measured, not read off the class list: the computed filter gives the real
-  // radius (including any future theme override) and the layer's own rect
+  // radius (including any future override) and the layer's own rect
   // against the viewport gives the real margin, on both axes.
   if (w === 500) {
     const cover = await page.evaluate(() => {
@@ -5892,7 +5933,7 @@ for (const { w, h } of viewportMatrix) {
 // below it. Own storage write + reload (not a live toggle) so the captures
 // reflect a genuine first mount from storage rather than a transition —
 // then restored, same snapshot/restore discipline as every other point in
-// this script (photoPrefs, Source, location, theme, layout).
+// this script (photoPrefs, Source, location, widget color, layout).
 {
   const originalSettings = await page.evaluate(
     async () => (await chrome.storage.local.get('settings')).settings,
@@ -6085,7 +6126,7 @@ if (hasBookmarksPermission) {
 
 // State restoration: back to this script's own launch viewport, so nothing
 // appended after this later starts from a resized page — same discipline as
-// every other restoration point in this script (Source, theme, layout,
+// every other restoration point in this script (Source, widget color, layout,
 // location, arrange overlay above).
 await page.setViewportSize(launchViewport)
 await page.waitForTimeout(150)

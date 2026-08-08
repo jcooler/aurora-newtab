@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
-import { applyTheme } from '../theme/index'
+import { applyPanelColor } from '../theme/index'
 import type { Layout } from '../lib/layout/types'
 import Background from './components/Background'
 import Clock from './components/Clock'
@@ -108,9 +108,12 @@ export default function App() {
   // has focus on a fresh page load).
   const wasArrangingRef = useRef(false)
 
+  // Re-tint every widget surface whenever the stored panelColor changes (Task
+  // 60 — themes collapsed into this one live customizer). null restores the
+  // themes.css :root default; see applyPanelColor for the derived fg/scheme.
   useEffect(() => {
-    if (settings) applyTheme(settings.theme)
-  }, [settings?.theme])
+    if (settings) applyPanelColor(document.documentElement, settings.panelColor)
+  }, [settings?.panelColor])
 
   // Focus management on arrange-mode EXIT (Task 37): ArrangeController's
   // overlay — and whichever Move button was focused inside it, per its own

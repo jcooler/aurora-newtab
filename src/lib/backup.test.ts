@@ -484,6 +484,55 @@ describe('validateBackupShape: migration-then-validate order', () => {
       expect(result.data.settings.widgets.monthCal).toBe(false) // backfilled by the v6->v7 step
     }
   })
+
+  // Task 60: an OLD (v<=7) backup still carries settings.theme. isSettings no
+  // longer checks (or knows) that field, and requires panelColor, so importing
+  // such a backup only works because migrate()'s v7->v8 step strips theme and
+  // backfills panelColor BEFORE validateBackupShape runs — the same
+  // migrate-then-validate order every other era's test in this block relies on.
+  it('a v7 backup carrying theme imports cleanly: migration strips it and backfills panelColor before validation', () => {
+    const v7Settings = { ...defaults().settings, name: 'Jon', theme: 'glass' }
+    const migrated = migrate({ settings: v7Settings }, 7)
+    expect('theme' in migrated.settings).toBe(false)
+    expect(migrated.settings.panelColor).toBeNull()
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.settings.name).toBe('Jon')
+  })
+})
+
+// Task 60: settings.panelColor (hex | null) round-trips through export/import,
+// and a non-#rrggbb value (e.g. a named color) rejects the whole settings key
+// per the structural convention (isPanelColor is the shared validator).
+describe('panelColor export / import (Task 60)', () => {
+  it("round-trips a '#12ab34' panelColor through serialize -> parse", () => {
+    const input = { ...defaults(), settings: { ...defaults().settings, panelColor: '#12ab34' } }
+    const json = serializeBackup(input)
+    const parsed = parseBackup(json)
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) expect((parsed.data.settings as { panelColor: string }).panelColor).toBe('#12ab34')
+    // And it survives shape validation unchanged.
+    const validated = validateBackupShape(input)
+    expect(validated.ok).toBe(true)
+    if (validated.ok) expect(validated.data.settings.panelColor).toBe('#12ab34')
+  })
+
+  it("accepts a null panelColor (the default)", () => {
+    const result = validateBackupShape({ ...defaults(), settings: { ...defaults().settings, panelColor: null } } as never)
+    expect(result.ok).toBe(true)
+  })
+
+  it("rejects a named-color panelColor ('red'), naming the settings key", () => {
+    const bad = { ...defaults(), settings: { ...defaults().settings, panelColor: 'red' } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+
+  it('rejects a 3-digit short-form panelColor (#fff)', () => {
+    const bad = { ...defaults(), settings: { ...defaults().settings, panelColor: '#fff' } }
+    const result = validateBackupShape(bad as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
 })
 
 describe('validateBackupShape: unknown-key dropping', () => {

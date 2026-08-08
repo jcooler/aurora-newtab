@@ -103,13 +103,12 @@ async function renderPanel(onArrangeLayout: () => void = () => {}) {
     </StorageProvider>,
   )
   // Settings resolves asynchronously (useStoredKey's storage.get().then(...)),
-  // so the radiogroup isn't there on the synchronous first render.
-  await screen.findAllByRole('radio')
+  // so General's fields aren't there on the synchronous first render. The
+  // "Your name" input (Profile section, always on the default General tab) is
+  // the load sentinel every render in this file waits on — it replaced the old
+  // theme radiogroup, which Task 60 removed.
+  await screen.findByLabelText('Your name')
   return storage
-}
-
-function themeGroup() {
-  return screen.getByRole('radiogroup', { name: 'Theme' })
 }
 
 /** The panel is tabbed (Task 40) and only the ACTIVE tab's panel is mounted,
@@ -133,7 +132,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(attr(screen.getByRole('tab', { name: 'General' }), 'aria-selected')).toBe('true')
 
     expect(screen.getByLabelText('Your name')).toBeTruthy()
-    expect(themeGroup()).toBeTruthy()
+    expect(screen.getByLabelText('Widget color')).toBeTruthy()
     expect(screen.getByLabelText('24-hour clock')).toBeTruthy()
     expect(screen.getByLabelText('Units')).toBeTruthy()
     expect(screen.getByLabelText('Mute sounds')).toBeTruthy()
@@ -190,7 +189,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
 
     expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull() // not on General
     openTab('Widgets')
@@ -210,94 +209,59 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
   })
 })
 
-describe('SettingsPanel theme radiogroup (APG roving-tabindex pattern)', () => {
-  it('only the selected theme (default: Aurora) is a tab stop; the rest are -1', async () => {
+// Task 60 retired the three-theme radiogroup entirely; the General tab now
+// carries a single widget-color customizer (a native <input type="color">
+// behind a swatch, plus a Reset that only appears once a color is set). The
+// engine that actually applies the color to CSS vars is unit-tested in
+// src/theme/index.test.ts (applyPanelColor) and exercised end-to-end in
+// scripts/preview.mjs; these tests cover the Settings row's own behavior.
+describe('SettingsPanel Widget color row', () => {
+  it('shows a color input at the default surface color, with no Reset when panelColor is null', async () => {
     await renderPanel()
-    const radios = screen.getAllByRole('radio')
-    expect(radios.map((r) => r.textContent)).toEqual(['Aurora', 'Glass', 'Mono'])
-
-    const aurora = screen.getByRole('radio', { name: 'Aurora' })
-    expect(attr(aurora, 'tabindex')).toBe('0')
-    expect(attr(aurora, 'aria-checked')).toBe('true')
-
-    for (const name of ['Glass', 'Mono']) {
-      const radio = screen.getByRole('radio', { name })
-      expect(attr(radio, 'tabindex')).toBe('-1')
-      expect(attr(radio, 'aria-checked')).toBe('false')
-    }
+    const input = screen.getByLabelText('Widget color') as HTMLInputElement
+    expect(input.type).toBe('color')
+    // Default surface = themes.css :root --panel-solid base, rgb(10 10 10).
+    expect(input.value).toBe('#0a0a0a')
+    // Nothing to reset when the default is in effect.
+    expect(screen.queryByRole('button', { name: 'Reset widget color' })).toBeNull()
   })
 
-  it('ArrowRight moves selection AND applies it: persists, updates aria-checked/tabindex, and moves focus', async () => {
+  it('picking a color writes settings.panelColor and reveals the Reset button', async () => {
     const storage = await renderPanel()
+    const input = screen.getByLabelText('Widget color') as HTMLInputElement
 
     await act(async () => {
-      fireEvent.keyDown(themeGroup(), { key: 'ArrowRight' })
+      // fireEvent.change dispatches the picker's `change` event — the component
+      // commits immediately on that (no need to wait out the drag debounce).
+      fireEvent.change(input, { target: { value: '#12ab34' } })
     })
 
-    const glass = await screen.findByRole('radio', { name: 'Glass' })
-    expect(attr(glass, 'aria-checked')).toBe('true')
-    expect(attr(glass, 'tabindex')).toBe('0')
-    expect(document.activeElement).toBe(glass)
-
-    const aurora = screen.getByRole('radio', { name: 'Aurora' })
-    expect(attr(aurora, 'aria-checked')).toBe('false')
-    expect(attr(aurora, 'tabindex')).toBe('-1')
-
-    expect((await storage.get('settings')).theme).toBe('glass')
+    expect((await storage.get('settings')).panelColor).toBe('#12ab34')
+    expect(screen.getByRole('button', { name: 'Reset widget color' })).toBeTruthy()
   })
 
-  it('ArrowDown aliases ArrowRight: moves selection AND applies it', async () => {
-    const storage = await renderPanel()
+  it('Reset clears panelColor back to null and hides itself', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...defaults().settings, panelColor: '#12ab34' })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+
+    // The swatch reflects the stored pick, and Reset is present.
+    const input = screen.getByLabelText('Widget color') as HTMLInputElement
+    expect(input.value).toBe('#12ab34')
+    const reset = screen.getByRole('button', { name: 'Reset widget color' })
 
     await act(async () => {
-      fireEvent.keyDown(themeGroup(), { key: 'ArrowDown' })
+      fireEvent.click(reset)
     })
 
-    const glass = await screen.findByRole('radio', { name: 'Glass' })
-    expect(attr(glass, 'aria-checked')).toBe('true')
-    expect(attr(glass, 'tabindex')).toBe('0')
-    expect(document.activeElement).toBe(glass)
-
-    const aurora = screen.getByRole('radio', { name: 'Aurora' })
-    expect(attr(aurora, 'aria-checked')).toBe('false')
-    expect(attr(aurora, 'tabindex')).toBe('-1')
-
-    expect((await storage.get('settings')).theme).toBe('glass')
-  })
-
-  it('ArrowLeft wraps from the first theme (Aurora) to the last (Mono)', async () => {
-    const storage = await renderPanel()
-
-    await act(async () => {
-      fireEvent.keyDown(themeGroup(), { key: 'ArrowLeft' })
-    })
-
-    const mono = await screen.findByRole('radio', { name: 'Mono' })
-    expect(attr(mono, 'aria-checked')).toBe('true')
-    expect(attr(mono, 'tabindex')).toBe('0')
-    expect(document.activeElement).toBe(mono)
-
-    expect((await storage.get('settings')).theme).toBe('mono')
-  })
-
-  it('End selects the last theme, Home returns to the first', async () => {
-    const storage = await renderPanel()
-
-    await act(async () => {
-      fireEvent.keyDown(themeGroup(), { key: 'End' })
-    })
-    const mono = await screen.findByRole('radio', { name: 'Mono' })
-    expect(attr(mono, 'aria-checked')).toBe('true')
-    expect(document.activeElement).toBe(mono)
-    expect((await storage.get('settings')).theme).toBe('mono')
-
-    await act(async () => {
-      fireEvent.keyDown(themeGroup(), { key: 'Home' })
-    })
-    const aurora = await screen.findByRole('radio', { name: 'Aurora' })
-    expect(attr(aurora, 'aria-checked')).toBe('true')
-    expect(document.activeElement).toBe(aurora)
-    expect((await storage.get('settings')).theme).toBe('aurora')
+    expect((await storage.get('settings')).panelColor).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Reset widget color' })).toBeNull()
   })
 })
 
@@ -323,7 +287,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
@@ -405,7 +369,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
     const toggle = screen.getByLabelText('Bookmarks bar') as HTMLInputElement
     expect(toggle.checked).toBe(true)
@@ -600,7 +564,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     // Flush the gallery effect's listUploads() call, same as
     // Background.test.tsx does after mounting in upload mode.
     await act(async () => {})
@@ -837,7 +801,7 @@ describe('SettingsPanel World clocks section', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     await act(async () => {
@@ -861,7 +825,7 @@ describe('SettingsPanel World clocks section', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     expect(await screen.findByText('Australia/Sydney')).toBeTruthy()
@@ -918,7 +882,7 @@ describe('SettingsPanel Countdowns section', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     await act(async () => {
@@ -937,7 +901,7 @@ describe('SettingsPanel Countdowns section', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     const dateInput = screen.getByLabelText('Countdown date')
@@ -999,7 +963,7 @@ describe('SettingsPanel Habits section', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
     return storage
   }
@@ -1135,7 +1099,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
@@ -1166,7 +1130,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
@@ -1190,7 +1154,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
       )
     }
     const { rerender } = render(<Wrapper open={true} />)
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
@@ -1231,7 +1195,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -1430,7 +1394,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -1548,7 +1512,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -1723,7 +1687,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -1898,7 +1862,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -2012,7 +1976,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }
@@ -2180,7 +2144,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
-    await screen.findAllByRole('radio')
+    await screen.findByLabelText('Your name')
     openTab('Connectors')
     return storage
   }

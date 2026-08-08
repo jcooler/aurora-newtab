@@ -19,8 +19,8 @@
 // independent causes, both fixed here.
 //
 // (1) Mid-fade capture. Background.tsx fades each photo in via a 700ms
-// opacity-0 -> opacity-100 CSS transition, and every navigation/reload/
-// theme-swap that (re)mounts or re-sources the <img> restarts it. A fixed
+// opacity-0 -> opacity-100 CSS transition, and every navigation/reload that
+// (re)mounts or re-sources the <img> restarts it. A fixed
 // `waitForTimeout` guess is exactly the bug preview.mjs already hit and
 // documented (see its viewport-matrix loop's comment: a flat 250ms wait
 // once screenshotted a washed-out, low-contrast mid-fade frame at 2560x1440,
@@ -253,26 +253,18 @@ await page.evaluate(() =>
 await page.waitForTimeout(2500) // weather re-fetch
 
 // ---------------------------------------------------------------------------
-// Shot 4 — Glass theme, with panels open. Tasks/Timer/Notes are independent
-// fixed-position floating panels (App.tsx), not modal — they can be open
+// Shot 4 — the floating panels open together. Tasks/Timer/Notes are
+// independent fixed-position panels (App.tsx), not modal — they can be open
 // simultaneously (preview.mjs's own comment on why it closes Tasks/Timer
-// before the Palette shot only, not because they can't coexist). Opening
-// all three shows the Glass theme's translucent panel treatment across
-// several widgets at once, which is the point of a theme screenshot.
+// before the Palette shot only, not because they can't coexist). Opening all
+// three shows the panel/surface treatment across several widgets at once.
+//
+// Task 60 collapsed the three-theme system into ONE surface, so there is no
+// theme to switch to here anymore (this shot used to select Glass, then
+// restore Aurora); this is simply the default surface every install ships
+// with. A user's own widget-color pick would re-tint it, but the listing shot
+// shows the out-of-the-box look. No drawer interaction is needed at all now.
 // ---------------------------------------------------------------------------
-// The drawer is tabbed as of Task 40 (General / Widgets / Data), but this
-// script only ever touches the theme radiogroup, which is on General — the
-// tab the drawer opens on — and nothing here ever switches tabs, so no
-// `[role="tab"]` click is needed. (preview.mjs, which does reach into the
-// other tabs, names each one explicitly; see its openSettingsTab helper.)
-await page.click('button[aria-label="Open settings"]')
-await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
-await page.waitForTimeout(400)
-await page.click('[role="radio"]:has-text("Glass")')
-await page.waitForTimeout(150)
-await page.keyboard.press('Escape')
-await page.waitForTimeout(400)
-
 await page.click('button:has-text("Tasks")')
 await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
 await page.fill('#todo-add-item', 'Ship Aurora')
@@ -282,22 +274,12 @@ await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
 await page.click('button:has-text("Notes")')
 await page.waitForSelector('[role="dialog"][aria-label="Notes"]')
 await page.waitForTimeout(200)
-await captureShot(page, `${outDir}/4-glass-theme-panels.png`, '4-glass-theme-panels.png')
+await captureShot(page, `${outDir}/4-panels.png`, '4-panels.png')
 
 await page.click('button:has-text("Tasks")')
 await page.click('button[aria-label^="Focus timer"]')
 await page.click('button:has-text("Notes")')
 await page.waitForTimeout(150)
-
-// Restore the default theme before the last shot, same discipline as
-// preview.mjs.
-await page.click('button[aria-label="Open settings"]')
-await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
-await page.waitForTimeout(400)
-await page.click('[role="radio"]:has-text("Aurora")')
-await page.waitForTimeout(150)
-await page.keyboard.press('Escape')
-await page.waitForTimeout(400)
 
 // ---------------------------------------------------------------------------
 // Shot 5 — bookmarks bar + open folder popover. Requires the preview build
@@ -323,7 +305,7 @@ const shots = [
   '1-hero.png',
   '2-arrange-mode.png',
   '3-weather-location-search.png',
-  '4-glass-theme-panels.png',
+  '4-panels.png',
   '5-bookmarks-popover.png',
 ]
 let allPass = true

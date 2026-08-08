@@ -97,6 +97,24 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v7 -> v8: the three-theme system (Task 60) collapsed into one surface plus
+  // a live widget-color customizer. `settings.theme` no longer means anything
+  // and must not survive an import — spread-omitted the same way v3->v4 strips
+  // `searchEngine` (step 3), not `delete`d. `settings.panelColor` (hex | null)
+  // is brand new; it's NESTED inside settings, exactly the kind of key the
+  // final default-merge does NOT backfill (see v1->v2's own comment), so it's
+  // filled in explicitly here — `?? null` keeps any already-present value while
+  // defaulting a genuine v7 snapshot (which never had the key) to null.
+  //
+  // Guarded like step 3: a hand-edited backup can carry `"settings": "oops"`,
+  // and destructuring a string by key throws, so a non-object settings is left
+  // untouched and caught downstream by backup.ts's validateBackupShape.
+  7: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    const { theme: _theme, ...rest } = settings
+    return { ...data, settings: { ...rest, panelColor: rest.panelColor ?? null } }
+  },
 }
 
 export function migrate(

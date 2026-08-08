@@ -1,6 +1,5 @@
 import { fuzzyScore } from '../../../lib/fuzzy'
-import { THEMES } from '../../../theme/index'
-import type { QuickLink, Settings, ThemeId } from '../../../lib/storage/schema'
+import type { QuickLink, Settings } from '../../../lib/storage/schema'
 
 export interface Command {
   id: string
@@ -15,7 +14,6 @@ export interface CommandContext {
   openUrl(url: string): void
   webSearch(query: string): void
   addTodo(text: string): Promise<void>
-  setTheme(theme: ThemeId): Promise<void>
   openSettings(): void
 }
 
@@ -26,11 +24,6 @@ export function buildCommands(ctx: CommandContext): Command[] {
       label: l.title,
       hint: l.url,
       run: () => ctx.openUrl(l.url),
-    })),
-    ...THEMES.map((t) => ({
-      id: `theme:${t.id}`,
-      label: `Theme: ${t.label}`,
-      run: () => void ctx.setTheme(t.id),
     })),
     { id: 'settings', label: 'Open settings', run: () => ctx.openSettings() },
   ]

@@ -163,6 +163,16 @@
   --bookmarks-gap: 0.375rem;
 }
 
+/* Light-panel override (Task 60). :root above locks color-scheme to dark so the
+   OS-drawn select popup matches the always-dark panels. When the widget-color
+   engine (src/theme/index.ts) picks a LIGHT panelColor it stamps
+   data-scheme="light" on <html>, and this flips the native color-scheme so
+   those same OS controls turn light to match the now-light panels. A dark pick
+   (and the default, panelColor null) leaves the attribute off, so dark wins. */
+:root[data-scheme='light'] {
+  color-scheme: light;
+}
+
 @media (max-width: 1024px) {
   :root {
     --bookmarks-chip-px: 0.5rem;

@@ -1,14 +1,24 @@
-import { useRef } from 'react'
-import { THEMES } from '../../theme/index'
+import { useEffect, useRef, useState } from 'react'
 import type { Settings } from '../../lib/storage/schema'
 import { row, label, control } from './shared'
 
-/** Profile, Appearance (theme radiogroup), and Clock-and-units — the three
- *  sections that read/write plain `Settings` fields directly, with no
+// The default panel surface color — themes.css's :root --panel-solid base is
+// rgb(10 10 10), i.e. #0a0a0a — shown in the swatch when the user hasn't picked
+// one (settings.panelColor is null).
+const DEFAULT_PANEL_HEX = '#0a0a0a'
+// Live-drag writes are debounced so dragging the native picker doesn't storm
+// storage; the final value ALSO commits immediately on the picker's own
+// `change`. Deep-equal writes are no-ops at the storage layer (memoryDriver /
+// chrome.storage both dedupe), so the debounced trailing write and the commit
+// never fight even when they carry the same color.
+const PANEL_COLOR_DEBOUNCE_MS = 150
+
+/** Profile, Appearance (the widget-color customizer), and Clock-and-units —
+ *  the three sections that read/write plain `Settings` fields directly, with no
  *  section-local async state of their own. `settings`/`patch` are owned by
- *  SettingsPanel (shared across this and the Widgets section) and flow down
- *  as props; the theme radiogroup's ref and keyboard handler are
- *  section-local and live entirely here. */
+ *  SettingsPanel (shared across this and the Widgets section) and flow down as
+ *  props; the color picker's debounce/commit machinery is section-local and
+ *  lives entirely here. */
 export default function General({
   settings,
   patch,
@@ -16,45 +26,64 @@ export default function General({
   settings: Settings
   patch: (p: Partial<Settings>) => void
 }) {
-  const themeGroupRef = useRef<HTMLDivElement>(null)
+  // patch is a fresh closure each render; read it through a ref so the
+  // commit-on-`change` effect below can stay mount-once (register/unregister
+  // exactly once) rather than re-subscribing on every render — same idiom
+  // NotesPanel uses for its flush-on-unmount.
+  const patchRef = useRef(patch)
+  patchRef.current = patch
 
-  // APG radiogroup keyboard pattern: arrow keys move AND apply the selection
-  // (this isn't a form that needs a separate "submit", so there's no reason
-  // to make Left/Right merely preview a theme the user then has to commit).
-  // Home/End jump to the first/last theme. Focus is moved imperatively via
-  // .focus() on the target button — that works even though its tabIndex is
-  // still -1 at the moment of the call, since script-driven focus ignores
-  // tabIndex; the roving tabIndex only governs Tab-key navigation.
-  function onThemeKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-    const currentIndex = THEMES.findIndex((t) => t.id === settings.theme)
-    let nextIndex: number
-    switch (e.key) {
-      // ArrowDown/ArrowUp alias Right/Left: this radiogroup lays its options
-      // out horizontally, but APG allows either axis's arrows to work, and
-      // some users reflexively reach for Up/Down on any roving-tabindex
-      // group regardless of visual orientation.
-      case 'ArrowRight':
-      case 'ArrowDown':
-        nextIndex = (currentIndex + 1 + THEMES.length) % THEMES.length
-        break
-      case 'ArrowLeft':
-      case 'ArrowUp':
-        nextIndex = (currentIndex - 1 + THEMES.length) % THEMES.length
-        break
-      case 'Home':
-        nextIndex = 0
-        break
-      case 'End':
-        nextIndex = THEMES.length - 1
-        break
-      default:
-        return
+  const effectiveHex = settings.panelColor ?? DEFAULT_PANEL_HEX
+  // Local draft so dragging the native picker isn't snapped back by the
+  // controlled `value` before the (debounced) write lands; re-synced whenever
+  // the stored value actually changes — our own commit, Reset, or another tab.
+  const [draftHex, setDraftHex] = useState(effectiveHex)
+  useEffect(() => {
+    setDraftHex(effectiveHex)
+  }, [effectiveHex])
+
+  const colorInputRef = useRef<HTMLInputElement>(null)
+  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function clearWriteTimer() {
+    if (writeTimer.current !== null) {
+      clearTimeout(writeTimer.current)
+      writeTimer.current = null
     }
-    e.preventDefault()
-    const next = THEMES[nextIndex]!
-    patch({ theme: next.id })
-    const radios = themeGroupRef.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]')
-    radios?.[nextIndex]?.focus()
+  }
+
+  // Debounced live write during a drag — the picker's `input` stream surfaces
+  // as React's onChange for a color input.
+  function onColorInput(hex: string) {
+    setDraftHex(hex)
+    clearWriteTimer()
+    writeTimer.current = setTimeout(() => {
+      writeTimer.current = null
+      patchRef.current({ panelColor: hex })
+    }, PANEL_COLOR_DEBOUNCE_MS)
+  }
+
+  // Final commit when the picker closes (its native `change` event): write now
+  // and cancel any pending debounce. Mount-once (patch read via patchRef); also
+  // clears a leaked debounce timer on unmount.
+  useEffect(() => {
+    const el = colorInputRef.current
+    if (!el) return
+    const onCommit = () => {
+      clearWriteTimer()
+      patchRef.current({ panelColor: el.value })
+    }
+    el.addEventListener('change', onCommit)
+    return () => {
+      el.removeEventListener('change', onCommit)
+      clearWriteTimer()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once; patch is read via patchRef
+  }, [])
+
+  function resetColor() {
+    clearWriteTimer()
+    patchRef.current({ panelColor: null })
   }
 
   return (
@@ -77,34 +106,48 @@ export default function General({
 
       <section aria-label="Appearance">
         <div className={row}>
-          <span className={label} id="theme-label">
-            Theme
+          <span className={label} id="panel-color-label">
+            Widget color
           </span>
-          <div
-            role="radiogroup"
-            aria-labelledby="theme-label"
-            ref={themeGroupRef}
-            onKeyDown={onThemeKeyDown}
-            className="flex gap-2"
-          >
-            {THEMES.map((t) => (
+          <div className="flex items-center gap-3">
+            {/* The visible 28px swatch IS the label: clicking it opens the
+                native picker (the real <input type="color"> is visually hidden
+                but keyboard-reachable and label-associated). `peer` on the
+                input lets the swatch carry the focus ring. */}
+            <label
+              htmlFor="set-panel-color"
+              className="relative inline-flex size-7 cursor-pointer items-center justify-center rounded-full"
+            >
+              <input
+                ref={colorInputRef}
+                id="set-panel-color"
+                type="color"
+                aria-label="Widget color"
+                value={draftHex}
+                onChange={(e) => onColorInput(e.currentTarget.value)}
+                className="peer sr-only"
+              />
+              <span
+                aria-hidden
+                style={{ backgroundColor: draftHex }}
+                className="size-7 rounded-full border border-white/25 shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent"
+              />
+            </label>
+            {/* Quiet Reset, present only when a color is actually set (null =
+                the default surface, nothing to reset). */}
+            {settings.panelColor !== null && (
               <button
-                key={t.id}
-                role="radio"
-                aria-checked={settings.theme === t.id}
-                tabIndex={settings.theme === t.id ? 0 : -1}
-                onClick={() => patch({ theme: t.id })}
-                className={`rounded-full border px-3 py-1 text-sm focus-visible:outline-2 focus-visible:outline-accent ${
-                  settings.theme === t.id
-                    ? 'border-accent text-fg'
-                    : 'border-panel-border text-fg-muted'
-                }`}
+                type="button"
+                aria-label="Reset widget color"
+                onClick={resetColor}
+                className="rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
               >
-                {t.label}
+                Reset
               </button>
-            ))}
+            )}
           </div>
         </div>
+        <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically.</p>
       </section>
 
       <section aria-label="Clock and units">

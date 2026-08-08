@@ -6,7 +6,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
   const settings: Settings = {
     name: '',
     use24Hour: false,
-    theme: 'aurora',
+    panelColor: null,
     units: 'metric',
     muted: false,
     widgets: {
@@ -30,35 +30,21 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     openUrl: vi.fn(),
     webSearch: vi.fn(),
     addTodo: vi.fn().mockResolvedValue(undefined),
-    setTheme: vi.fn().mockResolvedValue(undefined),
     openSettings: vi.fn(),
   }
 }
 
 describe('buildCommands', () => {
-  it('builds a link command per quick link, then theme commands, then settings', () => {
+  it('builds a link command per quick link, then settings (themes retired, Task 60)', () => {
     const ctx = makeCtx([{ id: 'l1', title: 'GitHub', url: 'https://github.com' }])
     const commands = buildCommands(ctx)
-    expect(commands.map((c) => c.id)).toEqual([
-      'link:l1',
-      'theme:aurora',
-      'theme:glass',
-      'theme:mono',
-      'settings',
-    ])
+    expect(commands.map((c) => c.id)).toEqual(['link:l1', 'settings'])
   })
 
   it('running a link command opens its url', () => {
     const ctx = makeCtx([{ id: 'l1', title: 'GitHub', url: 'https://github.com' }])
     void buildCommands(ctx)[0]!.run()
     expect(ctx.openUrl).toHaveBeenCalledWith('https://github.com')
-  })
-
-  it('running a theme command sets that theme', () => {
-    const ctx = makeCtx()
-    const glass = buildCommands(ctx).find((c) => c.id === 'theme:glass')!
-    void glass.run()
-    expect(ctx.setTheme).toHaveBeenCalledWith('glass')
   })
 
   it('running the settings command opens settings', () => {

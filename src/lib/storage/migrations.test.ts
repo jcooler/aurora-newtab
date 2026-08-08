@@ -18,8 +18,8 @@ describe('migrate', () => {
     const registry: Record<number, Migration> = {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
-      // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7
-      // (CURRENT_VERSION)
+      // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
+      // registry[7] upgrades v7 -> v8 (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -48,9 +48,13 @@ describe('migrate', () => {
         calls.push(6)
         return data
       },
+      7: (data) => {
+        calls.push(7)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -321,5 +325,59 @@ describe('v6 -> v7', () => {
     expect(out.settings.widgets.weather).toBe(true) // user's v1-era choice, still honored 6 steps later
     expect(out.settings.widgets.habits).toBe(false) // backfilled default (v1->v2 step, unaffected by v6->v7)
     expect(out.settings.widgets.monthCal).toBe(false) // backfilled default (v6->v7 step)
+  })
+})
+
+// Task 60: the three-theme system collapsed into one surface + a live
+// widget-color customizer. `settings.theme` is stripped from any older snapshot
+// (searchEngine-strip precedent, step 3) and `settings.panelColor` (hex | null)
+// is backfilled null — a NESTED settings key, so it needs its own explicit step
+// (the final default-merge only backfills MISSING TOP-LEVEL keys).
+describe('v7 -> v8', () => {
+  it("strips settings.theme (a stored 'glass' vanishes) and backfills panelColor null", () => {
+    const v7Settings = { ...defaults().settings, name: 'Jon', theme: 'glass' }
+    const out = migrate({ settings: v7Settings }, 7)
+    expect(out.settings.name).toBe('Jon') // rest of settings preserved
+    expect('theme' in out.settings).toBe(false)
+    expect(out.settings.panelColor).toBeNull()
+  })
+
+  it('tolerates a v7 snapshot with no settings at all', () => {
+    const out = migrate({}, 7)
+    expect('theme' in out.settings).toBe(false)
+    expect(out.settings.panelColor).toBeNull()
+  })
+
+  it('guards against a non-object settings (e.g. a hand-edited string): no throw', () => {
+    // Same restraint as v3->v4's strip step: destructuring a string by key
+    // throws, so a non-object settings is left untouched here and caught
+    // downstream by backup.ts's validateBackupShape.
+    expect(() => migrate({ settings: 'oops' }, 7)).not.toThrow()
+  })
+
+  it('keeps an already-present panelColor rather than clobbering it', () => {
+    const out = migrate({ settings: { ...defaults().settings, panelColor: '#12ab34' } }, 7)
+    expect(out.settings.panelColor).toBe('#12ab34')
+  })
+
+  it('a v1 snapshot chains through all seven migrations, ending with theme gone and panelColor null', () => {
+    const v1Settings = {
+      name: 'Jon',
+      use24Hour: false,
+      theme: 'aurora',
+      units: 'metric',
+      muted: false,
+      widgets: { search: false, weather: true, links: true, todo: true, timer: true, quote: false },
+    }
+    const out = migrate({ settings: v1Settings }, 1)
+    expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
+    expect(out.connectors).toEqual({}) // v4->v5 ran
+    expect(out.habits).toEqual([]) // v5->v6 ran
+    expect(out.settings.widgets.monthCal).toBe(false) // v6->v7 ran
+    expect('theme' in out.settings).toBe(false) // v7->v8 ran (stripped)
+    expect(out.settings.panelColor).toBeNull() // v7->v8 ran (backfilled)
   })
 })

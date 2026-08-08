@@ -6,6 +6,7 @@
 // an already-migrated `AuroraData`.
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
+import { isPanelColor } from './color'
 import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
@@ -154,13 +155,15 @@ function isSettings(v: unknown): boolean {
   return (
     isString(v.name) &&
     isBoolean(v.use24Hour) &&
-    isString(v.theme) &&
+    // panelColor (Task 60) is `null` or a `#rrggbb` hex; anything else (a named
+    // color like 'red', a short #fff, a non-string) rejects the whole settings
+    // key, per the structural convention. `theme` is NOT checked here anymore:
+    // it's gone from Settings entirely, and migrate()'s v7->v8 step strips it
+    // from any older backup BEFORE this validator runs — the same
+    // migrate-then-validate order the retired `searchEngine` field relied on
+    // (see migrations.ts step 7, and validateBackupShape's doc comment below).
+    (v.panelColor === null || isPanelColor(v.panelColor)) &&
     isString(v.units) &&
-    // No searchEngine check here anymore (Red Argon remediation): the field
-    // is gone from Settings entirely, and migrate()'s v3->v4 step strips it
-    // from any older backup BEFORE this validator ever runs (see
-    // storage/migrations.ts's step 3, and validateBackupShape's own doc
-    // comment below for why migration always runs first).
     isBoolean(v.muted) &&
     isWidgetToggles(v.widgets)
   )

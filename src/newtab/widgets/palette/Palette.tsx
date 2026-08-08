@@ -53,8 +53,6 @@ export default function Palette({
             return todoReducer(withToday, { type: 'addItem', listId: withToday[0]!.id, text })
           })
           .then(() => undefined),
-      setTheme: (theme) =>
-        storage.update('settings', (s) => ({ ...s, theme })).then(() => undefined),
       openSettings: onOpenSettings,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- links/settings/storage/onOpenSettings are the only real deps

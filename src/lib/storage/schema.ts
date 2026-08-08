@@ -1,9 +1,7 @@
 import type { Layout } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 7
-
-export type ThemeId = 'glass' | 'mono' | 'aurora'
+export const CURRENT_VERSION = 8
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -39,7 +37,25 @@ export interface WidgetToggles {
 export interface Settings {
   name: string
   use24Hour: boolean
-  theme: ThemeId
+  /** The widget-color customizer (Task 60, which retired the three-theme
+   *  system). `null` = the default surface defined by themes.css's :root. A
+   *  `#rrggbb` string re-tints every widget's panel at runtime
+   *  (src/theme/index.ts's applyPanelColor + src/lib/color.ts), with
+   *  --fg/--fg-muted and the color-scheme flip derived from the pick's
+   *  luminance so any color stays readable.
+   *
+   *  STANDING RULE (the same one WidgetToggles carries above): adding or
+   *  removing a Settings field REQUIRES, in the SAME change, both (1) bumping
+   *  CURRENT_VERSION and (2) a migrations.ts step keyed to the version upgraded
+   *  FROM — migrations[7] is THIS field's step (it strips the dead `theme` and
+   *  backfills `panelColor: null`, the searchEngine-strip precedent of
+   *  migrations[3]). Skip it and this is the failure mode: `defaults()`'s own
+   *  merge only backfills MISSING TOP-LEVEL KEYS, never a new field nested
+   *  inside an already-present `settings` object, so an existing user's stored
+   *  settings simply won't have the key — and backup.ts's isSettings validator
+   *  requires panelColor present-and-valid (`null` or `#rrggbb`), so any backup
+   *  captured before this field existed gets rejected WHOLESALE on import. */
+  panelColor: string | null
   units: 'metric' | 'imperial'
   muted: boolean
   widgets: WidgetToggles
@@ -171,7 +187,7 @@ export function defaults(): AuroraData {
     settings: {
       name: '',
       use24Hour: false,
-      theme: 'aurora',
+      panelColor: null,
       units: 'metric',
       muted: false,
       widgets: {
