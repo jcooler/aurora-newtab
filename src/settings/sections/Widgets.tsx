@@ -16,6 +16,7 @@ const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
   clocks: 'World clocks',
   countdown: 'Countdown',
   habits: 'Habits',
+  monthCal: 'Month calendar',
 }
 
 // Editor-side cap — independent of HabitsWidget.tsx's own MAX_HABIT_CHIPS

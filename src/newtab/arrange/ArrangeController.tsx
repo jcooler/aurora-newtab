@@ -39,6 +39,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   crypto: 'Crypto',
   ics: 'Calendar',
   habits: 'Habits',
+  monthCal: 'Month',
 }
 
 interface DragState {

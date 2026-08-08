@@ -4431,6 +4431,338 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// Month calendar widget (Task 58) — glance grid ABOVE HabitsWidget in the
+// same mid-left column, with countdown-date dots. NO live network. Re-seeds
+// habits at ITS OWN 6-chip MAX_HABIT_CHIPS worst case too (not just
+// monthCal) — the column budget asserted below is a JOINT measurement (see
+// App.tsx's own monthCal/habits PositionedBlock comments for the arithmetic
+// this block proves): once two widgets share one column, neither widget's
+// floor means anything checked in isolation, only the PAIR's worst case
+// stacked together does.
+{
+  const monthCalSel = '[data-block-id="monthCal"]'
+  const habitsSel = '[data-block-id="habits"]'
+  const rssSel = '[data-block-id="rss"] section[aria-label="Headlines"]'
+  const linksSel = '[data-block-id="links"]'
+  // Same "whichever centered element actually occupies this band" set the
+  // habits block above uses — monthCal sits at a DIFFERENT band (higher up
+  // the page) than habits does, so its own overlapping element(s) may not
+  // be the same ones.
+  const centeredSels = [
+    '[data-block-id="clock"]',
+    '[data-block-id="greeting"]',
+    '[data-block-id="worldClocks"]',
+    '[data-block-id="countdown"]',
+    '[data-block-id="search"]',
+    '[data-block-id="focus"]',
+    '[data-block-id="links"]',
+    '[data-block-id="quote"]',
+  ]
+
+  // Capture whatever `countdowns` currently holds (the top-of-file seed's
+  // own 14-days-out "Launch" entry) so this block's restore step can put it
+  // back verbatim rather than guessing at (or blanking) what it should be —
+  // nothing downstream of this block touches `countdowns` again.
+  const countdownsBeforeThisBlock = await page.evaluate(async () => {
+    const { countdowns } = await chrome.storage.local.get('countdowns')
+    return countdowns ?? []
+  })
+
+  // Seed: monthCal ON, habits ON at its own 6-chip worst-case fixture (same
+  // shape the habits block above uses, reproduced here rather than shared
+  // — that block has already restored habits back off by the time this one
+  // runs), RSS ON (left floor), and a countdown dated TODAY so the dot
+  // probe needs no navigation away from the current-month view the
+  // ring/grid probes also need.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    function localDateKey(d) {
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      return `${y}-${m}-${day}`
+    }
+    function prevDayKey(key) {
+      const [y, m, day] = key.split('-').map(Number)
+      return localDateKey(new Date(y, m - 1, day - 1))
+    }
+    function runEndingAt(endKey, n) {
+      const keys = []
+      let cursor = endKey
+      for (let i = 0; i < n; i++) {
+        keys.push(cursor)
+        cursor = prevDayKey(cursor)
+      }
+      return keys
+    }
+    const todayKey = localDateKey(new Date())
+    const yesterdayKey = prevDayKey(todayKey)
+    const habits = [
+      { id: 'h1', name: 'Read daily', createdAt: Date.now(), log: runEndingAt(todayKey, 12) },
+      { id: 'h2', name: 'Stretch', createdAt: Date.now(), log: runEndingAt(yesterdayKey, 5) },
+      { id: 'h3', name: 'Meditate', createdAt: Date.now(), log: [] },
+      { id: 'h4', name: 'Journal', createdAt: Date.now(), log: [todayKey] },
+      { id: 'h5', name: 'Walk', createdAt: Date.now(), log: [] },
+      {
+        id: 'h6',
+        name: 'Practice deep breathing exercises every single morning without fail',
+        createdAt: Date.now(),
+        log: [],
+      },
+    ]
+    await chrome.storage.local.set({
+      habits,
+      countdowns: [{ id: 'mc1', name: 'Launch day', date: todayKey }],
+      settings: { ...settings, widgets: { ...settings.widgets, monthCal: true, habits: true } },
+      connectors: { rss: { enabled: true, feeds: ['https://example.com/rss'], shownCount: 5 } },
+      connectorSnapshots: {
+        rss: {
+          fetchedAt: Date.now(),
+          data: [{ source: 'Example', title: 'A measured headline', url: 'https://example.com/1', publishedAt: 1 }],
+        },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(monthCalSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
+
+  // `expectedLabel`/`todayKeyBrowser` computed INSIDE the page (not via a
+  // separate Node-side `new Date()`) so there is zero risk of a
+  // midnight-boundary clock-skew mismatch between this script's process and
+  // the browser it's driving — same discipline the habits block's own
+  // inline localDateKey/prevDayKey re-derivation uses. MONTH_NAMES is
+  // MonthCalWidget.tsx's own array, copied verbatim (0-indexed, English,
+  // spec-fixed) rather than imported — page.evaluate's function argument
+  // runs inside the browser page, not this Node process.
+  const { expectedLabel, todayKeyBrowser } = await page.evaluate(() => {
+    const MONTH_NAMES = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ]
+    const d = new Date()
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return { expectedLabel: `${MONTH_NAMES[d.getMonth()]} ${y}`, todayKeyBrowser: `${y}-${m}-${day}` }
+  })
+
+  // Probe 1: the grid renders the CURRENT month — the sr-only caption names
+  // it as "Calendar: {Month} {Year}" (MonthCalWidget.tsx's own format).
+  const captionText = await page.evaluate(
+    (sel) => document.querySelector(`${sel} table caption`)?.textContent ?? null,
+    monthCalSel,
+  )
+  const gridOk = captionText === `Calendar: ${expectedLabel}`
+  console.log(
+    gridOk
+      ? `PASS: the month calendar renders the current month (caption "${captionText}")`
+      : `FAIL: the month calendar renders the current month (caption=${JSON.stringify(captionText)}, expected "Calendar: ${expectedLabel}")`,
+  )
+
+  // Probe 2: today-cell ring present — a COMPUTED class check (the exact
+  // cell keyed to today's own local date actually carries `ring-accent`),
+  // not just "some ring exists somewhere" on the page.
+  const todayRingClass = await page.evaluate(
+    ({ sel, key }) => document.querySelector(`${sel} [data-cell-key="${key}"] span`)?.className ?? null,
+    { sel: monthCalSel, key: todayKeyBrowser },
+  )
+  const ringOk = typeof todayRingClass === 'string' && todayRingClass.includes('ring-accent')
+  console.log(
+    ringOk
+      ? `PASS: today's cell (${todayKeyBrowser}) is ringed (class="${todayRingClass}")`
+      : `FAIL: today's cell (${todayKeyBrowser}) is ringed (class=${JSON.stringify(todayRingClass)})`,
+  )
+
+  // Probe 3: the countdown dot renders on its own date's cell — seeded
+  // exactly on today's key above, so this is the SAME cell probe 2 just
+  // checked, now asserted for the `data-countdown-dot` marker instead.
+  const dotPresent = await page.evaluate(
+    ({ sel, key }) => document.querySelector(`${sel} [data-cell-key="${key}"] [data-countdown-dot]`) !== null,
+    { sel: monthCalSel, key: todayKeyBrowser },
+  )
+  console.log(
+    dotPresent
+      ? `PASS: the countdown dot renders on its own date's cell (${todayKeyBrowser})`
+      : `FAIL: the countdown dot renders on its own date's cell (${todayKeyBrowser})`,
+  )
+
+  // Probe 4: prev-click swaps the header — a REAL click, not a storage
+  // write (the quality-bar discipline every interaction probe in this file
+  // follows: screenshots alone have missed pointer bugs before).
+  await page.click(`${monthCalSel} button[aria-label="Previous month"]`)
+  await page.waitForTimeout(100)
+  const captionAfterPrev = await page.evaluate(
+    (sel) => document.querySelector(`${sel} table caption`)?.textContent ?? null,
+    monthCalSel,
+  )
+  const prevOk = captionAfterPrev !== null && captionAfterPrev !== `Calendar: ${expectedLabel}`
+  console.log(
+    prevOk
+      ? `PASS: clicking Previous month swaps the header (caption now "${captionAfterPrev}")`
+      : `FAIL: clicking Previous month swaps the header (caption=${JSON.stringify(captionAfterPrev)})`,
+  )
+
+  // Snap back to the current month via the Today button (itself the same
+  // control the unit tests exercise) before forcing the 6-row worst case
+  // below — cleaner than assuming which direction re-lands on the current
+  // month from wherever Previous just landed.
+  await page.click(`${monthCalSel} button:has-text("Today")`)
+  await page.waitForTimeout(100)
+
+  // Force the 6-row worst case: click Next repeatedly (up to 14 — a full
+  // year plus margin) until the rendered grid actually MEASURES 42 cells (6
+  // rows x 7), rather than assuming which month that is. Trusting "today
+  // happens to already be a 6-row month" would silently under-test the real
+  // worst case on whatever date this script happens to run — measuring
+  // after every click (instead of hand-computing an offset) means this is
+  // correct regardless of the date, same "measure, don't assume" discipline
+  // every placement comment in this file follows.
+  let sixRowMonth = null
+  for (let i = 0; i < 14; i++) {
+    const cellCount = await page.evaluate(
+      (sel) => document.querySelectorAll(`${sel} [data-cell-key]`).length,
+      monthCalSel,
+    )
+    if (cellCount === 42) {
+      sixRowMonth = await page.evaluate(
+        (sel) => document.querySelector(`${sel} table caption`)?.textContent ?? null,
+        monthCalSel,
+      )
+      break
+    }
+    await page.click(`${monthCalSel} button[aria-label="Next month"]`)
+    await page.waitForTimeout(30)
+  }
+  const forcedOk = sixRowMonth !== null
+  console.log(
+    forcedOk
+      ? `PASS: forced the month grid to its 6-row worst case (${sixRowMonth})`
+      : 'FAIL: could not force a 6-row month within 14 Next-month clicks',
+  )
+
+  await page.screenshot({ path: `${outDir}/widgets-monthcal.png` })
+  console.log('captured widgets-monthcal.png')
+
+  // Measured floor assertions for the WHOLE mid-left column — monthCal AND
+  // habits, BOTH at their own worst case simultaneously (the grid is
+  // already forced to 6 rows above; habits was seeded with its own 6-chip
+  // MAX_HABIT_CHIPS fixture from the start of this block). See App.tsx's
+  // own monthCal/habits PositionedBlock comments for the arithmetic these
+  // numbers are pinned against.
+  const rectsRaw = await page.evaluate(
+    ({ monthCalSel: mSel, habitsSel: hSel, rssSel: rSel, linksSel: lSel, centeredSels: cSels }) => {
+      const r = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const rect = el.getBoundingClientRect()
+        return { top: +rect.top.toFixed(1), bottom: +rect.bottom.toFixed(1), left: +rect.left.toFixed(1), right: +rect.right.toFixed(1) }
+      }
+      return {
+        monthCal: r(mSel),
+        habits: r(hSel),
+        rss: r(rSel),
+        links: r(lSel),
+        centered: cSels.map((sel) => ({ sel, rect: r(sel) })),
+      }
+    },
+    { monthCalSel, habitsSel, rssSel, linksSel, centeredSels },
+  )
+
+  const FLOOR = 16
+  const m = rectsRaw.monthCal
+  const h = rectsRaw.habits
+
+  // Left floor: RSS's own column right edge — asserted EXACT, same
+  // discipline as the habits block above (both widths are fixed Tailwind
+  // classes with no worst-case growth to defend against).
+  const leftGap = rectsRaw.rss && m ? +(m.left - rectsRaw.rss.right).toFixed(1) : null
+  const leftOk = leftGap === FLOOR
+  console.log(
+    leftOk
+      ? `PASS: monthCal column left edge clears RSS's own column right edge by exactly ${FLOOR}px (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right})`
+      : `FAIL: monthCal column left edge clears RSS's own column right edge by exactly ${FLOOR}px (gap=${leftGap}, monthCal=${JSON.stringify(m)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+  )
+
+  // Right floor: whichever centered-column element(s) actually occupy
+  // monthCal's own vertical span at THIS band (higher up the page than
+  // habits' own band) — discovered by measurement, not assumed by name.
+  const overlappingMonthCal = m
+    ? rectsRaw.centered.filter(({ rect }) => rect && !(rect.bottom <= m.top || rect.top >= m.bottom))
+    : []
+  const centeredLeftAtMonthCalBand =
+    overlappingMonthCal.length > 0 ? Math.min(...overlappingMonthCal.map((o) => o.rect.left)) : null
+  const rightGapMonthCal = m && centeredLeftAtMonthCalBand !== null ? +(centeredLeftAtMonthCalBand - m.right).toFixed(1) : null
+  const rightOkMonthCal = rightGapMonthCal === null || rightGapMonthCal >= FLOOR
+  console.log(
+    rightOkMonthCal
+      ? `PASS: monthCal column right edge clears the centered column's measured left edge at its own band by >=${FLOOR}px (${rightGapMonthCal === null ? 'no centered element overlaps this band' : `${rightGapMonthCal}px, overlapping: ${overlappingMonthCal.map((o) => o.sel).join(', ')}`}; monthCal.right=${m?.right})`
+      : `FAIL: monthCal column right edge clears the centered column's measured left edge at its own band by >=${FLOOR}px (gap=${rightGapMonthCal}px, overlapping: ${JSON.stringify(overlappingMonthCal)})`,
+  )
+
+  // Seam floor: monthCal's own bottom (6-row worst case, forced above) to
+  // habits' own top — the NEW floor this task adds, proving the two widgets
+  // this column now shares don't collide with each other.
+  const seamGap = m && h ? +(h.top - m.bottom).toFixed(1) : null
+  const seamOk = seamGap !== null && seamGap >= FLOOR
+  console.log(
+    seamOk
+      ? `PASS: monthCal's 6-row worst-case bottom clears habits' top by >=${FLOOR}px (${seamGap}px; monthCal.bottom=${m?.bottom}, habits.top=${h?.top})`
+      : `FAIL: monthCal's 6-row worst-case bottom clears habits' top by >=${FLOOR}px (gap=${seamGap}px, monthCal=${JSON.stringify(m)}, habits=${JSON.stringify(h)})`,
+  )
+
+  // Bottom floor: habits' own bottom (6-chip worst case) to the links row —
+  // the SAME check the habits block above makes in isolation, repeated here
+  // because habits' effective top has moved (42vh, not 43vh) as part of
+  // this task's joint re-derivation: this is the pass that proves the PAIR,
+  // not just habits alone, still clears the row below it.
+  const bottomGap = rectsRaw.links && h ? +(rectsRaw.links.top - h.bottom).toFixed(1) : null
+  const bottomOk = bottomGap !== null && bottomGap >= FLOOR
+  console.log(
+    bottomOk
+      ? `PASS: habits' 6-chip worst-case bottom clears the links row by >=${FLOOR}px (${bottomGap}px; habits.bottom=${h?.bottom}, links.top=${rectsRaw.links?.top})`
+      : `FAIL: habits' 6-chip worst-case bottom clears the links row by >=${FLOOR}px (gap=${bottomGap}px, habits=${JSON.stringify(h)}, links=${JSON.stringify(rectsRaw.links)})`,
+  )
+
+  // Restore: both widgets off, habits cleared, RSS disabled + cache
+  // cleared, `countdowns` put back exactly as captured before this block
+  // ran — same restore discipline as every widget/connector block in this
+  // file, so nothing here leaks into the viewport matrix / default-state /
+  // worst-case bookmarks blocks below.
+  await page.evaluate(
+    async (countdowns) => {
+      const { settings } = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({
+        habits: [],
+        countdowns,
+        settings: { ...settings, widgets: { ...settings.widgets, monthCal: false, habits: false } },
+        connectors: { rss: { enabled: false, feeds: [], shownCount: 5 } },
+        connectorSnapshots: {},
+      })
+    },
+    countdownsBeforeThisBlock,
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  // The PositionedBlock WRAPPER (`[data-block-id="monthCal"]`) always
+  // renders, gated or not (see PositionedBlock.tsx's own early-return
+  // branch) — the "gone" signal is its own gate returning null, i.e. no
+  // `<table>` inside it, same distinction the habits block's own gone-check
+  // makes against its inner buttons, not its wrapper.
+  const monthCalGone = (await page.locator(`${monthCalSel} table`).count()) === 0
+  const habitsGone = (await page.locator(`${habitsSel} button`).count()) === 0
+  const rssGone = (await page.locator(rssSel).count()) === 0
+  console.log(
+    monthCalGone && habitsGone && rssGone
+      ? 'Month calendar disabled, habits re-disabled, and RSS re-disabled; page restored to idle'
+      : `WARNING: still present after the monthCal block's own restore (monthCalGone=${monthCalGone}, habitsGone=${habitsGone}, rssGone=${rssGone})`,
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

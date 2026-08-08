@@ -30,6 +30,7 @@ import VercelWidget from './widgets/vercel/VercelWidget'
 import CryptoWidget from './widgets/crypto/CryptoWidget'
 import CalendarWidget from './widgets/calendar/CalendarWidget'
 import HabitsWidget from './widgets/habits/HabitsWidget'
+import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -397,53 +398,117 @@ export default function App() {
             </PositionedBlock>
           </WidgetBoundary>
 
+          <WidgetBoundary name="monthCal">
+            {/* DEFAULT placement — Task 58, the TOP of the mid-left SECOND
+                column (`left-[21rem] w-56`, shared with HabitsWidget directly
+                below it — see that PositionedBlock's own comment for how
+                THAT half of the column is derived). Task 57 shipped habits
+                alone at a PROVISIONAL `top-[43vh]`, explicitly flagged for
+                re-measurement once this task's own widget landed above it;
+                this pass is that re-derivation, and it moves BOTH tops, not
+                just this one, because the two widgets' worst-case heights
+                don't leave room for a stack starting anywhere near either
+                task's original guess.
+
+                THE ARITHMETIC THAT FORCES THE WHOLE COLUMN UP: MonthCalWidget
+                at its own worst case (a 6-row month — May/August 2026 and
+                others, see monthGrid.ts's own doc comment; forced in the
+                harness via prev/next clicks so this is never a shorter
+                stand-in) measures 247px tall (nav row + caption + 6x7 grid).
+                HabitsWidget at ITS OWN worst case (6 chips, MAX_HABIT_CHIPS)
+                measures 244px. Stacked with the file's usual >=16px floor on
+                both sides of the seam, that's 247+16+244+16 = 523px of
+                required vertical span between MonthCalWidget's own top and
+                the links row below habits — and the links row (with
+                worldClocks/countdown/timer on, the harness's own steady
+                state) sits at y=654.5 at 1600x900. That caps this widget's
+                own top at 654.5-523 = 131.5px: starting any lower leaves the
+                pair unable to clear the links row at both worst cases
+                simultaneously, no matter where the seam between them falls
+                — Task 57's own `43vh` (387px) for habits ALONE already
+                overshoots that budget before this widget even enters the
+                picture (see its PositionedBlock's own comment for that
+                widget's history).
+
+                `top-[12vh]` (108px) was picked, among the values clearing
+                that 131.5px ceiling, for landing HabitsWidget's own new top
+                (below) on a clean whole-vh number too — the same
+                walk-the-whole-vh-search-space-by-hand discipline every other
+                placement comment in this file uses (see e.g. github's own).
+                MEASURED (scripts/preview.mjs's monthCal block, 1600x900,
+                monthCal forced to a real 6-row month, habits seeded at its
+                own 6-chip max, worldClocks+countdown+timer on): this widget
+                top=108/bottom=355; HabitsWidget top=378/bottom=622 (`top-
+                [42vh]`, see its own comment); gaps — this widget's bottom to
+                habits' top: 23px; habits' bottom to the links row: 32.5px;
+                RSS's own column right edge to this widget's left edge:
+                exactly 16px (336 vs rss.right 320, same exact-floor
+                convention the old habits comment used); this widget's right
+                edge to the centered column's measured left edge at ITS OWN
+                band (the clock, the only centered element overlapping
+                y=108-355 here): 75.5px (560 vs clock.left 635.5). Every
+                floor clears with real margin, not shaved to the edge. A
+                stored arrange-mode `pos` still wins (PositionedBlock drops
+                this className on that branch). MonthCalWidget self-gates on
+                settings.widgets.monthCal alone (no data-emptiness check —
+                unlike habits/worldClocks, there's nothing to be "empty",
+                the calendar always has a month to show), so this wrapper
+                renders an empty box until the toggle is on — same as every
+                other toggle-gated peripheral here. Transform-free per the
+                house rule (App's quote/bookmarks comments): a plain
+                left/top offset, no translate. */}
+            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[21rem] top-[12vh] w-56">
+              <MonthCalWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
           <WidgetBoundary name="habits">
-            {/* DEFAULT placement — Task 57, the mid-left SECOND column (not a
-                new column of its own): between the RSS column and the
-                centered clock/greeting stack, a slot the plan reserves for
-                habit chips now and Task 58's month grid ABOVE them later —
-                both share this column, so the exact top offset here is
-                PROVISIONAL UNTIL TASK 58 LANDS and the two are re-measured
-                jointly (Task 59's own gate is what seeds both together).
+            {/* DEFAULT placement — Task 57 shipped this in the mid-left
+                SECOND column (not a new column of its own): between the RSS
+                column and the centered clock/greeting stack, a slot the plan
+                reserves for habit chips with Task 58's month grid ABOVE them.
+                Task 57's own top (`43vh`) was explicitly PROVISIONAL, pending
+                Task 58 re-measuring the two jointly — this comment documents
+                that re-derivation landing (Task 58), which moved BOTH this
+                widget's top AND MonthCalWidget's own (see that
+                PositionedBlock's comment, directly above, for the arithmetic
+                that forces the whole column up: the two widgets' combined
+                worst-case heights plus two 16px floors is 523px, capping
+                MonthCalWidget's own top at 131.5px — well above Task 57's
+                original 43vh/387px for THIS widget alone).
 
-                `left-[21rem]` (336px at 1600x900) is pinned, not measured
-                here: RSS's own card sits at `left-8` (32px) and is `w-72`
-                (288px wide — see RssWidget.tsx), so its right edge is
-                EXACTLY 320px; 336px opens an exact 16px gap, the same floor
-                this file uses everywhere else, asserted (not just computed)
-                by scripts/preview.mjs's own habits block.
+                `left-[21rem]` (336px at 1600x900) is unchanged from Task 57
+                and still pinned the same way: RSS's own card sits at `left-8`
+                (32px) and is `w-72` (288px wide — see RssWidget.tsx), so its
+                right edge is EXACTLY 320px; 336px opens an exact 16px gap,
+                the same floor this file uses everywhere else, asserted (not
+                just computed) by scripts/preview.mjs's own monthCal block
+                (which now owns this measurement jointly with habits').
 
-                `top-[43vh]` (387px) and `w-56` (224px) are MEASURED against
-                the real harness, not assumed — and this exact value is a
-                CORRECTION, not the first guess. scripts/preview.mjs's habits
-                block seeds its own 6-habit worst-case fixture (this widget's
-                own MAX_HABIT_CHIPS cap) and probe-logs all three floors;
-                `top-[47vh]` (423px), the plan's own starting hypothesis,
-                MEASURED a real 12.5px OVERLAP with the links row at that
-                worst case (habits.bottom 667 vs links.top 654.5 — links'
-                own row shifts with viewport-band spacing, so this is a real
-                collision, not a rounding artifact), failing the >=16px
-                floor this file uses everywhere else. Raised to `43vh`
-                instead of dropping MAX_HABIT_CHIPS to 5 — the brief's other
-                escape hatch — because the interfaces spec pins 6 as the
-                widget's cap elsewhere (falsifiable in HabitsWidget.test.tsx:
-                7 seeded habits render only 6) and moving the column up costs
-                nothing else: MEASURED at `43vh`, all three floors clear with
-                real (not knife-edge) margin — left edge exactly 16px off
-                RSS's own column right edge (336 vs rss.right 320, asserted
-                exact per the brief), right edge 80px off the centered
-                column's own measured left edge at this band (640, i.e.
-                greeting/worldClocks/countdown/search/focus/links — whichever
-                actually overlaps this band, not assumed by name), and
-                bottom 23.5px clear of the links row at the same 6-chip
-                worst case that failed at 47vh. See scripts/preview.mjs's own
-                habits block for the exact PASS lines. HabitsWidget
-                self-gates on settings.widgets.habits + a non-empty habits
-                list, so this wrapper renders an empty box until at least one
-                habit exists — same as every other toggle-gated peripheral
-                here. Transform-free per the house rule (App's quote/
-                bookmarks comments): a plain left/top offset, no translate. */}
-            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[21rem] top-[43vh] w-56">
+                `top-[42vh]` (378px) is this task's correction of Task 57's
+                `43vh` (387px) — one whole-vh step higher, picked (per
+                MonthCalWidget's own comment) for landing both widgets on
+                clean vh numbers simultaneously, not because 43vh itself was
+                wrong in isolation. MEASURED (scripts/preview.mjs's monthCal
+                block, 1600x900, MonthCalWidget forced to a real 6-row month,
+                this widget seeded at its own 6-chip MAX_HABIT_CHIPS worst
+                case, worldClocks+countdown+timer on): this widget
+                top=378/bottom=622; gap above (to MonthCalWidget's own
+                bottom, 355): 23px; gap below (to the links row, 654.5):
+                32.5px; left edge exactly 16px off RSS's own column right
+                edge (336 vs rss.right 320); right edge 80px off the centered
+                column's own measured left edge at THIS widget's band (640 —
+                whichever of greeting/worldClocks/countdown/search/focus/
+                links actually overlaps this band at measurement time, not
+                assumed by name). Every floor clears with real margin, not
+                shaved to the edge — same discipline Task 57's own `43vh`
+                correction established. HabitsWidget self-gates on
+                settings.widgets.habits + a non-empty habits list, so this
+                wrapper renders an empty box until at least one habit exists
+                — same as every other toggle-gated peripheral here.
+                Transform-free per the house rule (App's quote/bookmarks
+                comments): a plain left/top offset, no translate. */}
+            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[21rem] top-[42vh] w-56">
               <HabitsWidget />
             </PositionedBlock>
           </WidgetBoundary>

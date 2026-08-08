@@ -1073,6 +1073,38 @@ describe('SettingsPanel Habits section', () => {
   })
 })
 
+// Task 58: a plain toggle, no list editor of its own (unlike World clocks/
+// Countdowns/Habits above) — MonthCalWidget reads settings.widgets.monthCal
+// directly, so this is the same minimal on/off/persist shape as the
+// Bookmarks toggle's own non-permission assertions, without the permission
+// side-effect.
+describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
+  it('the Month calendar label is present on the Widgets tab, off by default', async () => {
+    await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText('Month calendar') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+  })
+
+  it('turning the toggle on writes widgets.monthCal; turning it back off writes false', async () => {
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText('Month calendar') as HTMLInputElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+    expect(toggle.checked).toBe(true)
+    expect((await storage.get('settings')).widgets.monthCal).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+    expect(toggle.checked).toBe(false)
+    expect((await storage.get('settings')).widgets.monthCal).toBe(false)
+  })
+})
+
 describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   afterEach(() => {
     // Only the premium-gating test below ever flips this — reset so it never
