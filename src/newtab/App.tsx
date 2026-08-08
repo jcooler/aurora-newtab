@@ -26,6 +26,7 @@ import RssWidget from './widgets/rss/RssWidget'
 import GithubWidget from './widgets/github/GithubWidget'
 import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import JiraWidget from './widgets/jira/JiraWidget'
+import VercelWidget from './widgets/vercel/VercelWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -390,6 +391,58 @@ export default function App() {
                 bookmarks comments): a plain top/right offset, no translate. */}
             <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[66vh]">
               <JiraWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="vercel">
+            {/* DEFAULT placement — REVISED off the brief's own starting
+                hypothesis (a second right-hand column beside github, e.g.
+                `right-[22-23rem] top-[24vh]`). Measured directly (not just
+                class-name reasoning) and rejected: at this app's 1600x900
+                launch viewport the centered column is wider than the gap a
+                second w-80 card would need. github's own LEFT edge sits at
+                right:22rem (right-8 + w-80 = 2rem + 20rem) from the
+                viewport's right edge, i.e. x=1248px; the centered clock
+                spans x=635.5-964.5px at that same row (top-[24vh]) — a
+                w-80 (320px) card starting even 1rem left of github's edge
+                (x=912) still overlaps the clock by ~52px, and every other
+                row the centered column occupies down to the quote block
+                (y up to ~876px) is similarly too wide (clock/search/focus/
+                quote all reach past x=900) to leave room for a second
+                320px column anywhere in the right half without either
+                touching github or touching the centered content. (The
+                links row, y636-724, is the one narrow exception — far too
+                short a band to hold a card.) So: the LEFT side instead,
+                mirroring the right column's own stacking rhythm one level
+                down from RSS's existing `left-8 top-[22vh]` slot. The
+                centered column's LEFTMOST extent at any row is x=512
+                (quote), well clear of a left-8/w-80 card's x=32-352 box, so
+                stacking here is collision-free against the centered content
+                by construction, not just at the tested fixture size.
+                `top-[64vh]` clears RSS even at its OWN worst case, not
+                just its default: RSS's shownCount is user-configurable
+                3-8 (Connectors.tsx's SHOWN_COUNT_OPTIONS), and at 8
+                headlines its card reaches y=542 at this viewport (vs
+                y=410 at the default 5) — measured directly, not
+                estimated, since the row math (gap-2 plus two text lines)
+                isn't obvious from the className alone. `top-[64vh]`
+                (576px) still clears that worst case by ~34px, and vercel's
+                own card (capped at MAX_DEPLOYMENTS=5, so this IS its own
+                worst-case height too) still ends around y=768, ~36px
+                clear of the quote block's own top (y=804) below it. The
+                harness's own gap-measurement probe (scripts/preview.mjs,
+                the vercel block) is what actually measures and pins these
+                numbers against the real rendered cards. A stored
+                arrange-mode `pos` still wins
+                (PositionedBlock drops this className on that branch).
+                VercelWidget self-gates on the connector's enabled+token
+                state, so this wrapper renders an empty box until the
+                connector is connected — same as every other toggle-gated
+                peripheral here. Transform-free per the house rule (App's
+                quote/bookmarks comments): a plain top/left offset, no
+                translate. */}
+            <PositionedBlock id="vercel" pos={layout?.vercel} className="fixed left-8 top-[64vh]">
+              <VercelWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

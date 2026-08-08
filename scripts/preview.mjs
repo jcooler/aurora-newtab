@@ -2241,6 +2241,375 @@ console.log(
   )
 }
 
+// ---------------------------------------------------------------------------
+// Vercel connector (Task 51) — the fourth full token connector. The brief's
+// own starting hypothesis was a SECOND right-hand column beside github
+// (`right-[22-23rem] top-[24vh]`) — implemented first, then REJECTED by
+// direct measurement, not just class-name reasoning: at this app's 1600x900
+// launch viewport, github's own LEFT edge sits at x=1248 (right-8 + w-80),
+// but the centered clock/search/focus/quote column reaches out to x=964.5-
+// 1088 at various rows, leaving under 300px of horizontal room for what
+// would need to be a 320px (w-80) card — there is NO row height at which a
+// second w-80 card fits between the centered column and github without
+// touching one or the other (screenshotted and measured directly; see the
+// git history for that captured overlap). So the real placement is the LEFT
+// side instead, one level below RSS's own existing `left-8 top-[22vh]` slot
+// — App.tsx's own comment on the vercel PositionedBlock has the full
+// measured writeup, including why `top-[64vh]` (not a naive same-rhythm
+// 44vh) is what actually clears RSS even at ITS worst case (shownCount=8).
+// NO live network: seed an enabled + connected config (just a token +
+// username, github's own shape) and a fresh snapshot (fetchedAt stamped in
+// the page so the ttl is fresh at read time and useConnectorSnapshot renders
+// straight from cache). Runs right after the Jira block (github/gitlab/jira
+// all left disabled), captures its own defaults ALONE (per the brief: "seed
+// vercel alone") — then a gap probe against RSS at ITS worst case plus the
+// full centered-content column (the exact invariant the rejected placement
+// violated) — then the FOUR-stack probe: re-enable github, gitlab AND jira
+// alongside vercel and assert every pair among all four panels is
+// non-overlapping, before restoring everything off so every block below
+// (viewport matrix, default-state, worst-case bookmarks) is undisturbed.
+{
+  const FIXTURE = {
+    deployments: [
+      {
+        project: 'marketing-site',
+        state: 'ERROR',
+        url: 'https://vercel.com/acme/marketing-site/dep-err',
+        // Deliberately the OLDEST timestamp of the three, so a naive
+        // recency-only sort would put it LAST — proving the capture actually
+        // exercises the failed-first rule, not just a lucky ordering.
+        createdAt: Date.now() - 6 * 60 * 60 * 1000, // 6h old
+      },
+      {
+        project: 'app-web',
+        state: 'READY',
+        url: 'https://vercel.com/acme/app-web/dep-ready',
+        createdAt: Date.now() - 3 * 60 * 1000, // 3m old
+      },
+      {
+        project: 'docs',
+        state: 'BUILDING',
+        url: 'https://vercel.com/acme/docs/dep-building',
+        createdAt: Date.now() - 60 * 60 * 1000, // 1h old
+      },
+    ],
+  }
+  const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
+
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
+      },
+      // fetchedAt stamped HERE, in the page, so the snapshot is fresh relative
+      // to whenever this run happens — the SWR hook renders from cache and never
+      // touches the network.
+      connectorSnapshots: { vercel: { fetchedAt: Date.now(), data } },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the widget renders the seeded rows (3 deployments) from cache,
+  // failed-first — the ERROR row (oldest by createdAt) must render FIRST, not
+  // last. Link attributes captured in the same read for probe 2.
+  await page.waitForSelector(vercelSel, { timeout: 5000 }).catch(() => {})
+  const rows = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const items = [...sec.querySelectorAll('li')]
+    const links = items.map((li) => li.querySelector('a'))
+    return {
+      count: items.length,
+      projects: links.map((a) => a?.getAttribute('title') ?? null),
+      firstTarget: links[0]?.getAttribute('target') ?? null,
+      firstRel: links[0]?.getAttribute('rel') ?? null,
+      firstHref: links[0]?.getAttribute('href') ?? null,
+    }
+  }, vercelSel)
+  const rowsOk =
+    rows !== null &&
+    rows.count === 3 &&
+    rows.projects[0] === 'marketing-site' && // ERROR, despite being the OLDEST
+    rows.projects[1] === 'app-web' // the newest READY row, right behind it
+  console.log(
+    rowsOk
+      ? `PASS: the Vercel widget renders the seeded deployments failed-first from cache (${rows.count} rows, order ${JSON.stringify(rows.projects)})`
+      : `FAIL: the Vercel widget renders the seeded deployments failed-first from cache (${JSON.stringify(rows)})`,
+  )
+
+  // Probe 2: interaction correctness — each row is a REAL external link.
+  // Asserted in-DOM (attributes), never by navigating away: a new tab, and rel
+  // that severs window.opener and strips the referrer, href intact.
+  const rel = (rows?.firstRel ?? '').split(/\s+/)
+  const linkOk =
+    rows !== null &&
+    rows.firstTarget === '_blank' &&
+    rel.includes('noopener') &&
+    rel.includes('noreferrer') &&
+    rows.firstHref === 'https://vercel.com/acme/marketing-site/dep-err'
+  console.log(
+    linkOk
+      ? 'PASS: each Vercel row is an external link (target=_blank, rel=noopener noreferrer, href intact)'
+      : `FAIL: each Vercel row is an external link (target=${rows?.firstTarget}, rel=${rows?.firstRel}, href=${rows?.firstHref})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-vercel.png` })
+  console.log('captured connectors-vercel.png')
+
+  // Probe 3: the measured gap to RSS's own slot directly above vercel's — the
+  // one placement number this task actually has to justify (App.tsx's own
+  // comment has the full writeup on why the FIRST placement idea, a second
+  // column beside github, was measured and rejected). RSS's shownCount is
+  // user-configurable 3-8 (Connectors.tsx's SHOWN_COUNT_OPTIONS), so this
+  // seeds RSS at its OWN worst case (8 headlines, its tallest) rather than
+  // its default 5 — the real question isn't "does it clear the default",
+  // it's "does it clear the worst case", same discipline as the bookmarks
+  // worst-case probes elsewhere in this script. Also re-checks the full
+  // centered-content column (clock/greeting/search/focus/quote) alongside
+  // the usual weather/timer/tasks/gear peripherals — that centered-column
+  // check is the exact invariant the REJECTED right-side placement violated,
+  // so it stays asserted here permanently, not just eyeballed once.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        rss: { enabled: true, feeds: ['https://example.com/feed'], shownCount: 8 },
+      },
+      connectorSnapshots: {
+        vercel: (await chrome.storage.local.get('connectorSnapshots')).connectorSnapshots?.vercel,
+        // rss's own snapshot `data` is a bare Headline[] (not a `{ items }`
+        // wrapper like the token connectors use) — see rss.ts/RssWidget.tsx
+        // — but it's still wrapped in the usual { fetchedAt, data } envelope
+        // every connectorSnapshots entry carries.
+        rss: {
+          fetchedAt: Date.now(),
+          data: Array.from({ length: 8 }, (_, i) => ({
+            title: `Worst-case headline number ${i} for the gap measurement`,
+            url: `https://example.com/${i}`,
+            source: 'Example',
+            publishedAt: Date.now() - i * 1000,
+          })),
+        },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const gap = await page.evaluate((selVc) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const weather = rect('[data-block-id="weather"]')
+    const timer = rect('[data-block-id="timer"]')
+    const tasks = rect('[data-block-id="tasks"]')
+    const gear = rect('button[aria-label="Open settings"]')
+    const clock = rect('[data-block-id="clock"]')
+    const greeting = rect('[data-block-id="greeting"]')
+    const search = rect('[data-block-id="search"]')
+    const focus = rect('[data-block-id="focus"]')
+    const quote = rect('[data-block-id="quote"]')
+    const rss = rect('[data-block-id="rss"] section[aria-label="Headlines"]')
+    const vc = rect(selVc)
+    return {
+      vcFound: !!vc,
+      rssFound: !!rss,
+      pxGap: vc && rss ? vc.top - rss.bottom : null,
+      overlapRss: hits(vc, rss),
+      vcWeather: hits(vc, weather),
+      vcTimer: hits(vc, timer),
+      vcTasks: hits(vc, tasks),
+      vcGear: hits(vc, gear),
+      vcClock: hits(vc, clock),
+      vcGreeting: hits(vc, greeting),
+      vcSearch: hits(vc, search),
+      vcFocus: hits(vc, focus),
+      vcQuote: hits(vc, quote),
+      vc: vc ? { top: +vc.top.toFixed(1), bottom: +vc.bottom.toFixed(1), left: +vc.left.toFixed(1), right: +vc.right.toFixed(1) } : null,
+      rss: rss ? { top: +rss.top.toFixed(1), bottom: +rss.bottom.toFixed(1) } : null,
+    }
+  }, vercelSel)
+  const gapOk = gap.vcFound && gap.rssFound && !gap.overlapRss && gap.pxGap !== null && gap.pxGap >= 16
+  console.log(
+    gapOk
+      ? `PASS: the Vercel widget's slot clears RSS's own slot — even at RSS's worst-case 8 headlines — by a real, measured gap (${gap.pxGap?.toFixed(1)}px — vercel ${JSON.stringify(gap.vc)}, rss bottom ${gap.rss?.bottom})`
+      : `FAIL: the Vercel widget's slot clears RSS's own slot — even at RSS's worst-case 8 headlines — by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const collisionOk =
+    !gap.vcWeather &&
+    !gap.vcTimer &&
+    !gap.vcTasks &&
+    !gap.vcGear &&
+    !gap.vcClock &&
+    !gap.vcGreeting &&
+    !gap.vcSearch &&
+    !gap.vcFocus &&
+    !gap.vcQuote
+  console.log(
+    collisionOk
+      ? 'PASS: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear AND the full centered column (clock/greeting/search/focus/quote) at defaults'
+      : `FAIL: the Vercel widget clears the weather chip, timer pill, Tasks pill, gear AND the full centered column (clock/greeting/search/focus/quote) at defaults (${JSON.stringify(gap)})`,
+  )
+
+  // Restore RSS back to disabled — its own block already ran and left it that
+  // way; this probe borrowed it (at its own worst-case row count) only for
+  // the gap measurement above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, rss: { ...connectors.rss, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+
+  // Refresh drawer-connectors.png now that vercel is CONNECTED — the card
+  // this task adds. (The Jira block's own refresh above photographed ITS
+  // connected row, with github/gitlab back to disabled by now.)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-vercel-enabled')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      connectedAs: sec.textContent.includes('Connected as jcooler'),
+      hasDisconnect: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Disconnect'),
+    }
+  })
+  const cardOk = card !== null && card.enabled === true && card.connectedAs && card.hasDisconnect
+  console.log(
+    cardOk
+      ? `PASS: the Vercel card reads connected (enabled=${card.enabled}, "Connected as jcooler" + Disconnect present)`
+      : `FAIL: the Vercel card reads connected (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Probe 4: FOUR-stack non-overlap — github, gitlab, jira AND vercel all
+  // enabled together. The collision probe above only proves vercel clears
+  // its NEIGHBOURS (weather/timer/tasks/gear) and github's slot specifically;
+  // this is the full right-column-plus-second-column picture, asserting
+  // every PAIR among all four panels is non-overlapping, and that each
+  // still individually clears the collapsed weather chip and the Tasks
+  // pill (the two peripherals every earlier per-connector probe already
+  // checked alone — re-checked here because FOUR simultaneously-rendered
+  // cards is the actual worst case for the page, not any one of them
+  // alone).
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+        gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+        jira: {
+          enabled: true,
+          email: 'jon@acme.com',
+          apiToken: 'atlassian_preview',
+          site: 'yoursite.atlassian.net',
+          displayName: 'Jon Cooler',
+        },
+      },
+      connectorSnapshots: {
+        vercel: { fetchedAt: Date.now(), data },
+        github: { fetchedAt: Date.now(), data: { prs: [], issues: [], notifications: 0, etags: {} } },
+        gitlab: { fetchedAt: Date.now(), data: { mrs: [], todos: 0 } },
+        jira: { fetchedAt: Date.now(), data: { issues: [], counts: {} } },
+      },
+    })
+  }, FIXTURE)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const stack = await page.evaluate(
+    ([selGh, selGl, selJr, selVc]) => {
+      const rect = (sel) => {
+        const el = document.querySelector(sel)
+        return el ? el.getBoundingClientRect() : null
+      }
+      const hits = (a, b) =>
+        !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+      const weather = rect('[data-block-id="weather"]')
+      const tasks = rect('[data-block-id="tasks"]')
+      const panels = { gh: rect(selGh), gl: rect(selGl), jr: rect(selJr), vc: rect(selVc) }
+      const found = Object.fromEntries(Object.entries(panels).map(([k, v]) => [k, !!v]))
+      const pairs = [
+        ['ghGl', hits(panels.gh, panels.gl)],
+        ['ghJr', hits(panels.gh, panels.jr)],
+        ['ghVc', hits(panels.gh, panels.vc)],
+        ['glJr', hits(panels.gl, panels.jr)],
+        ['glVc', hits(panels.gl, panels.vc)],
+        ['jrVc', hits(panels.jr, panels.vc)],
+      ]
+      const clearsWeather = Object.values(panels).every((p) => !hits(p, weather))
+      const clearsTasks = Object.values(panels).every((p) => !hits(p, tasks))
+      return {
+        found,
+        pairs: Object.fromEntries(pairs),
+        anyOverlap: pairs.some(([, hit]) => hit),
+        clearsWeather,
+        clearsTasks,
+      }
+    },
+    [
+      '[data-block-id="github"] section[aria-label="GitHub"]',
+      '[data-block-id="gitlab"] section[aria-label="GitLab"]',
+      '[data-block-id="jira"] section[aria-label="Jira"]',
+      vercelSel,
+    ],
+  )
+  const stackOk =
+    Object.values(stack.found).every(Boolean) && !stack.anyOverlap && stack.clearsWeather && stack.clearsTasks
+  console.log(
+    stackOk
+      ? `PASS: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed) and Tasks pill (${JSON.stringify(stack.pairs)})`
+      : `FAIL: with github, gitlab, jira AND vercel all connected, all four default cards stack with no pairwise overlap and each still clears the weather chip (collapsed) and Tasks pill (${JSON.stringify(stack)})`,
+  )
+
+  // Restore: disable ALL FOUR connectors and clear their cache, then reload so
+  // none of the four widgets is present for every block below — same restore
+  // discipline as the RSS/GitHub/GitLab/Jira blocks above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        vercel: { ...connectors.vercel, enabled: false },
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const vercelGone = (await page.locator(vercelSel).count()) === 0
+  console.log(
+    vercelGone
+      ? 'Vercel connector disabled; page restored to idle'
+      : 'WARNING: Vercel widget still present after disabling the connector',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

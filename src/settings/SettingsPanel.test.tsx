@@ -6,7 +6,7 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -76,6 +76,15 @@ vi.mock('../services/connectors/jira', async (importActual) => {
   return { ...actual, whoamiJira: vi.fn() }
 })
 import { whoamiJira } from '../services/connectors/jira'
+
+// Same treatment for vercel (Task 51) — mock ONLY whoamiVercel, keep
+// vercelDescriptor/fetchVercel real so the registry still registers vercel
+// and releasableOrigins (used by onDisconnect below) runs its real path.
+vi.mock('../services/connectors/vercel', async (importActual) => {
+  const actual = await importActual<typeof import('../services/connectors/vercel')>()
+  return { ...actual, whoamiVercel: vi.fn() }
+})
+import { whoamiVercel } from '../services/connectors/vercel'
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -1713,6 +1722,121 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     })
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
     expect(screen.getByLabelText('API token')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s sibling)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(whoamiVercel).mockReset()
+  })
+
+  async function renderWithVercel(vercel?: VercelConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (vercel) await storage.set('connectors', { vercel })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readVercel(storage: AuroraStorage): Promise<VercelConfig | undefined> {
+    return (await storage.get('connectors')).vercel as VercelConfig | undefined
+  }
+
+  it('the card shell renders the Vercel descriptor (label, blurb, enable toggle)', async () => {
+    await renderWithVercel()
+    expect(screen.getByRole('heading', { name: 'Vercel' })).toBeTruthy()
+    expect(screen.getByText('Your latest deployments')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Vercel')).toBeTruthy()
+    // Not connected -> no status chip yet, and the token form only appears once
+    // the connector is enabled (the shell gates the body on `enabled`).
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByLabelText('Personal access token')).toBeNull()
+  })
+
+  it('connect happy path: ensureOrigin (api.vercel.com) -> whoami -> persists { enabled, token, username }', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiVercel).mockResolvedValue({ ok: true, identity: 'jon' })
+    // Enabled but no token yet -> the token form renders.
+    const storage = await renderWithVercel({ enabled: true, token: '', username: '' })
+
+    const input = screen.getByLabelText('Personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'vc_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.vercel.com/*')
+    expect(whoamiVercel).toHaveBeenCalledWith('vc_123')
+    expect(await readVercel(storage)).toEqual({ enabled: true, token: 'vc_123', username: 'jon' })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it("a rejected token surfaces whoami's status message as an inline alert and stores nothing", async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiVercel).mockResolvedValue({ ok: false, message: 'Vercel rejected that token (status 401).' })
+    const storage = await renderWithVercel({ enabled: true, token: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Personal access token'), {
+        target: { value: 'vc_bad' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain('401')
+    // Nothing persisted: the token field stays empty in storage.
+    expect((await readVercel(storage))?.token).toBe('')
+  })
+
+  it('a denied origin grant blocks the connect: whoami is never called and nothing is stored', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithVercel({ enabled: true, token: '', username: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Personal access token'), {
+        target: { value: 'vc_123' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(whoamiVercel).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readVercel(storage))?.token).toBe('')
+  })
+
+  it('connected state renders "Connected as {identity}" + Disconnect; disconnecting revokes api.vercel.com and clears the config', async () => {
+    const storage = await renderWithVercel({ enabled: true, token: 'vc_x', username: 'jon' })
+
+    // EXACTLY one "Connected as" indicator — the card SHELL's authState chip.
+    expect(screen.getAllByText('Connected as jon')).toHaveLength(1)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins (vercel's sole
+    // origin, claimed by no other enabled connector).
+    expect(removeOrigin).toHaveBeenCalledWith('https://api.vercel.com/*')
+    // The config entry is cleared entirely.
+    expect(await readVercel(storage)).toBeUndefined()
+  })
+
+  it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
+    await renderWithVercel({ enabled: true, token: '', username: 'jon' })
+    // The card shell flags it, and the body offers the form to re-enter a token.
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
 })

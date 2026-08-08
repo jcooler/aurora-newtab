@@ -1,11 +1,12 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
+import { whoamiVercel } from '../../services/connectors/vercel'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
 import { control } from './shared'
@@ -80,15 +81,16 @@ export default function Connectors({
   )
 }
 
-// Body slot per connector id. Partial (not a full Record): jira/vercel/
-// crypto/ics land in their own later sub-project-2 tasks, and this map
-// carries no placeholder entries for them (a lookup for an unregistered id is
-// simply undefined -> no body rendered).
+// Body slot per connector id. Partial (not a full Record): crypto/ics land in
+// their own later sub-project-2 tasks, and this map carries no placeholder
+// entries for them (a lookup for an unregistered id is simply undefined -> no
+// body rendered).
 const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = {
   rss: RssBody,
   github: GithubBody,
   gitlab: GitlabBody,
   jira: JiraBody,
+  vercel: VercelBody,
 }
 
 function ConnectorCard({
@@ -569,6 +571,71 @@ function JiraBody({ config, storage }: BodyProps) {
         await storage.update('connectors', (prev) => {
           const next = { ...prev }
           delete next.jira
+          return next
+        })
+        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+      }}
+    />
+  )
+}
+
+// The Vercel connector's card body — the fourth token connector (Task 51),
+// copying GithubBody's mechanics most closely: ONE field, a single constant
+// origin (unlike GitlabBody's/JiraBody's per-config derived one).
+function VercelBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as GithubBody above: BodyProps.config is the
+  // generic union (the body map is shared across ids), and this component is
+  // registered only under 'vercel', so it is always VercelConfig at runtime —
+  // one documented cast. Defensive reads (a backup can restore { enabled:
+  // true } with neither field) keep the connected/reconnect decision honest.
+  const vercel = config as VercelConfig | undefined
+  const username = typeof vercel?.username === 'string' ? vercel.username : ''
+  const token = typeof vercel?.token === 'string' ? vercel.token : ''
+  // Show the Disconnect row only when BOTH identity and secret are present.
+  // Identity present + secret empty (a backup restores username but never the
+  // stripped token) -> connectedAs null, so the FORM renders and the user can
+  // re-enter the token; the card shell's own "Reconnect needed" chip
+  // (authState) already flags that state above.
+  const connectedAs = username && token ? username : null
+
+  return (
+    <TokenConnectForm
+      fields={[
+        {
+          id: 'token',
+          label: 'Personal access token',
+          type: 'password',
+          placeholder: 'Personal access token',
+        },
+      ]}
+      // Synchronous by contract (TokenConnectForm awaits ensureOrigin FIRST, in
+      // the gesture): a single constant origin, never derived from the token.
+      originsFor={() => ['https://api.vercel.com/*']}
+      // Runs AFTER the grant. GET /v2/user resolves the username (or email
+      // fallback) the config is persisted under; a bad token funnels its
+      // status-bearing message to the form's inline alert with nothing stored.
+      validate={(values) => whoamiVercel(values.token)}
+      onConnected={async (values, identity) => {
+        // Replace the whole vercel config (dropping any stray cruft the
+        // generic enable-toggle's `{}` seed left) with exactly the token
+        // connector's three fields.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          vercel: { enabled: true, token: values.token, username: identity },
+        }))
+      }}
+      connectedAs={connectedAs}
+      onDisconnect={async () => {
+        // Compute what's safe to revoke BEFORE clearing the config (releasable-
+        // Origins needs vercel's own config present to derive its origins), then
+        // drop the entry and revoke each released origin. releasableOrigins runs
+        // through the REAL registry, so an origin another enabled connector also
+        // claimed would be withheld — api.vercel.com is vercel's alone today.
+        const current = await storage.get('connectors')
+        const releasable = releasableOrigins('vercel', current)
+        await storage.update('connectors', (prev) => {
+          const next = { ...prev }
+          delete next.vercel
           return next
         })
         await Promise.all(releasable.map((origin) => removeOrigin(origin)))

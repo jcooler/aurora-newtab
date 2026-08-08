@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate } from './storage/migrations'
-import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
@@ -137,6 +137,21 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect('apiToken' in envelope.data.connectors.jira).toBe(false)
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.apiToken).toBe('atlassian_supersecret')
+  })
+
+  it('a real serializeBackup strips the vercel token but keeps username; storage is untouched (Task 51)', () => {
+    // Same REAL-registry proof as the github/gitlab/jira cases above, for
+    // vercel's own secretFields: ['token'] (github's exact shape — a single
+    // bare token, no non-secret companion field like gitlab's instanceUrl or
+    // jira's site/email).
+    const stored: VercelConfig = { enabled: true, token: 'vercel_supersecret', username: 'jon' }
+    const input = { ...defaults(), connectors: { vercel: stored } as AuroraData['connectors'] }
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data.connectors.vercel).toEqual({ enabled: true, username: 'jon' })
+    expect('token' in envelope.data.connectors.vercel).toBe(false)
+    // The object handed in (what's actually in storage) survives untouched.
+    expect(stored.token).toBe('vercel_supersecret')
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {

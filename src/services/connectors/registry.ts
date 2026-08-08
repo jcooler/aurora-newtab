@@ -13,6 +13,7 @@ import { rssDescriptor } from './rss'
 import { githubDescriptor } from './github'
 import { gitlabDescriptor } from './gitlab'
 import { jiraDescriptor } from './jira'
+import { vercelDescriptor } from './vercel'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -26,12 +27,17 @@ import { jiraDescriptor } from './jira'
 // releasableOrigins' sharing check against a real (not fake) second derived
 // origin. Task 50 adds jira as #4, the first descriptor whose origins()
 // derivation depends on a helper (normalizeJiraSite) with its own
-// shape-validation contract rather than a bare URL parse.
+// shape-validation contract rather than a bare URL parse. Task 51 adds
+// vercel as #5, back to a single constant origin (github's shape, not
+// gitlab's/jira's per-config one) — its own distinguishing complexity
+// (failed-first, then recency, deployment ordering) lives entirely inside
+// vercel.ts's fetch, not here.
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,
   gitlabDescriptor as ConnectorDescriptor,
   jiraDescriptor as ConnectorDescriptor,
+  vercelDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan
