@@ -352,6 +352,39 @@ retained or transmitted by Aurora beyond the request itself.
 
 ---
 
+### v1.5.0 addendum — habit streaks + month calendar (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.5.0 adds two local-only widgets to the dashboard: habit streaks and a
+month calendar. Both read and write only `chrome.storage.local` — no new
+permission, no new network call, nothing reaching outside the device — so
+unlike the v1.3.0/v1.4.0 connector additions above, neither needs its own
+permission justification or Data Usage disclosure update. The Summary,
+Category, and Single purpose statement remain unaffected for the same
+reason those additions' own addenda gave — two more dashboard features
+inside the existing single purpose, not a new one.
+
+#### Detailed description delta
+
+Add to the FEATURES list, after the Connectors bullet (as extended by the
+v1.4.0 addendum above):
+
+    - Habit streaks: a small set of daily habits as tap-to-mark chips,
+      each showing its current streak — yesterday keeps a streak alive
+      until you mark today, so one slow morning doesn't cost you the
+      count. Off by default.
+    - Month calendar: a glance-sized month grid for "what date is the
+      3rd Friday" questions, with today ringed and a dot on any date
+      you've added a countdown for. Off by default.
+
+---
+
 ### v1.6.0 addendum — widget color + a real control kit (STILL staged; v1.2.1 verdict still gates ALL of this)
 
 Everything in this addendum is prepared ahead of time the same way the rest

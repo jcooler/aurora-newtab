@@ -483,12 +483,18 @@ export default function App() {
                 MEASURED (scripts/preview.mjs's monthCal block, 1600x900,
                 monthCal forced to a real 6-row month, habits seeded at its
                 own 6-chip max, worldClocks+countdown+timer on): this widget
-                top=108/bottom=355; HabitsWidget top=378/bottom=622 (`top-
-                [42vh]`, see its own comment); gaps — this widget's bottom to
-                habits' top: 23px; habits' bottom to the links row: 32.5px;
-                RSS's own column right edge to this widget's left edge (no
+                top=108/bottom=355 (still current — this widget's own
+                placement is untouched by every task below this one);
+                HabitsWidget top=378/bottom=622 AT THE TIME (`top-[42vh]`,
+                since moved to `top-[43vh]`/387-631 by Task 63 — see its own
+                comment for the current numbers and why); gaps AT THE TIME —
+                this widget's bottom to habits' top: 23px (now 32px);
+                habits' bottom to the links row: 32.5px (now 23.5px); RSS's
+                own column right edge to this widget's left edge (no
                 longer the binding constraint, Task 59): exactly 48px (368 vs
-                rss.right 320). The right-edge-to-clock number that USED to
+                rss.right 320, still current — a fixed Tailwind-width
+                relationship neither task touched). The right-edge-to-clock
+                number that USED to
                 sit here (592 vs clock.left 635.5) was measured at whichever
                 hour the wall clock happened to show at the time — see the
                 WIDE-CLOCK paragraph below for why that made it wrong, and
