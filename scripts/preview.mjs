@@ -2275,10 +2275,12 @@ console.log(
 // second w-80 card fits between the centered column and github without
 // touching one or the other (screenshotted and measured directly; see the
 // git history for that captured overlap). So the real placement is the LEFT
-// side instead, one level below RSS's own existing `left-8 top-[22vh]` slot
-// — App.tsx's own comment on the vercel PositionedBlock has the full
-// measured writeup, including why `top-[64vh]` (not a naive same-rhythm
-// 44vh) is what actually clears RSS even at ITS worst case (shownCount=8).
+// side instead, one level below RSS's own existing `left-8 top-[24vh]` slot
+// (RSS moved from `top-[22vh]` when it was carded — Jon's darker-color
+// ruling this batch) — App.tsx's own comment on the vercel PositionedBlock
+// has the full measured writeup, including why `top-[64vh]` (not a naive
+// same-rhythm 44vh) is what actually clears RSS even at ITS worst case
+// (shownCount=8, carded bottom y=552, a measured 24px below vercel's top).
 // NO live network: seed an enabled + connected config (just a token +
 // username, github's own shape) and a fresh snapshot at FIVE deployments —
 // MAX_DEPLOYMENTS, vercel's OWN worst-case row count, so the widget rendered

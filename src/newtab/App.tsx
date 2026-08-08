@@ -768,7 +768,9 @@ export default function App() {
                 links row, y636-724, is the one narrow exception — far too
                 short a band to hold a card.) So: the LEFT side instead,
                 mirroring the right column's own stacking rhythm one level
-                down from RSS's existing `left-8 top-[22vh]` slot. The
+                down from RSS's existing `left-8 top-[24vh]` slot (moved
+                from `top-[22vh]` when RSS was carded — Jon's darker-color
+                ruling this batch; see the rss PositionedBlock comment). The
                 centered column's LEFTMOST extent at any row is x=512
                 (quote), well clear of a left-8/w-80 card's x=32-352 box, so
                 stacking here is collision-free against the centered content
@@ -776,11 +778,13 @@ export default function App() {
                 `top-[64vh]` clears RSS even at its OWN worst case, not
                 just its default: RSS's shownCount is user-configurable
                 3-8 (Connectors.tsx's SHOWN_COUNT_OPTIONS), and at 8
-                headlines its card reaches y=542 at this viewport (vs
-                y=410 at the default 5) — measured directly, not
-                estimated, since the row math (gap-2 plus two text lines)
-                isn't obvious from the className alone. `top-[64vh]`
-                (576px) clears that worst case by a measured 34.0px, and
+                headlines its solid card reaches y=552 at this viewport
+                (vs y=432 at the default 5) — measured directly, not
+                estimated, since the row math (gap-1 rows plus two text
+                lines, inside the card's own p-2.5 padding — Jon's
+                darker-color ruling carded this widget this batch) isn't
+                obvious from the className alone. `top-[64vh]`
+                (576px) clears that worst case by a measured 24.0px, and
                 vercel's own card (capped at MAX_DEPLOYMENTS=5, so a
                 5-row fixture IS its own worst-case height, not a
                 shorter stand-in) ends at y=768, a measured 36.0px clear
