@@ -28,6 +28,7 @@ import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import JiraWidget from './widgets/jira/JiraWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import CryptoWidget from './widgets/crypto/CryptoWidget'
+import CalendarWidget from './widgets/calendar/CalendarWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -535,6 +536,51 @@ export default function App() {
                 translate. */}
             <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[86vh]">
               <CryptoWidget />
+            </PositionedBlock>
+          </WidgetBoundary>
+
+          <WidgetBoundary name="ics">
+            {/* DEFAULT placement — Task 54, MEASURED against the real
+                harness (scripts/preview.mjs's own ics block, run in a real
+                Chromium session — never a side script; a prior task shipped
+                a 2.5px gap from side-script numbers and got caught), not
+                estimated from class names. The brief's own starting
+                hypothesis (`left-8 top-[62vh]`) is STALE — that slot is
+                Vercel's as of Task 51 — and every other candidate the
+                brief's controller ruling walked through (a band above RSS
+                sharing the timer pill's row, the narrow strip beside the
+                centered clock, the sliver between RSS's worst case and
+                Vercel's top, above RSS sharing the bookmarks band, below
+                Jira) either collided or left under the mandated 8px floor.
+
+                `top-[13vh]` (117px at the 1600x900 launch viewport, timer
+                widget on — the harness's own worst case, since the timer
+                pill defaults OFF in production but the harness enables it,
+                see its own top-of-file comment) sits in the one band that
+                survived, BELOW the timer pill (fixed left-4
+                top-[var(--top-band)]) and ABOVE RSS's own default top
+                (`top-[22vh]` = 198px). MEASURED (this run, both neighbors
+                on, CalendarWidget at its own worst case — 1 next-line + 2
+                capped agenda rows, see below): timer bottom = 100px, ics
+                top = 117px (17.0px clear above); ics bottom = 175px, rss
+                top = 198px (23.0px clear below) — both comfortably over the
+                8px floor. CalendarWidget is capped by CONSTRUCTION at 1
+                next-line + 2 agenda rows (the controller's own amendment to
+                the brief's original 4-row spec — see CalendarWidget.tsx's
+                own doc comment), so — like CryptoWidget's own placement
+                comment below documents for ITS tight band — there is no
+                unbounded "worst case" height beyond what was just measured,
+                which is why an 8px floor (not this file's usual >=16px) is
+                the right bar here, same reasoning as crypto's own. A stored
+                arrange-mode `pos` still wins (PositionedBlock drops this
+                className on that branch). CalendarWidget self-gates on the
+                connector's enabled+url state, so this wrapper renders an
+                empty box until the connector is configured — same as every
+                other toggle-gated peripheral here. Transform-free per the
+                house rule (App's quote/bookmarks comments): a plain
+                left/top offset, no translate. */}
+            <PositionedBlock id="ics" pos={layout?.ics} className="fixed left-8 top-[13vh]">
+              <CalendarWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

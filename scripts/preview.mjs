@@ -2946,6 +2946,242 @@ console.log(
   )
 }
 
+// Calendar widget (Task 54, ics connector) — the seventh connector, and the
+// second NO-AUTH one (crypto's own sibling, one step further: ics ALSO
+// strips a secret on export — the whole url IS the secret, see
+// backup.test.ts's own Task 53 case) to reach this page. Photo-floating
+// TEXT (no panel surface, like RSS/crypto's own rows), capped by
+// CONSTRUCTION at 1 next-line + 2 agenda rows — see CalendarWidget.tsx's and
+// App.tsx's own doc comments for the controller ruling that replaced the
+// brief's original 4-row / `top-[62vh]` spec (that slot is Vercel's own as
+// of Task 51). NO live network: seed an enabled config + a fresh snapshot
+// computed INSIDE the page (epoch times relative to Date.now() AT EVALUATE
+// TIME, never baked into this script itself) — one event a short step out
+// (becomes "Next"), two more later today (the agenda rows), one clearly
+// tomorrow (a different calendar day, so it must appear NOWHERE — proving
+// both the same-day scoping and the 2-row cap at once, since three "today"
+// events exist but only two are today's REMAINING ones after Next).
+{
+  const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    const now = Date.now()
+    const H = 3_600_000
+    // Fixed hour offsets (now+2h/4h/6h) broke near midnight on the FIRST
+    // run of this probe: at 22:07 local, "now+2h" itself lands tomorrow,
+    // so every fixture event ends up on a different calendar day than
+    // `now`, and the "today's remaining" agenda comes back empty — a real
+    // FAIL this harness caught, not a hypothetical. Fixed instead: space
+    // the three same-day events proportionally across whatever time is
+    // actually LEFT in today (clamped to a sane 1-60 minute step), which
+    // keeps them provably before local midnight — and therefore "today" —
+    // no matter what wall-clock hour this script happens to run at.
+    const d = new Date(now)
+    const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+    const step = Math.min(3_600_000, Math.max(60_000, Math.floor((todayEnd - now) / 5)))
+    const events = [
+      { summary: 'Standup', start: now + step, end: now + step + 30_000 }, // "next"
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 }, // today, later
+      { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 }, // today, later still
+      // Unambiguously the NEXT calendar day (todayEnd is tomorrow's own
+      // local midnight) regardless of the step above.
+      { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+    ]
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+      },
+      // fetchedAt stamped HERE, in the page, so the snapshot is fresh
+      // relative to whenever this run happens — the SWR hook renders from
+      // cache and never touches the network.
+      connectorSnapshots: { ics: { fetchedAt: Date.now(), data: { events } } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Probe 1: the next-line names the soonest event with SOME non-empty
+  // relative-time suffix (relNext's own exact wording is exhaustively
+  // boundary-tested in CalendarWidget.test.tsx — this only proves the real
+  // rendered DOM wires the two together), and the agenda rows are capped at
+  // 2, chronological, and never leak tomorrow's event.
+  await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
+  const rows = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return {
+      next: sec.querySelector('p')?.textContent ?? null,
+      agenda: [...sec.querySelectorAll('ul > li')].map((li) => li.textContent),
+    }
+  }, icsSel)
+  const nextPrefix = 'Next: Standup · '
+  const nextOk = rows !== null && !!rows.next && rows.next.startsWith(nextPrefix) && rows.next.length > nextPrefix.length
+  console.log(
+    nextOk
+      ? `PASS: the Calendar widget's next-line names the soonest event with a relative-time suffix (${JSON.stringify(rows?.next)})`
+      : `FAIL: the Calendar widget's next-line names the soonest event with a relative-time suffix (${JSON.stringify(rows)})`,
+  )
+  const agendaOk =
+    rows !== null &&
+    rows.agenda.length === 2 &&
+    (rows.agenda[0] ?? '').includes('Design review') &&
+    (rows.agenda[1] ?? '').includes('1:1 with Sam') &&
+    rows.agenda.every((r) => !r.includes('Kickoff'))
+  console.log(
+    agendaOk
+      ? `PASS: the Calendar widget's agenda rows are capped at 2, chronological, and exclude tomorrow's event (${JSON.stringify(rows?.agenda)})`
+      : `FAIL: the Calendar widget's agenda rows are capped at 2, chronological, and exclude tomorrow's event (${JSON.stringify(rows)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-calendar.png` })
+  console.log('captured connectors-calendar.png')
+
+  // Probe 2: collision — the measured gap ABOVE (to the timer pill, its
+  // nearest neighbor) and BELOW (to RSS's own default top), PLUS
+  // non-overlap against the centered search/focus column and the usual
+  // peripherals every other connector probe in this script checks (weather
+  // chip, bookmarks bar, Tasks pill, gear, Notes pill, photo refresh).
+  const gap = await page.evaluate((selIcs) => {
+    const rect = (sel) => {
+      const el = document.querySelector(sel)
+      return el ? el.getBoundingClientRect() : null
+    }
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const weather = rect('[data-block-id="weather"]')
+    const timer = rect('[data-block-id="timer"]')
+    const bookmarks = rect('nav[aria-label="Bookmarks bar"]')
+    const tasks = rect('[data-block-id="tasks"]')
+    const gear = rect('button[aria-label="Open settings"]')
+    const search = rect('[data-block-id="search"]')
+    const focus = rect('[data-block-id="focus"]')
+    const rss = rect('[data-block-id="rss"]')
+    const notes = rect('[data-block-id="notes"]')
+    const photoRefresh = rect('button[aria-label="New background photo"]')
+    const ics = rect(selIcs)
+    return {
+      icsFound: !!ics,
+      timerFound: !!timer,
+      rssFound: !!rss,
+      searchFound: !!search,
+      focusFound: !!focus,
+      pxGapAbove: ics && timer ? ics.top - timer.bottom : null,
+      pxGapBelow: ics && rss ? rss.top - ics.bottom : null,
+      icsWeather: hits(ics, weather),
+      icsBookmarks: hits(ics, bookmarks),
+      icsTasks: hits(ics, tasks),
+      icsGear: hits(ics, gear),
+      icsSearch: hits(ics, search),
+      icsFocus: hits(ics, focus),
+      icsNotes: hits(ics, notes),
+      icsPhotoRefresh: hits(ics, photoRefresh),
+      ics: ics
+        ? { top: +ics.top.toFixed(1), bottom: +ics.bottom.toFixed(1), left: +ics.left.toFixed(1), right: +ics.right.toFixed(1) }
+        : null,
+      timer: timer ? { top: +timer.top.toFixed(1), bottom: +timer.bottom.toFixed(1) } : null,
+      rss: rss ? { top: +rss.top.toFixed(1), bottom: +rss.bottom.toFixed(1) } : null,
+    }
+  }, icsSel)
+  // Same reasoned 8px floor as CryptoWidget's own probe above, not this
+  // file's usual >=16px convention — same two-part rationale: (1) this is a
+  // TIGHT band (the timer pill's bottom to RSS's default top, ~98px total
+  // at 1600x900 — nowhere near RSS's/Vercel's own 100px+ of slack); (2)
+  // CalendarWidget is capped by CONSTRUCTION at 1 next-line + 2 agenda rows
+  // (App.tsx's own placement comment), so there is no unbounded "worst
+  // case" growth to defend against beyond what's measured here — arrange
+  // mode lets a user who dislikes the tight default fit simply drag it
+  // elsewhere.
+  const GAP_FLOOR = 8
+  const gapAboveOk = gap.icsFound && gap.timerFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
+  console.log(
+    gapAboveOk
+      ? `PASS: the Calendar widget's slot clears the timer pill above it by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — ics top ${gap.ics?.top}, timer bottom ${gap.timer?.bottom})`
+      : `FAIL: the Calendar widget's slot clears the timer pill above it by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const gapBelowOk = gap.icsFound && gap.rssFound && gap.pxGapBelow !== null && gap.pxGapBelow >= GAP_FLOOR
+  console.log(
+    gapBelowOk
+      ? `PASS: the Calendar widget's slot clears RSS's own default top below it by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — ics bottom ${gap.ics?.bottom}, rss top ${gap.rss?.top})`
+      : `FAIL: the Calendar widget's slot clears RSS's own default top below it by a real, measured gap (${JSON.stringify(gap)})`,
+  )
+  const collisionOk =
+    gap.searchFound &&
+    gap.focusFound &&
+    !gap.icsWeather &&
+    !gap.icsBookmarks &&
+    !gap.icsTasks &&
+    !gap.icsGear &&
+    !gap.icsSearch &&
+    !gap.icsFocus &&
+    !gap.icsNotes &&
+    !gap.icsPhotoRefresh
+  console.log(
+    collisionOk
+      ? 'PASS: the Calendar widget clears the search/focus column, the weather chip, bookmarks bar, Tasks pill, gear, the Notes pill, and the photo refresh button'
+      : `FAIL: the Calendar widget clears the search/focus column, the weather chip, bookmarks bar, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
+  )
+
+  // Refresh drawer-connectors.png now that ics is CONFIGURED — the card
+  // this task adds.
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
+  console.log('captured drawer-connectors.png')
+
+  const card = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    if (!sec) return null
+    const toggle = sec.querySelector('#connector-ics-enabled')
+    const input = sec.querySelector('#connector-ics-url')
+    return {
+      enabled: toggle ? toggle.checked : null,
+      urlValue: input ? input.value : null,
+      inputType: input ? input.type : null,
+      hasClear: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear'),
+    }
+  })
+  const cardOk =
+    card !== null &&
+    card.enabled === true &&
+    card.urlValue === 'https://calendar.example.com/private-abc123/basic.ics' &&
+    card.inputType === 'password' &&
+    card.hasClear
+  console.log(
+    cardOk
+      ? `PASS: the Calendar card reads configured (enabled=${card.enabled}, type=${card.inputType}, Clear present)`
+      : `FAIL: the Calendar card reads configured (${JSON.stringify(card)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable the connector and clear its cache, then reload so the
+  // widget is gone for every block below (viewport matrix, default-state,
+  // worst-case bookmarks) — same restore discipline as every other
+  // connector block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, ics: { ...connectors.ics, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const icsGone = (await page.locator(icsSel).count()) === 0
+  console.log(
+    icsGone
+      ? 'ics connector disabled; page restored to idle'
+      : 'WARNING: Calendar widget still present after disabling the connector',
+  )
+}
+
 // Viewport matrix (BINDING: media-query responsive pass) — the owner's own
 // ~1420x437 short-wide browser window is what surfaced this whole task: the
 // clock's old width-only clamp() rendered ~160px tall there and collided

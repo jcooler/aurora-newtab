@@ -6,7 +6,7 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -2002,6 +2002,165 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
   // enabled or not.
   it('auth "none" (Crypto) never shows a status chip, enabled or not', async () => {
     await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no auth, the URL is the secret)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+  })
+
+  const ICS_URL = 'https://calendar.example.com/private-abc123/basic.ics'
+
+  async function renderWithIcs(ics?: IcsConfig) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (ics) await storage.set('connectors', { ics })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findAllByRole('radio')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readIcs(storage: AuroraStorage): Promise<IcsConfig | undefined> {
+    return (await storage.get('connectors')).ics as IcsConfig | undefined
+  }
+
+  it('the card shell renders the Calendar descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+    await renderWithIcs()
+    expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    expect(screen.getByText('Your next events, from any calendar app')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Calendar')).toBeTruthy()
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+    expect(screen.queryByLabelText('Secret calendar address (ICS URL)')).toBeNull()
+  })
+
+  it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type field', async () => {
+    const storage = await renderWithIcs()
+    const toggle = screen.getByLabelText('Enable Calendar') as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(await readIcs(storage)).toEqual({ enabled: true })
+    const input = screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement
+    expect(input.value).toBe('')
+    expect(input.type).toBe('password')
+  })
+
+  it('shows the helper text VERBATIM', async () => {
+    await renderWithIcs({ enabled: true, url: '' })
+    expect(
+      screen.getByText(
+        'In Google Calendar or Outlook: Settings → your calendar → "Secret address in iCal format" — paste that link here. It stays on this device.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it("save happy path: validates https, requests the url's own origin, then persists { enabled, url }", async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true, url: '' })
+
+    const input = screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: ICS_URL } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith(ICS_URL)
+    expect(await readIcs(storage)).toEqual({ enabled: true, url: ICS_URL })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a non-https url is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+    const storage = await renderWithIcs({ enabled: true, url: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: 'http://calendar.example.com/basic.ics' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/https:\/\//)
+    expect((await readIcs(storage))?.url).toBe('')
+  })
+
+  it('an unparseable url is rejected with the same alert; ensureOrigin is never called', async () => {
+    const storage = await renderWithIcs({ enabled: true, url: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: 'not a url' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toMatch(/https:\/\//)
+    expect((await readIcs(storage))?.url).toBe('')
+  })
+
+  it('a denied origin grant blocks the save: nothing is persisted', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithIcs({ enabled: true, url: '' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: ICS_URL },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readIcs(storage))?.url).toBe('')
+  })
+
+  it('when already configured, the input shows the current url', async () => {
+    await renderWithIcs({ enabled: true, url: ICS_URL })
+    expect((screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement).value).toBe(ICS_URL)
+  })
+
+  it("Clear empties the config entirely and revokes the calendar's own origin", async () => {
+    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    // Revoked through the REAL registry's releasableOrigins, which derives
+    // the ORIGIN PATTERN (scheme+host+/*) from the stored url via
+    // originPattern — not the raw url itself, same shape every other
+    // connector's own Clear/Disconnect test asserts (e.g. Crypto's own
+    // 'https://api.coingecko.com/*' above).
+    expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
+    expect(await readIcs(storage)).toBeUndefined()
+  })
+
+  it('the Clear button is absent when no url is configured yet', async () => {
+    await renderWithIcs({ enabled: true, url: '' })
+    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
+  })
+
+  // Calendar is auth 'none' — the card shell's status chip (Task 46) is a
+  // 'token'-auth-only affordance, so Calendar's card must never show one,
+  // enabled or not (same rule Crypto's own case above documents).
+  it('auth "none" (Calendar) never shows a status chip, enabled or not', async () => {
+    await renderWithIcs({ enabled: true, url: ICS_URL })
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
   })

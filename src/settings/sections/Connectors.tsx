@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GitlabConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
@@ -92,6 +92,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   jira: JiraBody,
   vercel: VercelBody,
   crypto: CryptoBody,
+  ics: IcsBody,
 }
 
 function ConnectorCard({
@@ -801,6 +802,155 @@ function CryptoBody({ config, storage }: BodyProps) {
 
       {error && (
         <p id="connector-crypto-error" role="alert" className="text-xs text-fg-muted">
+          {error}
+        </p>
+      )}
+    </form>
+  )
+}
+
+// The Calendar (ics) connector's card body — Task 54, the seventh connector
+// and the second NO-AUTH one (ics.ts, Task 53). Closest in shape to
+// CryptoBody just above (one labelled input + Save/Clear, no
+// TokenConnectForm at all — auth 'none' has no identity/whoami round-trip to
+// validate), with two differences that matter: the field is `type="password"`
+// (the URL itself IS the secret — ics.ts's own doc comment) rather than
+// plain text, and its origin is DERIVED from the field value (like
+// GitlabBody's instanceUrl / JiraBody's site) rather than a single constant
+// (unlike CryptoBody's CRYPTO_ORIGIN_URL) — so the https/parseability check
+// runs through the SAME originPattern() the descriptor's own origins() and
+// ensureOrigin() both call, one source of truth for "is this a grantable
+// https origin" across card, widget-adjacent permission bookkeeping, and
+// registry sweep alike.
+function IcsBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as every other body above: BodyProps.config is
+  // the generic union (the body map is shared across ids), and this
+  // component is registered only under 'ics', so it is always IcsConfig at
+  // runtime — one documented cast.
+  const ics = config as IcsConfig | undefined
+  const configuredUrl = typeof ics?.url === 'string' ? ics.url : ''
+
+  const [value, setValue] = useState(configuredUrl)
+  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    setError(null)
+
+    // SYNCHRONOUS https validation FIRST — this boundary is load-bearing,
+    // same discipline as every other body's own handler above: ensureOrigin
+    // (chrome.permissions.request) below must be the FIRST await, with ZERO
+    // awaits ahead of it, or the gesture window chrome.permissions.request
+    // needs can close before the call lands. originPattern() itself is
+    // synchronous and throws a clear message on a non-https or unparseable
+    // URL — the same helper GitlabBody's originsFor and the ics descriptor's
+    // own origins() both call. There's no shared form component to catch
+    // that throw generically here (auth 'none' has no TokenConnectForm
+    // round-trip), so it's caught directly and turned into the same inline
+    // alert idiom every other body uses.
+    const url = value.trim()
+    try {
+      originPattern(url)
+    } catch {
+      setError('Enter a calendar address that starts with https://')
+      return
+    }
+
+    setSaving(true)
+    try {
+      // ensureOrigin -> chrome.permissions.request is the first await, per
+      // the comment above.
+      let granted: boolean
+      try {
+        granted = await ensureOrigin(url)
+      } catch {
+        granted = false
+      }
+      if (!granted) {
+        setError('Permission to read that calendar was denied, so nothing was saved.')
+        return
+      }
+
+      // Replace the whole ics config (dropping any stray cruft the generic
+      // enable-toggle's `{}` seed left) with exactly the connector's two
+      // fields.
+      await storage.update('connectors', (prev) => ({
+        ...prev,
+        ics: { enabled: true, url },
+      }))
+      setValue(url)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleClear() {
+    // Compute what's safe to revoke BEFORE clearing the config (releasable-
+    // Origins needs ics's own config present to derive its origin), then
+    // drop the entry entirely and revoke each released origin — mirrors
+    // CryptoBody's own handleClear above.
+    const current = await storage.get('connectors')
+    const releasable = releasableOrigins('ics', current)
+    await storage.update('connectors', (prev) => {
+      const next = { ...prev }
+      delete next.ics
+      return next
+    })
+    setValue('')
+    setError(null)
+    await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+  }
+
+  return (
+    <form
+      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
+      onSubmit={(e) => void handleSave(e)}
+    >
+      <div>
+        <label htmlFor="connector-ics-url" className="mb-1 block text-xs text-fg-muted">
+          Secret calendar address (ICS URL)
+        </label>
+        <input
+          id="connector-ics-url"
+          type="password"
+          placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+          value={value}
+          onChange={(e) => {
+            setValue(e.currentTarget.value)
+            setError(null)
+          }}
+          aria-describedby={error ? 'connector-ics-error' : undefined}
+          className={`${control} w-full`}
+        />
+        {/* Helper text VERBATIM per the brief — do not paraphrase. */}
+        <p className="mt-1 text-xs text-fg-muted">
+          In Google Calendar or Outlook: Settings → your calendar → &quot;Secret address in iCal
+          format&quot; — paste that link here. It stays on this device.
+        </p>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={saving}
+          className="shrink-0 text-sm text-accent focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+        >
+          Save
+        </button>
+        {configuredUrl && (
+          <button
+            type="button"
+            onClick={() => void handleClear()}
+            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {error && (
+        <p id="connector-ics-error" role="alert" className="text-xs text-fg-muted">
           {error}
         </p>
       )}

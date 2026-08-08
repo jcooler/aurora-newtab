@@ -37,6 +37,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   jira: 'Jira',
   vercel: 'Deploys',
   crypto: 'Crypto',
+  ics: 'Calendar',
 }
 
 interface DragState {
