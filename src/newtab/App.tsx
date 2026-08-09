@@ -590,8 +590,12 @@ export default function App() {
                   at every healthy size whether crypto is shown or hidden (a hidden
                   crypto leaves the flex flow entirely — see the height tier and
                   the `:empty` rule in index.css — so the quote stays put). The
-                  preview harness asserts the quote's rendered position at defaults
-                  matches its pre-band pixels within a few px.
+                  preview harness MEASURES this directly at the canonical
+                  1600x900 — quote.bottom === viewport height − 24px (±1px),
+                  the live number logged verbatim — rather than only reasoning
+                  it from construction (scripts/preview.mjs, the bottom-band
+                  probe's Probe 3, right after the canonical crypto-clearance
+                  check).
 
               CRYPTO HEIGHT DISCIPLINE (vs the links row ABOVE). The band's top is
               crypto.top; the links row is the FLOWING bottom of the centered

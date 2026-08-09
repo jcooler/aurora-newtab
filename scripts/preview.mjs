@@ -3048,11 +3048,13 @@ console.log(
   }, FIXTURE)
   // The crypto strip now lives in the BOTTOM BAND (<aside data-zone="bottom">,
   // App.tsx) and is height-gated `hidden taller:block` — revealed only at
-  // >=922h, where its top (gap-4 above the bottom-anchored quote) clears the
-  // flowing links row by the 16px floor (index.css's `taller` tier). At the
-  // harness's default 900h it is CORRECTLY hidden, so this block sizes UP to
-  // 1000h to exercise the visible strip + its band construction, then drops
-  // back to 900/800 to prove the tier hides it.
+  // >=890h, where its top (gap-2 above the bottom-anchored quote) clears the
+  // flowing links row by the band's reasoned 8px floor (index.css's `taller`
+  // tier). At the harness's default 900h it SHOWS (13.5px links clearance —
+  // the canonical probe), so this block sizes UP to 1000h first to exercise
+  // the strip + its band construction in a roomy band, then drops to 900
+  // (canonical — strip shows) and 800 (below the floor — band empty) to prove
+  // the tier's edges.
   await page.setViewportSize({ width: 1600, height: 1000 })
   await page.reload()
   await page.waitForSelector('time')
@@ -3108,12 +3110,13 @@ console.log(
   // Probe 2: the BAND CONSTRUCTION (replaces the retired vh-pin band-floor
   // probes). The crypto strip no longer floats at a `top-[86vh]` coordinate
   // that could drift onto the links row or the quote — it FLOWS in the bottom
-  // zone, gap-4 (16px) above the quote BY CONSTRUCTION, so crypto x quote
+  // zone, gap-2 (8px) above the quote BY CONSTRUCTION, so crypto x quote
   // overlap is impossible to express. This asserts that construction directly:
-  // crypto is nested in <aside data-zone="bottom">, sits EXACTLY 16px above the
-  // quote, clears the flowing links row above by the tier's >=16px floor, and
-  // clears every peripheral the old probe checked (weather chip, timer pill,
-  // Tasks pill, gear, Notes pill, photo refresh, search/focus column).
+  // crypto is nested in <aside data-zone="bottom">, sits EXACTLY 8px above the
+  // quote, clears the flowing links row above by the band's reasoned >=8px
+  // floor, and clears every peripheral the old probe checked (weather chip,
+  // timer pill, Tasks pill, gear, Notes pill, photo refresh, search/focus
+  // column).
   const gap = await page.evaluate((selCr) => {
     const rect = (sel) => {
       const el = document.querySelector(sel)
@@ -3228,6 +3231,22 @@ console.log(
     canonicalOk
       ? `PASS: the Crypto strip is VISIBLE at Jon's canonical 1600x900 and clears the links row by the band's reasoned ${canonicalClear}px (>=${CANON_FLOOR}px) — crypto top ${t900.crypto.top}, links bottom ${t900.links.bottom}; the quote shows below it too`
       : `FAIL: the Crypto strip must be visible at 1600x900 with >=${CANON_FLOOR}px links clearance (cryptoShown=${!!t900.crypto}, quoteShown=${!!t900.quote}, clear=${canonicalClear}, t900=${JSON.stringify(t900)})`,
+  )
+  // The quote's bottom-center canvas identity, MEASURED rather than only
+  // reasoned "by construction": the bottom band's own `bottom-6` anchor
+  // (App.tsx) puts the quote's bottom at the container's bottom = viewport
+  // height − 24px, pixel-identical to its old pre-band single `bottom-6`
+  // anchor. Live numeric parity at the canonical 1600x900, the number logged
+  // verbatim — this is the real probe App.tsx's own comment on the quote
+  // points at.
+  const QUOTE_BOTTOM_INSET = 24
+  const quoteBottomTarget = 900 - QUOTE_BOTTOM_INSET
+  const quoteBottomDelta = t900.quote ? +(t900.quote.bottom - quoteBottomTarget).toFixed(1) : null
+  const quoteBottomOk = !!t900.quote && quoteBottomDelta !== null && Math.abs(quoteBottomDelta) <= 1
+  console.log(
+    quoteBottomOk
+      ? `PASS: the quote's bottom sits at viewport height − ${QUOTE_BOTTOM_INSET}px at 1600x900 — measured ${t900.quote.bottom}px (target ${quoteBottomTarget}px, delta ${quoteBottomDelta}px)`
+      : `FAIL: the quote's bottom should sit at viewport height − ${QUOTE_BOTTOM_INSET}px at 1600x900 (measured ${t900.quote?.bottom}, target ${quoteBottomTarget}, quote=${JSON.stringify(t900.quote)})`,
   )
   await page.setViewportSize({ width: 1600, height: 800 })
   await page.waitForTimeout(320)
@@ -4358,7 +4377,7 @@ console.log(
   // dipping BELOW the bottom-anchored quote (quote.top=704) — a ~4px overlap
   // BEFORE the old vh-pinned crypto even entered the gap. The bottom-band fix
   // retired the vh-pin AND gates the quote: at 1280x800 (`mid`) the quote is
-  // `mid:hidden` and crypto is below its 922 `taller` floor, so the whole
+  // `mid:hidden` and crypto is below its 890 `taller` floor, so the whole
   // bottom band is empty and the links row has nothing to lap. The resize
   // sweep's now-all-pairs step at 1280x800 asserts this live; the dedicated
   // bottom-band captures below judge it by eye.
@@ -4604,7 +4623,7 @@ console.log(
 // was the last place the retired pinned-coordinate layout could hide a
 // collision, and the bottom-band fix is what lets it die: crypto and the quote
 // now flow in <aside data-zone="bottom"> and whole-hide by height tier where
-// they would lap the links row (crypto below 922h, quote across the `mid` band),
+// they would lap the links row (crypto below 890h, quote across the `mid` band),
 // so the whole visible board is one flat all-pairs check with nothing exempt.
 // This step's pairwise is exactly what catches the two overlaps the exclusion
 // used to swallow — 1280x800 and 1024x768 (links dipping into the quote) — now
@@ -5483,11 +5502,13 @@ console.log(
 // ALL on, worldClocks+countdown seeded (the tallest centred column) — at the
 // two sizes fable-review flagged (1280x800 and 1600x741), now provably clean:
 // `mid`/`taller` empty the bottom band at both, so the flowing links row has
-// nothing beneath it to lap. Plus a TALL capture (1600x1000) where the band IS
-// populated, to judge that the strip sits gap-4 above the quote and both clear
-// the links. Self-contained: seeds, captures, asserts by absence/construction,
-// restores. The clock is forced to a 2-digit hour so every capture shows the
-// centred column's true wide worst case.
+// nothing beneath it to lap. Plus two POPULATED captures: 1600x900 (Jon's
+// canonical daily board — the strip present and clear, 13.5px links
+// clearance) and 1600x1000 (a taller variant), both judging that the strip
+// sits gap-2 above the quote and both clear the links. Self-contained: seeds,
+// captures, asserts by absence (empty band) and direct measurement (populated
+// band), restores. The clock is forced to a 2-digit hour so every capture
+// shows the centred column's true wide worst case.
 {
   const cryptoSel = '[data-block-id="crypto"] section'
   await page.evaluate(async () => {
