@@ -421,20 +421,32 @@ export default function App() {
               own coords — "arranged pixels stay yours"), and the visibility
               classes here are DROPPED on that branch so an arranged widget is
               never hidden by width/height. The `@container` lives on this
-              <aside>; container-type does NOT trap `position: fixed` descendants
-              (verified with a real-Chromium probe), so an arranged col-2 widget
-              nested here still positions against the viewport.
+              <aside>; `container-type: inline-size` does NOT trap
+              `position: fixed` descendants — the CSSWG formally resolved that
+              container-type does not impose layout containment's
+              containing-block rule on positioned descendants (csswg-drafts#10544,
+              2024-07-24; Chrome 129+ ships it intentionally, spec prose lags,
+              MDN correction in mdn/content#43405), so an arranged col-2 widget
+              nested here still positions against the viewport (verified with a
+              real-Chromium probe). LAW: never add `contain: layout` / transform
+              / filter / will-change to a zone — any of those WOULD trap the
+              fixed arranged widgets and corrupt every user's saved layout (full
+              writeup on index.css's `.rail-col2` rule; Task 65 owes a dedicated
+              pinned probe "arranged widget inside a zone renders at true
+              viewport percent").
 
-              HEIGHT PRIORITY (per-widget, MEASURED at 600/450h against
-              worst-case fixtures — scripts/preview.mjs rail probe — clearing
-              the bottom pills/quote; the MECHANISM + this priority are the
-              binding parts, Task 65's occlusion probes pin the exact cutoffs):
-              col1 keeps CALENDAR at every height (78px, always fits); HEADLINES
-              stays through short (a marginal worst-case-8-row lap of the Notes
-              pill) but drops on xshort (its 336px worst case can't fit a 450h
-              window); DEPLOYS drops on short. col2 (month + habits, 627px worst
-              stack) drops below 730h — see the .rail-col2 height gate in
-              index.css. Right rail states its own. */}
+              HEIGHT PRIORITY (per-widget, MEASURED at each tier's INTERIOR
+              WORST CASE — its MINIMUM height, because the bottom pills/quote are
+              bottom-anchored and rise as the window shrinks; the MECHANISM +
+              this priority are binding, Task 65's occlusion probes pin the exact
+              cutoffs): col1 keeps CALENDAR at every height (worst ~78px, always
+              clears); HEADLINES trims to its first 3 rows on short so the card
+              can't grow over the Notes pill at the tier's 451px floor (see
+              RssWidget's RSS_SHORT_ROWS math) and drops entirely on xshort;
+              DEPLOYS drops on short. col2 (month + habits, 627px worst stack)
+              drops below 740h so it clears the bottom quote by >=16px at the
+              gate's own minimum — see the .rail-col2 height gate in index.css.
+              Right rail states its own. */}
           <aside data-zone="left" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
@@ -474,19 +486,22 @@ export default function App() {
               code-forge connectors, pinned to the right edge (`right-8`) and
               right-aligned (`items-end`) so the cards hug the margin exactly as
               their old `right-8` pins did. Same PositionedBlock/arrange contract
-              as the left rail. HEIGHT PRIORITY (per-widget, MEASURED — the
-              three cards stack to 615px, so the column is the page's tightest
-              vertical budget): github stays through short (its 235px worst case
-              clears the bottom pills at 600h) but drops on xshort (won't fit a
-              450h window); gitlab AND jira drop on short (at 600h even
-              github+gitlab already reach the pills). NOTE for Task 65: at
-              700-820px tall with ALL THREE connectors at their display max, the
-              column still laps the bottom Tasks pill (no `short` tier fires
-              above 600h) — the residual the occlusion probes must pin, via a
-              mid-height tier or a per-widget row-count trim. */}
+              as the left rail. HEIGHT PRIORITY (per-widget, MEASURED at each
+              tier's INTERIOR WORST CASE — its MINIMUM height, since the Tasks
+              pill is bottom-anchored and rises as the window shrinks, not the
+              tier boundary): ALL THREE drop on short. At the short tier's own
+              451px floor the Tasks pill top is at 397 and this column starts at
+              rail-top-right 180 with only 217px of room — github's 235px worst
+              case alone overruns it (bottom 415 > 397, swallowing the pill's
+              click), and a connector glance-card can't trim below one card here,
+              so the right rail is empty on short/xshort. RESIDUAL for Task 65
+              (ledgered): ABOVE the short tier, at ~600-848px tall with all three
+              connectors at display max, the 615px column still laps the Tasks
+              pill (no `short` fires >600h) — the occlusion probes must pin it,
+              via a mid-height tier or per-widget row trim. */}
           <aside data-zone="right" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
             <WidgetBoundary name="github">
-              <PositionedBlock id="github" pos={layout?.github} className="xshort:hidden">
+              <PositionedBlock id="github" pos={layout?.github} className="short:hidden xshort:hidden">
                 <GithubWidget />
               </PositionedBlock>
             </WidgetBoundary>

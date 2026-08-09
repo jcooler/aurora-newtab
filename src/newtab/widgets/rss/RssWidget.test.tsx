@@ -58,6 +58,32 @@ describe('RssWidget', () => {
     expect(screen.getByText('The Verge')).toBeTruthy()
   })
 
+  it('trims to the first RSS_SHORT_ROWS rows on the short tier: rows past the 3rd carry short:hidden, the first three do not (Task 64 fix round 1 — keeps the card off the Notes pill at 451h)', async () => {
+    // Five headlines so there are rows beyond the 3-row short cap. jsdom has no
+    // media queries, so this pins the class WIRING; the live 451h no-overlap +
+    // pill-clickable proof is scripts/preview.mjs's rail probe.
+    const five: Headline[] = [0, 1, 2, 3, 4].map((i) => ({
+      source: `Src ${i}`,
+      title: `Row ${i} headline`,
+      url: `https://example.com/${i}`,
+      publishedAt: 50 - i,
+    }))
+    const storage = await seededStorage(
+      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
+      five,
+    )
+    const { container } = mount(storage)
+    await screen.findByText('Row 0 headline')
+    const rows = [...container.querySelectorAll('li')]
+    expect(rows.length).toBe(5)
+    // First three always visible; rows 4th+ drop on short (row-level, so the
+    // card shrinks rather than disappearing entirely — headlines survive short).
+    expect(rows[0].className).toBe('')
+    expect(rows[2].className).toBe('')
+    expect(rows[3].classList.contains('short:hidden')).toBe(true)
+    expect(rows[4].classList.contains('short:hidden')).toBe(true)
+  })
+
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 })
     mount(storage)

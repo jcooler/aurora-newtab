@@ -636,21 +636,24 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
     }
   })
 
-  it('height-tier hides are per-widget on the default wrapper (measured priority): deploys+gitlab+jira drop by short, headlines+github by xshort, calendar always stays', async () => {
+  it('height-tier hides are per-widget on the default wrapper (measured at each tier INTERIOR worst case): calendar always stays; headlines trims on short (row-level, in RssWidget) + drops on xshort; deploys + all three code connectors drop on short', async () => {
     await renderApp()
     const has = (id: string, cls: string) =>
       document.querySelector(`[data-block-id="${id}"]`)!.classList.contains(cls)
-    // Left col1: calendar always stays (78px, fits every height); headlines
-    // drops only on xshort; deploys drops on short (and xshort).
+    // Left col1: calendar always stays (worst ~78px, clears the Notes pill even
+    // at 451h). Headlines' WRAPPER carries only xshort:hidden — on short it
+    // stays (trimmed to 3 rows inside RssWidget so the card can't grow over the
+    // Notes pill at the tier's 451px floor). Deploys drops on short.
     expect(has('ics', 'short:hidden')).toBe(false)
     expect(has('ics', 'xshort:hidden')).toBe(false)
     expect(has('rss', 'short:hidden')).toBe(false)
     expect(has('rss', 'xshort:hidden')).toBe(true)
     expect(has('vercel', 'short:hidden')).toBe(true)
     expect(has('vercel', 'xshort:hidden')).toBe(true)
-    // Right rail: github stays through short, drops on xshort; gitlab+jira drop
-    // on short (and xshort) — the column is the page's tightest vertical budget.
-    expect(has('github', 'short:hidden')).toBe(false)
+    // Right rail: at 451h the Tasks pill top is 397 and the column has only
+    // 217px above it — even github's 235px worst case overruns it — so ALL
+    // THREE drop on short (and xshort). The right rail is empty on short.
+    expect(has('github', 'short:hidden')).toBe(true)
     expect(has('github', 'xshort:hidden')).toBe(true)
     expect(has('gitlab', 'short:hidden')).toBe(true)
     expect(has('gitlab', 'xshort:hidden')).toBe(true)

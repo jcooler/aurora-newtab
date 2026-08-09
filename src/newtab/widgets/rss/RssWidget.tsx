@@ -26,6 +26,21 @@ export default function RssWidget() {
   return <RssInner feeds={rss.feeds} shownCount={rss.shownCount} />
 }
 
+// Short-tier row cap (Task 64 fix round 1 — the interior-worst-case sweep). On
+// the `short` tier (451-600px tall) the bottom-anchored Notes pill rises as the
+// window shrinks: its top is (viewport - bottom-4(16px) - pill-height(38px)) =
+// viewport - 54, so at the tier's OWN worst case — its 451px MINIMUM, not the
+// 600px boundary first measured — the pill top sits at 397px. This card's top
+// is fixed by the flow above it (rail-top-left 120 + calendar worst case ~78 +
+// the 16px flow gap => rss top ~214). MEASURED (scripts/preview.mjs rail probe,
+// 1600x451): each row is 40px, the carded chrome 16px, so N rows = 16 + 40N px;
+// at the ORIGINAL shownCount<=8 the card bottomed at 512, swallowing the pill's
+// click (elementFromPoint at the pill centre hit an <a> here). N=3 (card 136,
+// bottom ~350) clears the 397 pill top by 47px even against the calendar's own
+// worst height — a real >=16px floor, not shaved. `xshort` (<=450) hides the
+// whole card via the wrapper's own xshort:hidden, so this only governs `short`.
+const RSS_SHORT_ROWS = 3
+
 function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount: RssConfig['shownCount'] }) {
   // Stale-while-refreshing by construction: the hook returns the cached
   // snapshot immediately and refreshes in the background once per mount. A
@@ -55,8 +70,10 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
     // of clearance to the centered column, are the same as the bare version).
     <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg">
       <ul className="flex flex-col gap-1">
-        {headlines.map((h) => (
-          <li key={h.url}>
+        {headlines.map((h, i) => (
+          // Rows past RSS_SHORT_ROWS drop on `short` so the card can't grow over
+          // the Notes pill at the tier's 451px worst case (see the constant).
+          <li key={h.url} className={i >= RSS_SHORT_ROWS ? 'short:hidden' : undefined}>
             {/* External site, so target/rel differ from the in-page launcher
                 links: a new tab, and rel that severs window.opener and strips
                 the referrer. The whole row is one link — title is the click

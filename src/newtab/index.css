@@ -366,12 +366,13 @@
    the bottom band: MEASURED (scripts/preview.mjs rail probe), the column's
    worst case is rail-top-left(120) + monthCal 6-row(247) + gap(16) + habits
    6-chip(244) = bottom 627px, and the centred quote's top sits at
-   height - 96px (bottom-6 + its 72px box), so the column clears the quote only
-   at height >= 627 + 96 = 723 -> the gate is `min-height: 730px` (rounded up
-   for margin). Below it col2 hides even on a wide viewport rather than lap the
-   quote (a wide-but-short window like 1600x700). This supersedes the brief's
-   provisional "hide col2 on short (<=600)" — 600 was too low, the quote is the
-   real floor.
+   height - 96px (bottom-6 + its 72px box), so a >=16px floor to the quote needs
+   height >= 627 + 96 + 16 = 739 -> the gate is `min-height: 740px`. This is the
+   interior-worst-case discipline (fix round 1): the gate holds at ITS OWN
+   minimum height, not just at a boundary, because the quote is bottom-anchored
+   and rises as the window shrinks. Below 740 col2 hides even on a wide viewport
+   rather than lap the quote (a wide-but-short window like 1600x700). Supersedes
+   the brief's provisional "hide col2 on short (<=600)" — 600 was far too low.
 
    Applied to the per-block `.rail-col2` wrappers, NOT the col-2 container div:
    an ARRANGED monthCal/habits is rendered `position: fixed` by PositionedBlock
@@ -379,7 +380,23 @@
    hide even a fixed descendant — hiding the container would make an arranged
    widget vanish below 1593 / on short, violating "an arranged user owns their
    layout at every width". Hiding the per-block wrapper leaves the arranged
-   (class-free) branch untouched. */
+   (class-free) branch untouched.
+
+   CONTAINMENT LAW — DO NOT ADD `contain: layout` / transform / filter /
+   will-change TO A ZONE. `container-type: inline-size` (below) is safe INSIDE
+   a rail that also hosts arranged (`position: fixed`) widgets ONLY because the
+   CSSWG formally resolved that container-type does NOT impose layout
+   containment's containing-block rule on positioned descendants
+   (csswg-drafts#10544, 2024-07-24; Chrome 129+ ships this intentionally, spec
+   prose lags, MDN correction in mdn/content#43405). Adding actual
+   `contain: layout` (or a transform/filter/will-change) to `[data-zone]` WOULD
+   establish a containing block for fixed descendants — every arranged widget
+   nested in the zone would then position against the zone box instead of the
+   viewport, silently corrupting every user's saved layout. Verified with a
+   real-Chromium probe (fixed 50%/50% child stayed viewport-centred under
+   container-type; a transform control trapped it). Task 65 must ship a
+   dedicated PINNED probe named for this: "arranged widget inside a zone renders
+   at true viewport percent". */
 [data-zone='left'] {
   container: aurora-rail / inline-size;
 }
@@ -387,7 +404,7 @@
   display: none;
 }
 @container aurora-rail (min-width: 536px) {
-  @media (min-height: 730px) {
+  @media (min-height: 740px) {
     .rail-col2 {
       display: block;
     }
