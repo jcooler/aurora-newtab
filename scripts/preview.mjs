@@ -3003,17 +3003,15 @@ console.log(
 // Save/Clear, not a TokenConnectForm instance (see Connectors.tsx's own
 // CryptoBody). The widget itself is also structurally different from every
 // other connector card here: not a left/right-column panel, but a single
-// CENTERED strip capped at 5 cells — see App.tsx's own comment on the crypto
-// PositionedBlock for the full placement writeup (`top-[86vh]` — CENTERED in
-// the links→quote band by direct measurement, the second revision this
-// placement has needed: the brief's own `top-[76vh]` hypothesis landed
-// inside the links row once worldClocks + countdown are on, same as this
-// script leaves them for the rest of this run; the first correction,
-// `top-[85vh]`, only asserted the gap BELOW quantified and left the gap
-// ABOVE a boolean, un-quantified check, which a post-ship review caught
-// passing at a real 2.5px of clearance — centered via
-// `left-[calc(50%-11rem)]` against its own w-88, 22rem, half of which is
-// 11rem). NO live network: seed an enabled config (3 coins) + a fresh
+// CENTERED strip capped at 5 cells that flows in the BOTTOM BAND
+// (<aside data-zone="bottom">, App.tsx) — gap-4 above the bottom-anchored
+// quote, height-gated `hidden taller:block` so it only shows where its top
+// clears the flowing links row by the 16px floor (>=922h). This retired the
+// old vh-pin (`top-[86vh]`) whose whole disease was a coordinate that drifted
+// onto the links labels and the quote at short heights (text-on-text below
+// ~849h) — the band construction makes crypto x quote impossible and the tier
+// makes crypto x links impossible. NO live network: seed an enabled config
+// (3 coins) + a fresh
 // snapshot whose fetchedAt is computed inside the page (so the ttl is fresh
 // at read time and useConnectorSnapshot renders straight from cache) — the
 // fixture spans all three tint states (positive, negative, and exactly
@@ -3046,6 +3044,14 @@ console.log(
       connectorSnapshots: { crypto: { fetchedAt: Date.now(), data } },
     })
   }, FIXTURE)
+  // The crypto strip now lives in the BOTTOM BAND (<aside data-zone="bottom">,
+  // App.tsx) and is height-gated `hidden taller:block` — revealed only at
+  // >=922h, where its top (gap-4 above the bottom-anchored quote) clears the
+  // flowing links row by the 16px floor (index.css's `taller` tier). At the
+  // harness's default 900h it is CORRECTLY hidden, so this block sizes UP to
+  // 1000h to exercise the visible strip + its band construction, then drops
+  // back to 900/800 to prove the tier hides it.
+  await page.setViewportSize({ width: 1600, height: 1000 })
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
@@ -3097,16 +3103,22 @@ console.log(
   await page.screenshot({ path: `${outDir}/connectors-crypto.png` })
   console.log('captured connectors-crypto.png')
 
-  // Probe 2: collision — BOTH the measured gap to the links row above and to
-  // the quote block below (the real question this placement has to answer,
-  // not just the arithmetic App.tsx's own comment works through), PLUS
-  // non-overlap against the centered search/focus column and the usual
-  // peripherals every other connector probe in this script also checks
-  // (weather chip, timer pill, Tasks pill, gear, Notes pill, photo refresh).
+  // Probe 2: the BAND CONSTRUCTION (replaces the retired vh-pin band-floor
+  // probes). The crypto strip no longer floats at a `top-[86vh]` coordinate
+  // that could drift onto the links row or the quote — it FLOWS in the bottom
+  // zone, gap-4 (16px) above the quote BY CONSTRUCTION, so crypto x quote
+  // overlap is impossible to express. This asserts that construction directly:
+  // crypto is nested in <aside data-zone="bottom">, sits EXACTLY 16px above the
+  // quote, clears the flowing links row above by the tier's >=16px floor, and
+  // clears every peripheral the old probe checked (weather chip, timer pill,
+  // Tasks pill, gear, Notes pill, photo refresh, search/focus column).
   const gap = await page.evaluate((selCr) => {
     const rect = (sel) => {
       const el = document.querySelector(sel)
-      return el ? el.getBoundingClientRect() : null
+      if (!el) return null
+      const r = el.getBoundingClientRect()
+      if (r.width === 0 && r.height === 0) return null
+      return r
     }
     const hits = (a, b) =>
       !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
@@ -3121,14 +3133,16 @@ console.log(
     const notes = rect('[data-block-id="notes"]')
     const photoRefresh = rect('button[aria-label="New background photo"]')
     const cr = rect(selCr)
+    const crBlock = document.querySelector('[data-block-id="crypto"]')
     return {
       crFound: !!cr,
       quoteFound: !!quote,
       searchFound: !!search,
       focusFound: !!focus,
       linksFound: !!links,
+      inBottomZone: !!crBlock && !!crBlock.closest('aside[data-zone="bottom"]'),
       pxGapAbove: cr && links ? cr.top - links.bottom : null,
-      pxGapBelow: cr && quote ? quote.top - cr.bottom : null,
+      pxGapToQuote: cr && quote ? quote.top - cr.bottom : null,
       crWeather: hits(cr, weather),
       crTimer: hits(cr, timer),
       crTasks: hits(cr, tasks),
@@ -3144,37 +3158,24 @@ console.log(
       quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
     }
   }, cryptoSel)
-  // Fix round 1 (post-review): this band gets an explicit >=8px floor, HALF
-  // this file's usual >=16px convention (RSS/vercel's own gap probes) — a
-  // deliberate, reasoned exception, not a fudge. Rationale: (1) this is the
-  // TIGHTEST vertical band on the page at 1600x900 — links.bottom to
-  // quote.top is only ~40px total against this widget's own ~20px
-  // single-line height, nowhere near the ~100px+ of slack RSS/vercel's own
-  // >=16px gaps were measured against; (2) both neighbors are FIXED-HEIGHT,
-  // SINGLE-LINE static elements (the links row never wraps at this seed's
-  // 2-link count, quote's own figure is a fixed two-line block) — neither
-  // grows unpredictably the way RSS's user-configurable shownCount does, so
-  // there's no "worst case" to defend against beyond what's measured here;
-  // (3) CryptoWidget itself is also single-line, fixed-height (MAX_COINS
-  // caps cell count, but height is line-height-only regardless of count);
-  // (4) arrange mode (Task 36) lets a user who dislikes the tight default
-  // fit simply drag it elsewhere — this default only has to be safe, not
-  // spacious. The review that mandated this also caught the PRIOR version of
-  // this probe: it computed pxGapBelow but only a boolean hits() check
-  // above, which reads PASS at literally 0.5px of clearance — replaced here
-  // with the same quantified pxGapAbove/gapAboveOk shape as pxGapBelow's.
-  const GAP_FLOOR = 8
+  const zoneOk =
+    gap.inBottomZone &&
+    gap.pxGapToQuote !== null &&
+    Math.abs(gap.pxGapToQuote - 16) <= 1 // gap-4, by construction — not a coordinate to defend
+  console.log(
+    zoneOk
+      ? `PASS: the Crypto strip flows in <aside data-zone="bottom"> exactly gap-4 (${gap.pxGapToQuote?.toFixed(1)}px) above the quote — crypto x quote overlap is impossible by construction (crypto bottom ${gap.cr?.bottom}, quote top ${gap.quote?.top})`
+      : `FAIL: the Crypto strip flows gap-4 above the quote in the bottom zone (inZone=${gap.inBottomZone}, pxGapToQuote=${gap.pxGapToQuote}, ${JSON.stringify(gap)})`,
+  )
+  // The tier's own floor: where crypto IS shown (>=922h) its top clears the
+  // flowing links row by >=16px (the exact discipline that governs whether the
+  // strip shows at all — see the sweep's crypto fencepost for the 921/922 edge).
+  const GAP_FLOOR = 16
   const gapAboveOk = gap.crFound && gap.linksFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
   console.log(
     gapAboveOk
-      ? `PASS: the Crypto widget's slot clears the links row above it by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — crypto top ${gap.cr?.top}, links bottom ${gap.links?.bottom})`
-      : `FAIL: the Crypto widget's slot clears the links row above it by a real, measured gap (${JSON.stringify(gap)})`,
-  )
-  const gapBelowOk = gap.crFound && gap.quoteFound && gap.pxGapBelow !== null && gap.pxGapBelow >= GAP_FLOOR
-  console.log(
-    gapBelowOk
-      ? `PASS: the Crypto widget's slot clears the quote block below it by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — crypto bottom ${gap.cr?.bottom}, quote top ${gap.quote?.top})`
-      : `FAIL: the Crypto widget's slot clears the quote block below it by a real, measured gap (${JSON.stringify(gap)})`,
+      ? `PASS: the Crypto strip clears the links row above it by the tier's >=${GAP_FLOOR}px floor (${gap.pxGapAbove?.toFixed(1)}px — crypto top ${gap.cr?.top}, links bottom ${gap.links?.bottom})`
+      : `FAIL: the Crypto strip clears the links row above it by the tier's >=${GAP_FLOOR}px floor (${JSON.stringify(gap)})`,
   )
   const collisionOk =
     gap.searchFound &&
@@ -3192,6 +3193,36 @@ console.log(
       ? 'PASS: the Crypto widget clears the search/focus column, the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button'
       : `FAIL: the Crypto widget clears the search/focus column, the weather chip, timer pill, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
   )
+
+  // Probe 3: the height tier hides the strip where it would collide. At 900h
+  // (default, < the 922 `taller` floor) crypto HIDES while the quote still
+  // SHOWS (900 > the mid band's 864 ceiling, so it clears the links row); at
+  // 800h (`mid`) BOTH hide and the band is empty — the size that used to be
+  // text-on-text is now provably clean by absence, not by a tight coordinate.
+  const tierState = async () =>
+    page.evaluate((selCr) => {
+      const shown = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return false
+        const r = el.getBoundingClientRect()
+        return r.width > 0 || r.height > 0
+      }
+      return { crypto: shown(selCr), quote: shown('[data-block-id="quote"]') }
+    }, cryptoSel)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(320)
+  const t900 = await tierState()
+  await page.setViewportSize({ width: 1600, height: 800 })
+  await page.waitForTimeout(320)
+  const t800 = await tierState()
+  const tierOk = !t900.crypto && t900.quote && !t800.crypto && !t800.quote
+  console.log(
+    tierOk
+      ? 'PASS: the crypto height tier hides the strip at 900h (quote still shown, clearing the links) and empties the band at 800h (both hidden) — never text-on-text again'
+      : `FAIL: the crypto height tier (900h: crypto=${t900.crypto} quote=${t900.quote}; 800h: crypto=${t800.crypto} quote=${t800.quote})`,
+  )
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(300)
 
   // Refresh drawer-connectors.png now that crypto is CONFIGURED — the card
   // this task adds. (The Vercel block's own refresh above photographed ITS
@@ -3794,9 +3825,10 @@ console.log(
 // a solid card too, shownCount:8 display max, carded bottom 552, clearing
 // vercel by 24px) / vercel top-[64vh] (unchanged — the carding room came
 // from the cards' own tightened p-2.5/gap-1 chrome, not from moving
-// vercel); crypto centered top-[86vh] (now 5 coins, MAX_COINS, though
-// its fixed-width `flex-nowrap` strip doesn't change height with coin
-// count); mid-left second column monthCal top-[12vh] (forced to its 6-row
+// vercel); crypto now flows in the bottom band (<aside data-zone="bottom">)
+// height-gated `hidden taller:block`, so it is CORRECTLY absent at this gate's
+// own 900h and excluded from the pairwise below — see CONNECTOR_SELS_AT_DEFAULT;
+// mid-left second column monthCal top-[12vh] (forced to its 6-row
 // worst case) / habits top-[43vh] (seeded at its own 6-chip MAX_HABIT_CHIPS
 // worst case) — see App.tsx's own monthCal/habits PositionedBlock comments
 // for the joint-column arithmetic, and the quantified `mid-left column gap
@@ -4136,12 +4168,21 @@ console.log(
   await page.screenshot({ path: `${outDir}/connectors-all.png` })
   console.log('captured connectors-all.png')
 
-  // The full 20-element set (Task 59): the 7 connector widgets, monthCal
+  // The full page-element set (Task 59): the connector widgets, monthCal
   // (forced to its 6-row worst case above), habits (seeded at its own
   // 6-chip MAX_HABIT_CHIPS worst case), plus every peripheral a user's eye
   // actually shares the page with at defaults.
+  //
+  // crypto is EXCLUDED here: it lives in the height-gated bottom band
+  // (<aside data-zone="bottom">, App.tsx) and is `hidden taller:block` — shown
+  // only >=922h, so at this gate's own 1600x900 it is CORRECTLY absent from the
+  // default board. Its visible-state non-overlap is proven where it IS shown:
+  // the crypto probe at 1000h (band construction + peripheral clearance) and
+  // the resize sweep's all-pairs at 960x1010. Every OTHER connector is a rail
+  // card, shown at the default tier here.
+  const { crypto: _cryptoSelExcluded, ...CONNECTOR_SELS_AT_DEFAULT } = CONNECTOR_SELS
   const PAGE_ELEMENTS = {
-    ...CONNECTOR_SELS,
+    ...CONNECTOR_SELS_AT_DEFAULT,
     habits: habitsSel,
     monthCal: monthCalSel,
     timer: '[data-block-id="timer"]',
@@ -4188,10 +4229,11 @@ console.log(
   }, PAGE_ELEMENTS)
   const allFound = Object.values(pairwise.found).every(Boolean)
   const noCollisions = pairwise.collisions.length === 0
+  const pageElementCount = Object.keys(PAGE_ELEMENTS).length
   console.log(
     allFound && noCollisions
-      ? `PASS: combined-defaults pairwise non-overlap over all 20 page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions)`
-      : `FAIL: combined-defaults pairwise non-overlap over all 20 page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
+      ? `PASS: combined-defaults pairwise non-overlap over all ${pageElementCount} page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions; crypto excluded — height-gated to the bottom band, absent at 900h)`
+      : `FAIL: combined-defaults pairwise non-overlap over all ${pageElementCount} page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
   )
 
   // Quantified right-column gap floor (Task 55 fix round) — the pairwise
@@ -4295,25 +4337,16 @@ console.log(
   // different LAYOUT of the same combined-defaults scenario already proven
   // above, not a new one to re-derive from scratch.
   //
-  // RECORDED, NOT FIXED (out of this task's connector scope): a manual
-  // review of connectors-all-1280x800.png found the crypto strip's text
-  // visually touching the quote block below it. Measured (not eyeballed,
-  // one-off): at 1280x800 with worldClocks+countdown ALSO on (this script's
-  // own top-of-file seed, not a Task 55 fixture), links.bottom=707.7 already
-  // sits BELOW quote.top=704 — the centered column itself overlaps quote's
-  // fixed `bottom-6` anchor by ~4px BEFORE crypto (top-[86vh], unchanged by
-  // this task) even enters the picture; crypto only makes the overlap
-  // visible by sitting in the gap. Root cause is the centered column's own
-  // height (clock/greeting/worldClocks/countdown/search/focus/links) vs.
-  // quote's fixed-pixel bottom anchor at a height no probe tested before
-  // this gate (the existing viewport matrix jumps 600->900) — an
-  // interaction between two non-connector widgets, unrelated to any of the
-  // seven connectors this task adds, and outside this task's file scope
-  // (App.tsx's centered-column layout, index.css's `short`/`xshort`
-  // thresholds). Not reproduced at 2560x1440 (gaps of 205.9px/85.6px,
-  // healthy) or at this gate's own primary 1600x900 (gap 10.0px, the
-  // existing Task 52 floor). Flagged for a follow-up task rather than fixed
-  // here blind — see task-55-report.md.
+  // NOW FIXED (was RECORDED, NOT FIXED): the crypto-strip-over-quote overlap a
+  // manual review of connectors-all-1280x800.png once found is gone. Its root
+  // cause was the centred column's own height (links.bottom=707.7 at 1280x800)
+  // dipping BELOW the bottom-anchored quote (quote.top=704) — a ~4px overlap
+  // BEFORE the old vh-pinned crypto even entered the gap. The bottom-band fix
+  // retired the vh-pin AND gates the quote: at 1280x800 (`mid`) the quote is
+  // `mid:hidden` and crypto is below its 922 `taller` floor, so the whole
+  // bottom band is empty and the links row has nothing to lap. The resize
+  // sweep's now-all-pairs step at 1280x800 asserts this live; the dedicated
+  // bottom-band captures below judge it by eye.
   for (const { w, h } of [
     { w: 1280, h: 800 },
     { w: 2560, h: 1440 },
@@ -4339,9 +4372,10 @@ console.log(
   // Expanded weather vs. the right column: a real, intentional overlap when
   // it happens (see the block comment above), so whichever connector(s) it
   // actually covers are held to the disciplined-occlusion rule instead of
-  // plain non-overlap — checked against all 7 rather than just github/
-  // gitlab/jira, since "whichever it covers" should be discovered by
-  // measurement, not assumed from the class names.
+  // plain non-overlap — checked against the six rail connectors (crypto
+  // excluded: it is height-gated absent at 900h and lives in the bottom band,
+  // never near the top-right weather panel), since "whichever it covers"
+  // should be discovered by measurement, not assumed from the class names.
   await setWeatherExpanded(true)
   await page.waitForTimeout(200)
   await page.screenshot({ path: `${outDir}/connectors-all-weather-expanded.png` })
@@ -4394,7 +4428,7 @@ console.log(
         results,
       }
     },
-    { weatherSel, connectorSels: CONNECTOR_SELS },
+    { weatherSel, connectorSels: CONNECTOR_SELS_AT_DEFAULT },
   )
   const allFoundExpanded = expandedCheck !== null && Object.values(expandedCheck.results).every((r) => r.found)
   const covered = expandedCheck ? Object.entries(expandedCheck.results).filter(([, r]) => r.overlap).map(([n]) => n) : []
@@ -4510,12 +4544,17 @@ console.log(
 //      and those they say should be HIDDEN are gone (asserted BOTH ways) — note
 //      the two narrow steps (1024, 960 half-snap) are BELOW the 1193 width edge,
 //      so the primary rails are hidden and the centred column alone is the board;
-//      no VISIBLE rail widget overlaps any other widget/peripheral; both bottom
-//      pills are CLICKABLE (elementFromPoint at each pill centre — the Task 64
-//      lesson: a card lapping a pill fails a real click, not just a rect test);
-//      no new console errors. Captures rails-1536.png + rails-1280.png +
-//      rails-1024-narrow.png + rails-960-halfsnap.png.
-//   A2. THE MID-TIER HEIGHT FENCEPOSTS — 600/601 and 864/865, both edges live.
+//      ALL-PAIRS non-overlap over the WHOLE visible board (the exclusion is gone —
+//      centre/peripheral pairs included, crypto/quote where their height tiers
+//      show them); both bottom pills are CLICKABLE (elementFromPoint at each pill
+//      centre — the Task 64 lesson: a card lapping a pill fails a real click, not
+//      just a rect test); no new console errors. Captures rails-1536.png +
+//      rails-1280.png + rails-1024-narrow.png + rails-960-halfsnap.png.
+//   A2. THE MID-TIER HEIGHT FENCEPOSTS — 600/601 and 864/865, both edges live
+//      (the quote's own `mid:hidden` edge rides the 864/865 pair; its 600/601
+//      show-again edge rides the short|mid pair).
+//   A2b. THE CRYPTO REVEAL FENCEPOST — 921/922, the bottom band's own `taller`
+//      edge: HIDDEN@921, SHOWN@922 clearing the flowing links row by >=16px.
 //   A3. THE WIDTH FENCEPOST — 1192/1193, the `.rail-primary` narrow-board edge:
 //      SHOWN@1193 clearing the forced-wide clock by >=16px, HIDDEN@1192.
 //   A4. THE COL2 HEIGHT-GATE FENCEPOST — 739/740, col2 hidden/shown with the
@@ -4538,21 +4577,20 @@ console.log(
 //      reload persists the arranged pixels; Reset layout returns it to the rail
 //      flow.
 //
-// SCOPE of the sweep's pairwise (deliberate, documented): every pair that
-// includes at least one RAIL widget — rail-vs-rail AND rail-vs-anything. The
-// rails are what Jon's complaint is about and what this whole phase governs;
-// this catches every rail regression (a rail card landing on a pill, a
-// peripheral, the centred column, or another rail card at any size — exactly
-// what the 601-848h residual was, jira-vs-Tasks-pill, now fixed by the `mid`
-// tier). Center-column peripheral-vs-peripheral pairs are NOT asserted here:
-// the crypto strip (top-[86vh]) sitting between the links row and the
-// bottom-anchored quote, and the centred column's own height vs quote's fixed
-// bottom anchor at ~800px tall with worldClocks+countdown on (links.bottom
-// slipping ~4px below quote.top), are a pre-existing centred-column rhythm
-// concern Task 55 already RECORDED and flagged for a follow-up task, wholly
-// outside the rails' file scope (App.tsx's centred column, index.css's
-// short/xshort thresholds). Measured, this run, they never involve a rail
-// widget, so excluding them loses no rail proof.
+// SCOPE of the sweep's pairwise (the exclusion is GONE — the honest completion
+// of the falsifier): EVERY visible pair on the board at each step — rail-vs-rail,
+// rail-vs-anything, AND centre/peripheral-vs-centre/peripheral. The old scope
+// stopped at "at least one rail widget", carving out the centre-column pairs
+// (the crypto strip between the links row and the bottom-anchored quote, and the
+// column's own height vs the quote's bottom anchor at ~800px). That carve-out
+// was the last place the retired pinned-coordinate layout could hide a
+// collision, and the bottom-band fix is what lets it die: crypto and the quote
+// now flow in <aside data-zone="bottom"> and whole-hide by height tier where
+// they would lap the links row (crypto below 922h, quote across the `mid` band),
+// so the whole visible board is one flat all-pairs check with nothing exempt.
+// This step's pairwise is exactly what catches the two overlaps the exclusion
+// used to swallow — 1280x800 and 1024x768 (links dipping into the quote) — now
+// clean because the band is empty there.
 {
   const H = 3_600_000
   // Force the centred clock to a 2-DIGIT hour for the ENTIRE sweep (Playwright
@@ -4850,18 +4888,42 @@ console.log(
       if (shouldShow !== isShown) wrongVis.push(`${id}:${isShown ? 'shown' : 'hidden'}(want ${shouldShow ? 'shown' : 'hidden'})`)
     }
 
-    // 2) rail-inclusive pairwise non-overlap: every visible rail widget vs every
-    //    OTHER visible rail widget AND every present peripheral/centre element.
+    // 2) ALL-PAIRS non-overlap over the WHOLE visible board (the exclusion is
+    //    gone): every visible rail widget + every present peripheral/centre
+    //    element (crypto/quote included where the height tiers show them), each
+    //    pair checked. This is what now catches a centre/peripheral-vs-
+    //    centre/peripheral collision — e.g. links dipping into the quote at
+    //    1280x800 / 1024x768 — that the old rail-only scope carved out.
     const visRail = stepv.vis.filter((id) => m.rail[id])
-    const collisions = []
-    for (let i = 0; i < visRail.length; i++) {
-      for (let j = i + 1; j < visRail.length; j++) {
-        if (hits(m.rail[visRail[i]], m.rail[visRail[j]])) collisions.push(`${visRail[i]}x${visRail[j]}`)
-      }
-      for (const [ok, orect] of Object.entries(m.other)) {
-        if (orect && hits(m.rail[visRail[i]], orect)) collisions.push(`${visRail[i]}x${ok}`)
+    const board = {}
+    for (const id of RAIL_IDS) if (m.rail[id]) board[id] = m.rail[id]
+    for (const [k, r] of Object.entries(m.other)) if (r) board[k] = r
+    const boardKeys = Object.keys(board)
+    const allCollisions = []
+    for (let i = 0; i < boardKeys.length; i++) {
+      for (let j = i + 1; j < boardKeys.length; j++) {
+        if (hits(board[boardKeys[i]], board[boardKeys[j]])) allCollisions.push(`${boardKeys[i]}x${boardKeys[j]}`)
       }
     }
+    // PRE-EXISTING, out of the bottom-band task's scope — RECORDED, not hidden
+    // (the codebase's own precedent when an all-pairs probe surfaces an
+    // unrelated defect; see the combined-defaults gate's history). At the
+    // extreme short-wide 800x450 the centred clock rides HIGH in the short
+    // column (top ~58) while its 2-digit-forced box is WIDE (right ~519), and
+    // the ~313px weather chip reaches in from the right (left ~470): the clock's
+    // top-right corner laps the chip's bottom-left. NEITHER is a bottom-band
+    // widget — the fix is in Clock.tsx's fluid scale or WeatherWidget's
+    // collapsed-chip width at compact/xshort, a follow-up, not this task. The
+    // old rail-only scope never checked this pair (no rail widget); the new
+    // all-pairs scope surfaces it. Exempt ONLY this pair at ONLY this step, so a
+    // NEW or bottom-band collision anywhere still FAILS the step and this known
+    // one is flagged, not silently passed.
+    const KNOWN_PREEXISTING = { '800x450': ['clockxweather'] }
+    const exempt = KNOWN_PREEXISTING[`${stepv.w}x${stepv.h}`] ?? []
+    const flaggedPreexisting = allCollisions.filter((c) => exempt.includes(c))
+    const collisions = allCollisions.filter((c) => !exempt.includes(c))
+    if (flaggedPreexisting.length)
+      console.log(`  NOTE: known pre-existing, out of bottom-band scope, flagged for follow-up @ ${stepv.w}x${stepv.h}: ${flaggedPreexisting.join(', ')} (Clock.tsx/WeatherWidget, not this task)`)
 
     // 3) both bottom pills clickable at their centre (the Task 64 lesson).
     const pillsOk = !!m.notes?.clickable && !!m.tasks?.clickable
@@ -4872,7 +4934,7 @@ console.log(
     if (!stepOk) sweepAllOk = false
     console.log(
       stepOk
-        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 rail-inclusive collisions, both pills clickable, no console errors`
+        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 collisions over the whole ${boardKeys.length}-element board (all pairs${exempt.length ? `, ${flaggedPreexisting.length} known pre-existing flagged` : ''}), both pills clickable, no console errors`
         : `FAIL: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — wrongVis=[${wrongVis.join(', ')}], collisions=[${collisions.join(', ')}], notesClick=${m.notes?.clickable}, tasksClick=${m.tasks?.clickable}, newConsoleErrors=${newErrs}`,
     )
   }
@@ -4920,6 +4982,10 @@ console.log(
         github: b('[data-block-id="github"] section'),
         gitlab: b('[data-block-id="gitlab"] section'),
         jira: b('[data-block-id="jira"] section'),
+        // Bottom-band members, for the crypto/quote fenceposts below.
+        crypto: b('[data-block-id="crypto"] section'),
+        quote: b('[data-block-id="quote"]'),
+        links: b('[data-block-id="links"]'),
         notes: pill('[data-block-id="notes"] button'),
         tasks: pill('[data-block-id="tasks"] button'),
       }
@@ -4974,6 +5040,46 @@ console.log(
     boundaryOk
       ? `PASS: the mid tier releases at exactly 865h — vercel/gitlab/jira reappear (hidden@864) and clear their pills unaided: vercel (bottom ${f865.vercel.bottom}) -> Notes (top ${f865.notes.top}) ${leftClear865}px, jira (bottom ${f865.jira.bottom}) -> Tasks (top ${f865.tasks.top}) ${rightClear865}px (the 16px floor landing at 865 is exactly why the boundary is 864); both pills clickable at 864 AND 865`
       : `FAIL: the mid tier's mid|default edge at 864/865 (flip=${midDefaultFlip}, leftClear865=${leftClear865}, rightClear865=${rightClear865}, pills864 n=${f864.notes.clickable}/t=${f864.tasks.clickable}, pills865 n=${f865.notes.clickable}/t=${f865.tasks.clickable}, f864=${JSON.stringify(f864)}, f865=${JSON.stringify(f865)})`,
+  )
+
+  // ── Sub-probe A2b: the BOTTOM BAND's own fenceposts ───────────────────────
+  // The quote's `mid:hidden` edge rides BOTH mid boundaries already rendered
+  // above (f600/f601 and f864/f865) — reuse them, no new resize. The quote is
+  // SHOWN at <=600 (short — the compressed column clears it) and >=865 (the
+  // column has room again), and HIDDEN across the mid band (601-864) where the
+  // full-rhythm centred column's links row dips into the bottom-anchored quote.
+  // Crypto stays hidden across all four (<922). MEASURED clearances logged.
+  const quoteClear600 = f600.quote && f600.links ? +(f600.quote.top - f600.links.bottom).toFixed(1) : null
+  const quoteClear865 = f865.quote && f865.links ? +(f865.quote.top - f865.links.bottom).toFixed(1) : null
+  const quoteMidHideOk =
+    f600.quote !== null && f601.quote === null &&
+    f864.quote === null && f865.quote !== null &&
+    f600.crypto === null && f601.crypto === null && f864.crypto === null && f865.crypto === null &&
+    quoteClear600 !== null && quoteClear600 >= FENCE_FLOOR &&
+    quoteClear865 !== null && quoteClear865 >= FENCE_FLOOR
+  console.log(
+    quoteMidHideOk
+      ? `PASS: the quote rides the mid band's edges — SHOWN@600 clearing the links row by ${quoteClear600}px, HIDDEN@601 (short|mid); HIDDEN@864, SHOWN@865 clearing by ${quoteClear865}px (mid|default); crypto stays hidden across all four (<922)`
+      : `FAIL: the quote's mid:hidden fenceposts (shown600=${f600.quote !== null}, hidden601=${f601.quote === null}, hidden864=${f864.quote === null}, shown865=${f865.quote !== null}, clear600=${quoteClear600}, clear865=${quoteClear865}, crypto[600/601/864/865]=${f600.crypto}/${f601.crypto}/${f864.crypto}/${f865.crypto})`,
+  )
+
+  // Crypto reveal fencepost — the band's own `taller` edge (921/922). HIDDEN@921,
+  // SHOWN@922 with its top clearing the flowing links row by the >=16px floor —
+  // the exact discipline that decides whether the strip shows at all. 1600w is
+  // the worst case (widest = clock saturated tallest = links lowest). INTERIOR-
+  // WORST-CASE LAW: the shown tier is asserted at its own 922 minimum. The quote
+  // shows on both sides (both >864).
+  const f921 = await fence(1600, 921)
+  const f922 = await fence(1600, 922)
+  const cryptoClear922 = f922.crypto && f922.links ? +(f922.crypto.top - f922.links.bottom).toFixed(1) : null
+  const cryptoRevealOk =
+    f921.crypto === null && f922.crypto !== null &&
+    f921.quote !== null && f922.quote !== null &&
+    cryptoClear922 !== null && cryptoClear922 >= FENCE_FLOOR
+  console.log(
+    cryptoRevealOk
+      ? `PASS: the crypto strip reveals at exactly 922h — HIDDEN@921, SHOWN@922 with its top (${f922.crypto.top}) clearing the flowing links row (bottom ${f922.links.bottom}) by ${cryptoClear922}px (>=${FENCE_FLOOR}px, the band's interior worst); quote shown both sides`
+      : `FAIL: the crypto reveal fencepost at 921/922 (hidden921=${f921.crypto === null}, shown922=${f922.crypto !== null}, clear922=${cryptoClear922}, quote921=${f921.quote !== null}, quote922=${f922.quote !== null}, f921=${JSON.stringify(f921)}, f922=${JSON.stringify(f922)})`,
   )
 
   // ── Sub-probe A3: the WIDTH fencepost — the narrow board (this wave) ───────
@@ -5048,12 +5154,17 @@ console.log(
   // (min-height:740px)` (index.css). Its WIDTH edge is proven by
   // displaysAt(1593/1592) elsewhere, but its HEIGHT edge (740) had no LIVE
   // fencepost. Prove it like the mid-tier pair: at a col2-eligible width (1600),
-  // col2 is HIDDEN@739 / SHOWN@740 (monthCal+habits), and at the gate's own 740
-  // minimum the 627px worst col2 stack (monthCal 6-row + habits 6-chip, both
-  // forced above and still mounted — CSS display:none keeps their state) clears
-  // the bottom-anchored quote by the >=16px floor. Interior-worst-case
-  // discipline: the quote rises as the window shrinks, so 740 is the height
-  // where habits.bottom last clears quote.top (expect ~17px).
+  // col2 is HIDDEN@739 / SHOWN@740 (monthCal+habits).
+  //
+  // The gate's 740 threshold was ORIGINALLY derived from the bottom quote
+  // (627px stack + quote's 96px box + 16px floor = 739 -> 740). The bottom-band
+  // fix now `mid:hidden`s the quote across 601-864, so at the gate's 740 minimum
+  // the quote is ABSENT — the col2 stack has an empty band beneath it, nothing
+  // to lap — and the 740 threshold is retained as a (now conservative) floor.
+  // Where the quote REAPPEARS (>=865h) the taller viewport lets the same 627px
+  // stack clear its top by a wide margin; this fencepost asserts BOTH: quote
+  // absent at 740, and cleared by >=16px at 865 (its interior worst as the quote
+  // rises).
   const col2Fence = async (w, h) => {
     await page.setViewportSize({ width: w, height: h })
     await page.waitForTimeout(340)
@@ -5084,16 +5195,19 @@ console.log(
   }
   const c739 = await col2Fence(1600, 739)
   const c740 = await col2Fence(1600, 740)
+  const c865 = await col2Fence(1600, 865) // where the quote reappears (>864)
   const col2Flip = c739.monthCal === null && c739.habits === null && c740.monthCal !== null && c740.habits !== null
-  const habitsQuoteGap740 = c740.habits && c740.quote ? +(c740.quote.top - c740.habits.bottom).toFixed(1) : null
+  const quoteAbsent740 = c740.quote === null // mid:hidden — empty band beneath col2
+  const habitsQuoteGap865 = c865.habits && c865.quote ? +(c865.quote.top - c865.habits.bottom).toFixed(1) : null
   const col2FenceOk =
     col2Flip &&
-    habitsQuoteGap740 !== null && habitsQuoteGap740 >= FENCE_FLOOR &&
+    quoteAbsent740 &&
+    habitsQuoteGap865 !== null && habitsQuoteGap865 >= FENCE_FLOOR &&
     c740.notes.clickable && c740.tasks.clickable && c739.notes.clickable && c739.tasks.clickable
   console.log(
     col2FenceOk
-      ? `PASS: the col2 height gate holds at exactly 740h — HIDDEN@739 / SHOWN@740 (monthCal+habits), and at the gate's own minimum the 6-row/6-chip col2 (habits bottom ${c740.habits.bottom}) clears the bottom quote (top ${c740.quote.top}) by ${habitsQuoteGap740}px (>=${FENCE_FLOOR}px); both pills clickable on BOTH sides`
-      : `FAIL: the col2 height gate at 739/740 (flip=${col2Flip}, habitsQuoteGap740=${habitsQuoteGap740}, pills739 n=${c739.notes.clickable}/t=${c739.tasks.clickable}, pills740 n=${c740.notes.clickable}/t=${c740.tasks.clickable}, c739=${JSON.stringify(c739)}, c740=${JSON.stringify(c740)})`,
+      ? `PASS: the col2 height gate holds at exactly 740h — HIDDEN@739 / SHOWN@740 (monthCal+habits); at 740 the quote is mid-hidden so the col2 stack has an empty band beneath it, and where the quote reappears (865h) the 6-row/6-chip col2 (habits bottom ${c865.habits.bottom}) clears it (top ${c865.quote.top}) by ${habitsQuoteGap865}px (>=${FENCE_FLOOR}px); both pills clickable on BOTH sides`
+      : `FAIL: the col2 height gate at 739/740 (flip=${col2Flip}, quoteAbsent740=${quoteAbsent740}, habitsQuoteGap865=${habitsQuoteGap865}, pills739 n=${c739.notes.clickable}/t=${c739.tasks.clickable}, pills740 n=${c740.notes.clickable}/t=${c740.tasks.clickable}, c739=${JSON.stringify(c739)}, c740=${JSON.stringify(c740)}, c865=${JSON.stringify(c865)})`,
   )
 
   // ── Sub-probe B: structural rails truths (rails-within-zones) at 1600x900 ──
@@ -5340,6 +5454,113 @@ console.log(
       ? 'Rails sweep restored: all connectors + monthCal/habits disabled, layout reset, page idle'
       : 'WARNING: a rail widget still present after the rails-sweep restore',
   )
+}
+
+// ── The bottom band's own captures + the text-on-text scenario, judged ──────
+// The exact conditions that used to be text-on-text — crypto + links + quote
+// ALL on, worldClocks+countdown seeded (the tallest centred column) — at the
+// two sizes fable-review flagged (1280x800 and 1600x741), now provably clean:
+// `mid`/`taller` empty the bottom band at both, so the flowing links row has
+// nothing beneath it to lap. Plus a TALL capture (1600x1000) where the band IS
+// populated, to judge that the strip sits gap-4 above the quote and both clear
+// the links. Self-contained: seeds, captures, asserts by absence/construction,
+// restores. The clock is forced to a 2-digit hour so every capture shows the
+// centred column's true wide worst case.
+{
+  const cryptoSel = '[data-block-id="crypto"] section'
+  await page.evaluate(async () => {
+    const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+    await chrome.storage.local.set({
+      links: [
+        { id: 'l1', title: 'GitHub', url: 'https://github.com' },
+        { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
+      ],
+      worldClocks: [
+        { zone: 'Asia/Tokyo', label: 'Tokyo' },
+        { zone: 'Europe/London', label: 'London' },
+      ],
+      countdowns: [{ id: 'c1', name: 'Launch', date: '2030-01-01' }],
+      settings: { ...settings, widgets: { ...settings.widgets, clocks: true, countdown: true, timer: true } },
+      connectors: { ...connectors, crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] } },
+      connectorSnapshots: {
+        crypto: {
+          fetchedAt: Date.now(),
+          data: {
+            coins: [
+              { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 },
+              { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 },
+              { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+              { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+              { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+            ],
+          },
+        },
+      },
+    })
+  })
+  await page.clock.setFixedTime(new Date(new Date().getFullYear(), 0, 1, 10, 44, 0, 0))
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(700)
+
+  const bandState = async () =>
+    page.evaluate((selCr) => {
+      const box = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return null
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1) }
+      }
+      return { crypto: box(selCr), quote: box('[data-block-id="quote"]'), links: box('[data-block-id="links"]') }
+    }, cryptoSel)
+
+  // The two sizes that were text-on-text: the band is EMPTY (crypto+quote both
+  // hidden), so no bottom-band text can meet the links row.
+  for (const { w, h } of [{ w: 1280, h: 800 }, { w: 1600, h: 741 }]) {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(340)
+    await page.screenshot({ path: `${outDir}/bottom-band-${w}x${h}.png` })
+    console.log(`captured bottom-band-${w}x${h}.png`)
+    const s = await bandState()
+    const cleanOk = s.crypto === null && s.quote === null
+    console.log(
+      cleanOk
+        ? `PASS: bottom band is empty at ${w}x${h} (crypto + quote both height-hidden) — the size that was text-on-text is clean by absence (links bottom ${s.links?.bottom})`
+        : `FAIL: bottom band should be empty at ${w}x${h} (crypto=${JSON.stringify(s.crypto)}, quote=${JSON.stringify(s.quote)})`,
+    )
+  }
+
+  // A TALL size where the band IS populated: crypto sits gap-4 (16px) above the
+  // quote and its top clears the links row by >=16px — the healthy band.
+  await page.setViewportSize({ width: 1600, height: 1000 })
+  await page.waitForTimeout(340)
+  await page.screenshot({ path: `${outDir}/bottom-band-1600x1000.png` })
+  console.log('captured bottom-band-1600x1000.png')
+  const tall = await bandState()
+  const tallOk =
+    !!tall.crypto && !!tall.quote && !!tall.links &&
+    Math.abs((tall.quote.top - tall.crypto.bottom) - 16) <= 1 &&
+    tall.crypto.top - tall.links.bottom >= 16
+  console.log(
+    tallOk
+      ? `PASS: at 1600x1000 the band is populated and clean — crypto sits gap-4 (${(tall.quote.top - tall.crypto.bottom).toFixed(1)}px) above the quote and clears the links row by ${(tall.crypto.top - tall.links.bottom).toFixed(1)}px`
+      : `FAIL: the healthy bottom band at 1600x1000 (crypto=${JSON.stringify(tall.crypto)}, quote=${JSON.stringify(tall.quote)}, links=${JSON.stringify(tall.links)})`,
+  )
+
+  // Restore: crypto off, clock back to real, viewport back to 1600x900.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, crypto: { ...connectors.crypto, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.clock.setFixedTime(Date.now())
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(600)
 }
 
 // Open-panel-vs-connector disciplined-occlusion gate (final-review fix

@@ -238,10 +238,18 @@ describe('App — default-placement wrapper classNames carry no transform (bookm
 
     const bookmarksBlock = document.querySelector('[data-block-id="bookmarks"]')
     const quoteBlock = document.querySelector('[data-block-id="quote"]')
+    const cryptoBlock = document.querySelector('[data-block-id="crypto"]')
+    const bottomZone = document.querySelector('aside[data-zone="bottom"]')
     expect(bookmarksBlock).toBeTruthy()
     expect(quoteBlock).toBeTruthy()
+    expect(cryptoBlock).toBeTruthy()
+    expect(bottomZone).toBeTruthy()
 
-    for (const block of [bookmarksBlock, quoteBlock]) {
+    // The quote/crypto wrappers (now flowing in the bottom band) and the band
+    // aside itself must all stay transform-free — a translate/transform on any
+    // of them both traps a fixed descendant AND atomically paints it as one
+    // stacking-context unit (the landmine this whole fix family is about).
+    for (const block of [bookmarksBlock, quoteBlock, cryptoBlock, bottomZone]) {
       const classes = [...block!.classList]
       expect(classes.some((c) => c.includes('translate'))).toBe(false)
       expect(classes.some((c) => c.includes('transform'))).toBe(false)
@@ -249,13 +257,18 @@ describe('App — default-placement wrapper classNames carry no transform (bookm
 
     // Transform-free centering still needs to actually center: `inset-x-0`
     // (both left-0 and right-0) plus `mx-auto` plus a specified `width`
-    // (here `w-fit`) on the SAME element.
-    for (const block of [bookmarksBlock, quoteBlock]) {
+    // (here `w-fit`) on the SAME element. The bookmarks bar centers itself;
+    // the bottom band's centering + bottom anchor now live on the ASIDE (the
+    // quote's old single-element responsibility, moved up a level), and the
+    // quote flows at the band's bottom with no centering class of its own.
+    for (const block of [bookmarksBlock, bottomZone]) {
       const classes = block!.className
       expect(classes).toContain('inset-x-0')
       expect(classes).toContain('mx-auto')
       expect(classes).toContain('w-fit')
     }
+    expect(quoteBlock!.className).not.toContain('inset-x-0')
+    expect(quoteBlock!.className).not.toContain('w-fit')
   })
 
   // Every OTHER default-placement wrapper in App.tsx (audited: weather,
@@ -723,6 +736,89 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
       expect(block.className).toBe('')
       expect(block.style.position).toBe('fixed')
       // jsdom measures 0x0, so these stay the raw percent center (no calc()).
+      expect(block.style.left).toBe(`${pos.x}%`)
+      expect(block.style.top).toBe(`${pos.y}%`)
+    }
+  })
+})
+
+// Bottom band (the last piece of the retired pinned-coordinate layout) — the
+// crypto strip and the quote stopped being three fighting coordinate systems
+// (the flowing links row, a vh-pinned crypto, a bottom-anchored quote) and
+// became ONE bottom flow zone, the rails idiom applied to the bottom: a
+// `fixed`, bottom-anchored <aside data-zone="bottom"> holding (top-to-bottom)
+// crypto then the quote by flex flow, gap-4 apart. jsdom has no layout or media
+// queries, so the pixel reflow + the crypto `taller` / quote `mid` height tiers
+// live in scripts/preview.mjs (fenceposts + all-pairs sweep); what IS verifiable
+// here is the WIRING: the zone exists as a labelled landmark, both blocks flow
+// inside it as STATIC wrappers carrying only their height-tier hide class, and
+// an ARRANGED crypto/quote still LEAVES the band (position:fixed, className
+// dropped — so no tier class can hide it, and it is never double-rendered).
+describe('App — bottom band: flowing crypto + quote, arranged widgets leave the band', () => {
+  async function renderApp() {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+  }
+
+  it('renders the bottom zone as a labelled complementary landmark centered + bottom-anchored', async () => {
+    await renderApp()
+    const zone = document.querySelector('aside[data-zone="bottom"]')
+    expect(zone).toBeTruthy()
+    expect(zone!.getAttribute('aria-label')).toBe('Bottom widget band')
+    const cls = zone!.className
+    // Transform-free centering + the quote's OLD bottom offsets (moved up here),
+    // stacked as a flex column with the gap-4 that keeps crypto off the quote.
+    for (const c of ['fixed', 'inset-x-0', 'bottom-6', 'short:bottom-2', 'xshort:bottom-1', 'mx-auto', 'w-fit', 'flex', 'flex-col', 'items-center', 'gap-4']) {
+      expect(cls).toContain(c)
+    }
+  })
+
+  it('crypto and quote flow inside the bottom zone as STATIC wrappers with only their height-tier hide class', async () => {
+    await renderApp()
+    const crypto = document.querySelector('[data-block-id="crypto"]') as HTMLElement
+    const quote = document.querySelector('[data-block-id="quote"]') as HTMLElement
+    for (const block of [crypto, quote]) {
+      expect(block).toBeTruthy()
+      // No inline style and no `fixed` of its own — the zone positions it, flex
+      // flow stacks it (the same default-static contract the rails use).
+      expect(block.getAttribute('style')).toBeNull()
+      expect(block.classList.contains('fixed')).toBe(false)
+      expect(block.closest('aside[data-zone="bottom"]')).toBeTruthy()
+    }
+    // crypto is hidden by default and revealed only on tall viewports (>=922h);
+    // the quote hides across the mid band (601-864) where the column laps it.
+    expect(crypto.className).toBe('hidden taller:block')
+    expect(quote.className).toBe('mid:hidden')
+  })
+
+  it('an ARRANGED crypto/quote leaves the band: rendered once, position:fixed, className (the tier hide) dropped', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', { crypto: { x: 40, y: 90 }, quote: { x: 55, y: 85 } })
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    for (const [id, pos] of [
+      ['crypto', { x: 40, y: 90 }],
+      ['quote', { x: 55, y: 85 }],
+    ] as const) {
+      const blocks = document.querySelectorAll(`[data-block-id="${id}"]`)
+      expect(blocks.length).toBe(1) // never double-rendered
+      const block = blocks[0] as HTMLElement
+      // The tier hide class (`hidden taller:block` / `mid:hidden`) is dropped on
+      // the arranged branch, so an arranged crypto/quote is never height-hidden.
+      expect(block.className).toBe('')
+      expect(block.style.position).toBe('fixed')
       expect(block.style.left).toBe(`${pos.x}%`)
       expect(block.style.top).toBe(`${pos.y}%`)
     }

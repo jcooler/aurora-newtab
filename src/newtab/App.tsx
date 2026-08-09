@@ -551,88 +551,113 @@ export default function App() {
             </WidgetBoundary>
           </aside>
 
-          <WidgetBoundary name="crypto">
-            {/* DEFAULT placement — a slim CENTERED strip, not another
-                left/right column entry: unlike every other connector
-                (RSS/GitHub/GitLab/Jira/Vercel, each a tall card anchored to
-                a screen edge), CryptoWidget renders a single row capped at
-                MAX_COINS=5 cells, so it reads best centered under the
-                clock/search/focus/quote column rather than stacked into
-                either side column. `left-[calc(50%-11rem)]` centers a
-                w-88 (22rem) box — half of 22rem is 11rem — the same
-                transform-free calc-centering technique PositionedBlock's own
-                arrange-mode branch uses (App's quote/bookmarks comments:
-                translate/transform on a `position: fixed` ancestor breaks
-                any fixed-position DESCENDANT and creates an unwanted
-                stacking context; CryptoWidget has neither today, but the
-                house rule is calc-over-transform for every default-placement
-                peripheral regardless).
+          {/* ── BOTTOM BAND ────────────────────────────────────────────────
+              The rails idiom (Task 64/65), applied to the bottom of the page —
+              the LAST piece of the retired pinned-coordinate layout. The crypto
+              strip and the quote were three coordinate systems fighting in one
+              band: the links row FLOWED down from the centered column (its bottom
+              moving with whatever widgets are enabled above), crypto was
+              vh-PINNED (`fixed top-[86vh]`), and the quote was BOTTOM-anchored
+              (`bottom-6`). At short heights the vh-pinned crypto printed straight
+              OVER the links labels and the quote (text-on-text below ~849h with
+              crypto+links+quote all on). Same disease the rails cured, same cure:
+              a `fixed`, BOTTOM-anchored flow container.
 
-                `top-[86vh]` (774px at the 900px launch viewport) is a
-                MEASURED, CENTERED value — the second revision this
-                placement has needed, both times by direct measurement in
-                scripts/preview.mjs's own probe rather than class-name
-                reasoning (the same "measure, don't assume" correction
-                Vercel's own PositionedBlock comment documents for ITS
-                placement):
+              This <aside data-zone="bottom"> holds, top-to-bottom, the crypto
+              strip then the quote, stacked by `flex flex-col items-center gap-4`.
+              Two structural consequences:
+                · THE vh-PIN DIES. crypto is no longer `top-[86vh]`; it sits
+                  gap-4 (16px) ABOVE the quote BY CONSTRUCTION, so crypto x quote
+                  overlap is now impossible — there is no coordinate to drift.
+                · THE QUOTE DOES NOT MOVE. The container is `bottom-6`
+                  (short:bottom-2 xshort:bottom-1 — the quote's OWN old responsive
+                  bottom offsets, moved up here intact), and the quote is the LAST
+                  flex child, so the quote's bottom sits at the container's bottom
+                  = viewport bottom − 24px, pixel-identical to its old single
+                  `bottom-6` anchor. Its bottom-center canvas identity is preserved
+                  at every healthy size whether crypto is shown or hidden (a hidden
+                  crypto leaves the flex flow entirely — see the height tier and
+                  the `:empty` rule in index.css — so the quote stays put). The
+                  preview harness asserts the quote's rendered position at defaults
+                  matches its pre-band pixels within a few px.
 
-                Revision 1 (initial ship) — the brief's own starting
-                hypothesis, `top-[76vh]` (684px), landed INSIDE the links
-                row's own vertical span once worldClocks + countdown are
-                also on (both widgets the preview harness enables for its
-                own captures, and either a real user could enable too).
-                Corrected to `top-[85vh]` (765px), verified only against the
-                gap BELOW (to quote) — the probe at the time asserted
-                `pxGapBelow >= 16` but only a boolean, un-quantified
-                non-overlap check against the links row above.
+              CRYPTO HEIGHT DISCIPLINE (vs the links row ABOVE). The band's top is
+              crypto.top; the links row is the FLOWING bottom of the centered
+              column and rises/falls with it (worldClocks+countdown on is the
+              tallest, worst case — the harness's standard seed). Below the
+              MEASURED height where `crypto.top >= links.bottom + 16` fails, crypto
+              WHOLE-widget-hides (`taller:hidden` — a new measured height tier in
+              index.css; DROPPED on the arranged branch like every rail class, so a
+              dragged crypto is never height-hidden). The quote survives every
+              height (it's short and its own top clears the links row far lower than
+              crypto's does — measured; it only ever shrinks its type + tightens its
+              bottom via short/xshort, never hides), so at the sizes where crypto
+              hides the band is just the quote, cleanly clear of the links.
+              INTERIOR-WORST-CASE LAW: the tier is asserted at its own minimum, both
+              fenceposts, by scripts/preview.mjs.
 
-                Revision 2 (fix round 1, post-review) — the reviewer
-                reproduced the exact harness state in a fresh Chromium
-                session and measured `links.bottom = 762.5` (not the 752.5
-                estimate revision 1's comment had used — the two-link seed's
-                row wraps slightly differently than the ad hoc probe script
-                that first produced 752.5), making 85vh's REAL gap above the
-                strip 765 - 762.5 = **2.5px** — comfortably overlap-free by
-                the old boolean check, but nowhere near a safe margin. The
-                probe was rewritten to assert BOTH `pxGapAbove` and
-                `pxGapBelow` quantified, each against an explicit >=8px floor
-                (HALF this file's usual >=16px convention elsewhere — a
-                deliberate exception: this is the tightest band on the page,
-                42.5px total between two FIXED-HEIGHT single-line neighbors,
-                against this widget's own ~20px single-line height, so
-                there's no "worst case" growth to defend against the way
-                RSS's shownCount or vercel's deployment count need, and
-                arrange mode lets a user who dislikes the tight default
-                simply drag it elsewhere).
-
-                MEASURED (scripts/preview.mjs's crypto block, this run,
-                1600x900, worldClocks+countdown+timer on, 2 configured
-                links): `links.bottom = 762.5`, `quote.top = 804` — a
-                41.5px band. `top-[86vh]` (774, bottom 794, the strip's own
-                ~20px single-line height unchanged) splits that band's
-                21.5px of slack as `pxGapAbove = 11.5px` and
-                `pxGapBelow = 10.0px` — both over the 8px floor, both
-                asserted and logged verbatim by the probe (not estimated).
-                quote's own position is invariant to the worldClocks/
-                countdown toggle (it's `bottom-6` off the viewport's bottom
-                edge, not part of the centered column), so the below-margin
-                holds regardless of what else is enabled; disabling
-                worldClocks/countdown only SHRINKS the centered column and
-                shifts it toward vertical center, which can only move
-                links' own bottom edge UP (more clearance above, never
-                less) — so the harder (widgets-on) case measured here is
-                also safe for the default (both off) case. A stored
-                arrange-mode `pos` still wins (PositionedBlock drops this
-                className on that branch). CryptoWidget self-gates on the
-                connector's enabled+coins state, so this wrapper renders an
-                empty box until the connector is configured — same as every
-                other toggle-gated peripheral here. Transform-free per the
-                house rule: a plain left/top offset via calc(), no
-                translate. */}
-            <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[86vh]">
-              <CryptoWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
+              CONTAINMENT LAW binds here too (see index.css's .rail-col2 rule): this
+              zone needs NO container query — a height media tier suffices for the
+              crypto hide — but it still hosts arranged (`position: fixed`)
+              crypto/quote when a user drags them, so NEVER add
+              contain:layout / transform / filter / will-change to it: any would
+              establish a containing block and trap the fixed arranged widget
+              against the zone box instead of the viewport. `flex` + `w-fit` +
+              auto-margin centering create no containing block (transform-free per
+              the house rule — the same `inset-x-0 mx-auto w-fit` centering the
+              bookmarks/quote wrappers use). Arrange interop: a dragged crypto/quote
+              keeps its pixels (PositionedBlock renders it fixed, className dropped)
+              and the band reflows around the gap — the standard rail contract,
+              probed in scripts/preview.mjs. */}
+          <aside
+            data-zone="bottom"
+            aria-label="Bottom widget band"
+            className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto flex w-fit flex-col items-center gap-4"
+          >
+            <WidgetBoundary name="crypto">
+              {/* DEFAULT placement — flows in the bottom band, centered by the
+                  aside's `items-center`, hidden below the measured `taller`
+                  height where it would lap the links row. CryptoWidget renders a
+                  single row capped at MAX_COINS=5 cells and self-gates on the
+                  connector's enabled+coins state (an empty box until configured,
+                  dropped from the flex flow by index.css's `[data-zone]
+                  [data-block-id]:empty` rule — same as every rail widget). A
+                  stored arrange-mode `pos` still wins (PositionedBlock drops this
+                  className on that branch). Hidden by default, REVEALED only
+                  when the viewport is `taller` than the measured floor (a hidden
+                  crypto sets display:none and drops out of the flex flow — no
+                  phantom gap above the quote). */}
+              <PositionedBlock id="crypto" pos={layout?.crypto} className="hidden taller:block">
+                <CryptoWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
+            <WidgetBoundary name="quote">
+              {/* DEFAULT placement — flows at the BOTTOM of the band (last flex
+                  child), so its bottom sits at the container's `bottom-6` and its
+                  bottom-center canvas identity is unchanged from its old single
+                  `fixed inset-x-0 bottom-6 mx-auto w-fit` anchor. The centering
+                  and the bottom offset now live on the aside. This wrapper's only
+                  class is `mid:hidden` — the quote survives far LONGER than crypto
+                  (its own short top clears the links row much lower than the band's
+                  crypto-clearing top does), but in the `mid` height band (601-864,
+                  index.css) the centred column is at FULL rhythm (no short/xshort
+                  relief yet) and its flowing links row dips into the
+                  bottom-anchored quote (MEASURED: laps it below ~849h, worst case
+                  wide). `mid` is precisely the tier for "bottom-anchored elements
+                  conflicting with the flowing content as the window shortens" (its
+                  own index.css rationale), so the quote joins the rails' mid-band
+                  hide there; at <=600 (short/xshort) the compressed column clears
+                  it again so it stays shown (its existing short/xshort type +
+                  bottom behaviour preserved), and at >=865 it clears by ~24px. No
+                  translate/transform — the same landmine the bookmarks/quote
+                  wrappers were converted away from. A stored `pos` still wins
+                  (className dropped on the arranged branch, so an arranged quote is
+                  never mid-hidden). */}
+              <PositionedBlock id="quote" pos={layout?.quote} className="mid:hidden">
+                <QuoteWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
+          </aside>
 
           <button
             ref={settingsButtonRef}
@@ -646,68 +671,6 @@ export default function App() {
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </button>
-
-          <WidgetBoundary name="quote">
-            {/*
-              Review fix I3 (superseded below by the bookmarks-stacking bug
-              fix): unlike weather/bookmarks/timer/notes/tasks (each
-              shrink-to-fit sized, `left`/`right` alone), the quote's old
-              single-element `fixed inset-x-0 bottom-6 mx-auto max-w-xl`
-              resolved its actual (auto-margin) width via shrink-to-fit BECAUSE
-              `mx-auto` lived on the SAME element as `inset-x-0` — CSS only
-              takes that shortcut when both margins are auto. Task 35 split
-              this into a wrapper (this PositionedBlock) + inner figure
-              (QuoteWidget's own `mx-auto max-w-xl` element) and, since the
-              wrapper's own margins are the default 0 (not auto), `left:0;
-              right:0` alone forced it to the full 1600px viewport width —
-              invisible, but still hit-testable, silently eating
-              Tasks/Notes/Timer/the gear's clicks wherever it vertically
-              overlapped them — patched at the time with `pointer-events-none`
-              on this wrapper (safe only because QuoteWidget has no
-              interactive children).
-              That patch, though, is what broke long-press: the wrapper is
-              also PositionedBlock's own `[data-block-id="quote"]` element —
-              the exact node both `useLongPress` hit-tests against (`e.target
-              .closest('[data-block-id]')`, which finds nothing through a
-              pointer-events-none ancestor since the pointerdown never lands
-              on it at all) and `ArrangeController.measureAll` measures for
-              the drag outline (returning the full viewport width, pinning the
-              drag's x to the degenerate clamp midpoint).
-              Review fix I3 then replaced that with `left-1/2
-              -translate-x-1/2` (no `inset-x-0`), reasoning it was safe
-              because QuoteWidget has no `position: fixed` descendants of its
-              own to break. True as far as it went — but the bookmarks-bar
-              popover-stacking bug (same task family as this one, see the
-              bookmarks PositionedBlock above) proved the SAME class also
-              turns this wrapper into a new STACKING CONTEXT, independent of
-              whether anything inside it is `position: fixed`. This wrapper
-              currently has no fixed/z-indexed descendants, so today it's
-              inert — but it's the identical landmine, and the fix is the
-              identical pattern: `inset-x-0 mx-auto w-fit` centers via equal
-              auto margins (CSS resolves this the same way `mx-auto
-              max-w-xl` did pre-Task-35 — see above — because `width` being a
-              specified value, here `fit-content` rather than `36rem`, is
-              what makes the auto-margin-centering branch apply at all)
-              without ever creating a containing block OR a stacking context.
-              `w-fit` reproduces the same shrink-to-fit box QuoteWidget's own
-              `max-w-xl`-capped figure already establishes (pixel-equivalent
-              to the `-translate-x-1/2` box it replaces — same shrink-to-fit
-              sizing, just resolved via `width` instead of `translate`), so
-              it stays no wider than its visible content: still nothing for
-              it to intercept over the flanking pills (pointer-events stay
-              default `auto`), and still shrink-to-fit for `useLongPress`'s
-              `[data-block-id]` hit test and `ArrangeController.measureAll`'s
-              drag-outline measurement — both keyed off this element's own
-              rendered box, unaffected by which CSS property produced it.
-            */}
-            <PositionedBlock
-              id="quote"
-              pos={layout?.quote}
-              className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto w-fit"
-            >
-              <QuoteWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
 
           <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
             <DrawerBoundary>
