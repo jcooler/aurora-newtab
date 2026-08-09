@@ -4497,17 +4497,29 @@ console.log(
 // sizes the widgets just stay in place ... it can look great or terrible").
 // One page, every widget seeded at its DISPLAY MAX (the combined-defaults
 // gate's own fixtures), the DEFAULT layout (no arranged pos), driven through
-// the real resize path — not relaunched — and asserted after EVERY step.
+// the real resize path — not relaunched — and asserted after EVERY step. The
+// centred clock is FORCED to a 2-digit hour for the whole scope (page.clock,
+// grep setFixedTime) so every pairwise/clearance check runs against the clock's
+// TRUE wide box, not whatever width the wall clock happened to render — the
+// time-of-day blind spot this wave closes.
 //
-// FOUR sub-probes, all in one seeded scope:
+// SUB-PROBES, all in one seeded scope:
 //   A. THE RESIZE SWEEP — 1600x900 -> 1536x864 -> 1420x900 -> 1280x800 ->
-//      1024x768 -> 800x450 -> back to 1600x900. After each step: the rail
-//      widgets the width/height disciplines say should be VISIBLE are found and
-//      those they say should be HIDDEN are gone (asserted BOTH ways); no
-//      VISIBLE rail widget overlaps any other widget/peripheral; both bottom
+//      1024x768 -> 960x1010 -> 800x450 -> back to 1600x900. After each step: the
+//      rail widgets the width/height disciplines say should be VISIBLE are found
+//      and those they say should be HIDDEN are gone (asserted BOTH ways) — note
+//      the two narrow steps (1024, 960 half-snap) are BELOW the 1193 width edge,
+//      so the primary rails are hidden and the centred column alone is the board;
+//      no VISIBLE rail widget overlaps any other widget/peripheral; both bottom
 //      pills are CLICKABLE (elementFromPoint at each pill centre — the Task 64
 //      lesson: a card lapping a pill fails a real click, not just a rect test);
-//      no new console errors. Captures rails-1536.png + rails-1280.png.
+//      no new console errors. Captures rails-1536.png + rails-1280.png +
+//      rails-1024-narrow.png + rails-960-halfsnap.png.
+//   A2. THE MID-TIER HEIGHT FENCEPOSTS — 600/601 and 864/865, both edges live.
+//   A3. THE WIDTH FENCEPOST — 1192/1193, the `.rail-primary` narrow-board edge:
+//      SHOWN@1193 clearing the forced-wide clock by >=16px, HIDDEN@1192.
+//   A4. THE COL2 HEIGHT-GATE FENCEPOST — 739/740, col2 hidden/shown with the
+//      627px worst stack clearing the bottom quote by >=16px at the 740 minimum.
 //   B. STRUCTURAL RAILS TRUTHS — at 1600x900, every rail widget's rect sits
 //      inside its own zone's rect (rails-within-zones), and each zone's inner
 //      edge clears the centre-reserve boundary (the strip the rails must never
@@ -4542,11 +4554,25 @@ console.log(
 // short/xshort thresholds). Measured, this run, they never involve a rail
 // widget, so excluding them loses no rail proof.
 {
-  const now = Date.now()
   const H = 3_600_000
-  const d = new Date(now)
-  const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
-  const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
+  // Force the centred clock to a 2-DIGIT hour for the ENTIRE sweep (Playwright
+  // page.clock — the same forced-wide precedent this file's monthCal-vs-clock
+  // floor uses further down, grep setFixedTime). The clock is the WIDEST centred
+  // member the rails must clear, and its 2-digit-hour box is ~one glyph wider
+  // than a 1-digit one, so WITHOUT this the sweep's rail-inclusive pairwise
+  // checks silently ran against whatever width the WALL clock happened to render
+  // — passing at a 1-digit hour even where a rail card laps the wide clock (the
+  // honest 1024x768 collision this wave closes). Every time-relative fixture
+  // below is anchored to this SAME instant (forcedMs) so the calendar's agenda
+  // height and every connector's freshness are reproducible AT ANY HOUR too;
+  // real Y/M/D are kept, only H:M forced. Re-pinned to a fresh Date.now() at the
+  // block's restore, per this file's established pattern (setFixedTime keeps all
+  // page timers running on real time — only Date.now()/new Date() are fixed —
+  // so long-press, ResizeObserver and the reflow settles below are unaffected).
+  const realNow = new Date()
+  const forcedTime = new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate(), 10, 44, 0, 0)
+  const forcedMs = forcedTime.getTime()
+  const forcedTodayEnd = new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate() + 1).getTime()
   const RSS_HEADLINES = Array.from({ length: 8 }, (_, i) => ({
     source: i % 2 ? 'The Verge' : 'Hacker News',
     title: `Headline ${i + 1}: a local-first dashboard people actually keep open`,
@@ -4588,11 +4614,11 @@ console.log(
     },
     vercel: {
       deployments: [
-        { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: now - 6 * H },
-        { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: now - 3 * 60_000 },
-        { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: now - 10 * 60_000 },
-        { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: now - 20 * 60_000 },
-        { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: now - H },
+        { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: forcedMs - 6 * H },
+        { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: forcedMs - 3 * 60_000 },
+        { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: forcedMs - 10 * 60_000 },
+        { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: forcedMs - 20 * 60_000 },
+        { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: forcedMs - H },
       ],
     },
     crypto: {
@@ -4604,16 +4630,21 @@ console.log(
         { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
       ],
     },
+    // Anchored to the FORCED clock (10:44 today), fixed +1/+2/+3h offsets, so
+    // the calendar deterministically shows its worst-case 3 lines (Next + the 2
+    // MAX_AGENDA_ROWS today-rows) at any hour the harness runs — the +tomorrow
+    // event stays off-agenda. selectAgenda renders against the same forced now.
     icsEvents: [
-      { summary: 'Standup', start: now + step, end: now + step + 30_000 },
-      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
-      { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
-      { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+      { summary: 'Standup', start: forcedMs + H, end: forcedMs + H + 30 * 60_000 },
+      { summary: 'Design review', start: forcedMs + 2 * H, end: forcedMs + 2 * H + 30 * 60_000 },
+      { summary: '1:1 with Sam', start: forcedMs + 3 * H, end: forcedMs + 3 * H + 30 * 60_000 },
+      { summary: 'Kickoff', start: forcedTodayEnd + 9 * H, end: forcedTodayEnd + 9 * H + 30 * 60_000 },
     ],
-    // Seeded FRESH (fetchedAt: now) so useWeather never treats the cache as
-    // stale and never fires a live Open-Meteo fetch — the chip renders its
-    // 1-line collapsed state deterministically, no network, no console error.
-    weatherFetchedAt: now,
+    // Seeded FRESH (fetchedAt: forcedMs, the forced-now) so useWeather never
+    // treats the cache as stale and never fires a live Open-Meteo fetch — the
+    // chip renders its 1-line collapsed state deterministically, no network,
+    // no console error, regardless of the wall clock under the forced time.
+    weatherFetchedAt: forcedMs,
   }
 
   const seedRails = async (fx) => {
@@ -4675,11 +4706,29 @@ console.log(
     }, fx)
   }
 
+  // Force the wide clock BEFORE seeding + first paint, so seedRails' own
+  // browser Date.now() (snapshot freshness, habit day-keys) and every rendered
+  // frame below share the one forced instant. setFixedTime survives the reloads
+  // this block does.
+  await page.clock.setFixedTime(forcedTime)
   await seedRails(seedFixtures)
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(900) // photo fade-in + connector cards mount
+
+  // Falsify the forcing before trusting any width the sweep measures under it —
+  // same discipline as the monthCal-vs-clock block's own `clockForcedOk`. A
+  // sweep that silently measured a 1-digit clock would be the exact time-of-day
+  // blind spot this wave exists to remove.
+  const sweepClockText = await page.evaluate(
+    () => document.querySelector('[data-block-id="clock"]')?.textContent ?? null,
+  )
+  console.log(
+    sweepClockText === '10:44'
+      ? `PASS: the sweep's clock is deterministically forced to a real 2-digit hour ("${sweepClockText}") — every rail-inclusive pairwise check below runs against the clock's true wide box`
+      : `FAIL: the sweep's clock is deterministically forced to a real 2-digit hour (text=${JSON.stringify(sweepClockText)})`,
+  )
 
   // Force monthCal to its 6-row worst case (col2 is shown at 1600x900, w>=1593
   // & h>=740) — the internal month-offset persists across resizes (no reload
@@ -4731,18 +4780,28 @@ console.log(
   }
 
   // The width/height disciplines' EXPECTED rail visibility at each swept size,
-  // derived from index.css: col2 (monthCal/habits) needs width>=1593 AND
-  // height>=740; `mid` (601-864) hides vercel/gitlab/jira and keeps github;
-  // `short` (451-600) empties the right rail and drops vercel; `xshort` (<=450)
-  // leaves only the calendar. The last row is the RETURN to 1600x900 — the
-  // reflow must be reversible (everything back).
+  // derived from index.css. Two axes:
+  //   HEIGHT — col2 (monthCal/habits) needs height>=740 (and width>=1593);
+  //     `mid` (601-864) hides vercel/gitlab/jira and keeps github; `short`
+  //     (451-600) empties the right rail and drops vercel; `xshort` (<=450)
+  //     leaves only the calendar.
+  //   WIDTH — below 100vw=1193 (`--rail-w` < the widest primary card + 16px, the
+  //     `.rail-primary` container query) BOTH primary columns step aside entirely
+  //     and the centred column alone is the board — the DESIGNED narrow state.
+  //     WIDTH wins over HEIGHT: at 1024x768 the height tier alone would keep
+  //     ics/rss/github, but 1024<1193 empties the rails (this is the collision
+  //     band the forced-wide clock above exposes: pre-fix github.left 672 lapped
+  //     the wide clock.right 675). 960x1010 is the Windows half-snap (1920/2),
+  //     tall enough for every height tier yet <1193 wide — also an empty board.
+  // The last row is the RETURN to 1600x900 — the reflow must be reversible.
   const SWEEP = [
     { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2' },
     { w: 1536, h: 864, vis: ['ics', 'rss', 'github'], cap: 'rails-1536.png', tier: 'mid (h864), no col2 (w<1593)' },
     { w: 1420, h: 900, vis: ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira'], cap: null, tier: 'default, no col2 (w<1593)' },
     { w: 1280, h: 800, vis: ['ics', 'rss', 'github'], cap: 'rails-1280.png', tier: 'mid (h800)' },
-    { w: 1024, h: 768, vis: ['ics', 'rss', 'github'], cap: null, tier: 'mid (h768)' },
-    { w: 800, h: 450, vis: ['ics'], cap: null, tier: 'xshort (h450)' },
+    { w: 1024, h: 768, vis: [], cap: 'rails-1024-narrow.png', tier: 'narrow (w1024<1193) — rails hidden, centre board' },
+    { w: 960, h: 1010, vis: [], cap: 'rails-960-halfsnap.png', tier: 'narrow (w960 half-snap, tall) — rails hidden' },
+    { w: 800, h: 450, vis: [], cap: null, tier: 'xshort + narrow (w800<1193) — rails hidden' },
     { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2 (returned)' },
   ]
 
@@ -4819,7 +4878,7 @@ console.log(
   }
   console.log(
     sweepAllOk
-      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1024x768 -> 800x450 -> back) — the rails reflow cleanly and the pills stay clickable at every size'
+      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
       : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
   )
 
@@ -4915,6 +4974,126 @@ console.log(
     boundaryOk
       ? `PASS: the mid tier releases at exactly 865h — vercel/gitlab/jira reappear (hidden@864) and clear their pills unaided: vercel (bottom ${f865.vercel.bottom}) -> Notes (top ${f865.notes.top}) ${leftClear865}px, jira (bottom ${f865.jira.bottom}) -> Tasks (top ${f865.tasks.top}) ${rightClear865}px (the 16px floor landing at 865 is exactly why the boundary is 864); both pills clickable at 864 AND 865`
       : `FAIL: the mid tier's mid|default edge at 864/865 (flip=${midDefaultFlip}, leftClear865=${leftClear865}, rightClear865=${rightClear865}, pills864 n=${f864.notes.clickable}/t=${f864.tasks.clickable}, pills865 n=${f865.notes.clickable}/t=${f865.tasks.clickable}, f864=${JSON.stringify(f864)}, f865=${JSON.stringify(f865)})`,
+  )
+
+  // ── Sub-probe A3: the WIDTH fencepost — the narrow board (this wave) ───────
+  // The height fenceposts above prove the mid band's edges; THIS proves the
+  // WIDTH edge the forced-wide clock just made honest. Below 100vw=1193
+  // (`--rail-w` < the widest primary card + 16px = w-80 + 16 = 336px, the
+  // `.rail-primary` container query in index.css) BOTH primary columns hide and
+  // the centred column alone is the board. Mirrors the displaysAt(1593/1592)
+  // precedent: measure BOTH sides of the 1192/1193 edge live, at a tall
+  // (default-tier, h>=865) height so every primary card is height-eligible and
+  // only WIDTH governs. The forced-wide clock is still installed, so the
+  // shown-side clearance is measured against the clock's TRUE wide box — the
+  // exact thing the pre-fix sweep let slip.
+  const widthFence = async (w, h) => {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(340) // reflow + the container-query display flip
+    return page.evaluate(() => {
+      const b = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return null
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), left: +r.left.toFixed(1), right: +r.right.toFixed(1) }
+      }
+      const pill = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return { clickable: false }
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return { clickable: false }
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return { clickable: !!hit && (e === hit || e.contains(hit)) }
+      }
+      return {
+        ics: b('[data-block-id="ics"] section'),
+        rss: b('[data-block-id="rss"] section'),
+        vercel: b('[data-block-id="vercel"] section'),
+        github: b('[data-block-id="github"] section'),
+        gitlab: b('[data-block-id="gitlab"] section'),
+        jira: b('[data-block-id="jira"] section'),
+        clock: b('[data-block-id="clock"]'),
+        notes: pill('[data-block-id="notes"] button'),
+        tasks: pill('[data-block-id="tasks"] button'),
+      }
+    })
+  }
+  const LEFT_PRIMARY = ['ics', 'rss', 'vercel']
+  const RIGHT_PRIMARY = ['github', 'gitlab', 'jira']
+  const wf1193 = await widthFence(1193, 900)
+  const wf1192 = await widthFence(1192, 900)
+  const shownAt1193 = [...LEFT_PRIMARY, ...RIGHT_PRIMARY].every((id) => wf1193[id] !== null)
+  const hiddenAt1192 = [...LEFT_PRIMARY, ...RIGHT_PRIMARY].every((id) => wf1192[id] === null)
+  // Shown side: the INNERMOST primary edge on each flank clears the forced-wide
+  // clock by the >=16px floor (left cards items-start overflow toward the clock;
+  // right cards items-end likewise — the whole reason for the fence).
+  const leftInner1193 = wf1193.clock ? Math.max(...LEFT_PRIMARY.map((id) => wf1193[id]?.right ?? -Infinity)) : null
+  const rightInner1193 = wf1193.clock ? Math.min(...RIGHT_PRIMARY.map((id) => wf1193[id]?.left ?? Infinity)) : null
+  const leftClockGap1193 = wf1193.clock && leftInner1193 != null ? +(wf1193.clock.left - leftInner1193).toFixed(1) : null
+  const rightClockGap1193 = wf1193.clock && rightInner1193 != null ? +(rightInner1193 - wf1193.clock.right).toFixed(1) : null
+  const widthFenceOk =
+    shownAt1193 && hiddenAt1192 && wf1192.clock !== null &&
+    leftClockGap1193 !== null && leftClockGap1193 >= FENCE_FLOOR &&
+    rightClockGap1193 !== null && rightClockGap1193 >= FENCE_FLOOR &&
+    wf1193.notes.clickable && wf1193.tasks.clickable && wf1192.notes.clickable && wf1192.tasks.clickable
+  console.log(
+    widthFenceOk
+      ? `PASS: the primary rails hold their width edge at exactly 1193 — SHOWN@1193 clearing the forced-wide clock (left col right ${leftInner1193} -> clock.left ${wf1193.clock.left} = ${leftClockGap1193}px; right col left ${rightInner1193} -> clock.right ${wf1193.clock.right} = ${rightClockGap1193}px, both >=${FENCE_FLOOR}px), fully HIDDEN@1192 (centred column alone is the board); both pills clickable on BOTH sides`
+      : `FAIL: the primary rails' width edge at 1192/1193 (shown@1193=${shownAt1193}, hidden@1192=${hiddenAt1192}, leftGap=${leftClockGap1193}, rightGap=${rightClockGap1193}, pills1193 n=${wf1193.notes.clickable}/t=${wf1193.tasks.clickable}, pills1192 n=${wf1192.notes.clickable}/t=${wf1192.tasks.clickable}, wf1193=${JSON.stringify(wf1193)}, wf1192=${JSON.stringify(wf1192)})`,
+  )
+
+  // ── Sub-probe A4: the col2 HEIGHT gate fencepost (this wave) ───────────────
+  // The `.rail-col2` gate is `@container (min-width:536px)` AND `@media
+  // (min-height:740px)` (index.css). Its WIDTH edge is proven by
+  // displaysAt(1593/1592) elsewhere, but its HEIGHT edge (740) had no LIVE
+  // fencepost. Prove it like the mid-tier pair: at a col2-eligible width (1600),
+  // col2 is HIDDEN@739 / SHOWN@740 (monthCal+habits), and at the gate's own 740
+  // minimum the 627px worst col2 stack (monthCal 6-row + habits 6-chip, both
+  // forced above and still mounted — CSS display:none keeps their state) clears
+  // the bottom-anchored quote by the >=16px floor. Interior-worst-case
+  // discipline: the quote rises as the window shrinks, so 740 is the height
+  // where habits.bottom last clears quote.top (expect ~17px).
+  const col2Fence = async (w, h) => {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(340)
+    return page.evaluate(() => {
+      const b = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return null
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1) }
+      }
+      const pill = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return { clickable: false }
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return { clickable: false }
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return { clickable: !!hit && (e === hit || e.contains(hit)) }
+      }
+      return {
+        monthCal: b('[data-block-id="monthCal"]'),
+        habits: b('[data-block-id="habits"]'),
+        quote: b('[data-block-id="quote"]'),
+        notes: pill('[data-block-id="notes"] button'),
+        tasks: pill('[data-block-id="tasks"] button'),
+      }
+    })
+  }
+  const c739 = await col2Fence(1600, 739)
+  const c740 = await col2Fence(1600, 740)
+  const col2Flip = c739.monthCal === null && c739.habits === null && c740.monthCal !== null && c740.habits !== null
+  const habitsQuoteGap740 = c740.habits && c740.quote ? +(c740.quote.top - c740.habits.bottom).toFixed(1) : null
+  const col2FenceOk =
+    col2Flip &&
+    habitsQuoteGap740 !== null && habitsQuoteGap740 >= FENCE_FLOOR &&
+    c740.notes.clickable && c740.tasks.clickable && c739.notes.clickable && c739.tasks.clickable
+  console.log(
+    col2FenceOk
+      ? `PASS: the col2 height gate holds at exactly 740h — HIDDEN@739 / SHOWN@740 (monthCal+habits), and at the gate's own minimum the 6-row/6-chip col2 (habits bottom ${c740.habits.bottom}) clears the bottom quote (top ${c740.quote.top}) by ${habitsQuoteGap740}px (>=${FENCE_FLOOR}px); both pills clickable on BOTH sides`
+      : `FAIL: the col2 height gate at 739/740 (flip=${col2Flip}, habitsQuoteGap740=${habitsQuoteGap740}, pills739 n=${c739.notes.clickable}/t=${c739.tasks.clickable}, pills740 n=${c740.notes.clickable}/t=${c740.tasks.clickable}, c739=${JSON.stringify(c739)}, c740=${JSON.stringify(c740)})`,
   )
 
   // ── Sub-probe B: structural rails truths (rails-within-zones) at 1600x900 ──
@@ -5113,6 +5292,12 @@ console.log(
       ? `PASS: Reset layout returned the widget to the rail flow (ics back at top ${icsReset.top} — its rail slot ${icsBefore.top} — position ${icsReset.position}; rss back at ${rssTopReset})`
       : `FAIL: Reset layout returned the widget to the rail flow (ics.top=${icsReset?.top} want ~${icsBefore?.top}, position=${icsReset?.position}, rss.top=${rssTopReset} want ~${rssTopBefore})`,
   )
+
+  // Hand the clock back to a FRESH real snapshot rather than leaving it pinned
+  // at 10:44 forever — the same re-pin the monthCal-vs-clock block does (there
+  // is no true "uninstall" once page.clock has been touched; re-pinning to
+  // Date.now() is equivalent for every purpose the blocks below care about).
+  await page.clock.setFixedTime(Date.now())
 
   // Restore: disable every connector + widget seeded here, clear caches/habits,
   // layout back to default, and reload — nothing here leaks into the blocks
@@ -5682,27 +5867,28 @@ console.log(
       : `FAIL: clicking the Meditate chip again unmarks today in storage (log=${JSON.stringify(afterUnmark)})`,
   )
 
-  // ── Greeting-collision fix: worst-name cap + hide-below-breakpoint ────────
-  // The two permanent proofs for `fix: the greeting and the mid-left column
-  // can no longer meet`. They live in THIS gate because it already owns the
-  // mid-left column's floor measurements (above) — the same seam, one more
-  // failure mode. THE MEASURED BREAKPOINT is 1593px: the width at which the
-  // WIDEST default centered member that overlaps this column — the forced-wide
-  // clock, whose 2-digit-hour box (425px, ~193.5-397.5 at 900h) overlaps BOTH
-  // monthCal's band AND habits' — first clears the column's fixed 568px right
-  // edge by this file's >=16px floor (clock.left rises through 568+16=584
-  // exactly at 1593; the search bar (320px) and focus line (288px) clear far
-  // earlier, ~1488/1450px, so the CLOCK governs, not the search bar the review
-  // first guessed). Greeting.tsx caps the greeting at
-  // `min(40rem,calc(100vw-1168px))` for >=1593px (its own left edge >=584 by
-  // construction), and App.tsx hides monthCal+habits below 1593
-  // (`max-[1593px]:hidden`); the two share the 1593 boundary exactly (a
-  // min-width media query vs. its not-all-min-width complement), so the column
-  // is on-screen iff the greeting cap is engaged. Neither assertion below
-  // forces the clock: the worst-name greeting's width/position is independent
-  // of the hour, and the hide check is a display:none test that is hour-proof
-  // by construction — the clock is a factor in DERIVING 1593, not in verifying
-  // these two facts AT their bands.
+  // ── Greeting-vs-mid-left-column: the worst-name cap holds under the rails ──
+  // The two permanent proofs that the greeting and the mid-left column can no
+  // longer meet. They live in THIS gate because it already owns the mid-left
+  // column's floor measurements (above) — the same seam, one more failure mode.
+  // RAILS-ERA TRUTH (the retired mechanism this prose used to describe — a
+  // Greeting.tsx `min(40rem,calc(100vw-1168px))` cap keyed to a `min-[1593px]`
+  // media query, paired with an App.tsx `max-[1593px]:hidden` on a fixed-px
+  // mid-left column — is GONE): the centred column is now bounded to
+  // `--center-reserve` (`max-w-[var(--center-reserve)] mx-auto`, App.tsx) and
+  // the greeting's flex-item wrapper carries `min-w-0 max-w-full`, so a long
+  // name caps at the reserve width + ellipsis rather than at a magic breakpoint.
+  // The mid-left column (monthCal/habits, col2) appears/hides via the
+  // `.rail-col2` CONTAINER QUERY (index.css) — its inline-size threshold (536px)
+  // is reached at exactly 100vw=1593 by the `--rail-w` relation, so the ~1593
+  // boundary still EMERGES by construction, but from token math, with no 1593
+  // anywhere in source. The reserve boundary is ALSO exactly where the left rail
+  // zone's inner (right) edge lands (`2rem + rail-w = (100vw - CR)/2`), so the
+  // two facts to assert are hour-proof by construction: (a) the capped
+  // worst-name greeting's left edge never crosses INTO the left zone, and (b)
+  // the col2 wrapper is display:none below its container-query threshold — a
+  // display test, independent of the clock (the clock is a factor in DERIVING
+  // the reserve/1593, not in verifying these two facts at their bands).
   const monthCalSel = '[data-block-id="monthCal"]'
   const greetingPSel = '[data-block-id="greeting"] p'
 

@@ -598,10 +598,38 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
     await act(async () => {})
   }
 
-  it('renders both rail zones', async () => {
+  it('renders both rail zones as labelled complementary landmarks', async () => {
     await renderApp()
-    expect(document.querySelector('aside[data-zone="left"]')).toBeTruthy()
-    expect(document.querySelector('aside[data-zone="right"]')).toBeTruthy()
+    const left = document.querySelector('aside[data-zone="left"]')
+    const right = document.querySelector('aside[data-zone="right"]')
+    expect(left).toBeTruthy()
+    expect(right).toBeTruthy()
+    // The two <aside> landmarks were previously unlabelled; a screen reader
+    // announces each rail by name now (final-review fix wave).
+    expect(left!.getAttribute('aria-label')).toBe('Left widget rail')
+    expect(right!.getAttribute('aria-label')).toBe('Right widget rail')
+  })
+
+  it('the PRIMARY columns carry the .rail-primary width-hide marker; col2 (rail-col2) does not', async () => {
+    await renderApp()
+    const has = (id: string, cls: string) =>
+      document.querySelector(`[data-block-id="${id}"]`)!.classList.contains(cls)
+    // Left col1 (ics/rss/vercel) + the whole right column (github/gitlab/jira)
+    // carry `.rail-primary` — the container-query marker (index.css) that hides
+    // the whole primary column when `--rail-w` can't hold the widest card (w-80)
+    // + 16px clearance, i.e. below 100vw=1193, so a fixed-width card never
+    // overflows toward the centred clock. jsdom has no container queries, so the
+    // pixel boundary lives in scripts/preview.mjs's width fencepost; the WIRING
+    // (the marker reaches the right wrappers, and only those) is what's checked.
+    for (const id of ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira']) {
+      expect(has(id, 'rail-primary')).toBe(true)
+    }
+    // col2 is governed by its OWN container query (`.rail-col2`), never the
+    // primary width-hide — it must not carry `.rail-primary`.
+    for (const id of ['monthCal', 'habits']) {
+      expect(has(id, 'rail-primary')).toBe(false)
+      expect(has(id, 'rail-col2')).toBe(true)
+    }
   })
 
   it('the moved data widgets default to STATIC wrappers inside a rail zone (they flow — no fixed/inline position of their own)', async () => {

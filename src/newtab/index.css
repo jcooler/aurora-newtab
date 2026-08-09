@@ -407,24 +407,28 @@
    hide even a fixed descendant — hiding the container would make an arranged
    widget vanish below 1593 / on short, violating "an arranged user owns their
    layout at every width". Hiding the per-block wrapper leaves the arranged
-   (class-free) branch untouched.
+   (class-free) branch untouched. The SAME per-block idiom hides the PRIMARY
+   columns on a too-NARROW window (`.rail-primary` below).
 
    CONTAINMENT LAW — DO NOT ADD `contain: layout` / transform / filter /
-   will-change TO A ZONE. `container-type: inline-size` (below) is safe INSIDE
-   a rail that also hosts arranged (`position: fixed`) widgets ONLY because the
-   CSSWG formally resolved that container-type does NOT impose layout
-   containment's containing-block rule on positioned descendants
+   will-change TO A ZONE. `container-type: inline-size` (below, now on BOTH
+   zones) is safe INSIDE a rail that also hosts arranged (`position: fixed`)
+   widgets ONLY because the CSSWG formally resolved that container-type does NOT
+   impose layout containment's containing-block rule on positioned descendants
    (csswg-drafts#10544, 2024-07-24; Chrome 129+ ships this intentionally, spec
    prose lags, MDN correction in mdn/content#43405). Adding actual
-   `contain: layout` (or a transform/filter/will-change) to `[data-zone]` WOULD
-   establish a containing block for fixed descendants — every arranged widget
-   nested in the zone would then position against the zone box instead of the
-   viewport, silently corrupting every user's saved layout. Verified with a
+   `contain: layout` (or a transform/filter/will-change) to EITHER `[data-zone]`
+   WOULD establish a containing block for fixed descendants — every arranged
+   widget nested in the zone would then position against the zone box instead of
+   the viewport, silently corrupting every user's saved layout. Verified with a
    real-Chromium probe (fixed 50%/50% child stayed viewport-centred under
-   container-type; a transform control trapped it). Task 65 must ship a
-   dedicated PINNED probe named for this: "arranged widget inside a zone renders
-   at true viewport percent". */
-[data-zone='left'] {
+   container-type; a transform control trapped it) and pinned live by the
+   "arranged widget inside a zone renders at true viewport percent" probe in
+   scripts/preview.mjs. The right zone is a container for the same reason the
+   left is (the `.rail-primary` width-hide below reads its inline size), so the
+   law binds it identically. */
+[data-zone='left'],
+[data-zone='right'] {
   container: aurora-rail / inline-size;
 }
 .rail-col2 {
@@ -435,6 +439,30 @@
     .rail-col2 {
       display: block;
     }
+  }
+}
+
+/* PRIMARY rail cards (left col-1 + the whole right column) hide when their zone
+   can no longer hold the column's WIDEST card plus the house 16px clearance to
+   the centre reserve — the WIDTH counterpart to the height-tier hides, and the
+   structural close for the narrow-window card-overflow the rails otherwise had.
+   Below this width `--rail-w` is narrower than the fixed-width card (w-80 =
+   320px is the widest in BOTH primary columns: vercel left, github/gitlab/jira
+   right), so a left card (items-start) overflows RIGHT and a right card
+   (items-end) overflows LEFT — both toward the centred clock, eating the
+   reserve and then the clock itself (measured pre-fix: 1024x768 github.left 672
+   lapped the 2-digit clock.right 675). Threshold 336px = 320 (w-80) + 16, which
+   by the `--rail-w = (100vw - 457)/2 - 32` relation is reached at exactly
+   100vw = 457 + 2*(336 + 32) = 1193: at >=1193 the card fits with >=16px of
+   clearance to the reserve (32px to the forced-wide clock), below it the whole
+   primary column steps aside and the centred column alone is the board — the
+   DESIGNED narrow state (scripts/preview.mjs asserts the 1192/1193 fencepost by
+   construction, no magic number in source, same as the col-2 boundary above).
+   Per-block `.rail-primary` (dropped by PositionedBlock on the arranged branch,
+   exactly like `.rail-col2`), so an ARRANGED card is never hidden by width. */
+@container aurora-rail (width < 336px) {
+  .rail-primary {
+    display: none;
   }
 }
 

@@ -453,6 +453,17 @@ export default function App() {
               clears the bottom quote by >=16px at the gate's own minimum — see
               the .rail-col2 height gate in index.css. Right rail states its own.
 
+              WIDTH DISCIPLINE (the narrow-window board): the height tiers relieve
+              vertical pressure; the WIDTH counterpart is `.rail-primary` (on col1
+              here — ics/rss/vercel — and on the whole right column). When
+              `--rail-w` drops below the widest primary card + 16px clearance
+              (w-80 = 320 + 16 = 336px, at exactly 100vw = 1193 by the rail-w
+              relation), the fixed-width card would overflow its zone toward the
+              centred clock, so the whole primary column steps aside CSS-only via
+              a container query (index.css) — the centred column alone is the
+              board below 1193. Dropped on the arranged branch like every other
+              rail class, so an arranged card is never width-hidden.
+
               TASK 65 — the 601-848h mid-height residual Task 64 ledgered is
               CLOSED by the `mid` tier (index.css, 601-864px): at the band's 601px
               interior worst the Notes pill top sits at 547 and, with vercel hidden
@@ -463,21 +474,21 @@ export default function App() {
               could NOT save vercel (its 758 bottom overruns the pill even with rss
               fully hidden above it), so vercel WHOLE-widget-hides on mid, per the
               documented priority. */}
-          <aside data-zone="left" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
+          <aside data-zone="left" aria-label="Left widget rail" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
                 <WidgetBoundary name="ics">
-                  <PositionedBlock id="ics" pos={layout?.ics}>
+                  <PositionedBlock id="ics" pos={layout?.ics} className="rail-primary">
                     <CalendarWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="rss">
-                  <PositionedBlock id="rss" pos={layout?.rss} className="xshort:hidden">
+                  <PositionedBlock id="rss" pos={layout?.rss} className="rail-primary xshort:hidden">
                     <RssWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="vercel">
-                  <PositionedBlock id="vercel" pos={layout?.vercel} className="mid:hidden short:hidden xshort:hidden">
+                  <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary mid:hidden short:hidden xshort:hidden">
                     <VercelWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
@@ -518,20 +529,23 @@ export default function App() {
               ends, measured, not guessed: jira's own bottom (795 at display max)
               clears the Tasks pill (top height-54) by the 16px floor only at
               height >= 865, so the tier covers exactly [601, 864] — at 865+ all
-              three connectors flow at full height and clear the pill unaided. */}
-          <aside data-zone="right" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
+              three connectors flow at full height and clear the pill unaided.
+              WIDTH: all three carry `.rail-primary` too (widest here is github's
+              w-80), so the whole right column steps aside below 100vw = 1193 —
+              see the left rail's WIDTH DISCIPLINE note and index.css. */}
+          <aside data-zone="right" aria-label="Right widget rail" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
             <WidgetBoundary name="github">
-              <PositionedBlock id="github" pos={layout?.github} className="short:hidden xshort:hidden">
+              <PositionedBlock id="github" pos={layout?.github} className="rail-primary short:hidden xshort:hidden">
                 <GithubWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="gitlab">
-              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="mid:hidden short:hidden xshort:hidden">
+              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="rail-primary mid:hidden short:hidden xshort:hidden">
                 <GitlabWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="jira">
-              <PositionedBlock id="jira" pos={layout?.jira} className="mid:hidden short:hidden xshort:hidden">
+              <PositionedBlock id="jira" pos={layout?.jira} className="rail-primary mid:hidden short:hidden xshort:hidden">
                 <JiraWidget />
               </PositionedBlock>
             </WidgetBoundary>
