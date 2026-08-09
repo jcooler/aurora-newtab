@@ -44,15 +44,16 @@ const RSS_SHORT_ROWS = 3
 // Mid-tier row cap (Task 65 — the 601-864px mid-height relief tier). On `mid`
 // the bottom-anchored Notes pill still rises as the window shrinks: at the
 // tier's OWN worst case — its 601px MINIMUM — the pill top sits at 547
-// (height - 54). vercel whole-hides on mid (its 740 bottom can't be trimmed
+// (height - 54). vercel whole-hides on mid (its 758 bottom can't be trimmed
 // clear — see App.tsx), leaving THIS card as the left column's lowest, so its
-// bottom is what must clear the pill. MEASURED (scripts/preview.mjs, 1600x601,
-// display max): the card's top is fixed by the flow above it at ~196 (rail-top
-// 120 + calendar ~60 + 16 gap), each row ~40px + 16px carded chrome, so the
-// full 8-row card bottoms at 532 — 15px INSIDE the 16px floor to the 547 pill.
-// N=7 (bottom 492) clears it by 55px, a real >=16px floor, at the cost of one
+// bottom is what must clear the pill. MEASURED (scripts/preview.mjs's mid-tier
+// fencepost probe, 1600x601, display max): the card's top is fixed by the flow
+// above it at 214 (rail-top 120 + the calendar's ~78px worst + 16 gap), each
+// row ~48px carded, so the full 8-row card bottoms at 550 — 3px OVER the 547
+// pill top (a real overlap at the band's worst, not merely a thin gap). N=7
+// (bottom 510) clears it by 37px, a real >=16px floor, at the cost of one
 // headline. `short` (RSS_SHORT_ROWS=3) trims harder because its 451px floor
-// puts the pill 150px higher again; `xshort` hides the whole card. The three
+// puts the pill ~150px higher again; `xshort` hides the whole card. The three
 // tiers are disjoint (index.css), so only one row cap ever applies at a time.
 const RSS_MID_ROWS = 7
 

@@ -4823,6 +4823,100 @@ console.log(
       : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
   )
 
+  // ── Sub-probe A2: the mid tier proves its OWN edges (fix round 1) ─────────
+  // The phase LAW binds tier assertions to the tier's INTERIOR WORST CASE, and
+  // this file's own displaysAt(1593/1592) fencepost is the precedent: prove a
+  // boundary by measuring BOTH sides of it live. The resize-sweep steps
+  // (900/864/900/800/768/450/900) never land on the mid band's own edges, so
+  // its 601px interior worst and 865px release are asserted HERE, as height
+  // fenceposts at width 1600 (the widest rail — the height tiers are width-
+  // independent), all connectors still at display max. The real clearances are
+  // MEASURED and logged verbatim (the shorter-calendar fixture an earlier
+  // measurement used made an ~18px-optimistic set of figures; these come off
+  // the true display-max calendar, ics bottom 198 / rss top 214, cross-checked
+  // against the retargeted ics->rss flow probe above).
+  const FENCE_FLOOR = 16
+  const fence = async (w, h) => {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(340) // reflow + the rows' media-query display flip
+    return page.evaluate(() => {
+      const b = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return null
+        const r = e.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1) }
+      }
+      const pill = (s) => {
+        const e = document.querySelector(s)
+        if (!e) return { clickable: false }
+        const r = e.getBoundingClientRect()
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        return { top: +r.top.toFixed(1), clickable: !!hit && (e === hit || e.contains(hit)) }
+      }
+      return {
+        ics: b('[data-block-id="ics"] section'),
+        rss: b('[data-block-id="rss"] section'),
+        vercel: b('[data-block-id="vercel"] section'),
+        github: b('[data-block-id="github"] section'),
+        gitlab: b('[data-block-id="gitlab"] section'),
+        jira: b('[data-block-id="jira"] section'),
+        notes: pill('[data-block-id="notes"] button'),
+        tasks: pill('[data-block-id="tasks"] button'),
+      }
+    })
+  }
+
+  // Fencepost 1 — the short|mid edge (600 vs 601). The mid tier ENGAGES at
+  // exactly 601: github appears (empty on short's right rail), rss's card grows
+  // from short's 3 rows back to mid's 7, and at 601 — the mid band's INTERIOR
+  // WORST — the trimmed left column and lone github both clear their pills by
+  // the >=16px floor. Pills clickable on BOTH sides of the edge.
+  const f600 = await fence(1600, 600)
+  const f601 = await fence(1600, 601)
+  const shortMidFlip =
+    f600.github === null && f601.github !== null &&
+    f600.vercel === null && f601.vercel === null &&
+    f600.gitlab === null && f601.gitlab === null &&
+    f600.jira === null && f601.jira === null &&
+    !!f600.rss && !!f601.rss && f601.rss.bottom > f600.rss.bottom + 100 // rss 3 -> 7 rows: the card grows
+  const leftClear601 = f601.rss && f601.notes.top != null ? +(f601.notes.top - f601.rss.bottom).toFixed(1) : null
+  const rightClear601 = f601.github && f601.tasks.top != null ? +(f601.tasks.top - f601.github.bottom).toFixed(1) : null
+  const midLowOk =
+    shortMidFlip &&
+    f600.notes.clickable && f600.tasks.clickable && f601.notes.clickable && f601.tasks.clickable &&
+    leftClear601 !== null && leftClear601 >= FENCE_FLOOR &&
+    rightClear601 !== null && rightClear601 >= FENCE_FLOOR
+  console.log(
+    midLowOk
+      ? `PASS: the mid tier engages at exactly 601h — github appears (hidden@600) and rss grows 3->7 rows; at the band's 601px INTERIOR WORST the left column (rss bottom ${f601.rss.bottom}) clears the Notes pill (top ${f601.notes.top}) by ${leftClear601}px and the right column (github bottom ${f601.github.bottom}) clears the Tasks pill (top ${f601.tasks.top}) by ${rightClear601}px; both pills clickable at 600 AND 601`
+      : `FAIL: the mid tier's short|mid edge at 600/601 (flip=${shortMidFlip}, leftClear601=${leftClear601}, rightClear601=${rightClear601}, pills600 n=${f600.notes.clickable}/t=${f600.tasks.clickable}, pills601 n=${f601.notes.clickable}/t=${f601.tasks.clickable}, f600=${JSON.stringify(f600)}, f601=${JSON.stringify(f601)})`,
+  )
+
+  // Fencepost 2 — the mid|default edge (864 vs 865). The mid tier RELEASES at
+  // exactly 865: vercel/gitlab/jira reappear (all hidden at 864), and the
+  // released cards clear their pills UNAIDED — jira's bottom (795) clears the
+  // Tasks pill (top 811) by exactly the 16px floor, which is precisely why the
+  // upper boundary is 864 (795 + 54 + 16 = 865). Pills clickable both sides.
+  const f864 = await fence(1600, 864)
+  const f865 = await fence(1600, 865)
+  const midDefaultFlip =
+    f864.vercel === null && f865.vercel !== null &&
+    f864.gitlab === null && f865.gitlab !== null &&
+    f864.jira === null && f865.jira !== null
+  const leftClear865 = f865.vercel && f865.notes.top != null ? +(f865.notes.top - f865.vercel.bottom).toFixed(1) : null
+  const rightClear865 = f865.jira && f865.tasks.top != null ? +(f865.tasks.top - f865.jira.bottom).toFixed(1) : null
+  const boundaryOk =
+    midDefaultFlip &&
+    f864.notes.clickable && f864.tasks.clickable && f865.notes.clickable && f865.tasks.clickable &&
+    leftClear865 !== null && leftClear865 >= FENCE_FLOOR &&
+    rightClear865 !== null && rightClear865 >= FENCE_FLOOR
+  console.log(
+    boundaryOk
+      ? `PASS: the mid tier releases at exactly 865h — vercel/gitlab/jira reappear (hidden@864) and clear their pills unaided: vercel (bottom ${f865.vercel.bottom}) -> Notes (top ${f865.notes.top}) ${leftClear865}px, jira (bottom ${f865.jira.bottom}) -> Tasks (top ${f865.tasks.top}) ${rightClear865}px (the 16px floor landing at 865 is exactly why the boundary is 864); both pills clickable at 864 AND 865`
+      : `FAIL: the mid tier's mid|default edge at 864/865 (flip=${midDefaultFlip}, leftClear865=${leftClear865}, rightClear865=${rightClear865}, pills864 n=${f864.notes.clickable}/t=${f864.tasks.clickable}, pills865 n=${f865.notes.clickable}/t=${f865.tasks.clickable}, f864=${JSON.stringify(f864)}, f865=${JSON.stringify(f865)})`,
+  )
+
   // ── Sub-probe B: structural rails truths (rails-within-zones) at 1600x900 ──
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.waitForTimeout(300)

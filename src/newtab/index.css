@@ -306,14 +306,16 @@
                all-connectors-at-display-max columns clear the bottom pills,
                this band was the 601-848h residual Task 64 left: with every
                connector at its display max the left column's `vercel` (bottom
-               740) laps the Notes pill and the right column's `jira` (bottom
+               758) laps the Notes pill and the right column's `jira` (bottom
                795) laps the Tasks pill, because the pills are bottom-anchored
                and rise as the window shortens while the top-anchored cards do
                not. `mid` hides `vercel`/`gitlab`/`jira` (the lowest-priority
                card of each column, plus gitlab which can't fit under github on
-               mid) and trims `rss` to its first RSS_MID_ROWS rows, so BOTH
+               mid) and trims `rss` to its first RSS_MID_ROWS rows (its 8-row
+               bottom 550 would overlap the pill by 3px otherwise), so BOTH
                columns clear their pill by >=16px at the band's INTERIOR WORST
-               CASE — its 601px MINIMUM, where the pills sit highest (top 547).
+               CASE — its 601px MINIMUM, where the pills sit highest (top 547):
+               rss's 7-row bottom 510 clears by 37px, github's 415 by 132px.
                UPPER bound 864 is MEASURED, not guessed: jira's own bottom (795)
                clears the Tasks pill (top = height - 54) by the house 16px floor
                only at height >= 865, so 864 is the last height that still needs

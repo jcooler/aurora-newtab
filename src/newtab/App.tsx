@@ -444,9 +444,11 @@ export default function App() {
               rows on mid and its first RSS_SHORT_ROWS on short so the card can't
               grow over the Notes pill at either tier's floor (see RssWidget's
               math) and drops entirely on xshort; DEPLOYS drops on mid AND short
-              (Task 65: at display max vercel's bottom is 740, which laps the
-              Notes pill — top height-54 — at any height below 810, so it drops
-              across the whole 601-864 mid band; it was already gone on short).
+              (Task 65: at display max vercel's bottom is 758, which laps the
+              Notes pill — top height-54 — below ~812h and fails the 16px floor
+              below 828h, so it drops across the whole 601-864 mid band — a
+              documented simplification, since above 828h it would clear unaided;
+              it was already gone on short).
               col2 (month + habits, 627px worst stack) drops below 740h so it
               clears the bottom quote by >=16px at the gate's own minimum — see
               the .rail-col2 height gate in index.css. Right rail states its own.
@@ -454,12 +456,13 @@ export default function App() {
               TASK 65 — the 601-848h mid-height residual Task 64 ledgered is
               CLOSED by the `mid` tier (index.css, 601-864px): at the band's 601px
               interior worst the Notes pill top sits at 547 and, with vercel hidden
-              + rss trimmed to RSS_MID_ROWS (bottom 492), the left column clears it
-              by 55px; the right column (below) clears its Tasks pill likewise.
-              MEASURED honestly (scripts/preview.mjs's mid-height probe): row trims
-              alone could NOT save vercel (its 740 bottom overruns the pill even
-              with rss fully hidden above it), so vercel WHOLE-widget-hides on mid,
-              per the documented priority. */}
+              + rss trimmed to RSS_MID_ROWS (bottom 510), the left column clears it
+              by 37px; the right column (below) clears its Tasks pill likewise.
+              MEASURED honestly (scripts/preview.mjs's mid-tier fencepost probe,
+              which asserts BOTH edges 600/601 and 864/865 live): row trims alone
+              could NOT save vercel (its 758 bottom overruns the pill even with rss
+              fully hidden above it), so vercel WHOLE-widget-hides on mid, per the
+              documented priority. */}
           <aside data-zone="left" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
