@@ -41,6 +41,21 @@ export default function RssWidget() {
 // whole card via the wrapper's own xshort:hidden, so this only governs `short`.
 const RSS_SHORT_ROWS = 3
 
+// Mid-tier row cap (Task 65 — the 601-864px mid-height relief tier). On `mid`
+// the bottom-anchored Notes pill still rises as the window shrinks: at the
+// tier's OWN worst case — its 601px MINIMUM — the pill top sits at 547
+// (height - 54). vercel whole-hides on mid (its 740 bottom can't be trimmed
+// clear — see App.tsx), leaving THIS card as the left column's lowest, so its
+// bottom is what must clear the pill. MEASURED (scripts/preview.mjs, 1600x601,
+// display max): the card's top is fixed by the flow above it at ~196 (rail-top
+// 120 + calendar ~60 + 16 gap), each row ~40px + 16px carded chrome, so the
+// full 8-row card bottoms at 532 — 15px INSIDE the 16px floor to the 547 pill.
+// N=7 (bottom 492) clears it by 55px, a real >=16px floor, at the cost of one
+// headline. `short` (RSS_SHORT_ROWS=3) trims harder because its 451px floor
+// puts the pill 150px higher again; `xshort` hides the whole card. The three
+// tiers are disjoint (index.css), so only one row cap ever applies at a time.
+const RSS_MID_ROWS = 7
+
 function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount: RssConfig['shownCount'] }) {
   // Stale-while-refreshing by construction: the hook returns the cached
   // snapshot immediately and refreshes in the background once per mount. A
@@ -70,10 +85,20 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
     // of clearance to the centered column, are the same as the bare version).
     <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg">
       <ul className="flex flex-col gap-1">
-        {headlines.map((h, i) => (
-          // Rows past RSS_SHORT_ROWS drop on `short` so the card can't grow over
-          // the Notes pill at the tier's 451px worst case (see the constant).
-          <li key={h.url} className={i >= RSS_SHORT_ROWS ? 'short:hidden' : undefined}>
+        {headlines.map((h, i) => {
+          // Rows past RSS_SHORT_ROWS drop on `short`, and rows past RSS_MID_ROWS
+          // drop on `mid` too, so the card can't grow over the Notes pill at
+          // either tier's own worst-case floor (see the constants). The tiers
+          // are disjoint, so a row carrying both classes only ever hides under
+          // whichever one actually matches — never both at once.
+          const hide = [
+            i >= RSS_SHORT_ROWS ? 'short:hidden' : '',
+            i >= RSS_MID_ROWS ? 'mid:hidden' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')
+          return (
+            <li key={h.url} className={hide || undefined}>
             {/* External site, so target/rel differ from the in-page launcher
                 links: a new tab, and rel that severs window.opener and strips
                 the referrer. The whole row is one link — title is the click
@@ -101,7 +126,8 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
               </span>
             </a>
           </li>
-        ))}
+          )
+        })}
       </ul>
     </section>
   )

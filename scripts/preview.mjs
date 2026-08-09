@@ -3304,15 +3304,31 @@ console.log(
       // local midnight) regardless of the step above.
       { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
     ]
+    // Task 65 — seed rss too, so the calendar/headlines flow relationship this
+    // block asserts below is REAL: under the rails ics and rss are the top two
+    // cards of the left zone's col1 flex column, separated by the column's
+    // gap-4. The OLD probe left rss unseeded (its wrapper `display:none` via the
+    // `:empty` rule => rss.top read 0, a bogus "gap"); seeding a couple of
+    // headlines renders the second card so the gap-4 rhythm can be measured.
     await chrome.storage.local.set({
       connectors: {
         ...connectors,
         ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+        rss: { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 },
       },
       // fetchedAt stamped HERE, in the page, so the snapshot is fresh
       // relative to whenever this run happens — the SWR hook renders from
       // cache and never touches the network.
-      connectorSnapshots: { ics: { fetchedAt: Date.now(), data: { events } } },
+      connectorSnapshots: {
+        ics: { fetchedAt: Date.now(), data: { events } },
+        rss: {
+          fetchedAt: Date.now(),
+          data: [
+            { source: 'Hacker News', title: 'A local-first dashboard people keep open', url: 'https://news.ycombinator.com/item?id=1', publishedAt: 3 },
+            { source: 'The Verge', title: 'The quiet return of the RSS reader', url: 'https://www.theverge.com/rss-returns', publishedAt: 2 },
+          ],
+        },
+      },
     })
   })
   await page.reload()
@@ -3419,11 +3435,17 @@ console.log(
       ? `PASS: the Calendar widget's slot clears the timer pill above it by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — ics top ${gap.ics?.top}, timer bottom ${gap.timer?.bottom})`
       : `FAIL: the Calendar widget's slot clears the timer pill above it by a real, measured gap (${JSON.stringify(gap)})`,
   )
-  const gapBelowOk = gap.icsFound && gap.rssFound && gap.pxGapBelow !== null && gap.pxGapBelow >= GAP_FLOOR
+  // Task 65 rebuild — the STRUCTURAL rail truth: ics and rss are the top two
+  // cards of the left zone's col1 flex column, so rss's top sits exactly the
+  // column's gap-4 (16px) below ics's bottom. Asserted EXACT (a flex gap has no
+  // worst-case growth) rather than the old >=floor, and rss is now really seeded
+  // (above) so this measures the live flow instead of a phantom 0.
+  const COL1_FLOW_GAP = 16
+  const gapBelowOk = gap.icsFound && gap.rssFound && gap.pxGapBelow === COL1_FLOW_GAP
   console.log(
     gapBelowOk
-      ? `PASS: the Calendar widget's slot clears RSS's own default top below it by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — ics bottom ${gap.ics?.bottom}, rss top ${gap.rss?.top})`
-      : `FAIL: the Calendar widget's slot clears RSS's own default top below it by a real, measured gap (${JSON.stringify(gap)})`,
+      ? `PASS: the Calendar card sits exactly the col1 gap-4 flex rhythm (${COL1_FLOW_GAP}px) above the Headlines card below it in the left zone (${gap.pxGapBelow?.toFixed(1)}px — ics bottom ${gap.ics?.bottom}, rss top ${gap.rss?.top})`
+      : `FAIL: the Calendar card sits exactly the col1 gap-4 flex rhythm (${COL1_FLOW_GAP}px) above the Headlines card (got ${gap.pxGapBelow}px — ${JSON.stringify(gap)})`,
   )
   const collisionOk =
     gap.searchFound &&
@@ -3485,7 +3507,9 @@ console.log(
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
-      connectors: { ...connectors, ics: { ...connectors.ics, enabled: false } },
+      // rss (seeded above for the col1 flow assertion) disabled here too, so
+      // neither ics nor rss leaks into any block below.
+      connectors: { ...connectors, ics: { ...connectors.ics, enabled: false }, rss: { ...connectors.rss, enabled: false } },
       connectorSnapshots: {},
     })
   })
@@ -3493,10 +3517,11 @@ console.log(
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
   const icsGone = (await page.locator(icsSel).count()) === 0
+  const rssGoneIcs = (await page.locator('[data-block-id="rss"] section[aria-label="Headlines"]').count()) === 0
   console.log(
-    icsGone
-      ? 'ics connector disabled; page restored to idle'
-      : 'WARNING: Calendar widget still present after disabling the connector',
+    icsGone && rssGoneIcs
+      ? 'ics + rss connectors disabled; page restored to idle'
+      : `WARNING: Calendar/Headlines widget still present after disabling the connectors (icsGone=${icsGone}, rssGone=${rssGoneIcs})`,
   )
 }
 
@@ -3619,35 +3644,46 @@ console.log(
   await page.waitForTimeout(800) // photo fade-in
   await page.waitForSelector(weatherSel, { timeout: 5000 }).catch(() => {})
 
+  // Task 65 rebuild — retargeted to the RIGHT ZONE's own top, not github's.
+  // Under the rails github no longer carries a `fixed top-[Nvh]` slot: it's a
+  // flow card inside `<aside data-zone="right">`, and a self-gated-off (empty)
+  // rail block is `display:none` (the `[data-zone] [data-block-id]:empty` rule),
+  // so with only weatherCache seeded here github measures 0×0 and its `top`
+  // reads 0 — the OLD probe's `github.top` was meaningless. The structural truth
+  // the rail actually owns is that the right zone STARTS below the weather chip:
+  // the zone's own top is `--rail-top-right` (180px, a fixed px so it can't rise
+  // into the content-height chip as the window shortens), and the aside always
+  // renders (it's the container, not a gated widget), so it's the honest thing
+  // to measure the chip's forced worst-case bottom against.
   const worst = await page.evaluate(
-    ({ wSel, ghSel }) => {
+    ({ wSel, zSel }) => {
       const w = document.querySelector(wSel)
-      const gh = document.querySelector(ghSel)
-      if (!w || !gh) return null
+      const z = document.querySelector(zSel)
+      if (!w || !z) return null
       const wr = w.getBoundingClientRect()
-      const ghr = gh.getBoundingClientRect()
+      const zr = z.getBoundingClientRect()
       return {
         chipFound: true,
         text: w.textContent ?? '',
         hasCallout: /rain/i.test(w.textContent ?? ''),
         hasStale: /Updated a while ago|Offline/.test(w.textContent ?? ''),
         chip: { top: +wr.top.toFixed(1), bottom: +wr.bottom.toFixed(1) },
-        github: { top: +ghr.top.toFixed(1) },
+        zoneR: { top: +zr.top.toFixed(1) },
       }
     },
-    { wSel: weatherSel, ghSel: '[data-block-id="github"]' },
+    { wSel: weatherSel, zSel: 'aside[data-zone="right"]' },
   )
   const WEATHER_GAP_FLOOR = 16
   const forcedOk =
     worst !== null &&
     worst.hasCallout &&
     worst.hasStale &&
-    worst.github.top - worst.chip.bottom >= WEATHER_GAP_FLOOR
-  const gap = worst ? +(worst.github.top - worst.chip.bottom).toFixed(1) : null
+    worst.zoneR.top - worst.chip.bottom >= WEATHER_GAP_FLOOR
+  const gap = worst ? +(worst.zoneR.top - worst.chip.bottom).toFixed(1) : null
   console.log(
     forcedOk
-      ? `PASS: the collapsed weather chip's forced 3-line worst case (rain callout + stale line) clears github's default slot by >=${WEATHER_GAP_FLOOR}px (chip bottom ${worst.chip.bottom}, github top ${worst.github.top}, gap ${gap}px)`
-      : `FAIL: the collapsed weather chip's forced 3-line worst case clears github's slot by >=${WEATHER_GAP_FLOOR}px (${JSON.stringify(worst)}, gap ${gap}px)`,
+      ? `PASS: the collapsed weather chip's forced 3-line worst case (rain callout + stale line) clears the right rail zone's top by >=${WEATHER_GAP_FLOOR}px (chip bottom ${worst.chip.bottom}, zone top ${worst.zoneR.top}, gap ${gap}px)`
+      : `FAIL: the collapsed weather chip's forced 3-line worst case clears the right rail zone's top by >=${WEATHER_GAP_FLOOR}px (${JSON.stringify(worst)}, gap ${gap}px)`,
   )
   await page.screenshot({ path: `${outDir}/weather-chip-worst-case.png` })
   console.log('captured weather-chip-worst-case.png')
@@ -4455,6 +4491,578 @@ console.log(
   )
 }
 
+// ===========================================================================
+// RESPONSIVE RAILS — structural sweeps + the resize probe (Task 65). The
+// permanent falsifier for Jon's original complaint ("at different browser
+// sizes the widgets just stay in place ... it can look great or terrible").
+// One page, every widget seeded at its DISPLAY MAX (the combined-defaults
+// gate's own fixtures), the DEFAULT layout (no arranged pos), driven through
+// the real resize path — not relaunched — and asserted after EVERY step.
+//
+// FOUR sub-probes, all in one seeded scope:
+//   A. THE RESIZE SWEEP — 1600x900 -> 1536x864 -> 1420x900 -> 1280x800 ->
+//      1024x768 -> 800x450 -> back to 1600x900. After each step: the rail
+//      widgets the width/height disciplines say should be VISIBLE are found and
+//      those they say should be HIDDEN are gone (asserted BOTH ways); no
+//      VISIBLE rail widget overlaps any other widget/peripheral; both bottom
+//      pills are CLICKABLE (elementFromPoint at each pill centre — the Task 64
+//      lesson: a card lapping a pill fails a real click, not just a rect test);
+//      no new console errors. Captures rails-1536.png + rails-1280.png.
+//   B. STRUCTURAL RAILS TRUTHS — at 1600x900, every rail widget's rect sits
+//      inside its own zone's rect (rails-within-zones), and each zone's inner
+//      edge clears the centre-reserve boundary (the strip the rails must never
+//      intrude on).
+//   C. THE REQUIRED PINNED PROBE — "arranged widget inside a zone renders at
+//      true viewport percent": an arranged monthCal at {x:50,y:50}, nested in
+//      the container-typed left zone, renders position:fixed centred at the
+//      viewport centre (+-1px) at TWO viewport sizes. This is the falsifier
+//      for anyone ever adding `contain:layout`/transform/filter/will-change to
+//      a zone (the CONTAINMENT LAW — see index.css's .rail-col2 rule): any of
+//      those would establish a containing block and trap the fixed widget
+//      against the zone box instead of the viewport, corrupting every user's
+//      saved layout.
+//   D. ARRANGE INTEROP — long-press a rail widget, drag it out: it renders
+//      fixed at the drop while the rail CLOSES THE GAP (a sibling reflows up);
+//      reload persists the arranged pixels; Reset layout returns it to the rail
+//      flow.
+//
+// SCOPE of the sweep's pairwise (deliberate, documented): every pair that
+// includes at least one RAIL widget — rail-vs-rail AND rail-vs-anything. The
+// rails are what Jon's complaint is about and what this whole phase governs;
+// this catches every rail regression (a rail card landing on a pill, a
+// peripheral, the centred column, or another rail card at any size — exactly
+// what the 601-848h residual was, jira-vs-Tasks-pill, now fixed by the `mid`
+// tier). Center-column peripheral-vs-peripheral pairs are NOT asserted here:
+// the crypto strip (top-[86vh]) sitting between the links row and the
+// bottom-anchored quote, and the centred column's own height vs quote's fixed
+// bottom anchor at ~800px tall with worldClocks+countdown on (links.bottom
+// slipping ~4px below quote.top), are a pre-existing centred-column rhythm
+// concern Task 55 already RECORDED and flagged for a follow-up task, wholly
+// outside the rails' file scope (App.tsx's centred column, index.css's
+// short/xshort thresholds). Measured, this run, they never involve a rail
+// widget, so excluding them loses no rail proof.
+{
+  const now = Date.now()
+  const H = 3_600_000
+  const d = new Date(now)
+  const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+  const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
+  const RSS_HEADLINES = Array.from({ length: 8 }, (_, i) => ({
+    source: i % 2 ? 'The Verge' : 'Hacker News',
+    title: `Headline ${i + 1}: a local-first dashboard people actually keep open`,
+    url: `https://example.com/rails/${i}`,
+    publishedAt: 8 - i,
+  }))
+  // Habits at its own 6-chip MAX_HABIT_CHIPS worst case (same shape the
+  // combined-defaults gate uses; localDateKey/prevDayKey re-derived inline
+  // since page.evaluate runs in the browser, not this Node process).
+  const seedFixtures = {
+    rssHeadlines: RSS_HEADLINES,
+    github: {
+      prs: [
+        { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+        { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+      ],
+      issues: [
+        { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+        { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+      ],
+      notifications: 3,
+      etags: {},
+    },
+    gitlab: {
+      mrs: [
+        { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+        { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+        { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
+      ],
+      todos: 6,
+    },
+    jira: {
+      issues: [
+        { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+        { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+        { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+      ],
+      counts: { 'In Progress': 2, 'To Do': 1 },
+    },
+    vercel: {
+      deployments: [
+        { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: now - 6 * H },
+        { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: now - 3 * 60_000 },
+        { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: now - 10 * 60_000 },
+        { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: now - 20 * 60_000 },
+        { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: now - H },
+      ],
+    },
+    crypto: {
+      coins: [
+        { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67_412, change24h: 2.4 },
+        { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3_245, change24h: -1.2 },
+        { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+        { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+        { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+      ],
+    },
+    icsEvents: [
+      { summary: 'Standup', start: now + step, end: now + step + 30_000 },
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
+      { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
+      { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+    ],
+    // Seeded FRESH (fetchedAt: now) so useWeather never treats the cache as
+    // stale and never fires a live Open-Meteo fetch — the chip renders its
+    // 1-line collapsed state deterministically, no network, no console error.
+    weatherFetchedAt: now,
+  }
+
+  const seedRails = async (fx) => {
+    await page.evaluate(async (fx) => {
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+      const now = Date.now()
+      function localDateKey(dt) {
+        return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+      }
+      function prevDayKey(key) {
+        const [y, m, day] = key.split('-').map(Number)
+        return localDateKey(new Date(y, m - 1, day - 1))
+      }
+      function runEndingAt(endKey, n) {
+        const keys = []
+        let cursor = endKey
+        for (let i = 0; i < n; i++) { keys.push(cursor); cursor = prevDayKey(cursor) }
+        return keys
+      }
+      const todayKey = localDateKey(new Date(now))
+      const yesterdayKey = prevDayKey(todayKey)
+      await chrome.storage.local.set({
+        location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })),
+          fetchedAt: fx.weatherFetchedAt,
+          locationLabel: 'New York',
+        },
+        habits: [
+          { id: 'h1', name: 'Read daily', createdAt: now, log: runEndingAt(todayKey, 12) },
+          { id: 'h2', name: 'Stretch', createdAt: now, log: runEndingAt(yesterdayKey, 5) },
+          { id: 'h3', name: 'Meditate', createdAt: now, log: [] },
+          { id: 'h4', name: 'Journal', createdAt: now, log: [todayKey] },
+          { id: 'h5', name: 'Walk', createdAt: now, log: [] },
+          { id: 'h6', name: 'Practice deep breathing exercises every single morning without fail', createdAt: now, log: [] },
+        ],
+        settings: { ...settings, widgets: { ...settings.widgets, habits: true, monthCal: true, timer: true, clocks: true, countdown: true } },
+        connectors: {
+          ...connectors,
+          rss: { enabled: true, feeds: ['https://a/rss', 'https://b/rss'], shownCount: 8 },
+          github: { enabled: true, token: 'gh', username: 'octocat' },
+          gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+          jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' },
+          vercel: { enabled: true, token: 'vc', username: 'jcooler' },
+          crypto: { enabled: true, coins: fx.crypto.coins.map((c) => c.id) },
+          ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+        },
+        connectorSnapshots: {
+          rss: { fetchedAt: now, data: fx.rssHeadlines },
+          github: { fetchedAt: now, data: fx.github },
+          gitlab: { fetchedAt: now, data: fx.gitlab },
+          jira: { fetchedAt: now, data: fx.jira },
+          vercel: { fetchedAt: now, data: fx.vercel },
+          crypto: { fetchedAt: now, data: fx.crypto },
+          ics: { fetchedAt: now, data: { events: fx.icsEvents } },
+        },
+      })
+    }, fx)
+  }
+
+  await seedRails(seedFixtures)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(900) // photo fade-in + connector cards mount
+
+  // Force monthCal to its 6-row worst case (col2 is shown at 1600x900, w>=1593
+  // & h>=740) — the internal month-offset persists across resizes (no reload
+  // inside the sweep), so this holds for every step that shows col2. Same
+  // click-Next-until-42-cells loop the combined gate uses, with one guaranteed
+  // Next first (the Today button only renders off the current month).
+  const monthCalSel = '[data-block-id="monthCal"]'
+  await page.click(`${monthCalSel} button[aria-label="Next month"]`).catch(() => {})
+  await page.waitForTimeout(30)
+  for (let i = 0; i < 14; i++) {
+    const c = await page.evaluate((s) => document.querySelectorAll(`${s} [data-cell-key]`).length, monthCalSel)
+    if (c === 42) break
+    await page.click(`${monthCalSel} button[aria-label="Next month"]`).catch(() => {})
+    await page.waitForTimeout(30)
+  }
+
+  const RAIL_IDS = ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira']
+  const RAIL_SEL = {
+    ics: '[data-block-id="ics"] section',
+    rss: '[data-block-id="rss"] section',
+    vercel: '[data-block-id="vercel"] section',
+    // monthCal/habits render a root <div class="w-[200px]">, not a <section>
+    // (unlike the connector cards) — measure the PositionedBlock wrapper, which
+    // in col2 shrinks to that same 200px card and goes display:none (box null)
+    // exactly when the container query / height gate hides the column.
+    monthCal: '[data-block-id="monthCal"]',
+    habits: '[data-block-id="habits"]',
+    github: '[data-block-id="github"] section',
+    gitlab: '[data-block-id="gitlab"] section',
+    jira: '[data-block-id="jira"] section',
+  }
+  const OTHER_SEL = {
+    clock: '[data-block-id="clock"]',
+    greeting: '[data-block-id="greeting"]',
+    worldClocks: '[data-block-id="worldClocks"]',
+    countdown: '[data-block-id="countdown"]',
+    search: '[data-block-id="search"]',
+    focus: '[data-block-id="focus"]',
+    links: '[data-block-id="links"]',
+    crypto: '[data-block-id="crypto"] section',
+    quote: '[data-block-id="quote"]',
+    weather: '[data-block-id="weather"] section',
+    timer: '[data-block-id="timer"] button',
+    notes: '[data-block-id="notes"] button',
+    tasks: '[data-block-id="tasks"] button',
+    gear: 'button[aria-label="Open settings"]',
+    photoRefresh: 'button[aria-label="New background photo"]',
+    ...(hasBookmarksPermission ? { bookmarks: 'nav[aria-label="Bookmarks bar"]' } : {}),
+  }
+
+  // The width/height disciplines' EXPECTED rail visibility at each swept size,
+  // derived from index.css: col2 (monthCal/habits) needs width>=1593 AND
+  // height>=740; `mid` (601-864) hides vercel/gitlab/jira and keeps github;
+  // `short` (451-600) empties the right rail and drops vercel; `xshort` (<=450)
+  // leaves only the calendar. The last row is the RETURN to 1600x900 — the
+  // reflow must be reversible (everything back).
+  const SWEEP = [
+    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2' },
+    { w: 1536, h: 864, vis: ['ics', 'rss', 'github'], cap: 'rails-1536.png', tier: 'mid (h864), no col2 (w<1593)' },
+    { w: 1420, h: 900, vis: ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira'], cap: null, tier: 'default, no col2 (w<1593)' },
+    { w: 1280, h: 800, vis: ['ics', 'rss', 'github'], cap: 'rails-1280.png', tier: 'mid (h800)' },
+    { w: 1024, h: 768, vis: ['ics', 'rss', 'github'], cap: null, tier: 'mid (h768)' },
+    { w: 800, h: 450, vis: ['ics'], cap: null, tier: 'xshort (h450)' },
+    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2 (returned)' },
+  ]
+
+  const measureSweep = async () =>
+    page.evaluate(({ railSel, otherSel }) => {
+      const box = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        if (b.width === 0 && b.height === 0) return null
+        return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1) }
+      }
+      const pill = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        if (b.width === 0 && b.height === 0) return { clickable: false, reason: 'zero-box' }
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+        return { clickable: !!hit && (el === hit || el.contains(hit)), top: +b.top.toFixed(1) }
+      }
+      const rail = {}
+      for (const [k, s] of Object.entries(railSel)) rail[k] = box(s)
+      const other = {}
+      for (const [k, s] of Object.entries(otherSel)) other[k] = box(s)
+      return { rail, other, notes: pill(otherSel.notes), tasks: pill(otherSel.tasks), vw: window.innerWidth, vh: window.innerHeight }
+    }, { railSel: RAIL_SEL, otherSel: OTHER_SEL })
+
+  const hits = (a, b) => !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+  let sweepErrs = errors.length
+  let sweepAllOk = true
+  console.log('=== the resize sweep (rails prove themselves at every size) ===')
+  for (const stepv of SWEEP) {
+    await page.setViewportSize({ width: stepv.w, height: stepv.h })
+    await page.waitForTimeout(320) // let the reflow + ResizeObserver settle
+    if (stepv.cap) {
+      await page.screenshot({ path: `${outDir}/${stepv.cap}` })
+      console.log(`captured ${stepv.cap}`)
+    }
+    const m = await measureSweep()
+
+    // 1) rail visibility matches the disciplines — both ways.
+    const wrongVis = []
+    for (const id of RAIL_IDS) {
+      const shouldShow = stepv.vis.includes(id)
+      const isShown = m.rail[id] !== null
+      if (shouldShow !== isShown) wrongVis.push(`${id}:${isShown ? 'shown' : 'hidden'}(want ${shouldShow ? 'shown' : 'hidden'})`)
+    }
+
+    // 2) rail-inclusive pairwise non-overlap: every visible rail widget vs every
+    //    OTHER visible rail widget AND every present peripheral/centre element.
+    const visRail = stepv.vis.filter((id) => m.rail[id])
+    const collisions = []
+    for (let i = 0; i < visRail.length; i++) {
+      for (let j = i + 1; j < visRail.length; j++) {
+        if (hits(m.rail[visRail[i]], m.rail[visRail[j]])) collisions.push(`${visRail[i]}x${visRail[j]}`)
+      }
+      for (const [ok, orect] of Object.entries(m.other)) {
+        if (orect && hits(m.rail[visRail[i]], orect)) collisions.push(`${visRail[i]}x${ok}`)
+      }
+    }
+
+    // 3) both bottom pills clickable at their centre (the Task 64 lesson).
+    const pillsOk = !!m.notes?.clickable && !!m.tasks?.clickable
+
+    const newErrs = errors.length - sweepErrs
+    sweepErrs = errors.length
+    const stepOk = wrongVis.length === 0 && collisions.length === 0 && pillsOk && newErrs === 0
+    if (!stepOk) sweepAllOk = false
+    console.log(
+      stepOk
+        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 rail-inclusive collisions, both pills clickable, no console errors`
+        : `FAIL: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — wrongVis=[${wrongVis.join(', ')}], collisions=[${collisions.join(', ')}], notesClick=${m.notes?.clickable}, tasksClick=${m.tasks?.clickable}, newConsoleErrors=${newErrs}`,
+    )
+  }
+  console.log(
+    sweepAllOk
+      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1024x768 -> 800x450 -> back) — the rails reflow cleanly and the pills stay clickable at every size'
+      : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
+  )
+
+  // ── Sub-probe B: structural rails truths (rails-within-zones) at 1600x900 ──
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(300)
+  const structural = await page.evaluate(({ railSel }) => {
+    const box = (sel) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      if (b.width === 0 && b.height === 0) return null
+      return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1) }
+    }
+    const zoneL = box('aside[data-zone="left"]')
+    const zoneR = box('aside[data-zone="right"]')
+    const cs = getComputedStyle(document.documentElement)
+    const reserve = parseFloat(cs.getPropertyValue('--center-reserve')) // 457px
+    const within = (r, z) =>
+      !!r && !!z && r.left >= z.left - 0.5 && r.right <= z.right + 0.5 && r.top >= z.top - 0.5 && r.bottom <= z.bottom + 0.5
+    const leftMembers = ['ics', 'rss', 'vercel', 'monthCal', 'habits']
+    const rightMembers = ['github', 'gitlab', 'jira']
+    const inZone = {}
+    for (const id of leftMembers) inZone[id] = within(box(railSel[id]), zoneL)
+    for (const id of rightMembers) inZone[id] = within(box(railSel[id]), zoneR)
+    // Each zone's inner edge must land ON the centre-reserve boundary: the
+    // reserve strip spans [ (vw-reserve)/2 , (vw+reserve)/2 ]; zoneL.right and
+    // zoneR.left must not cross into it.
+    const reserveLeftEdge = (window.innerWidth - reserve) / 2
+    const reserveRightEdge = (window.innerWidth + reserve) / 2
+    return {
+      inZone,
+      zoneL, zoneR, reserve,
+      leftClear: zoneL ? +(reserveLeftEdge - zoneL.right).toFixed(1) : null,
+      rightClear: zoneR ? +(zoneR.left - reserveRightEdge).toFixed(1) : null,
+    }
+  }, { railSel: RAIL_SEL })
+  const allInZone = Object.values(structural.inZone).every(Boolean)
+  console.log(
+    allInZone
+      ? `PASS: every rail widget's rect sits inside its own zone rect at 1600x900 (${Object.keys(structural.inZone).join(', ')} all within left/right aside)`
+      : `FAIL: a rail widget escaped its zone rect (${JSON.stringify(structural.inZone)}, zoneL=${JSON.stringify(structural.zoneL)}, zoneR=${JSON.stringify(structural.zoneR)})`,
+  )
+  const reserveOk =
+    structural.leftClear !== null && structural.rightClear !== null &&
+    structural.leftClear >= -0.5 && structural.rightClear >= -0.5
+  console.log(
+    reserveOk
+      ? `PASS: both zones' inner edges land on the --center-reserve (${structural.reserve}px) boundary without intruding (left clear ${structural.leftClear}px, right clear ${structural.rightClear}px)`
+      : `FAIL: a zone intrudes on the centre reserve (leftClear=${structural.leftClear}, rightClear=${structural.rightClear}, reserve=${structural.reserve})`,
+  )
+
+  // ── Sub-probe C: the REQUIRED pinned probe ────────────────────────────────
+  // "arranged widget inside a zone renders at true viewport percent". An
+  // arranged monthCal at {x:50,y:50} — nested in the container-typed left zone
+  // — must render position:fixed with its CENTRE at the viewport centre, at two
+  // different sizes. The falsifier for the CONTAINMENT LAW (never add
+  // contain:layout / transform / filter / will-change to a zone: any would trap
+  // this fixed widget against the zone box instead of the viewport).
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({ layout: { monthCal: { x: 50, y: 50 } } })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(700)
+  let arrangedZoneOk = true
+  const arrangedDetails = []
+  for (const { w, h } of [{ w: 1600, h: 900 }, { w: 1280, h: 720 }]) {
+    await page.setViewportSize({ width: w, height: h })
+    await page.waitForTimeout(350) // ResizeObserver re-centre
+    const c = await page.evaluate(() => {
+      const el = document.querySelector('[data-block-id="monthCal"]')
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      return {
+        cx: b.left + b.width / 2,
+        cy: b.top + b.height / 2,
+        position: getComputedStyle(el).position,
+        count: document.querySelectorAll('[data-block-id="monthCal"]').length,
+      }
+    })
+    const okCentre = c && Math.abs(c.cx - w / 2) <= 1 && Math.abs(c.cy - h / 2) <= 1 && c.position === 'fixed' && c.count === 1
+    if (!okCentre) arrangedZoneOk = false
+    arrangedDetails.push(
+      c ? `${w}x${h}: centre (${c.cx.toFixed(1)}, ${c.cy.toFixed(1)}) vs (${w / 2}, ${h / 2}), ${c.position}, ${c.count} node` : `${w}x${h}: not found`,
+    )
+  }
+  console.log(
+    arrangedZoneOk
+      ? `PASS: an arranged monthCal {x:50,y:50} inside the left zone renders position:fixed centred at the true viewport centre (+-1px) at both sizes — container-type does NOT trap the fixed descendant (${arrangedDetails.join('; ')})`
+      : `FAIL: arranged widget inside a zone renders at true viewport percent (${arrangedDetails.join('; ')})`,
+  )
+  // Restore the default (flowing) layout.
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({ layout: {} })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(700)
+
+  // ── Sub-probe D: arrange interop — drag a rail widget out of its rail ──────
+  // Long-press the Calendar card (first in the left zone's col1), drag it out:
+  // it renders fixed at the drop while the rail closes the gap — Headlines
+  // (the sibling directly below it) reflows UP into the calendar's vacated
+  // slot. Reload persists the arranged pixels; Reset returns it to the flow.
+  const icsSel = '[data-block-id="ics"]'
+  const rssBlockSel = '[data-block-id="rss"]'
+  const railBox = async (sel) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s)
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1), cx: b.left + b.width / 2, cy: b.top + b.height / 2, position: getComputedStyle(el).position }
+    }, sel)
+
+  const icsBefore = await railBox(icsSel)
+  const rssTopBefore = (await railBox(rssBlockSel))?.top ?? null
+
+  // Long-press ics -> arrange mode.
+  await page.mouse.move(icsBefore.cx, icsBefore.cy)
+  await page.mouse.down()
+  await page.waitForTimeout(650)
+  await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+  // Drag it to a clear spot right-of-centre, low on the page (away from the
+  // rail and the centred column), in real intermediate steps.
+  const drop = { x: 900, y: 620 }
+  const dragSteps = 10
+  for (let i = 1; i <= dragSteps; i++) {
+    await page.mouse.move(
+      icsBefore.cx + ((drop.x - icsBefore.cx) * i) / dragSteps,
+      icsBefore.cy + ((drop.y - icsBefore.cy) * i) / dragSteps,
+    )
+    await page.waitForTimeout(30)
+  }
+  // Mid-drag: the sibling (rss) has reflowed up into the calendar's old slot.
+  await page.waitForTimeout(120)
+  const rssTopDuring = (await railBox(rssBlockSel))?.top ?? null
+  await page.mouse.up()
+  await page.waitForTimeout(300)
+  await page.click('[data-arrange-overlay] button:has-text("Done")')
+  await page.waitForTimeout(300)
+
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+
+  const icsAfter = await railBox(icsSel)
+  const rssTopAfter = (await railBox(rssBlockSel))?.top ?? null
+  const dropDx = icsAfter ? Math.abs(icsAfter.cx - drop.x) : Infinity
+  const dropDy = icsAfter ? Math.abs(icsAfter.cy - drop.y) : Infinity
+  const draggedFixed = icsAfter?.position === 'fixed'
+  const persistedOk = draggedFixed && dropDx <= 16 && dropDy <= 16
+  console.log(
+    persistedOk
+      ? `PASS: a dragged rail widget renders fixed at the drop and persists across reload (ics centre (${icsAfter.cx.toFixed(1)}, ${icsAfter.cy.toFixed(1)}) vs drop (${drop.x}, ${drop.y}), position ${icsAfter.position})`
+      : `FAIL: a dragged rail widget renders fixed at the drop and persists (position=${icsAfter?.position}, centre=(${icsAfter?.cx?.toFixed(1)}, ${icsAfter?.cy?.toFixed(1)}), drop=(${drop.x}, ${drop.y}))`,
+  )
+  // The rail closed the gap: rss moved UP (its top decreased) once ics left the
+  // flow — asserted both mid-drag (live draft) and after reload (persisted).
+  const reflowedUp =
+    rssTopBefore !== null && rssTopAfter !== null && rssTopDuring !== null &&
+    rssTopAfter < rssTopBefore - 30 && rssTopDuring < rssTopBefore - 30
+  console.log(
+    reflowedUp
+      ? `PASS: the rail reflowed when the widget left it — Headlines rose into the Calendar's vacated slot (rss.top ${rssTopBefore} -> ${rssTopDuring} mid-drag -> ${rssTopAfter} after reload)`
+      : `FAIL: the rail did not reflow when the widget left it (rss.top before=${rssTopBefore}, during=${rssTopDuring}, after=${rssTopAfter})`,
+  )
+
+  // Reset layout -> the widget returns to the rail flow.
+  const icsNow = await railBox(icsSel)
+  await page.mouse.move(icsNow.cx, icsNow.cy)
+  await page.mouse.down()
+  await page.waitForTimeout(650)
+  await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+  await page.mouse.up()
+  await page.waitForTimeout(150)
+  await page.click('[data-arrange-overlay] button:has-text("Reset")')
+  await page.waitForTimeout(150)
+  const resetDialog = page.locator('[aria-label="Reset layout?"]')
+  await resetDialog.getByRole('button', { name: 'Reset layout' }).click()
+  await page.waitForTimeout(150)
+  await page.click('[data-arrange-overlay] button:has-text("Done")')
+  await page.waitForTimeout(300)
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+
+  const icsReset = await railBox(icsSel)
+  const rssTopReset = (await railBox(rssBlockSel))?.top ?? null
+  const backInFlow =
+    icsReset?.position !== 'fixed' &&
+    icsBefore && Math.abs(icsReset.top - icsBefore.top) <= 2 &&
+    rssTopBefore !== null && rssTopReset !== null && Math.abs(rssTopReset - rssTopBefore) <= 2
+  console.log(
+    backInFlow
+      ? `PASS: Reset layout returned the widget to the rail flow (ics back at top ${icsReset.top} — its rail slot ${icsBefore.top} — position ${icsReset.position}; rss back at ${rssTopReset})`
+      : `FAIL: Reset layout returned the widget to the rail flow (ics.top=${icsReset?.top} want ~${icsBefore?.top}, position=${icsReset?.position}, rss.top=${rssTopReset} want ~${rssTopBefore})`,
+  )
+
+  // Restore: disable every connector + widget seeded here, clear caches/habits,
+  // layout back to default, and reload — nothing here leaks into the blocks
+  // below (same restore discipline as the combined-defaults gate above).
+  await page.evaluate(async () => {
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+    const off = {}
+    for (const k of ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics']) off[k] = { ...connectors[k], enabled: false }
+    await chrome.storage.local.set({
+      connectors: { ...connectors, ...off },
+      connectorSnapshots: {},
+      habits: [],
+      layout: {},
+      weatherCache: null,
+      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  // "Gone" = inner CONTENT absent, not the wrapper: PositionedBlock's
+  // [data-block-id] div always renders (gated or not), so the connectors are
+  // checked by their <section> and monthCal/habits by their table/chip content
+  // (the same distinction the combined-defaults gate's own restore makes).
+  const railsAllGone = await page.evaluate(() => {
+    const goneSels = [
+      '[data-block-id="ics"] section',
+      '[data-block-id="rss"] section',
+      '[data-block-id="vercel"] section',
+      '[data-block-id="github"] section',
+      '[data-block-id="gitlab"] section',
+      '[data-block-id="jira"] section',
+      '[data-block-id="monthCal"] table',
+      '[data-block-id="habits"] button',
+    ]
+    return goneSels.every((s) => document.querySelector(s) === null)
+  })
+  console.log(
+    railsAllGone
+      ? 'Rails sweep restored: all connectors + monthCal/habits disabled, layout reset, page idle'
+      : 'WARNING: a rail widget still present after the rails-sweep restore',
+  )
+}
+
 // Open-panel-vs-connector disciplined-occlusion gate (final-review fix
 // wave, Fix 1) — the SAME structural defect the expanded-weather-vs-
 // connectors check just above exists for, for the three ALWAYS-AVAILABLE
@@ -4890,6 +5498,7 @@ console.log(
         habits: r(hSel),
         rss: r(rSel),
         links: r(lSel),
+        zoneLeft: r('aside[data-zone="left"]'),
         centered: cSels.map((sel) => ({ sel, rect: r(sel) })),
       }
     },
@@ -4899,25 +5508,27 @@ console.log(
   const FLOOR = 16
   const h = rectsRaw.habits
 
-  // Left floor: RSS's own column right edge. Structurally deterministic
-  // (left-8 + w-72 = 320px) but measured here against the REAL rendered
-  // card, not assumed. NOT the binding constraint (Task 59 correction): the
-  // left column's actual WIDEST card is vercel's (`left-8 w-80` = 32-352px,
-  // 32px wider than RSS/ics), and vercel shares a vertical band with habits
-  // whenever both are on — the combined-defaults gate's own `mid-left
-  // column gap floor` block (scripts/preview.mjs, the connectors-all
-  // section) asserts that REAL exact 16px gap against a live vercel render,
-  // since vercel isn't part of this isolated fixture. This assertion just
-  // confirms RSS's own (now non-binding, more generous) exact clearance
-  // still holds: 368 (`left-[23rem]`) - 320 (rss.right) = 48px, unchanged
-  // unless either widget's fixed Tailwind width changes.
-  const RSS_GAP = 48
+  // Task 65 rebuild — the STRUCTURAL rail truth: habits is a col2 card, and
+  // col2 flows exactly the row's gap-4 (16px) to the right of col1's widest
+  // card. In THIS isolated fixture col1 holds only rss (`w-72`, 320px right
+  // edge — the widest col1 card here, since vercel/ics aren't seeded), so
+  // habits.left sits 16px past rss.right. (In the combined-defaults gate, where
+  // vercel — `w-80`, 352px right edge — widens col1, that same gap-4 puts col2
+  // at rss.right+48; the gate's own `mid-left column gap floor` probe asserts
+  // THAT case against a live vercel. Both are the identical gap-4 rhythm read
+  // off whichever card is widest.) Asserted EXACT — a flex gap has no worst-case
+  // growth — plus habits actually sitting inside the left zone's rect.
+  const COL2_FLOW_GAP = 16
   const leftGap = rectsRaw.rss && h ? +(h.left - rectsRaw.rss.right).toFixed(1) : null
-  const leftOk = leftGap === RSS_GAP
+  const habitsInZone = h && rectsRaw.zoneLeft
+    ? h.left >= rectsRaw.zoneLeft.left - 0.5 && h.right <= rectsRaw.zoneLeft.right + 0.5 &&
+      h.top >= rectsRaw.zoneLeft.top - 0.5
+    : false
+  const leftOk = leftGap === COL2_FLOW_GAP && habitsInZone
   console.log(
     leftOk
-      ? `PASS: habits column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right})`
-      : `FAIL: habits column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (gap=${leftGap}, habits=${JSON.stringify(h)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+      ? `PASS: habits (col2) sits exactly the gap-4 flex rhythm (${COL2_FLOW_GAP}px) right of col1's widest card AND inside the left zone rect (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right}, zone ${rectsRaw.zoneLeft?.left}..${rectsRaw.zoneLeft?.right})`
+      : `FAIL: habits (col2) gap-4 rhythm + zone containment (gap=${leftGap}, inZone=${habitsInZone}, habits=${JSON.stringify(h)}, rss=${JSON.stringify(rectsRaw.rss)}, zone=${JSON.stringify(rectsRaw.zoneLeft)})`,
   )
 
   // Right floor: whichever centered-column element(s) actually occupy the
@@ -5001,13 +5612,20 @@ console.log(
   const monthCalSel = '[data-block-id="monthCal"]'
   const greetingPSel = '[data-block-id="greeting"] p'
 
-  // (a) WORST-NAME cap. At 1600x900 (column visible) an UNCAPPED greeting with
-  // a 12+ char custom name penetrated habits by ~37.7px (live-probed: "Good
-  // morning, Christopherson." reached left=530.3 vs habits.right 568). Seed
-  // that same name and assert the CAPPED greeting's left edge now clears the
-  // habits right edge by >=16px AND that the cap actually engaged (the line is
-  // truncated, scrollWidth > clientWidth — so this cannot pass merely because
-  // the name happened to be short). Name restored right after.
+  // (a) WORST-NAME cap — Task 65 rebuild to the STRUCTURAL column bound. Under
+  // the rails the greeting is no longer capped by a `min-[1593px]` width rule
+  // vs. a fixed-px mid-left column; the centred column is bounded to
+  // `--center-reserve` (`max-w-[var(--center-reserve)] mx-auto`, App.tsx) and
+  // the greeting's flex-item wrapper carries `min-w-0 max-w-full`, so a long
+  // name caps at the reserve width + ellipsis. The reserve boundary is ALSO
+  // exactly where the left rail zone's inner (right) edge lands by construction
+  // (`2rem + rail-w = (100vw - CR)/2`), so the truth to assert is: the capped
+  // greeting's left edge never crosses INTO the left zone — greeting.left >=
+  // zoneLeft.right — AND the cap actually engaged (line truncated, scrollWidth >
+  // clientWidth, so this can't pass merely because the name was short). The old
+  // probe additionally required the greeting's band to OVERLAP habits'; under
+  // the rails they no longer share a vertical band (habits is higher up), which
+  // is correct, not a regression — dropped. Name restored right after.
   const nameBeforeProbe = await page.evaluate(
     async () => (await chrome.storage.local.get('settings')).settings.name ?? '',
   )
@@ -5021,7 +5639,7 @@ console.log(
   await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
   await page.waitForTimeout(200)
   const worst = await page.evaluate(
-    ({ gSel, hSel }) => {
+    ({ gSel }) => {
       const r = (sel) => {
         const el = document.querySelector(sel)
         if (!el) return null
@@ -5033,22 +5651,23 @@ console.log(
         greeting: r(gSel),
         greetingText: gEl?.textContent ?? null,
         clipped: gEl ? gEl.scrollWidth > gEl.clientWidth : null,
-        habits: r(hSel),
+        zoneLeft: r('aside[data-zone="left"]'),
       }
     },
-    { gSel: greetingPSel, hSel: habitsSel },
+    { gSel: greetingPSel },
   )
-  const WORST_FLOOR = 16
-  const worstGap = worst.greeting && worst.habits ? +(worst.greeting.left - worst.habits.right).toFixed(1) : null
-  const worstOverlap =
-    worst.greeting && worst.habits
-      ? !(worst.greeting.bottom <= worst.habits.top || worst.greeting.top >= worst.habits.bottom)
-      : false
-  const worstOk = worstGap !== null && worstGap >= WORST_FLOOR && worstOverlap && worst.clipped === true
+  // The greeting sits in the reserve strip; the left zone stops at the reserve
+  // boundary. They meet flush (both bounded by --center-reserve), so the floor
+  // between them is 0 by construction — the assertion is "does not cross", not a
+  // >=16 gap. A -0.5px tolerance absorbs sub-pixel rounding at the shared edge.
+  const worstClear = worst.greeting && worst.zoneLeft
+    ? +(worst.greeting.left - worst.zoneLeft.right).toFixed(1)
+    : null
+  const worstOk = worstClear !== null && worstClear >= -0.5 && worst.clipped === true
   console.log(
     worstOk
-      ? `PASS: a 12+ char custom name ("${worst.greetingText}") is capped so the greeting's left edge clears the habits column right edge by >=${WORST_FLOOR}px (${worstGap}px; greeting.left=${worst.greeting.left}, habits.right=${worst.habits.right}; line truncated=${worst.clipped}, bands overlap=${worstOverlap})`
-      : `FAIL: a 12+ char custom name greeting cap (gap=${worstGap}px, overlap=${worstOverlap}, clipped=${worst.clipped}, greeting=${JSON.stringify(worst.greeting)}, habits=${JSON.stringify(worst.habits)}, text=${JSON.stringify(worst.greetingText)})`,
+      ? `PASS: a 12+ char custom name ("${worst.greetingText}") is capped to the centred reserve column so the greeting's left edge never crosses into the left rail zone (greeting.left=${worst.greeting.left} >= zone.right=${worst.zoneLeft.right}, clearance ${worstClear}px; line truncated=${worst.clipped})`
+      : `FAIL: a 12+ char custom name greeting column bound (clearance=${worstClear}px, clipped=${worst.clipped}, greeting=${JSON.stringify(worst.greeting)}, zoneLeft=${JSON.stringify(worst.zoneLeft)}, text=${JSON.stringify(worst.greetingText)})`,
   )
   await page.evaluate(async (name) => {
     const { settings } = await chrome.storage.local.get('settings')
@@ -5413,6 +6032,7 @@ console.log(
         habits: r(hSel),
         rss: r(rSel),
         links: r(lSel),
+        zoneLeft: r('aside[data-zone="left"]'),
         centered: cSels.map((sel) => ({ sel, rect: r(sel) })),
       }
     },
@@ -5423,25 +6043,25 @@ console.log(
   const m = rectsRaw.monthCal
   const h = rectsRaw.habits
 
-  // Left floor: RSS's own column right edge — asserted EXACT, same
-  // discipline as the habits block above (both widths are fixed Tailwind
-  // classes with no worst-case growth to defend against). NOT the binding
-  // constraint (Task 59 correction, same reasoning as the habits block's own
-  // left-floor comment below in this file): vercel's card is the left
-  // column's actual widest (`left-8 w-80` = 32-352px), so this column's real
-  // left-edge floor is pinned against vercel, not RSS — but monthCal's OWN
-  // vertical band (108-355 at 1600x900) never overlaps vercel's (576-768 at
-  // its own worst case), so unlike habits, monthCal never actually risks
-  // colliding with vercel regardless of x; this column shares habits' own
-  // `left-[23rem]` purely for visual alignment, and RSS's own gap here (48px
-  // now, up from 16px) is exact but non-binding for the same reason.
-  const RSS_GAP = 48
+  // Task 65 rebuild — the STRUCTURAL rail truth, same as the habits block's
+  // own retargeted left-edge probe above: monthCal is a col2 card, and col2
+  // flows exactly the row's gap-4 (16px) right of col1's widest card. In this
+  // isolated fixture col1 holds only rss (`w-72`, the widest here), so
+  // monthCal.left sits 16px past rss.right. (In the combined-defaults gate,
+  // vercel's `w-80` widens col1 and that same gap-4 reads as 48px — the gate's
+  // own `mid-left column gap floor` probe asserts THAT case.) Asserted EXACT +
+  // monthCal actually inside the left zone rect.
+  const COL2_FLOW_GAP = 16
   const leftGap = rectsRaw.rss && m ? +(m.left - rectsRaw.rss.right).toFixed(1) : null
-  const leftOk = leftGap === RSS_GAP
+  const monthCalInZone = m && rectsRaw.zoneLeft
+    ? m.left >= rectsRaw.zoneLeft.left - 0.5 && m.right <= rectsRaw.zoneLeft.right + 0.5 &&
+      m.top >= rectsRaw.zoneLeft.top - 0.5
+    : false
+  const leftOk = leftGap === COL2_FLOW_GAP && monthCalInZone
   console.log(
     leftOk
-      ? `PASS: monthCal column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right})`
-      : `FAIL: monthCal column left edge clears RSS's own column right edge by exactly ${RSS_GAP}px (gap=${leftGap}, monthCal=${JSON.stringify(m)}, rss=${JSON.stringify(rectsRaw.rss)})`,
+      ? `PASS: monthCal (col2) sits exactly the gap-4 flex rhythm (${COL2_FLOW_GAP}px) right of col1's widest card AND inside the left zone rect (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right}, zone ${rectsRaw.zoneLeft?.left}..${rectsRaw.zoneLeft?.right})`
+      : `FAIL: monthCal (col2) gap-4 rhythm + zone containment (gap=${leftGap}, inZone=${monthCalInZone}, monthCal=${JSON.stringify(m)}, rss=${JSON.stringify(rectsRaw.rss)}, zone=${JSON.stringify(rectsRaw.zoneLeft)})`,
   )
 
   // Right floor: whichever centered-column element(s) actually occupy

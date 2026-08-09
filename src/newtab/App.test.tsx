@@ -636,27 +636,37 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
     }
   })
 
-  it('height-tier hides are per-widget on the default wrapper (measured at each tier INTERIOR worst case): calendar always stays; headlines trims on short (row-level, in RssWidget) + drops on xshort; deploys + all three code connectors drop on short', async () => {
+  it('height-tier hides are per-widget on the default wrapper (measured at each tier INTERIOR worst case): calendar always stays; headlines trims on mid+short (row-level, in RssWidget) + drops on xshort; deploys drops on mid+short; the right rail keeps github on mid but drops gitlab+jira, and empties on short', async () => {
     await renderApp()
     const has = (id: string, cls: string) =>
       document.querySelector(`[data-block-id="${id}"]`)!.classList.contains(cls)
     // Left col1: calendar always stays (worst ~78px, clears the Notes pill even
-    // at 451h). Headlines' WRAPPER carries only xshort:hidden — on short it
-    // stays (trimmed to 3 rows inside RssWidget so the card can't grow over the
-    // Notes pill at the tier's 451px floor). Deploys drops on short.
+    // at 451h). Headlines' WRAPPER carries only xshort:hidden — on mid/short it
+    // stays (trimmed inside RssWidget to RSS_MID_ROWS / RSS_SHORT_ROWS so the
+    // card can't grow over the Notes pill at either tier's floor). Deploys drops
+    // on mid AND short (Task 65: vercel's 740 bottom laps the Notes pill below
+    // 810h and can't be trimmed clear, so it whole-hides across the mid band).
+    expect(has('ics', 'mid:hidden')).toBe(false)
     expect(has('ics', 'short:hidden')).toBe(false)
     expect(has('ics', 'xshort:hidden')).toBe(false)
+    expect(has('rss', 'mid:hidden')).toBe(false)
     expect(has('rss', 'short:hidden')).toBe(false)
     expect(has('rss', 'xshort:hidden')).toBe(true)
+    expect(has('vercel', 'mid:hidden')).toBe(true)
     expect(has('vercel', 'short:hidden')).toBe(true)
     expect(has('vercel', 'xshort:hidden')).toBe(true)
-    // Right rail: at 451h the Tasks pill top is 397 and the column has only
-    // 217px above it — even github's 235px worst case overruns it — so ALL
-    // THREE drop on short (and xshort). The right rail is empty on short.
+    // Right rail: on `mid` (601-864) github STAYS (bottom 415 clears the Tasks
+    // pill's highest top, 547 at the 601px floor, by 132px) while gitlab+jira
+    // whole-hide (their 605/795 bottoms lap the pill across the band). On short
+    // (451-600) the column has only 217px above the 397 pill — even github's
+    // 235px overruns it — so ALL THREE drop, and the right rail is empty.
+    expect(has('github', 'mid:hidden')).toBe(false)
     expect(has('github', 'short:hidden')).toBe(true)
     expect(has('github', 'xshort:hidden')).toBe(true)
+    expect(has('gitlab', 'mid:hidden')).toBe(true)
     expect(has('gitlab', 'short:hidden')).toBe(true)
     expect(has('gitlab', 'xshort:hidden')).toBe(true)
+    expect(has('jira', 'mid:hidden')).toBe(true)
     expect(has('jira', 'short:hidden')).toBe(true)
     expect(has('jira', 'xshort:hidden')).toBe(true)
   })

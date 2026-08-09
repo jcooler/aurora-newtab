@@ -438,15 +438,28 @@ export default function App() {
               HEIGHT PRIORITY (per-widget, MEASURED at each tier's INTERIOR
               WORST CASE — its MINIMUM height, because the bottom pills/quote are
               bottom-anchored and rise as the window shrinks; the MECHANISM +
-              this priority are binding, Task 65's occlusion probes pin the exact
-              cutoffs): col1 keeps CALENDAR at every height (worst ~78px, always
-              clears); HEADLINES trims to its first 3 rows on short so the card
-              can't grow over the Notes pill at the tier's 451px floor (see
-              RssWidget's RSS_SHORT_ROWS math) and drops entirely on xshort;
-              DEPLOYS drops on short. col2 (month + habits, 627px worst stack)
-              drops below 740h so it clears the bottom quote by >=16px at the
-              gate's own minimum — see the .rail-col2 height gate in index.css.
-              Right rail states its own. */}
+              this priority are binding, pinned by scripts/preview.mjs's rail +
+              resize-sweep probes): col1 keeps CALENDAR at every height (worst
+              ~78px, always clears); HEADLINES trims to its first RSS_MID_ROWS
+              rows on mid and its first RSS_SHORT_ROWS on short so the card can't
+              grow over the Notes pill at either tier's floor (see RssWidget's
+              math) and drops entirely on xshort; DEPLOYS drops on mid AND short
+              (Task 65: at display max vercel's bottom is 740, which laps the
+              Notes pill — top height-54 — at any height below 810, so it drops
+              across the whole 601-864 mid band; it was already gone on short).
+              col2 (month + habits, 627px worst stack) drops below 740h so it
+              clears the bottom quote by >=16px at the gate's own minimum — see
+              the .rail-col2 height gate in index.css. Right rail states its own.
+
+              TASK 65 — the 601-848h mid-height residual Task 64 ledgered is
+              CLOSED by the `mid` tier (index.css, 601-864px): at the band's 601px
+              interior worst the Notes pill top sits at 547 and, with vercel hidden
+              + rss trimmed to RSS_MID_ROWS (bottom 492), the left column clears it
+              by 55px; the right column (below) clears its Tasks pill likewise.
+              MEASURED honestly (scripts/preview.mjs's mid-height probe): row trims
+              alone could NOT save vercel (its 740 bottom overruns the pill even
+              with rss fully hidden above it), so vercel WHOLE-widget-hides on mid,
+              per the documented priority. */}
           <aside data-zone="left" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
@@ -461,7 +474,7 @@ export default function App() {
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="vercel">
-                  <PositionedBlock id="vercel" pos={layout?.vercel} className="short:hidden xshort:hidden">
+                  <PositionedBlock id="vercel" pos={layout?.vercel} className="mid:hidden short:hidden xshort:hidden">
                     <VercelWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
@@ -494,11 +507,15 @@ export default function App() {
               rail-top-right 180 with only 217px of room — github's 235px worst
               case alone overruns it (bottom 415 > 397, swallowing the pill's
               click), and a connector glance-card can't trim below one card here,
-              so the right rail is empty on short/xshort. RESIDUAL for Task 65
-              (ledgered): ABOVE the short tier, at ~600-848px tall with all three
-              connectors at display max, the 615px column still laps the Tasks
-              pill (no `short` fires >600h) — the occlusion probes must pin it,
-              via a mid-height tier or per-widget row trim. */}
+              so the right rail is empty on short/xshort. TASK 65 — the ledgered
+              601-848h residual is CLOSED: on the `mid` tier (601-864px, index.css)
+              GITLAB and JIRA whole-widget-hide, leaving GITHUB alone (its bottom
+              415 clears even the highest Tasks pill top — 547 at the band's 601px
+              floor — by 132px). The upper bound 864 is where the RESIDUAL itself
+              ends, measured, not guessed: jira's own bottom (795 at display max)
+              clears the Tasks pill (top height-54) by the 16px floor only at
+              height >= 865, so the tier covers exactly [601, 864] — at 865+ all
+              three connectors flow at full height and clear the pill unaided. */}
           <aside data-zone="right" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
             <WidgetBoundary name="github">
               <PositionedBlock id="github" pos={layout?.github} className="short:hidden xshort:hidden">
@@ -506,12 +523,12 @@ export default function App() {
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="gitlab">
-              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="short:hidden xshort:hidden">
+              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="mid:hidden short:hidden xshort:hidden">
                 <GitlabWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="jira">
-              <PositionedBlock id="jira" pos={layout?.jira} className="short:hidden xshort:hidden">
+              <PositionedBlock id="jira" pos={layout?.jira} className="mid:hidden short:hidden xshort:hidden">
                 <JiraWidget />
               </PositionedBlock>
             </WidgetBoundary>

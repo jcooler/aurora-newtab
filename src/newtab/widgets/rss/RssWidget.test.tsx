@@ -84,6 +84,38 @@ describe('RssWidget', () => {
     expect(rows[4].classList.contains('short:hidden')).toBe(true)
   })
 
+  it('trims to the first RSS_MID_ROWS rows on the mid tier: only rows past the 7th carry mid:hidden (Task 65 — keeps the card off the Notes pill at the 601px mid-band floor without over-trimming where there is room)', async () => {
+    // Eight headlines (RSS's display max, shownCount:8) so exactly one row sits
+    // past the 7-row mid cap. jsdom has no media queries, so this pins the class
+    // WIRING; the live 601h no-overlap + pill-clickable proof is the mid-height
+    // and resize-sweep probes in scripts/preview.mjs.
+    const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
+      source: `Src ${i}`,
+      title: `Row ${i} headline`,
+      url: `https://example.com/${i}`,
+      publishedAt: 50 - i,
+    }))
+    const storage = await seededStorage(
+      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
+      eight,
+    )
+    const { container } = mount(storage)
+    await screen.findByText('Row 0 headline')
+    const rows = [...container.querySelectorAll('li')]
+    expect(rows.length).toBe(8)
+    // Rows 0-6 (the first RSS_MID_ROWS) never carry mid:hidden — they survive
+    // the mid tier. Only the 8th row (index 7) drops on mid.
+    for (let i = 0; i < 7; i++) expect(rows[i].classList.contains('mid:hidden')).toBe(false)
+    expect(rows[7].classList.contains('mid:hidden')).toBe(true)
+    // The mid trim is independent of the short trim: rows 3-6 drop only on
+    // short (not mid); the 8th row drops on BOTH (disjoint tiers, so it only
+    // ever hides under whichever one actually matches).
+    expect(rows[3].classList.contains('short:hidden')).toBe(true)
+    expect(rows[3].classList.contains('mid:hidden')).toBe(false)
+    expect(rows[7].classList.contains('short:hidden')).toBe(true)
+    expect(rows[7].classList.contains('mid:hidden')).toBe(true)
+  })
+
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 })
     mount(storage)
