@@ -176,12 +176,51 @@ export default function WeatherWidget({
   // at every covered point, on screen, clear of the band and the pill)
   // rather than pretending it isn't there.
   //
+  // SHORT-WIDE fix (the board's last open collision). At the extreme
+  // short-wide end — 800x450 is the matrix's own fencepost — the centred
+  // clock rides HIGH in a compressed short column while its FORCED-WIDE
+  // (2-digit hour) box is also near its widest for that height, and this
+  // chip's natural content width (icon + temp + condition/city + chevron,
+  // whatever today's weather happens to be) reaches in far enough from the
+  // right that the clock's top-right corner laps the chip's bottom-left —
+  // real, measured (this fix's own probe, scripts/preview.mjs): clock right
+  // edge 519.5px, chip left edge 470.6px at 800x450, a 48.9px horizontal
+  // collision (61px of it vertical too — the chip's own forced 3-line worst
+  // case, rain callout + stale line, only makes the vertical reach WORSE).
+  //
+  // The clock is the hero (canvas identity) — it does not give ground here.
+  // At 450px of height its rendered size (90px, per --clock-font) is
+  // already the height-scarce branch of its own fluid curve, not an
+  // oversized default that merely needs a cap; shrinking it further to
+  // clear the chip would either blow through its own 3rem floor or read as
+  // visibly undersized against a 450px-tall canvas (judged directly off
+  // this fix's own capture). The chip's `truncate` discipline already
+  // exists for exactly this trade — a narrower cap forces the condition/
+  // city text to ellipsis sooner, never wraps, never grows a second line —
+  // so it is the one that gives.
+  //
+  // `xshort:` (<=450h — index.css) adds a THIRD term to the existing min():
+  // the room actually left beside the clock's own right edge. The clock's
+  // box is horizontally centred on the viewport centre (App.tsx's centred
+  // column), so its right edge is always `50vw + --clock-half-w`; this
+  // chip is right-anchored (`right-4` = 1rem inset) so its own right edge
+  // is `100vw - 1rem`. Subtracting the clock's reach plus the house 16px
+  // (1rem) floor from that gap leaves the room this chip may use:
+  // `(100vw - 1rem) - (50vw + --clock-half-w) - 1rem` = `50vw - 2rem -
+  // --clock-half-w` — a live formula, not a number pinned to 800x450, so it
+  // holds at every width/height inside the xshort tier (verified at
+  // 700/750/800/900/1000 widths — this fix's own probe, all clear by
+  // >=16px), not merely the one matrix fencepost. It only ever NARROWS the
+  // existing cap (the min() keeps the reading-measure and timer-pill terms
+  // too) — at a wide-but-short window this term is generous and one of the
+  // other two binds instead, exactly as before this fix.
+  //
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
   // class name assembled at runtime is never generated at build time.
   const widthClass = expanded
     ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
-    : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))]'
+    : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
 
   return (
     <section

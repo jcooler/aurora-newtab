@@ -27,7 +27,25 @@ export default function Clock() {
       // skinny side-window isn't dominated by a floor-clamped clock. At
       // standard sizes (1600x900 and up) both old and new saturate against
       // the shared 10rem ceiling and render identically.
-      className="text-photo text-canvas-fg font-display text-[clamp(3rem,min(12vw,20vh),10rem)] font-medium tabular-nums tracking-[-0.02em]"
+      //
+      // `var(--clock-font)`, not the clamp() written out here — index.css
+      // now owns this expression (VALUE unchanged) as the single source of
+      // truth, because the collapsed weather chip needs the clock's own
+      // rendered half-width to stay clear of it at short-wide sizes
+      // (`--clock-half-w`, derived from this SAME property) and a second,
+      // hand-copied clamp() in WeatherWidget.tsx would be one more place
+      // this number could silently drift. See index.css's own comment on
+      // both properties for the full derivation.
+      //
+      // The explicit `length:` type hint is LOAD-BEARING, not decoration —
+      // `text-[var(--clock-font)]` alone is ambiguous (a bare `var()` gives
+      // Tailwind's arbitrary-value type sniffer nothing to recognise as a
+      // length, unlike the literal `clamp(3rem,…)` this replaced), and it
+      // silently resolved as `text-{color}` instead: the clock rendered at
+      // an inherited ~12px with `color: var(--clock-font)` quietly doing
+      // nothing (an invalid color, dropped) — found by this fix's own
+      // measurement probe, not by inspection.
+      className="text-photo text-canvas-fg font-display text-[length:var(--clock-font)] font-medium tabular-nums tracking-[-0.02em]"
     >
       {formatClock(now, settings.use24Hour)}
     </time>

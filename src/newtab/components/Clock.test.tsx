@@ -104,8 +104,24 @@ describe('Clock — text-photo legibility utility', () => {
 // viewport, so this asserts the className carries the formula itself rather
 // than a resolved pixel value; the real cross-size proof is the preview
 // harness's viewport matrix + overlap assertion (scripts/preview.mjs).
+//
+// The formula itself moved to index.css's `--clock-font` custom property
+// (the short-wide clock-vs-weather-chip fix): the collapsed weather chip
+// needs the SAME expression, to compute the clock's own rendered half-width
+// and stay clear of it at xshort sizes (`--clock-half-w`, WeatherWidget.tsx),
+// and a second hand-copied clamp() there would be a silent-drift hazard this
+// codebase avoids elsewhere too (see index.css's --top-band-gap "keep the
+// two in sync" comment for the same tradeoff made explicit). So this is now
+// TWO assertions instead of one — the element wires up the property (via the
+// `length:` type hint, load-bearing: a bare `text-[var(--clock-font)]`
+// reads as an ambiguous arbitrary value and Tailwind sniffs it as `color`,
+// not `font-size` — found by this fix's own real-Chromium probe, a ~12px
+// clock with a silently-dropped invalid `color` declaration) AND index.css
+// really defines it with the height term intact, the same "assert the
+// utility is actually DEFINED, not just referenced" discipline the
+// `.text-photo` describe block above this one already uses.
 describe('Clock — height-aware fluid scale', () => {
-  it('carries a min(vw,vh) term in its clamp(), not width alone', async () => {
+  it('wires the clock to --clock-font via an explicit length type hint', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('settings', defaults().settings)
@@ -117,6 +133,22 @@ describe('Clock — height-aware fluid scale', () => {
     await act(async () => {})
 
     const time = container.querySelector('time')
-    expect(time?.className).toContain('clamp(3rem,min(12vw,20vh),10rem)')
+    expect(time?.className).toContain('text-[length:var(--clock-font)]')
+  })
+
+  it('defines --clock-font with a min(vw,vh) term in its clamp(), not width alone', () => {
+    expect(indexCss).toMatch(/--clock-font: clamp\(3rem, min\(12vw, 20vh\), 10rem\);/)
+  })
+})
+
+// Regression guard for the short-wide fix itself: --clock-half-w is what
+// WeatherWidget.tsx's collapsed chip subtracts to find the room actually
+// left beside the clock's own right edge (see that file's own comment for
+// the full derivation). Pinned here, next to --clock-font, so the two can
+// never drift apart silently — a changed ratio or a re-based --clock-font
+// would only ever show up as a real-Chromium collision otherwise.
+describe('index.css — --clock-half-w (the short-wide fix)', () => {
+  it('derives from --clock-font at the SAME ratio --center-reserve already trusts (425/160 = 2.65625, halved)', () => {
+    expect(indexCss).toMatch(/--clock-half-w: calc\(1\.328125 \* var\(--clock-font\)\);/)
   })
 })

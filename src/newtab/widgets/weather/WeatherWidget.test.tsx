@@ -96,6 +96,28 @@ describe('WeatherWidget collapsed chip', () => {
     expect(section.className).not.toContain('tight:max-w-[30vw]')
   })
 
+  // The short-wide fix (the board's last open collision): at 800x450 the
+  // FORCED-WIDE (2-digit hour) clock's own right edge and this chip's
+  // natural-content left edge measured 48.9px into each other (this fix's
+  // own real-Chromium probe). jsdom can't compute the live calc()/var()
+  // against a real viewport (same limitation the height-aware clamp test
+  // above notes for Clock.tsx), so this pins the FORMULA the className
+  // carries — the real cross-size, both-worst-states proof is the preview
+  // harness's dedicated fencepost (scripts/preview.mjs).
+  it('narrows the collapsed cap at xshort to clear the clock\'s own rendered half-width', async () => {
+    await renderWidget()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    // `50vw - 2rem - --clock-half-w`: the room left of this chip's own
+    // right-anchored edge (100vw - 1rem) after the clock's reach from
+    // viewport-centre (50vw + --clock-half-w) and the house 16px (1rem)
+    // floor are both subtracted. min() with the two EXISTING terms means
+    // this only ever narrows the cap, never widens it beyond the reading
+    // measure or the timer-pill room.
+    expect(section.className).toContain(
+      'xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]',
+    )
+  })
+
   it('opens as a compact sheet rather than a sliver below the compact threshold', async () => {
     await renderWidget()
     await expandPanel()

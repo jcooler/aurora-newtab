@@ -3771,6 +3771,149 @@ console.log(
 }
 
 // ---------------------------------------------------------------------------
+// Clock x weather-chip fencepost (the board's LAST open collision, closed) —
+// at the extreme short-wide end of the matrix, 800x450, the centred clock's
+// FORCED-WIDE (2-digit hour) box and the collapsed weather chip's own
+// natural-content width used to reach into each other: measured, pre-fix,
+// clock.right 519.5 vs chip.left 470.6 (48.9px horizontal, 61px of it
+// vertical too). Neither the resize sweep below (which forces the clock
+// wide for its WHOLE scope, but seeds weather at its plain 1-line state) nor
+// the weather-chip worst-case block just above (which forces the chip's
+// 3-line worst, but never touches the clock) ever measured BOTH at once —
+// exactly the gap that let this ship. This block forces them TOGETHER,
+// reusing each side's own established idiom (page.clock's forced 2-digit
+// hour from the monthCal-vs-clock floor block; the route-blocked
+// rain+stale fixture from the weather-chip worst-case block immediately
+// above), at the one viewport the matrix itself flags as the tightest:
+// short enough to swell the clock toward its width-scarce branch, narrow
+// enough to bring the right-anchored chip's natural width within reach of
+// it. THE FIX (Clock.tsx, WeatherWidget.tsx, index.css): the clock — the
+// canvas's hero — does not give ground; the collapsed chip's EXISTING
+// `truncate` discipline does, via a new `xshort:` cap that subtracts the
+// clock's own live rendered half-width (`--clock-half-w`, derived from the
+// SAME `--clock-font` clamp() the clock itself paints with, so the two can
+// never drift apart) from the room actually left beside it. See
+// WeatherWidget.tsx's own comment on `widthClass` for the full formula.
+{
+  const clockSel = '[data-block-id="clock"]'
+
+  // Force 10:44 — the SAME 2-digit hour, same reasoning (tabular-nums gives
+  // every digit an identical advance width, so which of 10/11/12 gets
+  // picked is arbitrary), as every other forced-clock block in this file.
+  const realNow = new Date()
+  const forcedTime = new Date(realNow.getFullYear(), realNow.getMonth(), realNow.getDate(), 10, 44, 0, 0)
+  await page.clock.setFixedTime(forcedTime)
+
+  // Force the chip's REAL worst case deterministically — identical fixture
+  // shape to the weather-chip worst-case block above (one hourly point over
+  // NOTABLE_PRECIP for the rain callout, a `fetchedAt` MAX_AGE_MS+ in the
+  // past for the stale line), computed fresh each run rather than baked, and
+  // the live endpoint blocked FIRST so a real network refresh can never
+  // overwrite the seeded snapshot before this measures it (same ordering,
+  // same reason, as that block's own comment).
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  const hourlySeed = await page.evaluate(() => {
+    const MAX_AGE_MS = 30 * 60 * 1000
+    const now = Date.now()
+    const hourly = Array.from({ length: 12 }, (_, i) => {
+      const t = new Date(now + i * 3_600_000)
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+      return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+    })
+    return { hourly, staleFetchedAt: now - (MAX_AGE_MS + 10 * 60_000) }
+  })
+  await page.evaluate(
+    async ({ hourly, staleFetchedAt }) => {
+      await chrome.storage.local.set({
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: staleFetchedAt,
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { hourly: hourlySeed.hourly, staleFetchedAt: hourlySeed.staleFetchedAt },
+  )
+
+  await page.setViewportSize({ width: 800, height: 450 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(weatherSel, { timeout: 5000 }).catch(() => {})
+
+  // Falsify BOTH forced states before trusting anything measured under them
+  // — same discipline as every other forced-state probe in this file: a
+  // probe that silently measured the wrong state (a 1-digit clock, or a
+  // lucky rainless/fresh chip) would be worse than no probe at all, and
+  // would defeat the entire point of this block.
+  const forcing = await page.evaluate(
+    ({ cSel, wSel }) => {
+      const clockText = document.querySelector(cSel)?.textContent ?? null
+      const chipText = document.querySelector(wSel)?.textContent ?? ''
+      return {
+        clockText,
+        hasCallout: /rain/i.test(chipText),
+        hasStale: /Updated a while ago|Offline/.test(chipText),
+      }
+    },
+    { cSel: clockSel, wSel: weatherSel },
+  )
+  const forcingOk = forcing.clockText === '10:44' && forcing.hasCallout && forcing.hasStale
+  console.log(
+    forcingOk
+      ? `PASS: both worst states are forced at 800x450 — clock 2-digit ("${forcing.clockText}"), chip 3-line (rain callout + stale line)`
+      : `FAIL: both worst states are forced at 800x450 (${JSON.stringify(forcing)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/clock-weather-800x450.png` })
+  console.log('captured clock-weather-800x450.png')
+
+  const rects = await page.evaluate(
+    ({ cSel, wSel }) => {
+      const r = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1) }
+      }
+      return { clock: r(cSel), weather: r(wSel) }
+    },
+    { cSel: clockSel, wSel: weatherSel },
+  )
+  const hits = (a, b) =>
+    !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+  // Diagonal pair (clock's top-right corner vs. the right-anchored chip's
+  // bottom-left) — a single axis gap can't describe it honestly, so this
+  // reports the HORIZONTAL clearance (the axis the fix actually widens,
+  // chip.left vs. clock.right) and the boolean non-overlap together, the
+  // same shape the resize sweep's own all-pairs check below uses.
+  const FLOOR = 16
+  const overlap = hits(rects.clock, rects.weather)
+  const hGap = rects.clock && rects.weather ? +(rects.weather.left - rects.clock.right).toFixed(1) : null
+  const clearOk = forcingOk && overlap === false && hGap !== null && hGap >= FLOOR
+  console.log(
+    clearOk
+      ? `PASS: the clock and the collapsed weather chip clear each other at 800x450 with BOTH worst states forced — no overlap, ${hGap}px horizontal clearance (clock ${JSON.stringify(rects.clock)}, weather ${JSON.stringify(rects.weather)})`
+      : `FAIL: the clock and the collapsed weather chip clear each other at 800x450 with BOTH worst states forced (overlap=${overlap}, gap=${hGap}px, clock=${JSON.stringify(rects.clock)}, weather=${JSON.stringify(rects.weather)})`,
+  )
+
+  // Restore: unblock Open-Meteo, weatherCache back to unset, clock re-pinned
+  // to a fresh real snapshot (no true "uninstall" — see the monthCal-vs-
+  // clock block's own comment), viewport back to this script's 1600x900,
+  // same restore discipline as both blocks this one borrows its idiom from.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.clock.setFixedTime(Date.now())
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({ weatherCache: null })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
 // Combined-defaults gate (Task 55, revised in a later fix round) — THE phase
 // gate the whole connector roster (Tasks 44, 48-52, 54) has been building
 // toward. Every block above proved its OWN default clears its immediate
@@ -4942,25 +5085,21 @@ console.log(
         if (hits(board[boardKeys[i]], board[boardKeys[j]])) allCollisions.push(`${boardKeys[i]}x${boardKeys[j]}`)
       }
     }
-    // PRE-EXISTING, out of the bottom-band task's scope — RECORDED, not hidden
-    // (the codebase's own precedent when an all-pairs probe surfaces an
-    // unrelated defect; see the combined-defaults gate's history). At the
-    // extreme short-wide 800x450 the centred clock rides HIGH in the short
-    // column (top ~58) while its 2-digit-forced box is WIDE (right ~519), and
-    // the ~313px weather chip reaches in from the right (left ~470): the clock's
-    // top-right corner laps the chip's bottom-left. NEITHER is a bottom-band
-    // widget — the fix is in Clock.tsx's fluid scale or WeatherWidget's
-    // collapsed-chip width at compact/xshort, a follow-up, not this task. The
-    // old rail-only scope never checked this pair (no rail widget); the new
-    // all-pairs scope surfaces it. Exempt ONLY this pair at ONLY this step, so a
-    // NEW or bottom-band collision anywhere still FAILS the step and this known
-    // one is flagged, not silently passed.
-    const KNOWN_PREEXISTING = { '800x450': ['clockxweather'] }
-    const exempt = KNOWN_PREEXISTING[`${stepv.w}x${stepv.h}`] ?? []
-    const flaggedPreexisting = allCollisions.filter((c) => exempt.includes(c))
-    const collisions = allCollisions.filter((c) => !exempt.includes(c))
-    if (flaggedPreexisting.length)
-      console.log(`  NOTE: known pre-existing, out of bottom-band scope, flagged for follow-up @ ${stepv.w}x${stepv.h}: ${flaggedPreexisting.join(', ')} (Clock.tsx/WeatherWidget, not this task)`)
+    // Formerly a single narrowly-scoped exemption lived here: at the extreme
+    // short-wide 800x450 the centred clock rides HIGH in the short column
+    // while its 2-digit-forced box is WIDE (right ~519), and the collapsed
+    // weather chip reaches in from the right (left ~470) — the clock's
+    // top-right corner lapped the chip's bottom-left. Neither is a
+    // bottom-band widget (the old rail-only scope never checked this pair;
+    // the all-pairs scope that surfaced it was this task's own predecessor),
+    // so it was RECORDED rather than hidden, flagged for a follow-up fix.
+    // THAT FIX IS THIS ONE (Clock.tsx/WeatherWidget.tsx/index.css — see the
+    // dedicated fencepost above, "Clock x weather-chip fencepost", for the
+    // full both-worst-states proof): the collapsed chip's own `xshort:` cap
+    // now gives way to the clock's real rendered half-width, so this pair
+    // clears cleanly and the exemption is gone — the all-pairs scope is
+    // finally EXACTLY that, with nothing carved out anywhere in the matrix.
+    const collisions = allCollisions
 
     // 3) both bottom pills clickable at their centre (the Task 64 lesson).
     const pillsOk = !!m.notes?.clickable && !!m.tasks?.clickable
@@ -4971,7 +5110,7 @@ console.log(
     if (!stepOk) sweepAllOk = false
     console.log(
       stepOk
-        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 collisions over the whole ${boardKeys.length}-element board (all pairs${exempt.length ? `, ${flaggedPreexisting.length} known pre-existing flagged` : ''}), both pills clickable, no console errors`
+        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 collisions over the whole ${boardKeys.length}-element board (all pairs, nothing exempt), both pills clickable, no console errors`
         : `FAIL: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — wrongVis=[${wrongVis.join(', ')}], collisions=[${collisions.join(', ')}], notesClick=${m.notes?.clickable}, tasksClick=${m.tasks?.clickable}, newConsoleErrors=${newErrs}`,
     )
   }

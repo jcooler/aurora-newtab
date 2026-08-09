@@ -247,6 +247,38 @@
   --rail-w: calc((100vw - var(--center-reserve)) / 2 - 2rem);
   --rail-top-left: 120px;
   --rail-top-right: 180px;
+
+  /* ── The clock's own footprint (short-wide fix) ─────────────────────────
+     Single source of truth for the centred clock's rendered box, so any
+     OTHER element that needs to stay clear of it — below: the collapsed
+     weather chip, at short-wide sizes — reads the SAME formula Clock.tsx
+     paints with, instead of a second copy of the clamp() that could drift
+     out of sync with it.
+
+     --clock-font    the exact expression Clock.tsx's clamp() used to carry
+                      inline (see its own comment for the two-mechanism
+                      derivation — the min(vw,vh) term degrades continuously
+                      with height, the 3rem floor keeps a narrow window
+                      legible). Extracted here, value unchanged, purely so a
+                      second consumer can reference it without repeating it.
+     --clock-half-w  half the clock's own rendered width at that font-size,
+                      for a FORCED 2-digit hour (tabular-nums, -0.02em
+                      tracking) — the box's horizontal reach from its own
+                      centre (the centred column is viewport-centred, so
+                      the clock's right edge is always 50vw + this). The
+                      multiplier is the SAME ratio --center-reserve above
+                      already trusts — 425px measured wide at the clock's
+                      10rem ceiling, 425/160 = 2.65625 — re-verified at
+                      THREE other font-sizes with a real-Chromium probe
+                      (60px/72px/84px/90px all held the identical ratio,
+                      2.6561, tabular digits scaling exactly linearly with
+                      font-size — one ratio holds at every size, not only
+                      the ceiling). Half of 2.65625 is 1.328125.
+     Consumer: WeatherWidget.tsx's collapsed chip, its `xshort:max-w-[...]`
+     term — see that file's own comment for why the CHIP is the one that
+     gives way rather than the clock. */
+  --clock-font: clamp(3rem, min(12vw, 20vh), 10rem);
+  --clock-half-w: calc(1.328125 * var(--clock-font));
 }
 
 /* Light-panel override (Task 60). :root above locks color-scheme to dark so the
