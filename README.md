@@ -61,9 +61,13 @@ no backend — everything lives on your machine.
   the viewport center and other widgets; or open Settings → Layout →
   "Arrange layout" to enter the same mode without long-pressing anything.
   Once a widget is selected, arrow keys nudge it a step at a time (Shift for
-  a finer step) instead of the mouse. "Reset layout" puts everything back to
-  its default position, with a two-step confirm so it can't happen by
-  accident. Positions are stored locally, same as everything else.
+  a finer step) instead of the mouse. The default layout itself reflows to
+  fit whatever size your window is — resize it and everything re-settles,
+  no fixed pixel grid to outgrow. A widget you've dragged is the exception:
+  it stays exactly where you put it, at that spot, regardless of window
+  size, until "Reset layout" puts it back into the flow, with a two-step
+  confirm so it can't happen by accident. Positions are stored locally,
+  same as everything else.
 
 Settings is organized into four tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Widgets** (per-widget on/off

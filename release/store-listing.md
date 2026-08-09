@@ -430,3 +430,41 @@ unrelated to color and keeps its own line:
 above — the feature the old bullet described (named themes) no longer
 exists in the product, so leaving it in the listing copy would describe
 something Aurora can no longer do.]**
+
+---
+
+### v1.7.0 addendum — the board reflows (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.7.0 replaces the dashboard's fixed default layout with one that reflows:
+widgets in their default spots now settle into left/right rails sized off
+the actual window, at any window size, instead of a handful of pixel-pinned
+breakpoints. A widget you've dragged with rearrange mode is unaffected — it
+still stays exactly where you put it regardless of window size, until
+"Reset layout" puts it back into the flow. No new permission and no new
+network call: this is a rendering change over the same locally-stored
+layout data already described in PRIVACY.md's "What Aurora stores," so
+neither the Summary, Category, Single purpose statement, nor the Data Usage
+disclosure table above need any change.
+
+#### Detailed description delta
+
+REPLACE the rearrange-mode bullet (added by the v1.6.0 addendum above, under
+FEATURES):
+
+    - A rearrange mode (press and hold, or Settings → Layout) to move
+      any widget wherever you want it on the page.
+
+with:
+
+    - The board adapts to any window size — resize it and the default
+      layout reflows to fit. A rearrange mode (press and hold, or
+      Settings → Layout) lets you drag any widget wherever you want it
+      instead; that spot is yours until "Reset layout" puts it back into
+      the flow.

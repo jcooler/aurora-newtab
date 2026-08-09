@@ -644,7 +644,7 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
     // at 451h). Headlines' WRAPPER carries only xshort:hidden — on mid/short it
     // stays (trimmed inside RssWidget to RSS_MID_ROWS / RSS_SHORT_ROWS so the
     // card can't grow over the Notes pill at either tier's floor). Deploys drops
-    // on mid AND short (Task 65: vercel's 740 bottom laps the Notes pill below
+    // on mid AND short (Task 65: vercel's 758 bottom laps the Notes pill below
     // 810h and can't be trimmed clear, so it whole-hides across the mid band).
     expect(has('ics', 'mid:hidden')).toBe(false)
     expect(has('ics', 'short:hidden')).toBe(false)
