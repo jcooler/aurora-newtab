@@ -174,7 +174,16 @@ export default function App() {
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="greeting">
-              <PositionedBlock id="greeting" pos={layout?.greeting}>
+              {/* `min-w-0 max-w-full` on this flex-item wrapper is load-bearing
+                  for the greeting's column bound: a flex item's default
+                  min-width:auto (min-content of the greeting's nowrap text)
+                  otherwise grows THIS wrapper to the full text width, and the
+                  greeting's own `max-w-full` then resolves against the wrapper
+                  (wide) instead of the centred column (457px). Constraining the
+                  wrapper to the column makes the greeting's cap bind — see
+                  Greeting.tsx's own min-w-0 note. Dropped on the arranged branch
+                  (a stored pos is the user's own). */}
+              <PositionedBlock id="greeting" pos={layout?.greeting} className="min-w-0 max-w-full">
                 <Greeting />
               </PositionedBlock>
             </WidgetBoundary>

@@ -19,17 +19,26 @@ export default function Greeting() {
       // name"` renders this line unbounded — the default greeting is short
       // enough that nobody had reason to cap it before). Three tiers:
       //
-      //   default (>=899px, or <=720px — see `compact` below) — 40rem is far
-      //   wider than any real greeting ever gets (even a generous custom
-      //   name), so this tier is pure defense-in-depth against a
-      //   pathological one, not a constraint typical text reaches.
-      //   Deliberately unbounded for practical purposes at and above 900px —
-      //   see the note on the 721-898px tier below for why that boundary is
-      //   exact, not approximate. (`max-[899px]:` compiles to `@media not
-      //   all and (min-width: 899px)`, i.e. strictly under 899px — so this
-      //   tier's actual reach is 721-898px, one pixel more conservative than
-      //   the 899px written in the selector, which only sharpens the ">=900px
-      //   byte-identical" guarantee rather than loosening it.)
+      //   default (>=899px, or <=720px — see `compact` below) — `max-w-full`
+      //   bounds the greeting to the CENTRED COLUMN, which App.tsx caps at
+      //   `--center-reserve` (457px, the widest centred member + breathing).
+      //   This is what "bounded by the column" (Task 64) MEANS in markup:
+      //   a flex child under `items-center` OVERFLOWS its container whenever
+      //   its own max-width exceeds it, so the old `max-w-[40rem]` (640px) let
+      //   a long name spill ~40px past the reserve into the rail's horizontal
+      //   band (harmless only by the accident that the rail's cards sit at a
+      //   different height — proven by scripts/preview.mjs's own greeting-cap
+      //   probe, which measured that spill). `max-w-full` (100% of the ~457px
+      //   column) keeps shrink-to-content centring for short greetings AND
+      //   truncates a long custom name at the column edge, so the line can
+      //   never reach the flowing rails at any width. "Good afternoon."
+      //   (284.5px) is far under the column, so it is never clipped
+      //   (byte-identical to today's default greeting). `min-w-0` is
+      //   load-bearing alongside it: a flex child's default `min-width: auto`
+      //   resolves to the min-content of its `truncate` (nowrap) text, which
+      //   OVERRIDES max-width — so without `min-w-0` the line ignores the
+      //   column bound entirely and renders at its full natural width (proven:
+      //   742px at a long name before this was added).
       //
       //   721-898px — a DEDICATED range, not the `tight` custom variant
       //   (which runs 721-1300px). This narrower one matches the band the
@@ -83,7 +92,7 @@ export default function Greeting() {
       // search, focus, links) — a second-order layout shift nothing here
       // has budget for. One line, capped, ellipsised is the same contract
       // the weather chip already keeps for its own long content.
-      className="text-photo font-display mt-2 short:mt-0.5 xshort:mt-0.5 text-4xl short:text-2xl xshort:text-lg font-medium text-canvas-fg max-w-[40rem] min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
+      className="text-photo font-display mt-2 short:mt-0.5 xshort:mt-0.5 text-4xl short:text-2xl xshort:text-lg font-medium text-canvas-fg min-w-0 max-w-full min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
     >
       {text}
     </p>

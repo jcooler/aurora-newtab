@@ -45,7 +45,8 @@ describe('Greeting — canvas ink (fixed over the photo)', () => {
 // clipping — run in scripts/preview.mjs's habits floor block. THREE
 // non-overlapping tiers must all be present (Task 64 retired a fourth, the
 // >=1593px mid-left-column cap — the centred column now bounds the greeting
-// directly, see Greeting.tsx), and none may LOOSEN the 40rem defense cap.
+// directly, see Greeting.tsx), and the default cap is the column bound itself
+// (`max-w-full`), not the old 40rem, so the line can never reach the rails.
 describe('Greeting — width-cap stack (composition per band)', () => {
   async function greetingP(name: string) {
     const storage = createStorage(memoryDriver())
@@ -62,9 +63,14 @@ describe('Greeting — width-cap stack (composition per band)', () => {
 
   it('carries all three cap tiers plus truncate, in non-overlapping bands', async () => {
     const cls = (await greetingP('Christopher')).className
-    // default defense cap (all widths) — 40rem is far wider than any real
-    // greeting; pure defense-in-depth.
-    expect(cls).toContain('max-w-[40rem]')
+    // default cap (all widths) — `max-w-full` bounds the line to the centred
+    // column (App.tsx `--center-reserve`), so it can never reach the rails.
+    expect(cls).toContain('max-w-full')
+    expect(cls).not.toContain('max-w-[40rem]') // the old unbounded 640px cap is gone
+    // `min-w-0` is required for the bound to bind: a flex child's default
+    // min-width:auto (min-content of the nowrap text) otherwise overrides
+    // max-width and the line renders at full natural width.
+    expect(cls).toContain('min-w-0')
     // 721-898px dedicated band (the weather-panel neighbor) — 18rem.
     expect(cls).toContain('min-[721px]:max-[899px]:max-w-[18rem]')
     // <=720px compact — viewport-relative, under the column's narrow padding.
@@ -94,12 +100,11 @@ describe('Greeting — width-cap stack (composition per band)', () => {
     // (App.tsx, `--center-reserve` = 457px) is comfortably above the 284.5px
     // default greeting — so the byte-identical guarantee holds. (The pixel-level
     // no-clip proof is in scripts/preview.mjs; here we only assert no fixed
-    // sub-300px cap tier could ever clip it: the sole fixed cap besides 40rem is
-    // the 18rem/288px band, scoped strictly to 721-898px where the greeting is
-    // not.)
+    // sub-300px cap tier could ever clip it: the sole fixed cap is the 18rem/
+    // 288px band, scoped strictly to 721-898px where the greeting is not.)
     const cls = (await greetingP('')).className
-    expect(cls).toContain('max-w-[40rem]')
-    // The only sub-40rem FIXED cap is the 721-898 band; it never applies at the
+    expect(cls).toContain('max-w-full')
+    // The only sub-column FIXED cap is the 721-898 band; it never applies at the
     // widths where the mid-left column exists (>=1593), so it can't clip there.
     expect(cls).toContain('min-[721px]:max-[899px]:max-w-[18rem]')
   })
