@@ -747,7 +747,7 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
 // (the flowing links row, a vh-pinned crypto, a bottom-anchored quote) and
 // became ONE bottom flow zone, the rails idiom applied to the bottom: a
 // `fixed`, bottom-anchored <aside data-zone="bottom"> holding (top-to-bottom)
-// crypto then the quote by flex flow, gap-4 apart. jsdom has no layout or media
+// crypto then the quote by flex flow, gap-2 apart. jsdom has no layout or media
 // queries, so the pixel reflow + the crypto `taller` / quote `mid` height tiers
 // live in scripts/preview.mjs (fenceposts + all-pairs sweep); what IS verifiable
 // here is the WIRING: the zone exists as a labelled landmark, both blocks flow
@@ -773,8 +773,9 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
     expect(zone!.getAttribute('aria-label')).toBe('Bottom widget band')
     const cls = zone!.className
     // Transform-free centering + the quote's OLD bottom offsets (moved up here),
-    // stacked as a flex column with the gap-4 that keeps crypto off the quote.
-    for (const c of ['fixed', 'inset-x-0', 'bottom-6', 'short:bottom-2', 'xshort:bottom-1', 'mx-auto', 'w-fit', 'flex', 'flex-col', 'items-center', 'gap-4']) {
+    // stacked as a flex column with the gap-2 (the band's reasoned 8px) that
+    // keeps crypto off the quote AND low enough to show at the canonical 900h.
+    for (const c of ['fixed', 'inset-x-0', 'bottom-6', 'short:bottom-2', 'xshort:bottom-1', 'mx-auto', 'w-fit', 'flex', 'flex-col', 'items-center', 'gap-2']) {
       expect(cls).toContain(c)
     }
   })
@@ -791,8 +792,9 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
       expect(block.classList.contains('fixed')).toBe(false)
       expect(block.closest('aside[data-zone="bottom"]')).toBeTruthy()
     }
-    // crypto is hidden by default and revealed only on tall viewports (>=922h);
-    // the quote hides across the mid band (601-864) where the column laps it.
+    // crypto is hidden by default and revealed only on tall viewports (>=890h,
+    // so it SHOWS at the canonical 900); the quote hides across the mid band
+    // (601-864) where the column laps it.
     expect(crypto.className).toBe('hidden taller:block')
     expect(quote.className).toBe('mid:hidden')
   })

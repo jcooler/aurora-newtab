@@ -564,10 +564,22 @@ export default function App() {
               a `fixed`, BOTTOM-anchored flow container.
 
               This <aside data-zone="bottom"> holds, top-to-bottom, the crypto
-              strip then the quote, stacked by `flex flex-col items-center gap-4`.
+              strip then the quote, stacked by `flex flex-col items-center gap-2`.
+              The gap is gap-2 (8px), not gap-4 — the SAME deliberate, reasoned
+              exception this band has carried since SP2 (HALF this file's usual
+              16px convention): this is the TIGHTEST vertical band on the page,
+              only ~40px total between two FIXED-HEIGHT, SINGLE-LINE neighbours
+              (the links row never wraps, the quote's figure is a fixed block),
+              against this strip's own ~20px single-line height — so there is no
+              "worst case" growth to defend against the way RSS's shownCount or
+              vercel's deployment count need, and arrange mode lets a user who
+              dislikes the tight default simply drag it elsewhere. This default
+              only has to be SAFE, not spacious — and keeping it gap-2 is what
+              keeps the strip's top low enough to clear the links (and therefore
+              SHOW) at Jon's canonical 1600x900, its daily board.
               Two structural consequences:
                 · THE vh-PIN DIES. crypto is no longer `top-[86vh]`; it sits
-                  gap-4 (16px) ABOVE the quote BY CONSTRUCTION, so crypto x quote
+                  gap-2 (8px) ABOVE the quote BY CONSTRUCTION, so crypto x quote
                   overlap is now impossible — there is no coordinate to drift.
                 · THE QUOTE DOES NOT MOVE. The container is `bottom-6`
                   (short:bottom-2 xshort:bottom-1 — the quote's OWN old responsive
@@ -585,10 +597,15 @@ export default function App() {
               crypto.top; the links row is the FLOWING bottom of the centered
               column and rises/falls with it (worldClocks+countdown on is the
               tallest, worst case — the harness's standard seed). Below the
-              MEASURED height where `crypto.top >= links.bottom + 16` fails, crypto
-              WHOLE-widget-hides (`taller:hidden` — a new measured height tier in
+              MEASURED height where `crypto.top >= links.bottom + 8` fails, crypto
+              WHOLE-widget-hides (`hidden taller:block` — a measured height tier in
               index.css; DROPPED on the arranged branch like every rail class, so a
-              dragged crypto is never height-hidden). The quote survives every
+              dragged crypto is never height-hidden). The +8 is the band's SAME
+              reasoned exception as the gap-2 above (tightest band, fixed-height
+              single-line neighbours, arrange-mode escape) — and it is precisely
+              what keeps the reveal threshold BELOW 900 so the strip SHOWS at Jon's
+              canonical 1600x900 (measured ~890h; scripts/preview.mjs pins the
+              900h clearance as its own probe). The quote survives every
               height (it's short and its own top clears the links row far lower than
               crypto's does — measured; it only ever shrinks its type + tightens its
               bottom via short/xshort, never hides), so at the sizes where crypto
@@ -612,7 +629,7 @@ export default function App() {
           <aside
             data-zone="bottom"
             aria-label="Bottom widget band"
-            className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto flex w-fit flex-col items-center gap-4"
+            className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto flex w-fit flex-col items-center gap-2"
           >
             <WidgetBoundary name="crypto">
               {/* DEFAULT placement — flows in the bottom band, centered by the

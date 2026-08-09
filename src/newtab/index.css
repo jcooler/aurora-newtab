@@ -379,22 +379,29 @@
 @custom-variant compact (@media (max-width: 720px));
 /* Bottom-band crypto reveal tier — the crypto strip is `hidden taller:block`
    (App.tsx): hidden by default, REVEALED only where the viewport is tall enough
-   that the band's top (crypto.top, gap-4 above the bottom-anchored quote) clears
-   the FLOWING links row above it by the house 16px floor. MEASURED, worst case
+   that the band's top (crypto.top, gap-2 above the bottom-anchored quote) clears
+   the FLOWING links row above it by this band's own reasoned 8px floor (NOT the
+   house 16 — HALF it, the SAME deliberate exception the gap-2 carries: tightest
+   band on the page, fixed-height single-line neighbours, arrange-mode escape;
+   see App.tsx's bottom-zone comment). The 8px floor + gap-2 are exactly what
+   keep the reveal threshold BELOW 900 so the strip SHOWS at Jon's canonical
+   1600x900 (its daily board and the concept imagery). MEASURED, worst case
    (scripts/preview.mjs's bottom-band block): the clearance shrinks as the window
    shortens (the links row is the bottom of the centred column, which stays near
    viewport-centre while the bottom-anchored band rises) AND as the window widens
    (the clock's `min(12vw,20vh)` clamp saturates at its 10rem ceiling for widths
    >=~1333, giving the tallest column, so a wide viewport is the worst case at any
-   height). At 1600w the gap `crypto.top - links.bottom` reaches 16 at exactly
-   922h (921 -> ~15.5, 922 -> ~16.5), so crypto shows at >=922 and hides below —
-   the fencepost the harness asserts at 921/922 (INTERIOR-WORST-CASE LAW: the
-   shown tier is asserted at its 922 minimum, wide). Below 922 the band is the
-   quote alone (which clears the links far lower — see the quote's `mid:hidden`),
-   so crypto x links and crypto x quote are both impossible. A pure height media
-   query, width-independent by design: the 922 floor is the wide worst case, safe
-   (more clearance) at every narrower width. */
-@custom-variant taller (@media (min-height: 922px));
+   height). At 1600w the gap `crypto.top - links.bottom` reaches 8 at 889h
+   (888 -> 7.5, 889 -> 8.0), and the tier is pinned at 890 for a half-pixel of
+   margin (890 -> 8.5): crypto shows at >=890 and hides below — the fencepost the
+   harness asserts at 889/890 (INTERIOR-WORST-CASE LAW: the shown tier is
+   asserted at its 890 minimum, wide). At the canonical 1600x900 the clearance is
+   13.5px, its own pinned probe. Below 890 the band is the quote alone (which
+   clears the links far lower — see the quote's `mid:hidden`), so crypto x links
+   and crypto x quote are both impossible. A pure height media query,
+   width-independent by design: the 890 floor is the wide worst case, safe (more
+   clearance) at every narrower width. */
+@custom-variant taller (@media (min-height: 890px));
 
 /* ── The rail zones' container query + flow discipline (Task 64) ──────────
    The LEFT rail is a size-query container so its SECOND column (month grid +
