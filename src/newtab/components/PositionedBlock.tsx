@@ -6,7 +6,7 @@ import { DraftLayoutContext } from '../arrange/draftLayout'
 interface Props {
   id: BlockId
   pos: BlockPos | undefined // stored position; undefined = default placement
-  className?: string // default-placement classes (peripherals pass their old fixed classes; stack children pass none)
+  className?: string // default-placement classes ONLY (dropped on the arranged branch): corner peripherals pass their `fixed …` classes; rail widgets (Task 64) pass width/visibility classes (`short:hidden`, the `.rail-col2` container-query marker) or none and flow inside their zone; centred-stack children pass none
   children: ReactNode
 }
 

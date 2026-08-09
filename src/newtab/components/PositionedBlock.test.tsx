@@ -22,6 +22,23 @@ describe('PositionedBlock', () => {
     expect(el?.textContent).toBe('content')
   })
 
+  it('the rail (default) branch passes width/visibility classes through verbatim and adds NO position of its own', () => {
+    // Task 64: rail widgets pass flow-only classes — a `short:hidden` height
+    // tier and/or the `.rail-col2` container-query marker — and rely on their
+    // zone (a `fixed` ancestor) to position them. PositionedBlock must render
+    // them as a STATIC div: the class string verbatim, and no inline
+    // position/fixed of its own, so flex flow lays them out.
+    const { container } = render(
+      <PositionedBlock id="monthCal" pos={undefined} className="rail-col2 short:hidden">
+        <span>content</span>
+      </PositionedBlock>,
+    )
+    const el = container.querySelector('[data-block-id="monthCal"]') as HTMLElement
+    expect(el.className).toBe('rail-col2 short:hidden')
+    expect(el.getAttribute('style')).toBeNull()
+    expect(el.classList.contains('fixed')).toBe(false)
+  })
+
   it('with pos sets position: fixed, left/top from the percent center, and drops className', () => {
     const { container } = render(
       <PositionedBlock id="search" pos={{ x: 50, y: 50 }} className="mt-8">

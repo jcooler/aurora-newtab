@@ -159,7 +159,15 @@ export default function App() {
             top) is what makes the rest of the page truly unreachable — both
             by pointer AND by keyboard — while arrange mode is on. */}
         <div className="contents" inert={arranging}>
-          <div className="flex h-full flex-col items-center justify-center narrow:px-4">
+          {/* The centred column is now bounded to the reserved central strip
+              (`--center-reserve` — index.css, the widest default centred
+              member + breathing, the forced-wide clock governing at 425px) and
+              auto-centred, so the flowing rails on either side (below) have a
+              guaranteed clear strip to stop against. It stayed viewport-centred
+              (symmetric bound, `mx-auto`) — canvas identity untouched — and
+              this is also what retired Greeting's old min-[1593px] width cap:
+              the column bounds the greeting directly now. */}
+          <div className="mx-auto flex h-full max-w-[var(--center-reserve)] flex-col items-center justify-center narrow:px-4">
             <WidgetBoundary name="clock">
               <PositionedBlock id="clock" pos={layout?.clock}>
                 <Clock />
@@ -384,558 +392,106 @@ export default function App() {
             </PositionedBlock>
           </WidgetBoundary>
 
-          <WidgetBoundary name="rss">
-            {/* DEFAULT placement — the left-middle column, clear of the Notes
-                pill (bottom-left) and the photo refresh button at defaults, and
-                well left of the centred clock/greeting column.
+          {/* ── LEFT RAIL ──────────────────────────────────────────────────
+              Task 64. The left-hand data widgets stopped being individually
+              pinned (`fixed left-8 top-[NNvh]`) and became a flowing two-column
+              rail: a `fixed` <aside> pinned to the left edge, `--rail-w` wide
+              (index.css — stops exactly on the center-reserve boundary), its
+              cards stacked by flex flow so the board reflows at every window
+              size. Column 1 (priority top->bottom): calendar, headlines,
+              deploys. Column 2 (month grid + habits) appears only when the rail
+              is wide enough for a second column — the `.rail-col2` container
+              query (index.css) is the STRUCTURAL replacement for the old
+              `max-[1593px]:hidden`; it reaches its 536px threshold at exactly
+              100vw=1593, so the boundary still lands there with no magic number
+              in source. Height pressure is relieved by whole-widget hides, not
+              clipping (`short:`/`xshort:` — no scroll regions, no mid-card cut),
+              so a card is either wholly shown or wholly gone. Each block still
+              routes through PositionedBlock: a stored arrange-mode `pos` renders
+              it `position: fixed` (leaving the flex flow, pinned to the user's
+              own coords — "arranged pixels stay yours"), and the visibility
+              classes here are DROPPED on that branch so an arranged widget is
+              never hidden by width/height. The `@container` lives on this
+              <aside>; container-type does NOT trap `position: fixed` descendants
+              (verified with a real-Chromium probe), so an arranged col-2 widget
+              nested here still positions against the viewport.
 
-                `top-[24vh]` (216px at 1600x900) — moved DOWN 2vh from the old
-                `top-[22vh]` (198px) by Jon's darker-color ruling (this batch),
-                which turned RssWidget from bare photo-floating text into a
-                SOLID CARD (bg-panel-solid + rounded-2xl + shadow-lg + p-2.5 —
-                see RssWidget.tsx). Carding adds padding+radius height, so the
-                whole left column was re-measured from the real harness and the
-                two carded slots (ics above, rss here) re-derived to hold every
-                floor >=16px at each widget's WORST case. MEASURED
-                (scripts/preview.mjs, 1600x900, rss at its shownCount=8 display
-                max, ics carded above, vercel below): ics carded bottom 195 ->
-                21px gap -> rss top 216; rss carded 8-row bottom 552 -> 24px gap
-                -> vercel top-[64vh]=576. Both clear the >=16px floor with real
-                margin — vercel itself did NOT have to move (its 60px gap to the
-                quote below absorbed nothing; the room came from tightening the
-                cards' own chrome to p-2.5 + gap-1 rows, RssWidget.tsx's own
-                comment). A stored arrange-mode `pos` still wins (PositionedBlock
-                drops this className on that branch). RssWidget self-gates on the
-                connector's enabled+feeds state, so this wrapper renders an
-                empty box until the connector is turned on — same as every other
-                toggle-gated peripheral here. No `translate`: this widget has no
-                `position: fixed` descendants, but the house rule is to keep
-                default-placement wrappers transform-free (App's quote/bookmarks
-                comments), so it anchors with a plain top offset. */}
-            <PositionedBlock id="rss" pos={layout?.rss} className="fixed left-8 top-[24vh]">
-              <RssWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
+              HEIGHT PRIORITY (per-widget, MEASURED at 600/450h against
+              worst-case fixtures — scripts/preview.mjs rail probe — clearing
+              the bottom pills/quote; the MECHANISM + this priority are the
+              binding parts, Task 65's occlusion probes pin the exact cutoffs):
+              col1 keeps CALENDAR at every height (78px, always fits); HEADLINES
+              stays through short (a marginal worst-case-8-row lap of the Notes
+              pill) but drops on xshort (its 336px worst case can't fit a 450h
+              window); DEPLOYS drops on short. col2 (month + habits, 627px worst
+              stack) drops below 730h — see the .rail-col2 height gate in
+              index.css. Right rail states its own. */}
+          <aside data-zone="left" className="fixed left-8 top-[var(--rail-top-left)] w-[var(--rail-w)]">
+            <div className="flex flex-row items-start gap-4">
+              <div className="flex flex-col gap-4">
+                <WidgetBoundary name="ics">
+                  <PositionedBlock id="ics" pos={layout?.ics}>
+                    <CalendarWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                <WidgetBoundary name="rss">
+                  <PositionedBlock id="rss" pos={layout?.rss} className="xshort:hidden">
+                    <RssWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                <WidgetBoundary name="vercel">
+                  <PositionedBlock id="vercel" pos={layout?.vercel} className="short:hidden xshort:hidden">
+                    <VercelWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+              </div>
+              <div className="flex flex-col gap-4">
+                <WidgetBoundary name="monthCal">
+                  <PositionedBlock id="monthCal" pos={layout?.monthCal} className="rail-col2">
+                    <MonthCalWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                <WidgetBoundary name="habits">
+                  <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2">
+                    <HabitsWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+              </div>
+            </div>
+          </aside>
 
-          <WidgetBoundary name="monthCal">
-            {/* DEFAULT placement — Task 58, the TOP of the mid-left SECOND
-                column (`left-[23rem]`, x-aligned with HabitsWidget directly
-                below it — see that PositionedBlock's own comment for how
-                THAT half of the column is derived; THIS widget's own width,
-                `w-[200px]`, now matches habits' own width too — Task 63
-                narrowed habits from `w-56`/224px to the same `w-[200px]`,
-                closing the gap the wide-clock fix below opened between the
-                two; see habits' own comment for that correction's
-                arithmetic and the re-review recommendation behind it).
-                Task 57 shipped habits
-                alone at a PROVISIONAL `top-[43vh]`, explicitly flagged for
-                re-measurement once this task's own widget landed above it;
-                this pass is that re-derivation, and it moves BOTH tops, not
-                just this one, because the two widgets' worst-case heights
-                don't leave room for a stack starting anywhere near either
-                task's original guess.
-
-                LEFT EDGE CORRECTED (Task 59): `left-[21rem]` (336px) was
-                derived against RSS's own column right edge (`left-8 w-72` =
-                32-320px), the only left-column neighbor either isolated
-                fixture seeded. Task 59's combined-defaults gate — the first
-                to render every widget, including vercel, at once — found
-                habits' 336px-wide left edge actually OVERLAPPING vercel's
-                card (`left-8 w-80` = 32-352px, 32px WIDER than RSS/ics)
-                whenever both are on: vercel's own worst-case band (576-768,
-                5 deployments) crosses habits' band (378-622), and 336 sits
-                16px INSIDE vercel's 352px right edge. The left column's true
-                governing width is whichever of ics/rss/vercel is widest —
-                vercel, not RSS — so this column's own left edge now clears
-                vercel's box instead: `left-[23rem]` (368px) = 352 (vercel's
-                right edge) + 16 (this file's own floor). RSS's own gap
-                widens to a non-binding 48px as a result — see
-                scripts/preview.mjs's own combined-defaults gate (the
-                `mid-left column gap floor` block) for the live-measured
-                proof against both neighbors, and habits' own PositionedBlock
-                comment below for its matching correction.
-
-                THE ARITHMETIC THAT FORCES THE WHOLE COLUMN UP: MonthCalWidget
-                at its own worst case (a 6-row month — May/August 2026 and
-                others, see monthGrid.ts's own doc comment; forced in the
-                harness via prev/next clicks so this is never a shorter
-                stand-in) measures 247px tall (nav row + caption + 6x7 grid).
-                HabitsWidget at ITS OWN worst case (6 chips, MAX_HABIT_CHIPS)
-                measures 244px. Stacked with the file's usual >=16px floor on
-                both sides of the seam, that's 247+16+244+16 = 523px of
-                required vertical span between MonthCalWidget's own top and
-                the links row below habits — and the links row (with
-                worldClocks/countdown/timer on, the harness's own steady
-                state) sits at y=654.5 at 1600x900. That caps this widget's
-                own top at 654.5-523 = 131.5px: starting any lower leaves the
-                pair unable to clear the links row at both worst cases
-                simultaneously, no matter where the seam between them falls
-                — Task 57's own `43vh` (387px) for habits ALONE already
-                overshoots that budget before this widget even enters the
-                picture (see its PositionedBlock's own comment for that
-                widget's history).
-
-                `top-[12vh]` (108px) was picked, among the values clearing
-                that 131.5px ceiling, for landing HabitsWidget's own new top
-                (below) on a clean whole-vh number too — the same
-                walk-the-whole-vh-search-space-by-hand discipline every other
-                placement comment in this file uses (see e.g. github's own).
-                MEASURED (scripts/preview.mjs's monthCal block, 1600x900,
-                monthCal forced to a real 6-row month, habits seeded at its
-                own 6-chip max, worldClocks+countdown+timer on): this widget
-                top=108/bottom=355 (still current — this widget's own
-                placement is untouched by every task below this one);
-                HabitsWidget top=378/bottom=622 AT THE TIME (`top-[42vh]`,
-                since moved to `top-[43vh]`/387-631 by Task 63 — see its own
-                comment for the current numbers and why); gaps AT THE TIME —
-                this widget's bottom to habits' top: 23px (now 32px);
-                habits' bottom to the links row: 32.5px (now 23.5px); RSS's
-                own column right edge to this widget's left edge (no
-                longer the binding constraint, Task 59): exactly 48px (368 vs
-                rss.right 320, still current — a fixed Tailwind-width
-                relationship neither task touched). The right-edge-to-clock
-                number that USED to
-                sit here (592 vs clock.left 635.5) was measured at whichever
-                hour the wall clock happened to show at the time — see the
-                WIDE-CLOCK paragraph below for why that made it wrong, and
-                for the number that replaced it.
-
-                WIDE-CLOCK FIX (post-Task 62, MERGE-BLOCKING — diagnosed
-                across two reviews): Clock.tsx's tabular-nums clock is
-                horizontally CENTERED and renders a DOUBLE-digit hour
-                ("10:44"/"11:44"/"12:44") for roughly half of every 12-hour
-                cycle (settings.use24Hour defaults false) — one digit-glyph
-                WIDER than the single-digit hours ("9:44") every prior
-                measurement in this file happened to run at. Centering means
-                the extra glyph pushes the clock's own LEFT edge further
-                left, not just its right edge further right — 635.5 above was
-                a single-digit-hour reading; scripts/preview.mjs's own
-                deterministic forced-wide-clock block (Playwright's
-                `page.clock.setFixedTime`, forced to a real 10:44 — 10/11/12
-                all measure identically under tabular-nums, so which one is
-                picked doesn't matter) measures the clock's REAL worst-case
-                left edge at 587.5px — 48px further left than the
-                single-digit reading, and 4.5px INSIDE the OLD `w-56`
-                (224px) card's 592px right edge, an actual collision
-                (`monthCal/clock` in the combined-defaults gate's pairwise
-                set) invisible at every single-digit hour. Fixed by
-                narrowing THIS widget's own width from `w-56` (224px) to
-                `w-[200px]` — right edge 368+200=568px, clearing the
-                MEASURED worst-case clock.left (587.5px) by 19.5px, still
-                >=16px with real (if modest) margin, not shaved to the exact
-                floor. HabitsWidget's own `w-56` was left UNTOUCHED by THIS
-                fix — its whole vertical band (378-622 at the time) sat
-                BELOW the clock's real measured bottom edge (377.5px, itself
-                measured for the first time by this same forced-wide block —
-                earlier comments estimated it near monthCal's own 355px
-                bottom without live-measuring it) rather than beside it, so
-                it never shared this widget's clock-width collision. That
-                said, the measured clock-to-habits clearance was only 0.5px
-                (377.5 to 378) — real but thin, flagged in the report this
-                fix landed with as a concern for the controller rather than
-                fixed blind. Task 63 (the wrap task) acted on that flag
-                together with the re-review's own column-alignment
-                recommendation: habits' top moved `42vh`->`43vh` (378->387px,
-                clock gap 0.5px->9.5px) and its width now matches THIS
-                widget's `w-[200px]` (368+200=568, IDENTICAL to this widget's
-                own right edge — the 568-vs-592 mismatch this paragraph used
-                to describe as an accepted asymmetry is gone; see habits' own
-                comment for the full re-derivation). Asserted permanently,
-                every run, regardless of
-                the hour the wall clock shows: scripts/preview.mjs's own
-                dedicated forced-wide-clock block (immediately after the
-                monthCal block it re-uses the seeding shape of), which forces
-                the clock to 10:44, re-measures both this widget's right edge
-                and habits' top against the clock's real rendered box, and
-                restores real time before continuing.
-
-                FINAL-REVIEW FIX WAVE, MERGE-BLOCKING (post-Task 59): the
-                widget's own "Today" snap-back control used to render on its
-                OWN line below the nav row (only while viewing an off-current
-                month), adding 21px of card height whenever it appeared —
-                collapsing THIS seam from 23px to 2px in any off-current
-                6-row month, and invisible to every harness run on a date
-                where the CURRENT month already happened to be 6-row (this
-                repo's own August 2026 reference worst case), since the
-                forcing loop then made zero Next clicks and never rendered
-                the off-current state at all. Fixed by moving the control
-                INSIDE the nav row itself (MonthCalWidget.tsx's own doc
-                comment), next to the month label — navigating now changes
-                WHICH controls that row holds, never how TALL the row is, so
-                the 247px worst case and every number above are the exact
-                SAME ones Task 58 measured, unchanged by this fix (a true
-                zero-height guarantee, not a re-derivation): re-measured
-                after the fix by scripts/preview.mjs's own monthCal block AND
-                the combined-defaults gate, both of which now force the
-                off-current state deterministically (an unconditional first
-                Next click before the 42-cell forcing loop, on every run,
-                every date) and assert the header's own measured height is
-                identical with the Today control present vs. absent.
-
-                HIDDEN BELOW 1593px (the greeting-collision fix, MERGE-BLOCKING
-                — a measured landmine for enabled-local-widgets users, not a
-                daily-use fire): this column's right edge is a FIXED 368+200=
-                568px, but the centered clock/greeting/search column marches
-                LEFT as the viewport narrows, so below a measured breakpoint the
-                two can no longer coexist. `max-[1593px]:hidden` (which compiles
-                to `@media not all and (min-width:1593px)`, i.e. strictly under
-                1593px) drops the whole mid-left column there. 1593 is MEASURED,
-                not guessed: it is the width at which the WIDEST default
-                centered member that overlaps this column — the forced-wide
-                clock, whose 2-digit-hour box (425px, 193.5-397.5 at 900h)
-                overlaps BOTH this widget's band AND habits' — first clears this
-                widget's right edge by the file's >=16px floor (clock.left rises
-                through 584 = 568+16 exactly at 1593; the search bar/focus line
-                clear far earlier, ~1488/1450px, so the clock governs). Greeting
-                (also centered) is handled instead by a width CAP that keeps its
-                own left edge >=584 at these widths — Greeting.tsx's own
-                `min-[1593px]:` cap shares this 1593 boundary exactly (min-width
-                vs. its complement), so the column is on-screen iff that cap is
-                engaged. THE HIDE APPLIES TO DEFAULT PLACEMENT ONLY, which is
-                correct: PositionedBlock drops this className for a user-ARRANGED
-                `pos`, and an arranged user OWNS their layout — they chose where
-                this block sits and we do not second-guess it by viewport width.
-                scripts/preview.mjs's habits floor block proves both halves live
-                (column hidden at 1420, visible at 1600; worst-name greeting
-                clears at 1600).
-
-                A stored arrange-mode `pos` still wins (PositionedBlock drops
-                this className on that branch). MonthCalWidget self-gates on
-                settings.widgets.monthCal alone (no data-emptiness check —
-                unlike habits/worldClocks, there's nothing to be "empty",
-                the calendar always has a month to show), so this wrapper
-                renders an empty box until the toggle is on — same as every
-                other toggle-gated peripheral here. Transform-free per the
-                house rule (App's quote/bookmarks comments): a plain
-                left/top offset, no translate. */}
-            <PositionedBlock id="monthCal" pos={layout?.monthCal} className="fixed left-[23rem] top-[12vh] w-[200px] max-[1593px]:hidden">
-              <MonthCalWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="habits">
-            {/* DEFAULT placement — Task 57 shipped this in the mid-left
-                SECOND column (not a new column of its own): between the RSS
-                column and the centered clock/greeting stack, a slot the plan
-                reserves for habit chips with Task 58's month grid ABOVE them.
-                Task 57's own top (`43vh`) was explicitly PROVISIONAL, pending
-                Task 58 re-measuring the two jointly — this comment documents
-                that re-derivation landing (Task 58), which moved BOTH this
-                widget's top AND MonthCalWidget's own (see that
-                PositionedBlock's comment, directly above, for the arithmetic
-                that forces the whole column up: the two widgets' combined
-                worst-case heights plus two 16px floors is 523px, capping
-                MonthCalWidget's own top at 131.5px — well above Task 57's
-                original 43vh/387px for THIS widget alone).
-
-                `left-[23rem]` (368px at 1600x900) is Task 59's correction of
-                Task 57/58's `left-[21rem]` (336px): that number was pinned
-                against RSS's own card (`left-8 w-72` = 32-320px), the only
-                left-column neighbor either isolated fixture ever seeded, but
-                the left column's actual WIDEST card is vercel's (`left-8
-                w-80` = 32-352px, see VercelWidget.tsx — 32px wider than
-                RSS/ics). Task 59's combined-defaults gate — the first to
-                render vercel and habits together — found 336px sat 16px
-                INSIDE vercel's 352px right edge whenever both are on
-                (vercel's own worst-case band, 576-768 at 5 deployments,
-                crosses this widget's band, 378-622). `left-[23rem]` = 352
-                (vercel's right edge) + 16 (this file's own floor everywhere
-                else) clears BOTH left-column neighbors; RSS's own gap widens
-                to a non-binding 48px as a result. Asserted (not just
-                computed) by scripts/preview.mjs's own monthCal block (which
-                owns this measurement jointly with monthCal's) AND, against a
-                live vercel render, by the combined-defaults gate's own
-                `mid-left column gap floor` block.
-
-                `top-[43vh]` (387px) is Task 63's (the wrap task's) own
-                correction of Task 58's `42vh` (378px), acting on the
-                re-review's pixel-measured recommendation: the wide-clock fix
-                (Task 62) found this widget's clock-to-top clearance at `42vh`
-                was only 0.5px against the clock's REAL forced-wide bottom
-                edge (377.5px) — real but thin, flagged in that fix's own
-                report as a concern rather than fixed blind (see
-                MonthCalWidget's own PositionedBlock comment, "WIDE-CLOCK
-                FIX", for that history). `43vh` restores Task 57's original
-                whole-vh value, this time verified against the SAME
-                forced-wide clock rather than Task 57's own single-digit-hour
-                reading. MEASURED (scripts/preview.mjs's monthCal block AND
-                its dedicated forced-wide-clock block, 1600x900,
-                MonthCalWidget forced to a real 6-row month, this widget
-                seeded at its own 6-chip MAX_HABIT_CHIPS worst case,
-                worldClocks+countdown+timer on): this widget top=387/
-                bottom=631; gap above (to MonthCalWidget's own bottom, 355):
-                32px; gap below (to the links row, 654.5): 23.5px; clock gap
-                (forced-wide clock.bottom 377.5 to this widget's top 387):
-                9.5px, up from the thin 0.5px the old `42vh` reading left;
-                left edge exactly 48px off RSS's own column right edge (368
-                vs rss.right 320, not the binding constraint — see this
-                widget's own left-edge paragraph above) and exactly 16px off
-                vercel's own column right edge (368 vs vercel.right 352, the
-                REAL binding constraint, live-measured by the
-                combined-defaults gate's own `mid-left column gap floor`
-                block since vercel isn't part of this isolated fixture).
-                Every floor clears with real margin, not shaved to the edge
-                — same discipline Task 57/58's own corrections established.
-
-                WIDTH changed by Task 63 from `w-56` (224px) to `w-[200px]`,
-                matching MonthCalWidget's own width above — the re-review's
-                second recommendation, acted on together with the top move:
-                narrowing was never required by the wide-clock fix itself
-                (this widget's band never shared MonthCalWidget's
-                clock-width collision, sitting below the clock's real
-                measured bottom edge regardless of width — see
-                MonthCalWidget's own "WIDE-CLOCK FIX" paragraph), but the
-                568-vs-592 right-edge stagger that fix's narrowing of
-                MonthCalWidget alone left behind read as unintentional, not
-                a deliberate design choice. Right edge now 368+200=568px,
-                IDENTICAL to MonthCalWidget's own — the mid-left column's two
-                widgets share one right edge again. Labels still truncate
-                safely at the narrower width (`truncate` on the name span,
-                unchanged in HabitsWidget.tsx) — verified against the
-                widgets-habits.png capture at the 6-chip worst case,
-                including the deliberately long "Practice deep breathing..."
-                fixture name, no visible crowding.
-
-                HIDDEN BELOW 1593px alongside MonthCalWidget above — the whole
-                mid-left column drops together via the SAME `max-[1593px]:
-                hidden` (see that widget's PositionedBlock comment for the
-                measured-breakpoint derivation and why the forced-wide clock,
-                not this widget or the search bar, governs it). Default
-                placement only: PositionedBlock drops this className for an
-                ARRANGED `pos`, so a user who has arranged their board owns its
-                layout at every width.
-                HabitsWidget self-gates on
-                settings.widgets.habits + a non-empty habits list, so this
-                wrapper renders an empty box until at least one habit exists
-                — same as every other toggle-gated peripheral here.
-                Transform-free per the house rule (App's quote/bookmarks
-                comments): a plain left/top offset, no translate. */}
-            <PositionedBlock id="habits" pos={layout?.habits} className="fixed left-[23rem] top-[43vh] w-[200px] max-[1593px]:hidden">
-              <HabitsWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="github">
-            {/* DEFAULT placement — the right-middle column, mirroring the RSS
-                widget on the left, and the TOP of a three-card stack (gitlab,
-                then jira, below it — see their own comments).
-
-                `top-[21vh]` (189px at 1600x900) — history in three stages,
-                each a review-caught regression fix, not a single design
-                pass: Task 55's own combined-defaults gate first shipped this
-                at `24vh` (216px), defended only against each connector's own
-                DEFAULT-shaped fixture (2 PRs/2 issues, 2 MRs, 3 issues), not
-                each widget's own display MAX — review caught jira's real
-                MAX_ISSUES=5 card colliding with the bottom-right Tasks pill.
-                FIX ROUND 1 lowered every right-column display cap (glance
-                panels, not full lists — GithubWidget's own MAX_PRS/
-                MAX_ISSUES comment has the rationale) and moved this to
-                `14vh` (126px) — the lowest value that both cleared the
-                collapsed weather chip's bottom AND left room for gitlab/jira
-                below at their OWN new (still nonzero) display maxes.
-                FIX ROUND 2 (this comment's numbers) caught that `14vh` was
-                only ever pinned against the weather chip's OBSERVED bottom
-                (~120px, whatever that day's live Open-Meteo fetch happened
-                to return) — the chip is variable-height (WeatherWidget.tsx:
-                a rain-callout line whenever any forecast hour has
-                precipProb >= NOTABLE_PRECIP, a routine 30% threshold; a
-                stale/offline line whenever the cache is >=30min old or a
-                fetch fails), and its REAL, deterministically-forced worst
-                case measures **164px** (scripts/preview.mjs's "Weather chip
-                WORST-CASE height probe" — seeds a forced `weatherCache` plus
-                blocks the live network route so the forced state can't be
-                clobbered by a real refetch, rather than trusting the day's
-                actual weather). At `14vh` (126px), that put github 38px
-                INSIDE the chip's real worst-case span.
-
-                Fixed again as a design change, not a point patch, with TWO
-                levers this round (both from the controller ruling that
-                scoped it): GithubWidget's `MAX_PRS` dropped one more row
-                (3->2 — its own comment has the exact rationale), AND all
-                three right-column cards' own CHROME was trimmed modestly
-                (`p-4`->`p-3`, header `mb-2`->`mb-1.5` in each widget file —
-                a deliberate, screenshot-verified visual change, not a shape
-                change; vercel, on the left column and not part of this
-                budget, was left untouched). Re-derived BY MEASUREMENT again
-                (probe-logged, never a side script):
-
-                  · MEASURED at 1600x900, every right-column widget at its
-                    own (fix-round-2) display max, tightened chrome: github
-                    top 189 / bottom 424 (height 235, 2 PRs + 2 issues);
-                    gitlab top 450 / bottom 624 (height 174, 3 MRs); jira top
-                    648 / bottom 822 (height 174, 3 issues); the Tasks pill's
-                    own top sits at 846; the weather chip's forced worst-case
-                    bottom sits at 164.
-                  · Gaps (all probe-logged, all >=16px, all with real margin
-                    this round — not shaved to the exact floor): weather
-                    chip->github 25px, github->gitlab 26px, gitlab->jira
-                    24px, jira->Tasks-pill 24px.
-                  · `21vh` (189px) was picked, among the whole-vh values that
-                    clear the chip's 164px floor by any margin, for the
-                    combination that ALSO lands gitlab and jira on their own
-                    clean whole-vh values below with comfortable (not
-                    knife-edge) margin on every floor — the same
-                    walk-the-whole-vh-search-space-by-hand discipline fix
-                    round 1 used, just re-run against the new, taller weather
-                    floor and the trimmed card heights.
-
-                `right-8` anchor keeps it clear of the centred clock/greeting
-                column and the bottom-right Tasks pill / settings gear. A
-                stored arrange-mode `pos` still wins (PositionedBlock drops
-                this className on that branch). GithubWidget self-gates on
-                the connector's enabled+token state, so this wrapper renders
-                an empty box until the connector is connected — same as
-                every other toggle-gated peripheral here. Transform-free per
-                the house rule (App's quote/bookmarks comments): a plain
-                top/right offset, no translate. */}
-            <PositionedBlock id="github" pos={layout?.github} className="fixed right-8 top-[21vh]">
-              <GithubWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="gitlab">
-            {/* DEFAULT placement — the right-middle column, BELOW the GitHub
-                widget's own default slot (`top-[21vh]` as of Task 55 fix
-                round 2 — see its own PositionedBlock comment for the full
-                writeup and the measured arithmetic behind every number
-                here).
-
-                `top-[50vh]` (450px at 1600x900) — history: originally
-                `46vh`, moved to `54vh` by Task 55's own combined-defaults
-                gate, `54vh` -> `48vh` in fix round 1 (moved github up and
-                lowered every right-column widget's display cap), then
-                `48vh` -> `50vh` in fix round 2 (github moved up again, from
-                14vh to 21vh, once review found the collapsed weather chip's
-                REAL worst-case height — 164px, not its lucky-observed
-                ~120px — see github's own comment for the full writeup).
-                MEASURED (fix round 2, scripts/preview.mjs's combined-
-                defaults gate, probe-logged): with github at its OWN display
-                max (2 PRs + 2 issues, tightened chrome, bottom 424px) and
-                gitlab at ITS OWN display max (3 MRs, tightened chrome,
-                height 174px), `50vh` (450px) opens a real 26px gap below
-                github's max-height card — comfortably over the 16px floor,
-                not shaved to it. Shares github's `right-8` anchor so a
-                reader who connects both sees them stacked as one column
-                rather than overlapping. A stored arrange-mode `pos` still
-                wins (PositionedBlock drops this className on that branch).
-                GitlabWidget self-gates on the connector's enabled+token+
-                instanceUrl state, so this wrapper renders an empty box until
-                the connector is connected — same as every other
-                toggle-gated peripheral here. Transform-free per the house
-                rule (App's quote/bookmarks comments): a plain top/right
-                offset, no translate. */}
-            <PositionedBlock id="gitlab" pos={layout?.gitlab} className="fixed right-8 top-[50vh]">
-              <GitlabWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="jira">
-            {/* DEFAULT placement — the right column, lower still: BELOW both
-                the GitHub (`top-[21vh]`) and GitLab (`top-[50vh]`) default
-                slots (both as of Task 55 fix round 2 — see their own
-                PositionedBlock comments), sharing their `right-8` anchor so
-                a reader who connects all three sees one stacked column
-                rather than any overlap.
-
-                `top-[72vh]` (648px at 1600x900) — history: originally
-                `66vh`, moved to `72vh` by Task 55's own combined-defaults
-                gate, `72vh` -> `71vh` in fix round 1 (the round THIS
-                comment's history starts from: the shipped `72vh` collided
-                with the bottom-right Tasks pill once jira actually rendered
-                near its own display max — the gate that shipped it had only
-                ever seeded jira with 3 of its then-current MAX_ISSUES=5,
-                never the real worst case), then `71vh` -> `72vh` again in
-                fix round 2 — landing back on the ORIGINAL Task-55-ship
-                number, but by entirely different arithmetic, not a revert:
-                fix round 2 moved github (and therefore gitlab, and
-                therefore jira) further down the column once review found
-                the collapsed weather chip's REAL worst-case height (164px,
-                not fix round 1's lucky-observed ~120px — see github's own
-                comment for the full writeup), while ALSO trimming every
-                right-column card's chrome and github's own MAX_PRS to buy
-                the room back. MEASURED (fix round 2, scripts/preview.mjs's
-                combined-defaults gate, probe-logged, jira seeded at its OWN
-                display max, 3 issues, tightened chrome): jira bottom 822px,
-                Tasks pill top 846px — a real 24px gap, comfortably over the
-                16px floor, probe-asserted by the same quantified
-                `right-column gaps` check fix round 1 added (a boolean-only
-                pairwise probe can prove "no overlap" but never "how much
-                room is left," which is why that check exists at all). A
-                stored arrange-mode `pos` still wins (PositionedBlock drops
-                this className on that branch). JiraWidget self-gates on the
-                connector's enabled+site+email+apiToken state, so this
-                wrapper renders an empty box until the connector is
-                connected — same as every other toggle-gated peripheral
-                here. Transform-free per the house rule (App's quote/
-                bookmarks comments): a plain top/right offset, no translate. */}
-            <PositionedBlock id="jira" pos={layout?.jira} className="fixed right-8 top-[72vh]">
-              <JiraWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="vercel">
-            {/* DEFAULT placement — REVISED off the brief's own starting
-                hypothesis (a second right-hand column beside github, e.g.
-                `right-[22-23rem] top-[24vh]`). Measured directly (not just
-                class-name reasoning) and rejected: at this app's 1600x900
-                launch viewport the centered column is wider than the gap a
-                second w-80 card would need. github's own LEFT edge sits at
-                right:22rem (right-8 + w-80 = 2rem + 20rem) from the
-                viewport's right edge, i.e. x=1248px; the centered clock
-                spans x=635.5-964.5px at that same row (top-[24vh]) — a
-                w-80 (320px) card starting even 1rem left of github's edge
-                (x=912) still overlaps the clock by ~52px, and every other
-                row the centered column occupies down to the quote block
-                (y up to ~876px) is similarly too wide (clock/search/focus/
-                quote all reach past x=900) to leave room for a second
-                320px column anywhere in the right half without either
-                touching github or touching the centered content. (The
-                links row, y636-724, is the one narrow exception — far too
-                short a band to hold a card.) So: the LEFT side instead,
-                mirroring the right column's own stacking rhythm one level
-                down from RSS's existing `left-8 top-[24vh]` slot (moved
-                from `top-[22vh]` when RSS was carded — Jon's darker-color
-                ruling this batch; see the rss PositionedBlock comment). The
-                centered column's LEFTMOST extent at any row is x=512
-                (quote), well clear of a left-8/w-80 card's x=32-352 box, so
-                stacking here is collision-free against the centered content
-                by construction, not just at the tested fixture size.
-                `top-[64vh]` clears RSS even at its OWN worst case, not
-                just its default: RSS's shownCount is user-configurable
-                3-8 (Connectors.tsx's SHOWN_COUNT_OPTIONS), and at 8
-                headlines its solid card reaches y=552 at this viewport
-                (vs y=432 at the default 5) — measured directly, not
-                estimated, since the row math (gap-1 rows plus two text
-                lines, inside the card's own p-2.5 padding — Jon's
-                darker-color ruling carded this widget this batch) isn't
-                obvious from the className alone. `top-[64vh]`
-                (576px) clears that worst case by a measured 24.0px, and
-                vercel's own card (capped at MAX_DEPLOYMENTS=5, so a
-                5-row fixture IS its own worst-case height, not a
-                shorter stand-in) ends at y=768, a measured 36.0px clear
-                of the quote block's own top (y=804) below it. Fix round
-                1 (post-review) caught that the harness's OWN
-                gap-measurement probe was, at the time this paragraph was
-                first written, seeding vercel with only 3 rows — so the
-                "~768/~36px" figures here were an (accurate, as it turned
-                out) hand-computed estimate, not yet an actual
-                measurement of the real worst case. scripts/preview.mjs's
-                vercel block now seeds all 5 MAX_DEPLOYMENTS rows and
-                asserts this exact gap (`pxGapBelow >= 16`, logged
-                verbatim), so these are now genuinely pinned against the
-                real rendered card, not just arithmetic. A stored
-                arrange-mode `pos` still wins
-                (PositionedBlock drops this className on that branch).
-                VercelWidget self-gates on the connector's enabled+token
-                state, so this wrapper renders an empty box until the
-                connector is connected — same as every other toggle-gated
-                peripheral here. Transform-free per the house rule (App's
-                quote/bookmarks comments): a plain top/left offset, no
-                translate. */}
-            <PositionedBlock id="vercel" pos={layout?.vercel} className="fixed left-8 top-[64vh]">
-              <VercelWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
+          {/* ── RIGHT RAIL ─────────────────────────────────────────────────
+              The mirror of the left rail: a single flowing column of the three
+              code-forge connectors, pinned to the right edge (`right-8`) and
+              right-aligned (`items-end`) so the cards hug the margin exactly as
+              their old `right-8` pins did. Same PositionedBlock/arrange contract
+              as the left rail. HEIGHT PRIORITY (per-widget, MEASURED — the
+              three cards stack to 615px, so the column is the page's tightest
+              vertical budget): github stays through short (its 235px worst case
+              clears the bottom pills at 600h) but drops on xshort (won't fit a
+              450h window); gitlab AND jira drop on short (at 600h even
+              github+gitlab already reach the pills). NOTE for Task 65: at
+              700-820px tall with ALL THREE connectors at their display max, the
+              column still laps the bottom Tasks pill (no `short` tier fires
+              above 600h) — the residual the occlusion probes must pin, via a
+              mid-height tier or a per-widget row-count trim. */}
+          <aside data-zone="right" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
+            <WidgetBoundary name="github">
+              <PositionedBlock id="github" pos={layout?.github} className="xshort:hidden">
+                <GithubWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
+            <WidgetBoundary name="gitlab">
+              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="short:hidden xshort:hidden">
+                <GitlabWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
+            <WidgetBoundary name="jira">
+              <PositionedBlock id="jira" pos={layout?.jira} className="short:hidden xshort:hidden">
+                <JiraWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
+          </aside>
 
           <WidgetBoundary name="crypto">
             {/* DEFAULT placement — a slim CENTERED strip, not another
@@ -1017,60 +573,6 @@ export default function App() {
                 translate. */}
             <PositionedBlock id="crypto" pos={layout?.crypto} className="fixed left-[calc(50%-11rem)] top-[86vh]">
               <CryptoWidget />
-            </PositionedBlock>
-          </WidgetBoundary>
-
-          <WidgetBoundary name="ics">
-            {/* DEFAULT placement — Task 54, MEASURED against the real
-                harness (scripts/preview.mjs's own ics block, run in a real
-                Chromium session — never a side script; a prior task shipped
-                a 2.5px gap from side-script numbers and got caught), not
-                estimated from class names. The brief's own starting
-                hypothesis (`left-8 top-[62vh]`) is STALE — that slot is
-                Vercel's as of Task 51 — and every other candidate the
-                brief's controller ruling walked through (a band above RSS
-                sharing the timer pill's row, the narrow strip beside the
-                centered clock, the sliver between RSS's worst case and
-                Vercel's top, above RSS sharing the bookmarks band, below
-                Jira) either collided or left under the mandated 8px floor.
-
-                `top-[13vh]` (117px at the 1600x900 launch viewport, timer
-                widget on — the harness's own worst case, since the timer
-                pill defaults OFF in production but the harness enables it,
-                see its own top-of-file comment) sits in the one band that
-                survived, BELOW the timer pill (fixed left-4
-                top-[var(--top-band)]) and ABOVE RSS's own default top
-                (`top-[24vh]` = 216px). RE-MEASURED for Jon's darker-color
-                ruling (this batch), which turned CalendarWidget from bare
-                photo-floating text into a SOLID CARD (bg-panel-solid +
-                rounded-2xl + shadow-lg + p-2.5 — see CalendarWidget.tsx):
-                carding grew the widget's height (p-2.5 padding + radius),
-                so both this slot and RSS's below it were re-derived from the
-                real harness. MEASURED (this run, both neighbors on,
-                CalendarWidget at its own worst case — 1 next-line + 2 capped
-                agenda rows, carded — and RSS at its shownCount=8 max, also
-                carded): timer bottom = 100px, ics top = 117px (17.0px clear
-                above); ics carded bottom = 195px (was 175 bare), rss
-                top = 216px (21.0px clear below). CalendarWidget is capped by
-                CONSTRUCTION at 1 next-line + 2 agenda rows (the controller's
-                own amendment to the brief's original 4-row spec — see
-                CalendarWidget.tsx's own doc comment), so there is no
-                unbounded "worst case" height beyond what was just measured.
-                The old 8px floor (a bare-text-tight-band exception, like
-                CryptoWidget's own) was RAISED to this file's usual >=16px for
-                this batch: now that both this widget and RSS are cards, the
-                ruling required every re-derived left-column floor to clear
-                16px, and the measured 17/21px gaps do (scripts/preview.mjs's
-                ics gap probe now asserts >=16, not >=8). A stored
-                arrange-mode `pos` still wins (PositionedBlock drops this
-                className on that branch). CalendarWidget self-gates on the
-                connector's enabled+url state, so this wrapper renders an
-                empty box until the connector is configured — same as every
-                other toggle-gated peripheral here. Transform-free per the
-                house rule (App's quote/bookmarks comments): a plain
-                left/top offset, no translate. */}
-            <PositionedBlock id="ics" pos={layout?.ics} className="fixed left-8 top-[13vh]">
-              <CalendarWidget />
             </PositionedBlock>
           </WidgetBoundary>
 

@@ -573,18 +573,21 @@ describe('App — notes/tasks/timer wrapper z-index elevation while their panels
   })
 })
 
-// Greeting-collision fix — the mid-left column (monthCal + habits) HIDES below
-// the measured 1593px breakpoint on DEFAULT placement only. jsdom has no media
-// queries or layout, so the real "visible >=1593 / hidden below" pixel proof
-// lives in scripts/preview.mjs's habits floor block; what IS verifiable here —
-// and is the whole contract that proof depends on — is that both wrappers
-// carry the `max-[1593px]:hidden` class on default placement, and that a
-// stored arrange-mode layout DROPS it (so an arranged user, who owns their
-// layout, is never second-guessed by viewport width). The PositionedBlock
-// wrapper always renders even while the widget self-gates to null (both
-// default off), so the class is inspectable without enabling either widget.
-describe('App — the mid-left column hides below the 1593px breakpoint (greeting-collision fix)', () => {
-  it('monthCal and habits default-placement wrappers carry max-[1593px]:hidden alongside their fixed placement classes', async () => {
+// Task 64 (responsive rails) — the default-placement data widgets stopped being
+// individually `fixed`-pinned and became two FLOWING rails: a `fixed`
+// <aside data-zone="left|right"> per edge, cards stacked by flex flow so the
+// board reflows at every window size. jsdom has no layout or container queries,
+// so the pixel reflow AND the ~1593px col-2 boundary live in scripts/preview.mjs
+// (Task 65); what IS verifiable here is the WIRING the rails depend on: the
+// zones exist, each moved widget's DEFAULT wrapper is STATIC (flows — no
+// `fixed`/inline position of its own), the mid-left column carries the
+// `.rail-col2` container-query marker (NOT the old max-[1593px]:hidden /
+// left-[23rem] / w-[200px] pins), the height-tier hides are per-widget, and an
+// ARRANGED widget still LEAVES the rail (renders position:fixed with its
+// className dropped — so no width/height class can hide it, and it is never
+// double-rendered).
+describe('App — responsive rails: flowing default placement, arranged widgets leave the rail', () => {
+  async function renderApp() {
     const storage = createStorage(memoryDriver())
     await storage.init()
     render(
@@ -593,25 +596,72 @@ describe('App — the mid-left column hides below the 1593px breakpoint (greetin
       </StorageProvider>,
     )
     await act(async () => {})
+  }
 
-    for (const id of ['monthCal', 'habits']) {
-      const block = document.querySelector(`[data-block-id="${id}"]`)
+  it('renders both rail zones', async () => {
+    await renderApp()
+    expect(document.querySelector('aside[data-zone="left"]')).toBeTruthy()
+    expect(document.querySelector('aside[data-zone="right"]')).toBeTruthy()
+  })
+
+  it('the moved data widgets default to STATIC wrappers inside a rail zone (they flow — no fixed/inline position of their own)', async () => {
+    await renderApp()
+    for (const id of ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira']) {
+      const block = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement
       expect(block).toBeTruthy()
-      // The hide rule (compiles to @media not all and (min-width:1593px) —
-      // strictly under 1593px), applied to default placement only.
-      expect(block!.classList.contains('max-[1593px]:hidden')).toBe(true)
-      // Still carries its normal default placement — the column, when shown,
-      // sits where it always did (left-[23rem] / w-[200px], right edge 568).
-      expect(block!.classList.contains('fixed')).toBe(true)
-      expect(block!.classList.contains('left-[23rem]')).toBe(true)
-      expect(block!.classList.contains('w-[200px]')).toBe(true)
+      // The default branch never sets an inline style and carries no `fixed`
+      // class of its own — the zone positions it, flex flow stacks it.
+      expect(block.getAttribute('style')).toBeNull()
+      expect(block.classList.contains('fixed')).toBe(false)
+      expect(block.closest('aside[data-zone]')).toBeTruthy()
     }
   })
 
-  it('a stored arrange-mode layout drops the hide class — an arranged user owns their layout at every width', async () => {
+  it('the mid-left column carries the .rail-col2 container-query marker, not the old 1593/pinned-placement classes', async () => {
+    await renderApp()
+    for (const id of ['monthCal', 'habits']) {
+      const block = document.querySelector(`[data-block-id="${id}"]`)!
+      // The structural replacement for `max-[1593px]:hidden` — a per-block
+      // marker (index.css `.rail-col2`) driven by the left zone's container
+      // query, so the ~1593 boundary emerges from the token math, not a
+      // hardcoded number.
+      expect(block.classList.contains('rail-col2')).toBe(true)
+      // The retired pinned-placement classes must all be gone.
+      expect(block.classList.contains('max-[1593px]:hidden')).toBe(false)
+      expect(block.classList.contains('left-[23rem]')).toBe(false)
+      expect(block.classList.contains('w-[200px]')).toBe(false)
+      expect(block.classList.contains('fixed')).toBe(false)
+      // It sits in the LEFT zone — the container the .rail-col2 query reads.
+      expect(block.closest('aside[data-zone="left"]')).toBeTruthy()
+    }
+  })
+
+  it('height-tier hides are per-widget on the default wrapper (measured priority): deploys+gitlab+jira drop by short, headlines+github by xshort, calendar always stays', async () => {
+    await renderApp()
+    const has = (id: string, cls: string) =>
+      document.querySelector(`[data-block-id="${id}"]`)!.classList.contains(cls)
+    // Left col1: calendar always stays (78px, fits every height); headlines
+    // drops only on xshort; deploys drops on short (and xshort).
+    expect(has('ics', 'short:hidden')).toBe(false)
+    expect(has('ics', 'xshort:hidden')).toBe(false)
+    expect(has('rss', 'short:hidden')).toBe(false)
+    expect(has('rss', 'xshort:hidden')).toBe(true)
+    expect(has('vercel', 'short:hidden')).toBe(true)
+    expect(has('vercel', 'xshort:hidden')).toBe(true)
+    // Right rail: github stays through short, drops on xshort; gitlab+jira drop
+    // on short (and xshort) — the column is the page's tightest vertical budget.
+    expect(has('github', 'short:hidden')).toBe(false)
+    expect(has('github', 'xshort:hidden')).toBe(true)
+    expect(has('gitlab', 'short:hidden')).toBe(true)
+    expect(has('gitlab', 'xshort:hidden')).toBe(true)
+    expect(has('jira', 'short:hidden')).toBe(true)
+    expect(has('jira', 'xshort:hidden')).toBe(true)
+  })
+
+  it('an ARRANGED rail widget leaves the rail: rendered once, position:fixed, className (any hide/marker) dropped — an arranged user owns their layout at every width', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { monthCal: { x: 30, y: 20 }, habits: { x: 30, y: 55 } })
+    await storage.set('layout', { monthCal: { x: 30, y: 20 }, vercel: { x: 70, y: 80 } })
     render(
       <StorageProvider storage={storage}>
         <App />
@@ -621,16 +671,17 @@ describe('App — the mid-left column hides below the 1593px breakpoint (greetin
 
     for (const [id, pos] of [
       ['monthCal', { x: 30, y: 20 }],
-      ['habits', { x: 30, y: 55 }],
+      ['vercel', { x: 70, y: 80 }],
     ] as const) {
-      const block = document.querySelector(`[data-block-id="${id}"]`) as HTMLElement
-      // PositionedBlock drops className entirely on the positioned branch, so
-      // the hide rule cannot reach an arranged block (nor fight its coords).
+      const blocks = document.querySelectorAll(`[data-block-id="${id}"]`)
+      // Exactly ONE node — never double-rendered (a rail slot AND an arranged copy).
+      expect(blocks.length).toBe(1)
+      const block = blocks[0] as HTMLElement
+      // PositionedBlock drops the default className entirely on the positioned
+      // branch, so no rail-col2 / short:hidden can reach an arranged block.
       expect(block.className).toBe('')
-      expect(block.classList.contains('max-[1593px]:hidden')).toBe(false)
       expect(block.style.position).toBe('fixed')
-      // jsdom measures 0x0, so these stay the raw percent center with no
-      // calc() offset — same as the timer/weather stored-layout test above.
+      // jsdom measures 0x0, so these stay the raw percent center (no calc()).
       expect(block.style.left).toBe(`${pos.x}%`)
       expect(block.style.top).toBe(`${pos.y}%`)
     }

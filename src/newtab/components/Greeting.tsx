@@ -65,36 +65,17 @@ export default function Greeting() {
       //   sibling collision — hence a viewport-relative cap rather than a
       //   fixed one, sized under the column's own `narrow:px-4` padding.
       //
-      //   >=1593px — THE MID-LEFT COLUMN GUARD (the greeting-collision fix).
-      //   Above this breakpoint the local mid-left column (monthCal + habits,
-      //   `left-[23rem] w-[200px]`, RIGHT EDGE 568px — App.tsx) is on-screen
-      //   whenever the user has enabled it; below it that column is HIDDEN in
-      //   App.tsx (its two PositionedBlocks carry a matching `max-[1593px]:
-      //   hidden`), so there is no sibling to collide with and this term must
-      //   NOT engage (it would needlessly clip an ordinary name at narrow
-      //   widths). A centered element of width W has its left edge at
-      //   (100vw-W)/2; requiring that to clear the column's right edge by this
-      //   file's usual >=16px floor — left >= 568+16 = 584 — gives
-      //   W <= 100vw - 1168 (1168 = 2*584, the centering-symmetry doubling).
-      //   `min(40rem, calc(100vw - 1168px))` therefore keeps the 16px floor BY
-      //   CONSTRUCTION at every width in this band while never LOOSENING the
-      //   pre-existing 40rem defense cap (the `min()` can only make it
-      //   tighter): at 100vw=1808px the calc term reaches 40rem and the cap is
-      //   the same 40rem as the default tier; below that (down to the 1593
-      //   breakpoint) the calc term binds — 432px at 1600, 425px at 1593, both
-      //   still well above the 284.5px default-greeting floor, so "Good
-      //   afternoon." is never clipped (byte-identical to today) and only a
-      //   long CUSTOM name is clamped, exactly the case this fix owns. The
-      //   1593 breakpoint is the MEASURED width at which the WIDEST default
-      //   centered member that overlaps the column — the forced-wide clock
-      //   (a 2-digit hour renders 425px, one glyph wider than a 1-digit hour;
-      //   its box, 193.5-397.5 at 900h, overlaps BOTH monthCal and habits) —
-      //   clears that same 568+16 floor; the search bar (320px) and focus line
-      //   (288px) clear far earlier (1488/1450px), so the clock governs. This
-      //   term and App.tsx's `max-[1593px]:hidden` share the 1593 boundary
-      //   exactly (min-width vs. its not-all-min-width complement), so the
-      //   column is on-screen iff this cap is engaged — see scripts/preview.mjs
-      //   (the habits floor block) for the live worst-name + hide proofs.
+      //   (Task 64 — responsive rails — retired a FOURTH tier that used to sit
+      //   here: a `min-[1593px]:max-w-[min(40rem,calc(100vw-1168px))]` cap that
+      //   kept the greeting's left edge clear of the old PINNED mid-left column
+      //   (monthCal + habits, right edge 568px). That column now FLOWS inside
+      //   the left rail (App.tsx), and the centred column holding THIS greeting
+      //   is itself bounded to `--center-reserve` (App.tsx:
+      //   `max-w-[var(--center-reserve)] mx-auto`, the widest centred member +
+      //   breathing), so the greeting can no longer reach the rail at ANY width
+      //   — the column bound does STRUCTURALLY what that hand-tuned 1593 cap
+      //   did, and the magic 1593 is gone from here too. "Good afternoon."
+      //   (284.5px) is far under the reserve, so it is still never clipped.)
       //
       // `truncate` (nowrap + overflow-hidden + ellipsis) rather than letting
       // it wrap: a wrapped multi-line greeting grows the centred column
@@ -102,7 +83,7 @@ export default function Greeting() {
       // search, focus, links) — a second-order layout shift nothing here
       // has budget for. One line, capped, ellipsised is the same contract
       // the weather chip already keeps for its own long content.
-      className="text-photo font-display mt-2 short:mt-0.5 xshort:mt-0.5 text-4xl short:text-2xl xshort:text-lg font-medium text-canvas-fg max-w-[40rem] min-[721px]:max-[899px]:max-w-[18rem] min-[1593px]:max-w-[min(40rem,calc(100vw_-_1168px))] compact:max-w-[calc(100vw-4rem)] truncate"
+      className="text-photo font-display mt-2 short:mt-0.5 xshort:mt-0.5 text-4xl short:text-2xl xshort:text-lg font-medium text-canvas-fg max-w-[40rem] min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
     >
       {text}
     </p>

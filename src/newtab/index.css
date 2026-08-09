@@ -192,6 +192,61 @@
                  more air between them than a row of pills does. */
   --bookmarks-chip-px: 0.625rem;
   --bookmarks-gap: 0.375rem;
+
+  /* ── The rail zones (Task 64 — responsive rails) ───────────────────────
+     Default widget placement STOPPED being pinned px/vh coordinates and
+     became two flowing columns: a `fixed` <aside data-zone="left|right">
+     pinned to each edge, its cards stacked by flex flow so the board reflows
+     at every window size (Jon: "at different browser sizes the widgets just
+     stay in place ... it can look great or terrible"). An ARRANGED widget
+     (stored `pos`) still leaves the rail — PositionedBlock renders it
+     `position: fixed`, which removes it from flex flow and pins it to the
+     user's own chosen coordinates ("arranged pixels stay yours").
+
+     --center-reserve  the central strip the rails must never intrude on: the
+                       WIDEST default centred member + 2×16px breathing. The
+                       members, MEASURED at defaults (scripts/preview.mjs,
+                       Playwright `setFixedTime` forced to a 2-digit hour):
+                         · forced-wide clock  425px  (GOVERNS — one glyph wider
+                           than a 1-digit hour; left edge 587.5 at 1600w, so
+                           1600 - 2*587.5 = 425)
+                         · search bar         320px  (w-80)
+                         · focus line         288px  (w-72)
+                       The clock is widest, so 425 + 2*16 = 457px. The
+                       bottom-anchored quote (max-w-xl / 576px) is deliberately
+                       NOT a member: it lives in the bottom band the rails stop
+                       ABOVE, cleared vertically rather than horizontally —
+                       exactly as the old layout cleared it (vercel ended 36px
+                       above the quote). The centred column itself is bounded to
+                       this width (`max-w-[var(--center-reserve)] mx-auto`,
+                       App.tsx), which is also what retired Greeting's old
+                       min-[1593px] width cap: the column now bounds the
+                       greeting directly.
+     --rail-w          each zone's width. The zone is pinned to its edge with
+                       the house 2rem margin; its INNER edge must land on the
+                       center-reserve boundary: 2rem + rail-w = (100vw - CR)/2,
+                       so rail-w = (100vw - CR)/2 - 2rem. The zone's inner edge
+                       then sits exactly on the reserve boundary, 16px off the
+                       widest clock. This single relation is what makes the
+                       mid-left column's appearance land at the OLD 1593px
+                       breakpoint BY CONSTRUCTION rather than by a magic number
+                       (see the `.rail-col2` container query below).
+     --rail-top-*      where each rail's first card starts: the first pixel
+                       below the top-band peripheral on that side, cleared by
+                       the house 16px floor. PX constants, not vh: the chips
+                       they clear are content-height (viewport-height-
+                       invariant), so a vh top would rise INTO them as the
+                       window shortens (the exact bug the old vh-based connector
+                       tops had against the weather chip at short heights).
+                       MEASURED worst cases (scripts/preview.mjs): the weather
+                       chip's forced worst case (rain-callout + stale line)
+                       bottoms at 164px, so the right rail starts at 180; the
+                       shorter timer pill bottoms at ~100px, so the left rail
+                       starts at 120. */
+  --center-reserve: calc(425px + 2 * 16px);
+  --rail-w: calc((100vw - var(--center-reserve)) / 2 - 2rem);
+  --rail-top-left: 120px;
+  --rail-top-right: 180px;
 }
 
 /* Light-panel override (Task 60). :root above locks color-scheme to dark so the
@@ -295,6 +350,60 @@
 @custom-variant tight (@media (max-width: 1300px) and (min-width: 721px));
 @custom-variant narrow (@media (max-width: 1024px));
 @custom-variant compact (@media (max-width: 720px));
+
+/* ── The rail zones' container query + flow discipline (Task 64) ──────────
+   The LEFT rail is a size-query container so its SECOND column (month grid +
+   habits) appears only when the rail is physically wide enough to hold a
+   second column beside the first — the STRUCTURAL replacement for the old
+   hard-coded `max-[1593px]:hidden` (the magic 1593 now lives NOWHERE in
+   source; scripts/preview.mjs asserts the boundary still lands at ~1593 by
+   construction).
+
+   Threshold 536px = col1 width (vercel, w-80 / 320px — the widest col-1 card)
+   + gap-4 (16px) + col2 width (monthCal/habits, w-[200px]). `--rail-w` reaches
+   536 at exactly 100vw = 1593: (1593 - 457)/2 - 32 = 536. PLUS a height gate so
+   the two cards are never shown where the viewport can't stack them clear of
+   the bottom band: MEASURED (scripts/preview.mjs rail probe), the column's
+   worst case is rail-top-left(120) + monthCal 6-row(247) + gap(16) + habits
+   6-chip(244) = bottom 627px, and the centred quote's top sits at
+   height - 96px (bottom-6 + its 72px box), so the column clears the quote only
+   at height >= 627 + 96 = 723 -> the gate is `min-height: 730px` (rounded up
+   for margin). Below it col2 hides even on a wide viewport rather than lap the
+   quote (a wide-but-short window like 1600x700). This supersedes the brief's
+   provisional "hide col2 on short (<=600)" — 600 was too low, the quote is the
+   real floor.
+
+   Applied to the per-block `.rail-col2` wrappers, NOT the col-2 container div:
+   an ARRANGED monthCal/habits is rendered `position: fixed` by PositionedBlock
+   (which DROPS this class), and `display: none` on a shared ANCESTOR would
+   hide even a fixed descendant — hiding the container would make an arranged
+   widget vanish below 1593 / on short, violating "an arranged user owns their
+   layout at every width". Hiding the per-block wrapper leaves the arranged
+   (class-free) branch untouched. */
+[data-zone='left'] {
+  container: aurora-rail / inline-size;
+}
+.rail-col2 {
+  display: none;
+}
+@container aurora-rail (min-width: 536px) {
+  @media (min-height: 730px) {
+    .rail-col2 {
+      display: block;
+    }
+  }
+}
+
+/* A self-gated-off widget still renders its (empty) PositionedBlock wrapper;
+   drop it from the flex column so ENABLED cards stack flush instead of
+   inheriting a phantom flex gap for every disabled neighbour. Arrange's
+   measureAll() already skips a 0×0 block, and an arranged block is `fixed`
+   (out of flex flow) AND non-empty, so this never touches one. Higher
+   specificity than `.rail-col2` above, so an empty-but-shown col-2 slot is
+   still correctly removed. */
+[data-zone] [data-block-id]:empty {
+  display: none;
+}
 
 /* Belt and braces for platforms that style option rows from the page: */
 select > option {
