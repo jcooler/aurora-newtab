@@ -77,9 +77,11 @@ only `enabled`, per the existing discipline).
   differently-ordered calendar list can transiently mis-tag a failed feed's
   carried-over events until the next successful refresh (config changes
   remount the widget and trigger one immediately).
-- Descriptor changes: `secretFields: ['calendars']` (the whole list strips
-  on backup export — every URL is a secret; names without URLs are
-  useless). `origins(config)` maps `icsCalendarsOf(config)` through
+- Descriptor changes: `secretFields: ['url', 'calendars']` — the whole
+  list strips on backup export (every URL is a secret; names without URLs
+  are useless), and the legacy `url` field strips too: migration is
+  read-time only, so a config that's never re-saved still carries the old
+  `url` secret at rest and must not leak it through an export. `origins(config)` maps `icsCalendarsOf(config)` through
   `originPattern`, swallowing per-entry throws to fewer origins (degrade,
   never throw out of a registry sweep).
 
@@ -163,6 +165,8 @@ Unit (vitest, existing harnesses):
   keeps its previous events while others refresh; all failing → prev.
 - Selection: headline exclusion per mode, all-day ordering, per-calendar
   skip when a calendar is exhausted, upcoming count bounds.
+- Backup: legacy `url` AND `calendars` both stripped on export (see
+  descriptor changes above).
 - Formatting: day-token boundaries (today / tomorrow / 6 days / 7+ days),
   all-day variants.
 - Settings: webcal conversion (`webcal://x/y` saves as `https://x/y`),
