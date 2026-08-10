@@ -1,7 +1,8 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { fetchGithub, DEFAULT_GITHUB_VIEWS, type GithubData, type GithubItem } from '../../../services/connectors/github'
+import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
+import ContributionGraph from './ContributionGraph'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -32,6 +33,15 @@ const NOTIF_CAP = 50
 const MAX_PRS = 2
 const MAX_ISSUES = 2
 
+// Section separators for the composed card (the board's composed face: graph on
+// top, border-t-divided rows below). ROW_SEP divides one list from another and
+// is always present between two rendered lists. GRAPH_SEP divides the FIRST list
+// from the graph above it and COLLAPSES on `short`, where the graph itself is
+// hidden (short:hidden) — so no orphan hairline is left stranded under the
+// header once the graph yields.
+const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
+const GRAPH_SEP = ` ${ROW_SEP.trim()} short:mt-0 short:border-t-0 short:pt-0`
+
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id
  *  to the whole union rather than its specific member, and a hand-edited backup
@@ -55,26 +65,41 @@ export default function GithubWidget() {
   const [connectors] = useStoredKey('connectors')
   const github = connectedGithub(connectors?.github)
   if (!github) return null
-  return <GithubInner token={github.token} />
+  return <GithubInner github={github} />
 }
 
-function GithubInner({ token }: { token: string }) {
+function GithubInner({ github }: { github: GithubConfig }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
+  // The user's resolved views gate the fetch (a section turned off never issues
+  // a request — see fetchGithub) AND this render (below).
+  const token = github.token
+  const views = resolveGithubViews(github)
+  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev, views))
+
+  // All four sections off: the user asked for nothing to show, so render no
+  // empty shell — the settings copy owns that explanation.
+  if (!views.commitGraph && !views.pulls && !views.issues && !views.notifications) return null
   // No cached data yet (first-ever load in flight, or a total failure) renders
   // nothing rather than an empty shell — same as RssInner.
-  // TODO(Task 68): resolve per-user views from stored config; DEFAULT_GITHUB_VIEWS
-  // (all sections on) keeps current behavior unchanged until that lands.
-  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev, DEFAULT_GITHUB_VIEWS))
   if (!data) return null
 
-  const prs = (data.prs ?? []).slice(0, MAX_PRS)
-  const issues = (data.issues ?? []).slice(0, MAX_ISSUES)
+  // Old snapshots predate the contributions field — read it defensively. An
+  // empty day array is treated as absent (a graph needs cells to draw), so the
+  // section only appears when commitGraph is on AND there are real days.
+  const contributions = data.contributions ?? null
+  const graph =
+    views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+
+  // A disabled list is empty regardless of what the snapshot still carries.
+  const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []
+  const issues = views.issues ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
   const notifications = data.notifications
-  // Connected but nothing waiting — a deliberate, friendly rendered state (the
-  // widget shows the card, unlike RSS which renders nothing when empty), so the
-  // live connection is still visible.
-  const empty = prs.length === 0 && issues.length === 0
+
+  // The celebratory empty line is honest only when a LIST section is enabled,
+  // both enabled lists are empty, AND no graph is drawing — a graph-only card
+  // with an empty list day is NOT "empty".
+  const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0 && graph === null
 
   return (
     // Floating panel surface: the solid panel token per the house rule for
@@ -88,40 +113,44 @@ function GithubInner({ token }: { token: string }) {
     <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
-        {/* Unread chip renders ONLY when the count is known AND positive
-            (Controller ruling 2): null (endpoint unavailable) hides it; 0 (all
-            caught up) hides it too. "50+" at the per-page cap. */}
-        {notifications !== null && notifications > 0 && (
+        {/* Unread chip renders ONLY when the notifications view is on AND the
+            count is known AND positive (Controller ruling 2, compounded with the
+            view gate): null (endpoint unavailable) hides it; 0 (all caught up)
+            hides it too. "50+" at the per-page cap. */}
+        {views.notifications && notifications !== null && notifications > 0 && (
           <span className="text-xs text-fg-muted">
             {notifications >= NOTIF_CAP ? '50+' : notifications} unread
           </span>
         )}
       </div>
 
-      {empty ? (
-        <p className="text-sm text-fg-muted">No PRs waiting on you 🎉</p>
-      ) : (
-        <>
-          {prs.length > 0 && (
-            <ul className="flex flex-col gap-2 dense:gap-1">
-              {prs.map((item) => (
-                <ItemRow key={item.url} item={item} />
-              ))}
-            </ul>
-          )}
-          {issues.length > 0 && (
-            <ul
-              className={`flex flex-col gap-2 dense:gap-1${
-                prs.length > 0 ? ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2' : ''
-              }`}
-            >
-              {issues.map((item) => (
-                <ItemRow key={item.url} item={item} />
-              ))}
-            </ul>
-          )}
-        </>
+      {/* Commit graph on top — the board's composed face. The whole section
+          carries short:hidden: under height pressure the graph yields first
+          while the rows survive (the exact boundary is re-measured in Task 70;
+          the class lands now). */}
+      {graph && (
+        <div className="short:hidden">
+          <ContributionGraph contributions={graph} />
+        </div>
       )}
+
+      {prs.length > 0 && (
+        <ul className={`flex flex-col gap-2 dense:gap-1${graph ? GRAPH_SEP : ''}`}>
+          {prs.map((item) => (
+            <ItemRow key={item.url} item={item} />
+          ))}
+        </ul>
+      )}
+
+      {issues.length > 0 && (
+        <ul className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? GRAPH_SEP : ''}`}>
+          {issues.map((item) => (
+            <ItemRow key={item.url} item={item} />
+          ))}
+        </ul>
+      )}
+
+      {showEmpty && <p className="text-sm text-fg-muted">No PRs waiting on you 🎉</p>}
     </section>
   )
 }
