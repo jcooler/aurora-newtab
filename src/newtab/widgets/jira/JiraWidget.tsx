@@ -1,7 +1,8 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchJira, DEFAULT_JIRA_VIEWS, type JiraData, type JiraIssue } from '../../../services/connectors/jira'
-import type { ConnectorConfig, JiraConfig } from '../../../services/connectors/types'
+import { resolveViews } from '../../../services/connectors/views'
+import type { ConnectorConfig, JiraConfig, JiraViews } from '../../../services/connectors/types'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -16,6 +17,20 @@ import type { ConnectorConfig, JiraConfig } from '../../../services/connectors/t
 // controller ruling that jira stays >=3 — the card's own CHROME absorbed
 // that round's savings instead (`p-4`->`p-3`, `mb-2`->`mb-1.5` below).
 const MAX_ISSUES = 3
+// GLANCE cap for the due-soon rows (Task 75), same discipline as MAX_ISSUES:
+// this is the second rows section on the lowest right-rail card, so it holds
+// to 2 (below MAX_ISSUES's 3). "Due soon" is a nudge toward the deadlines that
+// matter now, not the whole calendar — the assigned list and its counts already
+// carry the fuller picture.
+const MAX_DUE_SOON = 2
+
+// The house eyebrow for a quiet section separator (the tasks panel + wave-1
+// language): 11px, uppercased, wide-tracked, muted.
+const EYEBROW = 'mb-2 dense:mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted'
+// Row separator between the assigned list and the due-soon list — always
+// present when both render (mirrors github/gitlab's ROW_SEP; jira has no
+// tier-gated section, so there is no graph separator variant here).
+const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 
 /** Narrow `connectors.jira` (a ConnectorConfig union member, or undefined) to
  *  a CONNECTED JiraConfig, defensively — same rationale and shape as
@@ -44,35 +59,64 @@ export default function JiraWidget() {
   const [connectors] = useStoredKey('connectors')
   const jira = connectedJira(connectors?.jira)
   if (!jira) return null
-  return <JiraInner site={jira.site} email={jira.email} apiToken={jira.apiToken} />
+  return (
+    <JiraInner
+      site={jira.site}
+      email={jira.email}
+      apiToken={jira.apiToken}
+      views={resolveViews(DEFAULT_JIRA_VIEWS, jira.views)}
+    />
+  )
 }
 
-function JiraInner({ site, email, apiToken }: { site: string; email: string; apiToken: string }) {
+function JiraInner({
+  site,
+  email,
+  apiToken,
+  views,
+}: {
+  site: string
+  email: string
+  apiToken: string
+  views: JiraViews
+}) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
-  // and refreshes once per mount, carrying `prev` so the one-endpoint fetch's
-  // quiet-failure path keeps it (fetchJira has no ETag round-trip — see its
-  // own doc comment — but still carries `prev` forward). No cached data yet
-  // (first-ever load in flight, or a total failure) renders nothing rather
-  // than an empty shell — same as GithubInner/GitlabInner.
-  // Task 74 stopgap: thread DEFAULT_JIRA_VIEWS through the new gated signature
-  // (Task 75 replaces DEFAULT_* with the resolved views + renders due-soon).
+  // and refreshes once per mount, carrying `prev` so the two-section fetch's
+  // quiet-failure path keeps each section (fetchJira has no ETag round-trip —
+  // see its own doc comment — but still carries `prev` forward). No cached
+  // data yet (first-ever load in flight, or a total failure) renders nothing
+  // rather than an empty shell — same as GithubInner/GitlabInner. The user's
+  // resolved views gate the fetch (a section turned off never issues a
+  // request — see fetchJira) AND this render (below).
   const { data } = useConnectorSnapshot<JiraData>('jira', (prev) =>
-    fetchJira(site, email, apiToken, DEFAULT_JIRA_VIEWS, prev),
+    fetchJira(site, email, apiToken, views, prev),
   )
   if (!data) return null
 
-  const issues = (data.issues ?? []).slice(0, MAX_ISSUES)
+  // A disabled list is empty regardless of what the snapshot still carries.
+  const issues = views.assigned ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
+  const dueSoon = views.dueSoon ? (data.dueSoon ?? []).slice(0, MAX_DUE_SOON) : []
   const counts = data.counts ?? {}
   const countEntries = Object.entries(counts)
-  // Connected but nothing assigned — a deliberate, friendly rendered state
-  // (same as GitlabWidget's "No MRs assigned to you." line), so the live
-  // connection is still visible.
-  const empty = issues.length === 0
 
   // First two statuses BY COUNT (descending); Array.prototype.sort is stable,
   // so equal counts keep the insertion order countByStatus (jira.ts) produced
   // — i.e. whichever status was seen FIRST in the issues array.
   const topCounts = [...countEntries].sort((a, b) => b[1] - a[1]).slice(0, 2)
+
+  // The friendly empty line shows when a rows section is enabled and BOTH lists
+  // are empty — a quiet day. Jira has NO tier-gated section (no activity graph),
+  // so no inverse-tier machinery is needed here (unlike github/gitlab): the line
+  // simply shows or doesn't.
+  const showEmpty = (views.assigned || views.dueSoon) && issues.length === 0 && dueSoon.length === 0
+
+  // No-husk law (wave 2, generalized): render null when NOTHING inside the card
+  // would render — no rows in either enabled list, no status chip with a value,
+  // and no empty line. (status-chips-only with empty counts is the canonical
+  // case; all-views-off is the degenerate one.)
+  const chipShows = views.statusChips && countEntries.length > 0
+  const anyRow = issues.length > 0 || dueSoon.length > 0
+  if (!anyRow && !chipShows && !showEmpty) return null
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's/
@@ -84,36 +128,54 @@ function JiraInner({ site, email, apiToken }: { site: string; email: string; api
     <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
-        {/* Counts line renders only when there's at least one status to show —
-            'when non-empty' per the brief. Never present alongside the empty
-            state below (empty implies countEntries is also empty, since
-            counts is derived FROM issues). */}
-        {countEntries.length > 0 && (
+        {/* Counts line renders only when the view is on AND there's at least
+            one status to show — 'when non-empty' per the brief. counts are
+            derived FROM the assigned issues (jira.ts), and carry from prev when
+            the assigned section is off, so a status-chips-only card can still
+            show them. */}
+        {views.statusChips && countEntries.length > 0 && (
           <span className="text-xs text-fg-muted">
             {topCounts.map(([status, count]) => `${count} ${status}`).join(' · ')}
           </span>
         )}
       </div>
 
-      {empty ? (
-        <p className="text-sm text-fg-muted">Nothing assigned to you.</p>
-      ) : (
+      {issues.length > 0 && (
         <ul className="flex flex-col gap-2 dense:gap-1">
           {issues.map((item) => (
             <ItemRow key={item.key} item={item} />
           ))}
         </ul>
       )}
+
+      {dueSoon.length > 0 && (
+        <div className={issues.length > 0 ? ROW_SEP : ''}>
+          {/* The eyebrow separates due-soon from the assigned issues ONLY when
+              both render — a single due-soon list needs no label (each row's due
+              prefix carries its own context). */}
+          {issues.length > 0 && <p className={EYEBROW}>Due soon</p>}
+          <ul className="flex flex-col gap-2 dense:gap-1">
+            {dueSoon.map((item) => (
+              <ItemRow key={item.key} item={item} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {showEmpty && <p className="text-sm text-fg-muted">Nothing assigned to you.</p>}
     </section>
   )
 }
 
 /** One issue row: the whole row is a single external link (a new tab, and
- *  rel that severs window.opener and strips the referrer), with the issue
- *  key as quiet context above the summary and the full summary one hover
- *  away via the title attribute — identical shape to GithubWidget's/
- *  GitlabWidget's ItemRow. */
+ *  rel that severs window.opener and strips the referrer), with the full
+ *  summary one hover away via the title attribute — identical shape to
+ *  GithubWidget's/GitlabWidget's ItemRow. The quiet prefix line is the issue
+ *  key, or `{due} · {key}` on a due-soon row that carried a date (only the
+ *  due-soon search surfaces `due`; assigned rows never have it, so the same
+ *  row renders both sections). */
 function ItemRow({ item }: { item: JiraIssue }) {
+  const prefix = item.due ? `${item.due} · ${item.key}` : item.key
   return (
     <li>
       <a
@@ -123,7 +185,7 @@ function ItemRow({ item }: { item: JiraIssue }) {
         title={item.summary}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="block truncate text-xs text-fg-muted font-medium">{item.key}</span>
+        <span className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
         <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>

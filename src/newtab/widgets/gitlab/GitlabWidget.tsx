@@ -1,7 +1,10 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGitlab, DEFAULT_GITLAB_VIEWS, type GitlabData, type GitlabMr } from '../../../services/connectors/gitlab'
-import type { ConnectorConfig, GitlabConfig } from '../../../services/connectors/types'
+import { resolveGithubViews } from '../../../services/connectors/github'
+import { resolveViews } from '../../../services/connectors/views'
+import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig } from '../../../services/connectors/types'
+import ContributionGraph from '../shared/ContributionGraph'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -16,21 +19,49 @@ const TODOS_CAP = 20
 // card's own CHROME did (`p-4`->`p-3`, `mb-2`->`mb-1.5` below), the same
 // modest trim github/jira also got.
 const MAX_MRS = 3
+// GLANCE cap for the review-asks rows (Task 75), pinned by the same discipline
+// as MAX_MRS: this is a glance panel, and the MR header already tells the user
+// there's a full queue elsewhere — the review list is a nudge ("N MRs want your
+// eyes"), not the review queue itself. Held to 2 (below MAX_MRS's 3) because
+// review asks are the SECOND rows section on this card and share what's left of
+// the right rail's budget after the assigned MRs and the (taller) graph.
+const MAX_REVIEW_ASKS = 2
+
+// Section separators for the composed card, mirroring GithubWidget's idiom.
+// ROW_SEP divides one rendered list from another and is always present between
+// two lists. The GRAPH_SEP_* pair divides the FIRST list from the graph above
+// it, and each appears ONLY at the breakpoint where the graph itself reveals —
+// so no orphan hairline is stranded under the header on the tiers where the
+// graph has yielded. WHICH breakpoint depends on whether gitlab is the sole
+// forge card (reveal on `taller`) or stacked (reveal on `grand`). Two literal
+// class strings (not interpolated) so Tailwind's JIT emits both.
+const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
+const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
+const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
+
+// The house eyebrow for a quiet section separator (the tasks panel + wave-1
+// language): 11px, uppercased, wide-tracked, muted.
+const EYEBROW = 'mb-2 dense:mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted'
 
 /** Narrow `connectors.gitlab` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GitlabConfig, defensively — same rationale and shape as
  *  github's connectedGithub (GithubWidget.tsx): schema.ts ties every
  *  connector id to the whole union rather than its specific member, and a
- *  hand-edited backup can legally restore { enabled: true } with neither
- *  field at all. Gate defends BOTH token and instanceUrl string-ness (the
- *  brief is explicit gitlab needs both, unlike github's token-only gate,
- *  because instanceUrl feeds directly into the fetch URL below). */
+ *  hand-edited backup can legally restore { enabled: true } with none of the
+ *  fields at all. Gate defends token, instanceUrl AND username string-ness:
+ *  the brief is explicit gitlab needs both credential fields (unlike github's
+ *  token-only gate, because instanceUrl feeds directly into the fetch URL),
+ *  and Task 74's review-asks + activity-graph sections now build URLs from
+ *  `username` too — so a missing/empty username must block those sections'
+ *  requests the same way (defensive narrowing, closing Task 74's carried
+ *  Minor). */
 function connectedGitlab(config: ConnectorConfig | undefined): GitlabConfig | null {
   if (!config || !('token' in config) || !('instanceUrl' in config)) return null
   const gitlab = config as GitlabConfig
   if (!gitlab.enabled) return null
   if (typeof gitlab.token !== 'string' || gitlab.token.length === 0) return null
   if (typeof gitlab.instanceUrl !== 'string' || gitlab.instanceUrl.length === 0) return null
+  if (typeof gitlab.username !== 'string' || gitlab.username.length === 0) return null
   return gitlab
 }
 
@@ -42,57 +73,187 @@ export default function GitlabWidget() {
   const [connectors] = useStoredKey('connectors')
   const gitlab = connectedGitlab(connectors?.gitlab)
   if (!gitlab) return null
-  return <GitlabInner token={gitlab.token} instanceUrl={gitlab.instanceUrl} username={gitlab.username} />
+
+  // The activity graph's reveal tier (below) depends on the OTHER forge cards
+  // sharing the right rail's flow column (github, jira). `soleForgeCard`: neither
+  // is enabled, so gitlab's graph can reveal one tier lower (`taller`). Same
+  // conservative over-approximation GithubWidget's forgeSiblings uses — an
+  // enabled-but-broken sibling renders null yet still forces the higher tier,
+  // which fails QUIET and SAFE (the graph waits for a window it did not strictly
+  // need) rather than lapping the bottom-anchored Tasks pill.
+  const github = connectors?.github
+  const soleForgeCard = !github?.enabled && !connectors?.jira?.enabled
+  // The cross-card rule: when github's OWN commit graph is enabled — which makes
+  // github a stacked sibling — github's graph is the hero and gitlab's yields to
+  // it entirely (below). Reading github's graph-enabled state needs the ONE
+  // documented cast: schema.ts ties every connector id to the whole
+  // ConnectorConfig union, so `views` (a GithubViews-shaped field) isn't
+  // reachable without narrowing to GithubConfig. Enabled-shaped github only (the
+  // `github?.enabled === true` short-circuit); resolveGithubViews backfills an
+  // absent/partial views to all-on (commitGraph:true), matching exactly what
+  // GithubWidget itself renders for a github connected before the field existed.
+  const githubGraphEnabled =
+    github?.enabled === true && resolveGithubViews(github as GithubConfig).commitGraph
+
+  return (
+    <GitlabInner
+      token={gitlab.token}
+      instanceUrl={gitlab.instanceUrl}
+      username={gitlab.username}
+      views={resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)}
+      soleForgeCard={soleForgeCard}
+      githubGraphEnabled={githubGraphEnabled}
+    />
+  )
 }
 
-function GitlabInner({ token, instanceUrl, username }: { token: string; instanceUrl: string; username: string }) {
+function GitlabInner({
+  token,
+  instanceUrl,
+  username,
+  views,
+  soleForgeCard,
+  githubGraphEnabled,
+}: {
+  token: string
+  instanceUrl: string
+  username: string
+  views: GitlabViews
+  soleForgeCard: boolean
+  githubGraphEnabled: boolean
+}) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
   // keeps that section (fetchGitlab has no ETag round-trip — see its own doc
   // comment — but still carries `prev` forward for the quiet-failure path).
+  // The user's resolved views gate the fetch (a section turned off never issues
+  // a request — see fetchGitlab) AND this render (below).
+  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) =>
+    fetchGitlab(instanceUrl, token, username, views, prev),
+  )
   // No cached data yet (first-ever load in flight, or a total failure) renders
   // nothing rather than an empty shell — same as GithubInner/RssInner.
-  // Task 74 stopgap: thread DEFAULT_GITLAB_VIEWS + the config username through
-  // the new gated signature (Task 75 replaces DEFAULT_* with the resolved views
-  // and renders the two new sections).
-  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) =>
-    fetchGitlab(instanceUrl, token, username, DEFAULT_GITLAB_VIEWS, prev),
-  )
   if (!data) return null
 
-  const mrs = (data.mrs ?? []).slice(0, MAX_MRS)
+  // Old snapshots predate the contributions field — read it defensively. An
+  // empty day array is treated as absent (a graph needs cells to draw), so the
+  // section only appears when activityGraph is on AND there are real days.
+  const contributions = data.contributions ?? null
+  const graph =
+    views.activityGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+
+  // Cross-card rule: github's graph is the hero. When it's enabled (which means
+  // github is a stacked sibling), gitlab's graph yields ENTIRELY — never
+  // rendered, only marked for the harness probe (data-yield below). Otherwise it
+  // reveals at the wave-1 sole-vs-stacked tier: sole forge card → `taller`,
+  // stacked (without github's graph) → `grand`. Task 77 measures whether a
+  // very-tall reveal is honest and updates the class + derivation if so.
+  const graphWrap = soleForgeCard ? 'hidden taller:block' : 'hidden grand:block'
+  const renderGraph = graph !== null && !githubGraphEnabled
+  // A data-bearing graph WITHHELD for github's — the falsifiable cross-card
+  // state the harness probes (`data-yield="github"` on the section).
+  const graphYieldedToGithub = graph !== null && githubGraphEnabled
+
+  // STRICTLY graph-only composition (activityGraph on, every other section off,
+  // to-dos chip included). The graph is then the card's ONLY content, so the
+  // card lives and dies with it, never a broken "GitLab" header husk:
+  //   · no graph data at all (old snapshot, empty days) → render null.
+  //   · github's graph wins (graphYieldedToGithub) → the graph never shows, so
+  //     nothing would ever render → null (the cross-card whole-card case).
+  //   · otherwise the WHOLE card follows the graph's reveal tier (the SECTION
+  //     carries `hidden <tier>:block`), yielding as one — GithubWidget's pattern.
+  const graphOnly = views.activityGraph && !views.mergeRequests && !views.reviewAsks && !views.todos
+  if (graphOnly && (graph === null || githubGraphEnabled)) return null
+  // Where the tier boundary lands: on the SECTION when strictly graph-only (the
+  // whole card yields), on the inner graph wrapper otherwise. Exactly one carries
+  // it, so the reveal is a single whole-card OR single-section boundary.
+  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
+  const innerGraphClass = graphOnly ? undefined : graphWrap
+  const graphSep = soleForgeCard ? GRAPH_SEP_TALLER : GRAPH_SEP_GRAND
+
+  // A disabled list is empty regardless of what the snapshot still carries.
+  const mrs = views.mergeRequests ? (data.mrs ?? []).slice(0, MAX_MRS) : []
+  const reviewMrs = views.reviewAsks ? (data.reviewMrs ?? []).slice(0, MAX_REVIEW_ASKS) : []
   const todos = data.todos
-  // Connected but nothing assigned — a deliberate, friendly rendered state
-  // (same as GithubWidget's 🎉 line), so the live connection is still visible.
-  const empty = mrs.length === 0
+
+  // The friendly empty line ("No MRs assigned to you.") shows whenever a rows
+  // section is enabled and both enabled lists are empty — a quiet day. Its
+  // VISIBILITY is the exact INVERSE of the graph's: when the graph is CSS
+  // tier-gated the line carries the matching inverse tier, so exactly ONE of
+  // graph/line is visible at any height (never a husk band, never a double
+  // render) — the wave-1 empty-state law. With no graph data, or when the graph
+  // yielded to github (it never renders), the line shows unconditionally.
+  const showEmpty = (views.mergeRequests || views.reviewAsks) && mrs.length === 0 && reviewMrs.length === 0
+  const emptyLineTier =
+    graph === null || githubGraphEnabled ? '' : soleForgeCard ? ' taller:hidden' : ' grand:hidden'
+
+  // No-husk law (wave 2, generalized): render null when NOTHING inside the card
+  // would render — no data-bearing graph section, no rows in any enabled list, no
+  // to-dos chip with a positive count, and no friendly empty line. (to-dos-only
+  // with 0 to-dos is the canonical case; all-views-off is the degenerate one.)
+  const chipShows = views.todos && todos > 0
+  const anyRow = mrs.length > 0 || reviewMrs.length > 0
+  if (!renderGraph && !anyRow && !chipShows && !showEmpty) return null
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's
     // section (the house rule for floating surfaces): the solid panel token,
     // rounded-2xl/shadow-lg, w-80 fixed card width. `p-4`->`p-3` (Task 55
     // fix round 2 — see GithubWidget.tsx's own MAX_PRS comment): a modest,
-    // right-column-only chrome trim, not a shape change.
-    <section aria-label="GitLab" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    // right-column-only chrome trim, not a shape change. `data-yield="github"`
+    // marks the cross-card yield (a data-bearing gitlab graph withheld because
+    // github's is the hero) for the harness probe.
+    <section
+      aria-label="GitLab"
+      {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
+      className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}
+    >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
-        {/* To-dos chip renders only when > 0 — todos is a plain number here
-            (no null/"unavailable" case, unlike github's notifications), so
-            0 (all caught up) is the only hidden state. "20+" at the
-            per-page cap. */}
-        {todos > 0 && (
+        {/* To-dos chip renders only when the view is on AND the count is > 0 —
+            todos is a plain number here (no null/"unavailable" case, unlike
+            github's notifications), so 0 (all caught up) is the only hidden
+            state besides the view being off. "20+" at the per-page cap. */}
+        {views.todos && todos > 0 && (
           <span className="text-xs text-fg-muted">{todos >= TODOS_CAP ? '20+' : todos} to-dos</span>
         )}
       </div>
 
-      {empty ? (
-        <p className="text-sm text-fg-muted">No MRs assigned to you.</p>
-      ) : (
-        <ul className="flex flex-col gap-2 dense:gap-1">
+      {/* Activity graph on top — the board's composed face. It yields FIRST
+          under height pressure (its reveal tier is HIGHER than the whole-card
+          hide), and the cross-card rule can withhold it entirely for github's
+          graph. When strictly graph-only, the boundary moves to the SECTION
+          (sectionTier) and this wrapper carries nothing — the whole card yields
+          as one, no husk. */}
+      {renderGraph && graph && (
+        <div className={innerGraphClass}>
+          <ContributionGraph contributions={graph} />
+        </div>
+      )}
+
+      {mrs.length > 0 && (
+        <ul className={`flex flex-col gap-2 dense:gap-1${renderGraph ? graphSep : ''}`}>
           {mrs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
         </ul>
       )}
+
+      {reviewMrs.length > 0 && (
+        <div className={mrs.length > 0 ? ROW_SEP : renderGraph ? graphSep : ''}>
+          {/* The eyebrow separates review asks from the assigned MRs ONLY when
+              both render — a single review list needs no label (its rows carry
+              their own context), same restraint as github's unlabelled lists. */}
+          {mrs.length > 0 && <p className={EYEBROW}>Review asks</p>}
+          <ul className="flex flex-col gap-2 dense:gap-1">
+            {reviewMrs.map((item) => (
+              <ItemRow key={item.url} item={item} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
     </section>
   )
 }
@@ -100,7 +261,8 @@ function GitlabInner({ token, instanceUrl, username }: { token: string; instance
 /** One MR row: the whole row is a single external link (a new tab, and rel
  *  that severs window.opener and strips the referrer), with the project
  *  prefix as quiet context above the title and the full title one hover away
- *  via the title attribute — identical shape to GithubWidget's ItemRow. */
+ *  via the title attribute — identical shape to GithubWidget's ItemRow. Shared
+ *  by both MR sections (assigned + review asks). */
 function ItemRow({ item }: { item: GitlabMr }) {
   return (
     <li>

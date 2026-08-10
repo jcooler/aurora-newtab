@@ -202,3 +202,102 @@ describe('JiraWidget', () => {
     expect((await storage.get('connectorSnapshots')).jira).toBeUndefined()
   })
 })
+
+// ── Task 75: the composed card (due-soon section) + no-husk law ──
+
+const DUE_SOON: JiraData['dueSoon'] = [
+  {
+    key: 'AUR-20',
+    summary: 'Ship the release notes',
+    status: 'To Do',
+    url: 'https://yoursite.atlassian.net/browse/AUR-20',
+    due: '2026-08-15',
+  },
+  // A due-soon row whose duedate was missing/malformed — kept, shown WITHOUT a
+  // date prefix (just its key).
+  {
+    key: 'AUR-21',
+    summary: 'Rotate the API tokens',
+    status: 'In Progress',
+    url: 'https://yoursite.atlassian.net/browse/AUR-21',
+  },
+]
+
+const ALL_ON: JiraConfig = { ...CONNECTED, views: { assigned: true, statusChips: true, dueSoon: true } }
+const DUE_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChips: false, dueSoon: true } }
+const CHIPS_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChips: true, dueSoon: false } }
+
+describe('JiraWidget — composed card (wave 2)', () => {
+  it('renders assigned issues and the due-soon list (below a DUE SOON eyebrow) when both are on', async () => {
+    const storage = await seededStorage(ALL_ON, { ...DATA, dueSoon: DUE_SOON })
+    mount(storage)
+
+    await screen.findByText('AUR-12') // assigned
+    expect(screen.getByText('Ship the release notes')).toBeTruthy() // due-soon
+    expect(screen.getByText('Due soon')).toBeTruthy() // eyebrow (both sections render)
+    // Due-soon prefix: `{due} · {key}` when due is present…
+    expect(screen.getByText('2026-08-15 · AUR-20')).toBeTruthy()
+    // …and just the key when it's absent.
+    expect(screen.getByText('AUR-21')).toBeTruthy()
+    // The row's title attr carries the full summary.
+    const link = screen.getByText('Ship the release notes').closest('a') as HTMLAnchorElement
+    expect(link.getAttribute('title')).toBe('Ship the release notes')
+  })
+
+  it('omits the DUE SOON eyebrow when due-soon is the only rows list (no assigned issues above it)', async () => {
+    const storage = await seededStorage(DUE_ONLY, { issues: [], counts: {}, dueSoon: DUE_SOON })
+    mount(storage)
+    expect(await screen.findByText('Ship the release notes')).toBeTruthy()
+    expect(screen.queryByText('Due soon')).toBeNull()
+    // assigned off → the assigned rows do NOT render, nor the empty line.
+    expect(screen.queryByText('AUR-12')).toBeNull()
+    expect(screen.queryByText('Nothing assigned to you.')).toBeNull()
+  })
+
+  it('caps due-soon rows at 2', async () => {
+    const many: JiraData = {
+      issues: [],
+      counts: {},
+      dueSoon: Array.from({ length: 3 }, (_, i) => ({
+        key: `AUR-${30 + i}`,
+        summary: `Due ${i}`,
+        status: 'To Do',
+        url: `https://yoursite.atlassian.net/browse/AUR-${30 + i}`,
+        due: '2026-08-20',
+      })),
+    }
+    const storage = await seededStorage(DUE_ONLY, many)
+    mount(storage)
+    await screen.findByText('Due 0')
+    expect(screen.getByText('Due 1')).toBeTruthy()
+    expect(screen.queryByText('Due 2')).toBeNull()
+  })
+
+  it('the empty line shows when a rows section is enabled and BOTH lists are empty', async () => {
+    const storage = await seededStorage(ALL_ON, { issues: [], counts: {}, dueSoon: [] })
+    mount(storage)
+    expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
+  })
+
+  // No-husk law: status-chips-only with empty counts → the whole card is null.
+  it('status-chips-only with empty counts → renders null (never a bare "Jira" heading)', async () => {
+    const storage = await seededStorage(CHIPS_ONLY, { issues: [], counts: {}, dueSoon: [] })
+    const { container } = mount(storage)
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('status-chips-only WITH counts present → the card renders (the chip carries it, no rows, no empty line)', async () => {
+    // counts ride from a prior assigned fetch; assigned + dueSoon are off, so no
+    // rows and no empty line — only the chip.
+    const storage = await seededStorage(CHIPS_ONLY, {
+      issues: [{ key: 'AUR-1', summary: 'Solo', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-1' }],
+      counts: { 'In Progress': 3, 'To Do': 2 },
+      dueSoon: [],
+    })
+    mount(storage)
+    expect(await screen.findByText('3 In Progress · 2 To Do')).toBeTruthy()
+    expect(screen.queryByText('AUR-1')).toBeNull() // assigned off → no rows
+    expect(screen.queryByText('Nothing assigned to you.')).toBeNull()
+  })
+})

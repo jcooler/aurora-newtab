@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
-import type { GitlabData } from '../../../services/connectors/gitlab'
+import type { GitlabData, Contributions } from '../../../services/connectors/gitlab'
 import type { GitlabConfig } from '../../../services/connectors/types'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import GitlabWidget from './GitlabWidget'
@@ -160,6 +160,20 @@ describe('GitlabWidget', () => {
     expect((await storage.get('connectorSnapshots')).gitlab).toBeUndefined()
   })
 
+  // Gap fix (verification pass, Task 75): connectedGitlab also validates
+  // username string-ness (closing Task 74's carried Minor — an undefined
+  // username would otherwise reach the review-asks/activity-graph URLs once
+  // those views could be enabled), but that check had no falsifying test of
+  // its own. This is that test.
+  it('renders nothing when enabled + token + instanceUrl present but username is missing/empty', async () => {
+    const storage = await seededStorage({ ...CONNECTED, username: '' }, null)
+    const { container } = mount(storage)
+    await act(async () => {})
+
+    expect(container.firstChild).toBeNull()
+    expect((await storage.get('connectorSnapshots')).gitlab).toBeUndefined()
+  })
+
   it('survives a hand-edited backup restoring { enabled: true } with no token/instanceUrl fields — renders nothing, never throws', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -169,5 +183,195 @@ describe('GitlabWidget', () => {
 
     expect(container.firstChild).toBeNull()
     expect((await storage.get('connectorSnapshots')).gitlab).toBeUndefined()
+  })
+})
+
+// ── Task 75: the composed card (activity graph, review asks) + cross-card rule ──
+
+const CONTRIB: Contributions = {
+  // 2026-01-04 is a Sunday (front-pad 0); the run [0,1,2,4] ends positive → streak 3.
+  // `total` rides the object, so the stat line shows 87 regardless of the day counts.
+  total: 87,
+  days: [
+    { date: '2026-01-04', count: 0 },
+    { date: '2026-01-05', count: 1 },
+    { date: '2026-01-06', count: 2 },
+    { date: '2026-01-07', count: 4 },
+  ],
+}
+
+const REVIEW_MRS: GitlabData['reviewMrs'] = [
+  { title: 'Review: refactor the auth guard', url: 'https://gitlab.com/acme/platform/-/merge_requests/300', project: 'acme/platform' },
+  { title: 'Review: drop the legacy shim', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+]
+
+const FULL_DATA: GitlabData = { ...DATA, reviewMrs: REVIEW_MRS, contributions: CONTRIB }
+
+const ALL_ON: GitlabConfig = {
+  ...CONNECTED,
+  views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true },
+}
+const GRAPH_ONLY: GitlabConfig = {
+  ...CONNECTED,
+  views: { mergeRequests: false, reviewAsks: false, todos: false, activityGraph: true },
+}
+const REVIEW_ONLY: GitlabConfig = {
+  ...CONNECTED,
+  views: { mergeRequests: false, reviewAsks: true, todos: false, activityGraph: false },
+}
+const TODOS_ONLY: GitlabConfig = {
+  ...CONNECTED,
+  views: { mergeRequests: false, reviewAsks: false, todos: true, activityGraph: false },
+}
+
+/** A github sibling with its commit graph ON (no views → all-on default). */
+const GITHUB_GRAPH_ON = { enabled: true, token: 'gh', username: 'x' }
+/** A github sibling with its commit graph explicitly OFF (present but not the graph hero). */
+const GITHUB_GRAPH_OFF = { enabled: true, token: 'gh', username: 'x', views: { commitGraph: false, pulls: true, issues: true, notifications: true } }
+const JIRA_SIBLING = { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' }
+
+async function seededMulti(
+  gitlab: GitlabConfig,
+  data: GitlabData | null,
+  siblings: Record<string, unknown> = {},
+): Promise<AuroraStorage> {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  await storage.set('connectors', { gitlab, ...siblings })
+  if (data) await storage.set('connectorSnapshots', { gitlab: { fetchedAt: Date.now(), data } })
+  return storage
+}
+
+const section = () => document.querySelector('section[aria-label="GitLab"]') as HTMLElement
+/** The section carries a whole-card tier when it is itself `hidden <tier>:block`. */
+const sectionHasTier = (tier: string) => {
+  const sec = section()
+  return sec.classList.contains('hidden') && sec.className.includes(`${tier}:block`)
+}
+
+describe('GitlabWidget — composed card (wave 2)', () => {
+  it('renders the activity graph, MR rows, and review-asks rows (with the REVIEW ASKS eyebrow) when every view is on', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA))
+
+    // Graph on top — the shared ContributionGraph's role="img".
+    const img = await screen.findByRole('img')
+    expect(img.getAttribute('aria-label')).toMatch(/contribution/i)
+    // Assigned MR rows.
+    expect(screen.getByText('Add rate limiting to the ingest API')).toBeTruthy()
+    // Review-asks rows below their eyebrow (natural-case text, CSS uppercases it).
+    expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
+    expect(screen.getByText('Review asks')).toBeTruthy()
+    // To-dos header chip stays.
+    expect(screen.getByText('6 to-dos')).toBeTruthy()
+  })
+
+  it('the stat line reads "N contributions" (not commits) with the derived streak', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA))
+    const stat = await screen.findByText('contributions')
+    expect(screen.queryByText('commits')).toBeNull()
+    expect(within(stat).getByText('87')).toBeTruthy() // total
+    expect(within(stat).getByText('3')).toBeTruthy() // derived streak (run [0,1,2,4])
+  })
+
+  it('omits the REVIEW ASKS eyebrow when review-asks is the only rows list (no assigned MRs above it)', async () => {
+    mount(await seededMulti(REVIEW_ONLY, { ...DATA, mrs: [], reviewMrs: REVIEW_MRS, todos: 0 }))
+    expect(await screen.findByText('Review: refactor the auth guard')).toBeTruthy()
+    expect(screen.queryByText('Review asks')).toBeNull()
+    // mergeRequests off → assigned MR titles do NOT render.
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
+  })
+
+  it('caps review-asks rows at 2', async () => {
+    const many: GitlabData = {
+      ...DATA,
+      mrs: [],
+      reviewMrs: Array.from({ length: 3 }, (_, i) => ({
+        title: `Review ${i}`,
+        url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
+        project: 'o/r',
+      })),
+      todos: 0,
+    }
+    mount(await seededMulti(REVIEW_ONLY, many))
+    await screen.findByText('Review 0')
+    expect(screen.getByText('Review 1')).toBeTruthy()
+    expect(screen.queryByText('Review 2')).toBeNull()
+  })
+
+  it('activityGraph on but NO contributions data → renders the rows, no graph, no crash', async () => {
+    mount(await seededMulti(ALL_ON, { ...FULL_DATA, contributions: null }))
+    await screen.findByText('Add rate limiting to the ingest API')
+    expect(screen.queryByRole('img')).toBeNull()
+  })
+
+  // ── Graph reveal tier (classes land now; Task 77 measures the boundaries) ──
+
+  it('SOLE forge card → the composed graph reveals on `taller` (inner wrapper hidden taller:block)', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA)) // no github, no jira
+    const img = await screen.findByRole('img')
+    const wrapper = section().querySelector('[class*="taller:block"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('hidden')).toBe(true)
+    expect(wrapper!.contains(img)).toBe(true)
+    expect(section().querySelector('[class*="grand:block"]')).toBeNull()
+  })
+
+  it('stacked WITHOUT github\'s graph (a jira sibling only) → the graph yields to `grand`', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA, { jira: JIRA_SIBLING }))
+    await screen.findByRole('img')
+    expect(section().querySelector('[class*="grand:block"]')).toBeTruthy()
+    expect(section().querySelector('[class*="taller:block"]')).toBeNull()
+  })
+
+  it('stacked with github present but its graph OFF → still `grand` (it is github\'s GRAPH state, not mere presence)', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA, { github: GITHUB_GRAPH_OFF }))
+    await screen.findByRole('img')
+    expect(section().querySelector('[class*="grand:block"]')).toBeTruthy()
+    expect(section().querySelector('[class*="taller:block"]')).toBeNull()
+  })
+
+  it('stacked WITH github\'s graph enabled → gitlab\'s graph does NOT render, and the section carries data-yield="github"', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA, { github: GITHUB_GRAPH_ON }))
+    // The card still renders (MR rows carry it)…
+    await screen.findByText('Add rate limiting to the ingest API')
+    // …but the graph is withheld — the cross-card rule.
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(section().getAttribute('data-yield')).toBe('github')
+  })
+
+  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+    mount(await seededMulti(GRAPH_ONLY, FULL_DATA))
+    const img = await screen.findByRole('img')
+    expect(sectionHasTier('taller')).toBe(true)
+    expect(section().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
+    expect(section().contains(img)).toBe(true)
+  })
+
+  it('strictly graph-only with NO contributions data → renders null (nothing it could ever show)', async () => {
+    const { container } = mount(await seededMulti(GRAPH_ONLY, { ...DATA, contributions: null, todos: 0 }))
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('strictly graph-only, stacked WITH github\'s graph → renders null (the graph never shows, so nothing would)', async () => {
+    const { container } = mount(await seededMulti(GRAPH_ONLY, FULL_DATA, { github: GITHUB_GRAPH_ON }))
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  // ── No-husk law ──
+
+  it('to-dos-only with 0 to-dos → renders null (never a bare "GitLab" heading)', async () => {
+    const { container } = mount(await seededMulti(TODOS_ONLY, { ...DATA, mrs: [], reviewMrs: [], todos: 0 }))
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('to-dos-only WITH a positive count → the card renders (the chip carries it)', async () => {
+    mount(await seededMulti(TODOS_ONLY, { ...DATA, mrs: [], reviewMrs: [], todos: 4 }))
+    expect(await screen.findByText('4 to-dos')).toBeTruthy()
+    // mergeRequests off → no MR rows, and no empty MR line either.
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
+    expect(screen.queryByText('No MRs assigned to you.')).toBeNull()
   })
 })

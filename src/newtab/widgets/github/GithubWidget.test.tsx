@@ -413,4 +413,57 @@ describe('GithubWidget', () => {
     await screen.findByText('Fix the flaky login test')
     expect(screen.queryByRole('img')).toBeNull()
   })
+
+  // ── Task 75 Step 4: the no-husk law, generalized (github's retrofit) ──
+  // Closes the wave-1 deferred minor: a notifications-only card (every OTHER
+  // section off) used to fall through the graphOnly-specific guard (which
+  // only ever covered the STRICTLY-graph-only shape) straight to a bare
+  // "GitHub" heading whenever the count was 0 or null — no chip, no rows, no
+  // graph, no empty line. The general no-husk rule below covers this shape
+  // too.
+  const NOTIF_ONLY: GithubConfig = {
+    ...CONNECTED,
+    views: { commitGraph: false, pulls: false, issues: false, notifications: true },
+  }
+
+  it('notifications-only with count 0 → renders null (never a bare "GitHub" heading)', async () => {
+    const storage = await seededStorage(NOTIF_ONLY, {
+      prs: [],
+      issues: [],
+      notifications: 0,
+      contributions: null,
+      etags: {},
+    })
+    const { container } = mount(storage)
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('notifications-only with count null (endpoint unavailable) → also renders null', async () => {
+    const storage = await seededStorage(NOTIF_ONLY, {
+      prs: [],
+      issues: [],
+      notifications: null,
+      contributions: null,
+      etags: {},
+    })
+    const { container } = mount(storage)
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('notifications-only WITH a positive count → the card renders (the chip carries it, no rows, no graph)', async () => {
+    const storage = await seededStorage(NOTIF_ONLY, {
+      prs: [],
+      issues: [],
+      notifications: 7,
+      contributions: null,
+      etags: {},
+    })
+    mount(storage)
+    expect(await screen.findByText('7 unread')).toBeTruthy()
+    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+    expect(screen.queryByText('No PRs waiting on you 🎉')).toBeNull()
+  })
 })

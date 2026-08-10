@@ -174,3 +174,97 @@ describe('VercelWidget', () => {
     expect((await storage.get('connectorSnapshots')).vercel).toBeUndefined()
   })
 })
+
+// ── Task 75: the composed card (status summary) + no-husk law ──
+
+const SUMMARY_DATA: VercelData = {
+  deployments: [
+    // Scrambled order — NOT the fixed READY/ERROR/BUILDING presentation
+    // order, NOT count-sorted, NOT chronological — so a passing order
+    // assertion actually falsifies "the summary derives its order from
+    // STATE_ORDER", not from the array's own order or from count.
+    { project: 'svc-building', state: 'BUILDING', url: 'https://vercel.com/x/building/1', createdAt: 1 },
+    { project: 'svc-ready-1', state: 'READY', url: 'https://vercel.com/x/ready1/2', createdAt: 2 },
+    { project: 'svc-error', state: 'ERROR', url: 'https://vercel.com/x/error/3', createdAt: 3 },
+    { project: 'svc-ready-2', state: 'READY', url: 'https://vercel.com/x/ready2/4', createdAt: 4 },
+    { project: 'svc-ready-3', state: 'READY', url: 'https://vercel.com/x/ready3/5', createdAt: 5 },
+  ],
+}
+
+const SUMMARY_ON: VercelConfig = { ...CONNECTED, views: { deployments: true, statusSummary: true } }
+const SUMMARY_ONLY: VercelConfig = { ...CONNECTED, views: { deployments: false, statusSummary: true } }
+const DEPLOYMENTS_ONLY: VercelConfig = { ...CONNECTED, views: { deployments: true, statusSummary: false } }
+const BOTH_OFF: VercelConfig = { ...CONNECTED, views: { deployments: false, statusSummary: false } }
+
+describe('VercelWidget — composed card (wave 2)', () => {
+  it('the status summary reads counts in the fixed READY -> ERROR -> BUILDING order, lowercased — not the array\'s own order, not count-sorted', async () => {
+    mount(await seededStorage(SUMMARY_ON, SUMMARY_DATA))
+    await screen.findByText('3 ready')
+    expect(screen.getByText('1 error')).toBeTruthy()
+    expect(screen.getByText('1 building')).toBeTruthy()
+    const html = (document.querySelector('section[aria-label="Vercel"]') as HTMLElement).innerHTML
+    expect(html.indexOf('3 ready')).toBeLessThan(html.indexOf('1 error'))
+    expect(html.indexOf('1 error')).toBeLessThan(html.indexOf('1 building'))
+  })
+
+  it('colors only the ERROR segment in the danger tone; READY/BUILDING stay muted (deliberately NOT stateClass\'s emerald-for-READY)', async () => {
+    mount(await seededStorage(SUMMARY_ON, SUMMARY_DATA))
+    const error = await screen.findByText('1 error')
+    const ready = screen.getByText('3 ready')
+    const building = screen.getByText('1 building')
+    expect(error.className).toContain('text-red-400')
+    expect(ready.className).not.toContain('text-red-400')
+    expect(ready.className).not.toContain('text-emerald-300')
+    expect(building.className).not.toContain('text-red-400')
+  })
+
+  it('omits zero-count states (no QUEUED/CANCELED entries in this fixture)', async () => {
+    mount(await seededStorage(SUMMARY_ON, SUMMARY_DATA))
+    await screen.findByText('3 ready')
+    expect(screen.queryByText(/queued/i)).toBeNull()
+    expect(screen.queryByText(/canceled/i)).toBeNull()
+  })
+
+  it('the summary line renders ABOVE the deployment rows (order: summary -> rows)', async () => {
+    mount(await seededStorage(SUMMARY_ON, SUMMARY_DATA))
+    await screen.findByText('3 ready')
+    const html = (document.querySelector('section[aria-label="Vercel"]') as HTMLElement).innerHTML
+    expect(html.indexOf('3 ready')).toBeLessThan(html.indexOf('<ul'))
+  })
+
+  it('the summary derives from the UNSLICED deployments array — stays honest with the rows section OFF', async () => {
+    mount(await seededStorage(SUMMARY_ONLY, SUMMARY_DATA))
+    expect(await screen.findByText('3 ready')).toBeTruthy()
+    // deployments off -> no rows list rendered at all, even though the
+    // summary counted every one of them.
+    expect(document.querySelector('section[aria-label="Vercel"] ul')).toBeNull()
+  })
+
+  it('deployments-only (statusSummary off) → no summary line, rows render exactly as wave 1', async () => {
+    mount(await seededStorage(DEPLOYMENTS_ONLY, SUMMARY_DATA))
+    await screen.findByText('svc-error')
+    expect(screen.queryByText('1 error')).toBeNull()
+    expect(screen.queryByText('3 ready')).toBeNull()
+  })
+
+  // ── No-husk law ──
+
+  it('both views off → renders null (never a bare "Vercel" heading)', async () => {
+    const { container } = mount(await seededStorage(BOTH_OFF, SUMMARY_DATA))
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('statusSummary-only with NO deployments → renders null', async () => {
+    const { container } = mount(await seededStorage(SUMMARY_ONLY, { deployments: [] }))
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+  })
+
+  it('statusSummary-only WITH deployments present → the card renders (the summary line carries it, no rows, no empty line)', async () => {
+    mount(await seededStorage(SUMMARY_ONLY, SUMMARY_DATA))
+    expect(await screen.findByText('3 ready')).toBeTruthy()
+    expect(document.querySelector('section[aria-label="Vercel"] ul')).toBeNull()
+    expect(screen.queryByText('No deployments yet.')).toBeNull()
+  })
+})

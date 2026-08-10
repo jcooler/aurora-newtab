@@ -171,6 +171,21 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0
   const emptyLineTier = graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
 
+  // No-husk law (wave 2, generalized — gitlab/jira/vercel apply the same
+  // rule): render null when NOTHING inside the card would render — no
+  // data-bearing graph, no rows in either enabled list, no unread chip with
+  // a POSITIVE known count, and no empty line. This CLOSES the wave-1
+  // deferred minor: a notifications-only config (commitGraph/pulls/issues
+  // all off) with notifications 0 or null used to fall straight through to a
+  // bare "GitHub" heading — the graphOnly guard above only ever covered the
+  // STRICTLY-graph-only shape, never this one. (graphOnly's own null case is
+  // a strict SUBSET of this check — graphOnly implies anyRow/chipShows/
+  // showEmpty are all false, so `!graph` alone decides it there too — but
+  // that early return stays, unchanged, to skip the tier math below for it.)
+  const chipShows = views.notifications && notifications !== null && notifications > 0
+  const anyRow = prs.length > 0 || issues.length > 0
+  if (!graph && !anyRow && !chipShows && !showEmpty) return null
+
   return (
     // Floating panel surface: the solid panel token per the house rule for
     // floating surfaces (a photo shows through the ambient --panel token — too
