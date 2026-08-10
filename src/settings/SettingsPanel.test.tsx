@@ -2186,7 +2186,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
   })
 })
 
-describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no auth, the URL is the secret)', () => {
+describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named list, webcal welcome, view picker)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
     vi.mocked(removeOrigin).mockReset()
@@ -2208,6 +2208,10 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
     return storage
   }
 
+  function connectorsRegion() {
+    return screen.getByRole('region', { name: 'Connectors' })
+  }
+
   async function readIcs(storage: AuroraStorage): Promise<IcsConfig | undefined> {
     return (await storage.get('connectors')).ics as IcsConfig | undefined
   }
@@ -2222,7 +2226,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
     expect(screen.queryByLabelText('Secret calendar address (ICS URL)')).toBeNull()
   })
 
-  it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type field', async () => {
+  it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type url field', async () => {
     const storage = await renderWithIcs()
     const toggle = screen.getByLabelText('Enable Calendar') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
@@ -2237,152 +2241,234 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 54, no au
     expect(input.type).toBe('password')
   })
 
-  it('shows the helper text VERBATIM', async () => {
-    await renderWithIcs({ enabled: true, url: '' })
+  it('shows the Apple/Google/Outlook helper text VERBATIM', async () => {
+    await renderWithIcs({ enabled: true })
     expect(
       screen.getByText(
-        'In Google Calendar or Outlook: Settings → your calendar → "Secret address in iCal format" — paste that link here. It stays on this device.',
+        'In Apple Calendar: turn on "Public Calendar" (only the calendar\'s owner sees the option) and paste the webcal link here. Google/Outlook: Settings → your calendar → "Secret address in iCal format". It stays on this device.',
       ),
     ).toBeTruthy()
   })
 
-  it("save happy path: validates https, requests the url's own origin, then persists { enabled, url }", async () => {
+  it('webcal:// converts to https:// before validating/requesting/persisting — a link pasted from Apple Calendar just works', async () => {
     vi.mocked(ensureOrigin).mockResolvedValue(true)
-    const storage = await renderWithIcs({ enabled: true, url: '' })
+    const storage = await renderWithIcs({ enabled: true })
 
-    const input = screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement
     await act(async () => {
-      fireEvent.change(input, { target: { value: ICS_URL } })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Personal' } })
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: 'webcal://p57-caldav.icloud.com/published/2/abc' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(ICS_URL)
-    expect(await readIcs(storage)).toEqual({ enabled: true, url: ICS_URL })
-    expect(screen.queryByRole('alert')).toBeNull()
+    expect(ensureOrigin).toHaveBeenCalledWith('https://p57-caldav.icloud.com/published/2/abc')
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' }],
+      view: 'today',
+      upcomingCount: 3,
+    })
   })
 
-  it('a non-https url is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
-    const storage = await renderWithIcs({ enabled: true, url: '' })
+  it('http:// is rejected with the https-or-webcal copy; nothing persisted, ensureOrigin never called', async () => {
+    const storage = await renderWithIcs({ enabled: true })
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
         target: { value: 'http://calendar.example.com/basic.ics' },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/https:\/\//)
-    expect((await readIcs(storage))?.url).toBe('')
+    expect(alert.textContent).toBe('Enter a calendar address that starts with https:// or webcal://')
+    expect(await readIcs(storage)).toEqual({ enabled: true })
   })
 
-  it('an unparseable url is rejected with the same alert; ensureOrigin is never called', async () => {
-    const storage = await renderWithIcs({ enabled: true, url: '' })
+  it('an empty name defaults to "Calendar N" by current count + 1', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true })
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
-        target: { value: 'not a url' },
+        target: { value: 'https://calendar.example.com/one/basic.ics' },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+    expect((await readIcs(storage))?.calendars?.[0]).toEqual({
+      name: 'Calendar 1',
+      url: 'https://calendar.example.com/one/basic.ics',
+    })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: 'https://calendar.example.com/two/basic.ics' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+    expect((await readIcs(storage))?.calendars?.[1]).toEqual({
+      name: 'Calendar 2',
+      url: 'https://calendar.example.com/two/basic.ics',
+    })
+  })
+
+  it('adding a url already in the list — even respelled as webcal:// — is rejected as a duplicate', async () => {
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' }],
+    })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: 'webcal://p57-caldav.icloud.com/published/2/abc' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/https:\/\//)
-    expect((await readIcs(storage))?.url).toBe('')
+    expect(alert.textContent).toBe('That calendar is already in the list.')
+    expect((await readIcs(storage))?.calendars).toEqual([
+      { name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' },
+    ])
   })
 
-  it('a denied origin grant blocks the save: nothing is persisted', async () => {
+  it('enforces a maximum of 5 calendars: the add row is disabled at the cap', async () => {
+    await renderWithIcs({
+      enabled: true,
+      calendars: Array.from({ length: 5 }, (_, i) => ({
+        name: `Cal ${i + 1}`,
+        url: `https://calendar${i}.example.com/basic.ics`,
+      })),
+    })
+
+    expect((screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement).disabled).toBe(true)
+    expect((within(connectorsRegion()).getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+  })
+
+  it('a denied origin grant blocks the add: the denial copy shows, nothing is persisted', async () => {
     vi.mocked(ensureOrigin).mockResolvedValue(false)
-    const storage = await renderWithIcs({ enabled: true, url: '' })
+    const storage = await renderWithIcs({ enabled: true })
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
         target: { value: ICS_URL },
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
     const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-    expect((await readIcs(storage))?.url).toBe('')
+    expect(alert.textContent).toBe('Permission to read that calendar was denied, so nothing was saved.')
+    expect(await readIcs(storage)).toEqual({ enabled: true })
   })
 
-  it('when already configured, the input shows the current url', async () => {
-    await renderWithIcs({ enabled: true, url: ICS_URL })
-    expect((screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement).value).toBe(ICS_URL)
-  })
-
-  it("Clear empties the config entirely and revokes the calendar's own origin", async () => {
-    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+  it('a configured list shows each name, host, a dot colored by list position, and a per-row Remove button', async () => {
+    await renderWithIcs({
+      enabled: true,
+      calendars: [
+        { name: 'Personal', url: 'https://calendar.example.com/personal/basic.ics' },
+        { name: 'Family', url: 'https://calendar.other.com/family/basic.ics' },
+      ],
     })
 
-    // Revoked through the REAL registry's releasableOrigins, which derives
-    // the ORIGIN PATTERN (scheme+host+/*) from the stored url via
-    // originPattern — not the raw url itself, same shape every other
-    // connector's own Clear/Disconnect test asserts (e.g. Crypto's own
-    // 'https://api.coingecko.com/*' above).
-    expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
-    expect(await readIcs(storage)).toBeUndefined()
+    const region = connectorsRegion()
+    expect(within(region).getByText('Personal')).toBeTruthy()
+    expect(within(region).getByText('Family')).toBeTruthy()
+    expect(within(region).getByText('calendar.example.com')).toBeTruthy()
+    expect(within(region).getByText('calendar.other.com')).toBeTruthy()
+
+    const items = within(region).getAllByRole('listitem')
+    expect(items[0]?.querySelector('.bg-accent')).toBeTruthy()
+    expect(items[1]?.querySelector('.bg-sky-400')).toBeTruthy()
+
+    expect(within(region).getByRole('button', { name: 'Remove Personal' })).toBeTruthy()
+    expect(within(region).getByRole('button', { name: 'Remove Family' })).toBeTruthy()
   })
 
-  it('the Clear button is absent when no url is configured yet', async () => {
-    await renderWithIcs({ enabled: true, url: '' })
-    expect(screen.queryByRole('button', { name: 'Clear' })).toBeNull()
-  })
-
-  // Final-review fix wave, Fix 2 — a save-over-save used to grant the NEW
-  // url's origin and never revoke the OLD one: PRIVACY.md promises a
-  // released-automatically grant, and a leaked one broke that silently,
-  // since nothing about the UI (or the connector working fine on the new
-  // url) would ever surface it.
-  const OTHER_HOST_URL = 'https://calendar.other-host.com/private-xyz789/basic.ics'
-
-  it('save-over-save with a DIFFERENT host revokes the previously-configured origin after persisting the new one', async () => {
-    vi.mocked(ensureOrigin).mockResolvedValue(true)
-    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
-
-    await act(async () => {
-      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
-        target: { value: OTHER_HOST_URL },
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+  it('removing a calendar revokes its origin ONLY when no remaining calendar shares that origin', async () => {
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [
+        { name: 'Personal', url: 'https://calendar.example.com/personal/basic.ics' },
+        { name: 'Family', url: 'https://calendar.example.com/family/basic.ics' }, // shares the host
+      ],
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(OTHER_HOST_URL)
-    expect(await readIcs(storage)).toEqual({ enabled: true, url: OTHER_HOST_URL })
-    // Revoked through the same origin-pattern shape releasableOrigins
-    // derives everywhere else in this file (scheme+host+/*), for the OLD
-    // host — never the new one, which just received the grant.
-    expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
-    expect(removeOrigin).not.toHaveBeenCalledWith('https://calendar.other-host.com/*')
-  })
-
-  it('save-over-save on the SAME host does not revoke anything — the origin never actually changed', async () => {
-    vi.mocked(ensureOrigin).mockResolvedValue(true)
-    const SAME_HOST_URL = 'https://calendar.example.com/private-xyz789/basic.ics'
-    const storage = await renderWithIcs({ enabled: true, url: ICS_URL })
-
+    // Removing one of the two same-host calendars must NOT revoke — the
+    // origin is still claimed by the other.
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
-        target: { value: SAME_HOST_URL },
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
     })
-
-    expect(await readIcs(storage)).toEqual({ enabled: true, url: SAME_HOST_URL })
     expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await readIcs(storage))?.calendars).toEqual([
+      { name: 'Family', url: 'https://calendar.example.com/family/basic.ics' },
+    ])
+
+    // Removing the last remaining calendar on that host DOES revoke.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Family' }))
+    })
+    expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
+    expect((await readIcs(storage))?.calendars).toEqual([])
+  })
+
+  it('a legacy single-url config (pre-migration) surfaces as one calendar named "Calendar"', async () => {
+    await renderWithIcs({ enabled: true, url: ICS_URL })
+    const region = connectorsRegion()
+    // getByText('Calendar') alone would also match the card's OWN heading
+    // (descriptor.label is 'Calendar') — the row's Remove button, whose
+    // aria-label is `Remove ${cal.name}`, is the unambiguous proof the list
+    // itself holds one entry named 'Calendar'.
+    expect(within(region).getByRole('button', { name: 'Remove Calendar' })).toBeTruthy()
+    expect(within(region).getByText('calendar.example.com')).toBeTruthy()
+  })
+
+  it('view controls write immediately, with no Save button: "One per calendar" persists view, "Upcoming" + a count persists upcomingCount', async () => {
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: ICS_URL }],
+    })
+
+    const viewSelect = within(connectorsRegion()).getByLabelText('Show') as HTMLSelectElement
+    expect([...viewSelect.options].map((o) => o.textContent)).toEqual(['Today', 'Upcoming', 'One per calendar'])
+    expect(viewSelect.value).toBe('today')
+
+    await act(async () => {
+      fireEvent.change(viewSelect, { target: { value: 'per-calendar' } })
+    })
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: ICS_URL }],
+      view: 'per-calendar',
+      upcomingCount: 3,
+    })
+
+    await act(async () => {
+      fireEvent.change(viewSelect, { target: { value: 'upcoming' } })
+    })
+    const countSelect = within(connectorsRegion()).getByLabelText('How many upcoming events') as HTMLSelectElement
+    expect([...countSelect.options].map((o) => o.value)).toEqual(['2', '3', '4'])
+
+    await act(async () => {
+      fireEvent.change(countSelect, { target: { value: '4' } })
+    })
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: ICS_URL }],
+      view: 'upcoming',
+      upcomingCount: 4,
+    })
   })
 
   // Calendar is auth 'none' — the card shell's status chip (Task 46) is a
   // 'token'-auth-only affordance, so Calendar's card must never show one,
   // enabled or not (same rule Crypto's own case above documents).
   it('auth "none" (Calendar) never shows a status chip, enabled or not', async () => {
-    await renderWithIcs({ enabled: true, url: ICS_URL })
+    await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] })
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
   })

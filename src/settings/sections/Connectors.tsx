@@ -1,12 +1,13 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, IcsCalendar, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
 import { whoamiVercel } from '../../services/connectors/vercel'
+import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES } from '../../services/connectors/ics'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
 import Section from '../Section'
@@ -868,167 +869,267 @@ function CryptoBody({ config, storage }: BodyProps) {
   )
 }
 
-// The Calendar (ics) connector's card body — Task 54, the seventh connector
-// and the second NO-AUTH one (ics.ts, Task 53). Closest in shape to
-// CryptoBody just above (one labelled input + Save/Clear, no
-// TokenConnectForm at all — auth 'none' has no identity/whoami round-trip to
-// validate), with two differences that matter: the field is `type="password"`
-// (the URL itself IS the secret — ics.ts's own doc comment) rather than
-// plain text, and its origin is DERIVED from the field value (like
-// GitlabBody's instanceUrl / JiraBody's site) rather than a single constant
-// (unlike CryptoBody's CRYPTO_ORIGIN_URL) — so the https/parseability check
-// runs through the SAME originPattern() the descriptor's own origins() and
-// ensureOrigin() both call, one source of truth for "is this a grantable
-// https origin" across card, widget-adjacent permission bookkeeping, and
-// registry sweep alike.
+// The Calendar (ics) connector's card body — Task 4 of the ics-multi-
+// calendar wave grew a single URL into a NAMED LIST of up to MAX_CALENDARS
+// calendars. Structurally this now mirrors RssBody above (a `<ul>` of rows
+// with a per-row Remove button, an add `<form>`, a shared cap) rather than
+// CryptoBody's single Save/Clear form — but keeps the origin semantics that
+// made ics distinct from rss to begin with: each entry's origin is DERIVED
+// from its own url (like GitlabBody's instanceUrl / JiraBody's site) via the
+// same originPattern() the descriptor's own origins() and ensureOrigin()
+// both call, and removal is share-aware exactly like RssBody's
+// handleRemoveFeed — now doubly so, since two calendars in THIS card can
+// share a host (two paths under the same iCloud account, say) the same way
+// two rss feeds can share one. The url field stays `type="password"` (the
+// URL itself IS the secret — ics.ts's own doc comment), and a pasted
+// `webcal://` link — Apple's own scheme for a private calendar subscription
+// — is silently rewritten to `https://` before anything is validated, so a
+// link copied straight out of Apple Calendar's "Public Calendar" toggle
+// works untouched.
+const MAX_CALENDARS = 5
+
+/** `new URL(url).host`, or '' for anything unparseable — DISPLAY only (it
+ *  never gates validation; originPattern is what decides grantable-or-not,
+ *  at add time, below). */
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host
+  } catch {
+    return ''
+  }
+}
+
 function IcsBody({ config, storage }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'ics', so it is always IcsConfig at
-  // runtime — one documented cast.
+  // runtime — one documented cast. icsCalendarsOf/icsViewOf carry the
+  // read-time tolerance (legacy `url`, missing/invalid view fields) — see
+  // ics.ts — so this component never has to know either fallback shape.
   const ics = config as IcsConfig | undefined
-  const configuredUrl = typeof ics?.url === 'string' ? ics.url : ''
+  const calendars = icsCalendarsOf(ics)
+  const { view, upcomingCount } = icsViewOf(ics)
 
-  const [value, setValue] = useState(configuredUrl)
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [saving, setSaving] = useState(false)
+  const atCap = calendars.length >= MAX_CALENDARS
 
-  async function handleSave(e: React.FormEvent<HTMLFormElement>) {
+  // Every write rebuilds the whole ics entry from normalized parts — the
+  // first save is the migration moment: a lingering legacy `url` key is
+  // dropped here (icsCalendarsOf/icsViewOf read `prev`, but the write below
+  // only ever emits the new shape). `patch` lets the view controls further
+  // down write view/upcomingCount immediately, with no Save button, without
+  // disturbing the calendar list — and vice versa for add/remove below.
+  const updateIcs = (
+    fn: (cals: IcsCalendar[]) => IcsCalendar[],
+    patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount'>>,
+  ) =>
+    storage.update('connectors', (prev) => {
+      const prevIcs = prev.ics as IcsConfig | undefined
+      const v = icsViewOf(prevIcs)
+      return {
+        ...prev,
+        ics: {
+          enabled: true,
+          calendars: fn(icsCalendarsOf(prevIcs)),
+          view: v.view,
+          upcomingCount: v.upcomingCount,
+          ...patch,
+        },
+      }
+    })
+
+  async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
 
-    // SYNCHRONOUS https validation FIRST — this boundary is load-bearing,
-    // same discipline as every other body's own handler above: ensureOrigin
-    // (chrome.permissions.request) below must be the FIRST await, with ZERO
-    // awaits ahead of it, or the gesture window chrome.permissions.request
-    // needs can close before the call lands. originPattern() itself is
-    // synchronous and throws a clear message on a non-https or unparseable
-    // URL — the same helper GitlabBody's originsFor and the ics descriptor's
-    // own origins() both call. There's no shared form component to catch
-    // that throw generically here (auth 'none' has no TokenConnectForm
-    // round-trip), so it's caught directly and turned into the same inline
-    // alert idiom every other body uses.
-    const url = value.trim()
+    // webcal:// is an https ICS feed behind a different scheme — normalize
+    // BEFORE validation, case-insensitively, so a link pasted straight from
+    // Apple Calendar just works. Synchronous, same load-bearing boundary as
+    // every other body's own handler above: ensureOrigin below must be the
+    // FIRST await, with ZERO awaits ahead of it.
+    const normalized = url.trim().replace(/^webcal:\/\//i, 'https://')
     try {
-      originPattern(url)
+      originPattern(normalized)
     } catch {
-      setError('Enter a calendar address that starts with https://')
+      setError('Enter a calendar address that starts with https:// or webcal://')
       return
     }
-    // Captured BEFORE persisting anything — the origin-release check below
-    // (Fix 2, final-review fix wave) needs the url this card was configured
-    // with a moment ago, not whatever `url` ends up being.
-    const previousUrl = configuredUrl
-
-    setSaving(true)
-    try {
-      // ensureOrigin -> chrome.permissions.request is the first await, per
-      // the comment above.
-      let granted: boolean
-      try {
-        granted = await ensureOrigin(url)
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        setError('Permission to read that calendar was denied, so nothing was saved.')
-        return
-      }
-
-      // Replace the whole ics config (dropping any stray cruft the generic
-      // enable-toggle's `{}` seed left) with exactly the connector's two
-      // fields.
-      const prevConnectors = await storage.get('connectors')
-      await storage.update('connectors', (prev) => ({
-        ...prev,
-        ics: { enabled: true, url },
-      }))
-      setValue(url)
-
-      // A save-over-save used to grant the NEW origin and never revoke the
-      // OLD one — a leaked grant, violating PRIVACY.md's "released
-      // automatically" promise. Same sharing-aware releasableOrigins path
-      // handleClear (below) and every other body's own onDisconnect use,
-      // just fed the PRIOR connectors record instead of the just-persisted
-      // one, so an origin another enabled connector still derives is never
-      // revoked out from under it. No gesture needed: unlike ensureOrigin,
-      // removeOrigin carries no chrome.permissions.request-style gesture
-      // requirement, so this can safely run AFTER the grant+persist above.
-      const oldOrigin = originOf(previousUrl)
-      if (oldOrigin && oldOrigin !== originOf(url)) {
-        const releasable = releasableOrigins('ics', prevConnectors)
-        if (releasable.includes(oldOrigin)) await removeOrigin(oldOrigin)
-      }
-    } finally {
-      setSaving(false)
+    // Duplicate check runs against the NORMALIZED url — a webcal:// respelling
+    // of an already-configured https:// entry IS the same calendar.
+    if (calendars.some((c) => c.url === normalized)) {
+      setError('That calendar is already in the list.')
+      return
     }
+    if (atCap) return // guarded by the disabled inputs/button too; belt and braces
+
+    // ensureOrigin -> chrome.permissions.request is the first await, per the
+    // comment above.
+    let granted: boolean
+    try {
+      granted = await ensureOrigin(normalized)
+    } catch {
+      granted = false
+    }
+    if (!granted) {
+      setError('Permission to read that calendar was denied, so nothing was saved.')
+      return
+    }
+
+    const trimmedName = name.trim()
+    await updateIcs((cals) =>
+      cals.some((c) => c.url === normalized)
+        ? cals
+        : [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }],
+    )
+    setName('')
+    setUrl('')
   }
 
-  async function handleClear() {
-    // Compute what's safe to revoke BEFORE clearing the config (releasable-
-    // Origins needs ics's own config present to derive its origin), then
-    // drop the entry entirely and revoke each released origin — mirrors
-    // CryptoBody's own handleClear above.
-    const current = await storage.get('connectors')
-    const releasable = releasableOrigins('ics', current)
-    await storage.update('connectors', (prev) => {
-      const next = { ...prev }
-      delete next.ics
-      return next
-    })
-    setValue('')
-    setError(null)
-    await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+  async function handleRemove(target: string) {
+    // Pre-removal record: the cross-connector sharing check below
+    // (releasableOrigins) needs ics's own config as it stood BEFORE this
+    // removal. Survivors come from the WRITE's result, never the render-time
+    // `calendars` prop — same two-removals-before-rerender discipline
+    // RssBody's handleRemoveFeed documents above: storage.update serializes
+    // per-key and returns the post-write value, so a second removal clicked
+    // before a re-render still sees the first's result, not a stale one.
+    const before = await storage.get('connectors')
+    const next = await updateIcs((cals) => cals.filter((c) => c.url !== target))
+    const origin = originOf(target)
+    if (!origin) return
+    const remaining = icsCalendarsOf(next.ics as IcsConfig | undefined)
+    const stillUsed = remaining.some((c) => originOf(c.url) === origin)
+    if (!stillUsed && releasableOrigins('ics', before).includes(origin)) await removeOrigin(origin)
   }
 
   return (
-    <form
-      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
-      onSubmit={(e) => void handleSave(e)}
-    >
-      <div>
-        <label htmlFor="connector-ics-url" className="mb-1 block text-xs text-fg-muted">
-          Secret calendar address (ICS URL)
-        </label>
-        <input
-          id="connector-ics-url"
-          type="password"
-          placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
-          value={value}
-          onChange={(e) => {
-            setValue(e.currentTarget.value)
-            setError(null)
-          }}
-          aria-describedby={error ? 'connector-ics-error' : undefined}
-          className={`${control} w-full`}
-        />
-        {/* Helper text VERBATIM per the brief — do not paraphrase. */}
-        <p className="mt-1 text-xs text-fg-muted">
-          In Google Calendar or Outlook: Settings → your calendar → &quot;Secret address in iCal
-          format&quot; — paste that link here. It stays on this device.
-        </p>
-      </div>
+    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+      <ul className="flex flex-col gap-1">
+        {calendars.map((cal, i) => (
+          <li key={cal.url} className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              {/* Dot keyed by LIST POSITION, same rule CALENDAR_DOT_CLASSES'
+                  own doc comment states (ics.ts) — the widget's rows key their
+                  dots the identical way, so a calendar's color never drifts
+                  between settings and the card. */}
+              <span
+                aria-hidden="true"
+                className={`h-2 w-2 shrink-0 rounded-full ${CALENDAR_DOT_CLASSES[i % CALENDAR_DOT_CLASSES.length]}`}
+              />
+              <span className="min-w-0 truncate text-xs text-fg">{cal.name}</span>
+              <span className="shrink-0 truncate text-xs text-fg-muted">{hostOf(cal.url)}</span>
+            </span>
+            <button
+              type="button"
+              aria-label={`Remove ${cal.name}`}
+              onClick={() => void handleRemove(cal.url)}
+              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
 
-      <div className="flex items-center gap-3">
-        <button type="submit" disabled={saving} className={submitBtn}>
-          Save
-        </button>
-        {configuredUrl && (
-          <button
-            type="button"
-            onClick={() => void handleClear()}
-            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            Clear
+      <form className="flex flex-col gap-2" onSubmit={(e) => void handleAdd(e)}>
+        <div>
+          <label htmlFor="connector-ics-name" className="mb-1 block text-xs text-fg-muted">
+            Name
+          </label>
+          <input
+            id="connector-ics-name"
+            type="text"
+            placeholder="Personal"
+            value={name}
+            disabled={atCap}
+            onChange={(e) => setName(e.currentTarget.value)}
+            className={`${control} w-full disabled:opacity-50`}
+          />
+        </div>
+        <div>
+          <label htmlFor="connector-ics-url" className="mb-1 block text-xs text-fg-muted">
+            Secret calendar address (ICS URL)
+          </label>
+          <input
+            id="connector-ics-url"
+            type="password"
+            placeholder="https://calendar.google.com/calendar/ical/…/basic.ics"
+            value={url}
+            disabled={atCap}
+            onChange={(e) => {
+              setUrl(e.currentTarget.value)
+              setError(null)
+            }}
+            aria-describedby={error ? 'connector-ics-error' : undefined}
+            className={`${control} w-full disabled:opacity-50`}
+          />
+          {/* Helper text VERBATIM per the brief — do not paraphrase. */}
+          <p className="mt-1 text-xs text-fg-muted">
+            In Apple Calendar: turn on &quot;Public Calendar&quot; (only the calendar&apos;s owner sees
+            the option) and paste the webcal link here. Google/Outlook: Settings → your calendar →
+            &quot;Secret address in iCal format&quot;. It stays on this device.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button type="submit" disabled={atCap} className={submitBtn}>
+            Add
           </button>
-        )}
-      </div>
+          {atCap && (
+            <p className="text-xs text-fg-muted">Up to {MAX_CALENDARS} calendars. Remove one to add another.</p>
+          )}
+        </div>
 
-      {error && (
-        <p id="connector-ics-error" role="alert" className="text-xs text-fg-muted">
-          {error}
-        </p>
-      )}
-    </form>
+        {error && (
+          <p id="connector-ics-error" role="alert" className="text-xs text-fg-muted">
+            {error}
+          </p>
+        )}
+      </form>
+
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <label htmlFor="connector-ics-view" className="text-sm text-fg-muted">
+          Show
+        </label>
+        <div className="flex items-center gap-2">
+          <select
+            id="connector-ics-view"
+            value={view}
+            onChange={(e) => {
+              const next = e.currentTarget.value as IcsConfig['view']
+              void updateIcs((cals) => cals, { view: next })
+            }}
+            className={select}
+          >
+            <option value="today">Today</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="per-calendar">One per calendar</option>
+          </select>
+          {/* The count select only means anything for 'upcoming' — icsViewOf
+              still defaults/clamps upcomingCount regardless, so a value
+              chosen here and never revisited (e.g. after switching away and
+              back) stays exactly what was picked. */}
+          {view === 'upcoming' && (
+            <select
+              aria-label="How many upcoming events"
+              value={upcomingCount}
+              onChange={(e) => {
+                const n = Number(e.currentTarget.value)
+                void updateIcs((cals) => cals, { upcomingCount: n })
+              }}
+              className={select}
+            >
+              {[2, 3, 4].map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      </div>
+    </div>
   )
 }
