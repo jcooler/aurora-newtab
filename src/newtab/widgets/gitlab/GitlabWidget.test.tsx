@@ -28,7 +28,11 @@ const DATA: GitlabData = {
       project: 'acme/platform',
     },
   ],
+  // Wave-2 fields (Task 74): OFF by default, so the widget (Task 75 renders
+  // them) sees empty/null here — present only to satisfy GitlabData's shape.
+  reviewMrs: [],
   todos: 6,
+  contributions: null,
 }
 
 const CONNECTED: GitlabConfig = {
@@ -88,7 +92,7 @@ describe('GitlabWidget', () => {
   })
 
   it('shows the empty-connected copy when connected but nothing is assigned', async () => {
-    const storage = await seededStorage(CONNECTED, { mrs: [], todos: 0 })
+    const storage = await seededStorage(CONNECTED, { mrs: [], reviewMrs: [], todos: 0, contributions: null })
     mount(storage)
     expect(await screen.findByText('No MRs assigned to you.')).toBeTruthy()
   })
@@ -104,7 +108,9 @@ describe('GitlabWidget', () => {
         url: `https://gitlab.com/o/r/-/merge_requests/${i}`,
         project: 'o/r',
       })),
+      reviewMrs: [],
       todos: 0,
+      contributions: null,
     }
     const storage = await seededStorage(CONNECTED, many)
     mount(storage)

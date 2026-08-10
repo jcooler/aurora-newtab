@@ -13,12 +13,22 @@
 // hand-rolled fetch — so the 8s abort, the network-vs-HTTP status split, and
 // the typed-error discipline are all shared, and `fetchFn` stays injectable
 // so tests never touch a real network.
-import type { ConnectorDescriptor, VercelConfig } from './types'
+import type { ConnectorDescriptor, VercelConfig, VercelViews } from './types'
 import { getJson } from './http'
 
 const BASE = 'https://api.vercel.com'
 const DEPLOYMENTS_PATH = '/v6/deployments?limit=8'
 const USER_PATH = '/v2/user'
+
+/** WAVE-2 DEFAULT (see VercelConfig's `views` comment in types.ts): an absent
+ *  `views` reproduces today's card — the deployments list (already shipped)
+ *  stays ON, the status summary this wave ADDS stays OFF. Both sections read
+ *  the SAME one endpoint, so gating below keys on whether EITHER is on (the
+ *  data being needed), not a 1:1 section-to-request mapping. */
+export const DEFAULT_VERCEL_VIEWS: VercelViews = {
+  deployments: true,
+  statusSummary: false,
+}
 
 function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}` }
@@ -102,17 +112,25 @@ function parseDeployments(body: DeploymentsBody): VercelDeployment[] {
   return sortDeployments(out)
 }
 
-/** Fetches the one section (the account's latest deployments) for one token,
- *  carrying `prev` forward so a failure (network error or non-OK status)
- *  keeps the last-known slice — `prev ?? { deployments: [] }`, same
- *  quiet-degradation idiom as jira.ts's single-endpoint fallback (no ETag
- *  round-trip here either, so there's no 304/If-None-Match path to model). */
+/** Fetches the account's latest deployments for one token, carrying `prev`
+ *  forward so a failure (network error or non-OK status) keeps the last-known
+ *  slice — `prev ?? { deployments: [] }`, same quiet-degradation idiom as
+ *  jira.ts's fallback (no ETag round-trip here either, so there's no
+ *  304/If-None-Match path to model).
+ *
+ *  `views` GATES the single request: both the deployments list AND the status
+ *  summary are RENDERED from this one endpoint's data, so the fetch fires when
+ *  EITHER section is on — the gating keys on the DATA being needed, not on a
+ *  1:1 section-to-request mapping (unlike github/gitlab/jira, where each
+ *  section has its own endpoint). Both off → prev carried, no request. */
 export async function fetchVercel(
   token: string,
+  views: VercelViews,
   prev: VercelData | null,
   fetchFn: typeof fetch = fetch,
 ): Promise<VercelData> {
   const fallback = prev ?? { deployments: [] }
+  if (!views.deployments && !views.statusSummary) return fallback
   try {
     const result = await getJson<DeploymentsBody>(`${BASE}${DEPLOYMENTS_PATH}`, authHeaders(token), fetchFn)
     if (!result.ok) return fallback

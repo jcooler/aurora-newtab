@@ -1,6 +1,6 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { fetchJira, type JiraData, type JiraIssue } from '../../../services/connectors/jira'
+import { fetchJira, DEFAULT_JIRA_VIEWS, type JiraData, type JiraIssue } from '../../../services/connectors/jira'
 import type { ConnectorConfig, JiraConfig } from '../../../services/connectors/types'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
@@ -54,7 +54,11 @@ function JiraInner({ site, email, apiToken }: { site: string; email: string; api
   // own doc comment — but still carries `prev` forward). No cached data yet
   // (first-ever load in flight, or a total failure) renders nothing rather
   // than an empty shell — same as GithubInner/GitlabInner.
-  const { data } = useConnectorSnapshot<JiraData>('jira', (prev) => fetchJira(site, email, apiToken, prev))
+  // Task 74 stopgap: thread DEFAULT_JIRA_VIEWS through the new gated signature
+  // (Task 75 replaces DEFAULT_* with the resolved views + renders due-soon).
+  const { data } = useConnectorSnapshot<JiraData>('jira', (prev) =>
+    fetchJira(site, email, apiToken, DEFAULT_JIRA_VIEWS, prev),
+  )
   if (!data) return null
 
   const issues = (data.issues ?? []).slice(0, MAX_ISSUES)

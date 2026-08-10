@@ -5,7 +5,7 @@
 // and the descriptor's shape. Same fake-Response/injectable-fetchFn idiom as
 // http.test.ts / github.test.ts, so nothing here touches a real network.
 import { describe, expect, it, vi } from 'vitest'
-import { fetchVercel, whoamiVercel, relAge, vercelDescriptor, type VercelData } from './vercel'
+import { fetchVercel, whoamiVercel, relAge, vercelDescriptor, DEFAULT_VERCEL_VIEWS, type VercelData } from './vercel'
 
 /** Minimal fetch Response stand-in — only the members getJson reads (ok,
  *  status, headers.get('etag'), json()). Cast through `unknown` at each
@@ -89,7 +89,7 @@ describe('fetchVercel — parsing', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments).toEqual([
       { project: 'my-app', state: 'READY', url: 'https://vercel.com/acme/my-app/abc123', createdAt: 1_700_000_000_000 },
     ])
@@ -106,7 +106,7 @@ describe('fetchVercel — parsing', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments[0]!.state).toBe('ERROR')
   })
 
@@ -121,7 +121,7 @@ describe('fetchVercel — parsing', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments[0]!.url).toBe('https://my-app-abc123.vercel.app')
   })
 
@@ -136,7 +136,7 @@ describe('fetchVercel — parsing', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments[0]!.createdAt).toBe(42)
   })
 
@@ -153,7 +153,7 @@ describe('fetchVercel — parsing', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments).toEqual([{ project: 'good', state: 'READY', url: 'https://x/z', createdAt: 1 }])
   })
 })
@@ -173,7 +173,7 @@ describe('fetchVercel — failed-first sort', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments.map((d) => d.project)).toEqual([
       'the-failure', // ERROR, sorts first despite being the OLDEST
       'newest-ready',
@@ -194,7 +194,7 @@ describe('fetchVercel — failed-first sort', () => {
         },
       }),
     })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data.deployments.map((d) => d.project)).toEqual(['error-a', 'error-b'])
   })
 })
@@ -209,14 +209,64 @@ describe('fetchVercel — quiet degradation', () => {
         throw new Error('network down')
       },
     })
-    const data = await fetchVercel('t', prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, prev, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
   })
 
   it('a non-OK status with no prev falls back to an empty deployments list', async () => {
     const fetchFn = router({ deployments: fakeResponse({ ok: false, status: 500 }) })
-    const data = await fetchVercel('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchVercel('t', DEFAULT_VERCEL_VIEWS, null, fetchFn as unknown as typeof fetch)
     expect(data).toEqual({ deployments: [] })
+  })
+})
+
+describe('fetchVercel — per-view gating (one endpoint feeds both sections)', () => {
+  const DEPLOYMENT_BODY = {
+    deployments: [{ name: 'my-app', readyState: 'READY', inspectorUrl: 'https://x/y', createdAt: 1 }],
+  }
+
+  it('both sections off: NO request; prev carried verbatim', async () => {
+    const prev: VercelData = {
+      deployments: [{ project: 'old', state: 'READY', url: 'https://x/old', createdAt: 1 }],
+    }
+    const fetchFn = router({}) // nothing stubbed — any request throws
+    const views = { deployments: false, statusSummary: false }
+    const data = await fetchVercel('t', views, prev, fetchFn as unknown as typeof fetch)
+    expect(data).toEqual(prev)
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
+  it('both sections off with no prev: NO request; empty deployments', async () => {
+    const fetchFn = router({})
+    const views = { deployments: false, statusSummary: false }
+    const data = await fetchVercel('t', views, null, fetchFn as unknown as typeof fetch)
+    expect(data).toEqual({ deployments: [] })
+    expect(fetchFn).not.toHaveBeenCalled()
+  })
+
+  it('only the deployments section on: ONE request, deployments populate', async () => {
+    const fetchFn = router({ deployments: fakeResponse({ status: 200, body: DEPLOYMENT_BODY }) })
+    const views = { deployments: true, statusSummary: false }
+    const data = await fetchVercel('t', views, null, fetchFn as unknown as typeof fetch)
+    expect(data.deployments).toHaveLength(1)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+
+  it('only the statusSummary section on: STILL one request — the summary derives from the same deployments data', async () => {
+    const fetchFn = router({ deployments: fakeResponse({ status: 200, body: DEPLOYMENT_BODY }) })
+    const views = { deployments: false, statusSummary: true }
+    const data = await fetchVercel('t', views, null, fetchFn as unknown as typeof fetch)
+    // The data shape is unchanged — the widget derives the status summary from
+    // `deployments`, so the fetch keys on the DATA being needed, not on a 1:1
+    // section-to-request mapping.
+    expect(data.deployments).toHaveLength(1)
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('DEFAULT_VERCEL_VIEWS', () => {
+  it('is the wave-2 default: the deployments section ON, the status summary this wave adds OFF', () => {
+    expect(DEFAULT_VERCEL_VIEWS).toEqual({ deployments: true, statusSummary: false })
   })
 })
 

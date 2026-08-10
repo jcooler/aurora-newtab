@@ -1,6 +1,6 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { fetchVercel, relAge, type VercelData, type VercelDeployment } from '../../../services/connectors/vercel'
+import { fetchVercel, DEFAULT_VERCEL_VIEWS, relAge, type VercelData, type VercelDeployment } from '../../../services/connectors/vercel'
 import type { ConnectorConfig, VercelConfig } from '../../../services/connectors/types'
 
 const MAX_DEPLOYMENTS = 5
@@ -36,7 +36,11 @@ function VercelInner({ token }: { token: string }) {
   // own doc comment). No cached data yet (first-ever load in flight, or a
   // total failure) renders nothing rather than an empty shell — same as
   // every other connector widget.
-  const { data } = useConnectorSnapshot<VercelData>('vercel', (prev) => fetchVercel(token, prev))
+  // Task 74 stopgap: thread DEFAULT_VERCEL_VIEWS through the new gated
+  // signature (Task 75 replaces DEFAULT_* with the resolved views).
+  const { data } = useConnectorSnapshot<VercelData>('vercel', (prev) =>
+    fetchVercel(token, DEFAULT_VERCEL_VIEWS, prev),
+  )
   if (!data) return null
 
   // fetchVercel already returns deployments failed-first-then-recency

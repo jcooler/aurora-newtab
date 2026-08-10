@@ -31,6 +31,9 @@ const DATA: JiraData = {
     },
   ],
   counts: { 'In Progress': 3, 'To Do': 2 },
+  // Wave-2 field (Task 74): the due-soon section is OFF by default; present
+  // only to satisfy JiraData's shape (Task 75 renders it).
+  dueSoon: [],
 }
 
 const CONNECTED: JiraConfig = {
@@ -84,6 +87,7 @@ describe('JiraWidget', () => {
     const storage = await seededStorage(CONNECTED, {
       issues: [{ key: 'AUR-1', summary: 'Solo', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-1' }],
       counts: { Done: 1, 'In Progress': 5, 'To Do': 1 },
+      dueSoon: [],
     })
     mount(storage)
     await screen.findByText('AUR-1')
@@ -94,6 +98,7 @@ describe('JiraWidget', () => {
     const storage = await seededStorage(CONNECTED, {
       issues: [{ key: 'AUR-1', summary: 'Solo', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-1' }],
       counts: { 'To Do': 1 },
+      dueSoon: [],
     })
     mount(storage)
     await screen.findByText('AUR-1')
@@ -101,14 +106,14 @@ describe('JiraWidget', () => {
   })
 
   it('hides the counts line when there are no issues', async () => {
-    const storage = await seededStorage(CONNECTED, { issues: [], counts: {} })
+    const storage = await seededStorage(CONNECTED, { issues: [], counts: {}, dueSoon: [] })
     mount(storage)
     expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
     expect(screen.queryByText(/·/)).toBeNull()
   })
 
   it('shows the empty-connected copy when connected but nothing is assigned', async () => {
-    const storage = await seededStorage(CONNECTED, { issues: [], counts: {} })
+    const storage = await seededStorage(CONNECTED, { issues: [], counts: {}, dueSoon: [] })
     mount(storage)
     expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
   })
@@ -127,6 +132,7 @@ describe('JiraWidget', () => {
         url: `https://yoursite.atlassian.net/browse/AUR-${i}`,
       })),
       counts: { 'To Do': 4 },
+      dueSoon: [],
     }
     const storage = await seededStorage(CONNECTED, many)
     mount(storage)

@@ -1,6 +1,6 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { fetchGitlab, type GitlabData, type GitlabMr } from '../../../services/connectors/gitlab'
+import { fetchGitlab, DEFAULT_GITLAB_VIEWS, type GitlabData, type GitlabMr } from '../../../services/connectors/gitlab'
 import type { ConnectorConfig, GitlabConfig } from '../../../services/connectors/types'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
@@ -42,17 +42,22 @@ export default function GitlabWidget() {
   const [connectors] = useStoredKey('connectors')
   const gitlab = connectedGitlab(connectors?.gitlab)
   if (!gitlab) return null
-  return <GitlabInner token={gitlab.token} instanceUrl={gitlab.instanceUrl} />
+  return <GitlabInner token={gitlab.token} instanceUrl={gitlab.instanceUrl} username={gitlab.username} />
 }
 
-function GitlabInner({ token, instanceUrl }: { token: string; instanceUrl: string }) {
+function GitlabInner({ token, instanceUrl, username }: { token: string; instanceUrl: string; username: string }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
   // keeps that section (fetchGitlab has no ETag round-trip — see its own doc
   // comment — but still carries `prev` forward for the quiet-failure path).
   // No cached data yet (first-ever load in flight, or a total failure) renders
   // nothing rather than an empty shell — same as GithubInner/RssInner.
-  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) => fetchGitlab(instanceUrl, token, prev))
+  // Task 74 stopgap: thread DEFAULT_GITLAB_VIEWS + the config username through
+  // the new gated signature (Task 75 replaces DEFAULT_* with the resolved views
+  // and renders the two new sections).
+  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) =>
+    fetchGitlab(instanceUrl, token, username, DEFAULT_GITLAB_VIEWS, prev),
+  )
   if (!data) return null
 
   const mrs = (data.mrs ?? []).slice(0, MAX_MRS)
