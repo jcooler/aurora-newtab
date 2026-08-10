@@ -657,23 +657,26 @@ export default function App() {
                   child), so its bottom sits at the container's `bottom-6` and its
                   bottom-center canvas identity is unchanged from its old single
                   `fixed inset-x-0 bottom-6 mx-auto w-fit` anchor. The centering
-                  and the bottom offset now live on the aside. This wrapper's only
-                  class is `mid:hidden` — the quote survives far LONGER than crypto
-                  (its own short top clears the links row much lower than the band's
-                  crypto-clearing top does), but in the `mid` height band (601-864,
-                  index.css) the centred column is at FULL rhythm (no short/xshort
-                  relief yet) and its flowing links row dips into the
-                  bottom-anchored quote (MEASURED: laps it below ~849h, worst case
-                  wide). `mid` is precisely the tier for "bottom-anchored elements
-                  conflicting with the flowing content as the window shortens" (its
-                  own index.css rationale), so the quote joins the rails' mid-band
-                  hide there; at <=600 (short/xshort) the compressed column clears
-                  it again so it stays shown (its existing short/xshort type +
-                  bottom behaviour preserved), and at >=865 it clears by ~24px. No
-                  translate/transform — the same landmine the bookmarks/quote
-                  wrappers were converted away from. A stored `pos` still wins
-                  (className dropped on the arranged branch, so an arranged quote is
-                  never mid-hidden). */}
+                  and the bottom offset now live on the aside. This wrapper carries
+                  `quote-gate tier-fade` (resize-continuity task). The quote's OLD
+                  `mid:hidden` — gone across 601-864, BACK below 600 — was the
+                  non-monotonic blink Jon reported ("the quote ... disappear ...
+                  then reappear and disappear"). It is DEAD. The quote now SCALES
+                  DOWN under height pressure (its own mid/short/xshort type steps)
+                  while the centred column condenses on `mid` (the launcher row,
+                  search, focus, world-clocks/countdown all step smaller — see
+                  LinksWidget et al.), so the flowing links row rises to clear it.
+                  Where it still can't clear — MEASURED against the worst-case
+                  column (world clocks + countdown on), the links lap it below
+                  ~671h however hard the column condenses without gutting the clock
+                  — it yields ONCE, MONOTONICALLY and FADED (`.quote-gate`,
+                  index.css `@media (max-height:671px)`): shown and shrinking above
+                  671, a soft fade-out at the floor, and STAYING gone below. Never
+                  gone-then-back. At >=672 it clears the links; the preview quote
+                  fencepost asserts 671/672 live. No translate/transform — the same
+                  landmine the bookmarks/quote wrappers were converted away from. A
+                  stored `pos` still wins (both classes dropped on the arranged
+                  branch, so an arranged quote is never height-hidden). */}
               <PositionedBlock id="quote" pos={layout?.quote} className="quote-gate tier-fade">
                 <QuoteWidget />
               </PositionedBlock>

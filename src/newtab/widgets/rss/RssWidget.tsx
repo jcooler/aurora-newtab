@@ -26,35 +26,34 @@ export default function RssWidget() {
   return <RssInner feeds={rss.feeds} shownCount={rss.shownCount} />
 }
 
-// Short-tier row cap (Task 64 fix round 1 — the interior-worst-case sweep). On
-// the `short` tier (451-600px tall) the bottom-anchored Notes pill rises as the
-// window shrinks: its top is (viewport - bottom-4(16px) - pill-height(38px)) =
-// viewport - 54, so at the tier's OWN worst case — its 451px MINIMUM, not the
-// 600px boundary first measured — the pill top sits at 397px. This card's top
-// is fixed by the flow above it (rail-top-left 120 + calendar worst case ~78 +
-// the 16px flow gap => rss top ~214). MEASURED (scripts/preview.mjs rail probe,
-// 1600x451): each row is 40px, the carded chrome 16px, so N rows = 16 + 40N px;
-// at the ORIGINAL shownCount<=8 the card bottomed at 512, swallowing the pill's
-// click (elementFromPoint at the pill centre hit an <a> here). N=3 (card 136,
-// bottom ~350) clears the 397 pill top by 47px even against the calendar's own
-// worst height — a real >=16px floor, not shaved. `xshort` (<=450) hides the
-// whole card via the wrapper's own xshort:hidden, so this only governs `short`.
+// Short-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
+// skin). On the `short` tier (451-600px tall) the bottom-anchored Notes pill
+// rises as the window shrinks: its top is (viewport - bottom-4(16px) -
+// pill-height(38px)) = viewport - 54, so at the tier's OWN worst case — its 451px
+// MINIMUM — the pill top sits at 397px. This card's top is fixed by the flow
+// above it: rail-top-left(120) + the COMPACT calendar(~70) + the 16px flow gap
+// => rss top ~206. MEASURED (scripts/preview.mjs rail probe, 1600x451): with the
+// dense skin (p-2 + text-xs rows) each row is ~36px and the card chrome ~12px, so
+// N rows = 12 + 36N px. N=4 (card ~156, bottom ~362) clears the 397 pill top by
+// 35px; N=5 (bottom ~398) would overrun it — 4 is the most rows that still hold
+// the >=16px floor. `xshort` (<=450) hides the whole card via the wrapper's own
+// xshort:hidden, so this only governs `short`.
 const RSS_SHORT_ROWS = 4
 
-// Mid-tier row cap (Task 65 — the 601-864px mid-height relief tier). On `mid`
-// the bottom-anchored Notes pill still rises as the window shrinks: at the
-// tier's OWN worst case — its 601px MINIMUM — the pill top sits at 547
-// (height - 54). vercel whole-hides on mid (its 758 bottom can't be trimmed
-// clear — see App.tsx), leaving THIS card as the left column's lowest, so its
-// bottom is what must clear the pill. MEASURED (scripts/preview.mjs's mid-tier
-// fencepost probe, 1600x601, display max): the card's top is fixed by the flow
-// above it at 214 (rail-top 120 + the calendar's ~78px worst + 16 gap), each
-// row ~48px carded, so the full 8-row card bottoms at 550 — 3px OVER the 547
-// pill top (a real overlap at the band's worst, not merely a thin gap). N=7
-// (bottom 510) clears it by 37px, a real >=16px floor, at the cost of one
-// headline. `short` (RSS_SHORT_ROWS=3) trims harder because its 451px floor
-// puts the pill ~150px higher again; `xshort` hides the whole card. The three
-// tiers are disjoint (index.css), so only one row cap ever applies at a time.
+// Mid-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
+// skin: RAISED to the display max, i.e. NO trim on mid). On `mid` (601-864) the
+// bottom-anchored Notes pill sits at 547 at the tier's 601px worst (height-54),
+// and deploys (vercel) yields across the whole dense band (see App.tsx), leaving
+// THIS card as the left column's lowest — its bottom is what must clear the pill.
+// MEASURED (scripts/preview.mjs's short|mid fencepost, 1600x601): with the dense
+// skin (row ~36px, p-2 chrome ~12px => N rows = 12 + 36N) and the compact
+// calendar above it (rss top ~206), the FULL 8-row card bottoms at ~506 —
+// clearing the 547 pill by 41px. So the compact card fits every headline on mid
+// with room to spare and needs no trim: the cap is the display max (8), and the
+// row-hide below never engages on mid (shownCount is itself <=8). `short`
+// (RSS_SHORT_ROWS=4) trims because its 451px floor puts the pill ~150px higher;
+// `xshort` hides the whole card. The three tiers are disjoint (index.css), so
+// only one row cap ever applies at a time.
 const RSS_MID_ROWS = 8
 
 function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount: RssConfig['shownCount'] }) {

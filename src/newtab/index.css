@@ -410,7 +410,9 @@
    "condense before you hide" band, ≤864px (the union of mid+short+xshort). A
    card that is still SHOWN under any height pressure wears its compact skin
    here: smaller title type (text-sm→text-xs), tighter row gaps and reduced
-   padding (p-3/p-4/p-2.5 → p-2), and the crypto strip drops text-sm→text-xs.
+   padding (p-3/p-4/p-2.5 → p-2). (The crypto strip is deliberately NOT compacted
+   — it only ever renders at >=890h, above this whole band, per the measured 890
+   ruling, so a dense skin on it would be dead.)
    DELIBERATELY overlaps mid/short/xshort — it only ever sets card-INTERNAL
    properties (padding, gap, font-size) that those height variants never touch
    on the same element, so there is no generated-CSS source-order tie to break
@@ -465,22 +467,20 @@
    + gap-4 (16px) + col2 width (monthCal/habits, w-[200px]). `--rail-w` reaches
    536 at exactly 100vw = 1593: (1593 - 457)/2 - 32 = 536. PLUS a height gate so
    the two cards are never shown where the viewport can't stack them clear of
-   the bottom band: MEASURED (scripts/preview.mjs rail probe), the column's
-   worst case is rail-top-left(120) + monthCal 6-row(247) + gap(16) + habits
-   6-chip(244) = bottom 627px, and the centred quote's top sits at
-   height - 96px (bottom-6 + its 72px box), so a >=16px floor to the quote needs
-   height >= 627 + 96 + 16 = 739 -> the gate is `min-height: 740px`. This is the
-   interior-worst-case discipline (fix round 1): the gate holds at ITS OWN
-   minimum height, not just at a boundary, because the quote is bottom-anchored
-   and rises as the window shrinks. Below 740 col2 hides even on a wide viewport
-   rather than lap the quote (a wide-but-short window like 1600x700). Supersedes
-   the brief's provisional "hide col2 on short (<=600)" — 600 was far too low.
-   NOTE (bottom-band fix): the quote this 740 was derived from is now itself
-   `mid:hidden` across 601-864 (App.tsx — the centred column's own links row laps
-   it there), so at 740 the quote is ABSENT and col2 has an empty band beneath
-   it; 740 is retained as a now-conservative floor, and where the quote reappears
-   (>=865h) the taller viewport lets the same 627px stack clear it by >100px. The
-   preview col2 fencepost asserts both (quote absent at 740, cleared at 865).
+   the bottom band. RE-DERIVED for the COMPACT (dense) skins (resize-continuity
+   task): the two cards wear their compact padding below 864h, so the column's
+   worst case is now rail-top-left(120) + monthCal 6-row compact(235) + gap(16)
+   + habits 6-chip compact(196) = bottom 567px (down from 627). The centred quote
+   is SHOWN at these heights (its monotonic gate keeps it visible above 671, no
+   longer hidden across the band) with its top at ~598px at the gate's own
+   minimum, so the >=16px floor is met at `min-height: 680px` (567 + 16 = 583 <
+   598, i.e. col2 clears the shown quote by 31px). This is the interior-worst-
+   case discipline: the gate holds at ITS OWN minimum height, not just at a
+   boundary, because the quote is bottom-anchored and rises as the window
+   shrinks. Below 680 col2 hides even on a wide viewport rather than lap the
+   quote (a wide-but-short window like 1600x670). The preview col2 fencepost
+   asserts BOTH edges live — HIDDEN@679 / SHOWN@680 clearing the SHOWN quote by
+   31px, and the full 627px stack at 865 clearing it by 142px.
 
    Applied to the per-block `.rail-col2` wrappers, NOT the col-2 container div:
    an ARRANGED monthCal/habits is rendered `position: fixed` by PositionedBlock
@@ -509,8 +509,9 @@
    left is (the `.rail-primary` width-hide below reads its inline size), so the
    law binds it identically. It binds the BOTTOM zone
    (`<aside data-zone="bottom">`, App.tsx — the crypto strip + quote) too, even
-   though that zone needs NO container query (a height media tier hides crypto,
-   the existing `mid` tier hides the quote — no inline-size read): it still hosts
+   though that zone needs NO container query (a height media tier reveals crypto,
+   the `.quote-gate` height media tier yields the quote below 671 — no inline-size
+   read): it still hosts
    arranged crypto/quote, so a transform/filter/contain there would trap them
    against the aside box exactly the same way. The zone's default centring is
    transform-free (`inset-x-0 mx-auto w-fit` + `flex`) precisely so it never
@@ -527,7 +528,11 @@
    blink. Chrome animates the display:none<->shown switch via
    `transition-behavior: allow-discrete` (display flips discretely at the FAR
    end of the fade — immediately on show, only AFTER the fade on hide) paired
-   with `@starting-style` (the pre-reveal opacity:0 a fade-in starts from).
+   with `@starting-style` (the pre-reveal opacity:0 a fade-in starts from). Both
+   features require Chrome 117+ (Sept 2023) — safely within this extension's
+   floor (same "name the Chrome version the mechanism relies on" precedent as the
+   Chrome 129 container-type note below); pre-117 the fade is a no-op and the
+   show/hide is simply the old instant switch (graceful, never broken).
    Every gate below (and every Tailwind `*:hidden` hide-variant in App.tsx)
    sets `opacity:0` alongside its `display:none`, so the fade always has
    somewhere to travel. `.tier-fade` is carried by EVERY tier-gated block

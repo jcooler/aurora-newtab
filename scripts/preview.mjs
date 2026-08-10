@@ -4962,7 +4962,7 @@ console.log(
   )
 
   // Force monthCal to its 6-row worst case (col2 is shown at 1600x900, w>=1593
-  // & h>=740) — the internal month-offset persists across resizes (no reload
+  // & h>=680) — the internal month-offset persists across resizes (no reload
   // inside the sweep), so this holds for every step that shows col2. Same
   // click-Next-until-42-cells loop the combined gate uses, with one guaranteed
   // Next first (the Today button only renders off the current month).
@@ -5012,10 +5012,12 @@ console.log(
 
   // The width/height disciplines' EXPECTED rail visibility at each swept size,
   // derived from index.css. Two axes:
-  //   HEIGHT — col2 (monthCal/habits) needs height>=740 (and width>=1593);
-  //     `mid` (601-864) hides vercel/gitlab/jira and keeps github; `short`
-  //     (451-600) empties the right rail and drops vercel; `xshort` (<=450)
-  //     leaves only the calendar.
+  //   HEIGHT — col2 (monthCal/habits) needs height>=680 (and width>=1593);
+  //     the compact skins RE-DERIVED the connector hides: the whole `dense`
+  //     band (<=864) yields vercel/gitlab/jira and keeps github (its compact
+  //     card fits); `short` (451-600) keeps github too (it survives down to
+  //     short now, hidden only on xshort) with rss trimmed to 4 rows; `xshort`
+  //     (<=450) leaves only the calendar.
   //   WIDTH — below 100vw=1193 (`--rail-w` < the widest primary card + 16px, the
   //     `.rail-primary` container query) BOTH primary columns step aside entirely
   //     and the centred column alone is the board — the DESIGNED narrow state.
