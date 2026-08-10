@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
 import { ensureOrigin } from '../../services/permissions'
 import { control, submitBtn } from './shared'
 
@@ -34,8 +34,15 @@ export function TokenConnectForm(props: {
   /** Present when already connected -> renders Disconnect instead of the form. */
   connectedAs: string | null
   onDisconnect(): Promise<void>
+  /** Connector-specific content slotted into the CONNECTED branch only,
+   *  between the connected-as row (owned by the card shell, not this form —
+   *  see the comment on that branch below) and the Disconnect row. GithubBody
+   *  (Task 69) is the first consumer: the "Show on your board" view chips.
+   *  Absent in the disconnected (form) state — there is nothing composed yet
+   *  to show chips for. */
+  connectedExtras?: ReactNode
 }) {
-  const { fields, connectLabel = 'Connect', originsFor, validate, onConnected, connectedAs, onDisconnect } = props
+  const { fields, connectLabel = 'Connect', originsFor, validate, onConnected, connectedAs, onDisconnect, connectedExtras } = props
 
   // Two token connectors can render on the same Connectors tab at once
   // (GithubConfig and VercelConfig both declare a `token` field, for
@@ -58,7 +65,8 @@ export function TokenConnectForm(props: {
     // Off-but-connected state, where this form isn't rendered at all. Repeating
     // it here was redundant, so this branch is now just the Disconnect action.
     return (
-      <div className="mt-3 flex border-t border-hairline pt-3">
+      <div className="mt-3 flex flex-col gap-3 border-t border-hairline pt-3">
+        {connectedExtras}
         <button
           type="button"
           onClick={() => void onDisconnect()}

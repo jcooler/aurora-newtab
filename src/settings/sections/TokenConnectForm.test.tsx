@@ -222,6 +222,31 @@ describe('TokenConnectForm — connected state', () => {
 
     expect(onDisconnect).toHaveBeenCalledOnce()
   })
+
+  // Task 69: connectedExtras is the slot GithubBody's "Show on your board"
+  // chips render through — ONLY in the connected state, and positioned
+  // between the (card-shell-owned) connected indicator and the Disconnect
+  // row, never replacing or displacing Disconnect itself.
+  it('connectedExtras renders between the connected row and Disconnect, when connectedAs is set', () => {
+    renderForm({ connectedAs: 'octocat', connectedExtras: <div data-testid="extras">Show on your board</div> })
+
+    const extras = screen.getByTestId('extras')
+    expect(extras).toBeTruthy()
+    const disconnect = screen.getByRole('button', { name: 'Disconnect' })
+    // DOCUMENT_POSITION_FOLLOWING: extras comes BEFORE Disconnect in document order.
+    expect(extras.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('connectedExtras does NOT render in the disconnected (form) state', () => {
+    renderForm({ connectedAs: null, connectedExtras: <div data-testid="extras">Show on your board</div> })
+    expect(screen.queryByTestId('extras')).toBeNull()
+  })
+
+  it('omitting connectedExtras renders the connected state exactly as before (no stray node)', () => {
+    renderForm({ connectedAs: 'octocat' })
+    expect(screen.queryByTestId('extras')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+  })
 })
 
 // Review fix (round 1): ids used to be static (`token-connect-${field.id}`,

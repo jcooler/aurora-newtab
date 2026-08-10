@@ -1494,6 +1494,65 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
+
+  // Task 69, Step 5: onConnected used to REPLACE the whole github config, so
+  // reconnecting after a token was stripped (a backup restore, here) would
+  // silently reset a composed card's chip choices back to all-on. It must
+  // carry any existing `views` through instead.
+  it('reconnecting carries existing `views` through — a reconnect must never reset a composed card to all-on', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: true, identity: 'octocat' })
+    const seededViews = { commitGraph: true, pulls: true, issues: false, notifications: true }
+    // Reconnect state: username present, token stripped, a composed `views`
+    // already on record.
+    const storage = await renderWithGithub({
+      enabled: true,
+      token: '',
+      username: 'octocat',
+      views: seededViews,
+    })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+
+    const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'github_pat_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const stored = await readGithub(storage)
+    expect(stored?.token).toBe('github_pat_new')
+    expect(stored?.views).toEqual(seededViews)
+  })
+
+  // Task 69, Step 6: the "Show on your board" chips, end-to-end through the
+  // real panel — four chips reflecting `resolveGithubViews`, and clicking one
+  // writes the FULL resolved+flipped object through storage (partial views
+  // never persist) while the chip itself flips.
+  it('the "Show on your board" chips render for a connected card; clicking one flips storage and the chip', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+
+    expect(screen.getByText('Show on your board')).toBeTruthy()
+    expect(screen.getByText('Your card shows only the sections you turn on.')).toBeTruthy()
+
+    const commitGraphChip = screen.getByRole('button', { name: /Commit graph/ })
+    const pullsChip = screen.getByRole('button', { name: /Pull requests/ })
+    const issuesChip = screen.getByRole('button', { name: /Issues/ })
+    const notifsChip = screen.getByRole('button', { name: /Notifications/ })
+    // No `views` stored yet -> resolves against the all-on default.
+    expect(commitGraphChip.getAttribute('aria-pressed')).toBe('true')
+    expect(pullsChip.getAttribute('aria-pressed')).toBe('true')
+    expect(issuesChip.getAttribute('aria-pressed')).toBe('true')
+    expect(notifsChip.getAttribute('aria-pressed')).toBe('true')
+
+    await act(async () => {
+      fireEvent.click(issuesChip)
+    })
+
+    expect(await readGithub(storage)).toMatchObject({
+      views: { commitGraph: true, pulls: true, issues: false, notifications: true },
+    })
+    expect(screen.getByRole('button', { name: /Issues/ }).getAttribute('aria-pressed')).toBe('false')
+  })
 })
 
 describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s sibling)', () => {

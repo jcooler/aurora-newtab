@@ -1,9 +1,9 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
-import { whoamiGithub } from '../../services/connectors/github'
+import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
 import { whoamiVercel } from '../../services/connectors/vercel'
@@ -11,6 +11,7 @@ import { ensureOrigin, removeOrigin, originPattern } from '../../services/permis
 import { TokenConnectForm } from './TokenConnectForm'
 import Section from '../Section'
 import Switch from '../Switch'
+import ToggleChip from '../ToggleChip'
 import { control, select, submitBtn } from './shared'
 
 const MAX_FEEDS = 5
@@ -330,6 +331,16 @@ function RssBody({ config, storage }: BodyProps) {
   )
 }
 
+// The four sections GithubBody's "Show on your board" row toggles — key
+// order here is the display order, LEFT to RIGHT then wrapped, matching the
+// picked closeup (github-C-settings-closeup.png).
+const VIEW_CHIPS: Array<{ key: keyof GithubViews; label: string }> = [
+  { key: 'commitGraph', label: 'Commit graph' },
+  { key: 'pulls', label: 'Pull requests' },
+  { key: 'issues', label: 'Issues' },
+  { key: 'notifications', label: 'Notifications' },
+]
+
 // The GitHub connector's card body — the first token connector, and the
 // template Tasks 49-51 (gitlab/vercel/jira) copy. All the connect/disconnect
 // mechanics (the gesture-safe ensureOrigin-first chain, the single inline
@@ -350,6 +361,10 @@ function GithubBody({ config, storage }: BodyProps) {
   // re-enter the token; the card shell's own "Reconnect needed" chip
   // (authState) already flags that state above.
   const connectedAs = username && token ? username : null
+  // Absent/partial views resolve against the all-on default (same function
+  // GithubWidget.tsx reads to decide which sections to fetch/render), so the
+  // chips reflect exactly what the card is about to show.
+  const views = resolveGithubViews(github)
 
   return (
     <TokenConnectForm
@@ -371,13 +386,53 @@ function GithubBody({ config, storage }: BodyProps) {
       onConnected={async (values, identity) => {
         // Replace the whole github config (dropping any feeds/shownCount cruft
         // the generic enable-toggle's RSS default may have seeded) with exactly
-        // the token connector's three fields.
-        await storage.update('connectors', (prev) => ({
-          ...prev,
-          github: { enabled: true, token: values.token, username: identity },
-        }))
+        // the token connector's fields — but a RECONNECT (prev.github already
+        // held a composed `views`) must carry that choice through: without
+        // this, reconnecting after a token was stripped (backup restore, or a
+        // deliberate disconnect/reconnect) would silently reset a composed
+        // card back to all-on, discarding what the chips below recorded.
+        await storage.update('connectors', (prev) => {
+          const prevViews = (prev.github as GithubConfig | undefined)?.views
+          return {
+            ...prev,
+            github: {
+              enabled: true,
+              token: values.token,
+              username: identity,
+              ...(prevViews ? { views: prevViews } : {}),
+            },
+          }
+        })
       }}
       connectedAs={connectedAs}
+      connectedExtras={
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+            Show on your board
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {VIEW_CHIPS.map(({ key, label }) => (
+              <ToggleChip
+                key={key}
+                label={label}
+                on={views[key]}
+                onClick={() =>
+                  void storage.update('connectors', (prev) => {
+                    const current = prev.github
+                    if (!current) return prev
+                    const resolved = resolveGithubViews(current as GithubConfig)
+                    return {
+                      ...prev,
+                      github: { ...current, views: { ...resolved, [key]: !resolved[key] } },
+                    }
+                  })
+                }
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+        </div>
+      }
       onDisconnect={async () => {
         // Compute what's safe to revoke BEFORE clearing the config (releasable-
         // Origins needs github's own config present to derive its origins), then
