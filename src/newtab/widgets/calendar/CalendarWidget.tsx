@@ -1,7 +1,14 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { useNow } from '../../../lib/hooks/useNow'
-import { fetchIcs, icsCalendarsOf, type IcsData, type IcsEvent } from '../../../services/connectors/ics'
+import {
+  CALENDAR_DOT_CLASSES,
+  fetchIcs,
+  icsCalendarsOf,
+  icsViewOf,
+  type IcsData,
+  type IcsEvent,
+} from '../../../services/connectors/ics'
 import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 
 // The calendar widget — Task 54, the seventh connector and the second
@@ -50,14 +57,36 @@ export default function CalendarWidget() {
   // every malformed-entry edge a hand-edited/backup-restored config can hit
   // structurally — this gate just checks enabled + non-empty.
   const calendars = icsCalendarsOf(ics)
+  // icsViewOf (Task 1) reads config.view/upcomingCount with the same
+  // read-time-tolerance discipline as icsCalendarsOf — an absent or
+  // malformed value defaults rather than throwing. Read unconditionally
+  // (before the gate below) so the Rules-of-Hooks-free gate stays a single
+  // early return; icsViewOf itself is a pure function, not a hook.
+  const { view, upcomingCount } = icsViewOf(ics)
   if (!ics?.enabled || calendars.length === 0) return null
-  // key: a config change (add/remove/reorder) REMOUNTS the inner widget so
-  // useConnectorSnapshot's one-refresh-per-mount fires against the new list —
+  // key: a config change (add/remove/reorder, OR a view-mode/count change)
+  // REMOUNTS the inner widget so useConnectorSnapshot's one-refresh-per-mount
+  // fires against the new list and selectAgenda re-runs from a clean slate —
   // this is what makes the spec's index-keyed-fallback edge transient.
-  return <CalendarInner key={calendars.map((c) => c.url).join('\n')} calendars={calendars} />
+  return (
+    <CalendarInner
+      key={[view, upcomingCount, ...calendars.map((c) => c.url)].join('\n')}
+      calendars={calendars}
+      view={view}
+      upcomingCount={upcomingCount}
+    />
+  )
 }
 
-function CalendarInner({ calendars }: { calendars: IcsCalendar[] }) {
+function CalendarInner({
+  calendars,
+  view,
+  upcomingCount,
+}: {
+  calendars: IcsCalendar[]
+  view: 'today' | 'upcoming' | 'per-calendar'
+  upcomingCount: number
+}) {
   // Re-render cadence: reuses the app's existing minute-scale time source
   // (useNow, exported by Clock.tsx's own module and already parameterized
   // by interval) rather than rolling a second bespoke setInterval — Clock
@@ -79,7 +108,18 @@ function CalendarInner({ calendars }: { calendars: IcsCalendar[] }) {
   if (!data) return null
 
   const nowMs = now.getTime()
-  const { next, rows } = selectAgenda(data.events, nowMs)
+  const { next, rows } = selectAgenda(data.events, nowMs, view, upcomingCount, calendars.length)
+
+  // Single-calendar rule (spec): with exactly one configured calendar, no
+  // dots render anywhere — the color-coding only earns its keep once there's
+  // more than one calendar to distinguish. `multi` gates every dot below.
+  const multi = calendars.length > 1
+  const dot = (cal: number) => (
+    <span
+      aria-hidden
+      className={`h-1.5 w-1.5 shrink-0 rounded-full ${CALENDAR_DOT_CLASSES[cal % CALENDAR_DOT_CLASSES.length]}`}
+    />
+  )
 
   if (!next) {
     return (
@@ -87,7 +127,9 @@ function CalendarInner({ calendars }: { calendars: IcsCalendar[] }) {
         aria-label="Calendar"
         className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
       >
-        <p className="text-sm dense:text-xs text-fg-muted">No more events today.</p>
+        <p className="text-sm dense:text-xs text-fg-muted">
+          {view === 'today' ? 'No more events today.' : 'No upcoming events.'}
+        </p>
       </section>
     )
   }
@@ -99,17 +141,21 @@ function CalendarInner({ calendars }: { calendars: IcsCalendar[] }) {
       aria-label="Calendar"
       className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
     >
-      <p className="block truncate text-sm dense:text-xs font-medium text-fg">
-        Next: {next.summary} · {relative}
+      <p className="flex min-w-0 items-center gap-1.5 text-sm dense:text-xs font-medium text-fg">
+        {multi && dot(next.cal)}
+        <span className="block truncate">
+          Next: {next.summary} · {relative}
+        </span>
       </p>
       {rows.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">
           {rows.map((ev) => (
             <li
               key={`${ev.start}-${ev.summary}`}
-              className="block truncate text-xs text-fg-muted"
+              className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
             >
-              {formatAgendaRow(ev)}
+              {multi && dot(ev.cal)}
+              <span className="block truncate">{formatAgendaRow(ev, nowMs)}</span>
             </li>
           ))}
         </ul>
@@ -152,18 +198,42 @@ function pad2(n: number): string {
   return String(n).padStart(2, '0')
 }
 
-/** `All day · {summary}` for an all-day row, else `HH:MM {summary}` — the
- *  brief's own two literal examples ('09:30 Standup', 'All day · {summary}').
- *  Deliberately a FIXED 24h zero-padded clock here, not settings.use24Hour
- *  (unlike Clock.tsx's own formatClock): this widget renders no other
- *  connector's cards ever read app settings for their own formatting either
- *  (CryptoWidget/VercelWidget format independently of them too), and both of
- *  the brief's literal examples are already in that exact zero-padded 24h
- *  shape. */
-function formatAgendaRow(ev: IcsEvent): string {
-  if (isAllDay(ev)) return `All day · ${ev.summary}`
+// Short weekday names, Sunday-first (Date#getDay() indexing) — hoisted to
+// module scope (was local to relNext) so dayToken can share the one array
+// rather than each function carrying its own copy.
+const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/** Day prefix for a row that isn't today: weekday short for the next 6
+ *  days, 'Mon DD' beyond. null (no token) for anything starting today OR
+ *  earlier — an in-progress multi-day event renders with the today idiom,
+ *  never a past date. */
+function dayToken(start: number, now: number): string | null {
+  const nowDay = localDayRange(now)
+  const startDay = localDayRange(start)
+  const dayDiff = Math.round((startDay.start - nowDay.start) / DAY_MS)
+  if (dayDiff <= 0) return null
+  const d = new Date(start)
+  if (dayDiff <= 6) return WEEKDAY_SHORT[d.getDay()]!
+  return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`
+}
+
+/** `{token} · {summary}` (or bare `All day · {summary}` for today) for an
+ *  all-day row, else `{token} HH:MM {summary}` (or bare `HH:MM {summary}`
+ *  for today) — the brief's own literal examples ('09:30 Standup', 'All day
+ *  · {summary}', 'Sat 09:00 Kickoff', 'Aug 18 15:30 Dentist'). Deliberately a
+ *  FIXED 24h zero-padded clock here, not settings.use24Hour (unlike
+ *  Clock.tsx's own formatClock): this widget renders no other connector's
+ *  cards ever read app settings for their own formatting either
+ *  (CryptoWidget/VercelWidget format independently of them too), and every
+ *  one of the brief's literal examples is already in that exact zero-padded
+ *  24h shape. */
+function formatAgendaRow(ev: IcsEvent, now: number): string {
+  const token = dayToken(ev.start, now)
+  if (isAllDay(ev)) return token ? `${token} · ${ev.summary}` : `All day · ${ev.summary}`
   const start = new Date(ev.start)
-  return `${pad2(start.getHours())}:${pad2(start.getMinutes())} ${ev.summary}`
+  const hm = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`
+  return token ? `${token} ${hm} ${ev.summary}` : `${hm} ${ev.summary}`
 }
 
 /** Pure selection over an ALREADY-sorted-ascending event list (ics.ts's own
@@ -175,23 +245,47 @@ function formatAgendaRow(ev: IcsEvent): string {
  *  an agenda row and the next REAL appointment as the headline). Falls back
  *  to the earliest upcoming event of any kind (including all-day) only when
  *  no timed one remains, so a day that's ALL-DAY-only still shows something
- *  rather than the empty state.
+ *  rather than the empty state. Headline selection is the SAME across all
+ *  three view modes — only `rows` varies by `view`:
  *
- *  `rows` is up to MAX_AGENDA_ROWS other upcoming events that overlap
- *  TODAY's local calendar day (`ev.start < todayEnd` — not `next` itself),
- *  in their already-ascending order. All-day events sort first among them
- *  FOR FREE (their start is local midnight, earlier than any timed event
- *  that day), so no separate all-day-priority sort step is needed — see the
- *  brief's own "All-day events render … first" line. */
-function selectAgenda(events: IcsEvent[], now: number): { next: IcsEvent | null; rows: IcsEvent[] } {
+ *   - 'today' (unchanged behavior): up to MAX_AGENDA_ROWS other upcoming
+ *     events that overlap TODAY's local calendar day (`ev.start < todayEnd`
+ *     — not `next` itself), in their already-ascending order. All-day events
+ *     sort first among them FOR FREE (their start is local midnight, earlier
+ *     than any timed event that day), so no separate all-day-priority sort
+ *     step is needed — see the brief's own "All-day events render … first"
+ *     line.
+ *   - 'upcoming': the next `upcomingCount` other upcoming events regardless
+ *     of day, in ascending order — the day tokens (dayToken/formatAgendaRow)
+ *     are what make a multi-day list readable.
+ *   - 'per-calendar': each calendar's own soonest not-already-shown event
+ *     (i.e. excluding `next`), ONE row per calendar, in calendar-INDEX order
+ *     (0, 1, 2, …) — not chronological order across calendars. A calendar
+ *     with nothing left upcoming simply contributes no row. */
+function selectAgenda(
+  events: IcsEvent[],
+  now: number,
+  view: 'today' | 'upcoming' | 'per-calendar',
+  upcomingCount: number,
+  calendarCount: number,
+): { next: IcsEvent | null; rows: IcsEvent[] } {
   const upcoming = events.filter((ev) => ev.end > now)
   const timed = upcoming.filter((ev) => !isAllDay(ev))
   const next = timed[0] ?? upcoming[0] ?? null
   if (!next) return { next: null, rows: [] }
 
+  const others = upcoming.filter((ev) => ev !== next)
+  if (view === 'upcoming') return { next, rows: others.slice(0, upcomingCount) }
+  if (view === 'per-calendar') {
+    const rows: IcsEvent[] = []
+    for (let i = 0; i < calendarCount; i++) {
+      const first = others.find((ev) => ev.cal === i)
+      if (first) rows.push(first)
+    }
+    return { next, rows }
+  }
   const { end: todayEnd } = localDayRange(now)
-  const rows = upcoming.filter((ev) => ev !== next && ev.start < todayEnd).slice(0, MAX_AGENDA_ROWS)
-  return { next, rows }
+  return { next, rows: others.filter((ev) => ev.start < todayEnd).slice(0, MAX_AGENDA_ROWS) }
 }
 
 /** now/start both epoch ms, both read in the LOCAL runtime timezone —
@@ -230,6 +324,5 @@ export function relNext(now: number, start: number): string {
   const hh = pad2(new Date(start).getHours())
   const mm = pad2(new Date(start).getMinutes())
   if (dayDiff === 1) return `tomorrow ${hh}:${mm}`
-  const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   return `${WEEKDAY_SHORT[new Date(start).getDay()]} ${hh}:${mm}`
 }

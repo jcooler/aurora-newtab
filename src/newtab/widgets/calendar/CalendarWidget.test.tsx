@@ -25,6 +25,13 @@ const CONNECTED: IcsConfig = {
   enabled: true,
   calendars: [{ name: 'Personal', url: 'https://calendar.example.com/private-abc/basic.ics' }],
 }
+const CONNECTED_TWO: IcsConfig = {
+  enabled: true,
+  calendars: [
+    { name: 'Personal', url: 'https://calendar.example.com/a.ics' },
+    { name: 'Family', url: 'https://calendar.example.com/b.ics' },
+  ],
+}
 
 function ev(summary: string, start: number, end: number, cal = 0): IcsEvent {
   return { summary, start, end, cal }
@@ -39,6 +46,19 @@ const EVENT_ALL_DAY = ev(
   new Date(2026, 7, 7, 0, 0, 0).getTime(), // local midnight
   new Date(2026, 7, 7, 0, 0, 0).getTime() + DAY_MS, // exactly one whole day later
 )
+// cal 1 fixtures for the multi-calendar view-mode cases below.
+const EVENT_MON = ev(
+  'Family lunch',
+  new Date(2026, 7, 10, 12, 0, 0).getTime(),
+  new Date(2026, 7, 10, 13, 0, 0).getTime(),
+  1,
+) // 3 days out (Mon) → weekday token
+const EVENT_FAR = ev(
+  'Dentist',
+  new Date(2026, 7, 18, 15, 30, 0).getTime(),
+  new Date(2026, 7, 18, 16, 0, 0).getTime(),
+  1,
+) // 11 days out → date token
 
 /** Storage seeded with a CONNECTED ics connector and a FRESH snapshot
  *  (fetchedAt = NOW) so useConnectorSnapshot treats it as fresh and never
@@ -157,6 +177,63 @@ describe('CalendarWidget', () => {
     await act(async () => {})
 
     expect(screen.getByText('Next: Standup · in 2 h')).toBeTruthy()
+  })
+
+  it('upcoming view shows the next N events across days with day tokens', async () => {
+    const storage = await seededStorage(
+      { ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 3 },
+      { events: [EVENT_NEXT, EVENT_TOMORROW, EVENT_MON, EVENT_FAR] },
+    )
+    mount(storage)
+    await act(async () => {})
+    expect(screen.getByText('Next: Standup · in 2 h')).toBeTruthy()
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
+    // Tomorrow (Sat) and Monday get weekday tokens; 11 days out gets a date token.
+    expect(rows).toEqual(['Sat 09:00 Kickoff', 'Mon 12:00 Family lunch', 'Aug 18 15:30 Dentist'])
+  })
+
+  it('per-calendar view shows each calendar’s soonest not-already-shown event, in list order', async () => {
+    const storage = await seededStorage(
+      { ...CONNECTED_TWO, view: 'per-calendar' },
+      { events: [EVENT_NEXT, EVENT_B, EVENT_MON, EVENT_FAR] }, // NEXT+B are cal 0; MON+FAR are cal 1
+    )
+    mount(storage)
+    await act(async () => {})
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
+    // Headline consumed EVENT_NEXT (cal 0), so cal 0's row is its SECOND event;
+    // cal 1 contributes its first. List order (cal 0 then cal 1), not chronological.
+    expect(rows).toEqual(['14:00 Design review', 'Mon 12:00 Family lunch'])
+  })
+
+  it('with 2+ calendars every row and the headline carry that calendar’s dot; with 1 calendar no dots render', async () => {
+    const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 }, { events: [EVENT_NEXT, EVENT_MON] })
+    const { unmount } = mount(storage)
+    await act(async () => {})
+    const section = document.querySelector('section[aria-label="Calendar"]')!
+    // bg-accent = calendar 0 (headline's Standup), bg-sky-400 = calendar 1 (row).
+    expect(section.querySelectorAll('.bg-accent').length).toBe(1)
+    expect(section.querySelectorAll('.bg-sky-400').length).toBe(1)
+    unmount()
+    const single = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    mount(single)
+    await act(async () => {})
+    expect(document.querySelector('section[aria-label="Calendar"] .bg-accent')).toBeNull()
+  })
+
+  it('upcoming/per-calendar empty state says "No upcoming events."; today keeps its copy', async () => {
+    const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 3 }, { events: [] })
+    mount(storage)
+    await act(async () => {})
+    expect(screen.getByText('No upcoming events.')).toBeTruthy()
+  })
+
+  it('a multi-day all-day event already in progress renders with the today idiom, not a past date token', async () => {
+    const started = ev('Vacation', new Date(2026, 7, 6, 0, 0, 0).getTime(), new Date(2026, 7, 9, 0, 0, 0).getTime()) // Thu–Sun, spans NOW
+    const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 }, { events: [started, EVENT_NEXT] })
+    mount(storage)
+    await act(async () => {})
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
+    expect(rows).toEqual(['All day · Vacation'])
   })
 })
 
