@@ -301,3 +301,81 @@ describe('JiraWidget — composed card (wave 2)', () => {
     expect(screen.queryByText('Nothing assigned to you.')).toBeNull()
   })
 })
+
+// ── Task 77: due-soon section-tier fix (measured overlap closed) ──
+// jira's dueSoon pushed jira's OWN bottom — the right rail's lowest card —
+// past the Tasks pill at heights ABOVE the old "shown" floor (screenshotted
+// at Jon's own 1600x900 board) once gitlab also shares the rail. due-soon now
+// yields under height pressure the SAME way github's/gitlab's activity graph
+// already does (see index.css's `roomy`/`roomier`/`roomiest` derivation for
+// the measurement writeup, and GitlabWidget.test.tsx's symmetric
+// `reviewAsksTier` tests). These pin the CLASS SELECTION only —
+// scripts/preview.mjs pins the real pixel fenceposts.
+
+/** Storage seeded with a CONNECTED jira connector, a snapshot, and optional
+ *  SIBLING connector configs (gitlab/github) — the cross-card reads
+ *  `dueSoonTier` needs. Mirrors GitlabWidget.test.tsx's own `seededMulti`. */
+async function seededMulti(jira: JiraConfig, data: JiraData | null, siblings: Record<string, unknown> = {}): Promise<AuroraStorage> {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  await storage.set('connectors', { jira, ...siblings })
+  if (data) await storage.set('connectorSnapshots', { jira: { fetchedAt: Date.now(), data } })
+  return storage
+}
+
+const GITLAB_SIBLING = { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler' }
+const GITLAB_REVIEWASKS_ON = { ...GITLAB_SIBLING, views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false } }
+const GITLAB_GRAPH_ON = { ...GITLAB_SIBLING, views: { mergeRequests: true, reviewAsks: false, todos: true, activityGraph: true } }
+/** A github sibling with its commit graph ON (no views → all-on default). */
+const GITHUB_GRAPH_ON = { enabled: true, token: 'gh', username: 'x' }
+
+const dueSoonWrapper = () => screen.getByText('Ship the release notes').closest('div') as HTMLElement
+const hasTier = (el: HTMLElement, tier: string) => el.classList.contains('hidden') && el.className.includes(`${tier}:block`)
+const hasNoTier = (el: HTMLElement) =>
+  !el.classList.contains('hidden') &&
+  !['roomy', 'roomier', 'grand', 'roomiest'].some((t) => el.className.includes(`${t}:block`))
+
+describe('JiraWidget — due-soon section tier (Task 77)', () => {
+  it('no gitlab sibling → due-soon renders unconditionally (no height tier at all — safe at every height jira itself is shown)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON })) // no siblings
+    await screen.findByText('Ship the release notes')
+    expect(hasNoTier(dueSoonWrapper())).toBe(true)
+  })
+
+  it('gitlab sibling, no graph anywhere, gitlab reviewAsks off → `roomy` (the isolated-section floor)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { gitlab: GITLAB_SIBLING }))
+    await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'roomy')).toBe(true)
+  })
+
+  it('gitlab sibling, no graph, gitlab reviewAsks ALSO on → `roomier` (both new sections at once)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { gitlab: GITLAB_REVIEWASKS_ON }))
+    await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'roomier')).toBe(true)
+  })
+
+  it('gitlab sibling, github\'s graph on, gitlab reviewAsks off → `grand` (reuses the graph\'s own re-derived tier)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { gitlab: GITLAB_SIBLING, github: GITHUB_GRAPH_ON }))
+    await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'grand')).toBe(true)
+  })
+
+  it('gitlab sibling with its OWN graph on (no github), reviewAsks off → `grand` too (either graph owner counts the same)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { gitlab: GITLAB_GRAPH_ON }))
+    await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'grand')).toBe(true)
+  })
+
+  it('gitlab sibling, a graph on AND gitlab reviewAsks on → `roomiest` (the full three-way worst case)', async () => {
+    const gitlabBoth = { ...GITLAB_SIBLING, views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true } }
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { gitlab: gitlabBoth }))
+    await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'roomiest')).toBe(true)
+  })
+
+  it('jira+github only (no gitlab) → due-soon renders unconditionally even though github is present', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { github: GITHUB_GRAPH_ON }))
+    await screen.findByText('Ship the release notes')
+    expect(hasNoTier(dueSoonWrapper())).toBe(true)
+  })
+})

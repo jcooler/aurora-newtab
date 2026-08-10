@@ -375,3 +375,68 @@ describe('GitlabWidget — composed card (wave 2)', () => {
     expect(screen.queryByText('No MRs assigned to you.')).toBeNull()
   })
 })
+
+// ── Task 77: review-asks section-tier fix (measured overlap closed) ──
+// gitlab's reviewAsks pushed jira — the right rail's lowest card — past the
+// Tasks pill at heights ABOVE the old "shown" floor (screenshotted at Jon's
+// own 1600x900 board) once jira also shares the rail. review-asks now yields
+// under height pressure the SAME way the activity graph already does (see
+// index.css's `roomy`/`roomier`/`roomiest` derivation for the measurement
+// writeup). These pin the CLASS SELECTION only — scripts/preview.mjs pins the
+// real pixel fenceposts.
+
+const REVIEW_NO_GRAPH: GitlabConfig = {
+  ...CONNECTED,
+  views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false },
+}
+const JIRA_DUE_SOON_ON = { ...JIRA_SIBLING, views: { assigned: true, statusChips: true, dueSoon: true } }
+
+const reviewAsksWrapper = () => screen.getByText('Review: refactor the auth guard').closest('div') as HTMLElement
+const hasTier = (el: HTMLElement, tier: string) => el.classList.contains('hidden') && el.className.includes(`${tier}:block`)
+const hasNoTier = (el: HTMLElement) =>
+  !el.classList.contains('hidden') &&
+  !['roomy', 'roomier', 'grand', 'roomiest'].some((t) => el.className.includes(`${t}:block`))
+
+describe('GitlabWidget — review-asks section tier (Task 77)', () => {
+  it('no jira sibling → review-asks renders unconditionally (no height tier at all — safe at every height gitlab itself is shown)', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA)) // no siblings
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasNoTier(reviewAsksWrapper())).toBe(true)
+  })
+
+  it('jira sibling, no graph anywhere, jira dueSoon off → `roomy` (the isolated-section floor)', async () => {
+    mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { jira: JIRA_SIBLING }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'roomy')).toBe(true)
+  })
+
+  it('jira sibling, no graph, jira dueSoon ALSO on → `roomier` (both new sections at once)', async () => {
+    mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { jira: JIRA_DUE_SOON_ON }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'roomier')).toBe(true)
+  })
+
+  it('jira sibling, github\'s graph on, jira dueSoon off → `grand` (reuses the graph\'s own re-derived tier)', async () => {
+    mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { jira: JIRA_SIBLING, github: GITHUB_GRAPH_ON }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'grand')).toBe(true)
+  })
+
+  it('jira sibling, gitlab\'s OWN graph on (no github), jira dueSoon off → `grand` too (either graph owner counts the same)', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA, { jira: JIRA_SIBLING }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'grand')).toBe(true)
+  })
+
+  it('jira sibling, a graph on AND jira dueSoon on → `roomiest` (the full three-way worst case)', async () => {
+    mount(await seededMulti(ALL_ON, FULL_DATA, { jira: JIRA_DUE_SOON_ON }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'roomiest')).toBe(true)
+  })
+
+  it('gitlab+github only (no jira) → review-asks renders unconditionally even though github is present', async () => {
+    mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { github: GITHUB_GRAPH_ON }))
+    await screen.findByText('Review: refactor the auth guard')
+    expect(hasNoTier(reviewAsksWrapper())).toBe(true)
+  })
+})

@@ -529,19 +529,47 @@ export default function App() {
               viewportH − 54 and RISES as the window shrinks, not the tier
               boundary). rail-top-right = 180px (index.css, a fixed px so it never
               rises into the content-height weather chip). Card heights at 1600w,
-              every section at its display max (github 2 PR + 2 issue + unread;
-              gitlab 3 MR + todos; jira 3 issue + counts):
+              every section at its DEFAULT-VIEWS display max (github 2 PR + 2
+              issue + unread; gitlab 3 MR + todos, reviewAsks/activityGraph OFF by
+              default; jira 3 issue + counts, dueSoon OFF by default — Task 74/75's
+              wave-2 additions, both opt-in):
                 · github  — 235px full / 193px dense-condensed (<=864), rows-only;
                             411px full / 361px dense WITH the commit graph (the
                             graph block adds 176px full, 168px dense).
-                · gitlab  — 174px.   · jira — 174px (the LOWEST card; its bottom is
-                            what must clear the pill).
-              Stacked rows-only, top-anchored from 180 with gap-4 (16px):
+                · gitlab  — 174px rows-only default; +129.5px (-> 303.5px) with
+                            `reviewAsks` ALSO on (2 rows) — see the TASK 77 note
+                            below.
+                · jira    — 174px rows-only default (the LOWEST card; its bottom is
+                            what must clear the pill); +129.5px (-> 303.5px) with
+                            `dueSoon` ALSO on (2 rows) — same note.
+              Stacked rows-only DEFAULT, top-anchored from 180 with gap-4 (16px):
               github[180-415] gitlab[431-605] jira[621-795]. jira.bottom 795 clears
               the pill by the 16px floor only at height >= 865 (795 = 811 − 16,
               811 = 865 − 54) — so gitlab and jira WHOLE-WIDGET-HIDE on `dense`
               (<=864, index.css); at 865+ all three flow at full height and clear
               the pill unaided (51px at Jon's 900).
+
+              TASK 77 — gitlab's `reviewAsks` and jira's `dueSoon` (Task 74/75,
+              both OFF by default, so the numbers directly above are UNCHANGED and
+              this whole file's default-path geometry stays byte-identical —
+              scripts/preview.mjs's own default-path regression probe asserts
+              this) each add a MEASURED +129.5px when turned on. Because jira is
+              this column's LOWEST card, turning EITHER one on (with gitlab AND
+              jira both enabled) pushed jira's bottom PAST the Tasks pill at
+              heights ABOVE the 865 floor above — including Jon's own canonical
+              1600x900 (screenshotted: jira.bottom 924.5 vs pillTop 846, a real,
+              shipped overlap this task closed). Fix: `reviewAsks`/`dueSoon` now
+              yield under height pressure the SAME way the commit graph already
+              does — "the SECTION yields before the whole card" (this file's own
+              GRAPH YIELDS note just below), extended from "the graph" to "the
+              second row-section". Four measured thresholds
+              (`roomy`/`roomier`/`grand`/`roomiest`, index.css) cover the
+              composition space (neither section is gated at all when its
+              sibling forge card isn't enabled — measured safe at every height in
+              that case); full derivation, every fencepost, and the
+              screenshotted before/after live in index.css's
+              `roomy`/`roomier`/`roomiest` comment and each widget's own
+              `reviewAsksTier`/`dueSoonTier`.
 
               GITHUB SURVIVES the compact band. It dense-condenses to 193px (bottom
               373) and clears the pill down to the SHORT floor (451px, pill top 397)
@@ -562,13 +590,22 @@ export default function App() {
                   `mid`, github+graph (361, bottom 541) clears the 601-floor pill
                   (547) by only 6px, and at 889 (graph hidden) fit is restored.
                 · TWO siblings WITH a rows section (pulls or issues on) → `grand`
-                  (>=1041h, derived in index.css). github+graph+rows+gitlab+jira put
-                  jira at [797-971]; that clears the pill (h−54) by 16px only at
-                  >=1041h. Without this the three-connector board would lap the pill
-                  at Jon's 900 (jira.bottom 971 vs pill.top 846) — the collision the
-                  sweep now catches, GITHUB_FIXTURE seeded to true display max. (One
-                  rows-section is a 306px card clearing at >=936h, but it reveals on
-                  `grand` too — one fewer tier for a ~105px window.)
+                  (>=1171h, RE-DERIVED Task 77 from the original 1041 — full
+                  writeup in index.css's `grand` comment). At gitlab's own
+                  reviewAsks-OFF default, github+graph+rows+gitlab+jira put jira
+                  at [797-971], which clears the pill (h−54) by 16px already at
+                  >=1041h — but `grand` now conservatively assumes gitlab's
+                  reviewAsks MAY also be on (it adds a measured +129.5px
+                  regardless of which card, github's or gitlab's, carries the
+                  graph — see App.tsx's TASK 77 paragraph above), which pushes
+                  jira to [797-1100.5] and needs >=1171h to clear. Costs nothing
+                  below 900h (900 < 1041 < 1171: hidden at Jon's board either way).
+                  Without this the three-connector board would lap the pill at
+                  Jon's 900 (jira.bottom 971 vs pill.top 846, reviewAsks off) —
+                  the collision the sweep now catches, GITHUB_FIXTURE seeded to
+                  true display max. (One rows-section is a 306px card clearing at
+                  >=936h at reviewAsks-off, but it reveals on `grand` too — one
+                  fewer tier for a ~105-230px window depending on reviewAsks.)
                 · TWO siblings and GRAPH-ONLY (no pulls, no issues — Jon's "just my
                   commit graph"; notifications is a header chip, no height) →
                   `taller` (>=890h). The 201px graph-only card + gitlab + jira put

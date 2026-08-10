@@ -2,8 +2,9 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGitlab, DEFAULT_GITLAB_VIEWS, type GitlabData, type GitlabMr } from '../../../services/connectors/gitlab'
 import { resolveGithubViews } from '../../../services/connectors/github'
+import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
-import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig } from '../../../services/connectors/types'
+import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
@@ -95,6 +96,19 @@ export default function GitlabWidget() {
   const githubGraphEnabled =
     github?.enabled === true && resolveGithubViews(github as GithubConfig).commitGraph
 
+  // Task 77 — the review-asks section-tier fix. `reviewAsks` only threatens
+  // anything when jira ALSO shares the right rail (jira is the lowest card, and
+  // gitlab's extra height is what pushes jira's bottom toward the Tasks pill —
+  // see index.css's `roomy`/`roomier`/`roomiest` comment for the full
+  // measurement writeup and the four thresholds this feeds). Same conservative
+  // "enabled, not rendered" read as `soleForgeCard`/`githubGraphEnabled` above:
+  // an enabled-but-broken jira still forces the gate. `jiraDueSoonEnabled` is
+  // the sibling's OWN new section — needed because turning BOTH new sections on
+  // at once needs a taller floor than either alone (measured).
+  const jira = connectors?.jira
+  const jiraEnabled = jira?.enabled === true
+  const jiraDueSoonEnabled = jiraEnabled && resolveViews(DEFAULT_JIRA_VIEWS, (jira as JiraConfig).views).dueSoon
+
   return (
     <GitlabInner
       token={gitlab.token}
@@ -103,6 +117,8 @@ export default function GitlabWidget() {
       views={resolveViews(DEFAULT_GITLAB_VIEWS, gitlab.views)}
       soleForgeCard={soleForgeCard}
       githubGraphEnabled={githubGraphEnabled}
+      jiraEnabled={jiraEnabled}
+      jiraDueSoonEnabled={jiraDueSoonEnabled}
     />
   )
 }
@@ -114,6 +130,8 @@ function GitlabInner({
   views,
   soleForgeCard,
   githubGraphEnabled,
+  jiraEnabled,
+  jiraDueSoonEnabled,
 }: {
   token: string
   instanceUrl: string
@@ -121,6 +139,8 @@ function GitlabInner({
   views: GitlabViews
   soleForgeCard: boolean
   githubGraphEnabled: boolean
+  jiraEnabled: boolean
+  jiraDueSoonEnabled: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -175,6 +195,31 @@ function GitlabInner({
   const mrs = views.mergeRequests ? (data.mrs ?? []).slice(0, MAX_MRS) : []
   const reviewMrs = views.reviewAsks ? (data.reviewMrs ?? []).slice(0, MAX_REVIEW_ASKS) : []
   const todos = data.todos
+
+  // Task 77 — review-asks yields under height pressure too, the SAME "extra
+  // section yields before the whole card" pattern the activity graph already
+  // establishes above (ratified wave-1 precedent — see GithubWidget.tsx's own
+  // comment on this and index.css's `roomy`/`roomier`/`roomiest` derivation for
+  // the full measurement writeup, including the screenshotted overlap this
+  // closes: gitlab's reviewAsks pushes jira — the right rail's lowest card —
+  // toward the Tasks pill when both are enabled). Only gated when jira actually
+  // shares the rail (jiraEnabled, passed down from GitlabWidget); a jira-less
+  // stack (or gitlab sole) is measured SAFE at every height gitlab itself is
+  // shown, so it renders unconditionally there — never data-gated, only
+  // CSS-gated, and never gated for no reason. `anyGraphEnabled` folds in BOTH
+  // possible graph owners (github's or gitlab's own) since jira's bottom moves
+  // by the identical +176px regardless of which card carries it (index.css's
+  // derivation proves the two totals equal).
+  const anyGraphEnabled = githubGraphEnabled || views.activityGraph
+  const reviewAsksTier = !jiraEnabled
+    ? ''
+    : anyGraphEnabled && jiraDueSoonEnabled
+      ? ' hidden roomiest:block'
+      : anyGraphEnabled
+        ? ' hidden grand:block'
+        : jiraDueSoonEnabled
+          ? ' hidden roomier:block'
+          : ' hidden roomy:block'
 
   // The friendly empty line ("No MRs assigned to you.") shows whenever a rows
   // section is enabled and both enabled lists are empty — a quiet day. Its
@@ -240,7 +285,7 @@ function GitlabInner({
       )}
 
       {reviewMrs.length > 0 && (
-        <div className={mrs.length > 0 ? ROW_SEP : renderGraph ? graphSep : ''}>
+        <div className={(mrs.length > 0 ? ROW_SEP : renderGraph ? graphSep : '') + reviewAsksTier}>
           {/* The eyebrow separates review asks from the assigned MRs ONLY when
               both render — a single review list needs no label (its rows carry
               their own context), same restraint as github's unlabelled lists. */}

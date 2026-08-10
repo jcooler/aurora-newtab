@@ -1,8 +1,10 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchJira, DEFAULT_JIRA_VIEWS, type JiraData, type JiraIssue } from '../../../services/connectors/jira'
+import { DEFAULT_GITLAB_VIEWS } from '../../../services/connectors/gitlab'
+import { resolveGithubViews } from '../../../services/connectors/github'
 import { resolveViews } from '../../../services/connectors/views'
-import type { ConnectorConfig, JiraConfig, JiraViews } from '../../../services/connectors/types'
+import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -59,12 +61,37 @@ export default function JiraWidget() {
   const [connectors] = useStoredKey('connectors')
   const jira = connectedJira(connectors?.jira)
   if (!jira) return null
+
+  // Task 77 — the due-soon section-tier fix (mirrors GitlabWidget.tsx's
+  // reviewAsksTier, symmetric derivation, see index.css's
+  // `roomy`/`roomier`/`roomiest` comment for the full measurement writeup).
+  // `dueSoon` only threatens anything when gitlab ALSO shares the right rail
+  // (gitlab sits above jira in the flow; jira is the lowest card, so ITS OWN
+  // extra height is what pushes its bottom toward the Tasks pill) — same
+  // conservative "enabled, not rendered" read GitlabWidget.tsx's own
+  // `jiraEnabled` uses. `gitlabReviewAsksEnabled` is the sibling's OWN new
+  // section (both new sections on at once needs a taller floor than either
+  // alone, measured). `anyGraphEnabled` folds in BOTH possible graph owners —
+  // github's or gitlab's own — since jira's bottom moves by the identical
+  // +176px regardless of which card carries it.
+  const gitlab = connectors?.gitlab
+  const gitlabEnabled = gitlab?.enabled === true
+  const gitlabReviewAsksEnabled =
+    gitlabEnabled && resolveViews(DEFAULT_GITLAB_VIEWS, (gitlab as GitlabConfig).views).reviewAsks
+  const github = connectors?.github
+  const anyGraphEnabled =
+    (github?.enabled === true && resolveGithubViews(github as GithubConfig).commitGraph) ||
+    (gitlabEnabled && resolveViews(DEFAULT_GITLAB_VIEWS, (gitlab as GitlabConfig).views).activityGraph)
+
   return (
     <JiraInner
       site={jira.site}
       email={jira.email}
       apiToken={jira.apiToken}
       views={resolveViews(DEFAULT_JIRA_VIEWS, jira.views)}
+      gitlabEnabled={gitlabEnabled}
+      gitlabReviewAsksEnabled={gitlabReviewAsksEnabled}
+      anyGraphEnabled={anyGraphEnabled}
     />
   )
 }
@@ -74,11 +101,17 @@ function JiraInner({
   email,
   apiToken,
   views,
+  gitlabEnabled,
+  gitlabReviewAsksEnabled,
+  anyGraphEnabled,
 }: {
   site: string
   email: string
   apiToken: string
   views: JiraViews
+  gitlabEnabled: boolean
+  gitlabReviewAsksEnabled: boolean
+  anyGraphEnabled: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so the two-section fetch's
@@ -104,10 +137,35 @@ function JiraInner({
   // — i.e. whichever status was seen FIRST in the issues array.
   const topCounts = [...countEntries].sort((a, b) => b[1] - a[1]).slice(0, 2)
 
+  // Task 77 — due-soon yields under height pressure, the SAME "extra section
+  // yields before the whole card" pattern the activity graph already
+  // establishes on github/gitlab (ratified wave-1 precedent — see
+  // GitlabWidget.tsx's symmetric `reviewAsksTier` and index.css's
+  // `roomy`/`roomier`/`roomiest` derivation for the full measurement writeup,
+  // including the screenshotted overlap this closes: jira is the right rail's
+  // LOWEST card, and due-soon's extra height pushed its own bottom past the
+  // Tasks pill at Jon's own 1600x900 board before this fix). Only gated when
+  // gitlab actually shares the rail (gitlabEnabled, passed down from
+  // JiraWidget); a gitlab-less stack (or jira sole) is measured SAFE at every
+  // height jira itself is shown, so it renders unconditionally there — never
+  // data-gated, only CSS-gated.
+  const dueSoonTier = !gitlabEnabled
+    ? ''
+    : anyGraphEnabled && gitlabReviewAsksEnabled
+      ? ' hidden roomiest:block'
+      : anyGraphEnabled
+        ? ' hidden grand:block'
+        : gitlabReviewAsksEnabled
+          ? ' hidden roomier:block'
+          : ' hidden roomy:block'
+
   // The friendly empty line shows when a rows section is enabled and BOTH lists
-  // are empty — a quiet day. Jira has NO tier-gated section (no activity graph),
-  // so no inverse-tier machinery is needed here (unlike github/gitlab): the line
-  // simply shows or doesn't.
+  // are empty — a quiet day. Jira has no INVERSE-tier machinery the way
+  // github/gitlab's graph needs (there's no second "always show something"
+  // element competing for the same space), so the line simply shows or
+  // doesn't — unaffected by dueSoonTier, which only ever hides due-soon's OWN
+  // rows, never substitutes an empty-state line for them (never data-gates
+  // what CSS tier-gates: `dueSoon.length===0` stays a pure data check).
   const showEmpty = (views.assigned || views.dueSoon) && issues.length === 0 && dueSoon.length === 0
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
@@ -149,7 +207,7 @@ function JiraInner({
       )}
 
       {dueSoon.length > 0 && (
-        <div className={issues.length > 0 ? ROW_SEP : ''}>
+        <div className={(issues.length > 0 ? ROW_SEP : '') + dueSoonTier}>
           {/* The eyebrow separates due-soon from the assigned issues ONLY when
               both render — a single due-soon list needs no label (each row's due
               prefix carries its own context). */}
