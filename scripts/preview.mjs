@@ -2723,18 +2723,21 @@ function githubContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub graph-yield — the TWO-SIBLING GRAPH-ONLY fencepost (Task 70 fix 2). The
-// reveal tier is composition-aware: a GRAPH-ONLY github card (Jon's "just my
+// GitHub graph-yield — the TWO-SIBLING GRAPH-ONLY fencepost (Task 70 fix 2 & 3).
+// The reveal tier is composition-aware: a GRAPH-ONLY github card (Jon's "just my
 // commit graph" — pulls/issues off) is only 201px, so even with gitlab AND jira
 // below it the stack (github[180-381] gitlab[397-571] jira[587-761]) clears the
 // bottom-anchored Tasks pill at the `taller` floor (890) by 75px — it must NOT be
-// grand-gated (that rendered a header-only HUSK at 890-1040h, Jon's 1600x900
-// included). Seeds github graph-only + gitlab + jira at display max + the forced
-// 3-line weather chip, and proves across the descent:
-//   (1) the graph reveals MONOTONICALLY at 890 (shown >=890, hidden <=889, one
-//       transition, never re-shows) — same `taller` boundary as the sole card;
-//   (2) at every height ZERO vertical overlap and the LOWEST visible card clears
-//       the pill by >=16px (the 890 taller floor is the interior worst case).
+// grand-gated (fix 2: that rendered a header-only husk at 890-1040h). And fix 3:
+// when STRICTLY graph-only the whole SECTION carries the tier, so BELOW 890 the
+// entire card yields — not a lone "GitHub" heading. Seeds github graph-only +
+// gitlab + jira at display max + the forced 3-line weather chip, and proves:
+//   (1) the WHOLE card lives and dies with its graph — shown (graph in, zero rows)
+//       at >=890h, HIDDEN below (no husk), a single whole-card transition that
+//       never re-shows; graph shows iff the card shows;
+//   (2) at every height ZERO vertical overlap and the visible cards clear the pill
+//       by >=16px (890 taller floor is the interior worst case; below it github's
+//       card is gone, which only relieves the column).
 // Restores as the blocks above.
 {
   const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
@@ -2853,30 +2856,37 @@ function githubContributionsFixture() {
     goRows.push({ h, ...(await measureGO()) })
   }
 
-  // (1) the graph-only card reveals MONOTONICALLY at 890 (composition-aware — it
-  //     rides `taller`, not grand, so it is NOT a husk at Jon's 900).
-  const goVisOk = goRows.every((r) => r.graphShown === (r.h >= 890)) && goRows.every((r) => r.rows === 0)
+  // (1) STRICTLY graph-only → the WHOLE card lives and dies with its graph: the
+  //     section itself rides `taller`, so the card is shown at >=890h (graph in,
+  //     zero rows) and HIDDEN below (a whole-card yield — never a header-only
+  //     husk). Monotonic, graph shows iff the card shows.
+  const goCardVisOk = goRows.every((r) => (r.gh !== null) === (r.h >= 890))
+  const goGraphMatchesCard = goRows.every((r) => r.graphShown === (r.gh !== null))
+  const goRowsZero = goRows.every((r) => r.gh === null || r.rows === 0)
   let goMono = true
-  for (let i = 1; i < goRows.length; i++) if (goRows[i].graphShown && !goRows[i - 1].graphShown) goMono = false
+  for (let i = 1; i < goRows.length; i++) if (goRows[i].gh && !goRows[i - 1].gh) goMono = false
   console.log(
-    goVisOk && goMono
-      ? `PASS: the TWO-SIBLING GRAPH-ONLY card reveals on taller (>=890h) not grand — graph shown at ${goRows.filter((r) => r.graphShown).map((r) => r.h).join(', ')}, hidden below (${goRows.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), zero rows throughout, single visible->hidden transition (no header-only husk at 890-1040)`
-      : `FAIL: the two-sibling graph-only card reveals on taller monotonically (${JSON.stringify(goRows.map((r) => ({ h: r.h, graph: r.graphShown, rows: r.rows })))})`,
+    goCardVisOk && goGraphMatchesCard && goRowsZero && goMono
+      ? `PASS: the STRICTLY graph-only card lives and dies with its graph — the WHOLE card shows at ${goRows.filter((r) => r.gh).map((r) => r.h).join(', ')} (graph in, zero rows) and is HIDDEN below 890 (${goRows.filter((r) => !r.gh).map((r) => r.h).join(', ')}) — no header-only husk, a single whole-card visible->hidden transition that never re-shows`
+      : `FAIL: the strictly graph-only card is whole-card tier-gated at 890 (${JSON.stringify(goRows.map((r) => ({ h: r.h, card: r.gh !== null, graph: r.graphShown, rows: r.rows })))})`,
   )
 
-  // (2) zero overlap + the lowest VISIBLE card clears the pill by >=16px.
+  // (2) at every height the VISIBLE right-rail cards clear the pill by >=16px,
+  //     zero overlap — below 890 github's whole card yields, which can only
+  //     RELIEVE the column (never adds pressure).
   const GO_FLOOR = 16
   const goStack = goRows.map((r) => {
     const cards = [r.gh, r.gl, r.jr].filter(Boolean)
+    if (cards.length === 0) return { h: r.h, graph: r.graphShown, gap: null, overlapPill: false, empty: true }
     const lowest = cards.reduce((lo, c) => (c.bottom > lo.bottom ? c : lo), cards[0])
     const overlapPill = cards.some((c) => c.bottom > r.pill.top)
     return { h: r.h, graph: r.graphShown, gap: +(r.pill.top - lowest.bottom).toFixed(1), overlapPill }
   })
-  const goStackOk = goStack.every((s) => !s.overlapPill && s.gap >= GO_FLOOR)
+  const goStackOk = goStack.every((s) => !s.overlapPill && (s.empty || s.gap >= GO_FLOOR))
   console.log(
     goStackOk
-      ? `PASS: the graph-only stack clears the Tasks pill by >=${GO_FLOOR}px, zero overlap — ${goStack.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (the 890 taller floor is the interior worst case: 201px graph-only github + gitlab + jira, jira[587-761] vs pill 836)`
-      : `FAIL: the graph-only stack clears the pill by >=${GO_FLOOR}px with zero overlap (${JSON.stringify(goStack)})`,
+      ? `PASS: at every height the visible right-rail cards clear the Tasks pill by >=${GO_FLOOR}px, zero overlap — ${goStack.map((s) => (s.empty ? `${s.h}h:(rail empty)` : `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`)).join(', ')} (890 taller floor: 201px graph-only github + gitlab + jira, jira[587-761] vs pill 836 = 75px; below 890 github yields and only relieves the column)`
+      : `FAIL: the visible cards clear the pill by >=${GO_FLOOR}px with zero overlap (${JSON.stringify(goStack)})`,
   )
 
   // Restore.

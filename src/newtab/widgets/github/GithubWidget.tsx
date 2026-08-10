@@ -105,6 +105,21 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
 
+  // STRICTLY graph-only composition (commitGraph on, every other section off —
+  // Jon's "just my commit graph"). The graph is then the card's ONLY content, so
+  // the card must live and die with it, never reading as a broken header husk:
+  //   · with no graph data at all (an old snapshot without contributions, or empty
+  //     days) there is nothing this card could EVER show — render null, the same
+  //     ruling as the all-sections-off guard above.
+  //   · otherwise the WHOLE card follows the graph's own reveal tier (below): the
+  //     SECTION carries the `hidden taller:block` boundary, so under height pressure
+  //     the entire card yields as one — never a lone "GitHub" heading. Compositions
+  //     with notifications (or rows) instead keep the card always-shown and
+  //     tier-gate only the inner graph, because the unread chip / rows legitimately
+  //     carry a card even when the graph has yielded (the Task 68 reviewed state).
+  const graphOnly = views.commitGraph && !views.pulls && !views.issues && !views.notifications
+  if (graphOnly && graph === null) return null
+
   // The graph reveals only at a height where the WHOLE stack — github plus any
   // sibling cards below it — clears the bottom-anchored Tasks pill by the 16px
   // rail floor. The tier depends on BOTH the sibling count AND github's OWN
@@ -128,6 +143,12 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const graphNeedsGrand = forgeSiblings >= 2 && (views.pulls || views.issues)
   const graphWrap = graphNeedsGrand ? 'hidden grand:block' : 'hidden taller:block'
   const graphSep = graphNeedsGrand ? GRAPH_SEP_GRAND : GRAPH_SEP_TALLER
+  // Where the tier boundary lands: on the SECTION when strictly graph-only (the
+  // whole card yields), on the inner graph wrapper otherwise (the card stays, the
+  // graph alone yields). Exactly one of the two ever carries it, so the reveal is
+  // a single whole-card OR single-section boundary — monotonic either way.
+  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
+  const innerGraphClass = graphOnly ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
   const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []
@@ -148,7 +169,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <section aria-label="GitHub" className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}>
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the notifications view is on AND the
@@ -177,9 +198,11 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
           gitlab/jira themselves hide on `dense` (<=864); the graph revealing one
           (or, with two siblings, several) tiers HIGHER is exactly "the graph
           yields before any whole card". See App.tsx's right-rail comment for the
-          full re-measured arithmetic and the `grand` derivation. */}
+          full re-measured arithmetic and the `grand` derivation. When STRICTLY
+          graph-only, this boundary moves to the SECTION (sectionTier) and the inner
+          wrapper carries nothing — the whole card yields as one, no husk. */}
       {graph && (
-        <div className={graphWrap}>
+        <div className={innerGraphClass}>
           <ContributionGraph contributions={graph} />
         </div>
       )}

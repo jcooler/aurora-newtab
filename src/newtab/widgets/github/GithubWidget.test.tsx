@@ -243,8 +243,17 @@ describe('GithubWidget', () => {
     return storage
   }
   const graphWrapper = () => screen.getByRole('img').closest('section')!
+  // A section is "tier-hidden as a whole" when the SECTION element itself carries
+  // `hidden <tier>:block` (round 3: a strictly graph-only card lives and dies with
+  // its graph — no header husk). Otherwise the section is always shown and only an
+  // INNER descendant wrapper carries the tier.
+  const sectionHasTier = (tier: string) => {
+    const sec = graphWrapper()
+    return sec.classList.contains('hidden') && sec.className.includes(`${tier}:block`)
+  }
   const GRAPH_ONLY: GithubConfig = { ...CONNECTED, views: { commitGraph: true, pulls: false, issues: false, notifications: false } }
   const GRAPH_PLUS_PULLS: GithubConfig = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: false, notifications: false } }
+  const GRAPH_PLUS_NOTIF: GithubConfig = { ...CONNECTED, views: { commitGraph: true, pulls: false, issues: false, notifications: true } }
 
   it('reveals the graph on `taller` (>=890h) when github is the rail\'s SOLE forge card', async () => {
     mount(await seededWithSiblings(false, false))
@@ -273,20 +282,49 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
-  it('with TWO siblings but a GRAPH-ONLY card (no rows), the short card reveals on `taller` (>=890h), NOT grand — no header-only husk at 890-1040', async () => {
-    mount(await seededWithSiblings(true, true, GRAPH_ONLY))
-    const img = await screen.findByRole('img')
-    const wrapper = graphWrapper().querySelector('[class*="taller:block"]')
-    expect(wrapper).toBeTruthy()
-    expect(wrapper!.contains(img)).toBe(true)
-    expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
-  })
-
   it('with TWO siblings and a single rows section (pulls on), github reveals on `grand` (>=1041h) — conservatively, not the ~936h a precise tier would allow', async () => {
     mount(await seededWithSiblings(true, true, GRAPH_PLUS_PULLS))
     await screen.findByRole('img')
     expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeTruthy()
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
+  })
+
+  // Round 3 — a STRICTLY graph-only card (commitGraph on, everything else off)
+  // moves the tier boundary to the SECTION itself: the whole card yields as one
+  // (never a header-only "GitHub" husk), and with no graph data it renders null.
+  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+    mount(await seededWithSiblings(false, false, GRAPH_ONLY))
+    const img = await screen.findByRole('img')
+    expect(sectionHasTier('taller')).toBe(true)
+    // no INNER descendant carries a tier class — the section owns the boundary.
+    expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
+    expect(graphWrapper().contains(img)).toBe(true)
+  })
+
+  it('strictly graph-only, TWO siblings → still `taller` on the SECTION (short card fits at 890; no husk at 890-1040)', async () => {
+    mount(await seededWithSiblings(true, true, GRAPH_ONLY))
+    await screen.findByRole('img')
+    expect(sectionHasTier('taller')).toBe(true)
+    expect(sectionHasTier('grand')).toBe(false)
+    expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
+  })
+
+  it('graph + notifications (not strictly graph-only) → the card is NOT tier-hidden; the INNER graph wrapper still is (the unread chip carries the card)', async () => {
+    mount(await seededWithSiblings(false, false, GRAPH_PLUS_NOTIF))
+    const img = await screen.findByRole('img')
+    // the section is always shown (no `hidden` on it)…
+    expect(graphWrapper().classList.contains('hidden')).toBe(false)
+    // …and only the inner wrapper carries the tier.
+    const inner = graphWrapper().querySelector('[class*="taller:block"]')
+    expect(inner).toBeTruthy()
+    expect(inner!.contains(img)).toBe(true)
+  })
+
+  it('strictly graph-only with NO contributions data (old snapshot / empty days) renders null — nothing it could ever show', async () => {
+    const storage = await seededStorage(GRAPH_ONLY, { prs: [], issues: [], notifications: 3, contributions: null, etags: {} })
+    const { container } = mount(storage)
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
   })
 
   it('a graph-only card (commitGraph on, everything else off) renders the graph and NO rows and no chip', async () => {
