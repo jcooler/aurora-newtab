@@ -4,7 +4,14 @@
 // Same fake-Response/injectable-fetchFn idiom as http.test.ts (see its comment
 // on the minimal Response stand-in), so nothing here touches a real network.
 import { describe, expect, it, vi } from 'vitest'
-import { fetchGithub, whoamiGithub, githubDescriptor, type GithubData } from './github'
+import {
+  fetchGithub,
+  whoamiGithub,
+  githubDescriptor,
+  resolveGithubViews,
+  DEFAULT_GITHUB_VIEWS,
+  type GithubData,
+} from './github'
 
 /** Minimal fetch Response stand-in — only the members getJson/
  *  conditionalGetJson read (ok, status, headers.get('etag'), json()). Cast
@@ -27,8 +34,13 @@ function router(routes: {
   issues?: ReturnType<typeof fakeResponse>
   notifications?: ReturnType<typeof fakeResponse>
   user?: ReturnType<typeof fakeResponse>
+  graphql?: ReturnType<typeof fakeResponse> | (() => never)
 }) {
   return vi.fn(async (url: string) => {
+    if (url.includes('/graphql')) {
+      if (!routes.graphql) throw new Error(`unstubbed graphql: ${url}`)
+      return typeof routes.graphql === 'function' ? routes.graphql() : routes.graphql
+    }
     if (url.includes('/notifications')) {
       if (!routes.notifications) throw new Error(`unstubbed notifications: ${url}`)
       return routes.notifications
@@ -83,6 +95,20 @@ describe('whoamiGithub', () => {
   })
 })
 
+describe('resolveGithubViews', () => {
+  it('undefined, null, and {} (no views key) all resolve to the all-on default', () => {
+    const allOn = { commitGraph: true, pulls: true, issues: true, notifications: true }
+    expect(resolveGithubViews(undefined)).toEqual(allOn)
+    expect(resolveGithubViews(null)).toEqual(allOn)
+    expect(resolveGithubViews({})).toEqual(allOn)
+  })
+
+  it('a hand-edited partial views object fills missing fields from the default rather than crashing or dropping them', () => {
+    const result = resolveGithubViews({ views: { commitGraph: false } as never })
+    expect(result).toEqual({ commitGraph: false, pulls: true, issues: true, notifications: true })
+  })
+})
+
 describe('fetchGithub — three independent sections', () => {
   it('parses PRs and issues from the search payload, deriving repo from repository_url', async () => {
     const fetchFn = router({
@@ -101,7 +127,7 @@ describe('fetchGithub — three independent sections', () => {
       notifications: fakeResponse({ status: 200, body: [{}, {}] }),
     })
 
-    const data = await fetchGithub('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.prs).toEqual([{ title: 'Fix the flaky test', url: 'https://github.com/acme/app/pull/1', repo: 'acme/app' }])
     expect(data.issues).toEqual([{ title: 'Crash on launch', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }])
     expect(data.notifications).toBe(2)
@@ -113,7 +139,7 @@ describe('fetchGithub — three independent sections', () => {
       issues: fakeResponse({ status: 200, body: searchBody([]) }),
       notifications: fakeResponse({ status: 200, body: [{}, {}, {}, {}, {}] }),
     })
-    const data = await fetchGithub('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.notifications).toBe(5)
   })
 
@@ -128,7 +154,7 @@ describe('fetchGithub — three independent sections', () => {
       issues: fakeResponse({ status: 200, body: searchBody([]) }),
       notifications: fakeResponse({ ok: false, status: 403 }),
     })
-    const data = await fetchGithub('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.notifications).toBeNull()
     expect(data.prs).toHaveLength(1) // the bad section never blanked this one
     expect(data.issues).toEqual([])
@@ -140,6 +166,7 @@ describe('fetchGithub — three independent sections', () => {
       issues: [{ title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
       notifications: 4,
       etags: {},
+      contributions: null,
     }
     const fetchFn = router({
       prs: () => {
@@ -154,7 +181,7 @@ describe('fetchGithub — three independent sections', () => {
       notifications: fakeResponse({ status: 200, body: [{}] }),
     })
 
-    const data = await fetchGithub('t', prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.prs).toEqual(prev.prs) // kept verbatim through the failure
     expect(data.issues).toEqual([{ title: 'Fresh issue', url: 'https://github.com/o/r/issues/10', repo: 'o/r' }])
     expect(data.notifications).toBe(1)
@@ -166,8 +193,8 @@ describe('fetchGithub — three independent sections', () => {
       issues: fakeResponse({ ok: false, status: 500 }),
       notifications: fakeResponse({ ok: false, status: 500 }),
     })
-    const data = await fetchGithub('t', null, fetchFn as unknown as typeof fetch)
-    expect(data).toEqual({ prs: [], issues: [], notifications: null, etags: {} })
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+    expect(data).toEqual({ prs: [], issues: [], notifications: null, etags: {}, contributions: null })
   })
 })
 
@@ -178,7 +205,7 @@ describe('fetchGithub — ETag round-trip', () => {
       issues: fakeResponse({ status: 200, etag: 'W/"iss-1"', body: searchBody([]) }),
       notifications: fakeResponse({ status: 200, etag: 'W/"ntf-1"', body: [] }),
     })
-    const data = await fetchGithub('t', null, fetchFn as unknown as typeof fetch)
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
     expect(data.etags['/search/issues?q=type:pr+state:open+review-requested:@me&per_page=10']).toBe('W/"prs-1"')
     expect(data.etags['/search/issues?q=type:issue+state:open+assignee:@me&per_page=10']).toBe('W/"iss-1"')
     expect(data.etags['/notifications?per_page=50']).toBe('W/"ntf-1"')
@@ -197,7 +224,7 @@ describe('fetchGithub — ETag round-trip', () => {
       issues: fakeResponse({ status: 200, etag: 'W/"iss-1"', body: searchBody([]) }),
       notifications: fakeResponse({ status: 200, etag: 'W/"ntf-1"', body: [{}, {}, {}] }),
     })
-    const prev = await fetchGithub('t', null, first as unknown as typeof fetch)
+    const prev = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, first as unknown as typeof fetch)
 
     // Second call: everything 304s. Assert the If-None-Match header carried the
     // stored etag, and the returned slices are the prev ones verbatim.
@@ -206,7 +233,7 @@ describe('fetchGithub — ETag round-trip', () => {
       issues: fakeResponse({ ok: false, status: 304, etag: 'W/"iss-1"' }),
       notifications: fakeResponse({ ok: false, status: 304, etag: 'W/"ntf-1"' }),
     })
-    const data = await fetchGithub('t', prev, second as unknown as typeof fetch)
+    const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, second as unknown as typeof fetch)
 
     expect(data.prs).toEqual(prev.prs)
     expect(data.notifications).toBe(3)
@@ -216,6 +243,212 @@ describe('fetchGithub — ETag round-trip', () => {
       url.includes('type:pr'),
     )
     expect((prCall?.[1].headers as Record<string, string>)['If-None-Match']).toBe('W/"prs-1"')
+  })
+})
+
+/** Local yyyy-mm-dd of `base` minus `n` days — mirrors github.ts's private
+ *  `isoDay`, used here only to build window-boundary fixtures. */
+function daysAgo(base: Date, n: number): string {
+  const d = new Date(base)
+  d.setDate(d.getDate() - n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const emptyCalendarBody = {
+  data: { viewer: { contributionsCollection: { contributionCalendar: { totalContributions: 0, weeks: [] } } } },
+}
+
+describe('fetchGithub — contributions section (GraphQL)', () => {
+  it('flattens weeks into ascending days within the 112-day window, dropping GitHub\'s earlier padding', async () => {
+    vi.useFakeTimers()
+    try {
+      const now = new Date(2024, 2, 15, 12, 0, 0)
+      vi.setSystemTime(now)
+      const windowStart = daysAgo(now, 111) // exactly the window's first day — kept
+      const padded = daysAgo(now, 115) // before the window — GitHub's padding, dropped
+      const today = daysAgo(now, 0)
+
+      const fetchFn = router({
+        prs: fakeResponse({ status: 200, body: searchBody([]) }),
+        issues: fakeResponse({ status: 200, body: searchBody([]) }),
+        notifications: fakeResponse({ status: 200, body: [] }),
+        graphql: fakeResponse({
+          status: 200,
+          body: {
+            data: { viewer: { contributionsCollection: { contributionCalendar: {
+              totalContributions: 7,
+              // Out of chronological order on purpose, to prove the sort step sorts.
+              weeks: [
+                { contributionDays: [{ date: today, contributionCount: 4 }] },
+                { contributionDays: [
+                  { date: padded, contributionCount: 9 },
+                  { date: windowStart, contributionCount: 3 },
+                ] },
+              ],
+            } } } },
+          },
+        }),
+      })
+
+      const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+      expect(data.contributions).toEqual({
+        total: 7,
+        days: [
+          { date: windowStart, count: 3 },
+          { date: today, count: 4 },
+        ],
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a 200 carrying a GraphQL errors array carries prev.contributions, without throwing', async () => {
+    const prev: GithubData = {
+      prs: [], issues: [], notifications: null, etags: {},
+      contributions: { days: [{ date: '2024-01-01', count: 2 }], total: 2 },
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: fakeResponse({ status: 200, body: { errors: [{ message: 'Resource not accessible by personal access token' }] } }),
+    })
+    const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+    expect(data.contributions).toEqual(prev.contributions)
+  })
+
+  it('a 200 carrying a GraphQL errors array with no prev resolves contributions to null', async () => {
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: fakeResponse({ status: 200, body: { errors: [{ message: 'nope' }] } }),
+    })
+    const data = await fetchGithub('t', null, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+    expect(data.contributions).toBeNull()
+  })
+
+  it('a non-OK GraphQL response carries prev.contributions', async () => {
+    const prev: GithubData = {
+      prs: [], issues: [], notifications: null, etags: {},
+      contributions: { days: [{ date: '2024-01-01', count: 5 }], total: 5 },
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: fakeResponse({ ok: false, status: 502 }),
+    })
+    const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+    expect(data.contributions).toEqual(prev.contributions)
+  })
+
+  it('a network failure on the GraphQL request carries prev.contributions', async () => {
+    const prev: GithubData = {
+      prs: [], issues: [], notifications: null, etags: {},
+      contributions: { days: [{ date: '2024-01-01', count: 5 }], total: 5 },
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: () => {
+        throw new Error('network down')
+      },
+    })
+    const data = await fetchGithub('t', prev, DEFAULT_GITHUB_VIEWS, fetchFn as unknown as typeof fetch)
+    expect(data.contributions).toEqual(prev.contributions)
+  })
+
+  it('views.commitGraph === false sends NO request to /graphql and carries prev.contributions', async () => {
+    const prev: GithubData = {
+      prs: [], issues: [], notifications: null, etags: {},
+      contributions: { days: [{ date: '2024-01-01', count: 9 }], total: 9 },
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      // graphql intentionally unstubbed — a request there would throw.
+    })
+    const views = { ...DEFAULT_GITHUB_VIEWS, commitGraph: false }
+    const data = await fetchGithub('t', prev, views, fetchFn as unknown as typeof fetch)
+    expect(data.contributions).toEqual(prev.contributions)
+    const calls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
+    expect(calls.some((u) => u.includes('/graphql'))).toBe(false)
+  })
+})
+
+describe('fetchGithub — per-view gating (disabled sections send no request)', () => {
+  const PR_PATH = '/search/issues?q=type:pr+state:open+review-requested:@me&per_page=10'
+  const ISSUE_PATH = '/search/issues?q=type:issue+state:open+assignee:@me&per_page=10'
+  const NOTIF_PATH = '/notifications?per_page=50'
+
+  it('views.pulls === false: no PR request; prev items + etag carried verbatim', async () => {
+    const prev: GithubData = {
+      prs: [{ title: 'Old PR', url: 'https://github.com/o/r/pull/7', repo: 'o/r' }],
+      issues: [],
+      notifications: null,
+      etags: { [PR_PATH]: 'W/"prs-old"' },
+      contributions: null,
+    }
+    const fetchFn = router({
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: fakeResponse({ status: 200, body: emptyCalendarBody }),
+      // prs intentionally unstubbed — a request there would throw.
+    })
+    const views = { ...DEFAULT_GITHUB_VIEWS, pulls: false }
+    const data = await fetchGithub('t', prev, views, fetchFn as unknown as typeof fetch)
+    expect(data.prs).toEqual(prev.prs)
+    expect(data.etags[PR_PATH]).toBe('W/"prs-old"')
+    const calls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
+    expect(calls.some((u) => u.includes('type:pr'))).toBe(false)
+  })
+
+  it('views.issues === false: no issue request; prev items + etag carried verbatim', async () => {
+    const prev: GithubData = {
+      prs: [],
+      issues: [{ title: 'Old issue', url: 'https://github.com/o/r/issues/8', repo: 'o/r' }],
+      notifications: null,
+      etags: { [ISSUE_PATH]: 'W/"iss-old"' },
+      contributions: null,
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      notifications: fakeResponse({ status: 200, body: [] }),
+      graphql: fakeResponse({ status: 200, body: emptyCalendarBody }),
+      // issues intentionally unstubbed — a request there would throw.
+    })
+    const views = { ...DEFAULT_GITHUB_VIEWS, issues: false }
+    const data = await fetchGithub('t', prev, views, fetchFn as unknown as typeof fetch)
+    expect(data.issues).toEqual(prev.issues)
+    expect(data.etags[ISSUE_PATH]).toBe('W/"iss-old"')
+    const calls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
+    expect(calls.some((u) => u.includes('type:issue'))).toBe(false)
+  })
+
+  it('views.notifications === false: no notifications request; prev count carried', async () => {
+    const prev: GithubData = {
+      prs: [],
+      issues: [],
+      notifications: 6,
+      etags: { [NOTIF_PATH]: 'W/"ntf-old"' },
+      contributions: null,
+    }
+    const fetchFn = router({
+      prs: fakeResponse({ status: 200, body: searchBody([]) }),
+      issues: fakeResponse({ status: 200, body: searchBody([]) }),
+      graphql: fakeResponse({ status: 200, body: emptyCalendarBody }),
+      // notifications intentionally unstubbed — a request there would throw.
+    })
+    const views = { ...DEFAULT_GITHUB_VIEWS, notifications: false }
+    const data = await fetchGithub('t', prev, views, fetchFn as unknown as typeof fetch)
+    expect(data.notifications).toBe(6)
+    expect(data.etags[NOTIF_PATH]).toBe('W/"ntf-old"')
+    const calls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
+    expect(calls.some((u) => u.includes('/notifications'))).toBe(false)
   })
 })
 

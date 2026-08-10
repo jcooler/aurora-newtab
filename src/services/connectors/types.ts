@@ -14,10 +14,22 @@ export interface RssConfig {
   shownCount: number // 3-8, default 5
 }
 
+export interface GithubViews {
+  commitGraph: boolean
+  pulls: boolean
+  issues: boolean
+  notifications: boolean
+}
+
 export interface GithubConfig {
   enabled: boolean
   token: string
   username: string
+  // Absent means ALL sections on — the additive-upgrade rule: a config saved
+  // before this field existed (or a hand-edited backup missing it) must not
+  // silently lose content. New fields added here later must honor the same
+  // rule: their absence can never make an existing card's section vanish.
+  views?: GithubViews
 }
 export interface GitlabConfig {
   enabled: boolean

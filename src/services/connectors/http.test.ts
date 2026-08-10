@@ -4,7 +4,7 @@
 // rss.test.ts's fetchHeadlines abort case (see that file's comment for why
 // the mock rejects on the signal's 'abort' event rather than a bare timeout).
 import { describe, expect, it, vi } from 'vitest'
-import { getJson, conditionalGetJson, type JsonError } from './http'
+import { getJson, conditionalGetJson, postJson, type JsonError } from './http'
 
 // Minimal fetch Response stand-in: only the members getJson/conditionalGetJson
 // actually touch (ok, status, headers.get, json()). Cast through `unknown` at
@@ -139,5 +139,54 @@ describe('conditionalGetJson', () => {
     })
     const result = await conditionalGetJson('https://api.example.com/x', {}, null, fetchFn as unknown as typeof fetch)
     expect(result).toEqual({ ok: false, status: null, message: 'down' })
+  })
+})
+
+describe('postJson', () => {
+  it('POSTs with Content-Type merged into headers and the body JSON-stringified', async () => {
+    const fetchFn = vi.fn(async () => fakeResponse({ ok: true, status: 200, body: { ok: 1 } }))
+
+    await postJson(
+      'https://api.example.com/graphql',
+      { Authorization: 'Bearer t' },
+      { query: 'x', variables: { a: 1 } },
+      fetchFn as unknown as typeof fetch,
+    )
+
+    expect(fetchFn).toHaveBeenCalledWith(
+      'https://api.example.com/graphql',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ query: 'x', variables: { a: 1 } }),
+        headers: { Authorization: 'Bearer t', 'Content-Type': 'application/json' },
+        signal: expect.anything(),
+      }),
+    )
+  })
+
+  it('a 200 parses the JSON body into a JsonResult, capturing the etag header', async () => {
+    const fetchFn = vi.fn(async () => fakeResponse({ ok: true, status: 200, etag: 'W/"g"', body: { data: { a: 1 } } }))
+    const result = await postJson<{ data: { a: number } }>(
+      'https://api.example.com/graphql',
+      {},
+      { query: 'x' },
+      fetchFn as unknown as typeof fetch,
+    )
+    expect(result).toEqual({ ok: true, status: 200, body: { data: { a: 1 } }, etag: 'W/"g"' })
+  })
+
+  it('a non-OK status becomes a JsonError carrying that status', async () => {
+    const fetchFn = vi.fn(async () => fakeResponse({ ok: false, status: 502 }))
+    const result = await postJson('https://api.example.com/graphql', {}, {}, fetchFn as unknown as typeof fetch)
+    expect(result.ok).toBe(false)
+    expect((result as JsonError).status).toBe(502)
+  })
+
+  it('a rejecting fetch (network error) becomes a JsonError with status null', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error('network down')
+    })
+    const result = await postJson('https://api.example.com/graphql', {}, {}, fetchFn as unknown as typeof fetch)
+    expect(result).toEqual({ ok: false, status: null, message: 'network down' })
   })
 })

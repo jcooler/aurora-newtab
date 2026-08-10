@@ -30,11 +30,12 @@ async function fetchWithTimeout(
   url: string,
   headers: Record<string, string>,
   fetchFn: typeof fetch,
+  init?: { method?: string; body?: string },
 ): Promise<{ failed: false; res: Response } | { failed: true; error: JsonError }> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
-    const res = await fetchFn(url, { headers, signal: controller.signal })
+    const res = await fetchFn(url, { ...init, headers, signal: controller.signal })
     return { failed: false, res }
   } catch (error) {
     return {
@@ -66,6 +67,31 @@ export async function getJson<T>(
   if (!res.ok) return statusError(res)
   const body = (await res.json()) as T
   return { ok: true, status: res.status, body, etag: res.headers.get('etag') }
+}
+
+/** POST a JSON body (GraphQL and any future non-GET call go through this, not
+ *  a hand-rolled fetch): merges 'Content-Type: application/json' into the
+ *  caller's headers and JSON.stringifies `body`, sharing fetchWithTimeout's
+ *  8s-abort/network-fold discipline with getJson/conditionalGetJson rather
+ *  than duplicating it. Same typed-failure shape as getJson: non-OK and
+ *  network/timeout both resolve to a JsonError rather than throwing. */
+export async function postJson<T>(
+  url: string,
+  headers: Record<string, string>,
+  body: unknown,
+  fetchFn: typeof fetch = fetch,
+): Promise<JsonResult<T> | JsonError> {
+  const outcome = await fetchWithTimeout(
+    url,
+    { ...headers, 'Content-Type': 'application/json' },
+    fetchFn,
+    { method: 'POST', body: JSON.stringify(body) },
+  )
+  if (outcome.failed) return outcome.error
+  const { res } = outcome
+  if (!res.ok) return statusError(res)
+  const parsed = (await res.json()) as T
+  return { ok: true, status: res.status, body: parsed, etag: res.headers.get('etag') }
 }
 
 /** Conditional GET: sends `If-None-Match` when `etag` is non-null. A 304

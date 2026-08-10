@@ -1,6 +1,6 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
-import { fetchGithub, type GithubData, type GithubItem } from '../../../services/connectors/github'
+import { fetchGithub, DEFAULT_GITHUB_VIEWS, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
@@ -63,7 +63,9 @@ function GithubInner({ token }: { token: string }) {
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // No cached data yet (first-ever load in flight, or a total failure) renders
   // nothing rather than an empty shell — same as RssInner.
-  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev))
+  // TODO(Task 68): resolve per-user views from stored config; DEFAULT_GITHUB_VIEWS
+  // (all sections on) keeps current behavior unchanged until that lands.
+  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev, DEFAULT_GITHUB_VIEWS))
   if (!data) return null
 
   const prs = (data.prs ?? []).slice(0, MAX_PRS)

@@ -9,8 +9,8 @@
 // never a hand-rolled fetch — so the 8s abort, the network-vs-HTTP status
 // split, and the typed-error discipline are all shared, and `fetchFn` stays
 // injectable so tests never touch a real network.
-import type { ConnectorDescriptor, GithubConfig } from './types'
-import { getJson, conditionalGetJson } from './http'
+import type { ConnectorDescriptor, GithubConfig, GithubViews } from './types'
+import { getJson, conditionalGetJson, postJson } from './http'
 
 const BASE = 'https://api.github.com'
 
@@ -29,6 +29,27 @@ const NOTIF_PATH = '/notifications?per_page=50'
  *  the widget renders the "+" at this threshold. */
 const NOTIF_PER_PAGE = 50
 
+export const DEFAULT_GITHUB_VIEWS: GithubViews = {
+  commitGraph: true,
+  pulls: true,
+  issues: true,
+  notifications: true,
+}
+
+/** Absent/partial `views` (pre-feature configs, hand-edited backups) resolve
+ *  against the all-on default so a section can never vanish for lack of a key. */
+export function resolveGithubViews(
+  config: Pick<GithubConfig, 'views'> | null | undefined,
+): GithubViews {
+  const stored = config?.views
+  return {
+    commitGraph: typeof stored?.commitGraph === 'boolean' ? stored.commitGraph : DEFAULT_GITHUB_VIEWS.commitGraph,
+    pulls: typeof stored?.pulls === 'boolean' ? stored.pulls : DEFAULT_GITHUB_VIEWS.pulls,
+    issues: typeof stored?.issues === 'boolean' ? stored.issues : DEFAULT_GITHUB_VIEWS.issues,
+    notifications: typeof stored?.notifications === 'boolean' ? stored.notifications : DEFAULT_GITHUB_VIEWS.notifications,
+  }
+}
+
 function authHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -43,6 +64,16 @@ export interface GithubItem {
   repo: string // 'owner/name', derived from the search item's repository_url
 }
 
+export interface ContributionDay {
+  date: string
+  count: number
+}
+
+export interface Contributions {
+  days: ContributionDay[]
+  total: number
+}
+
 export interface GithubData {
   prs: GithubItem[]
   issues: GithubItem[]
@@ -51,6 +82,10 @@ export interface GithubData {
   // simply hides the unread row, no error surfaced. 0 is a real value ("all
   // caught up"), distinct from null ("can't tell").
   notifications: number | null
+  // null = the GraphQL contributions calendar was unavailable (a fine-grained
+  // PAT can be refused GraphQL access, or the section is turned off in
+  // views). Same quiet degradation as `notifications`.
+  contributions: Contributions | null
   // Keyed by request PATH (see the *_PATH constants). conditionalGetJson sends
   // each as If-None-Match on the next refresh; a 304 keeps that section's prev
   // slice verbatim and re-stores the same etag.
@@ -131,25 +166,107 @@ async function fetchNotificationsSection(
   }
 }
 
-/** Fetches all three sections (PRs, issues, notifications) for one token,
- *  carrying `prev` forward so ETag 304s and per-section failures both keep the
- *  last-known slice. The sections run concurrently and INDEPENDENTLY: each
- *  section function catches its own failure internally (see each helper), so
- *  Promise.all never rejects and one section's 403/500/timeout can never blank
- *  another — a broken notifications endpoint must never empty the PR list
- *  (Controller ruling 3). */
+const GRAPHQL_PATH = '/graphql'
+const CONTRIB_DAYS = 112 // 16 weeks — the card-width crop the board pinned
+
+const CONTRIB_QUERY = `query($from: DateTime!, $to: DateTime!) {
+  viewer { contributionsCollection(from: $from, to: $to) {
+    contributionCalendar { totalContributions weeks { contributionDays { date contributionCount } } }
+  } }
+}`
+
+interface ContribBody {
+  data?: { viewer?: { contributionsCollection?: { contributionCalendar?: {
+    totalContributions?: unknown
+    weeks?: Array<{ contributionDays?: Array<{ date?: unknown; contributionCount?: unknown }> }>
+  } } } }
+  errors?: unknown[]
+}
+
+/** Local yyyy-mm-dd, private to the module: the window boundary is compared
+ *  against GraphQL's calendar-day date strings, which are local-day (not UTC)
+ *  from GitHub's perspective, so this must NOT go through toISOString(). */
+function isoDay(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+/** The contributions calendar via GraphQL (POST — no ETag round-trip exists
+ *  for it; the 5-minute ttl is the only fetch governor). Failure carries prev:
+ *  a fine-grained PAT refused GraphQL access degrades quietly to a graph-less
+ *  card, exactly like the notifications 403 hides the unread chip. */
+async function fetchContributionsSection(
+  headers: Record<string, string>,
+  prev: Contributions | null,
+  fetchFn: typeof fetch,
+): Promise<Contributions | null> {
+  try {
+    const to = new Date()
+    const from = new Date(to)
+    from.setDate(to.getDate() - (CONTRIB_DAYS - 1))
+    from.setHours(0, 0, 0, 0)
+    const result = await postJson<ContribBody>(
+      BASE + GRAPHQL_PATH, headers,
+      { query: CONTRIB_QUERY, variables: { from: from.toISOString(), to: to.toISOString() } },
+      fetchFn,
+    )
+    if (!result.ok || Array.isArray(result.body.errors)) return prev
+    const calendar = result.body.data?.viewer?.contributionsCollection?.contributionCalendar
+    if (!calendar || !Array.isArray(calendar.weeks)) return prev
+    const days: ContributionDay[] = []
+    for (const week of calendar.weeks) {
+      if (!Array.isArray(week.contributionDays)) continue
+      for (const d of week.contributionDays) {
+        if (typeof d.date !== 'string' || typeof d.contributionCount !== 'number') continue
+        if (d.date >= isoDay(from)) days.push({ date: d.date, count: d.contributionCount })
+      }
+    }
+    days.sort((a, b) => (a.date < b.date ? -1 : 1))
+    const total = typeof calendar.totalContributions === 'number'
+      ? calendar.totalContributions
+      : days.reduce((a, d) => a + d.count, 0)
+    return { days, total }
+  } catch {
+    return prev
+  }
+}
+
+/** Fetches all four sections (PRs, issues, notifications, contributions) for
+ *  one token, carrying `prev` forward so ETag 304s and per-section failures
+ *  both keep the last-known slice. The sections run concurrently and
+ *  INDEPENDENTLY: each section function catches its own failure internally
+ *  (see each helper), so Promise.all never rejects and one section's
+ *  403/500/timeout can never blank another — a broken notifications endpoint
+ *  must never empty the PR list (Controller ruling 3).
+ *
+ *  `views` GATES every section: a section the user turned off in settings
+ *  never issues a request at all — it resolves straight to its prev slice
+ *  (etag carried verbatim, so re-enabling resumes the conditional chain right
+ *  where it left off) rather than being fetched and discarded. */
 export async function fetchGithub(
   token: string,
   prev: GithubData | null,
+  views: GithubViews,
   fetchFn: typeof fetch = fetch,
 ): Promise<GithubData> {
   const headers = authHeaders(token)
   const prevEtags = prev?.etags ?? {}
 
-  const [prsResult, issuesResult, notifResult] = await Promise.all([
-    fetchSearchSection(PR_PATH, headers, prevEtags[PR_PATH], prev?.prs ?? [], fetchFn),
-    fetchSearchSection(ISSUE_PATH, headers, prevEtags[ISSUE_PATH], prev?.issues ?? [], fetchFn),
-    fetchNotificationsSection(headers, prevEtags[NOTIF_PATH], prev?.notifications ?? null, fetchFn),
+  const [prsResult, issuesResult, notifResult, contributions] = await Promise.all([
+    views.pulls
+      ? fetchSearchSection(PR_PATH, headers, prevEtags[PR_PATH], prev?.prs ?? [], fetchFn)
+      : Promise.resolve({ items: prev?.prs ?? [], etag: prevEtags[PR_PATH] ?? null }),
+    views.issues
+      ? fetchSearchSection(ISSUE_PATH, headers, prevEtags[ISSUE_PATH], prev?.issues ?? [], fetchFn)
+      : Promise.resolve({ items: prev?.issues ?? [], etag: prevEtags[ISSUE_PATH] ?? null }),
+    views.notifications
+      ? fetchNotificationsSection(headers, prevEtags[NOTIF_PATH], prev?.notifications ?? null, fetchFn)
+      : Promise.resolve({ count: prev?.notifications ?? null, etag: prevEtags[NOTIF_PATH] ?? null }),
+    views.commitGraph
+      ? fetchContributionsSection(headers, prev?.contributions ?? null, fetchFn)
+      : Promise.resolve(prev?.contributions ?? null),
   ])
 
   const etags: Record<string, string> = {}
@@ -161,6 +278,7 @@ export async function fetchGithub(
     prs: prsResult.items,
     issues: issuesResult.items,
     notifications: notifResult.count,
+    contributions,
     etags,
   }
 }

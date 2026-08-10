@@ -22,6 +22,7 @@ const DATA: GithubData = {
   ],
   issues: [{ title: 'Crash on cold start', url: 'https://github.com/acme/web/issues/9', repo: 'acme/web' }],
   notifications: 3,
+  contributions: null,
   etags: {},
 }
 
@@ -100,6 +101,7 @@ describe('GithubWidget', () => {
       })),
       issues: [],
       notifications: 0,
+      contributions: null,
       etags: {},
     }
     const storage = await seededStorage(CONNECTED, many)
@@ -118,6 +120,7 @@ describe('GithubWidget', () => {
         repo: 'o/r',
       })),
       notifications: 0,
+      contributions: null,
       etags: {},
     }
     const storage = await seededStorage(CONNECTED, many)
@@ -128,7 +131,7 @@ describe('GithubWidget', () => {
   })
 
   it('shows the celebratory empty line when connected but nothing is waiting', async () => {
-    const storage = await seededStorage(CONNECTED, { prs: [], issues: [], notifications: 0, etags: {} })
+    const storage = await seededStorage(CONNECTED, { prs: [], issues: [], notifications: 0, contributions: null, etags: {} })
     mount(storage)
     expect(await screen.findByText('No PRs waiting on you 🎉')).toBeTruthy()
   })
