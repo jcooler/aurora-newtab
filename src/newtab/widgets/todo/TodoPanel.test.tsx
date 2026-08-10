@@ -65,8 +65,17 @@ describe('TodoPanel', () => {
     // hardcoded `true` from that first, ref-less render (see the comment in
     // TodoPanel.tsx above the `useFocusTrap` call).
     const { unmount } = await renderPanel()
-    const closeButton = await screen.findByRole('button', { name: 'Close tasks' })
-    expect(document.activeElement).toBe(closeButton)
+    // The command-list redesign made the header's list switcher / "+ list"
+    // affordance the FIRST focusable in the panel (rather than the close ×),
+    // so useFocusTrap now lands initial focus there. What this test guards is
+    // unchanged: focus MOVED into the panel onto a real focusable control the
+    // moment the ref-bearing dialog appeared — the proof the effect re-fired
+    // after that first, ref-less render — not the specific element it landed
+    // on.
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(dialog)
+    expect(document.activeElement?.tagName).toBe('BUTTON')
 
     unmount()
     expect(document.activeElement).toBe(pillStandIn)

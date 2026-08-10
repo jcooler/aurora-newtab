@@ -1220,42 +1220,130 @@ await page.evaluate(() =>
 )
 await page.waitForTimeout(300)
 
-// Open the to-do panel, add a task, and capture it
+// ── Tasks panel — "the command list" (Jon's pick, Direction C) ──────────────
+// Open Tasks on the FRESH (nothing seeds todoLists before here — the profile
+// dir is wiped at launch) board, which auto-seeds an empty "Today". Measure
+// its default-open height: that is the value TODO_PANEL_SIZE.h approximates
+// for anchor math after the redesign folded the old separate lists-row into
+// the header (320->384 wide, shorter than the old 217px empty state).
 await page.click('button:has-text("Tasks")')
 await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+await page.waitForTimeout(200)
+const defaultOpenHeight = await page.evaluate(() => {
+  const p = document.querySelector('[role="dialog"][aria-label="Tasks"]')
+  return p ? Math.round(p.getBoundingClientRect().height) : null
+})
+console.log(`Tasks panel default-open height (empty auto-seeded Today): ${defaultOpenHeight}px — the figure TODO_PANEL_SIZE.h should track`)
+// Close, then seed the reference-render fixture (6 tasks in Today with 2 done,
+// plus a second "This week" list) and reopen so the capture matches the
+// picked render (screenshots/options/tasks-C-command*.png).
+await page.click('button:has-text("Tasks")')
 await page.waitForTimeout(150)
-await page.fill('#todo-add-item', 'Ship Aurora')
-await page.press('#todo-add-item', 'Enter')
+await page.evaluate(() =>
+  chrome.storage.local.set({
+    todoLists: [
+      {
+        id: 'today',
+        name: 'Today',
+        items: [
+          { id: 't1', text: 'Ship Aurora 2.0 to the Chrome Web Store', done: false },
+          { id: 't2', text: 'Review the launch copy', done: true },
+          { id: 't3', text: 'Plan the connector QA sweep', done: false },
+          { id: 't4', text: 'Reply to Sarah about the roadmap', done: false },
+          { id: 't5', text: 'Book flights for the team offsite', done: true },
+          { id: 't6', text: 'Draft the changelog', done: false },
+        ],
+      },
+      {
+        id: 'week',
+        name: 'This week',
+        items: [
+          { id: 'w1', text: 'Prep the quarterly review deck', done: false },
+          { id: 'w2', text: 'Refactor the storage driver', done: false },
+        ],
+      },
+    ],
+  }),
+)
 await page.waitForTimeout(150)
+await page.click('button:has-text("Tasks")')
+await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+await page.waitForTimeout(200)
 await page.screenshot({ path: `${outDir}/todo-panel.png` })
-console.log('captured todo-panel.png')
+// A framed element-only closeup for a closer read against tasks-C-command-closeup.png.
+await page
+  .locator('[role="dialog"][aria-label="Tasks"]')
+  .screenshot({ path: `${outDir}/todo-panel-closeup.png` })
+console.log('captured todo-panel.png + todo-panel-closeup.png (6 tasks / 2 done / two lists — render-faithful seed)')
 
-// Round-check interaction probe (Task 62): the task check is now a styled
-// round control with the real <input type=checkbox> sr-only underneath.
-// Clicking it must still flip the task's `done` in storage — and clicking
-// again must flip it back — proving the visual restyle didn't sever the wired
-// control. Also capture the checked state so the accent fill + glyph is judged.
-const shipDone = async () =>
+// Round-check interaction probe: the task check is a styled round control with
+// the real <input type=checkbox> sr-only underneath. Clicking it must still
+// flip the task's `done` in storage — and clicking again must flip it back —
+// proving the visual restyle didn't sever the wired control. Reads the first
+// Today item's `done` directly (its text is the render's first row). Also
+// captures the checked state so the accent fill + glyph is judged.
+const firstTodayDone = async () =>
   (await page.evaluate(() => chrome.storage.local.get('todoLists'))).todoLists
-    .flatMap((l) => l.items)
-    .find((i) => i.text === 'Ship Aurora')?.done
+    .find((l) => l.name === 'Today')
+    ?.items[0]?.done
 const roundCheck = page
   .locator('[role="dialog"][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
   .first()
-const doneBefore = await shipDone()
+const doneBefore = await firstTodayDone()
 await roundCheck.click()
 await page.waitForTimeout(150)
-const doneAfter = await shipDone()
+const doneAfter = await firstTodayDone()
 await page.screenshot({ path: `${outDir}/todo-panel-checked.png` })
 console.log('captured todo-panel-checked.png')
 await roundCheck.click()
 await page.waitForTimeout(150)
-const doneBack = await shipDone()
+const doneBack = await firstTodayDone()
 console.log(
   doneBefore === false && doneAfter === true && doneBack === false
     ? 'PASS: round check flips task done in storage and back (before/after/back = false/true/false)'
     : `FAIL: round check storage toggle (before=${doneBefore}, after=${doneAfter}, back=${doneBack})`,
 )
+
+// Add-command-line probe: the footer command line is now the ONLY add
+// affordance (accent "+", the "Add a task…" input, an ↵ submit). Typing +
+// Enter must still land the task in storage on the active (Today) list.
+const todayCountBefore = (await page.evaluate(() => chrome.storage.local.get('todoLists')))
+  .todoLists.find((l) => l.name === 'Today').items.length
+await page.fill('#todo-add-item', 'Ship the command list')
+await page.press('#todo-add-item', 'Enter')
+await page.waitForTimeout(150)
+const todayAfter = (await page.evaluate(() => chrome.storage.local.get('todoLists')))
+  .todoLists.find((l) => l.name === 'Today').items
+const addOk =
+  todayAfter.length === todayCountBefore + 1 &&
+  todayAfter[todayAfter.length - 1].text === 'Ship the command list'
+console.log(
+  addOk
+    ? `PASS: the add command line lands a task in storage on the active list (Today ${todayCountBefore} -> ${todayAfter.length}, last "${todayAfter[todayAfter.length - 1].text}")`
+    : `FAIL: add command line (before=${todayCountBefore}, after=${todayAfter.length}, last="${todayAfter[todayAfter.length - 1]?.text}")`,
+)
+
+// List-switch probe: clicking another list's header eyebrow must swap the
+// rendered rows to that list's items — the multi-list model surfaced through
+// the new header switcher. Click "This week" and assert the visible task
+// labels are exactly its two items.
+await page.click('[role="dialog"][aria-label="Tasks"] button:has-text("This week")')
+await page.waitForTimeout(150)
+const switchedLabels = await page.evaluate(() =>
+  [...document.querySelectorAll('[role="dialog"][aria-label="Tasks"] li label[for^="todo-item-"]')].map(
+    (l) => l.textContent,
+  ),
+)
+const switchOk =
+  switchedLabels.length === 2 && switchedLabels[0] === 'Prep the quarterly review deck'
+console.log(
+  switchOk
+    ? `PASS: header eyebrow switches lists — clicking "This week" swaps the rows to its items (${JSON.stringify(switchedLabels)})`
+    : `FAIL: list-switch via header eyebrow (${JSON.stringify(switchedLabels)})`,
+)
+// Switch back to Today so the still-open panel closes from a known state below.
+await page.click('[role="dialog"][aria-label="Tasks"] button:has-text("Today")')
+await page.waitForTimeout(100)
 
 // Open the focus timer pill and capture its panel
 await page.click('button[aria-label^="Focus timer"]')
@@ -6314,6 +6402,68 @@ console.log(
     timerClampOk
       ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
       : `FAIL: the open Focus timer panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
+  )
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(150)
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(200)
+}
+
+// ── Tasks panel small-viewport clamp probe (the command-list redesign) ──────
+// The Tasks panel widened 320 -> 384 in this pass (TODO_PANEL_SIZE.w + the
+// anchor math its consumers feed). A wider panel presses harder on
+// anchorPanel's horizontal clamp (maxLeft = viewport.w - panel.w - margin),
+// and the open panel was only ever asserted at 1600x900. Prove it at the
+// matrix's tightest shape (800x450), the same 800x450 precedent the timer
+// clamp probe just above uses: open the panel (its seeded render fixture is
+// still in storage from the capture section), assert with real rects that it
+// stays FULLY on-screen, CLEARS the bookmarks band, and is a disciplined
+// occluder (solid surface, topmost at its own centre). Measured, not assumed.
+{
+  await page.setViewportSize({ width: 800, height: 450 })
+  await page.waitForTimeout(300) // reflow
+  await page.click('[data-block-id="tasks"] button[aria-expanded]')
+  await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+  await page.waitForTimeout(200)
+  const clamp = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"][aria-label="Tasks"]')
+    if (!panel) return { found: false }
+    const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+    const p = panel.getBoundingClientRect()
+    const cs = getComputedStyle(panel)
+    const alpha = (() => {
+      const m = cs.backgroundColor.match(/rgba?\(([^)]+)\)/)
+      if (!m) return 0
+      const parts = m[1].split(',').map((v) => parseFloat(v))
+      return parts.length > 3 ? parts[3] : 1
+    })()
+    const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
+    const bar = nav ? nav.getBoundingClientRect() : null
+    return {
+      found: true,
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      w: +p.width.toFixed(1),
+      p: { t: +p.top.toFixed(1), b: +p.bottom.toFixed(1), l: +p.left.toFixed(1), r: +p.right.toFixed(1) },
+      onScreen:
+        p.left >= -0.5 &&
+        p.top >= -0.5 &&
+        p.right <= window.innerWidth + 0.5 &&
+        p.bottom <= window.innerHeight + 0.5,
+      alpha: +alpha.toFixed(2),
+      onTop: !!sample && panel.contains(sample),
+      barBottom: bar ? +bar.bottom.toFixed(1) : null,
+      clearsBand: bar ? p.top >= bar.bottom : true,
+    }
+  })
+  await page.screenshot({ path: `${outDir}/todo-panel-800x450.png` })
+  console.log('captured todo-panel-800x450.png')
+  const tasksClampOk =
+    clamp.found && clamp.onScreen && clamp.clearsBand && clamp.alpha >= 0.9 && clamp.onTop
+  console.log(
+    tasksClampOk
+      ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      : `FAIL: the open Tasks panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
   )
   await page.keyboard.press('Escape')
   await page.waitForTimeout(150)

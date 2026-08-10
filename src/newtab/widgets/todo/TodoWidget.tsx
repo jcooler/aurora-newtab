@@ -4,11 +4,15 @@ import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/la
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
-// TodoPanel has no fixed-height class (w-80, max-h-[70vh], auto height up to
+// TodoPanel has no fixed-height class (w-96, max-h-[70vh], auto height up to
 // that cap) — this is its measured height in the deterministic default-open
 // state (a freshly auto-seeded empty "Today" list, before any task is
-// added). Width matches the panel's w-80 class exactly.
-export const TODO_PANEL_SIZE = { w: 320, h: 217 }
+// added). Width matches the panel's w-96 class exactly. The command-list
+// redesign (Jon's pick) widened the panel 320 -> 384 to match the mock's
+// spacing and folded the old separate lists-row into the header, so the
+// empty-state height is shorter than the pre-redesign 217 — re-measured in
+// the preview harness's default-open capture.
+export const TODO_PANEL_SIZE = { w: 384, h: 184 }
 
 // Today's fixed classes inset the pill 4rem (64px) from the right edge while
 // the panel hugs the true corner at 1rem (16px) — bottom-4 right-16 (pill)
