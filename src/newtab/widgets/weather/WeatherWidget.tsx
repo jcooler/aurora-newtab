@@ -281,6 +281,16 @@ export default function WeatherWidget({
                   the page instead of styling it like a generic tooltip. */}
               <span className="font-display text-[2rem] font-light leading-none tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
+                {/* Jon: "adding F or C to the card would be nice." Same
+                    two-span idiom as the expanded grid's own end slots below
+                    (~line 384): bright digits as the leading text node, the
+                    scale letter smaller (0.7em) and quieter (text-fg-muted)
+                    as a child span. The two pieces still concatenate to
+                    exactly `displayTempWithUnit` — one derivation, styled
+                    apart — never a second string for the same value. */}
+                <span className="align-baseline text-[0.7em] text-fg-muted">
+                  {unitLetter(settings.units)}
+                </span>
               </span>
               {/* ONE LINE, always. `truncate` is white-space:nowrap plus an
                   ellipsis, so this can shorten but can never become two

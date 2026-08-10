@@ -77,6 +77,46 @@ describe('WeatherWidget collapsed chip', () => {
   // furniture (32px icon + 2rem temperature + chevron + padding ≈ 160px)
   // is a fixed number that doesn't shrink with the viewport, so the text
   // was handed a negative budget.
+  // Jon: "adding F or C to the card would be nice." The collapsed chip's big
+  // number gets the same treatment the expanded grid's end slots already use
+  // (Task 72): the bright digits stay a leading text node, and the scale
+  // letter rides a smaller, muted CHILD span — never a second derivation of
+  // the string. The two pieces still concatenate to exactly
+  // `displayTempWithUnit`, so DOM order (and screen-reader reading) matches
+  // the picked render.
+  it('labels the big temperature with its unit letter (metric → °C)', async () => {
+    await renderWidget() // default settings are metric
+    const big = toggle().querySelector('span.font-display.text-\\[2rem\\]')!
+    expect(big.firstChild!.textContent).toBe('21°')
+    const letter = big.querySelector('span')!
+    expect(letter.textContent).toBe('C')
+    expect(letter.className).toContain('text-[0.7em]')
+    expect(letter.className).toContain('text-fg-muted')
+    expect(big.textContent).toBe('21°C') // == displayTempWithUnit(21, 'metric')
+  })
+
+  it('labels the big temperature with its unit letter (imperial → °F)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', NEW_YORK)
+    await storage.set('weatherCache', makeSnapshot())
+    const settings = await storage.get('settings')
+    await storage.set('settings', { ...settings!, units: 'imperial' })
+    render(
+      <StorageProvider storage={storage}>
+        <WeatherWidget />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    const big = toggle().querySelector('span.font-display.text-\\[2rem\\]')!
+    expect(big.firstChild!.textContent).toBe('70°') // 21°C → 70°F
+    const letter = big.querySelector('span')!
+    expect(letter.textContent).toBe('F')
+    expect(letter.className).toContain('text-[0.7em]')
+    expect(letter.className).toContain('text-fg-muted')
+    expect(big.textContent).toBe('70°F') // == displayTempWithUnit(21, 'imperial')
+  })
+
   it('keeps condition and location on one line, with the full text in a title', async () => {
     await renderWidget()
     const summary = screen.getByTitle('Partly cloudy · New York')
