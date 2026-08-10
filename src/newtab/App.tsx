@@ -478,29 +478,29 @@ export default function App() {
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
                 <WidgetBoundary name="ics">
-                  <PositionedBlock id="ics" pos={layout?.ics} className="rail-primary">
+                  <PositionedBlock id="ics" pos={layout?.ics} className="rail-primary tier-fade">
                     <CalendarWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="rss">
-                  <PositionedBlock id="rss" pos={layout?.rss} className="rail-primary xshort:hidden">
+                  <PositionedBlock id="rss" pos={layout?.rss} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
                     <RssWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="vercel">
-                  <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary mid:hidden short:hidden xshort:hidden">
+                  <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                     <VercelWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
               </div>
               <div className="flex flex-col gap-4">
                 <WidgetBoundary name="monthCal">
-                  <PositionedBlock id="monthCal" pos={layout?.monthCal} className="rail-col2">
+                  <PositionedBlock id="monthCal" pos={layout?.monthCal} className="rail-col2 tier-fade">
                     <MonthCalWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="habits">
-                  <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2">
+                  <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2 tier-fade">
                     <HabitsWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
@@ -535,17 +535,17 @@ export default function App() {
               see the left rail's WIDTH DISCIPLINE note and index.css. */}
           <aside data-zone="right" aria-label="Right widget rail" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
             <WidgetBoundary name="github">
-              <PositionedBlock id="github" pos={layout?.github} className="rail-primary short:hidden xshort:hidden">
+              <PositionedBlock id="github" pos={layout?.github} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
                 <GithubWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="gitlab">
-              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="rail-primary mid:hidden short:hidden xshort:hidden">
+              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                 <GitlabWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="jira">
-              <PositionedBlock id="jira" pos={layout?.jira} className="rail-primary mid:hidden short:hidden xshort:hidden">
+              <PositionedBlock id="jira" pos={layout?.jira} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                 <JiraWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -648,7 +648,7 @@ export default function App() {
                   when the viewport is `taller` than the measured floor (a hidden
                   crypto sets display:none and drops out of the flex flow — no
                   phantom gap above the quote). */}
-              <PositionedBlock id="crypto" pos={layout?.crypto} className="hidden taller:block">
+              <PositionedBlock id="crypto" pos={layout?.crypto} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
                 <CryptoWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -674,7 +674,7 @@ export default function App() {
                   wrappers were converted away from. A stored `pos` still wins
                   (className dropped on the arranged branch, so an arranged quote is
                   never mid-hidden). */}
-              <PositionedBlock id="quote" pos={layout?.quote} className="mid:hidden">
+              <PositionedBlock id="quote" pos={layout?.quote} className="quote-gate tier-fade">
                 <QuoteWidget />
               </PositionedBlock>
             </WidgetBoundary>

@@ -81,7 +81,7 @@ function MonthCalInner() {
   const label = monthLabel(view.y, view.m0)
 
   return (
-    <div className="w-[200px] rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
+    <div className="w-[200px] rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       {/* data-monthcal-header — a stable hook (same convention as
           data-cell-key below) for this file's own tests and the harness's
           zero-height-guarantee probe: the Today affordance (below) lives
@@ -185,7 +185,7 @@ function MonthCalInner() {
           half-implemented roving-tabindex trap. If a future task ever makes
           a cell actionable (e.g. click-to-add-event), THAT is the moment to
           upgrade to the full grid pattern — not before. */}
-      <table className="mt-2 w-full border-collapse text-center">
+      <table className="mt-2 dense:mt-1 w-full border-collapse text-center">
         <caption className="sr-only">Calendar: {label}</caption>
         <thead>
           <tr>

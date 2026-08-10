@@ -677,39 +677,43 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
     }
   })
 
-  it('height-tier hides are per-widget on the default wrapper (measured at each tier INTERIOR worst case): calendar always stays; headlines trims on mid+short (row-level, in RssWidget) + drops on xshort; deploys drops on mid+short; the right rail keeps github on mid but drops gitlab+jira, and empties on short', async () => {
+  it('height-tier hides are per-widget on the default wrapper, RE-DERIVED with the compact (dense) skins so cards SHRINK before they yield, and every hide FADES (tier-fade): calendar always stays; headlines shows full on mid (compact 8-row fits), trims on short (row-level in RssWidget), yields on xshort; deploys yields on dense (<=864); github survives down to SHORT and yields only on xshort; gitlab+jira yield on dense (<=864)', async () => {
     await renderApp()
     const has = (id: string, cls: string) =>
       document.querySelector(`[data-block-id="${id}"]`)!.classList.contains(cls)
-    // Left col1: calendar always stays (worst ~78px, clears the Notes pill even
-    // at 451h). Headlines' WRAPPER carries only xshort:hidden — on mid/short it
-    // stays (trimmed inside RssWidget to RSS_MID_ROWS / RSS_SHORT_ROWS so the
-    // card can't grow over the Notes pill at either tier's floor). Deploys drops
-    // on mid AND short (Task 65: vercel's 758 bottom laps the Notes pill below
-    // 810h and can't be trimmed clear, so it whole-hides across the mid band).
-    expect(has('ics', 'mid:hidden')).toBe(false)
+    // Every tier-gated block carries `.tier-fade` so its show/hide crosses with
+    // a soft fade (the fade law, index.css) instead of the old instant blink —
+    // the whole point of this task.
+    for (const id of ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira']) {
+      expect(has(id, 'tier-fade')).toBe(true)
+    }
+    // Left col1: calendar always stays (compact ~70px, clears the Notes pill
+    // even at 450h). Headlines' WRAPPER carries only the xshort whole-hide (its
+    // compact 8-row card fits at the 601 mid floor, and RssWidget row-trims to
+    // RSS_SHORT_ROWS on short); its fade rides `xshort:opacity-0`. Deploys
+    // yields across the whole `dense` band (<=864) — its compact card still
+    // can't clear the Notes pill without gutting higher-priority rss rows.
+    expect(has('ics', 'dense:hidden')).toBe(false)
     expect(has('ics', 'short:hidden')).toBe(false)
     expect(has('ics', 'xshort:hidden')).toBe(false)
-    expect(has('rss', 'mid:hidden')).toBe(false)
+    expect(has('rss', 'dense:hidden')).toBe(false)
     expect(has('rss', 'short:hidden')).toBe(false)
     expect(has('rss', 'xshort:hidden')).toBe(true)
-    expect(has('vercel', 'mid:hidden')).toBe(true)
-    expect(has('vercel', 'short:hidden')).toBe(true)
-    expect(has('vercel', 'xshort:hidden')).toBe(true)
-    // Right rail: on `mid` (601-864) github STAYS (bottom 415 clears the Tasks
-    // pill's highest top, 547 at the 601px floor, by 132px) while gitlab+jira
-    // whole-hide (their 605/795 bottoms lap the pill across the band). On short
-    // (451-600) the column has only 217px above the 397 pill — even github's
-    // 235px overruns it — so ALL THREE drop, and the right rail is empty.
-    expect(has('github', 'mid:hidden')).toBe(false)
-    expect(has('github', 'short:hidden')).toBe(true)
+    expect(has('rss', 'xshort:opacity-0')).toBe(true)
+    expect(has('vercel', 'dense:hidden')).toBe(true)
+    expect(has('vercel', 'dense:opacity-0')).toBe(true)
+    // Right rail: github now SURVIVES down to short (its compact 193px card
+    // clears the Tasks pill by 24px at the 451 short floor) and yields only on
+    // xshort. gitlab+jira yield across the whole `dense` band (<=864): compact
+    // github+gitlab together miss the 16px floor by 2px at the 601 mid worst,
+    // so only github shows below 865.
+    expect(has('github', 'dense:hidden')).toBe(false)
+    expect(has('github', 'short:hidden')).toBe(false)
     expect(has('github', 'xshort:hidden')).toBe(true)
-    expect(has('gitlab', 'mid:hidden')).toBe(true)
-    expect(has('gitlab', 'short:hidden')).toBe(true)
-    expect(has('gitlab', 'xshort:hidden')).toBe(true)
-    expect(has('jira', 'mid:hidden')).toBe(true)
-    expect(has('jira', 'short:hidden')).toBe(true)
-    expect(has('jira', 'xshort:hidden')).toBe(true)
+    expect(has('gitlab', 'dense:hidden')).toBe(true)
+    expect(has('gitlab', 'dense:opacity-0')).toBe(true)
+    expect(has('jira', 'dense:hidden')).toBe(true)
+    expect(has('jira', 'dense:opacity-0')).toBe(true)
   })
 
   it('an ARRANGED rail widget leaves the rail: rendered once, position:fixed, className (any hide/marker) dropped — an arranged user owns their layout at every width', async () => {
@@ -780,7 +784,7 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
     }
   })
 
-  it('crypto and quote flow inside the bottom zone as STATIC wrappers with only their height-tier hide class', async () => {
+  it('crypto and quote flow inside the bottom zone as STATIC wrappers carrying their height-tier gate + the fade (tier-fade)', async () => {
     await renderApp()
     const crypto = document.querySelector('[data-block-id="crypto"]') as HTMLElement
     const quote = document.querySelector('[data-block-id="quote"]') as HTMLElement
@@ -791,12 +795,17 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
       expect(block.getAttribute('style')).toBeNull()
       expect(block.classList.contains('fixed')).toBe(false)
       expect(block.closest('aside[data-zone="bottom"]')).toBeTruthy()
+      // Both FADE their show/hide now (the fade law) — never an instant blink.
+      expect(block.classList.contains('tier-fade')).toBe(true)
     }
-    // crypto is hidden by default and revealed only on tall viewports (>=890h,
-    // so it SHOWS at the canonical 900); the quote hides across the mid band
-    // (601-864) where the column laps it.
-    expect(crypto.className).toBe('hidden taller:block')
-    expect(quote.className).toBe('mid:hidden')
+    // crypto stays hidden by default and reveals only on tall viewports (>=890h,
+    // so it still SHOWS at the canonical 900) — now with a fade, paired
+    // opacity-0/opacity-100 so it has somewhere to travel. The quote's old
+    // non-monotonic `mid:hidden` (gone 601-864, back <=600 — the blink Jon
+    // named) is DEAD: it now carries `.quote-gate`, a MONOTONIC faded hide
+    // below 671h (index.css), shrinking above it and staying gone below.
+    expect(crypto.className).toBe('tier-fade hidden opacity-0 taller:block taller:opacity-100')
+    expect(quote.className).toBe('quote-gate tier-fade')
   })
 
   it('an ARRANGED crypto/quote leaves the band: rendered once, position:fixed, className (the tier hide) dropped', async () => {
@@ -817,8 +826,9 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
       const blocks = document.querySelectorAll(`[data-block-id="${id}"]`)
       expect(blocks.length).toBe(1) // never double-rendered
       const block = blocks[0] as HTMLElement
-      // The tier hide class (`hidden taller:block` / `mid:hidden`) is dropped on
-      // the arranged branch, so an arranged crypto/quote is never height-hidden.
+      // The tier gate + fade (crypto's `tier-fade hidden … taller:*` / the
+      // quote's `quote-gate tier-fade`) is dropped on the arranged branch, so an
+      // arranged crypto/quote is never height-hidden.
       expect(block.className).toBe('')
       expect(block.style.position).toBe('fixed')
       expect(block.style.left).toBe(`${pos.x}%`)

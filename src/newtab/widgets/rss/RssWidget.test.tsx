@@ -58,11 +58,11 @@ describe('RssWidget', () => {
     expect(screen.getByText('The Verge')).toBeTruthy()
   })
 
-  it('trims to the first RSS_SHORT_ROWS rows on the short tier: rows past the 3rd carry short:hidden, the first three do not (Task 64 fix round 1 — keeps the card off the Notes pill at 451h)', async () => {
-    // Five headlines so there are rows beyond the 3-row short cap. jsdom has no
+  it('trims to the first RSS_SHORT_ROWS (4) rows on the short tier: rows past the 4th carry short:hidden, the first four do not (re-derived with the compact card — 4 compact rows clear the Notes pill by 35px at the 451 short floor)', async () => {
+    // Six headlines so there are rows beyond the 4-row short cap. jsdom has no
     // media queries, so this pins the class WIRING; the live 451h no-overlap +
     // pill-clickable proof is scripts/preview.mjs's rail probe.
-    const five: Headline[] = [0, 1, 2, 3, 4].map((i) => ({
+    const six: Headline[] = [0, 1, 2, 3, 4, 5].map((i) => ({
       source: `Src ${i}`,
       title: `Row ${i} headline`,
       url: `https://example.com/${i}`,
@@ -70,25 +70,25 @@ describe('RssWidget', () => {
     }))
     const storage = await seededStorage(
       { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
-      five,
+      six,
     )
     const { container } = mount(storage)
     await screen.findByText('Row 0 headline')
     const rows = [...container.querySelectorAll('li')]
-    expect(rows.length).toBe(5)
-    // First three always visible; rows 4th+ drop on short (row-level, so the
-    // card shrinks rather than disappearing entirely — headlines survive short).
+    expect(rows.length).toBe(6)
+    // First four always visible; rows 5th+ drop on short (row-level, so the
+    // card CONDENSES rather than disappearing entirely — headlines survive short).
     expect(rows[0].className).toBe('')
-    expect(rows[2].className).toBe('')
-    expect(rows[3].classList.contains('short:hidden')).toBe(true)
+    expect(rows[3].className).toBe('')
     expect(rows[4].classList.contains('short:hidden')).toBe(true)
+    expect(rows[5].classList.contains('short:hidden')).toBe(true)
   })
 
-  it('trims to the first RSS_MID_ROWS rows on the mid tier: only rows past the 7th carry mid:hidden (Task 65 — keeps the card off the Notes pill at the 601px mid-band floor without over-trimming where there is room)', async () => {
-    // Eight headlines (RSS's display max, shownCount:8) so exactly one row sits
-    // past the 7-row mid cap. jsdom has no media queries, so this pins the class
-    // WIRING; the live 601h no-overlap + pill-clickable proof is the mid-height
-    // and resize-sweep probes in scripts/preview.mjs.
+  it('does NOT trim on the mid tier anymore: the compact (dense) 8-row card fits the 601px mid floor with 41px to spare, so no row carries mid:hidden (RSS_MID_ROWS raised to the display max)', async () => {
+    // Eight headlines (RSS's display max, shownCount:8). jsdom has no media
+    // queries, so this pins the class WIRING; the live 601h no-overlap +
+    // pill-clickable proof is the mid-height and resize-sweep probes in
+    // scripts/preview.mjs.
     const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
       source: `Src ${i}`,
       title: `Row ${i} headline`,
@@ -103,17 +103,13 @@ describe('RssWidget', () => {
     await screen.findByText('Row 0 headline')
     const rows = [...container.querySelectorAll('li')]
     expect(rows.length).toBe(8)
-    // Rows 0-6 (the first RSS_MID_ROWS) never carry mid:hidden — they survive
-    // the mid tier. Only the 8th row (index 7) drops on mid.
-    for (let i = 0; i < 7; i++) expect(rows[i].classList.contains('mid:hidden')).toBe(false)
-    expect(rows[7].classList.contains('mid:hidden')).toBe(true)
-    // The mid trim is independent of the short trim: rows 3-6 drop only on
-    // short (not mid); the 8th row drops on BOTH (disjoint tiers, so it only
-    // ever hides under whichever one actually matches).
-    expect(rows[3].classList.contains('short:hidden')).toBe(true)
-    expect(rows[3].classList.contains('mid:hidden')).toBe(false)
+    // NO row carries mid:hidden — the compact card shows every headline on mid
+    // (the deploys card below it yields on dense instead, freeing the room).
+    for (let i = 0; i < 8; i++) expect(rows[i].classList.contains('mid:hidden')).toBe(false)
+    // The short trim still applies to rows past the 4th (a disjoint tier).
+    expect(rows[3].classList.contains('short:hidden')).toBe(false)
+    expect(rows[4].classList.contains('short:hidden')).toBe(true)
     expect(rows[7].classList.contains('short:hidden')).toBe(true)
-    expect(rows[7].classList.contains('mid:hidden')).toBe(true)
   })
 
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {

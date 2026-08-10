@@ -92,7 +92,7 @@ export default function Greeting() {
       // search, focus, links) — a second-order layout shift nothing here
       // has budget for. One line, capped, ellipsised is the same contract
       // the weather chip already keeps for its own long content.
-      className="text-photo font-display mt-2 short:mt-0.5 xshort:mt-0.5 text-4xl short:text-2xl xshort:text-lg font-medium text-canvas-fg min-w-0 max-w-full min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
+      className="text-photo font-display mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 text-4xl mid:text-3xl short:text-2xl xshort:text-lg font-medium text-canvas-fg min-w-0 max-w-full min-[721px]:max-[899px]:max-w-[18rem] compact:max-w-[calc(100vw-4rem)] truncate"
     >
       {text}
     </p>

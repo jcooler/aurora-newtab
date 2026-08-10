@@ -67,8 +67,8 @@ function GitlabInner({ token, instanceUrl }: { token: string; instanceUrl: strin
     // rounded-2xl/shadow-lg, w-80 fixed card width. `p-4`->`p-3` (Task 55
     // fix round 2 — see GithubWidget.tsx's own MAX_PRS comment): a modest,
     // right-column-only chrome trim, not a shape change.
-    <section aria-label="GitLab" className="w-80 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <section aria-label="GitLab" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
         {/* To-dos chip renders only when > 0 — todos is a plain number here
             (no null/"unavailable" case, unlike github's notifications), so
@@ -82,7 +82,7 @@ function GitlabInner({ token, instanceUrl }: { token: string; instanceUrl: strin
       {empty ? (
         <p className="text-sm text-fg-muted">No MRs assigned to you.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 dense:gap-1">
           {mrs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -107,7 +107,7 @@ function ItemRow({ item }: { item: GitlabMr }) {
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
         {item.project && <span className="block truncate text-xs text-fg-muted">{item.project}</span>}
-        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
       </a>

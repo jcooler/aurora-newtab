@@ -82,9 +82,9 @@ function CalendarInner({ url }: { url: string }) {
     return (
       <section
         aria-label="Calendar"
-        className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg"
+        className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
       >
-        <p className="text-sm text-fg-muted">No more events today.</p>
+        <p className="text-sm dense:text-xs text-fg-muted">No more events today.</p>
       </section>
     )
   }
@@ -94,9 +94,9 @@ function CalendarInner({ url }: { url: string }) {
   return (
     <section
       aria-label="Calendar"
-      className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg"
+      className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
     >
-      <p className="block truncate text-sm font-medium text-fg">
+      <p className="block truncate text-sm dense:text-xs font-medium text-fg">
         Next: {next.summary} · {relative}
       </p>
       {rows.length > 0 && (

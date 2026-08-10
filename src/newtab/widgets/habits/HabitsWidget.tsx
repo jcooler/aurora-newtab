@@ -68,7 +68,7 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
             type="button"
             aria-pressed={todayDone}
             onClick={() => toggleToday(h.id)}
-            className="flex cursor-pointer items-center gap-2 rounded-full border border-panel-border bg-panel-solid px-3 py-1.5 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
+            className="flex cursor-pointer items-center gap-2 dense:gap-1.5 rounded-full border border-panel-border bg-panel-solid px-3 dense:px-2 py-1.5 dense:py-1 text-left shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] focus-visible:outline-2 focus-visible:outline-accent"
           >
             <span
               aria-hidden
@@ -82,7 +82,7 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
                 — without it a long name refuses to shrink and pushes the
                 chip wider than its column instead of truncating (same
                 min-w-0 rationale BookmarksBar's own CHIP class documents). */}
-            <span title={h.name} className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
+            <span title={h.name} className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg">
               {h.name}
             </span>
             {count > 0 && (

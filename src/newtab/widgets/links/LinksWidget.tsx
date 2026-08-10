@@ -21,7 +21,7 @@ export default function LinksWidget() {
   return (
     <section
       aria-label="Quick links"
-      className="mt-10 short:mt-3 xshort:mt-1 flex flex-wrap items-start justify-center gap-3 short:gap-2 xshort:gap-1"
+      className="mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex flex-wrap items-start justify-center gap-3 short:gap-2 xshort:gap-1"
     >
       {links.map((link, i) => (
         <LinkTile

@@ -25,7 +25,7 @@ function CountdownLineInner() {
   if (!phrase) return null
 
   return (
-    <p className="text-photo mt-1 short:mt-0.5 xshort:mt-0.5 text-base short:text-sm xshort:text-xs font-medium text-accent">
+    <p className="text-photo mt-1 mid:mt-0.5 short:mt-0.5 xshort:mt-0.5 text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-accent">
       {phrase}
     </p>
   )

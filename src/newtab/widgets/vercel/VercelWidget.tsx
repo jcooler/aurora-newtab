@@ -55,13 +55,13 @@ function VercelInner({ token }: { token: string }) {
     // Floating panel surface — identical shape/elevation to every other
     // connector card (the house rule for floating surfaces): the solid panel
     // token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width.
-    <section aria-label="Vercel" className="w-80 rounded-2xl bg-panel-solid p-4 text-fg shadow-lg">
-      <h2 className="mb-2 text-sm font-semibold text-fg">Vercel</h2>
+    <section aria-label="Vercel" className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
+      <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
 
       {empty ? (
         <p className="text-sm text-fg-muted">No deployments yet.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 dense:gap-1">
           {deployments.map((item) => (
             <DeploymentRow key={item.url} item={item} now={now} />
           ))}
@@ -97,7 +97,7 @@ function DeploymentRow({ item, now }: { item: VercelDeployment; now: number }) {
         title={item.project}
         className="group flex cursor-pointer items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="min-w-0 flex-1 truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.project}
         </span>
         <span className={`shrink-0 text-xs ${stateClass(item.state)}`}>{item.state}</span>

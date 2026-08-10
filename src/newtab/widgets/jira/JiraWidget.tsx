@@ -77,8 +77,8 @@ function JiraInner({ site, email, apiToken }: { site: string; email: string; api
     // `p-4`->`p-3` (Task 55 fix round 2 — see GithubWidget.tsx's own
     // MAX_PRS comment): a modest, right-column-only chrome trim, not a
     // shape change.
-    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
         {/* Counts line renders only when there's at least one status to show —
             'when non-empty' per the brief. Never present alongside the empty
@@ -94,7 +94,7 @@ function JiraInner({ site, email, apiToken }: { site: string; email: string; api
       {empty ? (
         <p className="text-sm text-fg-muted">Nothing assigned to you.</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2 dense:gap-1">
           {issues.map((item) => (
             <ItemRow key={item.key} item={item} />
           ))}
@@ -120,7 +120,7 @@ function ItemRow({ item }: { item: JiraIssue }) {
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span className="block truncate text-xs text-fg-muted font-medium">{item.key}</span>
-        <span className="block truncate text-sm text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>
       </a>

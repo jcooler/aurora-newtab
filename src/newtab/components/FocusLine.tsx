@@ -17,7 +17,7 @@ export default function FocusLine() {
   if (!focus || editing) {
     return (
       <form
-        className="mt-10 short:mt-3 xshort:mt-1 flex flex-col items-center"
+        className="mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex flex-col items-center"
         onSubmit={(e) => {
           e.preventDefault()
           committed.current = true
@@ -28,7 +28,7 @@ export default function FocusLine() {
       >
         <label
           htmlFor="focus-input"
-          className="text-photo text-base short:text-sm xshort:text-xs font-medium text-canvas-fg-muted"
+          className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg-muted"
         >
           What&rsquo;s your main focus today?
         </label>
@@ -43,7 +43,7 @@ export default function FocusLine() {
               setEditing(false)
             }
           }}
-          className="text-photo mt-2 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
+          className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
         />
       </form>
     )
@@ -51,7 +51,7 @@ export default function FocusLine() {
 
   return (
     <div
-      className="group mt-10 short:mt-3 xshort:mt-1 flex items-center gap-3 short:gap-2 xshort:gap-1"
+      className="group mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex items-center gap-3 short:gap-2 xshort:gap-1"
       aria-live="polite"
     >
       {/* Round check — the same completion-checkmark control family as
@@ -87,7 +87,7 @@ export default function FocusLine() {
       </label>
       <label
         htmlFor="focus-done"
-        className={`text-photo text-xl short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${
+        className={`text-photo text-xl mid:text-lg short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${
           focus.done ? 'text-canvas-fg-muted line-through opacity-70' : 'text-canvas-fg'
         }`}
       >

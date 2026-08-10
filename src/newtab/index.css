@@ -406,6 +406,24 @@
    bottom-anchored Tasks pill (top = height-54) by the 16px floor only at
    height>=865, so 864 is the last height that still needs the tier. */
 @custom-variant mid (@media (max-height: 864px) and (min-height: 601px));
+/* Height-pressure compaction tier (resize-continuity task) — the ONE-step
+   "condense before you hide" band, ≤864px (the union of mid+short+xshort). A
+   card that is still SHOWN under any height pressure wears its compact skin
+   here: smaller title type (text-sm→text-xs), tighter row gaps and reduced
+   padding (p-3/p-4/p-2.5 → p-2), and the crypto strip drops text-sm→text-xs.
+   DELIBERATELY overlaps mid/short/xshort — it only ever sets card-INTERNAL
+   properties (padding, gap, font-size) that those height variants never touch
+   on the same element, so there is no generated-CSS source-order tie to break
+   (the disjointness discipline the short/xshort pair documents applies only
+   where two variants set the SAME property on one element). Monotonic by
+   construction: once the window drops below 864 the card is compact and STAYS
+   compact all the way down — it never re-expands, so shrinking reads as one
+   continuous condense, not a flip-flop. Center-column vertical rhythm is
+   compressed on the DISJOINT `mid` variant instead (it shares the margin
+   properties short/xshort already step), so the links row rises to clear the
+   bottom-anchored quote across the whole mid band — which is what lets the
+   quote's old mid:hidden DIE (App.tsx). */
+@custom-variant dense (@media (max-height: 864px));
 @custom-variant tight (@media (max-width: 1300px) and (min-width: 721px));
 @custom-variant narrow (@media (max-width: 1024px));
 @custom-variant compact (@media (max-width: 720px));
@@ -501,13 +519,49 @@
 [data-zone='right'] {
   container: aurora-rail / inline-size;
 }
+
+/* ── THE FADE LAW (resize-continuity task) ────────────────────────────────
+   Jon: "the quote and crypto literally disappear ... reappear and disappear.
+   ... things are straight up disappearing." Every tier-gated show/hide now
+   crosses with a soft ~180ms opacity fade instead of an instant display
+   blink. Chrome animates the display:none<->shown switch via
+   `transition-behavior: allow-discrete` (display flips discretely at the FAR
+   end of the fade — immediately on show, only AFTER the fade on hide) paired
+   with `@starting-style` (the pre-reveal opacity:0 a fade-in starts from).
+   Every gate below (and every Tailwind `*:hidden` hide-variant in App.tsx)
+   sets `opacity:0` alongside its `display:none`, so the fade always has
+   somewhere to travel. `.tier-fade` is carried by EVERY tier-gated block
+   (the rail primary/col2 width hides, the connector height hides, the crypto
+   reveal) — its className in App.tsx — so the discipline is one shared rule,
+   not re-derived per widget. `motion-reduce` collapses it back to the old
+   instant switch. The 180ms duration sits safely under every post-resize
+   settle wait in scripts/preview.mjs (>=300ms), so geometry probes still
+   measure fully-settled rects (display has flipped, opacity has landed),
+   never a mid-fade frame. Opacity does not affect getBoundingClientRect, so
+   the fade is invisible to every rect/clearance probe by construction. */
+.tier-fade {
+  transition: opacity 180ms ease, display 180ms allow-discrete;
+}
+@starting-style {
+  .tier-fade {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tier-fade {
+    transition: none;
+  }
+}
+
 .rail-col2 {
   display: none;
+  opacity: 0;
 }
 @container aurora-rail (min-width: 536px) {
-  @media (min-height: 740px) {
+  @media (min-height: 680px) {
     .rail-col2 {
       display: block;
+      opacity: 1;
     }
   }
 }
@@ -533,6 +587,38 @@
 @container aurora-rail (width < 336px) {
   .rail-primary {
     display: none;
+    opacity: 0;
+  }
+}
+
+/* ── The quote's MONOTONIC fade-out (resize-continuity task) ───────────────
+   The quote's old `mid:hidden` (601-864) was the worst offender Jon named: it
+   made the quote VANISH across the mid band and REAPPEAR below it (601-864
+   gone, <=600 back) — a non-monotonic blink. It DIES here. The quote now
+   scales DOWN under height pressure (QuoteWidget's mid/short/xshort type
+   steps) and the center column condenses on `mid` (App.tsx — the launcher
+   row, search, focus, world-clocks/countdown all step smaller so the flowing
+   links row rises), buying back the overlap the hide used to protect against
+   at healthy heights. But MEASURED against the WORST-CASE centred column
+   (world clocks + countdown both on, the harness's own worst seed), the links
+   row still laps the bottom-anchored quote below ~671px however hard the
+   column condenses without gutting the clock — a real geometric floor (the
+   old design lapped there too at wide+short, it was simply never probed). So
+   below that floor the quote yields — but MONOTONICALLY and FADED: shown and
+   shrinking above 671, a soft fade-out at 671, and STAYING out all the way
+   down. Never gone-then-back. `.tier-fade` (its className) carries the fade;
+   this sets the display+opacity the fade travels between. 671 = the measured
+   height where the quote's top clears the worst-case links row by the band's
+   reasoned 8px floor (scripts/preview.mjs's quote fencepost asserts 671/672).
+   DROPPED on the arranged branch like every tier class, so a dragged quote is
+   never height-hidden. */
+.quote-gate {
+  opacity: 1;
+}
+@media (max-height: 671px) {
+  .quote-gate {
+    display: none;
+    opacity: 0;
   }
 }
 

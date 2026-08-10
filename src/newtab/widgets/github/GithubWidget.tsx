@@ -83,8 +83,8 @@ function GithubInner({ token }: { token: string }) {
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 text-fg shadow-lg">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+      <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the count is known AND positive
             (Controller ruling 2): null (endpoint unavailable) hides it; 0 (all
@@ -101,7 +101,7 @@ function GithubInner({ token }: { token: string }) {
       ) : (
         <>
           {prs.length > 0 && (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex flex-col gap-2 dense:gap-1">
               {prs.map((item) => (
                 <ItemRow key={item.url} item={item} />
               ))}
@@ -109,8 +109,8 @@ function GithubInner({ token }: { token: string }) {
           )}
           {issues.length > 0 && (
             <ul
-              className={`flex flex-col gap-2${
-                prs.length > 0 ? ' mt-3 border-t border-panel-border pt-3' : ''
+              className={`flex flex-col gap-2 dense:gap-1${
+                prs.length > 0 ? ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2' : ''
               }`}
             >
               {issues.map((item) => (
@@ -139,7 +139,7 @@ function ItemRow({ item }: { item: GithubItem }) {
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
         {item.repo && <span className="block truncate text-xs text-fg-muted">{item.repo}</span>}
-        <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+        <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>
       </a>

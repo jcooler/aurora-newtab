@@ -39,7 +39,7 @@ export default function RssWidget() {
 // bottom ~350) clears the 397 pill top by 47px even against the calendar's own
 // worst height — a real >=16px floor, not shaved. `xshort` (<=450) hides the
 // whole card via the wrapper's own xshort:hidden, so this only governs `short`.
-const RSS_SHORT_ROWS = 3
+const RSS_SHORT_ROWS = 4
 
 // Mid-tier row cap (Task 65 — the 601-864px mid-height relief tier). On `mid`
 // the bottom-anchored Notes pill still rises as the window shrinks: at the
@@ -55,7 +55,7 @@ const RSS_SHORT_ROWS = 3
 // headline. `short` (RSS_SHORT_ROWS=3) trims harder because its 451px floor
 // puts the pill ~150px higher again; `xshort` hides the whole card. The three
 // tiers are disjoint (index.css), so only one row cap ever applies at a time.
-const RSS_MID_ROWS = 7
+const RSS_MID_ROWS = 8
 
 function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount: RssConfig['shownCount'] }) {
   // Stale-while-refreshing by construction: the hook returns the cached
@@ -84,7 +84,7 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
     // and the combined-defaults gate's 190-pair check, all re-measured for
     // this batch). w-72 is unchanged (the horizontal extent, and the ~380px
     // of clearance to the centered column, are the same as the bare version).
-    <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 text-fg shadow-lg">
+    <section aria-label="Headlines" className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg">
       <ul className="flex flex-col gap-1">
         {headlines.map((h, i) => {
           // Rows past RSS_SHORT_ROWS drop on `short`, and rows past RSS_MID_ROWS
@@ -122,7 +122,7 @@ function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount
                   title attribute on the link above. The list is capped at
                   shownCount rows in RssInner, so height is bounded by
                   construction rather than by a scroll container. */}
-              <span className="block truncate text-sm font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
+              <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
                 {h.title}
               </span>
             </a>

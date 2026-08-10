@@ -3205,9 +3205,10 @@ console.log(
   // daily board, and what the concept imagery shows — the strip is VISIBLE and
   // clears the flowing links row by the band's reasoned >=8px floor (the pinned
   // probe the controller required: this exact size becomes its own assertion,
-  // the number logged). At 800h (`mid`, below the 890 `taller` floor) crypto AND
-  // the quote both hide and the band is empty — the size that used to be
-  // text-on-text is provably clean by absence. gap-2 keeps crypto's top low
+  // the number logged). At 800h (below the 890 `taller` floor) crypto hides but
+  // the quote SHOWS — its old non-monotonic `mid:hidden` blink is dead; it stays
+  // visible above 671 and clears the links by measurement — so the size that
+  // used to be text-on-text is provably clean without going empty. gap-2 keeps crypto's top low
   // enough that 900 clears (a gap-4 would have raised it ~8px and hidden it at
   // 900 under any floor — the regression this fix round undoes).
   const tierState = async () =>
@@ -3251,11 +3252,12 @@ console.log(
   await page.setViewportSize({ width: 1600, height: 800 })
   await page.waitForTimeout(320)
   const t800 = await tierState()
-  const tierOk = !t800.crypto && !t800.quote
+  const quoteClear800 = t800.quote && t800.links ? +(t800.quote.top - t800.links.bottom).toFixed(1) : null
+  const tierOk = !t800.crypto && !!t800.quote && quoteClear800 !== null && quoteClear800 >= 8
   console.log(
     tierOk
-      ? 'PASS: at 800h (mid, below the 890 taller floor) both crypto and the quote hide and the band is empty — never text-on-text again'
-      : `FAIL: the band should be empty at 800h (crypto=${JSON.stringify(t800.crypto)}, quote=${JSON.stringify(t800.quote)})`,
+      ? `PASS: at 800h (below the 890 taller floor) crypto hides while the quote SHOWS — its old mid:hidden blink is dead, it stays monotonically visible above 671 — and clears the flowing links row by ${quoteClear800}px (>=8px), never text-on-text`
+      : `FAIL: at 800h crypto should hide and the quote should show + clear the links (crypto=${JSON.stringify(t800.crypto)}, quote=${JSON.stringify(t800.quote)}, quoteClear=${quoteClear800})`,
   )
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.waitForTimeout(300)
@@ -4519,11 +4521,12 @@ console.log(
   // cause was the centred column's own height (links.bottom=707.7 at 1280x800)
   // dipping BELOW the bottom-anchored quote (quote.top=704) — a ~4px overlap
   // BEFORE the old vh-pinned crypto even entered the gap. The bottom-band fix
-  // retired the vh-pin AND gates the quote: at 1280x800 (`mid`) the quote is
-  // `mid:hidden` and crypto is below its 890 `taller` floor, so the whole
-  // bottom band is empty and the links row has nothing to lap. The resize
-  // sweep's now-all-pairs step at 1280x800 asserts this live; the dedicated
-  // bottom-band captures below judge it by eye.
+  // retired the vh-pin AND the `mid` compression of the centred column now
+  // RAISES the links row so the quote clears it: at 1280x800 crypto is below its
+  // 890 `taller` floor (hidden) and the quote SHOWS (>671, no more blink) with
+  // its top well clear of the raised links row. The resize sweep's now-all-pairs
+  // step at 1280x800 asserts this live; the dedicated bottom-band captures below
+  // judge it by eye.
   for (const { w, h } of [
     { w: 1280, h: 800 },
     { w: 2560, h: 1440 },
@@ -4717,7 +4720,7 @@ console.log(
 //
 // SUB-PROBES, all in one seeded scope:
 //   A. THE RESIZE SWEEP — 1600x900 -> 1536x864 -> 1420x900 -> 1280x800 ->
-//      1024x768 -> 960x1010 -> 800x450 -> back to 1600x900. After each step: the
+//      1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back to 1600x900. After each step: the
 //      rail widgets the width/height disciplines say should be VISIBLE are found
 //      and those they say should be HIDDEN are gone (asserted BOTH ways) — note
 //      the two narrow steps (1024, 960 half-snap) are BELOW the 1193 width edge,
@@ -4728,17 +4731,25 @@ console.log(
 //      centre — the Task 64 lesson: a card lapping a pill fails a real click, not
 //      just a rect test); no new console errors. Captures rails-1536.png +
 //      rails-1280.png + rails-1024-narrow.png + rails-960-halfsnap.png.
-//   A2. THE MID-TIER HEIGHT FENCEPOSTS — 600/601 and 864/865, both edges live
-//      (the quote's own `mid:hidden` edge rides the 864/865 pair; its 600/601
-//      show-again edge rides the short|mid pair).
-//   A2b. THE CRYPTO REVEAL FENCEPOST — 889/890, the bottom band's own `taller`
-//      edge: HIDDEN@889, SHOWN@890 clearing the flowing links row by the band's
-//      reasoned >=8px floor (+ a pinned canonical-1600x900 visibility probe in
-//      the crypto block: the strip must show on Jon's daily board).
+//   A2. THE MID-TIER HEIGHT FENCEPOSTS — 600/601 and 864/865, both edges live.
+//      RE-DERIVED for the compact skins: github SURVIVES short now (shown both
+//      sides of 600/601; only the headlines card grows 4->8 rows), and
+//      vercel/gitlab/jira yield across the whole dense band (<=864), reappearing
+//      at 865.
+//   A2b. THE QUOTE'S MONOTONIC GATE (671/672) + THE CRYPTO REVEAL (889/890). The
+//      quote's old non-monotonic `mid:hidden` (the blink Jon named) is DEAD — it
+//      now yields ONCE below 671h, faded: HIDDEN@671, SHOWN@672 clearing the
+//      worst-case links row by the reasoned >=8px floor. Crypto still reveals at
+//      the `taller` edge 890 (HIDDEN@889, SHOWN@890) — it can't drop lower
+//      MONOTONICALLY: the 864/865 dense boundary makes the full-rhythm column lap
+//      a lowered strip across 865-889, and Jon's 900 must stay pristine — so its
+//      win here is the FADE, not a lower threshold (+ a pinned canonical-1600x900
+//      visibility probe: the strip must show on Jon's daily board).
 //   A3. THE WIDTH FENCEPOST — 1192/1193, the `.rail-primary` narrow-board edge:
 //      SHOWN@1193 clearing the forced-wide clock by >=16px, HIDDEN@1192.
-//   A4. THE COL2 HEIGHT-GATE FENCEPOST — 739/740, col2 hidden/shown with the
-//      627px worst stack clearing the bottom quote by >=16px at the 740 minimum.
+//   A4. THE COL2 HEIGHT-GATE FENCEPOST — 679/680 (dropped from 740 with the
+//      compact col2), col2 hidden/shown with the 567px compact stack clearing the
+//      now-SHOWN bottom quote by >=16px at the 680 minimum.
 //   B. STRUCTURAL RAILS TRUTHS — at 1600x900, every rail widget's rect sits
 //      inside its own zone's rect (rails-within-zones), and each zone's inner
 //      edge clears the centre-reserve boundary (the strip the rails must never
@@ -4765,12 +4776,14 @@ console.log(
 // column's own height vs the quote's bottom anchor at ~800px). That carve-out
 // was the last place the retired pinned-coordinate layout could hide a
 // collision, and the bottom-band fix is what lets it die: crypto and the quote
-// now flow in <aside data-zone="bottom"> and whole-hide by height tier where
-// they would lap the links row (crypto below 890h, quote across the `mid` band),
-// so the whole visible board is one flat all-pairs check with nothing exempt.
-// This step's pairwise is exactly what catches the two overlaps the exclusion
-// used to swallow — 1280x800 and 1024x768 (links dipping into the quote) — now
-// clean because the band is empty there.
+// now flow in <aside data-zone="bottom"> and yield by height tier where they
+// would lap the links row (crypto below 890h; the quote MONOTONICALLY below
+// 671h — no more mid-band blink), so the whole visible board is one flat
+// all-pairs check with nothing exempt. This step's pairwise is exactly what
+// catches the two overlaps the exclusion used to swallow — 1280x800 and
+// 1024x768 (links dipping into the quote) — now clean because at both the quote
+// SHOWS (both >671, the mid-compressed column raised the links to clear it) and
+// clears, rather than lapping.
 {
   const H = 3_600_000
   // Force the centred clock to a 2-DIGIT hour for the ENTIRE sweep (Playwright
@@ -5017,6 +5030,13 @@ console.log(
     { w: 1536, h: 864, vis: ['ics', 'rss', 'github'], cap: 'rails-1536.png', tier: 'mid (h864), no col2 (w<1593)' },
     { w: 1420, h: 900, vis: ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira'], cap: null, tier: 'default, no col2 (w<1593)' },
     { w: 1280, h: 800, vis: ['ics', 'rss', 'github'], cap: 'rails-1280.png', tier: 'mid (h800)' },
+    // WIDE + SHORT (a moved-threshold step this task adds): at 550h the SHORT
+    // tier is live and the rails are wide enough NOT to width-hide (1420>=1193),
+    // so it proves the re-derived hides — github SURVIVES short now (compact
+    // card, yields only on xshort) while vercel/gitlab/jira stay yielded (dense)
+    // and the quote/crypto are gone below their floors. github used to empty the
+    // right rail here; it stays.
+    { w: 1420, h: 550, vis: ['ics', 'rss', 'github'], cap: 'rails-1420x550-short.png', tier: 'short (h550, wide) — github survives, deploys/gitlab/jira yielded' },
     { w: 1024, h: 768, vis: [], cap: 'rails-1024-narrow.png', tier: 'narrow (w1024<1193) — rails hidden, centre board' },
     { w: 960, h: 1010, vis: [], cap: 'rails-960-halfsnap.png', tier: 'narrow (w960 half-snap, tall) — rails hidden' },
     { w: 800, h: 450, vis: [], cap: null, tier: 'xshort + narrow (w800<1193) — rails hidden' },
@@ -5116,7 +5136,7 @@ console.log(
   }
   console.log(
     sweepAllOk
-      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
+      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, github survives the wide-short step, they hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
       : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
   )
 
@@ -5168,19 +5188,25 @@ console.log(
     })
   }
 
-  // Fencepost 1 — the short|mid edge (600 vs 601). The mid tier ENGAGES at
-  // exactly 601: github appears (empty on short's right rail), rss's card grows
-  // from short's 3 rows back to mid's 7, and at 601 — the mid band's INTERIOR
-  // WORST — the trimmed left column and lone github both clear their pills by
-  // the >=16px floor. Pills clickable on BOTH sides of the edge.
+  // Fencepost 1 — the short|mid edge (600 vs 601), RE-DERIVED for the compact
+  // skins. github now SURVIVES short (its compact 193px card clears the Tasks
+  // pill by 24px at the 451 short floor), so it is SHOWN on BOTH sides of this
+  // edge — it no longer "appears" at 601. What flips across the edge is the LEFT
+  // column's HEADLINES card: the compact rss shows RSS_SHORT_ROWS (4) on short
+  // and its full 8 rows on mid (the deploys card below it yields across the
+  // whole dense band, freeing the room), so the card GROWS 4->8 rows.
+  // vercel/gitlab/jira stay yielded (dense, <=864) on BOTH sides. At 601 — the
+  // mid band's INTERIOR WORST — the compact left column (rss 8-row) clears the
+  // Notes pill and the lone compact github clears the Tasks pill, both by the
+  // >=16px floor. Pills clickable on BOTH sides of the edge.
   const f600 = await fence(1600, 600)
   const f601 = await fence(1600, 601)
   const shortMidFlip =
-    f600.github === null && f601.github !== null &&
+    f600.github !== null && f601.github !== null && // github survives BOTH sides now
     f600.vercel === null && f601.vercel === null &&
     f600.gitlab === null && f601.gitlab === null &&
     f600.jira === null && f601.jira === null &&
-    !!f600.rss && !!f601.rss && f601.rss.bottom > f600.rss.bottom + 100 // rss 3 -> 7 rows: the card grows
+    !!f600.rss && !!f601.rss && f601.rss.bottom > f600.rss.bottom + 100 // rss 4 -> 8 rows: the card grows
   const leftClear601 = f601.rss && f601.notes.top != null ? +(f601.notes.top - f601.rss.bottom).toFixed(1) : null
   const rightClear601 = f601.github && f601.tasks.top != null ? +(f601.tasks.top - f601.github.bottom).toFixed(1) : null
   const midLowOk =
@@ -5190,8 +5216,8 @@ console.log(
     rightClear601 !== null && rightClear601 >= FENCE_FLOOR
   console.log(
     midLowOk
-      ? `PASS: the mid tier engages at exactly 601h — github appears (hidden@600) and rss grows 3->7 rows; at the band's 601px INTERIOR WORST the left column (rss bottom ${f601.rss.bottom}) clears the Notes pill (top ${f601.notes.top}) by ${leftClear601}px and the right column (github bottom ${f601.github.bottom}) clears the Tasks pill (top ${f601.tasks.top}) by ${rightClear601}px; both pills clickable at 600 AND 601`
-      : `FAIL: the mid tier's short|mid edge at 600/601 (flip=${shortMidFlip}, leftClear601=${leftClear601}, rightClear601=${rightClear601}, pills600 n=${f600.notes.clickable}/t=${f600.tasks.clickable}, pills601 n=${f601.notes.clickable}/t=${f601.tasks.clickable}, f600=${JSON.stringify(f600)}, f601=${JSON.stringify(f601)})`,
+      ? `PASS: the short|mid edge holds at 600/601 — github SURVIVES both sides (compact card, yields only on xshort) and the headlines card grows 4->8 rows (rss bottom ${f600.rss.bottom} -> ${f601.rss.bottom}); vercel/gitlab/jira stay yielded (dense, <=864) both sides; at the 601px INTERIOR WORST the left column (rss bottom ${f601.rss.bottom}) clears the Notes pill (top ${f601.notes.top}) by ${leftClear601}px and the lone github (bottom ${f601.github.bottom}) clears the Tasks pill (top ${f601.tasks.top}) by ${rightClear601}px; both pills clickable at 600 AND 601`
+      : `FAIL: the short|mid edge at 600/601 (flip=${shortMidFlip}, leftClear601=${leftClear601}, rightClear601=${rightClear601}, pills600 n=${f600.notes.clickable}/t=${f600.tasks.clickable}, pills601 n=${f601.notes.clickable}/t=${f601.tasks.clickable}, f600=${JSON.stringify(f600)}, f601=${JSON.stringify(f601)})`,
   )
 
   // Fencepost 2 — the mid|default edge (864 vs 865). The mid tier RELEASES at
@@ -5218,25 +5244,36 @@ console.log(
       : `FAIL: the mid tier's mid|default edge at 864/865 (flip=${midDefaultFlip}, leftClear865=${leftClear865}, rightClear865=${rightClear865}, pills864 n=${f864.notes.clickable}/t=${f864.tasks.clickable}, pills865 n=${f865.notes.clickable}/t=${f865.tasks.clickable}, f864=${JSON.stringify(f864)}, f865=${JSON.stringify(f865)})`,
   )
 
-  // ── Sub-probe A2b: the BOTTOM BAND's own fenceposts ───────────────────────
-  // The quote's `mid:hidden` edge rides BOTH mid boundaries already rendered
-  // above (f600/f601 and f864/f865) — reuse them, no new resize. The quote is
-  // SHOWN at <=600 (short — the compressed column clears it) and >=865 (the
-  // column has room again), and HIDDEN across the mid band (601-864) where the
-  // full-rhythm centred column's links row dips into the bottom-anchored quote.
-  // Crypto stays hidden across all four (all <890). MEASURED clearances logged.
-  const quoteClear600 = f600.quote && f600.links ? +(f600.quote.top - f600.links.bottom).toFixed(1) : null
-  const quoteClear865 = f865.quote && f865.links ? +(f865.quote.top - f865.links.bottom).toFixed(1) : null
-  const quoteMidHideOk =
-    f600.quote !== null && f601.quote === null &&
-    f864.quote === null && f865.quote !== null &&
-    f600.crypto === null && f601.crypto === null && f864.crypto === null && f865.crypto === null &&
-    quoteClear600 !== null && quoteClear600 >= FENCE_FLOOR &&
-    quoteClear865 !== null && quoteClear865 >= FENCE_FLOOR
+  // ── Sub-probe A2b: the quote's MONOTONIC faded gate ───────────────────────
+  // The quote's old non-monotonic `mid:hidden` (gone 601-864, back <=600 — the
+  // blink Jon named: "the quote ... disappear ... then reappear and disappear")
+  // is DEAD. The quote now scales DOWN under height pressure (its mid/short/
+  // xshort type steps) while the centred column condenses on `mid` (the
+  // launcher row, search, focus, world-clocks/countdown), and yields exactly
+  // ONCE — MONOTONICALLY — below 671h (index.css `.quote-gate`): shown and
+  // shrinking above it, a soft fade-out at the floor, and STAYING gone below,
+  // never gone-then-back. MEASURED against the WORST-CASE centred column (world
+  // clocks + countdown both on, this scope's seed): the links row laps the
+  // bottom-anchored quote below ~671 however hard the column condenses without
+  // gutting the clock (the old design lapped there too at wide+short, it was
+  // simply never probed). Prove the edge: HIDDEN@671, SHOWN@672 with the quote's
+  // top clearing the links row by the band's reasoned >=8px floor. The quote is
+  // SHOWN across the whole mid band ABOVE it (reuse f864/f865 — both >671),
+  // where the compressed column clears it by a wide margin. Crypto stays hidden
+  // across all of these (all <890).
+  const QUOTE_FLOOR = 8
+  const f671 = await fence(1600, 671)
+  const f672 = await fence(1600, 672)
+  const quoteClear672 = f672.quote && f672.links ? +(f672.quote.top - f672.links.bottom).toFixed(1) : null
+  const quoteGateOk =
+    f671.quote === null && f672.quote !== null &&
+    f864.quote !== null && f865.quote !== null &&
+    f671.crypto === null && f672.crypto === null && f864.crypto === null && f865.crypto === null &&
+    quoteClear672 !== null && quoteClear672 >= QUOTE_FLOOR
   console.log(
-    quoteMidHideOk
-      ? `PASS: the quote rides the mid band's edges — SHOWN@600 clearing the links row by ${quoteClear600}px, HIDDEN@601 (short|mid); HIDDEN@864, SHOWN@865 clearing by ${quoteClear865}px (mid|default); crypto stays hidden across all four (all <890)`
-      : `FAIL: the quote's mid:hidden fenceposts (shown600=${f600.quote !== null}, hidden601=${f601.quote === null}, hidden864=${f864.quote === null}, shown865=${f865.quote !== null}, clear600=${quoteClear600}, clear865=${quoteClear865}, crypto[600/601/864/865]=${f600.crypto}/${f601.crypto}/${f864.crypto}/${f865.crypto})`,
+    quoteGateOk
+      ? `PASS: the quote yields MONOTONICALLY, no more blink — HIDDEN@671, SHOWN@672 with its top (${f672.quote.top}) clearing the worst-case links row (bottom ${f672.links.bottom}) by ${quoteClear672}px (>=${QUOTE_FLOOR}px, the band's reasoned floor); SHOWN across the whole mid band above (864 AND 865); crypto hidden across all four (all <890)`
+      : `FAIL: the quote's monotonic gate at 671/672 (hidden671=${f671.quote === null}, shown672=${f672.quote !== null}, shown864=${f864.quote !== null}, shown865=${f865.quote !== null}, clear672=${quoteClear672}, crypto[671/672/864/865]=${f671.crypto}/${f672.crypto}/${f864.crypto}/${f865.crypto})`,
   )
 
   // Crypto reveal fencepost — the band's own `taller` edge (889/890). HIDDEN@889,
@@ -5329,22 +5366,18 @@ console.log(
       : `FAIL: the primary rails' width edge at 1192/1193 (shown@1193=${shownAt1193}, hidden@1192=${hiddenAt1192}, leftGap=${leftClockGap1193}, rightGap=${rightClockGap1193}, pills1193 n=${wf1193.notes.clickable}/t=${wf1193.tasks.clickable}, pills1192 n=${wf1192.notes.clickable}/t=${wf1192.tasks.clickable}, wf1193=${JSON.stringify(wf1193)}, wf1192=${JSON.stringify(wf1192)})`,
   )
 
-  // ── Sub-probe A4: the col2 HEIGHT gate fencepost (this wave) ───────────────
+  // ── Sub-probe A4: the col2 HEIGHT gate fencepost, RE-DERIVED ───────────────
   // The `.rail-col2` gate is `@container (min-width:536px)` AND `@media
-  // (min-height:740px)` (index.css). Its WIDTH edge is proven by
-  // displaysAt(1593/1592) elsewhere, but its HEIGHT edge (740) had no LIVE
-  // fencepost. Prove it like the mid-tier pair: at a col2-eligible width (1600),
-  // col2 is HIDDEN@739 / SHOWN@740 (monthCal+habits).
-  //
-  // The gate's 740 threshold was ORIGINALLY derived from the bottom quote
-  // (627px stack + quote's 96px box + 16px floor = 739 -> 740). The bottom-band
-  // fix now `mid:hidden`s the quote across 601-864, so at the gate's 740 minimum
-  // the quote is ABSENT — the col2 stack has an empty band beneath it, nothing
-  // to lap — and the 740 threshold is retained as a (now conservative) floor.
-  // Where the quote REAPPEARS (>=865h) the taller viewport lets the same 627px
-  // stack clear its top by a wide margin; this fencepost asserts BOTH: quote
-  // absent at 740, and cleared by >=16px at 865 (its interior worst as the quote
-  // rises).
+  // (min-height:680px)` (index.css) — its HEIGHT edge dropped 740 -> 680 with
+  // the COMPACT (dense) monthCal+habits: the stack is now 235+16+196 = bottom
+  // 567 (vs the old 627), so it clears the bottom quote at a lower height. Prove
+  // the edge like the mid-tier pair: at a col2-eligible width (1600), col2 is
+  // HIDDEN@679 / SHOWN@680 (monthCal+habits). Unlike the old quote (which was
+  // mid:hidden and ABSENT beneath col2 at the gate), the quote's new monotonic
+  // gate keeps it SHOWN above 671, so at the 680 gate the quote IS present and
+  // the col2 stack must CLEAR it — which it does by 31px (habits bottom 567 vs
+  // quote top 598). At the interior worst (680) and at a taller 865 (full col2,
+  // habits bottom 627, quote top 769) the clearance holds by >=16px.
   const col2Fence = async (w, h) => {
     await page.setViewportSize({ width: w, height: h })
     await page.waitForTimeout(340)
@@ -5373,21 +5406,21 @@ console.log(
       }
     })
   }
-  const c739 = await col2Fence(1600, 739)
-  const c740 = await col2Fence(1600, 740)
-  const c865 = await col2Fence(1600, 865) // where the quote reappears (>864)
-  const col2Flip = c739.monthCal === null && c739.habits === null && c740.monthCal !== null && c740.habits !== null
-  const quoteAbsent740 = c740.quote === null // mid:hidden — empty band beneath col2
+  const c679 = await col2Fence(1600, 679)
+  const c680 = await col2Fence(1600, 680)
+  const c865 = await col2Fence(1600, 865)
+  const col2Flip = c679.monthCal === null && c679.habits === null && c680.monthCal !== null && c680.habits !== null
+  const habitsQuoteGap680 = c680.habits && c680.quote ? +(c680.quote.top - c680.habits.bottom).toFixed(1) : null
   const habitsQuoteGap865 = c865.habits && c865.quote ? +(c865.quote.top - c865.habits.bottom).toFixed(1) : null
   const col2FenceOk =
     col2Flip &&
-    quoteAbsent740 &&
+    habitsQuoteGap680 !== null && habitsQuoteGap680 >= FENCE_FLOOR &&
     habitsQuoteGap865 !== null && habitsQuoteGap865 >= FENCE_FLOOR &&
-    c740.notes.clickable && c740.tasks.clickable && c739.notes.clickable && c739.tasks.clickable
+    c680.notes.clickable && c680.tasks.clickable && c679.notes.clickable && c679.tasks.clickable
   console.log(
     col2FenceOk
-      ? `PASS: the col2 height gate holds at exactly 740h — HIDDEN@739 / SHOWN@740 (monthCal+habits); at 740 the quote is mid-hidden so the col2 stack has an empty band beneath it, and where the quote reappears (865h) the 6-row/6-chip col2 (habits bottom ${c865.habits.bottom}) clears it (top ${c865.quote.top}) by ${habitsQuoteGap865}px (>=${FENCE_FLOOR}px); both pills clickable on BOTH sides`
-      : `FAIL: the col2 height gate at 739/740 (flip=${col2Flip}, quoteAbsent740=${quoteAbsent740}, habitsQuoteGap865=${habitsQuoteGap865}, pills739 n=${c739.notes.clickable}/t=${c739.tasks.clickable}, pills740 n=${c740.notes.clickable}/t=${c740.tasks.clickable}, c739=${JSON.stringify(c739)}, c740=${JSON.stringify(c740)}, c865=${JSON.stringify(c865)})`,
+      ? `PASS: the col2 height gate holds at exactly 680h — HIDDEN@679 / SHOWN@680 (monthCal+habits); the compact col2 stack (habits bottom ${c680.habits.bottom}) clears the SHOWN quote (top ${c680.quote.top}) by ${habitsQuoteGap680}px at the 680 interior worst, and the full 6-row/6-chip col2 at 865 (habits bottom ${c865.habits.bottom}) clears it (top ${c865.quote.top}) by ${habitsQuoteGap865}px (both >=${FENCE_FLOOR}px); both pills clickable on BOTH sides`
+      : `FAIL: the col2 height gate at 679/680 (flip=${col2Flip}, habitsQuoteGap680=${habitsQuoteGap680}, habitsQuoteGap865=${habitsQuoteGap865}, pills679 n=${c679.notes.clickable}/t=${c679.tasks.clickable}, pills680 n=${c680.notes.clickable}/t=${c680.tasks.clickable}, c679=${JSON.stringify(c679)}, c680=${JSON.stringify(c680)}, c865=${JSON.stringify(c865)})`,
   )
 
   // ── Sub-probe B: structural rails truths (rails-within-zones) at 1600x900 ──
@@ -5639,15 +5672,17 @@ console.log(
 // ── The bottom band's own captures + the text-on-text scenario, judged ──────
 // The exact conditions that used to be text-on-text — crypto + links + quote
 // ALL on, worldClocks+countdown seeded (the tallest centred column) — at the
-// two sizes fable-review flagged (1280x800 and 1600x741), now provably clean:
-// `mid`/`taller` empty the bottom band at both, so the flowing links row has
-// nothing beneath it to lap. Plus two POPULATED captures: 1600x900 (Jon's
-// canonical daily board — the strip present and clear, 13.5px links
-// clearance) and 1600x1000 (a taller variant), both judging that the strip
-// sits gap-2 above the quote and both clear the links. Self-contained: seeds,
-// captures, asserts by absence (empty band) and direct measurement (populated
-// band), restores. The clock is forced to a 2-digit hour so every capture
-// shows the centred column's true wide worst case.
+// two sizes fable-review flagged (1280x800 and 1600x741), now provably clean.
+// The quote no longer BLINKS off across the mid band (its old `mid:hidden`);
+// it SHOWS at both these sizes (both >671, its monotonic gate) and CLEARS the
+// flowing links row by the reasoned >=8px floor, while crypto stays hidden
+// (both <890) — clean by MEASUREMENT, not by an empty band. Plus two POPULATED
+// captures: 1600x900 (Jon's canonical daily board — the strip present and
+// clear, 13.5px links clearance) and 1600x1000 (a taller variant), both
+// judging that the strip sits gap-2 above the quote and both clear the links.
+// Self-contained: seeds, captures, asserts by direct measurement, restores.
+// The clock is forced to a 2-digit hour so every capture shows the centred
+// column's true wide worst case.
 {
   const cryptoSel = '[data-block-id="crypto"] section'
   await page.evaluate(async () => {
@@ -5697,19 +5732,23 @@ console.log(
       return { crypto: box(selCr), quote: box('[data-block-id="quote"]'), links: box('[data-block-id="links"]') }
     }, cryptoSel)
 
-  // The two sizes that were text-on-text: the band is EMPTY (crypto+quote both
-  // hidden), so no bottom-band text can meet the links row.
+  // The two sizes that used to be text-on-text: the QUOTE now SHOWS at both
+  // (both >671, above its monotonic gate — it no longer blinks off across the
+  // mid band) while crypto stays hidden (both <890). The band is the quote
+  // alone, and it CLEARS the flowing links row by the reasoned >=8px floor — no
+  // text-on-text, proven by MEASUREMENT this time, not by absence.
   for (const { w, h } of [{ w: 1280, h: 800 }, { w: 1600, h: 741 }]) {
     await page.setViewportSize({ width: w, height: h })
     await page.waitForTimeout(340)
     await page.screenshot({ path: `${outDir}/bottom-band-${w}x${h}.png` })
     console.log(`captured bottom-band-${w}x${h}.png`)
     const s = await bandState()
-    const cleanOk = s.crypto === null && s.quote === null
+    const qClear = s.quote && s.links ? +(s.quote.top - s.links.bottom).toFixed(1) : null
+    const cleanOk = s.crypto === null && s.quote !== null && qClear !== null && qClear >= 8
     console.log(
       cleanOk
-        ? `PASS: bottom band is empty at ${w}x${h} (crypto + quote both height-hidden) — the size that was text-on-text is clean by absence (links bottom ${s.links?.bottom})`
-        : `FAIL: bottom band should be empty at ${w}x${h} (crypto=${JSON.stringify(s.crypto)}, quote=${JSON.stringify(s.quote)})`,
+        ? `PASS: at ${w}x${h} the quote SHOWS (no blink) and clears the flowing links row by ${qClear}px (>=8px); crypto hidden (<890) — the size that was text-on-text is clean by measurement (quote top ${s.quote.top}, links bottom ${s.links?.bottom})`
+        : `FAIL: bottom band at ${w}x${h} — the quote should show and clear the links (crypto=${JSON.stringify(s.crypto)}, quote=${JSON.stringify(s.quote)}, qClear=${qClear})`,
     )
   }
 
@@ -5744,6 +5783,150 @@ console.log(
       connectors: { ...connectors, crypto: { ...connectors.crypto, enabled: false } },
       connectorSnapshots: {},
     })
+  })
+  await page.clock.setFixedTime(Date.now())
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(600)
+}
+
+// ── THE FADE LAW probe (resize-continuity task) ─────────────────────────────
+// Jon: "things are straight up disappearing." Every tier-gated show/hide must
+// cross with a soft opacity fade — NEVER an instant blink — implemented once,
+// on the shared `.tier-fade` class (index.css), via `transition-behavior:
+// allow-discrete` (the display:none<->shown switch flips discretely at the FAR
+// end of the fade) + `@starting-style` (the pre-reveal opacity:0 the fade-in
+// starts from), with prefers-reduced-motion collapsing it back to the instant
+// switch. This asserts the MECHANISM is actually wired onto tier-gated elements'
+// COMPUTED style — the crypto strip's block and a rail card both carry
+// `.tier-fade` — and that motion-reduce disables it. Live computed style, not
+// source inspection: the real falsifier that the fade exists (and the guard the
+// task's own review asked for — "a probe asserting the fade mechanism exists").
+{
+  const readFade = async (sel) =>
+    page.evaluate((s) => {
+      const el = document.querySelector(s)
+      if (!el) return null
+      const cs = getComputedStyle(el)
+      return { cls: el.className, prop: cs.transitionProperty, dur: cs.transitionDuration, behavior: cs.transitionBehavior }
+    }, sel)
+
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(400)
+
+  const cryptoFade = await readFade('[data-block-id="crypto"]')
+  const githubFade = await readFade('[data-block-id="github"]')
+  const fadeWired = (f) =>
+    !!f &&
+    /\btier-fade\b/.test(f.cls) &&
+    /opacity/.test(f.prop) && /display/.test(f.prop) &&
+    /0\.18s/.test(f.dur) &&
+    /allow-discrete/.test(f.behavior)
+  const fadeOk = fadeWired(cryptoFade) && fadeWired(githubFade)
+  console.log(
+    fadeOk
+      ? `PASS: the fade law is wired on tier-gated elements — crypto + rail blocks carry .tier-fade with transition-property "${cryptoFade.prop}", duration "${cryptoFade.dur}", transition-behavior "${cryptoFade.behavior}" (display:none<->shown fades via allow-discrete + @starting-style, never an instant blink)`
+      : `FAIL: the fade mechanism is not wired on a tier-gated element (crypto=${JSON.stringify(cryptoFade)}, github=${JSON.stringify(githubFade)})`,
+  )
+
+  // prefers-reduced-motion collapses the fade back to the instant switch
+  // (`.tier-fade { transition: none }`), so every duration reads 0s.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(300)
+  const cryptoReduced = await readFade('[data-block-id="crypto"]')
+  const reducedInstant =
+    !!cryptoReduced && cryptoReduced.dur.split(',').every((d) => parseFloat(d) === 0)
+  console.log(
+    reducedInstant
+      ? `PASS: prefers-reduced-motion collapses the fade to an instant switch (.tier-fade transition-duration "${cryptoReduced.dur}") — motion-reduce respected`
+      : `FAIL: prefers-reduced-motion did not disable the fade (${JSON.stringify(cryptoReduced)})`,
+  )
+  await page.emulateMedia({ reducedMotion: null })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(300)
+}
+
+// ── Jon's size-ladder captures (resize-continuity task) ─────────────────────
+// The controller's required deliverable for Jon's OWN eyes (his sentence is the
+// gate, not "the $10k bar"): a fully populated board resized from his canonical
+// 1600x900 straight down through ~750, ~600, ~450 — does everything visibly
+// SHRINK/condense before anything leaves, and does whatever must leave FADE
+// rather than pop? Captures continuity-{900,750,600,450}h.png (all 1600w) plus
+// continuity-1280x800.png. Seeds the full board (every connector at display max
+// + worldClocks + countdown + habits + monthCal + crypto), forces a 2-digit
+// clock for the centred column's true wide worst case, captures, restores.
+{
+  const H = 3_600_000
+  const now0 = new Date()
+  const forced = new Date(now0.getFullYear(), now0.getMonth(), now0.getDate(), 10, 44, 0, 0)
+  const fMs = forced.getTime()
+  const fTodayEnd = new Date(now0.getFullYear(), now0.getMonth(), now0.getDate() + 1).getTime()
+  await page.clock.setFixedTime(forced)
+  await page.evaluate(async (fx) => {
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+    const now = Date.now()
+    const lk = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
+    const prev = (k) => { const [y, m, d] = k.split('-').map(Number); return lk(new Date(y, m - 1, d - 1)) }
+    const run = (end, n) => { const a = []; let c = end; for (let i = 0; i < n; i++) { a.push(c); c = prev(c) } return a }
+    const today = lk(new Date(now)); const yst = prev(today)
+    await chrome.storage.local.set({
+      location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+      weatherCache: { current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true }, hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })), fetchedAt: fx.fMs, locationLabel: 'New York' },
+      links: [{ id: 'l1', title: 'GitHub', url: 'https://github.com' }, { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' }],
+      worldClocks: [{ zone: 'Asia/Tokyo', label: 'Tokyo' }, { zone: 'Europe/London', label: 'London' }],
+      countdowns: [{ id: 'c1', name: 'Launch', date: '2030-01-01' }],
+      habits: [
+        { id: 'h1', name: 'Read daily', createdAt: now, log: run(today, 12) },
+        { id: 'h2', name: 'Stretch', createdAt: now, log: run(yst, 5) },
+        { id: 'h3', name: 'Meditate', createdAt: now, log: [] },
+        { id: 'h4', name: 'Journal', createdAt: now, log: [today] },
+      ],
+      settings: { ...settings, widgets: { ...settings.widgets, habits: true, monthCal: true, timer: true, clocks: true, countdown: true } },
+      connectors: {
+        ...connectors,
+        rss: { enabled: true, feeds: ['https://a/rss', 'https://b/rss'], shownCount: 8 },
+        github: { enabled: true, token: 'gh', username: 'octocat' },
+        gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+        jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' },
+        vercel: { enabled: true, token: 'vc', username: 'jcooler' },
+        crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] },
+        ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+      },
+      connectorSnapshots: {
+        rss: { fetchedAt: now, data: Array.from({ length: 8 }, (_, i) => ({ source: i % 2 ? 'The Verge' : 'Hacker News', title: `Headline ${i + 1}: a local-first dashboard people actually keep open`, url: `https://example.com/l/${i}`, publishedAt: 8 - i })) },
+        github: { fetchedAt: now, data: { prs: [{ title: 'Fix the flaky auth test on CI', url: 'a', repo: 'acme/app' }, { title: 'Extract the shared connector http helper', url: 'b', repo: 'acme/app' }], issues: [{ title: 'Cold-start crash when storage is empty', url: 'c', repo: 'acme/web' }, { title: 'Weather chip overlaps the bar at 800px', url: 'd', repo: 'acme/web' }], notifications: 3, etags: {} } },
+        gitlab: { fetchedAt: now, data: { mrs: [{ title: 'Add rate limiting to the ingest API', url: 'e', project: 'acme/platform' }, { title: 'Bump vite to 6.x', url: 'f', project: 'acme/platform' }, { title: 'Split the connector http helper', url: 'g', project: 'acme/platform' }], todos: 6 } },
+        jira: { fetchedAt: now, data: { issues: [{ key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'h' }, { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'i' }, { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'j' }], counts: { 'In Progress': 2, 'To Do': 1 } } },
+        vercel: { fetchedAt: now, data: { deployments: [{ project: 'marketing-site', state: 'ERROR', url: 'k', createdAt: fx.fMs - 6 * fx.H }, { project: 'app-web', state: 'READY', url: 'l', createdAt: fx.fMs - 180000 }, { project: 'admin', state: 'READY', url: 'm', createdAt: fx.fMs - 600000 }, { project: 'landing', state: 'READY', url: 'n', createdAt: fx.fMs - 1200000 }, { project: 'docs', state: 'BUILDING', url: 'o', createdAt: fx.fMs - fx.H }] } },
+        crypto: { fetchedAt: now, data: { coins: [{ id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 }, { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 }, { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 }, { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 }, { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 }] } },
+        ics: { fetchedAt: now, data: { events: [{ summary: 'Standup', start: fx.fMs + fx.H, end: fx.fMs + fx.H + 1800000 }, { summary: 'Design review', start: fx.fMs + 2 * fx.H, end: fx.fMs + 2 * fx.H + 1800000 }, { summary: '1:1 with Sam', start: fx.fMs + 3 * fx.H, end: fx.fMs + 3 * fx.H + 1800000 }, { summary: 'Kickoff', start: fx.fTodayEnd + 9 * fx.H, end: fx.fTodayEnd + 9 * fx.H + 1800000 }] } },
+      },
+    })
+  }, { fMs, H, fTodayEnd })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(900)
+  for (const cap of [{ w: 1600, h: 900, n: 'continuity-900h.png' }, { w: 1600, h: 750, n: 'continuity-750h.png' }, { w: 1600, h: 600, n: 'continuity-600h.png' }, { w: 1600, h: 450, n: 'continuity-450h.png' }, { w: 1280, h: 800, n: 'continuity-1280x800.png' }]) {
+    await page.setViewportSize({ width: cap.w, height: cap.h })
+    await page.waitForTimeout(500) // let the reflow + the 180ms fades fully settle
+    await page.screenshot({ path: `${outDir}/${cap.n}` })
+    console.log(`captured ${cap.n} (${cap.w}x${cap.h})`)
+  }
+  console.log('Jon size-ladder captures done: continuity-{900,750,600,450}h.png + continuity-1280x800.png (HIS eyes are the gate — shrink/condense before anything leaves, fade what must)')
+  // Restore: disable everything seeded here, clock back to real, viewport 1600x900.
+  await page.evaluate(async () => {
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+    const off = {}
+    for (const k of ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics']) off[k] = { ...connectors[k], enabled: false }
+    await chrome.storage.local.set({ connectors: { ...connectors, ...off }, connectorSnapshots: {}, habits: [], settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } } })
   })
   await page.clock.setFixedTime(Date.now())
   await page.setViewportSize({ width: 1600, height: 900 })
@@ -6381,7 +6564,11 @@ console.log(
   await page.waitForTimeout(200)
   const displaysAt = async (w) => {
     await page.setViewportSize({ width: w, height: 900 })
-    await page.waitForTimeout(180)
+    // >180ms: the col2 blocks carry `.tier-fade`, whose display:none<->block
+    // switch is deferred to the FAR end of the 180ms fade (transition-behavior:
+    // allow-discrete). Measuring `display` at exactly 180ms caught the element
+    // mid-fade (still `block`, opacity animating) — wait the fade fully out.
+    await page.waitForTimeout(340)
     return page.evaluate(
       ({ mSel, hSel }) => {
         const d = (sel) => {
