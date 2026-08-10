@@ -227,6 +227,74 @@ describe('CalendarWidget', () => {
     expect(screen.getByText('No upcoming events.')).toBeTruthy()
   })
 
+  // Final-review fix wave (Finding 2): the spec explicitly promises an event
+  // on two calendars renders TWICE (no cross-calendar dedup). Both copies
+  // share summary/start/end, so a key built from only those two fields
+  // collides — React logs a duplicate-key warning and reconciliation between
+  // the two rows is undefined. The fix folds `ev.cal` into the key.
+  it('two events sharing summary/start/end on different calendars both render, with no React duplicate-key warning', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const dupCal0 = ev(
+      'Standup',
+      new Date(2026, 7, 8, 9, 0, 0).getTime(),
+      new Date(2026, 7, 8, 9, 30, 0).getTime(),
+      0,
+    )
+    const dupCal1 = ev(
+      'Standup',
+      new Date(2026, 7, 8, 9, 0, 0).getTime(),
+      new Date(2026, 7, 8, 9, 30, 0).getTime(),
+      1,
+    )
+    const storage = await seededStorage(
+      { ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 },
+      { events: [EVENT_NEXT, dupCal0, dupCal1] },
+    )
+    mount(storage)
+    await act(async () => {})
+
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map(
+      (li) => li.textContent,
+    )
+    expect(rows).toEqual(['Sat 09:00 Standup', 'Sat 09:00 Standup'])
+
+    const keyWarning = consoleError.mock.calls.some((args) =>
+      args.some(
+        (a) => typeof a === 'string' && (a.includes('same key') || a.includes('unique "key"')),
+      ),
+    )
+    expect(keyWarning).toBe(false)
+    consoleError.mockRestore()
+  })
+
+  // Final-review fix wave (Finding 5): dayToken's own 6-vs-7-day fencepost —
+  // pure test addition, dayToken's logic is unchanged. NOW is Fri 2026-08-07;
+  // +6 days is Thu 2026-08-13 (still a weekday token), +7 days is Fri
+  // 2026-08-14 (crosses into the date-token branch).
+  it('day token fencepost: exactly 6 days out uses the weekday token, exactly 7 days out uses the date token', async () => {
+    const sixDaysOut = ev(
+      'Six out',
+      new Date(2026, 7, 13, 10, 0, 0).getTime(),
+      new Date(2026, 7, 13, 10, 30, 0).getTime(),
+    )
+    const sevenDaysOut = ev(
+      'Seven out',
+      new Date(2026, 7, 14, 10, 0, 0).getTime(),
+      new Date(2026, 7, 14, 10, 30, 0).getTime(),
+    )
+    const storage = await seededStorage(
+      { ...CONNECTED, view: 'upcoming', upcomingCount: 3 },
+      { events: [EVENT_NEXT, sixDaysOut, sevenDaysOut] },
+    )
+    mount(storage)
+    await act(async () => {})
+
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map(
+      (li) => li.textContent,
+    )
+    expect(rows).toEqual(['Thu 10:00 Six out', 'Aug 14 10:00 Seven out'])
+  })
+
   it('a multi-day all-day event already in progress renders with the today idiom, not a past date token', async () => {
     const started = ev('Vacation', new Date(2026, 7, 6, 0, 0, 0).getTime(), new Date(2026, 7, 9, 0, 0, 0).getTime()) // Thu–Sun, spans NOW
     const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 }, { events: [started, EVENT_NEXT] })

@@ -2194,10 +2194,17 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
 
   const ICS_URL = 'https://calendar.example.com/private-abc123/basic.ics'
 
-  async function renderWithIcs(ics?: IcsConfig) {
+  // `seedSnapshot`: mirrors CalendarWidget.test.tsx's own seededStorage — a
+  // FRESH connectorSnapshots.ics entry, present so the add/remove-clears-it
+  // tests below have something to observe disappearing. Default false keeps
+  // every existing call site (which doesn't care about the snapshot) as-is.
+  async function renderWithIcs(ics?: IcsConfig, seedSnapshot = false) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (ics) await storage.set('connectors', { ics })
+    if (seedSnapshot) {
+      await storage.set('connectorSnapshots', { ics: { fetchedAt: Date.now(), data: { events: [] } } })
+    }
     render(
       <StorageProvider storage={storage}>
         <SettingsPanel onArrangeLayout={() => {}} />
@@ -2462,6 +2469,66 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       view: 'upcoming',
       upcomingCount: 4,
     })
+  })
+
+  // Final-review fix wave (Finding 1): adding/removing a calendar remounts
+  // CalendarWidget (its key includes the urls — CalendarWidget.tsx), but a
+  // FRESH cached snapshot would still short-circuit useConnectorSnapshot's
+  // one-refresh-per-mount for up to the 15-min TTL — a newly added calendar
+  // would show no events, and a removal would leave stale cal-indexed
+  // events pointing at the wrong calendars. IcsBody's handleAdd/handleRemove
+  // now delete connectorSnapshots.ics as part of the same write so the
+  // remounted widget finds none and fetches immediately.
+  it('adding a calendar clears the cached ics snapshot', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true }, true)
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), {
+        target: { value: ICS_URL },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([{ name: 'Calendar 1', url: ICS_URL }])
+    expect((await storage.get('connectorSnapshots')).ics).toBeUndefined()
+  })
+
+  it('removing a calendar clears the cached ics snapshot', async () => {
+    const storage = await renderWithIcs(
+      { enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] },
+      true,
+    )
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([])
+    expect((await storage.get('connectorSnapshots')).ics).toBeUndefined()
+  })
+
+  it('a view-mode change does NOT clear the cached ics snapshot — only add/remove invalidate it', async () => {
+    const storage = await renderWithIcs(
+      { enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] },
+      true,
+    )
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+
+    const viewSelect = within(connectorsRegion()).getByLabelText('Show') as HTMLSelectElement
+    await act(async () => {
+      fireEvent.change(viewSelect, { target: { value: 'per-calendar' } })
+    })
+
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url: ICS_URL }],
+      view: 'per-calendar',
+      upcomingCount: 3,
+    })
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
   })
 
   // Calendar is auth 'none' — the card shell's status chip (Task 46) is a

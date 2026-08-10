@@ -440,7 +440,15 @@ export default function App() {
               bottom-anchored and rise as the window shrinks; the MECHANISM +
               this priority are binding, pinned by scripts/preview.mjs's rail +
               resize-sweep probes): col1 keeps CALENDAR at every height (worst
-              ~78px, always clears); HEADLINES trims to its first RSS_MID_ROWS
+              ~132px — p-2.5 padding (20px) + the text-sm headline row (20px)
+              + the list's mt-1 (4px) + up to 5 text-xs rows at 16px each
+              with gap-0.5 between them (5*16 + 4*2 = 88px); the
+              2026-08-10 ics-multi-calendar wave's 'per-calendar' view can
+              show one row per configured calendar, up to MAX_CALENDARS=5
+              (ics.ts) — the feature's true display max (CalendarWidget.tsx /
+              scripts/preview.mjs's own true-max fixture), up from the old
+              2-row MAX_AGENDA_ROWS cap this comment used to cite at ~78px —
+              always clears); HEADLINES trims to its first RSS_MID_ROWS
               rows on mid and its first RSS_SHORT_ROWS on short so the card can't
               grow over the Notes pill at either tier's floor (see RssWidget's
               math) and drops entirely on xshort; DEPLOYS drops on mid AND short

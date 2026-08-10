@@ -38,8 +38,11 @@ import { icsDescriptor } from './ics'
 // probe, no identityField, and (per its own secretFields: []) nothing ever
 // stripped from its config on export. Task 53 adds ics as #7 — also
 // `auth: 'none'`, but the FIRST no-auth connector that DOES strip a secret:
-// its whole `url` is the secret (secretFields: ['url'], see backup.test.ts's
-// ics case), with a per-config derived https origin like gitlab's/jira's.
+// its whole `url` is the secret (secretFields: ['url', 'calendars'] — the
+// multi-calendar wave (2026-08-10) added `calendars`, each entry's own url
+// the same kind of secret, so a config mid-migration never leaks either
+// shape; see backup.test.ts's ics case), with a per-config derived https
+// origin like gitlab's/jira's.
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,

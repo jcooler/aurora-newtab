@@ -65,9 +65,18 @@ export default function CalendarWidget() {
   const { view, upcomingCount } = icsViewOf(ics)
   if (!ics?.enabled || calendars.length === 0) return null
   // key: a config change (add/remove/reorder, OR a view-mode/count change)
-  // REMOUNTS the inner widget so useConnectorSnapshot's one-refresh-per-mount
-  // fires against the new list and selectAgenda re-runs from a clean slate —
-  // this is what makes the spec's index-keyed-fallback edge transient.
+  // REMOUNTS the inner widget so selectAgenda re-runs from a clean slate
+  // against the new calendars/view. The remount ALONE does not force a
+  // refetch — useConnectorSnapshot's mount effect only fetches when the
+  // cached snapshot is stale or absent (its own TTL-gated contract, see
+  // that hook's doc comment). What actually makes an add/remove refresh
+  // immediately (and is what makes the spec's index-keyed-fallback edge
+  // transient) is IcsBody (Connectors.tsx) deleting connectorSnapshots.ics
+  // as part of that same write — the remounted widget then finds no
+  // snapshot at all and fetches right away. A view-mode/count-only change
+  // does NOT clear the snapshot (IcsBody's own clearIcsSnapshot doc
+  // comment), so it remounts against the same cached data with no
+  // unnecessary fetch.
   return (
     <CalendarInner
       key={[view, upcomingCount, ...calendars.map((c) => c.url)].join('\n')}
@@ -151,7 +160,11 @@ function CalendarInner({
         <ul className="mt-1 flex flex-col gap-0.5">
           {rows.map((ev) => (
             <li
-              key={`${ev.start}-${ev.summary}`}
+              // `cal` included: the spec explicitly promises an event on two
+              // calendars renders TWICE — same start+summary, different
+              // cal — so start+summary alone collides (React duplicate-key
+              // warning, undefined reconciliation between the two rows).
+              key={`${ev.cal}-${ev.start}-${ev.summary}`}
               className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
             >
               {multi && dot(ev.cal)}

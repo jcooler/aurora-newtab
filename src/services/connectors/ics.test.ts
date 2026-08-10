@@ -10,7 +10,7 @@
 // EDT -4) — the delta between consecutive weekly occurrences is one hour
 // SHORTER than a bare 7-day span. Both absolute epochs are pinned below.
 import { describe, expect, it, vi } from 'vitest'
-import { parseIcs, fetchIcs, icsDescriptor, icsCalendarsOf, icsViewOf, type IcsData } from './ics'
+import { parseIcs, fetchIcs, icsDescriptor, icsCalendarsOf, icsViewOf, MAX_CALENDARS, type IcsData } from './ics'
 
 /** Wraps a VEVENT (or several) in a realistic VCALENDAR envelope. */
 function cal(body: string): string {
@@ -826,6 +826,20 @@ describe('icsCalendarsOf — read-time config normalization', () => {
     expect(icsCalendarsOf({ enabled: true, url: '' })).toEqual([])
     expect(icsCalendarsOf({ enabled: true })).toEqual([])
     expect(icsCalendarsOf(undefined)).toEqual([])
+  })
+  // Final-review fix wave (Finding 3): the settings card re-checks the cap
+  // at write time, but icsCalendarsOf is the READ-time boundary every
+  // caller goes through — hand-edited/backup-restored storage holding more
+  // than MAX_CALENDARS valid entries must never render past the swept
+  // display max (5 dots, 5 rows).
+  it(`caps at MAX_CALENDARS (${MAX_CALENDARS}): more valid entries than the cap returns only the first ${MAX_CALENDARS}`, () => {
+    const cals = Array.from({ length: MAX_CALENDARS + 1 }, (_, i) => ({
+      name: `Cal ${i + 1}`,
+      url: `https://calendar${i}.example.com/basic.ics`,
+    }))
+    const result = icsCalendarsOf({ enabled: true, calendars: cals })
+    expect(result).toHaveLength(MAX_CALENDARS)
+    expect(result).toEqual(cals.slice(0, MAX_CALENDARS))
   })
 })
 

@@ -75,8 +75,8 @@ only `enabled`, per the existing discipline).
   ?? { events: [] }`) remains for the degenerate no-calendars case.
   Accepted edge: the fallback keys by index, so a snapshot taken under a
   differently-ordered calendar list can transiently mis-tag a failed feed's
-  carried-over events until the next successful refresh (config changes
-  remount the widget and trigger one immediately).
+  carried-over events until the next successful refresh (add/remove clears
+  the cached snapshot, so the remounted widget fetches immediately).
 - Descriptor changes: `secretFields: ['url', 'calendars']` — the whole
   list strips on backup export (every URL is a secret; names without URLs
   are useless), and the legacy `url` field strips too: migration is

@@ -548,18 +548,32 @@ export async function fetchIcs(
   return { events }
 }
 
+// Cap on calendars — the cap BELONGS to the connector (not the settings
+// card that happens to be the only writer today): icsCalendarsOf is the
+// read-time boundary every caller (widget gate, IcsBody, origins()) goes
+// through, so it's the one place that can guarantee hand-edited or
+// backup-restored storage holding more than the swept display max never
+// renders past it. Connectors.tsx imports this same constant (rather than
+// keeping its own literal) so the write-time guard there and this read-time
+// clamp can never drift apart — ics.ts itself must not import FROM settings,
+// so the constant lives here and flows outward, never the other way.
+export const MAX_CALENDARS = 5
+
 /** Read-time migration — the ONLY place both at-rest shapes are understood.
- *  A valid `calendars` array wins (malformed entries filtered, not fatal);
- *  else a non-empty legacy `url` becomes one calendar named 'Calendar';
- *  else []. No storage migration exists: the first save from the new
- *  settings card writes the new shape. */
+ *  A valid `calendars` array wins (malformed entries filtered, not fatal,
+ *  then capped at MAX_CALENDARS — see the constant's own doc comment above);
+ *  else a non-empty legacy `url` becomes one calendar named 'Calendar'; else
+ *  []. No storage migration exists: the first save from the new settings
+ *  card writes the new shape. */
 export function icsCalendarsOf(config: IcsConfig | undefined): IcsCalendar[] {
   if (!config) return []
   if (Array.isArray(config.calendars)) {
-    return config.calendars.filter(
-      (c): c is IcsCalendar =>
-        !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.url === 'string' && c.url.length > 0,
-    )
+    return config.calendars
+      .filter(
+        (c): c is IcsCalendar =>
+          !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.url === 'string' && c.url.length > 0,
+      )
+      .slice(0, MAX_CALENDARS)
   }
   if (typeof config.url === 'string' && config.url.length > 0) return [{ name: 'Calendar', url: config.url }]
   return []

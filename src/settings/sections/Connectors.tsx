@@ -7,7 +7,7 @@ import { whoamiGithub, resolveGithubViews } from '../../services/connectors/gith
 import { whoamiGitlab } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
 import { whoamiVercel } from '../../services/connectors/vercel'
-import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES } from '../../services/connectors/ics'
+import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
 import Section from '../Section'
@@ -885,8 +885,10 @@ function CryptoBody({ config, storage }: BodyProps) {
 // `webcal://` link — Apple's own scheme for a private calendar subscription
 // — is silently rewritten to `https://` before anything is validated, so a
 // link copied straight out of Apple Calendar's "Public Calendar" toggle
-// works untouched.
-const MAX_CALENDARS = 5
+// works untouched. MAX_CALENDARS itself now lives in ics.ts (imported
+// above) — icsCalendarsOf enforces the same cap at READ time (hand-edited
+// storage over the cap must not render past it), so the write-time guard
+// here and that read-time clamp share one source of truth.
 
 /** `new URL(url).host`, or '' for anything unparseable — DISPLAY only (it
  *  never gates validation; originPattern is what decides grantable-or-not,
@@ -940,6 +942,26 @@ function IcsBody({ config, storage }: BodyProps) {
       }
     })
 
+  // WHY: CalendarWidget.tsx's own gate remounts CalendarInner on every
+  // calendars/view/upcomingCount change (its key includes both), but a
+  // remount ALONE does not force a refetch — useConnectorSnapshot's mount
+  // effect only fetches when the cached snapshot is stale or absent (its
+  // TTL-gated contract, 15 minutes for ics). Without this, adding a
+  // calendar would show no events for that calendar for up to 15 minutes
+  // (the fresh cached snapshot short-circuits the fetch), and removing one
+  // would leave stale events whose `cal` indices now point at the WRONG
+  // calendars (wrong dots, wrong per-calendar grouping) until the next
+  // natural refresh. Deleting the snapshot here is what makes the
+  // remounted widget find none and fetch immediately. Deliberately NOT
+  // called from the view/upcomingCount-only writes below (those don't
+  // invalidate any calendar's cached events, so the cache stays useful).
+  const clearIcsSnapshot = () =>
+    storage.update('connectorSnapshots', (prev) => {
+      const next = { ...prev }
+      delete next.ics
+      return next
+    })
+
   async function handleAdd(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     setError(null)
@@ -979,10 +1001,18 @@ function IcsBody({ config, storage }: BodyProps) {
 
     const trimmedName = name.trim()
     await updateIcs((cals) =>
-      cals.some((c) => c.url === normalized)
+      // Re-checked HERE (not just the disabled inputs/button, and not just
+      // the `atCap` closed over from render): two rapid submits before a
+      // re-render both read the same stale `atCap`, so without re-deriving
+      // the cap against THIS write's own `cals` a double-submit could push
+      // past MAX_CALENDARS. Belt and braces with icsCalendarsOf's own
+      // .slice(0, MAX_CALENDARS) (ics.ts) — that one guards hand-edited
+      // storage, this one guards the write path itself.
+      cals.some((c) => c.url === normalized) || cals.length >= MAX_CALENDARS
         ? cals
         : [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }],
     )
+    await clearIcsSnapshot()
     setName('')
     setUrl('')
   }
@@ -997,6 +1027,11 @@ function IcsBody({ config, storage }: BodyProps) {
     // before a re-render still sees the first's result, not a stale one.
     const before = await storage.get('connectors')
     const next = await updateIcs((cals) => cals.filter((c) => c.url !== target))
+    // Clear BEFORE the origin early-return below (a bad/unparseable url
+    // still removes its calendar from the list, and its stale cal-indexed
+    // events must not linger regardless of whether an origin can be
+    // derived from it) — see clearIcsSnapshot's own doc comment above.
+    await clearIcsSnapshot()
     const origin = originOf(target)
     if (!origin) return
     const remaining = icsCalendarsOf(next.ics as IcsConfig | undefined)

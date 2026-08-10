@@ -49,7 +49,8 @@ anywhere except as explicitly described under "Network calls" below:
   "Arrange layout" to move anything from its default spot)
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
   GitHub/GitLab/Jira/Vercel: the token or email+token you connected with;
-  for Calendar: the ICS URL you pasted; for Crypto: the coins you chose)
+  for Calendar: the calendar addresses you added, up to 5; for Crypto: the
+  coins you chose)
   and a local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
@@ -66,9 +67,9 @@ data (e.g. cached RSS headlines, which is disposable and rebuilt
 automatically, not something you entered) — to a JSON file you choose to
 save, and re-import it later. Connector configuration itself (e.g. your RSS
 feed list) IS included in the export, minus any field that connector
-declares as secret — every GitHub/GitLab/Jira/Vercel token, and the
-Calendar connector's ICS URL, is stripped from the exported file
-automatically, before it's ever written to disk (see "Connectors" below for
+declares as secret — every GitHub/GitLab/Jira/Vercel token, and every
+calendar address you've added to the Calendar connector, is stripped from
+the exported file automatically, before it's ever written to disk (see "Connectors" below for
 the full per-connector list and the mechanism that enforces it). This file
 is created and read entirely on your device — Aurora never
 uploads it anywhere on its own. Where that file goes afterward (cloud
@@ -215,7 +216,7 @@ automatically.
 
 **Token connectors.** RSS, Crypto, and Calendar need no credential
 (`auth: 'none'`) — there's nothing to keep secret beyond, for Calendar,
-the feed URL itself (see below). GitHub, GitLab, Jira, and Vercel do
+each calendar address itself (see below). GitHub, GitLab, Jira, and Vercel do
 require a credential to read your own data, and each one stores it only in
 `chrome.storage.local`, on your device, exactly like everything else
 Aurora stores — never sent anywhere except to the one provider it
@@ -228,8 +229,10 @@ update. GitHub/GitLab/Vercel each declare their token secret; Jira declares
 its API token secret (the email address travels with the rest of the
 config, unstripped — it identifies you to Jira, the same way a username
 would, and isn't itself a bearer credential); Calendar declares its whole
-`url` secret, since the URL alone is what grants read access to the
-calendar; RSS and Crypto declare no secret fields, because they have none.
+`calendars` list (every entry's own address) secret, since each address
+alone is what grants read access to that calendar — up to 5 per the
+connector's own cap; RSS and Crypto declare no secret fields, because they
+have none.
 
 **RSS, concretely.** Aurora fetches only the feed URLs you've added in
 Settings → Connectors — nothing else — at most about once every 30 minutes
@@ -263,10 +266,10 @@ its own interval or sooner on demand:
   Refreshed roughly every 5 minutes.
 - **Crypto** — talks only to api.coingecko.com; sends only the coin ids
   you chose — no account, no token. Refreshed roughly every 5 minutes.
-- **Calendar** — fetches only the secret ICS address you pasted; the
-  address itself is treated as a secret (see "Token connectors" above) and
-  never leaves your device except to that calendar host. Refreshed roughly
-  every 15 minutes.
+- **Calendar** — fetches only the secret calendar addresses you've added,
+  up to 5; each address itself is treated as a secret (see "Token
+  connectors" above) and never leaves your device except to its own
+  calendar host. Refreshed roughly every 15 minutes.
 
 ## Data collection, sale, and sharing
 
