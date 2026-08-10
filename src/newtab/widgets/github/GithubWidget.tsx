@@ -105,15 +105,29 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
 
-  // The graph reveals only at a height where the WHOLE stack — github+graph plus
-  // any sibling cards below it — clears the bottom-anchored Tasks pill by the
-  // 16px rail floor. Sole card or one sibling: `taller` (>=890h). Two siblings
-  // (gitlab AND jira): the graph's +176px pushes jira's bottom to 971, needing
-  // >=1041h — the `grand` tier (index.css). One boundary per config shape, so the
-  // reveal is monotonic across a resize (toggling a connector changes the shape,
-  // never blinks a single card). Full class strings so the JIT emits both.
-  const graphWrap = forgeSiblings >= 2 ? 'hidden grand:block' : 'hidden taller:block'
-  const graphSep = forgeSiblings >= 2 ? GRAPH_SEP_GRAND : GRAPH_SEP_TALLER
+  // The graph reveals only at a height where the WHOLE stack — github plus any
+  // sibling cards below it — clears the bottom-anchored Tasks pill by the 16px
+  // rail floor. The tier depends on BOTH the sibling count AND github's OWN
+  // composition, because a rows-bearing card is far taller than a graph-only one
+  // (all measured, scripts/preview.mjs, 1600w):
+  //   · sole card or ONE sibling → `taller` (>=890h), for ANY composition.
+  //   · two siblings WITH a rows section (pulls or issues on) → `grand` (>=1041h):
+  //     github+graph+rows (411) + gitlab + jira put jira at [797-971], which needs
+  //     >=1041h. (A SINGLE rows-section is a 306px card that would clear at >=936h,
+  //     but rather than a third tier for that ~105px window it reveals on `grand`
+  //     too — conservative, one fewer boundary.)
+  //   · two siblings and GRAPH-ONLY (no pulls, no issues — Jon's "just my commit
+  //     graph"; notifications adds only a header chip, no height) → `taller`
+  //     (>=890h): the 201px graph-only card + gitlab + jira put jira at [587-761],
+  //     clearing the 890-floor pill (836) by 75px. Without this the graph-only
+  //     card would be `grand`-gated and render a HEADER-ONLY HUSK at 890-1040h
+  //     (including Jon's 1600x900) — the very card the feature exists to show.
+  // One boundary per config shape, so the reveal is monotonic across a resize
+  // (toggling a connector or a section changes the shape, never blinks a card).
+  // Full class strings so the JIT emits both variants.
+  const graphNeedsGrand = forgeSiblings >= 2 && (views.pulls || views.issues)
+  const graphWrap = graphNeedsGrand ? 'hidden grand:block' : 'hidden taller:block'
+  const graphSep = graphNeedsGrand ? GRAPH_SEP_GRAND : GRAPH_SEP_TALLER
 
   // A disabled list is empty regardless of what the snapshot still carries.
   const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []

@@ -455,10 +455,12 @@
    clearance) at every narrower width. */
 @custom-variant taller (@media (min-height: 890px));
 /* GitHub commit-graph reveal tier for the TWO-SIBLING right rail (Task 70). The
-   graph is `hidden taller:block` when github is the rail's sole card or has ONE
-   forge sibling; with BOTH gitlab AND jira enabled below it, the graph reveals
-   here instead (GithubWidget.tsx picks `grand:block`). DERIVATION (the number
-   lives ONLY here): the right rail is a top-anchored flow column from
+   graph is `hidden taller:block` (>=890h) when github is the rail's sole card, has
+   ONE forge sibling, OR is graph-only (no rows — a 201px card that clears at 890
+   even with two siblings). It reveals HERE instead only when BOTH gitlab AND jira
+   are enabled AND github carries a rows section (pulls or issues), the one shape
+   tall enough to need it — GithubWidget.tsx picks `grand:block`. DERIVATION (the
+   number lives ONLY here): the right rail is a top-anchored flow column from
    rail-top-right 180 with gap-4 (16px); the three display-max cards with the
    graph in are github+graph[180-591] gitlab[607-781] jira[797-971] (measured,
    scripts/preview.mjs, 1600w — the graph's own +176px is what lifts jira's bottom

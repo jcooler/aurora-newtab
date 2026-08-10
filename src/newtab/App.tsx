@@ -543,25 +543,31 @@ export default function App() {
 
               THE GRAPH YIELDS BEFORE ANY WHOLE CARD, AND YIELDS TO ITS SIBLINGS
               (Task 70's rule). The commit-graph section (GithubWidget.tsx) reveals
-              at a SIBLING-AWARE height tier — the graph's +176px only fits above
-              the bottom-anchored pill once the WHOLE stack (github+graph plus any
-              sibling cards below) does, so the widget counts enabled forge siblings
-              (gitlab, jira) and picks the tier:
-                · SOLE CARD or ONE sibling → `taller` (>=890h), `hidden taller:block`
-                  — one tier ABOVE where gitlab/jira hide (dense, 864). github alone
-                  + graph (bottom 591) clears the 890-floor pill (836) by 245px, 255px
-                  at Jon's 900; one 174px sibling puts the stack bottom at 781, still
-                  55px clear. It cannot ride lower: alone on `mid`, github+graph
-                  (361, bottom 541) clears the 601-floor pill (547) by only 6px, and
-                  at 889 (graph hidden) fit is instantly restored.
-                · TWO siblings (gitlab AND jira) → `grand` (>=1041h, `hidden
-                  grand:block`, derived in index.css). github+graph+gitlab+jira put
-                  jira at [797-971]; that clears the pill (h−54) by the 16px floor
-                  only at >=1041h — below it the graph stays hidden and the stack is
-                  rows-only (jira.bottom 795, 16px clear at 865). Without this the
-                  three-connector board would lap the pill at Jon's 900 (jira.bottom
-                  971 vs pill.top 846) — the collision the sweep now catches, with
-                  GITHUB_FIXTURE seeded to its true graph-in display max.
+              at a tier chosen from BOTH the sibling count AND github's OWN
+              composition — the graph fits above the bottom-anchored pill once the
+              WHOLE stack does, and a rows-bearing card is far taller than a
+              graph-only one:
+                · SOLE CARD or ONE sibling → `taller` (>=890h), any composition.
+                  github alone + graph (bottom 591) clears the 890-floor pill (836)
+                  by 245px, 255px at Jon's 900; one 174px sibling puts the stack
+                  bottom at 781, still 55px clear. It cannot ride lower: alone on
+                  `mid`, github+graph (361, bottom 541) clears the 601-floor pill
+                  (547) by only 6px, and at 889 (graph hidden) fit is restored.
+                · TWO siblings WITH a rows section (pulls or issues on) → `grand`
+                  (>=1041h, derived in index.css). github+graph+rows+gitlab+jira put
+                  jira at [797-971]; that clears the pill (h−54) by 16px only at
+                  >=1041h. Without this the three-connector board would lap the pill
+                  at Jon's 900 (jira.bottom 971 vs pill.top 846) — the collision the
+                  sweep now catches, GITHUB_FIXTURE seeded to true display max. (One
+                  rows-section is a 306px card clearing at >=936h, but it reveals on
+                  `grand` too — one fewer tier for a ~105px window.)
+                · TWO siblings and GRAPH-ONLY (no pulls, no issues — Jon's "just my
+                  commit graph"; notifications is a header chip, no height) →
+                  `taller` (>=890h). The 201px graph-only card + gitlab + jira put
+                  jira at [587-761], clearing the 890-floor pill (836) by 75px.
+                  Composition-blind gating would `grand`-hide this SHORT card and
+                  render a header-only HUSK at 890-1040h (Jon's 1600x900 included) —
+                  the very card the feature exists to show.
               Each is monotonic by construction (one boundary per config shape); the
               descent never re-shows the graph. Zero pairwise overlaps survive.
 

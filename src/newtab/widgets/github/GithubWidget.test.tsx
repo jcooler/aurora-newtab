@@ -222,18 +222,20 @@ describe('GithubWidget', () => {
     expect(within(stat).getByText('day streak')).toBeTruthy()
   })
 
-  // Task 70 fix — the graph's reveal TIER is SIBLING-AWARE: the +176px graph only
-  // fits above the bottom-anchored Tasks pill once the whole right-rail stack
-  // does, so GithubWidget counts enabled forge siblings (gitlab, jira) and picks
-  // the wrapper class — 0 or 1 → `hidden taller:block` (>=890h); 2 → `hidden
-  // grand:block` (>=1041h). Class-pinned here (jsdom, the RSS tier-test idiom) so
-  // a regression that lets the graph ride a lower tier — and lap the pill when
-  // three forge cards stack — fails a unit before it ever reaches the harness.
-  async function seededWithSiblings(gitlab: boolean, jira: boolean): Promise<AuroraStorage> {
+  // Task 70 fix — the graph's reveal TIER depends on BOTH the enabled forge
+  // sibling count (gitlab, jira) AND github's OWN composition, because a
+  // rows-bearing card is far taller than a graph-only one: sole card / one
+  // sibling → `hidden taller:block` (>=890h) for any composition; two siblings
+  // WITH rows (pulls or issues) → `hidden grand:block` (>=1041h); two siblings
+  // GRAPH-ONLY → back to `taller` (the 201px card fits at 890). Class-pinned here
+  // (jsdom, the RSS tier-test idiom) so a regression — the graph riding too LOW
+  // (lapping the pill when three tall cards stack) or too HIGH (a graph-only husk
+  // at 890-1040) — fails a unit before it ever reaches the harness.
+  async function seededWithSiblings(gitlab: boolean, jira: boolean, github: GithubConfig = CONNECTED): Promise<AuroraStorage> {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', {
-      github: CONNECTED,
+      github,
       ...(gitlab ? { gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'x' } } : {}),
       ...(jira ? { jira: { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' } } : {}),
     })
@@ -241,6 +243,8 @@ describe('GithubWidget', () => {
     return storage
   }
   const graphWrapper = () => screen.getByRole('img').closest('section')!
+  const GRAPH_ONLY: GithubConfig = { ...CONNECTED, views: { commitGraph: true, pulls: false, issues: false, notifications: false } }
+  const GRAPH_PLUS_PULLS: GithubConfig = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: false, notifications: false } }
 
   it('reveals the graph on `taller` (>=890h) when github is the rail\'s SOLE forge card', async () => {
     mount(await seededWithSiblings(false, false))
@@ -259,13 +263,29 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
   })
 
-  it('yields the graph to `grand` (>=1041h) with TWO forge siblings — gitlab AND jira share the column', async () => {
+  it('yields the graph to `grand` (>=1041h) with TWO forge siblings and a full (rows-bearing) card', async () => {
     mount(await seededWithSiblings(true, true))
     const img = await screen.findByRole('img')
     const wrapper = graphWrapper().querySelector('[class*="grand:block"]')
     expect(wrapper).toBeTruthy()
     expect(wrapper!.classList.contains('hidden')).toBe(true)
     expect(wrapper!.contains(img)).toBe(true)
+    expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
+  })
+
+  it('with TWO siblings but a GRAPH-ONLY card (no rows), the short card reveals on `taller` (>=890h), NOT grand — no header-only husk at 890-1040', async () => {
+    mount(await seededWithSiblings(true, true, GRAPH_ONLY))
+    const img = await screen.findByRole('img')
+    const wrapper = graphWrapper().querySelector('[class*="taller:block"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.contains(img)).toBe(true)
+    expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
+  })
+
+  it('with TWO siblings and a single rows section (pulls on), github reveals on `grand` (>=1041h) — conservatively, not the ~936h a precise tier would allow', async () => {
+    mount(await seededWithSiblings(true, true, GRAPH_PLUS_PULLS))
+    await screen.findByRole('img')
+    expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeTruthy()
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
