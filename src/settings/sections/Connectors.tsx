@@ -1,12 +1,13 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, IcsCalendar, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
-import { whoamiGitlab } from '../../services/connectors/gitlab'
-import { whoamiJira, normalizeJiraSite } from '../../services/connectors/jira'
-import { whoamiVercel } from '../../services/connectors/vercel'
+import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
+import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
+import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
+import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { TokenConnectForm } from './TokenConnectForm'
@@ -460,6 +461,17 @@ function GithubBody({ config, storage }: BodyProps) {
   )
 }
 
+// The four sections GitlabBody's "Show on your board" row toggles (Task 76,
+// wave 2) — key order is the display order, matching DEFAULT_GITLAB_VIEWS's
+// own field order (gitlab.ts) so the resolved defaults and the chip row read
+// left-to-right the same way.
+const GITLAB_VIEW_CHIPS: Array<{ key: keyof GitlabViews; label: string }> = [
+  { key: 'mergeRequests', label: 'Merge requests' },
+  { key: 'reviewAsks', label: 'Review asks' },
+  { key: 'todos', label: 'To-dos' },
+  { key: 'activityGraph', label: 'Activity graph' },
+]
+
 // The GitLab connector's card body — github's sibling (Task 49), copying the
 // same connect/disconnect mechanics through TokenConnectForm. The one real
 // difference: TWO fields (a per-config instance URL alongside the token,
@@ -481,6 +493,11 @@ function GitlabBody({ config, storage }: BodyProps) {
   // re-enter a token — the card shell's "Reconnect needed" chip already flags
   // that state.
   const connectedAs = username && token ? username : null
+  // Absent/partial views resolve against DEFAULT_GITLAB_VIEWS (the same
+  // resolveViews call GitlabWidget.tsx makes to decide which sections to
+  // fetch/render), so the chips reflect exactly what the card is about to
+  // show.
+  const views = resolveViews(DEFAULT_GITLAB_VIEWS, gitlab?.views)
 
   return (
     <TokenConnectForm
@@ -513,13 +530,62 @@ function GitlabBody({ config, storage }: BodyProps) {
       onConnected={async (values, identity) => {
         // Replace the whole gitlab config (dropping any stray cruft the
         // generic enable-toggle's `{}` seed left) with exactly the token
-        // connector's four fields.
-        await storage.update('connectors', (prev) => ({
-          ...prev,
-          gitlab: { enabled: true, token: values.token, instanceUrl: values.instanceUrl, username: identity },
-        }))
+        // connector's four fields — but a RECONNECT (prev.gitlab already held
+        // a composed `views`) must carry that choice through, same rule
+        // GithubBody's own onConnected documents above. This must hold even
+        // when `identity` names a DIFFERENT account than the one `views` was
+        // composed under (a reconnect on the same instance, different user) —
+        // `views` lives on the CARD, not the account, so it is preserved
+        // unconditionally rather than gated on identity matching the prior
+        // username. The fetch itself always uses the fresh `identity`
+        // (passed straight to whoamiGitlab above), never the prior username.
+        await storage.update('connectors', (prev) => {
+          const prevViews = (prev.gitlab as GitlabConfig | undefined)?.views
+          return {
+            ...prev,
+            gitlab: {
+              enabled: true,
+              token: values.token,
+              instanceUrl: values.instanceUrl,
+              username: identity,
+              ...(prevViews ? { views: prevViews } : {}),
+            },
+          }
+        })
       }}
       connectedAs={connectedAs}
+      connectedExtras={
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+            Show on your board
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {GITLAB_VIEW_CHIPS.map(({ key, label }) => (
+              <ToggleChip
+                key={key}
+                label={label}
+                on={views[key]}
+                onClick={() =>
+                  void storage.update('connectors', (prev) => {
+                    if (!prev.gitlab) return prev
+                    // Narrowed ONCE (same single-documented-cast rule
+                    // GithubBody's own click handler documents) so both the
+                    // resolve call AND the spread below see GitlabConfig, not
+                    // the wider ConnectorConfig union.
+                    const current = prev.gitlab as GitlabConfig
+                    const resolved = resolveViews(DEFAULT_GITLAB_VIEWS, current.views)
+                    return {
+                      ...prev,
+                      gitlab: { ...current, views: { ...resolved, [key]: !resolved[key] } },
+                    }
+                  })
+                }
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+        </div>
+      }
       onDisconnect={async () => {
         // Compute what's safe to revoke BEFORE clearing the config
         // (releasableOrigins needs gitlab's own config present to derive its
@@ -553,6 +619,16 @@ function GitlabBody({ config, storage }: BodyProps) {
 // inline alert, no permission requested, nothing stored — the exact
 // site-format copy (JIRA_SITE_ERROR) is the SERVICE layer's own contract,
 // asserted directly against whoamiJira/fetchJira in jira.test.ts.
+
+// The three sections JiraBody's "Show on your board" row toggles (Task 76,
+// wave 2) — key order matches DEFAULT_JIRA_VIEWS's own field order (jira.ts)
+// so the resolved defaults and the chip row read left-to-right the same way.
+const JIRA_VIEW_CHIPS: Array<{ key: keyof JiraViews; label: string }> = [
+  { key: 'assigned', label: 'Assigned issues' },
+  { key: 'statusChips', label: 'Status chips' },
+  { key: 'dueSoon', label: 'Due soon' },
+]
+
 function JiraBody({ config, storage }: BodyProps) {
   // Same narrowing rationale as GitlabBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
@@ -569,6 +645,11 @@ function JiraBody({ config, storage }: BodyProps) {
   // the user can re-enter a token — the card shell's "Reconnect needed" chip
   // already flags that state.
   const connectedAs = displayName && apiToken ? displayName : null
+  // Absent/partial views resolve against DEFAULT_JIRA_VIEWS (the same
+  // resolveViews call JiraWidget.tsx makes to decide which sections to
+  // fetch/render), so the chips reflect exactly what the card is about to
+  // show.
+  const views = resolveViews(DEFAULT_JIRA_VIEWS, jira?.views)
 
   return (
     <TokenConnectForm
@@ -611,21 +692,60 @@ function JiraBody({ config, storage }: BodyProps) {
       onConnected={async (values, identity) => {
         // Replace the whole jira config (dropping any stray cruft the
         // generic enable-toggle's `{}` seed left) with exactly the token
-        // connector's five fields. `site` is persisted as the NORMALIZED
-        // value (matching what originsFor/validate actually granted/checked)
-        // rather than whatever raw casing/slashes the user typed.
-        await storage.update('connectors', (prev) => ({
-          ...prev,
-          jira: {
-            enabled: true,
-            email: values.email,
-            apiToken: values.apiToken,
-            site: normalizeJiraSite(values.site),
-            displayName: identity,
-          },
-        }))
+        // connector's five fields — but a RECONNECT (prev.jira already held a
+        // composed `views`) must carry that choice through, same rule
+        // GithubBody's/GitlabBody's own onConnected document above. `site` is
+        // persisted as the NORMALIZED value (matching what originsFor/
+        // validate actually granted/checked) rather than whatever raw
+        // casing/slashes the user typed.
+        await storage.update('connectors', (prev) => {
+          const prevViews = (prev.jira as JiraConfig | undefined)?.views
+          return {
+            ...prev,
+            jira: {
+              enabled: true,
+              email: values.email,
+              apiToken: values.apiToken,
+              site: normalizeJiraSite(values.site),
+              displayName: identity,
+              ...(prevViews ? { views: prevViews } : {}),
+            },
+          }
+        })
       }}
       connectedAs={connectedAs}
+      connectedExtras={
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+            Show on your board
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {JIRA_VIEW_CHIPS.map(({ key, label }) => (
+              <ToggleChip
+                key={key}
+                label={label}
+                on={views[key]}
+                onClick={() =>
+                  void storage.update('connectors', (prev) => {
+                    if (!prev.jira) return prev
+                    // Narrowed ONCE (same single-documented-cast rule
+                    // GithubBody's own click handler documents) so both the
+                    // resolve call AND the spread below see JiraConfig, not
+                    // the wider ConnectorConfig union.
+                    const current = prev.jira as JiraConfig
+                    const resolved = resolveViews(DEFAULT_JIRA_VIEWS, current.views)
+                    return {
+                      ...prev,
+                      jira: { ...current, views: { ...resolved, [key]: !resolved[key] } },
+                    }
+                  })
+                }
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+        </div>
+      }
       onDisconnect={async () => {
         // Compute what's safe to revoke BEFORE clearing the config
         // (releasableOrigins needs jira's own config present to derive its
@@ -645,6 +765,15 @@ function JiraBody({ config, storage }: BodyProps) {
   )
 }
 
+// The two sections VercelBody's "Show on your board" row toggles (Task 76,
+// wave 2) — key order matches DEFAULT_VERCEL_VIEWS's own field order
+// (vercel.ts) so the resolved defaults and the chip row read left-to-right
+// the same way.
+const VERCEL_VIEW_CHIPS: Array<{ key: keyof VercelViews; label: string }> = [
+  { key: 'deployments', label: 'Deployments' },
+  { key: 'statusSummary', label: 'Status summary' },
+]
+
 // The Vercel connector's card body — the fourth token connector (Task 51),
 // copying GithubBody's mechanics most closely: ONE field, a single constant
 // origin (unlike GitlabBody's/JiraBody's per-config derived one).
@@ -663,6 +792,11 @@ function VercelBody({ config, storage }: BodyProps) {
   // re-enter the token; the card shell's own "Reconnect needed" chip
   // (authState) already flags that state above.
   const connectedAs = username && token ? username : null
+  // Absent/partial views resolve against DEFAULT_VERCEL_VIEWS (the same
+  // resolveViews call VercelWidget.tsx makes to decide which sections to
+  // fetch/render), so the chips reflect exactly what the card is about to
+  // show.
+  const views = resolveViews(DEFAULT_VERCEL_VIEWS, vercel?.views)
 
   return (
     <TokenConnectForm
@@ -684,13 +818,55 @@ function VercelBody({ config, storage }: BodyProps) {
       onConnected={async (values, identity) => {
         // Replace the whole vercel config (dropping any stray cruft the
         // generic enable-toggle's `{}` seed left) with exactly the token
-        // connector's three fields.
-        await storage.update('connectors', (prev) => ({
-          ...prev,
-          vercel: { enabled: true, token: values.token, username: identity },
-        }))
+        // connector's three fields — but a RECONNECT (prev.vercel already
+        // held a composed `views`) must carry that choice through, same rule
+        // GithubBody's/GitlabBody's/JiraBody's own onConnected document above.
+        await storage.update('connectors', (prev) => {
+          const prevViews = (prev.vercel as VercelConfig | undefined)?.views
+          return {
+            ...prev,
+            vercel: {
+              enabled: true,
+              token: values.token,
+              username: identity,
+              ...(prevViews ? { views: prevViews } : {}),
+            },
+          }
+        })
       }}
       connectedAs={connectedAs}
+      connectedExtras={
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+            Show on your board
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {VERCEL_VIEW_CHIPS.map(({ key, label }) => (
+              <ToggleChip
+                key={key}
+                label={label}
+                on={views[key]}
+                onClick={() =>
+                  void storage.update('connectors', (prev) => {
+                    if (!prev.vercel) return prev
+                    // Narrowed ONCE (same single-documented-cast rule
+                    // GithubBody's own click handler documents) so both the
+                    // resolve call AND the spread below see VercelConfig, not
+                    // the wider ConnectorConfig union.
+                    const current = prev.vercel as VercelConfig
+                    const resolved = resolveViews(DEFAULT_VERCEL_VIEWS, current.views)
+                    return {
+                      ...prev,
+                      vercel: { ...current, views: { ...resolved, [key]: !resolved[key] } },
+                    }
+                  })
+                }
+              />
+            ))}
+          </div>
+          <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
+        </div>
+      }
       onDisconnect={async () => {
         // Compute what's safe to revoke BEFORE clearing the config (releasable-
         // Origins needs vercel's own config present to derive its origins), then

@@ -1728,6 +1728,98 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
+
+  // Task 76 (wave 2): the "Show on your board" chips, github's template
+  // reused — four chips reflecting resolveViews(DEFAULT_GITLAB_VIEWS, …), and
+  // clicking a NEW (wave-2, off-by-default) section writes the FULL
+  // resolved+flipped object through storage.
+  it('the "Show on your board" chips render for a connected card; clicking a NEW section writes the full resolved object', async () => {
+    const storage = await renderWithGitlab({
+      enabled: true,
+      token: 'glpat_x',
+      instanceUrl: 'https://gitlab.com',
+      username: 'jcooler',
+    })
+
+    expect(screen.getByText('Show on your board')).toBeTruthy()
+    expect(screen.getByText('Your card shows only the sections you turn on.')).toBeTruthy()
+
+    const mrChip = screen.getByRole('button', { name: /Merge requests/ })
+    const reviewChip = screen.getByRole('button', { name: /Review asks/ })
+    const todosChip = screen.getByRole('button', { name: /To-dos/ })
+    const activityChip = screen.getByRole('button', { name: /Activity graph/ })
+    // No `views` stored yet -> resolves against DEFAULT_GITLAB_VIEWS: the two
+    // sections that already shipped stay on, the two wave-2 adds stay off.
+    expect(mrChip.getAttribute('aria-pressed')).toBe('true')
+    expect(reviewChip.getAttribute('aria-pressed')).toBe('false')
+    expect(todosChip.getAttribute('aria-pressed')).toBe('true')
+    expect(activityChip.getAttribute('aria-pressed')).toBe('false')
+
+    await act(async () => {
+      fireEvent.click(reviewChip)
+    })
+
+    expect(await readGitlab(storage)).toMatchObject({
+      views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false },
+    })
+    expect(screen.getByRole('button', { name: /Review asks/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  // Reconnecting must never reset a composed card back to defaults — same
+  // rule githubBody's own reconnect test documents (Task 69, Step 5).
+  it('reconnecting carries existing `views` through — a reconnect must never reset a composed card to defaults', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGitlab).mockResolvedValue({ ok: true, identity: 'jcooler' })
+    const seededViews = { mergeRequests: true, reviewAsks: true, todos: false, activityGraph: true }
+    const storage = await renderWithGitlab({
+      enabled: true,
+      token: '',
+      instanceUrl: 'https://gitlab.com',
+      username: 'jcooler',
+      views: seededViews,
+    })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+
+    const input = screen.getByLabelText('Personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'glpat_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const stored = await readGitlab(storage)
+    expect(stored?.token).toBe('glpat_new')
+    expect(stored?.views).toEqual(seededViews)
+  })
+
+  // GitLab-specific nuance (brief, Step 1): a reconnect can land on a
+  // DIFFERENT account on the same instance — the fetch must use the fresh
+  // identity from whoami, while `views` preservation must NOT be gated on the
+  // username staying the same (a naive "only preserve if username matches"
+  // guard would silently reset a composed card just because the user
+  // reconnected as someone else on the same instance).
+  it('reconnecting as a DIFFERENT username still preserves `views`, and whoami is called with the NEW token', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGitlab).mockResolvedValue({ ok: true, identity: 'newuser' })
+    const seededViews = { mergeRequests: false, reviewAsks: true, todos: true, activityGraph: true }
+    const storage = await renderWithGitlab({
+      enabled: true,
+      token: '',
+      instanceUrl: 'https://gitlab.com',
+      username: 'jcooler',
+      views: seededViews,
+    })
+
+    const input = screen.getByLabelText('Personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'glpat_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(whoamiGitlab).toHaveBeenCalledWith('https://gitlab.com', 'glpat_new')
+    const stored = await readGitlab(storage)
+    expect(stored?.username).toBe('newuser')
+    expect(stored?.views).toEqual(seededViews)
+  })
 })
 
 describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)', () => {
@@ -1903,6 +1995,73 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     expect(screen.getByLabelText('API token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
+
+  // Task 76 (wave 2): the "Show on your board" chips, github's template
+  // reused — three chips reflecting resolveViews(DEFAULT_JIRA_VIEWS, …), and
+  // clicking the NEW (wave-2, off-by-default) section writes the FULL
+  // resolved+flipped object through storage.
+  it('the "Show on your board" chips render for a connected card; clicking the NEW section writes the full resolved object', async () => {
+    const storage = await renderWithJira({
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: 'tok_x',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+    })
+
+    expect(screen.getByText('Show on your board')).toBeTruthy()
+    expect(screen.getByText('Your card shows only the sections you turn on.')).toBeTruthy()
+
+    const assignedChip = screen.getByRole('button', { name: /Assigned issues/ })
+    const statusChip = screen.getByRole('button', { name: /Status chips/ })
+    const dueSoonChip = screen.getByRole('button', { name: /Due soon/ })
+    // No `views` stored yet -> resolves against DEFAULT_JIRA_VIEWS: both
+    // sections that already shipped stay on, the wave-2 add stays off.
+    expect(assignedChip.getAttribute('aria-pressed')).toBe('true')
+    expect(statusChip.getAttribute('aria-pressed')).toBe('true')
+    expect(dueSoonChip.getAttribute('aria-pressed')).toBe('false')
+
+    await act(async () => {
+      fireEvent.click(dueSoonChip)
+    })
+
+    expect(await readJira(storage)).toMatchObject({
+      views: { assigned: true, statusChips: true, dueSoon: true },
+    })
+    expect(screen.getByRole('button', { name: /Due soon/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  // Reconnecting must never reset a composed card back to defaults — same
+  // rule githubBody's own reconnect test documents (Task 69, Step 5).
+  it('reconnecting carries existing `views` through — a reconnect must never reset a composed card to defaults', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiJira).mockResolvedValue({ ok: true, identity: 'Jon Cooler' })
+    const seededViews = { assigned: true, statusChips: false, dueSoon: true }
+    const storage = await renderWithJira({
+      enabled: true,
+      email: 'jon@acme.com',
+      apiToken: '',
+      site: 'yoursite.atlassian.net',
+      displayName: 'Jon Cooler',
+      views: seededViews,
+    })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+
+    // JiraBody's three fields carry NO defaultValue (unlike GitlabBody's
+    // instanceUrl), so a reconnect's form starts blank even though the prior
+    // config's site/email are still on record — all three are required for
+    // handleConnect to proceed past its synchronous required-field check.
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Site'), { target: { value: 'yoursite.atlassian.net' } })
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'jon@acme.com' } })
+      fireEvent.change(screen.getByLabelText('API token'), { target: { value: 'tok_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const stored = await readJira(storage)
+    expect(stored?.apiToken).toBe('tok_new')
+    expect(stored?.views).toEqual(seededViews)
+  })
 })
 
 describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s sibling)', () => {
@@ -2017,6 +2176,53 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+  })
+
+  // Task 76 (wave 2): the "Show on your board" chips, github's template
+  // reused — two chips reflecting resolveViews(DEFAULT_VERCEL_VIEWS, …), and
+  // clicking the NEW (wave-2, off-by-default) section writes the FULL
+  // resolved+flipped object through storage.
+  it('the "Show on your board" chips render for a connected card; clicking the NEW section writes the full resolved object', async () => {
+    const storage = await renderWithVercel({ enabled: true, token: 'vc_x', username: 'jon' })
+
+    expect(screen.getByText('Show on your board')).toBeTruthy()
+    expect(screen.getByText('Your card shows only the sections you turn on.')).toBeTruthy()
+
+    const deploymentsChip = screen.getByRole('button', { name: /Deployments/ })
+    const statusChip = screen.getByRole('button', { name: /Status summary/ })
+    // No `views` stored yet -> resolves against DEFAULT_VERCEL_VIEWS: the
+    // section that already shipped stays on, the wave-2 add stays off.
+    expect(deploymentsChip.getAttribute('aria-pressed')).toBe('true')
+    expect(statusChip.getAttribute('aria-pressed')).toBe('false')
+
+    await act(async () => {
+      fireEvent.click(statusChip)
+    })
+
+    expect(await readVercel(storage)).toMatchObject({
+      views: { deployments: true, statusSummary: true },
+    })
+    expect(screen.getByRole('button', { name: /Status summary/ }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  // Reconnecting must never reset a composed card back to defaults — same
+  // rule githubBody's own reconnect test documents (Task 69, Step 5).
+  it('reconnecting carries existing `views` through — a reconnect must never reset a composed card to defaults', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiVercel).mockResolvedValue({ ok: true, identity: 'jon' })
+    const seededViews = { deployments: false, statusSummary: true }
+    const storage = await renderWithVercel({ enabled: true, token: '', username: 'jon', views: seededViews })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+
+    const input = screen.getByLabelText('Personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'vc_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const stored = await readVercel(storage)
+    expect(stored?.token).toBe('vc_new')
+    expect(stored?.views).toEqual(seededViews)
   })
 })
 
