@@ -6471,6 +6471,65 @@ console.log(
   await page.waitForTimeout(200)
 }
 
+// ── Floating-panel focus-trap probe (the gap that let the eyebrow remount
+// bug through every unit layer) ─────────────────────────────────────────────
+// The Tasks panel's header eyebrows used to render the active list from a
+// SEPARATE slot than the other lists' .map, so the moment activeId settled
+// (~a frame after every open) or was switched, React remounted the focused
+// button and document.activeElement ejected to <body> — the trap died on
+// essentially every real open, and NO layer caught it (the unit test asserted
+// pre-settle by luck). This probe closes that gap in real Chromium: open each
+// floating panel, WAIT for its async state to settle, and assert — via
+// page.evaluate, elementFromPoint-independent — that focus is INSIDE the
+// dialog, that three Tabs keep it inside (the trap cycles, never escapes),
+// and (Tasks only, whose eyebrows switch lists) that clicking an eyebrow to
+// switch does NOT eject focus. Notes/Timer share the trap machinery but do not
+// remount focusables, so they are the control group — if either regresses it
+// FAILs honestly here. The Today+This-week fixture seeded in the capture
+// section above is still in storage, so the Tasks switch has a target.
+{
+  const focusInside = (label) =>
+    page.evaluate((l) => {
+      const d = document.querySelector(`[role="dialog"][aria-label="${l}"]`)
+      const a = document.activeElement
+      return { inside: !!d && d.contains(a) && a !== document.body, tag: a ? a.tagName : null }
+    }, label)
+
+  for (const { pill, label, switchTo } of [
+    { pill: '[data-block-id="tasks"] button[aria-expanded]', label: 'Tasks', switchTo: 'This week' },
+    { pill: '[data-block-id="notes"] button[aria-expanded]', label: 'Notes', switchTo: null },
+    { pill: '[data-block-id="timer"] button[aria-expanded]', label: 'Focus timer', switchTo: null },
+  ]) {
+    await page.click(pill)
+    await page.waitForSelector(`[role="dialog"][aria-label="${label}"]`)
+    await page.waitForTimeout(350) // let any async defaulting effect settle
+    const afterOpen = await focusInside(label)
+    let held = afterOpen.inside
+    const steps = [`open:${afterOpen.inside}(${afterOpen.tag})`]
+    for (let i = 0; i < 3; i++) {
+      await page.keyboard.press('Tab')
+      await page.waitForTimeout(40)
+      const t = await focusInside(label)
+      held = held && t.inside
+      steps.push(`tab${i + 1}:${t.inside}(${t.tag})`)
+    }
+    if (switchTo) {
+      await page.click(`[role="dialog"][aria-label="${label}"] button:has-text("${switchTo}")`)
+      await page.waitForTimeout(150)
+      const sw = await focusInside(label)
+      held = held && sw.inside
+      steps.push(`switch("${switchTo}"):${sw.inside}(${sw.tag})`)
+    }
+    console.log(
+      held
+        ? `PASS: the ${label} focus trap holds — focus stays inside across open+settle, 3 Tabs${switchTo ? ' + list switch' : ''} (${steps.join(' ')})`
+        : `FAIL: the ${label} focus trap leaked focus to <body> (${steps.join(' ')})`,
+    )
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(150)
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Habits widget (Task 57) — chips, one-tap today, pure streak math. NO live
 // network (there is none for this widget): seed the `habits` key plus

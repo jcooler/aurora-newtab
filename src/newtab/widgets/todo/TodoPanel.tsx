@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -17,9 +17,9 @@ import { todoReducer, type TodoAction } from './todoReducer'
 // Escape stack, the sr-only <input>+styled-<span> round-check wiring, and the
 // multi-list model (add / clear-done / delete-list) all survive the restyle.
 
-/** Derived-only progress ring — no state, pure function of done/total. Light
- *  arc over a faint track, matching the render (the accent is spent on the
- *  checks, not here). The svg is decorative; the parent span carries the
+/** Derived-only progress ring — no state, pure function of done/total. Accent
+ *  arc (rgb(125,211,252), the pixel-sampled colour of the picked render's ring)
+ *  over a faint track. The svg is decorative; the parent span carries the
  *  accessible name ("2 of 6 done"). */
 function ProgressRing({ done, total }: { done: number; total: number }) {
   const r = 7
@@ -35,7 +35,7 @@ function ProgressRing({ done, total }: { done: number; total: number }) {
         fill="none"
         strokeWidth="2"
         strokeLinecap="round"
-        className="stroke-fg transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+        className="stroke-accent transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
         strokeDasharray={circumference}
         strokeDashoffset={circumference * (1 - frac)}
         transform="rotate(-90 9 9)"
@@ -218,7 +218,6 @@ export default function TodoPanel({
   if (lists === undefined) return null
 
   const activeList = lists.find((l) => l.id === activeId) ?? null
-  const otherLists = lists.filter((l) => l.id !== activeId)
   const total = activeList?.items.length ?? 0
   const doneCount = activeList?.items.filter((i) => i.done).length ?? 0
 
@@ -244,35 +243,42 @@ export default function TodoPanel({
           the overflow "⋯", and the close ×. */}
       <div className="flex items-center gap-2 border-b border-hairline px-3.5 py-2.5">
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-          {activeList ? (
-            <button
-              type="button"
-              aria-current="true"
-              onClick={() => setActiveId(activeList.id)}
-              className="shrink-0 truncate text-[11px] font-semibold uppercase tracking-[0.08em] text-fg transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
-            >
-              {activeList.name}
-            </button>
-          ) : (
+          {lists.length === 0 && (
             <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
               Tasks
             </span>
           )}
-          {activeList && otherLists.length > 0 && (
-            <span aria-hidden className="shrink-0 text-fg-muted/40">
-              —
-            </span>
-          )}
-          {otherLists.map((list) => (
-            <button
-              key={list.id}
-              type="button"
-              onClick={() => setActiveId(list.id)}
-              className="min-w-0 truncate text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
-            >
-              {list.name}
-            </button>
-          ))}
+          {/* ALL list names render from ONE keyed `.map` — the active one
+              differs only in className + aria-current, NEVER in DOM slot. This
+              is load-bearing for the focus trap: a two-slot render (active in a
+              ternary, the rest in a separate `.map`) remounts the newly-active
+              button the instant activeId settles (~1 frame after every open) or
+              is switched, so `document.activeElement` ejects to <body> and the
+              trap dies (the CRITICAL reviewer repro). One keyed map keeps each
+              button's identity, so focus rides through the restyle untouched.
+              The em-dash separates consecutive eyebrows, matching the render. */}
+          {lists.map((list, i) => {
+            const isActive = list.id === activeId
+            return (
+              <Fragment key={list.id}>
+                {i > 0 && (
+                  <span aria-hidden className="shrink-0 text-fg-muted/40">
+                    —
+                  </span>
+                )}
+                <button
+                  type="button"
+                  aria-current={isActive ? 'true' : undefined}
+                  onClick={() => setActiveId(list.id)}
+                  className={`min-w-0 truncate text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+                    isActive ? 'font-semibold text-fg' : 'font-medium text-fg-muted hover:text-fg'
+                  }`}
+                >
+                  {list.name}
+                </button>
+              </Fragment>
+            )
+          })}
           {addingList ? (
             <form
               onSubmit={(e) => {

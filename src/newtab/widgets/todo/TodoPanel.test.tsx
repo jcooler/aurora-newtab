@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -47,7 +47,7 @@ describe('TodoPanel', () => {
     expect(dialog.style.top).toBe('')
   })
 
-  it('traps focus in the panel once loaded, and restores focus to whatever was previously focused when it closes', async () => {
+  it('keeps focus INSIDE the panel after the active-list defaulting effect settles AND after a list switch — the header eyebrows must never remount the focused button (and restores focus on close)', async () => {
     // Stand-in for "the pill" that had focus before the panel opened — a
     // real click on TodoWidget's actual pill button isn't reproducible via
     // fireEvent.click in jsdom (unlike a real browser, it doesn't move
@@ -58,24 +58,58 @@ describe('TodoPanel', () => {
     pillStandIn.focus()
     expect(document.activeElement).toBe(pillStandIn)
 
-    // `todoLists` resolves asynchronously (same as real chrome.storage), so
-    // the panel's very first render has no ref-bearing dialog div yet — this
-    // proves useFocusTrap's effect correctly re-fires once it appears,
-    // rather than silently no-op'ing the way it would if `active` were
-    // hardcoded `true` from that first, ref-less render (see the comment in
-    // TodoPanel.tsx above the `useFocusTrap` call).
-    const { unmount } = await renderPanel()
-    // The command-list redesign made the header's list switcher / "+ list"
-    // affordance the FIRST focusable in the panel (rather than the close ×),
-    // so useFocusTrap now lands initial focus there. What this test guards is
-    // unchanged: focus MOVED into the panel onto a real focusable control the
-    // moment the ref-bearing dialog appeared — the proof the effect re-fired
-    // after that first, ref-less render — not the specific element it landed
-    // on.
+    // TWO lists, seeded up front, so the header switcher is exercised and the
+    // async `activeId` defaulting effect actually has something to settle
+    // onto. `todoLists` resolves asynchronously (same as real chrome.storage),
+    // so the panel's very first render has no ref-bearing dialog div yet —
+    // useFocusTrap's effect must re-fire once it appears (rather than silently
+    // no-op'ing the way it would if `active` were hardcoded `true`).
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [
+      { id: 'today', name: 'Today', items: [] },
+      { id: 'week', name: 'This week', items: [] },
+    ])
+    const { unmount } = render(
+      <StorageProvider storage={storage}>
+        <TodoPanel anchor={{ left: 1264, top: 619 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
     const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+
+    // WAIT for the defaulting effect to settle (activeId null -> first list).
+    // This is the exact window the CRITICAL bug lived in: when the active list
+    // rendered from a SEPARATE ternary slot than the other lists' `.map`, the
+    // moment activeId settled the newly-active button MOVED between slots,
+    // React unmounted/remounted it, and `document.activeElement` ejected to
+    // <body> — killing the trap on essentially every real open. A pre-settle
+    // assertion passed by timing luck; asserting AFTER the round-trip is what
+    // falsifies it. All list names now render from ONE keyed `.map`, so the
+    // focused button keeps its identity and focus rides through the restyle.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Today' }).getAttribute('aria-current')).toBe(
+        'true',
+      ),
+    )
     expect(dialog.contains(document.activeElement)).toBe(true)
-    expect(document.activeElement).not.toBe(dialog)
-    expect(document.activeElement?.tagName).toBe('BUTTON')
+    expect(document.activeElement).not.toBe(document.body)
+
+    // Switching lists must likewise preserve the focused button. Focus the
+    // "This week" eyebrow (jsdom's click doesn't move focus, so do it
+    // explicitly — a real browser focuses a clicked button), switch to it, and
+    // assert focus is STILL inside after the re-render. The two-slot render
+    // remounted both buttons on switch; the single keyed `.map` does not.
+    const weekBtn = screen.getByRole('button', { name: 'This week' })
+    weekBtn.focus()
+    expect(document.activeElement).toBe(weekBtn)
+    fireEvent.click(weekBtn)
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'This week' }).getAttribute('aria-current')).toBe(
+        'true',
+      ),
+    )
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
 
     unmount()
     expect(document.activeElement).toBe(pillStandIn)
