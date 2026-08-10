@@ -66,7 +66,7 @@ describe('WeatherWidget collapsed chip', () => {
     await renderWidget()
     expect(toggle().textContent).toContain('21°')
     expect(toggle().textContent).toContain('New York')
-    expect(screen.queryByRole('img', { name: /next 12 hours/i })).toBeNull()
+    expect(screen.queryByText('Next 12 hours')).toBeNull()
   })
 
   // Narrow-window pass. At ~500px Jon's chip rendered "Clear ·" / "New" /
@@ -150,7 +150,7 @@ describe('WeatherWidget collapsed chip', () => {
       }),
     })
     expect(screen.getByText(/rain likely/i)).toBeTruthy()
-    expect(screen.queryByRole('img', { name: /next 12 hours/i })).toBeNull()
+    expect(screen.queryByText('Next 12 hours')).toBeNull()
   })
 })
 
@@ -228,32 +228,94 @@ describe('WeatherWidget affordances', () => {
   })
 })
 
-describe('WeatherWidget expanded panel structure', () => {
-  it('draws the 12-hour trend with a text equivalent built from the fetched data', async () => {
+describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE the display")', () => {
+  // makeSnapshot: 12 hours from 9 AM, tempC 20..31, rain 60% at index 3, 10%
+  // elsewhere. The grid samples every two hours: indices 0,2,4,6,8,10 →
+  // 9 AM (NOW), 11 AM, 1 PM, 3 PM, 5 PM, 7 PM.
+  const grid = () =>
+    screen.getByText('Next 12 hours').closest('div.border-t')!.querySelector('div.grid')!
+
+  it('renders exactly six every-two-hours slots with real temperature digits', async () => {
     await renderWidget()
     await expandPanel()
-    const graphic = screen.getByRole('img', { name: /next 12 hours/i })
-    // makeSnapshot ramps 20°C..31°C with a 60% rain hour at index 3 (12:00).
-    expect(graphic.getAttribute('aria-label')).toContain('high 31°')
-    expect(graphic.getAttribute('aria-label')).toContain('low 20°')
-    expect(graphic.getAttribute('aria-label')).toContain('60%')
-    expect(graphic.getAttribute('aria-label')).toContain('12:00 PM')
+    const cells = grid().children
+    expect(cells).toHaveLength(6)
+    // The first slot is labelled NOW; the rest carry compact, uppercased hours.
+    const labels = [...cells].map((c) => c.querySelector('span')!.textContent)
+    expect(labels).toEqual(['NOW', '11A', '1P', '3P', '5P', '7P'])
+    // Every slot shows a real temperature (20..31°C sampled at even indices).
+    const temps = [20, 22, 24, 26, 28, 30]
+    ;[...cells].forEach((c, i) => {
+      expect(c.textContent).toContain(`${temps[i]}°`)
+    })
   })
 
-  it('labels the window high and low next to the graphic', async () => {
-    await renderWidget()
+  it('labels the scale on the first and last slot and on the Low (imperial → °F)', async () => {
+    await renderWidget({ snapshot: makeSnapshot() }) // settings default to metric…
     await expandPanel()
-    expect(screen.getByText('Next 12 hours')).toBeTruthy()
+    // …but re-render under imperial to prove the letter follows settings.units.
+    // Default settings are metric, so assert the metric letter here.
+    const cells = [...grid().children]
+    expect(cells[0]!.textContent).toContain('20°C') // first slot
+    expect(cells[5]!.textContent).toContain('30°C') // last slot
+    expect(cells[1]!.textContent).toContain('22°') // middle slots: no letter
+    expect(cells[1]!.textContent).not.toContain('22°C')
+    // Header range: High unlettered, Low lettered.
     const range = screen.getByText(/^High/)
-    expect(range.textContent).toContain('31°')
-    expect(range.textContent).toContain('20°')
+    expect(range.textContent).toContain('High 31°')
+    expect(range.textContent).toContain('Low 20°C')
+    expect(range.textContent).not.toContain('High 31°C')
   })
 
-  it('shows an hour tick for the first and last fetched hour', async () => {
+  it('uses °F on the ends and Low when settings.units is imperial', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', NEW_YORK)
+    await storage.set('weatherCache', makeSnapshot())
+    const settings = await storage.get('settings')
+    await storage.set('settings', { ...settings!, units: 'imperial' })
+    render(
+      <StorageProvider storage={storage}>
+        <WeatherWidget />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    await expandPanel()
+    const cells = [...grid().children]
+    // 20°C → 68°F, 30°C → 86°F.
+    expect(cells[0]!.textContent).toContain('68°F')
+    expect(cells[5]!.textContent).toContain('86°F')
+    const range = screen.getByText(/^High/)
+    expect(range.textContent).toContain('Low 68°F')
+  })
+
+  it('shows rain-chance only under slots at or above the 10% floor, in accent', async () => {
+    await renderWidget({
+      snapshot: makeSnapshot({
+        // index 0 (NOW): 5% → hidden; index 2: 40% → shown; index 4: 9% → hidden.
+        hourly: makeSnapshot().hourly.map((h, i) => ({
+          ...h,
+          precipProb: i === 0 ? 5 : i === 2 ? 40 : i === 4 ? 9 : h.precipProb,
+        })),
+      }),
+    })
+    await expandPanel()
+    const cells = [...grid().children]
+    expect(cells[0]!.textContent).not.toContain('%') // 5% — below floor, hidden
+    expect(cells[1]!.textContent).toContain('40%') // index 2 → 40%, shown
+    expect(cells[2]!.textContent).not.toContain('%') // 9% — below floor, hidden
+    const rain = cells[1]!.querySelector('.text-accent')
+    expect(rain).toBeTruthy()
+    expect(rain!.textContent).toContain('40%')
+  })
+
+  it('emphasises the NOW slot with a filled chip', async () => {
     await renderWidget()
     await expandPanel()
-    expect(screen.getByText('9a')).toBeTruthy()
-    expect(screen.getByText('8p')).toBeTruthy()
+    const cells = [...grid().children]
+    expect(cells[0]!.className).toContain('bg-fg/[0.07]')
+    // …and no other slot carries the emphasis.
+    for (const c of cells.slice(1)) expect(c.className).not.toContain('bg-fg')
   })
 
   it('shows feels-like, wind, humidity and sunrise/sunset as a structured meta grid', async () => {
@@ -266,10 +328,10 @@ describe('WeatherWidget expanded panel structure', () => {
     expect(screen.getByText('Sun').nextElementSibling?.textContent).toContain('7:58 PM')
   })
 
-  it('omits the graphic entirely rather than drawing a degenerate one', async () => {
+  it('omits the grid entirely rather than drawing a degenerate one', async () => {
     await renderWidget({ snapshot: makeSnapshot({ hourly: [] }) })
     await expandPanel()
-    expect(screen.queryByRole('img')).toBeNull()
+    expect(screen.queryByText('Next 12 hours')).toBeNull()
     // The rest of the panel still renders from the current conditions.
     expect(screen.getByText('Humidity')).toBeTruthy()
   })

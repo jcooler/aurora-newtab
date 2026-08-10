@@ -1,9 +1,16 @@
 import type { HourlyPoint } from '../../lib/storage/schema'
-import { NOTABLE_PRECIP } from './trend'
+
+/** Rain chance at or above this reads as "worth mentioning" — the boundary
+ *  between the softer "Possible rain" line and staying silent. Exported so the
+ *  test can pin the seam at the exact boundary from both sides. (It used to be
+ *  shared with the ridgeline graphic, which emphasised its columns at the same
+ *  threshold; the graphic retired with Jon's grid redesign, so this constant
+ *  now lives with its one remaining consumer, the callout.) */
+export const NOTABLE_PRECIP = 30
 
 /** Above this, rain stops being a possibility and becomes the forecast. Local
- *  to this file — it has no counterpart in the trend graphic, which draws one
- *  column per hour rather than picking a single headline hour. */
+ *  to this file — the grid draws a number under every hour at or above its own
+ *  lower PRECIP_FLOOR rather than picking a single headline hour. */
 const LIKELY_PRECIP = 50
 
 function formatHour(iso: string, use24Hour: boolean): string {
@@ -13,12 +20,11 @@ function formatHour(iso: string, use24Hour: boolean): string {
   return `${h12} ${hour < 12 ? 'AM' : 'PM'}`
 }
 
-/** The expanded panel's trend graphic emphasises exactly the hours this
- *  callout is willing to mention, by importing the SAME `NOTABLE_PRECIP` it
- *  uses below (see trend.ts) rather than repeating the number. The two are
- *  read together — the callout names the hour, the graphic shows the shape —
- *  so a silent drift between them would put a highlighted column under a
- *  panel that says nothing about rain. */
+/** The one-line rain headline above the forecast grid — it names the hour rain
+ *  first crosses a threshold; the grid below shows the per-slot chances. The
+ *  callout picks a single headline hour at LIKELY/NOTABLE, a higher bar than
+ *  the grid's own PRECIP_FLOOR, so the sentence stays quiet on a drizzly
+ *  window the grid still annotates. */
 export function rainCallout(hourly: HourlyPoint[], use24Hour: boolean): string | null {
   const likely = hourly.find((h) => h.precipProb >= LIKELY_PRECIP)
   if (likely) return `Rain likely around ${formatHour(likely.time, use24Hour)}.`

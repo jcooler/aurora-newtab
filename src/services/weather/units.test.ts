@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clockTime, compactHour, displayTemp, displayWind } from './units'
+import { clockTime, compactHour, displayTemp, displayTempWithUnit, displayWind, unitLetter } from './units'
 
 describe('displayTemp', () => {
   it('rounds and formats metric', () => {
@@ -8,6 +8,21 @@ describe('displayTemp', () => {
   it('converts to fahrenheit', () => {
     expect(displayTemp(21.4, 'imperial')).toBe('71°') // 70.52 rounds to 71
     expect(displayTemp(0, 'imperial')).toBe('32°')
+  })
+})
+
+describe('unitLetter', () => {
+  it('is F for imperial and C for metric', () => {
+    expect(unitLetter('imperial')).toBe('F')
+    expect(unitLetter('metric')).toBe('C')
+  })
+})
+
+describe('displayTempWithUnit', () => {
+  it('appends the scale letter to the formatted temperature', () => {
+    expect(displayTempWithUnit(21.4, 'imperial')).toBe('71°F')
+    expect(displayTempWithUnit(21.4, 'metric')).toBe('21°C')
+    expect(displayTempWithUnit(0, 'imperial')).toBe('32°F')
   })
 })
 

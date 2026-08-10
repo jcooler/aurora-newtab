@@ -3,6 +3,21 @@ export function displayTemp(tempC: number, units: 'metric' | 'imperial'): string
   return `${Math.round(value)}°`
 }
 
+/** The scale letter for a unit system: F for imperial, C for metric. */
+export function unitLetter(units: 'metric' | 'imperial'): string {
+  return units === 'imperial' ? 'F' : 'C'
+}
+
+/** `displayTemp` with the scale letter appended — "72°F" / "21°C". The base
+ *  helper emits only "°", which left Jon's complaint standing ("It doesn't even
+ *  specify celsius or fahrenheit on the widget"): this is the variant used
+ *  exactly where the expanded forecast grid labels the scale — the first and
+ *  last temperatures the eye enters and leaves, and the header's Low — so the
+ *  row says which scale it is in without repeating the letter on every number. */
+export function displayTempWithUnit(tempC: number, units: 'metric' | 'imperial'): string {
+  return `${displayTemp(tempC, units)}${unitLetter(units)}`
+}
+
 /** Narrow hour label for the 12-column hourly strip: "3p" / "12a" or "15". */
 export function compactHour(iso: string, use24Hour: boolean): string {
   const hour = Number(iso.slice(11, 13))

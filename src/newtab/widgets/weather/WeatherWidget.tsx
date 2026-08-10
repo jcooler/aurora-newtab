@@ -2,18 +2,17 @@ import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
-import { NOW_DOT_R, TREND_VIEWBOX, tickIndices, trendGeometry } from '../../../services/weather/trend'
-import { clockTime, compactHour, displayTemp, displayWind } from '../../../services/weather/units'
+import { PRECIP_FLOOR, forecastRange, forecastSlots } from '../../../services/weather/forecast'
+import {
+  clockTime,
+  compactHour,
+  displayTemp,
+  displayTempWithUnit,
+  displayWind,
+} from '../../../services/weather/units'
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
-
-// Referenced by the trend graphic's `fill="url(#…)"`. A module constant, not
-// `useId()`: React's generated ids contain colons, which are invalid inside a
-// CSS `url(#…)` reference without escaping, and there is exactly one weather
-// widget on the page. Two instances would simply share one identical
-// gradient definition — harmless.
-const TREND_FILL_ID = 'aurora-weather-trend-fill'
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
  *  rather than swapping glyphs so the control reads as one continuous thing. */
@@ -72,26 +71,13 @@ export default function WeatherWidget({
   if (!settings?.widgets.weather) return null
 
   const callout = snapshot ? rainCallout(snapshot.hourly, settings.use24Hour) : null
-  const geo = snapshot ? trendGeometry(snapshot.hourly) : null
   const hours = snapshot?.hourly ?? []
-  const ticks = tickIndices(hours.length)
-
-  // The graphic's text equivalent, built from the same fetched numbers it
-  // draws — a curve is unreadable to a screen reader, and a per-hour table
-  // read aloud is worse than a sentence.
-  const trendSummary =
-    geo && snapshot
-      ? `Next ${hours.length} hours: high ${displayTemp(geo.hi.tempC, settings.units)}, low ${displayTemp(
-          geo.lo.tempC,
-          settings.units,
-        )}.` +
-        (geo.peakPrecip.prob > 0
-          ? ` Rain chance peaks at ${geo.peakPrecip.prob}% around ${clockTime(
-              hours[geo.peakPrecip.index]!.time,
-              settings.use24Hour,
-            )}.`
-          : ' No rain expected.')
-      : ''
+  // Jon's pick (variant A, "the numbers ARE the display"): a fixed six-slot
+  // every-two-hours grid of real digits, no curve. `range` is computed over
+  // the WHOLE window, not the sampled slots, so the day's true High/Low still
+  // shows even when the peak falls on an odd hour the grid never samples.
+  const slots = forecastSlots(hours)
+  const range = forecastRange(hours)
 
   // Width caps. ORIGINALLY derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
@@ -321,85 +307,76 @@ export default function WeatherWidget({
 
           {expanded && (
             <div className="px-4 pb-4 short:pb-3 xshort:pb-3">
-              {geo && (
+              {range && slots.length > 0 && (
                 <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                   <div className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
-                    <span>Next {hours.length} hours</span>
+                    {/* CSS-uppercased, so the DOM text stays "Next 12 hours"
+                        (screen readers and tests read the real word, the eye
+                        reads the eyebrow). */}
+                    <span className="uppercase tracking-[0.08em]">Next {hours.length} hours</span>
                     <span className="shrink-0">
-                      High <span className="tabular-nums text-fg">{displayTemp(geo.hi.tempC, settings.units)}</span>
+                      High <span className="tabular-nums text-fg">{displayTemp(range.hiC, settings.units)}</span>
                       {' · '}
-                      Low <span className="tabular-nums text-fg">{displayTemp(geo.lo.tempC, settings.units)}</span>
+                      Low{' '}
+                      <span className="tabular-nums text-fg">
+                        {displayTempWithUnit(range.loC, settings.units)}
+                      </span>
                     </span>
                   </div>
 
-                  {/* The signature: one continuous temperature ridgeline over
-                      a quiet field of rain-chance columns. A fixed viewBox at
-                      `width: 100%` scales to any container, so — unlike the
-                      872px-wide scrolling card strip it replaces — it cannot
-                      overflow, cannot produce a scrollbar, and leaves nothing
-                      for a scrollbar drag to accidentally long-press into
-                      arrange mode. Accent is reserved for rain here and in
-                      the callout above; nothing else in the panel uses it. */}
-                  <svg
-                    viewBox={`0 0 ${TREND_VIEWBOX.w} ${geo.height}`}
-                    className="mt-2 short:mt-1 xshort:mt-1 h-auto w-full text-fg"
-                    role="img"
-                    aria-label={trendSummary}
-                  >
-                    <defs>
-                      <linearGradient id={TREND_FILL_ID} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="currentColor" stopOpacity="0.14" />
-                        <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <path d={geo.area} fill={`url(#${TREND_FILL_ID})`} />
-                    <line
-                      x1="0"
-                      y1={geo.baseline}
-                      x2={TREND_VIEWBOX.w}
-                      y2={geo.baseline}
-                      stroke="currentColor"
-                      strokeOpacity="0.16"
-                      strokeWidth="1"
-                    />
-                    {geo.columns.map((c) => (
-                      <rect
-                        key={c.i}
-                        x={c.x}
-                        y={c.y}
-                        width={c.w}
-                        height={c.h}
-                        rx="1.5"
-                        fill="var(--accent)"
-                        fillOpacity={c.notable ? 0.7 : 0.3}
-                      />
-                    ))}
-                    <path
-                      d={geo.line}
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.25"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    {/* "You are here" — the only accent mark on the curve, so
-                        the eye knows which end is the current hour. */}
-                    <circle cx={geo.start.x} cy={geo.start.y} r={NOW_DOT_R} fill="var(--accent)" />
-                  </svg>
+                  {/* Jon's pick — "the numbers ARE the display" (variant A). A
+                      fixed six-slot grid, every two hours, in real digits: the
+                      answer to "the graph isn't even readable, it's like a
+                      line graph." No curve. The unit letter rides the FIRST
+                      and LAST slot (the ends the eye enters and leaves) and
+                      the Low above, so the row states °F/°C without repeating
+                      it on every number — the other half of Jon's complaint
+                      ("it doesn't even specify celsius or fahrenheit").
 
-                  {/* Orientation ticks, in HTML rather than inside the SVG so
-                      they stay at a real, readable font size no matter how the
-                      graphic scales. `justify-between` can never overflow —
-                      an absolutely-positioned tick centred on the last data
-                      point would push past the right edge and reintroduce the
-                      overflow this redesign exists to remove. */}
-                  <div
-                    aria-hidden
-                    className="mt-1 flex justify-between text-[11px] tabular-nums text-fg-muted"
-                  >
-                    {ticks.map((i) => (
-                      <span key={i}>{compactHour(hours[i]!.time, settings.use24Hour)}</span>
-                    ))}
+                      The day's true High may fall on an ODD hour this
+                      every-two-hours grid never samples (e.g. an 84° 3 PM
+                      peak); the header's High/Low line, computed over the
+                      whole window, is where that exact number lives.
+
+                      `grid-cols-6` tracks are `minmax(0,1fr)`, so the grid can
+                      never widen the panel; the digits step down one size at
+                      `narrow` (and shed the gap/padding) so six of them still
+                      fit the ~197px the panel is capped to at its tightest
+                      labelled viewport, 730x900 — the same no-overflow contract
+                      the retired ridgeline held by being an SVG. Accent is
+                      reserved for rain here and in the callout above; nothing
+                      else in the panel uses it. */}
+                  <div className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-6 gap-x-1 narrow:gap-x-0">
+                    {slots.map((slot, i) => {
+                      const atEnd = i === 0 || i === slots.length - 1
+                      const rain =
+                        slot.point.precipProb >= PRECIP_FLOOR ? slot.point.precipProb : null
+                      return (
+                        <div
+                          key={slot.index}
+                          className={`flex flex-col gap-1 rounded-md px-1 py-1 narrow:px-0 ${
+                            slot.now ? 'bg-fg/[0.07]' : ''
+                          }`}
+                        >
+                          <span className="text-[11px] narrow:text-[10px] leading-none text-fg-muted">
+                            {slot.now
+                              ? 'NOW'
+                              : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
+                          </span>
+                          <span className="text-[15px] narrow:text-[12px] font-medium leading-none tabular-nums text-fg">
+                            {atEnd
+                              ? displayTempWithUnit(slot.point.tempC, settings.units)
+                              : displayTemp(slot.point.tempC, settings.units)}
+                          </span>
+                          {rain !== null && (
+                            <span className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">
+                              <span className="sr-only">Rain chance </span>
+                              {rain}%
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}

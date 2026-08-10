@@ -962,7 +962,7 @@ console.log('captured weather-expanded.png')
     const cursorOf = (el) => getComputedStyle(el).cursor
     const chip = sec.querySelector('button[aria-expanded]')
     const link = sec.querySelector('a[href*="weather.com"]')
-    const data = [...sec.querySelectorAll('dl, dt, dd, p, span, svg[role="img"]')].filter(
+    const data = [...sec.querySelectorAll('dl, dt, dd, p, span')].filter(
       (el) => !el.closest('button, a') && !el.classList.contains('sr-only'),
     )
     return {
@@ -988,8 +988,11 @@ console.log('captured weather-expanded.png')
 // C2 — no scroll region anywhere. Root cause (measured, pre-fix): the hourly
 // strip was `overflow-x-auto` holding 12 fixed-width cards — scrollWidth 872
 // in a clientWidth 510 box — so Windows painted a permanent horizontal
-// scrollbar across the bottom of the panel. Its replacement is an <svg> with
-// a fixed viewBox at width:100%, which has no width to run out of.
+// scrollbar across the bottom of the panel. Its replacement (Jon's picked
+// grid — "the numbers ARE the display") is a `grid-cols-6` of `minmax(0,1fr)`
+// tracks that can never widen the panel; the digits step down one size at
+// `narrow` so six of them still fit the panel's narrowest cap without
+// overflowing. Same no-overflow contract the interim ridgeline SVG held.
 {
   const bad = await weatherOverflow()
   console.log(
@@ -3910,6 +3913,118 @@ console.log(
     await chrome.storage.local.set({ weatherCache: null })
   })
   await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// Expanded forecast GRID semantics (Jon's pick — "the numbers ARE the
+// display", variant A). Replaces the retired ridgeline's honesty-guard
+// probes. The live-weather expanded captures far above prove the grid renders
+// and never overflows at every viewport; this pins its SEMANTICS
+// deterministically — the way the ridgeline's own honesty guards lived in
+// unit tests before it retired — against a seeded forecast rather than
+// whatever New York's real weather is on the day this runs. Same
+// route-block-FIRST idiom as the two weather blocks above (so a live refetch
+// can't overwrite the seed before the measurement), restored to unset after.
+//
+// Asserts the three things the redesign is FOR: exactly six every-two-hours
+// slots, each carrying real temperature digits; the °F/°C unit letter on the
+// first and last slot (Jon: "it doesn't even specify celsius or fahrenheit on
+// the widget"); and a rain-chance figure — in the panel's accent colour —
+// under exactly the seeded hours at or above the 10% grid floor, and under no
+// others. The seed's EVEN-hour samples (the grid's own slots) carry precip
+// 5/10/35/75/25/8, so precisely the four middle slots show a number and the
+// two ends do not.
+{
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(async () => {
+    const now = Date.now()
+    const base = new Date(now)
+    base.setHours(14, 0, 0, 0) // anchor NOW at 2 PM so the slot labels are stable
+    const temps = [22, 24, 26, 28, 27, 29, 28, 26, 22, 20, 18, 17] // °C
+    const rain = [5, 8, 10, 20, 35, 60, 75, 50, 25, 15, 8, 5]
+    const hourly = Array.from({ length: 12 }, (_, i) => {
+      const t = new Date(base.getTime() + i * 3_600_000)
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+      return { time: iso, tempC: temps[i], precipProb: rain[i], code: i >= 4 && i <= 7 ? 61 : 1 }
+    })
+    const day = new Date(now).toISOString().slice(0, 10)
+    await chrome.storage.local.set({
+      weatherCache: {
+        current: { tempC: 22, feelsLikeC: 23, code: 1, windKmh: 19, humidity: 58, isDay: true },
+        hourly,
+        fetchedAt: now, // fresh — useWeather won't try to refetch on mount
+        locationLabel: 'New York',
+        sunriseISO: `${day}T06:12`,
+        sunsetISO: `${day}T20:03`,
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(weatherSel, { timeout: 5000 }).catch(() => {})
+  await setWeatherExpanded(true)
+  await page.waitForTimeout(200)
+
+  const g = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const grid = sec.querySelector('div.grid.grid-cols-6')
+    if (!grid) return { gridFound: false }
+    const cells = [...grid.children]
+    const tempRe = /-?\d{1,3}°[FC]?/
+    const slots = cells.map((c) => {
+      const spans = [...c.querySelectorAll('span')]
+      const label = spans[0]?.textContent ?? ''
+      const tempEl = spans.find(
+        (el) => tempRe.test(el.textContent ?? '') && !el.classList.contains('sr-only'),
+      )
+      const rainEl = [...c.querySelectorAll('.text-accent')].find((el) =>
+        /\d+%/.test(el.textContent ?? ''),
+      )
+      return {
+        label,
+        temp: tempEl?.textContent ?? null,
+        rain: rainEl ? rainEl.textContent.replace(/[^0-9%]/g, '') : null,
+      }
+    })
+    return {
+      gridFound: true,
+      count: cells.length,
+      slots,
+      firstHasUnit: /°[FC]/.test(slots[0]?.temp ?? ''),
+      lastHasUnit: /°[FC]/.test(slots[slots.length - 1]?.temp ?? ''),
+      rainCount: slots.filter((sl) => sl.rain).length,
+      allTempsReal: slots.every((sl) => tempRe.test(sl.temp ?? '')),
+    }
+  }, weatherSel)
+
+  const gridOk =
+    !!g &&
+    g.gridFound &&
+    g.count === 6 &&
+    g.allTempsReal &&
+    g.firstHasUnit &&
+    g.lastHasUnit &&
+    g.rainCount === 4 &&
+    g.slots[0].rain === null &&
+    g.slots[5].rain === null
+  console.log(
+    gridOk
+      ? `PASS: the expanded forecast grid shows six every-two-hours slots with real digits, the unit letter on the first and last, and rain% under exactly the four seeded hours >=10% (${g.slots.map((sl) => `${sl.label} ${sl.temp}${sl.rain ? ' ' + sl.rain : ''}`).join(' | ')})`
+      : `FAIL: the expanded forecast grid semantics (${JSON.stringify(g)})`,
+  )
+  await page.screenshot({ path: `${outDir}/weather-grid.png` })
+  console.log('captured weather-grid.png')
+
+  await setWeatherExpanded(false)
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    await chrome.storage.local.set({ weatherCache: null })
+  })
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
