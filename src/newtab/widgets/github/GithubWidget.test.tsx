@@ -40,6 +40,10 @@ const CONTRIB: Contributions = {
   ],
 }
 const DATA_WITH_GRAPH: GithubData = { ...DATA, contributions: CONTRIB }
+// A quiet day: both lists empty. WITH contributions (the graph is tier-gated, so
+// the empty line takes its inverse tier) and WITHOUT (the line shows always).
+const EMPTY_WITH_GRAPH: GithubData = { prs: [], issues: [], notifications: 0, contributions: CONTRIB, etags: {} }
+const EMPTY_NO_GRAPH: GithubData = { prs: [], issues: [], notifications: 0, contributions: null, etags: {} }
 
 const CONNECTED: GithubConfig = { enabled: true, token: 'github_pat_x', username: 'jon' }
 
@@ -231,7 +235,7 @@ describe('GithubWidget', () => {
   // (jsdom, the RSS tier-test idiom) so a regression — the graph riding too LOW
   // (lapping the pill when three tall cards stack) or too HIGH (a graph-only husk
   // at 890-1040) — fails a unit before it ever reaches the harness.
-  async function seededWithSiblings(gitlab: boolean, jira: boolean, github: GithubConfig = CONNECTED): Promise<AuroraStorage> {
+  async function seededWithSiblings(gitlab: boolean, jira: boolean, github: GithubConfig = CONNECTED, data: GithubData = DATA_WITH_GRAPH): Promise<AuroraStorage> {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', {
@@ -239,7 +243,7 @@ describe('GithubWidget', () => {
       ...(gitlab ? { gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'x' } } : {}),
       ...(jira ? { jira: { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' } } : {}),
     })
-    await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data: DATA_WITH_GRAPH } })
+    await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data } })
     return storage
   }
   const graphWrapper = () => screen.getByRole('img').closest('section')!
@@ -325,6 +329,39 @@ describe('GithubWidget', () => {
     const { container } = mount(storage)
     await act(async () => {})
     expect(container.firstChild).toBeNull()
+  })
+
+  // Fix wave — the quiet-day empty line must follow the GRAPH'S tier, not a data
+  // check: with lists enabled + empty AND contributions present, the graph is
+  // CSS tier-gated, so the "No PRs waiting" line takes the INVERSE tier — exactly
+  // one of graph/line shows at any height, never a header husk below the reveal.
+  it('quiet day, contributions present, SOLE card: the empty line carries `taller:hidden` (inverse of the graph wrapper\'s `taller:block`)', async () => {
+    mount(await seededWithSiblings(false, false, CONNECTED, EMPTY_WITH_GRAPH))
+    const line = await screen.findByText('No PRs waiting on you 🎉')
+    expect(line.className).toContain('taller:hidden')
+    // falsifiable both ways: it is the INVERSE, never the wrapper's own class,
+    // and never the two-sibling tier.
+    expect(line.className).not.toContain('taller:block')
+    expect(line.className).not.toContain('grand:hidden')
+    // and the graph wrapper still carries the forward tier — the two are opposites.
+    expect(screen.getByRole('img').closest('section')!.querySelector('[class*="taller:block"]')).toBeTruthy()
+  })
+
+  it('quiet day, contributions present, TWO siblings + rows: the empty line carries `grand:hidden` (inverse of the `grand:block` wrapper)', async () => {
+    mount(await seededWithSiblings(true, true, CONNECTED, EMPTY_WITH_GRAPH))
+    const line = await screen.findByText('No PRs waiting on you 🎉')
+    expect(line.className).toContain('grand:hidden')
+    expect(line.className).not.toContain('grand:block')
+    expect(line.className).not.toContain('taller:hidden')
+  })
+
+  it('quiet day, NO contributions data: the empty line is UNCLASSED (always visible, exactly the pre-graph behavior)', async () => {
+    const storage = await seededStorage(CONNECTED, EMPTY_NO_GRAPH)
+    mount(storage)
+    const line = await screen.findByText('No PRs waiting on you 🎉')
+    expect(line.className).not.toContain('taller:hidden')
+    expect(line.className).not.toContain('grand:hidden')
+    expect(screen.queryByRole('img')).toBeNull() // no graph at all
   })
 
   it('a graph-only card (commitGraph on, everything else off) renders the graph and NO rows and no chip', async () => {

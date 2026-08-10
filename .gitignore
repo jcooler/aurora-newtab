@@ -5,7 +5,10 @@ node_modules/
 dist/
 coverage/
 
-.claude/settings.local.json
+# Claude Code's local working dir — per-machine settings (settings.local.json)
+# and the board-worktree scratch (worktrees/). Never committed; ignoring the
+# whole dir keeps a stray `git add -A` from sweeping it in.
+.claude/
 tmpclaude-*
 *.log
 .DS_Store

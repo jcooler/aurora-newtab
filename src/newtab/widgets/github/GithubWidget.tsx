@@ -155,10 +155,21 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const issues = views.issues ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
   const notifications = data.notifications
 
-  // The celebratory empty line is honest only when a LIST section is enabled,
-  // both enabled lists are empty, AND no graph is drawing — a graph-only card
-  // with an empty list day is NOT "empty".
-  const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0 && graph === null
+  // The celebratory empty line ("No PRs waiting on you") shows whenever a LIST
+  // section is enabled and both enabled lists are empty — a quiet day. Its
+  // VISIBILITY is the exact INVERSE of the graph's: when contributions exist the
+  // graph is CSS tier-gated (it appears only at `taller`/`grand`), so the line
+  // carries the INVERSE tier (`taller:hidden` / `grand:hidden`, matching whichever
+  // tier the wrapper carries) — exactly ONE of graph/line is visible at any
+  // height, no husk band and no double-render. Gating this on `graph === null`
+  // (a DATA check) was the bug: on a quiet day with contributions POPULATED but
+  // the graph tier-hidden (<=889h, or <=1040 with two siblings — 1600x900
+  // included), the card rendered a heading over a display:none graph and nothing
+  // else. With no graph DATA the line shows unconditionally, exactly as it did
+  // before the graph existed. (A strictly graph-only card has no list section, so
+  // showEmpty is false there — that whole-card path is untouched.)
+  const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0
+  const emptyLineTier = graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
 
   return (
     // Floating panel surface: the solid panel token per the house rule for
@@ -223,7 +234,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
         </ul>
       )}
 
-      {showEmpty && <p className="text-sm text-fg-muted">No PRs waiting on you 🎉</p>}
+      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
     </section>
   )
 }

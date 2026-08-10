@@ -2911,6 +2911,89 @@ function githubContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
+// GitHub quiet-day empty line vs the graph tier (Task 70 fix wave). A QUIET day
+// on the DEFAULT card (all sections on, prs [] and issues [], 0 unread) with the
+// contributions calendar POPULATED: the graph is CSS tier-gated, so the "No PRs
+// waiting on you" line must carry the graph wrapper's INVERSE tier — exactly ONE
+// of graph / empty-line is visible at every height, never a header husk over a
+// display:none graph (the pre-branch card said "No PRs waiting"; it must still).
+// Sole card (0 siblings → the graph rides `taller`, 890), measured at 900 (graph
+// shown, line hidden) and 800 (graph hidden, line shown) — the pair proves the
+// XOR and its monotonicity. Restores (github disabled) as the blocks above.
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  await page.evaluate(
+    async ({ counts, total }) => {
+      const today = new Date()
+      const days = counts.map((count, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (counts.length - 1 - i))
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return { date: iso, count }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        // DEFAULT views (no `views` key → all sections on), but a QUIET day: both
+        // lists empty, 0 unread, and a populated contributions calendar.
+        connectors: { ...connectors, github: { enabled: true, token: 'github_pat_preview', username: 'octocat' } },
+        connectorSnapshots: {
+          github: { fetchedAt: Date.now(), data: { prs: [], issues: [], notifications: 0, contributions: { days, total }, etags: {} } },
+        },
+      })
+    },
+    { counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measureQuiet = () =>
+    page.evaluate((s) => {
+      const sec = document.querySelector(s)
+      if (!sec) return { found: false }
+      const vis = (el) => !!el && el.getBoundingClientRect().height > 0
+      const img = sec.querySelector('[role="img"]')
+      const line = [...sec.querySelectorAll('p')].find((p) => /No PRs waiting on you/.test(p.textContent || ''))
+      return { found: true, graphVisible: vis(img), lineVisible: vis(line), lineInDom: !!line }
+    }, githubSel)
+
+  const quiet = {}
+  for (const h of [900, 800]) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    quiet[h] = await measureQuiet()
+  }
+  const xor = (a, b) => a !== b
+  const quietOk =
+    quiet[900].found &&
+    quiet[800].found &&
+    // 900 (>=890 taller): graph shown, line hidden.
+    quiet[900].graphVisible === true &&
+    quiet[900].lineVisible === false &&
+    // 800 (<890): graph hidden, line shown (the quiet-day message, not a husk).
+    quiet[800].graphVisible === false &&
+    quiet[800].lineVisible === true &&
+    // exactly one of the two at each height (never both, never neither).
+    xor(quiet[900].graphVisible, quiet[900].lineVisible) &&
+    xor(quiet[800].graphVisible, quiet[800].lineVisible)
+  console.log(
+    quietOk
+      ? 'PASS: on a quiet day (empty lists, contributions present) the empty line follows the graph\'s INVERSE tier — 900h: graph shown + line hidden; 800h: graph hidden + line "No PRs waiting on you" shown — exactly one at each height, no header husk below the reveal'
+      : `FAIL: the quiet-day empty line tracks the graph's inverse tier (${JSON.stringify(quiet)})`,
+  )
+
+  // Restore: disable github, clear the snapshot, viewport back, reload.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({ connectors: { ...connectors, github: { ...connectors.github, enabled: false } }, connectorSnapshots: {} })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
 // GitLab connector (Task 49) — github's sibling, second full token connector.
 // NO live network: seed an enabled + connected config (a token so the
 // widget's gate opens, an instanceUrl so the fetch URL + gate both resolve,
