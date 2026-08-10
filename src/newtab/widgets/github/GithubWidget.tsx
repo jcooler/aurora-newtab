@@ -2,7 +2,7 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
-import ContributionGraph from './ContributionGraph'
+import ContributionGraph from '../shared/ContributionGraph'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.

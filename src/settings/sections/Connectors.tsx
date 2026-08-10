@@ -418,9 +418,16 @@ function GithubBody({ config, storage }: BodyProps) {
                 on={views[key]}
                 onClick={() =>
                   void storage.update('connectors', (prev) => {
-                    const current = prev.github
-                    if (!current) return prev
-                    const resolved = resolveGithubViews(current as GithubConfig)
+                    if (!prev.github) return prev
+                    // Narrowed ONCE (Controller ruling 6's single documented
+                    // cast, same as `github` above) so both the resolve call
+                    // AND the spread below see GithubConfig, not the wider
+                    // ConnectorConfig union — spreading the union's `current`
+                    // would type `views` against whichever sibling connector
+                    // (gitlab/jira/vercel) TS happened to widen to, which no
+                    // longer matches now that each has its OWN views shape.
+                    const current = prev.github as GithubConfig
+                    const resolved = resolveGithubViews(current)
                     return {
                       ...prev,
                       github: { ...current, views: { ...resolved, [key]: !resolved[key] } },

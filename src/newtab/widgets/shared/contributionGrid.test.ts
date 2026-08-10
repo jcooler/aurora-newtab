@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { ContributionDay } from '../../../services/connectors/github'
+import type { ContributionDay } from '../../../services/connectors/types'
 import { buildContributionGrid, type GridCell } from './contributionGrid'
 
 // Consecutive-date fixture builder: yyyy-mm-dd from local components (handles

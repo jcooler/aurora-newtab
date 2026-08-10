@@ -9,8 +9,9 @@
 // never a hand-rolled fetch — so the 8s abort, the network-vs-HTTP status
 // split, and the typed-error discipline are all shared, and `fetchFn` stays
 // injectable so tests never touch a real network.
-import type { ConnectorDescriptor, GithubConfig, GithubViews } from './types'
+import type { ConnectorDescriptor, GithubConfig, GithubViews, Contributions, ContributionDay } from './types'
 import { getJson, conditionalGetJson, postJson } from './http'
+import { resolveViews } from './views'
 
 const BASE = 'https://api.github.com'
 
@@ -37,17 +38,13 @@ export const DEFAULT_GITHUB_VIEWS: GithubViews = {
 }
 
 /** Absent/partial `views` (pre-feature configs, hand-edited backups) resolve
- *  against the all-on default so a section can never vanish for lack of a key. */
+ *  against the all-on default so a section can never vanish for lack of a key.
+ *  Thin wrapper over the generic resolveViews (Task 73) — signature and
+ *  behavior byte-identical to the wave-1 hand-rolled version. */
 export function resolveGithubViews(
   config: Pick<GithubConfig, 'views'> | null | undefined,
 ): GithubViews {
-  const stored = config?.views
-  return {
-    commitGraph: typeof stored?.commitGraph === 'boolean' ? stored.commitGraph : DEFAULT_GITHUB_VIEWS.commitGraph,
-    pulls: typeof stored?.pulls === 'boolean' ? stored.pulls : DEFAULT_GITHUB_VIEWS.pulls,
-    issues: typeof stored?.issues === 'boolean' ? stored.issues : DEFAULT_GITHUB_VIEWS.issues,
-    notifications: typeof stored?.notifications === 'boolean' ? stored.notifications : DEFAULT_GITHUB_VIEWS.notifications,
-  }
+  return resolveViews(DEFAULT_GITHUB_VIEWS, config?.views)
 }
 
 function authHeaders(token: string): Record<string, string> {
@@ -64,15 +61,11 @@ export interface GithubItem {
   repo: string // 'owner/name', derived from the search item's repository_url
 }
 
-export interface ContributionDay {
-  date: string
-  count: number
-}
-
-export interface Contributions {
-  days: ContributionDay[]
-  total: number
-}
+// ContributionDay/Contributions now live in types.ts (Task 73 — the graph
+// machinery moved to widgets/shared, so its data shapes moved to the connector
+// framework's shared types module too). Re-exported here so existing
+// importers of './github' keep compiling unchanged.
+export type { ContributionDay, Contributions }
 
 export interface GithubData {
   prs: GithubItem[]

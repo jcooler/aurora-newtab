@@ -1,10 +1,12 @@
-// src/newtab/widgets/github/ContributionGraph.tsx — the contribution heatmap +
+// src/newtab/widgets/shared/ContributionGraph.tsx — the contribution heatmap +
 // month ticks + stat line, rendered from a Contributions slice. Adapts the
 // design board's Heatmap/StatLine (house tokens, A-face geometry: cell 13, gap
 // 3) with one pre-ruled content-accuracy deviation from the board — the word is
 // "contributions", never "commits" (the data is GitHub's contribution calendar,
-// not a commit count), in the stat line AND every cell's hover title.
-import type { Contributions } from '../../../services/connectors/github'
+// not a commit count), in the stat line AND every cell's hover title. Lives in
+// widgets/shared (Task 73) — github was the first connector to use it, but the
+// component itself is connector-agnostic (any Contributions-shaped slice).
+import type { Contributions } from '../../../services/connectors/types'
 import { buildContributionGrid } from './contributionGrid'
 
 // Level → cell background. Pinned by the board: an rgba ramp over Aurora's

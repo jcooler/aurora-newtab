@@ -1,9 +1,11 @@
-// src/newtab/widgets/github/contributionGrid.ts — the PURE derivation behind the
+// src/newtab/widgets/shared/contributionGrid.ts — the PURE derivation behind the
 // contribution graph: a chronological ContributionDay[] → a column-major cell
 // grid, month ticks, and the trailing streak. No React, no wall clock: every
 // output derives from the passed days (ported from the design board's seed.ts
 // grid logic, PRNG stripped), so the same days always yield the same grid.
-import type { ContributionDay } from '../../../services/connectors/github'
+// Lives in widgets/shared (Task 73) — github was the first connector to use
+// it, but the derivation itself is connector-agnostic.
+import type { ContributionDay } from '../../../services/connectors/types'
 
 export interface GridCell {
   count: number
