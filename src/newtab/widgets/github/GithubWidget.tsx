@@ -36,11 +36,13 @@ const MAX_ISSUES = 2
 // Section separators for the composed card (the board's composed face: graph on
 // top, border-t-divided rows below). ROW_SEP divides one list from another and
 // is always present between two rendered lists. GRAPH_SEP divides the FIRST list
-// from the graph above it and COLLAPSES on `short`, where the graph itself is
-// hidden (short:hidden) — so no orphan hairline is left stranded under the
-// header once the graph yields.
+// from the graph above it: the graph renders ONLY on `taller` (>=890h — see the
+// wrapper below and App.tsx's right-rail comment for the re-measured budget), so
+// this separator is ABSENT by default and appears only at that same breakpoint —
+// no orphan hairline is ever stranded under the header on the tiers where the
+// graph has yielded.
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
-const GRAPH_SEP = ` ${ROW_SEP.trim()} short:mt-0 short:border-t-0 short:pt-0`
+const GRAPH_SEP = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
 
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id
@@ -124,12 +126,18 @@ function GithubInner({ github }: { github: GithubConfig }) {
         )}
       </div>
 
-      {/* Commit graph on top — the board's composed face. The whole section
-          carries short:hidden: under height pressure the graph yields first
-          while the rows survive (the exact boundary is re-measured in Task 70;
-          the class lands now). */}
+      {/* Commit graph on top — the board's composed face. It renders ONLY on
+          `taller` (>=890h): the graph yields FIRST under height pressure, BEFORE
+          any whole right-rail card hides. Below 890 the flowing column can't hold
+          the graph (>=166px added to github) plus gitlab+jira without the lowest
+          card lapping the bottom-anchored Tasks pill (Task 70 measured: with the
+          graph in, jira.bottom 971 vs pill.top 811 at 865h — a 160px overlap; and
+          even github ALONE clears the pill by only 6px at the 601h mid floor).
+          gitlab/jira hide on `dense` (<=864); the graph hiding one tier higher —
+          at `taller`, 890 — is exactly "graph before whole cards". See App.tsx's
+          right-rail comment for the full re-measured arithmetic. */}
       {graph && (
-        <div className="short:hidden">
+        <div className="hidden taller:block">
           <ContributionGraph contributions={graph} />
         </div>
       )}

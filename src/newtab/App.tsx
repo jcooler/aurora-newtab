@@ -513,23 +513,50 @@ export default function App() {
               code-forge connectors, pinned to the right edge (`right-8`) and
               right-aligned (`items-end`) so the cards hug the margin exactly as
               their old `right-8` pins did. Same PositionedBlock/arrange contract
-              as the left rail. HEIGHT PRIORITY (per-widget, MEASURED at each
-              tier's INTERIOR WORST CASE — its MINIMUM height, since the Tasks
-              pill is bottom-anchored and rises as the window shrinks, not the
-              tier boundary): ALL THREE drop on short. At the short tier's own
-              451px floor the Tasks pill top is at 397 and this column starts at
-              rail-top-right 180 with only 217px of room — github's 235px worst
-              case alone overruns it (bottom 415 > 397, swallowing the pill's
-              click), and a connector glance-card can't trim below one card here,
-              so the right rail is empty on short/xshort. TASK 65 — the ledgered
-              601-848h residual is CLOSED: on the `mid` tier (601-864px, index.css)
-              GITLAB and JIRA whole-widget-hide, leaving GITHUB alone (its bottom
-              415 clears even the highest Tasks pill top — 547 at the band's 601px
-              floor — by 132px). The upper bound 864 is where the RESIDUAL itself
-              ends, measured, not guessed: jira's own bottom (795 at display max)
-              clears the Tasks pill (top height-54) by the 16px floor only at
-              height >= 865, so the tier covers exactly [601, 864] — at 865+ all
-              three connectors flow at full height and clear the pill unaided.
+              as the left rail.
+
+              HEIGHT PRIORITY (per-widget, MEASURED — Task 70, scripts/preview.mjs,
+              rebuilt bundle — at each tier's INTERIOR WORST CASE: its MINIMUM
+              height, since the Tasks pill is bottom-anchored at pill.top =
+              viewportH − 54 and RISES as the window shrinks, not the tier
+              boundary). rail-top-right = 180px (index.css, a fixed px so it never
+              rises into the content-height weather chip). Card heights at 1600w,
+              every section at its display max (github 2 PR + 2 issue + unread;
+              gitlab 3 MR + todos; jira 3 issue + counts):
+                · github  — 235px full / 193px dense-condensed (<=864), rows-only;
+                            411px WITH the commit graph (the graph block adds 176px).
+                · gitlab  — 174px.   · jira — 174px (the LOWEST card; its bottom is
+                            what must clear the pill).
+              Stacked rows-only, top-anchored from 180 with gap-4 (16px):
+              github[180-415] gitlab[431-605] jira[621-795]. jira.bottom 795 clears
+              the pill by the 16px floor only at height >= 865 (795 = 811 − 16,
+              811 = 865 − 54) — so gitlab and jira WHOLE-WIDGET-HIDE on `dense`
+              (<=864, index.css); at 865+ all three flow at full height and clear
+              the pill unaided (51px at Jon's 900).
+
+              GITHUB SURVIVES the compact band. It dense-condenses to 193px (bottom
+              373) and clears the pill down to the SHORT floor (451px, pill top 397)
+              by 24px; it hides only on `xshort` (<=450, `xshort:hidden` below). On
+              `mid` (601-864) gitlab/jira are gone (dense) and github stands alone,
+              rows-only, bottom 373 vs the 601-floor pill top 547 — 174px clear.
+
+              THE GRAPH YIELDS BEFORE ANY WHOLE CARD (Task 70's one new rule). The
+              commit-graph section (GithubWidget.tsx) renders ONLY on `taller`
+              (>=890h), via `hidden taller:block` — one tier ABOVE where gitlab/jira
+              hide (dense, 864). Two measured reasons it cannot ride lower:
+                · STACKED, the graph's +176px pushes jira to [797-971]; jira.bottom
+                  971 LAPS the pill (top 836 at 890) by 135px. The graph shows only
+                  where, under pressure, it yields FIRST and instantly restores fit:
+                  at 889 the graph is gone, jira.bottom is back to 795, 40px clear.
+                · ALONE on `mid`, github+graph (dense-condensed 361, bottom 541)
+                  clears the 601-floor pill (547) by only 6px — under the 16px floor.
+                  So the graph waits for `taller`, where github-alone+graph (411,
+                  bottom 591) clears the pill by 245px at the 890 floor, 255px at
+                  Jon's 900. (A tall window with ALL THREE forge cards AND the graph
+                  is beyond the flow column's budget — arrange mode is the documented
+                  escape; the harness proves the graph only in github's sole-card
+                  context, which is where the composed card is designed to live.)
+
               WIDTH: all three carry `.rail-primary` too (widest here is github's
               w-80), so the whole right column steps aside below 100vw = 1193 —
               see the left rail's WIDTH DISCIPLINE note and index.css. */}

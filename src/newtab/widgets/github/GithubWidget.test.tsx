@@ -222,13 +222,18 @@ describe('GithubWidget', () => {
     expect(within(stat).getByText('day streak')).toBeTruthy()
   })
 
-  it('the graph section wrapper carries short:hidden (it yields first under height pressure)', async () => {
+  it('the graph section wrapper is hidden by default and revealed only on taller (>=890h — it yields first under height pressure, before any whole card)', async () => {
     const storage = await seededStorage(CONNECTED, DATA_WITH_GRAPH)
     mount(storage)
 
     const img = await screen.findByRole('img')
-    const wrapper = img.closest('section')!.querySelector('[class*="short:hidden"]')
+    // Re-measured in Task 70 (scripts/preview.mjs): the graph yields one tier
+    // ABOVE where gitlab/jira whole-cards hide (dense, <=864) — it renders only
+    // on `taller` (>=890), via `hidden taller:block`, so the wrapper is
+    // `hidden` by default and `block` at that breakpoint.
+    const wrapper = img.closest('section')!.querySelector('[class*="taller:block"]')
     expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('hidden')).toBe(true)
     expect(wrapper!.contains(img)).toBe(true)
   })
 

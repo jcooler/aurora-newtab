@@ -1905,6 +1905,28 @@ console.log(
   )
 }
 
+// The contribution calendar's counts — a FROZEN 112-entry literal, generated
+// ONCE by the design board's own PRNG (board/seed.ts: mulberry32, seed
+// 0x0a082026, the weekend-quiet + 7-day-holiday-gap shaping and the trailing
+// 14-day streak) and EMBEDDED here so total/streak/level assertions never drift
+// with the run date. The dates the widget hovers show are computed at SEED time
+// (today−111…today, in-page at each seed) — hover titles only; NO assertion
+// touches a date. Derived from these exact numbers (never re-run at probe time):
+//   total   = 343   (sum of the 112 counts)
+//   streak  = 14    (trailing run of count>0; a clean 0 sits at index 97 = day −15)
+//   levels  = 0:28  1:29  2:30  3:15  4:10   (buildContributionGrid's 0 / 1-2 /
+//             3-4 / 5-7 / 8+ bands) — the level-4 days (count>=8) are the pixel
+//             probe's targets; the last day (index 111, count 12) is one.
+// Shared by the GitHub connector block and the graph-yield fencepost block below.
+const GITHUB_CONTRIB_COUNTS = [
+  4, 3, 3, 3, 0, 1, 3, 4, 8, 4, 2, 1, 2, 0, 3, 7, 3, 0, 0, 0, 9, 5, 4, 0, 5, 2, 1, 7,
+  3, 3, 0, 2, 2, 0, 6, 2, 4, 3, 0, 0, 0, 0, 0, 0, 0, 5, 2, 0, 6, 2, 3, 4, 5, 0, 0, 2,
+  7, 7, 12, 3, 2, 1, 2, 4, 7, 5, 4, 0, 2, 11, 2, 11, 3, 3, 0, 0, 6, 0, 4, 2, 5, 0, 0,
+  3, 12, 2, 2, 2, 0, 0, 2, 3, 12, 4, 2, 0, 1, 0, 2, 2, 5, 3, 2, 3, 3, 8, 9, 3, 3, 1, 1, 12,
+]
+const GITHUB_CONTRIB_TOTAL = 343
+const GITHUB_CONTRIB_STREAK = 14
+
 // ---------------------------------------------------------------------------
 // GitHub connector (Task 48) — the FIRST full token connector, and the
 // template Tasks 49-51 copy. NO live network: seed an enabled + connected
@@ -1925,11 +1947,24 @@ console.log(
       { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
     ],
     notifications: 3,
+    // contributions is built in-page (below) so its day DATES track the run date
+    // (today−111…today) while its COUNTS stay the frozen literal above.
     etags: {},
   }
   const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
 
-  await page.evaluate(async (data) => {
+  await page.evaluate(async ({ data, counts, total }) => {
+    // Build the contribution days at seed time: today−111…today (oldest first),
+    // each paired with its frozen count. Only the count is asserted; the date is
+    // the hover title alone, so tying it to Date.now() keeps the titles current
+    // without ever making an assertion date-dependent.
+    const today = new Date()
+    const days = counts.map((count, i) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() - (counts.length - 1 - i))
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      return { date: iso, count }
+    })
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
       connectors: {
@@ -1939,9 +1974,11 @@ console.log(
       // fetchedAt stamped HERE, in the page, so the snapshot is fresh relative
       // to whenever this run happens — the SWR hook renders from cache and never
       // touches the network.
-      connectorSnapshots: { github: { fetchedAt: Date.now(), data } },
+      connectorSnapshots: {
+        github: { fetchedAt: Date.now(), data: { ...data, contributions: { days, total } } },
+      },
     })
-  }, FIXTURE)
+  }, { data: FIXTURE, counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL })
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
@@ -1988,6 +2025,90 @@ console.log(
     linkOk
       ? 'PASS: each GitHub row is an external link (target=_blank, rel=noopener noreferrer, href intact)'
       : `FAIL: each GitHub row is an external link (target=${rows?.firstTarget}, rel=${rows?.firstRel}, href=${rows?.firstHref})`,
+  )
+
+  // Probe 2b: the commit graph renders from cache with full fidelity — the
+  // render-is-the-spec checks (exactly 112 filled day cells, >=3 month ticks, the
+  // verbatim stat line, and the accent ramp's level-4 alpha sampled off a real
+  // cell's computed background) plus the compose order and the no-false-affordance
+  // cursor discipline. All read off the live DOM at 1600x900 (>=890h, the `taller`
+  // tier where the graph reveals — see GithubWidget.tsx / App.tsx's right-rail
+  // comment for the re-measured yield boundary). The pixel sample is the class of
+  // check that caught the weather ring shipping the wrong colour: a heatmap cell's
+  // level-4 background must be the accent at full alpha, rgb(125, 211, 252).
+  const graph = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const img = sec.querySelector('[role="img"]')
+    if (!img) return { imgFound: false }
+    const cells = [...img.children]
+    const filled = cells.filter((c) => {
+      const bg = getComputedStyle(c).backgroundColor
+      return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
+    })
+    const ticksRow = img.nextElementSibling // the month-tick row is the grid's sibling
+    const tickCount = ticksRow ? ticksRow.querySelectorAll('span').length : 0
+    const statText = (sec.querySelector('p')?.textContent ?? '').replace(/\s+/g, ' ').trim()
+    // A level-4 cell: its hover title's leading count is >= 8 (the 8+ band). The
+    // last real day (frozen count 12) is one, but any qualifies.
+    let level4Bg = null
+    let level4Count = null
+    for (const c of filled) {
+      const n = parseInt(c.getAttribute('title') || '', 10)
+      if (Number.isFinite(n) && n >= 8) {
+        level4Bg = getComputedStyle(c).backgroundColor
+        level4Count = n
+        break
+      }
+    }
+    // Compose order: the graph sits ABOVE the first PR/issue row.
+    const firstRow = sec.querySelector('a')
+    const imgTop = +img.getBoundingClientRect().top.toFixed(1)
+    const rowTop = firstRow ? +firstRow.getBoundingClientRect().top.toFixed(1) : null
+    // No false affordance: a heatmap cell is NOT a pointer; a row link IS.
+    const cellCursor = filled[0] ? getComputedStyle(filled[0]).cursor : null
+    const rowCursor = firstRow ? getComputedStyle(firstRow).cursor : null
+    return { imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText, level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor }
+  }, githubSel)
+
+  const parseRgb = (str) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(str || '')
+    return m ? [+m[1], +m[2], +m[3]] : null
+  }
+  const ACCENT_RGB = [125, 211, 252]
+  const gridOk =
+    graph !== null &&
+    graph.imgFound === true &&
+    graph.filled === 112 &&
+    graph.tickCount >= 3 &&
+    graph.statText.includes(`${GITHUB_CONTRIB_TOTAL} contributions`) &&
+    graph.statText.includes(`${GITHUB_CONTRIB_STREAK} day streak`)
+  console.log(
+    gridOk
+      ? `PASS: the commit graph renders from cache — ${graph.filled} filled day cells (of ${graph.totalCells} incl. week padding), ${graph.tickCount} month ticks, stat line "${graph.statText}" (${GITHUB_CONTRIB_TOTAL} contributions · ${GITHUB_CONTRIB_STREAK} day streak, verbatim)`
+      : `FAIL: the commit graph renders from cache (${JSON.stringify(graph)})`,
+  )
+
+  const l4 = parseRgb(graph?.level4Bg)
+  const pixelOk = !!l4 && l4.every((v, i) => Math.abs(v - ACCENT_RGB[i]) <= 4)
+  console.log(
+    pixelOk
+      ? `PASS: a level-4 heatmap cell (count ${graph.level4Count}) computes to the accent at full alpha — rgb(${l4.join(', ')}) within tolerance of rgb(${ACCENT_RGB.join(', ')})`
+      : `FAIL: a level-4 heatmap cell's accent is within tolerance of rgb(${ACCENT_RGB.join(', ')}) (got ${graph?.level4Bg}, count ${graph?.level4Count})`,
+  )
+
+  const composeOk = graph !== null && graph.rowTop !== null && graph.imgTop < graph.rowTop
+  console.log(
+    composeOk
+      ? `PASS: the composed card puts the graph ABOVE the PR/issue rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
+      : `FAIL: the composed card puts the graph ABOVE the PR/issue rows (${JSON.stringify({ imgTop: graph?.imgTop, rowTop: graph?.rowTop })})`,
+  )
+
+  const cursorOk = graph !== null && graph.cellCursor !== 'pointer' && graph.rowCursor === 'pointer'
+  console.log(
+    cursorOk
+      ? `PASS: no false affordance — heatmap cells are not clickable (cursor ${graph.cellCursor}); PR/issue rows are (cursor ${graph.rowCursor})`
+      : `FAIL: no false affordance — heatmap cells must not be pointer, rows must be (cell ${graph?.cellCursor}, row ${graph?.rowCursor})`,
   )
 
   await page.screenshot({ path: `${outDir}/connectors-github.png` })
@@ -2067,8 +2188,148 @@ console.log(
       : `FAIL: the GitHub card reads connected (${JSON.stringify(card)})`,
   )
 
+  // Task 70 — the "Show on your board" chips (Task 69), proven through the REAL
+  // drawer against the LIVE card. The github card stays mounted behind the open
+  // drawer; each chip's onClick writes `connectors.github.views` to storage, and
+  // the card's useStoredKey subscription re-gates its sections WITHOUT a reload —
+  // and back ON restores them from the still-cached snapshot, instantly (no
+  // refetch: the snapshot's fetchedAt is fresh). Chip and card are read together
+  // so the drawer control and the board render are proven to move as one.
+  const readChips = () =>
+    page.evaluate(() => {
+      const sec = document.querySelector('section[aria-label="Connectors"]')
+      const chips = {}
+      for (const b of sec.querySelectorAll('button[aria-pressed]')) {
+        const label = b.textContent.replace(/[✓+]/g, '').trim()
+        chips[label] = b.getAttribute('aria-pressed')
+      }
+      const cardEl = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
+      return {
+        chips,
+        cardLinks: cardEl ? cardEl.querySelectorAll('a').length : null,
+        hasGraph: cardEl ? !!cardEl.querySelector('[role="img"]') : null,
+        hasIssueRow: cardEl ? cardEl.textContent.includes('Cold-start crash when storage is empty') : null,
+        hasPrRow: cardEl ? cardEl.textContent.includes('Fix the flaky auth test on CI') : null,
+      }
+    })
+
+  const chipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
+
+  const before = await readChips()
+  const chipsRenderOk =
+    before.chips['Commit graph'] === 'true' &&
+    before.chips['Pull requests'] === 'true' &&
+    before.chips['Issues'] === 'true' &&
+    before.chips['Notifications'] === 'true' &&
+    before.cardLinks === 4 &&
+    before.hasGraph === true
+  console.log(
+    chipsRenderOk
+      ? 'PASS: the four "Show on your board" chips render aria-pressed true/true/true/true (absent views resolve all-on), and the live card shows all sections (4 rows + graph)'
+      : `FAIL: the four view chips render all-on with the live card composed (${JSON.stringify(before)})`,
+  )
+  await page.screenshot({ path: `${outDir}/github-settings-chips.png` })
+  console.log('captured github-settings-chips.png')
+
+  // Click Issues OFF → the live card's issue rows vanish (link count 4 -> 2, the
+  // issue title gone) with no reload; the chip reads aria-pressed="false".
+  await page.click(chipBtn('Issues'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
+      return c && c.querySelectorAll('a').length === 2
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const afterIssues = await readChips()
+  const issuesOffOk =
+    afterIssues.chips['Issues'] === 'false' &&
+    afterIssues.cardLinks === 2 &&
+    afterIssues.hasIssueRow === false &&
+    afterIssues.hasPrRow === true &&
+    afterIssues.hasGraph === true
+  console.log(
+    issuesOffOk
+      ? 'PASS: clicking "Issues" off drops the live card\'s issue rows without reload (4 -> 2 links, issue title gone, PRs + graph remain), chip aria-pressed="false"'
+      : `FAIL: clicking "Issues" off drops the issue rows live (${JSON.stringify(afterIssues)})`,
+  )
+
+  // Click Commit graph OFF → the heatmap is gone, the rows remain.
+  await page.click(chipBtn('Commit graph'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
+      return c && !c.querySelector('[role="img"]')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const afterGraph = await readChips()
+  const graphOffOk =
+    afterGraph.chips['Commit graph'] === 'false' &&
+    afterGraph.hasGraph === false &&
+    afterGraph.cardLinks === 2 &&
+    afterGraph.hasPrRow === true
+  console.log(
+    graphOffOk
+      ? 'PASS: clicking "Commit graph" off removes the heatmap while the PR rows remain (no graph, 2 links still), chip aria-pressed="false"'
+      : `FAIL: clicking "Commit graph" off removes the heatmap while rows remain (${JSON.stringify(afterGraph)})`,
+  )
+
+  // Both back ON → the sections return instantly from the still-cached snapshot.
+  await page.click(chipBtn('Issues'))
+  await page.click(chipBtn('Commit graph'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
+      return c && c.querySelectorAll('a').length === 4 && !!c.querySelector('[role="img"]')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const restored = await readChips()
+  const restoreOk =
+    restored.chips['Issues'] === 'true' &&
+    restored.chips['Commit graph'] === 'true' &&
+    restored.cardLinks === 4 &&
+    restored.hasGraph === true
+  console.log(
+    restoreOk
+      ? 'PASS: turning "Issues" + "Commit graph" back on restores both sections instantly from cache (4 rows + graph return, no reload)'
+      : `FAIL: turning the sections back on restores them from cache (${JSON.stringify(restored)})`,
+  )
+
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400) // slide-out
+
+  // Capture the graph-ONLY card (Jon's literal ask): commitGraph on, every other
+  // section off. Seeded via storage (the same views the chips write), reloaded so
+  // the card composes from scratch, captured at 1600x900 (>=890h — the graph
+  // shows), then the connector is disabled in the restore below.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, views: { commitGraph: true, pulls: false, issues: false, notifications: false } },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(`${githubSel} [role="img"]`, { timeout: 5000 }).catch(() => {})
+  const graphOnly = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return { hasGraph: !!sec.querySelector('[role="img"]'), links: sec.querySelectorAll('a').length, hasUnread: /unread/.test(sec.textContent) }
+  }, githubSel)
+  const graphOnlyOk = graphOnly !== null && graphOnly.hasGraph === true && graphOnly.links === 0 && graphOnly.hasUnread === false
+  console.log(
+    graphOnlyOk
+      ? 'PASS: the graph-only card (commitGraph on, all else off) renders the heatmap and NO rows and no unread chip'
+      : `FAIL: the graph-only card renders the heatmap alone (${JSON.stringify(graphOnly)})`,
+  )
+  await page.screenshot({ path: `${outDir}/github-graph-only.png` })
+  console.log('captured github-graph-only.png')
 
   // Restore: disable the connector and clear its cache, then reload so the
   // widget is gone for every block below — same restore discipline as the RSS
@@ -2089,6 +2350,181 @@ console.log(
       ? 'GitHub connector disabled; page restored to idle'
       : 'WARNING: GitHub widget still present after disabling the connector',
   )
+}
+
+// ---------------------------------------------------------------------------
+// GitHub graph-yield fenceposts (Task 70) — the composed card's OWN interior
+// worst case, proven at the tier edges with BOTH worst states forced at once:
+// the weather chip at its 3-line tallest (governs the air above the rail) AND
+// the github card at its tallest content (graph + 2 PR + 2 issue + unread).
+// github is seeded ALONE (gitlab/jira off) because the graph only ever renders
+// when github is the rail's sole card — see App.tsx's right-rail comment and
+// GithubWidget.tsx for the re-measured `taller` (>=890h) boundary. This proves:
+//   (1) the graph reveals MONOTONICALLY at 890 (shown >=890, hidden <=889, one
+//       transition, never re-shows) — the graph yields FIRST, before any card;
+//   (2) github survives to the SHORT floor (451) and hides only on xshort (<=450);
+//   (3) at every height github is shown, its bottom clears the bottom-anchored
+//       Tasks pill by the 16px right-rail floor (the pill RISES as h shrinks);
+//   (4) the forced 3-line weather chip clears github's own top (rail-top-right
+//       180) by that same 16px floor.
+// Restores (github disabled, weatherCache null, endpoint unblocked, viewport
+// back to 1600x900) so every block below is undisturbed.
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const heights = [900, 890, 889, 865, 601, 600, 451, 450]
+  // Force the weather chip's 3-line worst case (rain callout + stale/offline
+  // line), the SAME deterministic idiom as the weather-chip worst-case probe
+  // below: seed a rain hour (precipProb 45, over NOTABLE_PRECIP) + a stale
+  // fetchedAt, and ABORT the live endpoint so the mount refresh fails into the
+  // same "offline" line rather than overwriting the seed with real weather.
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ counts, total }) => {
+      const today = new Date()
+      const days = counts.map((count, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (counts.length - 1 - i))
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return { date: iso, count }
+      })
+      const MAX_AGE_MS = 30 * 60 * 1000
+      const now = Date.now()
+      const hourly = Array.from({ length: 12 }, (_, i) => {
+        const t = new Date(now + i * 3_600_000)
+        const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+        return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+          gitlab: { ...(connectors.gitlab || {}), enabled: false },
+          jira: { ...(connectors.jira || {}), enabled: false },
+        },
+        connectorSnapshots: {
+          github: {
+            fetchedAt: now,
+            data: {
+              prs: [
+                { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+                { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+              ],
+              issues: [
+                { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+                { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+              ],
+              notifications: 3,
+              contributions: { days, total },
+              etags: {},
+            },
+          },
+        },
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measureAt = () =>
+    page.evaluate(
+      ({ wSel, ghSel }) => {
+        const box = (el) => {
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gh = document.querySelector(ghSel)
+        const img = gh ? gh.querySelector('[role="img"]') : null
+        const w = document.querySelector(wSel)
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gh: box(gh),
+          // The graph is hidden via `hidden taller:block` — display:none, so the
+          // element STAYS in the DOM. VISIBILITY is the rendered box, not the
+          // node's existence (its own box is what has zero height when hidden).
+          graphShown: !!img && img.getBoundingClientRect().height > 0,
+          chip: box(w),
+          chipText: w ? (w.textContent || '').replace(/\s+/g, ' ') : '',
+          pillTop: pill ? +pill.getBoundingClientRect().top.toFixed(1) : null,
+        }
+      },
+      { wSel: weatherSel, ghSel: githubSel },
+    )
+
+  const fpRows = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300) // reflow + ResizeObserver settle
+    fpRows.push({ h, ...(await measureAt()) })
+  }
+
+  // (1) the graph reveals MONOTONICALLY at 890.
+  const graphVisOk = fpRows.every((r) => r.graphShown === (r.h >= 890))
+  let graphMono = true
+  for (let i = 1; i < fpRows.length; i++) if (fpRows[i].graphShown && !fpRows[i - 1].graphShown) graphMono = false
+  console.log(
+    graphVisOk && graphMono
+      ? `PASS: the commit graph yields MONOTONICALLY — shown at >=890h (${fpRows.filter((r) => r.graphShown).map((r) => r.h).join(', ')}), hidden below (${fpRows.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows (the graph yields FIRST, before any whole card)`
+      : `FAIL: the commit graph yields monotonically at 890 (${JSON.stringify(fpRows.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+  )
+
+  // (2) github survives to the short floor (shown >=451, hidden only on xshort).
+  const cardVisOk = fpRows.every((r) => (r.gh !== null) === (r.h >= 451))
+  let cardMono = true
+  for (let i = 1; i < fpRows.length; i++) if (fpRows[i].gh && !fpRows[i - 1].gh) cardMono = false
+  console.log(
+    cardVisOk && cardMono
+      ? `PASS: the github card survives to the short floor (shown at >=451h) and hides only on xshort (<=450), monotonically`
+      : `FAIL: the github card survives to 451 and hides on xshort (${JSON.stringify(fpRows.map((r) => ({ h: r.h, shown: r.gh !== null })))})`,
+  )
+
+  // (3) where shown, github clears the Tasks pill by the 16px floor.
+  const FP_FLOOR = 16
+  const pillRows = fpRows.filter((r) => r.gh && r.pillTop !== null)
+  const pillClears = pillRows.map((r) => ({ h: r.h, gap: +(r.pillTop - r.gh.bottom).toFixed(1), graph: r.graphShown }))
+  const pillOk = pillClears.every((c) => c.gap >= FP_FLOOR)
+  console.log(
+    pillOk
+      ? `PASS: github clears the Tasks pill by >=${FP_FLOOR}px at every fencepost it is shown — ${pillClears.map((c) => `${c.h}h:${c.gap}px${c.graph ? '(+graph)' : ''}`).join(', ')} (interior worst case: the pill rises as h shrinks)`
+      : `FAIL: github clears the Tasks pill by >=${FP_FLOOR}px at every shown fencepost (${JSON.stringify(pillClears)})`,
+  )
+
+  // (4) the forced 3-line weather chip clears github's own top by the 16px floor.
+  const chipForcedAt900 = /rain/i.test(fpRows[0].chipText) && /(Updated a while ago|Offline)/.test(fpRows[0].chipText)
+  const chipRows = fpRows.filter((r) => r.gh && r.chip)
+  const chipClears = chipRows.map((r) => ({ h: r.h, gap: +(r.gh.top - r.chip.bottom).toFixed(1) }))
+  const chipOk = chipForcedAt900 && chipClears.every((c) => c.gap >= FP_FLOOR)
+  console.log(
+    chipOk
+      ? `PASS: the forced 3-line weather chip (rain callout + stale line, proven at 900h) clears github's own top (rail-top-right 180) by >=${FP_FLOOR}px at every shown fencepost — ${chipClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
+      : `FAIL: the forced 3-line chip clears github's top by >=${FP_FLOOR}px (chipForcedAt900=${chipForcedAt900}, ${JSON.stringify(chipClears)}, text900="${fpRows[0].chipText}")`,
+  )
+
+  // Restore: unblock the endpoint FIRST, disable github + clear the seeded
+  // weatherCache and snapshot, viewport back to launch, reload.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, github: { ...connectors.github, enabled: false } },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
 }
 
 // ---------------------------------------------------------------------------
