@@ -1025,7 +1025,13 @@ function IcsBody({ config, storage }: BodyProps) {
               type="button"
               aria-label={`Remove ${cal.name}`}
               onClick={() => void handleRemove(cal.url)}
-              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              // cursor-pointer explicit (Task 5's own interaction probe
+              // caught its absence): Tailwind v4 preflight sets `button {
+              // cursor: default }` — the same fix shared.ts's own comment
+              // documents for every OTHER button class in this control kit.
+              // RssBody's identical Remove button (above) carries the same
+              // gap; out of scope for this ics-only wave, left as found.
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
             >
               ✕
             </button>

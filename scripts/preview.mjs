@@ -4309,73 +4309,99 @@ function githubContributionsFixture() {
   )
 }
 
-// Calendar widget (Task 54, ics connector) — the seventh connector, and the
-// second NO-AUTH one (crypto's own sibling, one step further: ics ALSO
-// strips a secret on export — the whole url IS the secret, see
-// backup.test.ts's own Task 53 case) to reach this page. Photo-floating
-// TEXT (no panel surface, like RSS/crypto's own rows), capped by
-// CONSTRUCTION at 1 next-line + 2 agenda rows — see CalendarWidget.tsx's and
-// App.tsx's own doc comments for the controller ruling that replaced the
-// brief's original 4-row / `top-[62vh]` spec (that slot is Vercel's own as
-// of Task 51). NO live network: seed an enabled config + a fresh snapshot
+// Calendar widget (ics connector) — Task 5's own fixture-law sweep
+// (ics-multi-calendar wave). The widget grew from Task 54's single feed
+// (1 next-line + 2 agenda-row cap) into up to MAX_CALENDARS (5, Connectors.tsx)
+// named calendars, three view modes ('today' | 'upcoming' | 'per-calendar'),
+// day tokens (weekday name for 1-6 days out, 'Mon DD' beyond), and
+// per-calendar dots (CALENDAR_DOT_CLASSES, ics.ts) — see
+// CalendarWidget.tsx/ics.ts/Connectors.tsx's own doc comments for the
+// shipped feature (Tasks 1-4 of this wave). THE FIXTURE LAW (this file's own
+// convention, restated because the block below used to violate it): sweep at
+// what the feature can actually render, not a comfortable middle. So this
+// seeds the TRUE display max — 5 calendars in 'per-calendar' view, the mode
+// that produces the most rows the widget can show (1 headline + 5 rows, one
+// per calendar — see selectAgenda's own doc comment in ics.ts for why cal 0
+// needs a SECOND event to contribute a row at all, since its first became
+// the headline) — captures + probes it, then switches the SAME fixture to
+// the 'upcoming'/4-row variant partway through and re-measures, per the plan's
+// own constraint. NO live network: seed an enabled config + a fresh snapshot
 // computed INSIDE the page (epoch times relative to Date.now() AT EVALUATE
-// TIME, never baked into this script itself) — one event a short step out
-// (becomes "Next"), two more later today (the agenda rows), one clearly
-// tomorrow (a different calendar day, so it must appear NOWHERE — proving
-// both the same-day scoping and the 2-row cap at once, since three "today"
-// events exist but only two are today's REMAINING ones after Next).
+// TIME, never baked into this script itself), the same idiom every connector
+// snapshot in this file uses. Every snapshot event now carries a REQUIRED
+// `cal: <index>` field (0-4) — the widget's dot color and the 'per-calendar'
+// view both key off it.
 {
   const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+  const DOT_CLASSES = ['bg-accent', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-400', 'bg-fuchsia-400']
 
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
     const now = Date.now()
     const H = 3_600_000
-    // Fixed hour offsets (now+2h/4h/6h) broke near midnight on the FIRST
-    // run of this probe: at 22:07 local, "now+2h" itself lands tomorrow,
-    // so every fixture event ends up on a different calendar day than
-    // `now`, and the "today's remaining" agenda comes back empty — a real
-    // FAIL this harness caught, not a hypothetical. Fixed instead: space
-    // the three same-day events proportionally across whatever time is
-    // actually LEFT in today, which keeps them provably before local
-    // midnight — and therefore "today" — for any run with at least a few
-    // seconds left before midnight (see the review-round-1 fix note below
-    // for the residual ~4s window and why it's accepted rather than chased
-    // further).
-    //
-    // Review round 1 fix: the ORIGINAL version of this line floored `step`
-    // at 60_000ms (a 1-minute minimum "for readability"), which is what
-    // actually reintroduced the same midnight bug in miniature — with
-    // todayEnd - now < ~180s, `now + step*3` (step pinned to the 60s floor
-    // regardless of how little time was actually left) could itself cross
-    // midnight, dropping the fixture events from "today" and spuriously
-    // FAILing the `agenda.length === 2` probe. Chronological ORDERING
-    // (next < design review < 1:1 with Sam) needs no minimum gap at all —
-    // 1 second apart sorts exactly as correctly as 60 — so the floor is
-    // now 1000ms, and the divisor reserves a 1000ms buffer before
-    // todayEnd so `step*3` always lands strictly before local midnight
-    // whenever there's more than ~4 seconds of today left to divide.
+    const DAY_MS = 86_400_000
+    // Same midnight-proof step idiom the old single-feed fixture used (see
+    // its own review-round-1 fix note, preserved in spirit): only cal 0's
+    // two same-day events need it, since every other calendar's event is
+    // pinned days out off `todayEnd` (a local-midnight instant) and can
+    // never accidentally race cal 0 regardless of what time of day this
+    // harness happens to run.
     const d = new Date(now)
     const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
-    const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
+    const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 2))
     const events = [
-      { summary: 'Standup', start: now + step, end: now + step + 30_000 }, // "next"
-      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 }, // today, later
-      { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 }, // today, later still
-      // Unambiguously the NEXT calendar day (todayEnd is tomorrow's own
-      // local midnight) regardless of the step above.
-      { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+      // cal 0 (Personal) — the soonest event overall (the headline), plus a
+      // second same-day event that becomes cal 0's OWN per-calendar row: the
+      // headline's calendar re-appears in the rows below it because
+      // selectAgenda's 'per-calendar' branch (ics.ts) looks for each
+      // calendar's soonest event EXCLUDING whichever one became `next` —
+      // cal 0 only contributes a row when it has a second one, which is
+      // exactly what makes 5 calendars able to reach 5 rows at all.
+      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0 },
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0 },
+      // cal 1 (Family) — exactly one day out: dayToken's WEEKDAY branch
+      // (dayDiff<=6) — the brief's own "one tomorrow event" literal.
+      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1 },
+      // cal 2/3/4 (Work/School/Travel) — all 9+ days out: dayToken's DATE
+      // branch ("Mon DD") — the brief's own "one 10+ days out" literal (cal
+      // 3, Parent-teacher). Spaced so the 'upcoming' view's 4-row cap below
+      // keeps the first two (Work, School) on screen and drops the third
+      // (Travel) — proving the cap trims chronologically, not by calendar.
+      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2 },
+      {
+        summary: 'Parent-teacher conference',
+        start: todayEnd + 10 * DAY_MS + 15 * H + 30 * 60_000,
+        end: todayEnd + 10 * DAY_MS + 16 * H,
+        cal: 3,
+      },
+      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4 },
     ]
-    // Task 65 — seed rss too, so the calendar/headlines flow relationship this
-    // block asserts below is REAL: under the rails ics and rss are the top two
-    // cards of the left zone's col1 flex column, separated by the column's
-    // gap-4. The OLD probe left rss unseeded (its wrapper `display:none` via the
-    // `:empty` rule => rss.top read 0, a bogus "gap"); seeding a couple of
-    // headlines renders the second card so the gap-4 rhythm can be measured.
+    // rss seeded too (Task 65's own rationale, unchanged): under the rails
+    // ics and rss are the top two cards of the left zone's col1 flex column,
+    // separated by the column's gap-4 — the probes below measure that live
+    // flow, which needs rss actually rendering a card.
     await chrome.storage.local.set({
       connectors: {
         ...connectors,
-        ics: { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' },
+        // TRUE DISPLAY MAX: five named calendars (MAX_CALENDARS,
+        // Connectors.tsx) in 'per-calendar' view. upcomingCount is set
+        // anyway (3) even though 'per-calendar' ignores it — matching what a
+        // real saved config looks like after a user has tried 'upcoming'
+        // before settling here. The block below patches view/upcomingCount
+        // to 'upcoming'/4 partway through to capture that variant too,
+        // without reseeding the calendars or the snapshot.
+        ics: {
+          enabled: true,
+          view: 'per-calendar',
+          upcomingCount: 3,
+          calendars: [
+            { name: 'Personal', url: 'https://calendar.example.com/personal.ics' },
+            { name: 'Family', url: 'https://calendar.example.com/family.ics' },
+            { name: 'Work', url: 'https://calendar.example.com/work.ics' },
+            { name: 'School', url: 'https://calendar.example.com/school.ics' },
+            { name: 'Travel', url: 'https://calendar.example.com/travel.ics' },
+          ],
+        },
         rss: { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 },
       },
       // fetchedAt stamped HERE, in the page, so the snapshot is fresh
@@ -4396,44 +4422,74 @@ function githubContributionsFixture() {
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
-
-  // Probe 1: the next-line names the soonest event with SOME non-empty
-  // relative-time suffix (relNext's own exact wording is exhaustively
-  // boundary-tested in CalendarWidget.test.tsx — this only proves the real
-  // rendered DOM wires the two together), and the agenda rows are capped at
-  // 2, chronological, and never leak tomorrow's event.
   await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
-  const rows = await page.evaluate((s) => {
+
+  // Probe 1: the headline still names the soonest event with a non-empty
+  // relative-time suffix — unchanged shape across all three view modes
+  // (selectAgenda's own doc comment in ics.ts: headline selection never
+  // varies by view, only `rows` does), so this holds at the true max exactly
+  // as it did at the old 1-calendar fixture.
+  const headline = await page.evaluate((s) => document.querySelector(s)?.querySelector('p')?.textContent ?? null, icsSel)
+  const headlinePrefix = 'Next: Standup · '
+  const headlineOk = !!headline && headline.startsWith(headlinePrefix) && headline.length > headlinePrefix.length
+  console.log(
+    headlineOk
+      ? `PASS: the Calendar widget's headline names the soonest event with a relative-time suffix, unchanged at the true max (${JSON.stringify(headline)})`
+      : `FAIL: the Calendar widget's headline names the soonest event with a relative-time suffix (${JSON.stringify(headline)})`,
+  )
+
+  // Probe 2 (Task 5 fixture-law sweep, (a) + (b)): 'per-calendar' view with 5
+  // calendars is the TRUE display max — 1 headline + 5 rows, one per
+  // calendar. Also checks the five CALENDAR_DOT_CLASSES each appear EXACTLY
+  // once across the five ROWS — the headline carries its own dot too (cal
+  // 0's, bg-accent), a deliberate SIXTH dot rendered on top of row 1's
+  // (also cal 0, since cal 0 supplies both), so the once-each assertion is
+  // scoped to the rows alone, not the whole section.
+  const perCal = await page.evaluate((s) => {
     const sec = document.querySelector(s)
     if (!sec) return null
-    return {
-      next: sec.querySelector('p')?.textContent ?? null,
-      agenda: [...sec.querySelectorAll('ul > li')].map((li) => li.textContent),
-    }
+    const rows = [...sec.querySelectorAll('ul > li')]
+    const classes = ['bg-accent', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-400', 'bg-fuchsia-400']
+    const dotCounts = Object.fromEntries(classes.map((c) => [c, sec.querySelectorAll(`ul > li .${c}`).length]))
+    return { rowCount: rows.length, rowText: rows.map((li) => li.textContent), dotCounts }
   }, icsSel)
-  const nextPrefix = 'Next: Standup · '
-  const nextOk = rows !== null && !!rows.next && rows.next.startsWith(nextPrefix) && rows.next.length > nextPrefix.length
+  const perCalRowsOk = perCal !== null && perCal.rowCount === 5
   console.log(
-    nextOk
-      ? `PASS: the Calendar widget's next-line names the soonest event with a relative-time suffix (${JSON.stringify(rows?.next)})`
-      : `FAIL: the Calendar widget's next-line names the soonest event with a relative-time suffix (${JSON.stringify(rows)})`,
+    perCalRowsOk
+      ? `PASS: the 'per-calendar' view with 5 calendars renders the true max — 1 headline + 5 rows (${JSON.stringify(perCal.rowText)})`
+      : `FAIL: the 'per-calendar' view with 5 calendars renders the true max — 1 headline + 5 rows (${JSON.stringify(perCal)})`,
   )
-  const agendaOk =
-    rows !== null &&
-    rows.agenda.length === 2 &&
-    (rows.agenda[0] ?? '').includes('Design review') &&
-    (rows.agenda[1] ?? '').includes('1:1 with Sam') &&
-    rows.agenda.every((r) => !r.includes('Kickoff'))
+  const dotsOnceEachOk = perCal !== null && DOT_CLASSES.every((c) => perCal.dotCounts[c] === 1)
   console.log(
-    agendaOk
-      ? `PASS: the Calendar widget's agenda rows are capped at 2, chronological, and exclude tomorrow's event (${JSON.stringify(rows?.agenda)})`
-      : `FAIL: the Calendar widget's agenda rows are capped at 2, chronological, and exclude tomorrow's event (${JSON.stringify(rows)})`,
+    dotsOnceEachOk
+      ? `PASS: all five CALENDAR_DOT_CLASSES appear exactly once across the five rows (${JSON.stringify(perCal?.dotCounts)})`
+      : `FAIL: all five CALENDAR_DOT_CLASSES appear exactly once across the five rows (${JSON.stringify(perCal?.dotCounts)})`,
+  )
+
+  // Probe 3 (widget quality bar, interaction probe (d)): CalendarWidget.tsx
+  // renders no button or link anywhere in its card — the whole thing is
+  // display-only — so nothing in it should ever show a pointer cursor.
+  // Mirrors the cursor-probe idiom at the weather location-setup block above
+  // (search "correct cursors in the location-setup state"), applied here to
+  // the card's static text instead of a form.
+  const widgetCursor = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const cursorOf = (el) => getComputedStyle(el).cursor
+    const statics = [...sec.querySelectorAll('p, li, span')]
+    return { cursors: [...new Set(statics.map(cursorOf))], count: statics.length }
+  }, icsSel)
+  const widgetCursorOk = widgetCursor !== null && widgetCursor.count > 0 && !widgetCursor.cursors.includes('pointer')
+  console.log(
+    widgetCursorOk
+      ? `PASS: the Calendar card's static text carries no pointer cursor (${widgetCursor.count} element(s), cursor(s): ${widgetCursor.cursors.join('/')})`
+      : `FAIL: the Calendar card's static text carries no pointer cursor (${JSON.stringify(widgetCursor)})`,
   )
 
   await page.screenshot({ path: `${outDir}/connectors-calendar.png` })
   console.log('captured connectors-calendar.png')
 
-  // Probe 2: collision — the measured gap ABOVE (to the timer pill, its
+  // Probe 4: collision — the measured gap ABOVE (to the timer pill, its
   // nearest neighbor) and BELOW (to RSS's own default top), PLUS
   // non-overlap against the centered search/focus column and the usual
   // peripherals every other connector probe in this script checks (weather
@@ -4526,8 +4582,115 @@ function githubContributionsFixture() {
       : `FAIL: the Calendar widget clears the search/focus column, the weather chip, bookmarks bar, Tasks pill, gear, the Notes pill, and the photo refresh button (${JSON.stringify(gap)})`,
   )
 
-  // Refresh drawer-connectors.png now that ics is CONFIGURED — the card
-  // this task adds.
+  // Probe 5 (Task 5 fixture-law sweep, constraint (c)): the taller true-max
+  // card (1 headline + 5 rows, vs the old 1 next-line + 2 rows) pushes rss
+  // further down the col1 flex column at EVERY height — the short/xshort/mid
+  // tier gates in index.css (their own numbers derived against the OLD,
+  // shorter card) must still hold, not just be assumed to. Six heights,
+  // width pinned at 1600 (the widest rail — height tiers are width-
+  // independent, see index.css's own note): 900 (default, re-checked here
+  // too for symmetry with Probe 4 above), 700 and 601 (mid — 601 is its own
+  // interior-worst fencepost, index.css), 550 and 451 (short, ditto), and
+  // 450 (xshort — the one point where rss itself yields, `xshort:hidden`,
+  // App.tsx, and ics alone must clear the floor). vercel stays disabled
+  // throughout this block (restored by its own earlier block above), so col1
+  // is just ics(+rss) at every one of these heights — nothing else to trip
+  // the flex flow.
+  const SWEEP_HEIGHTS = [900, 700, 601, 550, 451, 450]
+  let sweepIcsErrs = errors.length
+  let icsSweepOk = true
+  const icsSweepLog = []
+  for (const h of SWEEP_HEIGHTS) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(320) // reflow + the rows' media-query display flip
+    const m = await page.evaluate((selIcs) => {
+      const rect = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        if (b.width === 0 && b.height === 0) return null
+        return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+      }
+      return {
+        ics: rect(selIcs),
+        rss: rect('[data-block-id="rss"] section[aria-label="Headlines"]'),
+        notes: rect('[data-block-id="notes"] button'),
+      }
+    }, icsSel)
+    const shouldShowRss = h > 450
+    const rssVisOk = shouldShowRss ? m.rss !== null : m.rss === null
+    const flowGapOk = !shouldShowRss || (m.ics && m.rss && +(m.rss.top - m.ics.bottom).toFixed(1) === 16)
+    const bottomMost = shouldShowRss ? m.rss : m.ics
+    const floorOk = !!bottomMost && !!m.notes && m.notes.top - bottomMost.bottom >= 16
+    const newErrs = errors.length - sweepIcsErrs
+    sweepIcsErrs = errors.length
+    const stepOk = !!m.ics && rssVisOk && flowGapOk && floorOk && newErrs === 0
+    if (!stepOk) icsSweepOk = false
+    icsSweepLog.push(
+      stepOk
+        ? `PASS: @${h}h the true-max Calendar card holds — rss ${shouldShowRss ? 'shown' : 'hidden'} as disciplined, col1 flow gap ${shouldShowRss ? (m.rss.top - m.ics.bottom).toFixed(1) + 'px' : 'n/a'}, floor clearance to the Notes pill ${bottomMost && m.notes ? (m.notes.top - bottomMost.bottom).toFixed(1) : '?'}px`
+        : `FAIL: @${h}h the true-max Calendar card (ics=${JSON.stringify(m.ics)}, rss=${JSON.stringify(m.rss)}, notes=${JSON.stringify(m.notes)}, shouldShowRss=${shouldShowRss}, newConsoleErrors=${newErrs})`,
+    )
+  }
+  for (const line of icsSweepLog) console.log(line)
+  console.log(
+    icsSweepOk
+      ? 'PASS: the true-max Calendar card holds the >=16px floor and the rss/xshort discipline at every swept height (900/700/601/550/451/450)'
+      : 'FAIL: the true-max Calendar card broke the floor or the rss/xshort discipline at at least one swept height (see the per-height lines above)',
+  )
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(320)
+
+  // Probe 6 (Task 5 fixture-law sweep): the OTHER shape the fixture must
+  // exercise per the plan — a 4-row 'upcoming' variant. Same calendars +
+  // snapshot, just the view/count patched in place (no reseed needed).
+  // upcomingCount caps the 5 available "others" (cal 0's second event plus
+  // one each from cal 1-4) down to the 4 chronologically soonest, dropping
+  // cal 4's (Travel, the farthest out) — proving the cap trims by TIME, not
+  // by calendar index, unlike 'per-calendar' above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, ics: { ...connectors.ics, view: 'upcoming', upcomingCount: 4 } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
+
+  const upcoming = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return [...sec.querySelectorAll('ul > li')].map((li) => li.textContent)
+  }, icsSel)
+  const upcomingRowsOk = Array.isArray(upcoming) && upcoming.length === 4 && !upcoming.some((r) => r.includes('Flight to Denver'))
+  console.log(
+    upcomingRowsOk
+      ? `PASS: the 'upcoming' view caps at upcomingCount=4, chronologically, dropping the farthest event (${JSON.stringify(upcoming)})`
+      : `FAIL: the 'upcoming' view caps at upcomingCount=4, chronologically, dropping the farthest event (${JSON.stringify(upcoming)})`,
+  )
+  // Token-type regexes mirror the widget's own vocab (WEEKDAY_SHORT /
+  // MONTH_SHORT, CalendarWidget.tsx) rather than hardcoding today's actual
+  // weekday/month — the fixture stays date-independent (this file's own
+  // law) even though the assertion checks a specific token SHAPE.
+  const WEEKDAY_TOKEN_RE = /^(Sun|Mon|Tue|Wed|Thu|Fri|Sat) \d{2}:\d{2} /
+  const DATE_TOKEN_RE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2} \d{2}:\d{2} /
+  const hasWeekdayToken = Array.isArray(upcoming) && upcoming.some((r) => WEEKDAY_TOKEN_RE.test(r))
+  const hasDateToken = Array.isArray(upcoming) && upcoming.some((r) => DATE_TOKEN_RE.test(r))
+  console.log(
+    hasWeekdayToken && hasDateToken
+      ? `PASS: both a weekday-token row and a date-token row are visible in the 4-row upcoming variant (${JSON.stringify(upcoming)})`
+      : `FAIL: both a weekday-token row and a date-token row are visible in the 4-row upcoming variant (${JSON.stringify(upcoming)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-calendar-upcoming.png` })
+  console.log('captured connectors-calendar-upcoming.png')
+
+  // Refresh drawer-connectors.png now that ics is CONFIGURED at the cap (5
+  // calendars) — the card Task 4 built. The drawer opens on whatever the
+  // page's live storage says, so it now shows the 'upcoming'/4 state the
+  // page was just switched to above.
   await page.click('button[aria-label="Open settings"]')
   await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
   await page.waitForTimeout(400) // slide-in
@@ -4535,28 +4698,94 @@ function githubContributionsFixture() {
   await page.screenshot({ path: `${outDir}/drawer-connectors.png` })
   console.log('captured drawer-connectors.png')
 
-  const card = await page.evaluate(() => {
+  // Probe 7: the settings card reads configured at the cap — 5 named rows
+  // (each with its own dot, list-position-keyed, the same rule the widget's
+  // own rows use), the Add form disabled with the "Up to 5 calendars"
+  // message (MAX_CALENDARS, Connectors.tsx), and the view controls showing
+  // the 'upcoming'/4 state from Probe 6. `.closest('.rounded-xl')` off the
+  // view select climbs to the ics ConnectorCard's own wrapper div (every
+  // card shares that class, but `.closest` only ever returns the NEAREST
+  // ancestor, so this stays scoped to ics even with rss's own list also
+  // present in the same Connectors section).
+  const card = await page.evaluate((classes) => {
     const sec = document.querySelector('section[aria-label="Connectors"]')
     if (!sec) return null
     const toggle = sec.querySelector('#connector-ics-enabled')
-    const input = sec.querySelector('#connector-ics-url')
+    const viewSelect = sec.querySelector('#connector-ics-view')
+    const icsCard = viewSelect ? viewSelect.closest('.rounded-xl') : null
+    if (!icsCard) return { icsCardFound: false, enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null }
+    const rows = [...icsCard.querySelectorAll('ul > li')]
+    const dotCounts = Object.fromEntries(classes.map((c) => [c, icsCard.querySelectorAll(`ul > li .${c}`).length]))
+    const nameInput = icsCard.querySelector('#connector-ics-name')
+    const urlInput = icsCard.querySelector('#connector-ics-url')
+    const addBtn = [...icsCard.querySelectorAll('button[type="submit"]')].find((b) => b.textContent.trim() === 'Add')
+    const countSelect = icsCard.querySelector('select[aria-label="How many upcoming events"]')
     return {
+      icsCardFound: true,
       enabled: toggle ? toggle.getAttribute('aria-checked') === 'true' : null,
-      urlValue: input ? input.value : null,
-      inputType: input ? input.type : null,
-      hasClear: [...sec.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Clear'),
+      rowCount: rows.length,
+      rowNames: rows.map((li) => li.querySelector('span.text-fg')?.textContent ?? null),
+      dotCounts,
+      nameDisabled: !!nameInput?.disabled,
+      urlDisabled: !!urlInput?.disabled,
+      addDisabled: !!addBtn?.disabled,
+      capMessage: [...icsCard.querySelectorAll('p')].some((p) => p.textContent.includes('Up to 5 calendars')),
+      viewValue: viewSelect.value,
+      countValue: countSelect ? countSelect.value : null,
     }
-  })
+  }, DOT_CLASSES)
   const cardOk =
     card !== null &&
+    card.icsCardFound === true &&
     card.enabled === true &&
-    card.urlValue === 'https://calendar.example.com/private-abc123/basic.ics' &&
-    card.inputType === 'password' &&
-    card.hasClear
+    card.rowCount === 5 &&
+    JSON.stringify(card.rowNames) === JSON.stringify(['Personal', 'Family', 'Work', 'School', 'Travel']) &&
+    DOT_CLASSES.every((c) => card.dotCounts[c] === 1) &&
+    card.nameDisabled &&
+    card.urlDisabled &&
+    card.addDisabled &&
+    card.capMessage &&
+    card.viewValue === 'upcoming' &&
+    card.countValue === '4'
   console.log(
     cardOk
-      ? `PASS: the Calendar card reads configured (enabled=${card.enabled}, type=${card.inputType}, Clear present)`
-      : `FAIL: the Calendar card reads configured (${JSON.stringify(card)})`,
+      ? `PASS: the Calendar settings card reads configured at the cap — 5 named rows with one dot each, Add disabled with the cap message, view=upcoming/count=4 (${JSON.stringify(card)})`
+      : `FAIL: the Calendar settings card reads configured at the cap (${JSON.stringify(card)})`,
+  )
+
+  // Probe 8 (widget quality bar, interaction probe (d)): the Add button, the
+  // five Remove buttons, and both selects must all show cursor-pointer —
+  // same cursor-probe idiom as Probe 3 above, applied to the settings card's
+  // own controls instead of the newtab widget's static text.
+  const interact = await page.evaluate(() => {
+    const cursorOf = (el) => getComputedStyle(el).cursor
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    const viewSelect = sec ? sec.querySelector('#connector-ics-view') : null
+    const icsCard = viewSelect ? viewSelect.closest('.rounded-xl') : null
+    if (!icsCard) return null
+    const removeButtons = [...icsCard.querySelectorAll('ul > li button')]
+    const addBtn = [...icsCard.querySelectorAll('button[type="submit"]')].find((b) => b.textContent.trim() === 'Add')
+    const countSelect = icsCard.querySelector('select[aria-label="How many upcoming events"]')
+    return {
+      removeCount: removeButtons.length,
+      removeCursors: [...new Set(removeButtons.map(cursorOf))],
+      addCursor: addBtn ? cursorOf(addBtn) : null,
+      viewSelectCursor: cursorOf(viewSelect),
+      countSelectCursor: countSelect ? cursorOf(countSelect) : null,
+    }
+  })
+  const interactOk =
+    interact !== null &&
+    interact.removeCount === 5 &&
+    interact.removeCursors.length === 1 &&
+    interact.removeCursors[0] === 'pointer' &&
+    interact.addCursor === 'pointer' &&
+    interact.viewSelectCursor === 'pointer' &&
+    interact.countSelectCursor === 'pointer'
+  console.log(
+    interactOk
+      ? "PASS: the settings card's Add/Remove/selects all show cursor-pointer (5 Remove buttons, Add, view select, count select)"
+      : `FAIL: the settings card's Add/Remove/selects all show cursor-pointer (${JSON.stringify(interact)})`,
   )
 
   await page.keyboard.press('Escape')
