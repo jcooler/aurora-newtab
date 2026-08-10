@@ -468,3 +468,55 @@ with:
       Settings → Layout) lets you drag any widget wherever you want it
       instead; that spot is yours until "Reset layout" puts it back into
       the flow.
+
+---
+
+### v1.8.0 addendum — the card you composed (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.8.0 makes the GitHub connector's card composable: Settings → Connectors
+gains four "Show on your board" toggle chips on the GitHub card — commit
+graph, pull requests, issues, notifications — so the card shows only the
+sections a user actually wants, in any combination, with the rest simply
+never fetched. The commit graph itself is new too, a 16-week contribution
+heatmap plus a "N contributions · M day streak" line. No new permission and
+no new network call beyond what the existing GitHub connector already
+justifies: the graph reads the same `api.github.com` token-scoped access
+(via GitHub's GraphQL endpoint, not a new host) already covered by the
+`optional_host_permissions` justification above, and disabled sections are
+simply never requested — turning a section off can only reduce what's
+fetched, never add to it. The Summary, Category, Single purpose statement,
+and Data Usage disclosure table remain unaffected for the same reason every
+earlier connector addendum gave — one more shape for an existing connector
+to show data in, not a new source or a new kind of data.
+
+#### Detailed description delta
+
+Extend the GitHub bullet in the Connectors section (added by the v1.4.0
+addendum above, under FEATURES):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your next calendar events, each reading only what its
+      own card describes.
+
+with:
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your next calendar events, each reading only what its
+      own card describes. GitHub's card is composable — choose what it
+      shows (commit graph, pull requests, issues, notifications) in
+      Settings → Connectors.

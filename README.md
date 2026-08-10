@@ -160,7 +160,9 @@ The other six, briefly — what you see, and what Aurora reads to show it:
 
 - **GitHub** — your open PRs waiting on your review and issues assigned to
   you, plus an unread-notifications count. Connect with a personal access
-  token; reads `api.github.com`.
+  token; reads `api.github.com`. The card is composable — choose what it
+  shows (commit graph, pull requests, issues, notifications) in Settings →
+  Connectors.
 - **GitLab** — merge requests assigned to you and a to-dos count. Connect
   with a personal access token against your instance (`gitlab.com` unless
   you point it at your own).
