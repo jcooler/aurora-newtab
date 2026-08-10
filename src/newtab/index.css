@@ -454,6 +454,22 @@
    width-independent by design: the 890 floor is the wide worst case, safe (more
    clearance) at every narrower width. */
 @custom-variant taller (@media (min-height: 890px));
+/* GitHub commit-graph reveal tier for the TWO-SIBLING right rail (Task 70). The
+   graph is `hidden taller:block` when github is the rail's sole card or has ONE
+   forge sibling; with BOTH gitlab AND jira enabled below it, the graph reveals
+   here instead (GithubWidget.tsx picks `grand:block`). DERIVATION (the number
+   lives ONLY here): the right rail is a top-anchored flow column from
+   rail-top-right 180 with gap-4 (16px); the three display-max cards with the
+   graph in are github+graph[180-591] gitlab[607-781] jira[797-971] (measured,
+   scripts/preview.mjs, 1600w — the graph's own +176px is what lifts jira's bottom
+   from 795 to 971). jira is the LOWEST card, so its bottom must clear the
+   bottom-anchored Tasks pill (top = viewportH − 54) by the house 16px rail floor:
+   971 <= (h − 54) − 16  ⇒  h >= 1041. So the graph reveals at >=1041h and yields
+   below — where the two-sibling stack is rows-only and clears the pill unaided
+   (jira.bottom 795, 16px at 865h). A pure height query, width-independent (the
+   rail is width-hidden below 1193 anyway). The harness asserts the 1040/1041
+   fencepost with all three forge cards + the forced 3-line weather chip. */
+@custom-variant grand (@media (min-height: 1041px));
 
 /* ── The rail zones' container query + flow discipline (Task 64) ──────────
    The LEFT rail is a size-query container so its SECOND column (month grid +

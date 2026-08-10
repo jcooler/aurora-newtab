@@ -222,19 +222,51 @@ describe('GithubWidget', () => {
     expect(within(stat).getByText('day streak')).toBeTruthy()
   })
 
-  it('the graph section wrapper is hidden by default and revealed only on taller (>=890h — it yields first under height pressure, before any whole card)', async () => {
-    const storage = await seededStorage(CONNECTED, DATA_WITH_GRAPH)
-    mount(storage)
+  // Task 70 fix — the graph's reveal TIER is SIBLING-AWARE: the +176px graph only
+  // fits above the bottom-anchored Tasks pill once the whole right-rail stack
+  // does, so GithubWidget counts enabled forge siblings (gitlab, jira) and picks
+  // the wrapper class — 0 or 1 → `hidden taller:block` (>=890h); 2 → `hidden
+  // grand:block` (>=1041h). Class-pinned here (jsdom, the RSS tier-test idiom) so
+  // a regression that lets the graph ride a lower tier — and lap the pill when
+  // three forge cards stack — fails a unit before it ever reaches the harness.
+  async function seededWithSiblings(gitlab: boolean, jira: boolean): Promise<AuroraStorage> {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      github: CONNECTED,
+      ...(gitlab ? { gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'x' } } : {}),
+      ...(jira ? { jira: { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' } } : {}),
+    })
+    await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data: DATA_WITH_GRAPH } })
+    return storage
+  }
+  const graphWrapper = () => screen.getByRole('img').closest('section')!
 
+  it('reveals the graph on `taller` (>=890h) when github is the rail\'s SOLE forge card', async () => {
+    mount(await seededWithSiblings(false, false))
     const img = await screen.findByRole('img')
-    // Re-measured in Task 70 (scripts/preview.mjs): the graph yields one tier
-    // ABOVE where gitlab/jira whole-cards hide (dense, <=864) — it renders only
-    // on `taller` (>=890), via `hidden taller:block`, so the wrapper is
-    // `hidden` by default and `block` at that breakpoint.
-    const wrapper = img.closest('section')!.querySelector('[class*="taller:block"]')
+    const wrapper = graphWrapper().querySelector('[class*="taller:block"]')
     expect(wrapper).toBeTruthy()
     expect(wrapper!.classList.contains('hidden')).toBe(true)
     expect(wrapper!.contains(img)).toBe(true)
+    expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
+  })
+
+  it('still reveals the graph on `taller` with ONE forge sibling (the stack still clears the pill at 890)', async () => {
+    mount(await seededWithSiblings(true, false))
+    await screen.findByRole('img')
+    expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeTruthy()
+    expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
+  })
+
+  it('yields the graph to `grand` (>=1041h) with TWO forge siblings — gitlab AND jira share the column', async () => {
+    mount(await seededWithSiblings(true, true))
+    const img = await screen.findByRole('img')
+    const wrapper = graphWrapper().querySelector('[class*="grand:block"]')
+    expect(wrapper).toBeTruthy()
+    expect(wrapper!.classList.contains('hidden')).toBe(true)
+    expect(wrapper!.contains(img)).toBe(true)
+    expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
   it('a graph-only card (commitGraph on, everything else off) renders the graph and NO rows and no chip', async () => {

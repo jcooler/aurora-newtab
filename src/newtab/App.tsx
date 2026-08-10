@@ -524,7 +524,8 @@ export default function App() {
               every section at its display max (github 2 PR + 2 issue + unread;
               gitlab 3 MR + todos; jira 3 issue + counts):
                 · github  — 235px full / 193px dense-condensed (<=864), rows-only;
-                            411px WITH the commit graph (the graph block adds 176px).
+                            411px full / 361px dense WITH the commit graph (the
+                            graph block adds 176px full, 168px dense).
                 · gitlab  — 174px.   · jira — 174px (the LOWEST card; its bottom is
                             what must clear the pill).
               Stacked rows-only, top-anchored from 180 with gap-4 (16px):
@@ -540,22 +541,29 @@ export default function App() {
               `mid` (601-864) gitlab/jira are gone (dense) and github stands alone,
               rows-only, bottom 373 vs the 601-floor pill top 547 — 174px clear.
 
-              THE GRAPH YIELDS BEFORE ANY WHOLE CARD (Task 70's one new rule). The
-              commit-graph section (GithubWidget.tsx) renders ONLY on `taller`
-              (>=890h), via `hidden taller:block` — one tier ABOVE where gitlab/jira
-              hide (dense, 864). Two measured reasons it cannot ride lower:
-                · STACKED, the graph's +176px pushes jira to [797-971]; jira.bottom
-                  971 LAPS the pill (top 836 at 890) by 135px. The graph shows only
-                  where, under pressure, it yields FIRST and instantly restores fit:
-                  at 889 the graph is gone, jira.bottom is back to 795, 40px clear.
-                · ALONE on `mid`, github+graph (dense-condensed 361, bottom 541)
-                  clears the 601-floor pill (547) by only 6px — under the 16px floor.
-                  So the graph waits for `taller`, where github-alone+graph (411,
-                  bottom 591) clears the pill by 245px at the 890 floor, 255px at
-                  Jon's 900. (A tall window with ALL THREE forge cards AND the graph
-                  is beyond the flow column's budget — arrange mode is the documented
-                  escape; the harness proves the graph only in github's sole-card
-                  context, which is where the composed card is designed to live.)
+              THE GRAPH YIELDS BEFORE ANY WHOLE CARD, AND YIELDS TO ITS SIBLINGS
+              (Task 70's rule). The commit-graph section (GithubWidget.tsx) reveals
+              at a SIBLING-AWARE height tier — the graph's +176px only fits above
+              the bottom-anchored pill once the WHOLE stack (github+graph plus any
+              sibling cards below) does, so the widget counts enabled forge siblings
+              (gitlab, jira) and picks the tier:
+                · SOLE CARD or ONE sibling → `taller` (>=890h), `hidden taller:block`
+                  — one tier ABOVE where gitlab/jira hide (dense, 864). github alone
+                  + graph (bottom 591) clears the 890-floor pill (836) by 245px, 255px
+                  at Jon's 900; one 174px sibling puts the stack bottom at 781, still
+                  55px clear. It cannot ride lower: alone on `mid`, github+graph
+                  (361, bottom 541) clears the 601-floor pill (547) by only 6px, and
+                  at 889 (graph hidden) fit is instantly restored.
+                · TWO siblings (gitlab AND jira) → `grand` (>=1041h, `hidden
+                  grand:block`, derived in index.css). github+graph+gitlab+jira put
+                  jira at [797-971]; that clears the pill (h−54) by the 16px floor
+                  only at >=1041h — below it the graph stays hidden and the stack is
+                  rows-only (jira.bottom 795, 16px clear at 865). Without this the
+                  three-connector board would lap the pill at Jon's 900 (jira.bottom
+                  971 vs pill.top 846) — the collision the sweep now catches, with
+                  GITHUB_FIXTURE seeded to its true graph-in display max.
+              Each is monotonic by construction (one boundary per config shape); the
+              descent never re-shows the graph. Zero pairwise overlaps survive.
 
               WIDTH: all three carry `.rail-primary` too (widest here is github's
               w-80), so the whole right column steps aside below 100vw = 1193 —

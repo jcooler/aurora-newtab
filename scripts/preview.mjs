@@ -1927,6 +1927,24 @@ const GITHUB_CONTRIB_COUNTS = [
 const GITHUB_CONTRIB_TOTAL = 343
 const GITHUB_CONTRIB_STREAK = 14
 
+// Build a `contributions` slice (github's TRUE graph-in display max) for a
+// fixture: today−111…today paired with the frozen counts. Dates are hover titles
+// only — no assertion touches them — so building them here in Node is fine; the
+// counts/total/streak the widget probes assert are the frozen literals above.
+// Used by the combined-defaults gate and the resize sweep so both render github
+// at its real display max and ASSERT the two-sibling graph yield (the stack stays
+// rows-only below `grand` 1041h) instead of being blind to it.
+function githubContributionsFixture() {
+  const today = new Date()
+  const days = GITHUB_CONTRIB_COUNTS.map((count, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - (GITHUB_CONTRIB_COUNTS.length - 1 - i))
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { date: iso, count }
+  })
+  return { days, total: GITHUB_CONTRIB_TOTAL }
+}
+
 // ---------------------------------------------------------------------------
 // GitHub connector (Task 48) — the FIRST full token connector, and the
 // template Tasks 49-51 copy. NO live network: seed an enabled + connected
@@ -2517,6 +2535,183 @@ const GITHUB_CONTRIB_STREAK = 14
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
       connectors: { ...connectors, github: { ...connectors.github, enabled: false } },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// GitHub graph-yield — the TWO-SIBLING fencepost (Task 70 fix). When gitlab AND
+// jira share the flow column below github, the graph's +176px lifts jira's bottom
+// to 971, so the graph must yield to its siblings: it waits for `grand` (>=1041h),
+// the height where the WHOLE stack (github+graph[180-591], gitlab[607-781],
+// jira[797-971]) clears the bottom-anchored Tasks pill (top = h−54) by the 16px
+// floor (971 <= (1041−54) − 16). Seeds all three forge cards at display max
+// (github WITH the contributions literal) + the forced 3-line weather chip, and
+// proves across the descent:
+//   (1) the graph reveals MONOTONICALLY at 1041 (shown >=1041, hidden <=1040, one
+//       transition, never re-shows) — the graph yields to its siblings;
+//   (2) at every height ZERO vertical overlap among the three cards and the pill,
+//       and the LOWEST card clears the pill by >=16px (exactly 16 at the 1041
+//       grand floor — the interior worst case — comfortably more below it, where
+//       the stack is rows-only). Restores as the sole-card block above.
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const heights = [1100, 1041, 1040, 1010, 900]
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ counts, total }) => {
+      const today = new Date()
+      const days = counts.map((count, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (counts.length - 1 - i))
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return { date: iso, count }
+      })
+      const MAX_AGE_MS = 30 * 60 * 1000
+      const now = Date.now()
+      const hourly = Array.from({ length: 12 }, (_, i) => {
+        const t = new Date(now + i * 3_600_000)
+        const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+        return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
+          gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+          jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' },
+        },
+        connectorSnapshots: {
+          github: {
+            fetchedAt: now,
+            data: {
+              prs: [
+                { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+                { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+              ],
+              issues: [
+                { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+                { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+              ],
+              notifications: 3,
+              contributions: { days, total },
+              etags: {},
+            },
+          },
+          gitlab: {
+            fetchedAt: now,
+            data: {
+              mrs: [
+                { title: 'Add rate limiting to the ingest API', url: 'x', project: 'acme/platform' },
+                { title: 'Bump vite to 6.x', url: 'y', project: 'acme/platform' },
+                { title: 'Split the connector http helper into its own package', url: 'z', project: 'acme/platform' },
+              ],
+              todos: 6,
+            },
+          },
+          jira: {
+            fetchedAt: now,
+            data: {
+              issues: [
+                { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'a' },
+                { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'b' },
+                { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'c' },
+              ],
+              counts: { 'In Progress': 2, 'To Do': 1 },
+            },
+          },
+        },
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measure3 = () =>
+    page.evaluate(
+      ({ ghSel, glSel, jrSel }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gh = document.querySelector(ghSel)
+        const img = gh ? gh.querySelector('[role="img"]') : null
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gh: box(ghSel),
+          gl: box(glSel),
+          jr: box(jrSel),
+          graphShown: !!img && img.getBoundingClientRect().height > 0,
+          pill: pill ? { top: +pill.getBoundingClientRect().top.toFixed(1) } : null,
+        }
+      },
+      { ghSel: githubSel, glSel: gitlabSel, jrSel: jiraSel },
+    )
+
+  const fp2 = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    fp2.push({ h, ...(await measure3()) })
+  }
+
+  // (1) the graph reveals MONOTONICALLY at 1041 (yields to its two siblings).
+  const g2VisOk = fp2.every((r) => r.graphShown === (r.h >= 1041))
+  let g2Mono = true
+  for (let i = 1; i < fp2.length; i++) if (fp2[i].graphShown && !fp2[i - 1].graphShown) g2Mono = false
+  console.log(
+    g2VisOk && g2Mono
+      ? `PASS: with TWO forge siblings the commit graph yields to grand (>=1041h) — shown at ${fp2.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp2.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows`
+      : `FAIL: two-sibling graph yields monotonically at 1041 (${JSON.stringify(fp2.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+  )
+
+  // (2) zero overlap + the lowest card clears the pill by >=16px at every height.
+  const FP2_FLOOR = 16
+  const stack2 = fp2.map((r) => {
+    const cards = [r.gh, r.gl, r.jr].filter(Boolean)
+    const lowest = cards.reduce((lo, c) => (c.bottom > lo.bottom ? c : lo), cards[0])
+    const overlapPill = cards.some((c) => c.bottom > r.pill.top)
+    return { h: r.h, graph: r.graphShown, lowestBottom: lowest.bottom, gap: +(r.pill.top - lowest.bottom).toFixed(1), overlapPill }
+  })
+  const stack2Ok = stack2.every((s) => !s.overlapPill && s.gap >= FP2_FLOOR)
+  console.log(
+    stack2Ok
+      ? `PASS: the three-forge-card stack clears the Tasks pill by >=${FP2_FLOOR}px at every height, zero overlap — ${stack2.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (the 1041 grand floor is the interior worst case, exactly 16px)`
+      : `FAIL: the three-forge-card stack clears the pill by >=${FP2_FLOOR}px with zero overlap (${JSON.stringify(stack2)})`,
+  )
+
+  // Restore: unblock the endpoint, disable all three forge connectors, clear the
+  // seeded weatherCache + snapshots, viewport back to launch, reload.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+      },
       connectorSnapshots: {},
       weatherCache: null,
     })
@@ -4737,6 +4932,11 @@ const GITHUB_CONTRIB_STREAK = 14
       { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
     ],
     notifications: 3,
+    // github's TRUE display max — the graph is present in the data. With gitlab
+    // AND jira also on (two forge siblings), the graph reveals only on `grand`
+    // (>=1041h); this gate runs at 1600x900, so the card renders rows-only and
+    // the gate proves the two-sibling YIELD rather than assuming it.
+    contributions: githubContributionsFixture(),
     etags: {},
   }
   const GITLAB_FIXTURE = {
@@ -5464,6 +5664,11 @@ const GITHUB_CONTRIB_STREAK = 14
         { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
       ],
       notifications: 3,
+      // github's TRUE display max (graph in the data). Every swept size runs
+      // below `grand` (1041h) with gitlab + jira also on, so the two-sibling gate
+      // keeps the graph hidden and the sweep ASSERTS that yield — it now FAILS
+      // (jira laps the Tasks pill) if anyone later loosens the gate.
+      contributions: githubContributionsFixture(),
       etags: {},
     },
     gitlab: {

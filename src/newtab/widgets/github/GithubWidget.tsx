@@ -35,14 +35,17 @@ const MAX_ISSUES = 2
 
 // Section separators for the composed card (the board's composed face: graph on
 // top, border-t-divided rows below). ROW_SEP divides one list from another and
-// is always present between two rendered lists. GRAPH_SEP divides the FIRST list
-// from the graph above it: the graph renders ONLY on `taller` (>=890h — see the
-// wrapper below and App.tsx's right-rail comment for the re-measured budget), so
-// this separator is ABSENT by default and appears only at that same breakpoint —
-// no orphan hairline is ever stranded under the header on the tiers where the
-// graph has yielded.
+// is always present between two rendered lists. The GRAPH_SEP_* pair divides the
+// FIRST list from the graph above it, and each appears ONLY at the breakpoint
+// where the graph itself reveals — so no orphan hairline is ever stranded under
+// the header on the tiers where the graph has yielded. WHICH breakpoint depends
+// on how many forge SIBLINGS share the flow column below github (GithubInner
+// picks the pair to match the wrapper): sole card / one sibling reveal on
+// `taller` (>=890h); two siblings (gitlab AND jira) reveal on `grand` (>=1041h).
+// Two literal class strings (not interpolated) so Tailwind's JIT emits both.
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
-const GRAPH_SEP = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
+const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
+const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
 
 /** Narrow `connectors.github` (a ConnectorConfig union member, or undefined)
  *  to a CONNECTED GithubConfig, defensively. schema.ts ties every connector id
@@ -67,10 +70,19 @@ export default function GithubWidget() {
   const [connectors] = useStoredKey('connectors')
   const github = connectedGithub(connectors?.github)
   if (!github) return null
-  return <GithubInner github={github} />
+  // Count the enabled forge SIBLINGS that share the right rail's flow column
+  // below github (gitlab, jira). A deliberately CONSERVATIVE over-approximation
+  // of "will render a card": an enabled-but-broken sibling (no token, a failed
+  // fetch) renders null and takes no column height, but the graph yields anyway
+  // under this count — which fails QUIET and SAFE (the graph waits for a taller
+  // window that it did not strictly need) rather than the reverse (a graph that
+  // laps the Tasks pill). This governs the graph's reveal tier — see GithubInner
+  // and App.tsx's right-rail comment.
+  const forgeSiblings = (connectors?.gitlab?.enabled ? 1 : 0) + (connectors?.jira?.enabled ? 1 : 0)
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} />
 }
 
-function GithubInner({ github }: { github: GithubConfig }) {
+function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSiblings: number }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
@@ -92,6 +104,16 @@ function GithubInner({ github }: { github: GithubConfig }) {
   const contributions = data.contributions ?? null
   const graph =
     views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+
+  // The graph reveals only at a height where the WHOLE stack — github+graph plus
+  // any sibling cards below it — clears the bottom-anchored Tasks pill by the
+  // 16px rail floor. Sole card or one sibling: `taller` (>=890h). Two siblings
+  // (gitlab AND jira): the graph's +176px pushes jira's bottom to 971, needing
+  // >=1041h — the `grand` tier (index.css). One boundary per config shape, so the
+  // reveal is monotonic across a resize (toggling a connector changes the shape,
+  // never blinks a single card). Full class strings so the JIT emits both.
+  const graphWrap = forgeSiblings >= 2 ? 'hidden grand:block' : 'hidden taller:block'
+  const graphSep = forgeSiblings >= 2 ? GRAPH_SEP_GRAND : GRAPH_SEP_TALLER
 
   // A disabled list is empty regardless of what the snapshot still carries.
   const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []
@@ -126,24 +148,30 @@ function GithubInner({ github }: { github: GithubConfig }) {
         )}
       </div>
 
-      {/* Commit graph on top — the board's composed face. It renders ONLY on
-          `taller` (>=890h): the graph yields FIRST under height pressure, BEFORE
-          any whole right-rail card hides. Below 890 the flowing column can't hold
-          the graph (>=166px added to github) plus gitlab+jira without the lowest
-          card lapping the bottom-anchored Tasks pill (Task 70 measured: with the
-          graph in, jira.bottom 971 vs pill.top 811 at 865h — a 160px overlap; and
-          even github ALONE clears the pill by only 6px at the 601h mid floor).
-          gitlab/jira hide on `dense` (<=864); the graph hiding one tier higher —
-          at `taller`, 890 — is exactly "graph before whole cards". See App.tsx's
-          right-rail comment for the full re-measured arithmetic. */}
+      {/* Commit graph on top — the board's composed face. The graph adds 176px
+          full-height (168px dense-condensed) to github, so it yields FIRST under
+          height pressure — BEFORE any whole right-rail card hides — and its reveal
+          tier depends on how many forge siblings share the column (graphWrap):
+            · sole card / one sibling → `taller` (>=890h). github ALONE + graph
+              (bottom 591) clears the 890-floor pill (836) by 245px; one 174px
+              sibling puts the stack bottom at 781, clearing 836 by 55px.
+            · two siblings → `grand` (>=1041h). github+graph+gitlab+jira put
+              jira at [797-971], which clears the pill (h−54) by 16px only at
+              >=1041h — below that the stack would lap the bottom-anchored Tasks
+              pill (e.g. hypothetically at 890h, jira.bottom 971 vs pill.top 836,
+              a 135px overlap — which is why the graph is NOT revealed there).
+          gitlab/jira themselves hide on `dense` (<=864); the graph revealing one
+          (or, with two siblings, several) tiers HIGHER is exactly "the graph
+          yields before any whole card". See App.tsx's right-rail comment for the
+          full re-measured arithmetic and the `grand` derivation. */}
       {graph && (
-        <div className="hidden taller:block">
+        <div className={graphWrap}>
           <ContributionGraph contributions={graph} />
         </div>
       )}
 
       {prs.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${graph ? GRAPH_SEP : ''}`}>
+        <ul className={`flex flex-col gap-2 dense:gap-1${graph ? graphSep : ''}`}>
           {prs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -151,7 +179,7 @@ function GithubInner({ github }: { github: GithubConfig }) {
       )}
 
       {issues.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? GRAPH_SEP : ''}`}>
+        <ul className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? graphSep : ''}`}>
           {issues.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
