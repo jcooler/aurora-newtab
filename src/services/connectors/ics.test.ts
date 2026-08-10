@@ -10,7 +10,7 @@
 // EDT -4) — the delta between consecutive weekly occurrences is one hour
 // SHORTER than a bare 7-day span. Both absolute epochs are pinned below.
 import { describe, expect, it, vi } from 'vitest'
-import { parseIcs, fetchIcs, icsDescriptor, type IcsData } from './ics'
+import { parseIcs, fetchIcs, icsDescriptor, icsCalendarsOf, icsViewOf, type IcsData } from './ics'
 
 /** Wraps a VEVENT (or several) in a realistic VCALENDAR envelope. */
 function cal(body: string): string {
@@ -726,8 +726,10 @@ describe('icsDescriptor', () => {
     expect(icsDescriptor.blurb).toBe('Your next events, from any calendar app')
     expect(icsDescriptor.auth).toBe('none')
     expect(icsDescriptor.ttlMs).toBe(15 * 60_000)
-    // The WHOLE url is the secret — it grants read access to the entire calendar.
-    expect(icsDescriptor.secretFields).toEqual(['url'])
+    // The WHOLE url is the secret — it grants read access to the entire
+    // calendar; `calendars` strips too (each entry's url is the same kind of
+    // secret) so a legacy config mid-migration never leaks either shape.
+    expect(icsDescriptor.secretFields).toEqual(['url', 'calendars'])
     expect(icsDescriptor.identityField).toBeUndefined()
   })
 
@@ -737,8 +739,67 @@ describe('icsDescriptor', () => {
     ])
   })
 
-  it('filters (does not throw) on a malformed/non-https url — degrades to no origins', () => {
-    expect(icsDescriptor.origins({ enabled: true, url: 'not a url' })).toEqual([])
-    expect(icsDescriptor.origins({ enabled: true, url: 'http://insecure.example.com/x.ics' })).toEqual([])
+  it('derives one https origin per calendar, degrading per-entry on bad urls', () => {
+    expect(
+      icsDescriptor.origins({
+        enabled: true,
+        calendars: [
+          { name: 'A', url: 'https://calendar.example.com/x/basic.ics' },
+          { name: 'Bad', url: 'not a url' },
+          { name: 'B', url: 'https://p57-caldav.icloud.com/published/2/abc' },
+        ],
+      }),
+    ).toEqual(['https://calendar.example.com/*', 'https://p57-caldav.icloud.com/*'])
+  })
+  it('still derives the origin from a legacy single-url config', () => {
+    expect(icsDescriptor.origins({ enabled: true, url: 'https://calendar.example.com/x/basic.ics' })).toEqual([
+      'https://calendar.example.com/*',
+    ])
+  })
+})
+
+describe('icsCalendarsOf — read-time config normalization', () => {
+  it('returns a structurally valid calendars array as-is', () => {
+    const cals = [{ name: 'Personal', url: 'https://a.example.com/x.ics' }]
+    expect(icsCalendarsOf({ enabled: true, calendars: cals })).toEqual(cals)
+  })
+  it('filters malformed entries instead of rejecting the whole list', () => {
+    const good = { name: 'Family', url: 'https://b.example.com/y.ics' }
+    const cals = [good, { name: 'NoUrl' }, { name: 7, url: 'https://c.example.com/z.ics' }, null, 'junk']
+    expect(icsCalendarsOf({ enabled: true, calendars: cals as never })).toEqual([good])
+  })
+  it('wraps the legacy single-url shape as one calendar named "Calendar"', () => {
+    expect(icsCalendarsOf({ enabled: true, url: 'https://a.example.com/x.ics' })).toEqual([
+      { name: 'Calendar', url: 'https://a.example.com/x.ics' },
+    ])
+  })
+  it('calendars array wins over a lingering legacy url', () => {
+    const cals = [{ name: 'New', url: 'https://new.example.com/n.ics' }]
+    expect(icsCalendarsOf({ enabled: true, url: 'https://old.example.com/o.ics', calendars: cals })).toEqual(cals)
+  })
+  it('empty-string legacy url, missing both fields, and undefined config all yield []', () => {
+    expect(icsCalendarsOf({ enabled: true, url: '' })).toEqual([])
+    expect(icsCalendarsOf({ enabled: true })).toEqual([])
+    expect(icsCalendarsOf(undefined)).toEqual([])
+  })
+})
+
+describe('icsViewOf — view defaults', () => {
+  it('defaults to today/3 for missing or invalid values', () => {
+    expect(icsViewOf(undefined)).toEqual({ view: 'today', upcomingCount: 3 })
+    expect(icsViewOf({ enabled: true, view: 'bogus' as never, upcomingCount: 99 })).toEqual({
+      view: 'today',
+      upcomingCount: 3,
+    })
+  })
+  it('passes through valid values', () => {
+    expect(icsViewOf({ enabled: true, view: 'per-calendar', upcomingCount: 2 })).toEqual({
+      view: 'per-calendar',
+      upcomingCount: 2,
+    })
+    expect(icsViewOf({ enabled: true, view: 'upcoming', upcomingCount: 4 })).toEqual({
+      view: 'upcoming',
+      upcomingCount: 4,
+    })
   })
 })

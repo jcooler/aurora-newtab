@@ -109,9 +109,16 @@ export interface CryptoConfig {
   enabled: boolean
   coins: string[] // 2-5 CoinGecko ids
 }
+export interface IcsCalendar {
+  name: string // display name, e.g. "Personal" — shown in settings; dots key by list position
+  url: string // https-only at rest (webcal:// is converted before persist); the WHOLE url is the secret
+}
 export interface IcsConfig {
   enabled: boolean
-  url: string // the WHOLE url is the secret
+  url?: string // LEGACY pre-multi-calendar shape; read by icsCalendarsOf, never written by new saves
+  calendars?: IcsCalendar[] // max 5 (MAX_CALENDARS in Connectors.tsx)
+  view?: 'today' | 'upcoming' | 'per-calendar' // widget row mode; absent → 'today' (icsViewOf)
+  upcomingCount?: number // 2–4; absent/invalid → 3 (icsViewOf); meaningful only for view 'upcoming'
 }
 
 export type ConnectorConfig =

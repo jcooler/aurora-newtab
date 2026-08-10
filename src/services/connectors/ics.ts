@@ -30,7 +30,7 @@
 // day-of-DTSTART) for MONTHLY. ANYTHING beyond that — YEARLY/other FREQ,
 // BYSETPOS, ordinal BYDAY (2MO), multiple BYMONTHDAY, etc. — renders the base
 // occurrence ONLY. Malformed input → [].
-import type { ConnectorDescriptor, IcsConfig } from './types'
+import type { ConnectorDescriptor, IcsCalendar, IcsConfig } from './types'
 import { originPattern } from '../permissions'
 
 export interface IcsEvent {
@@ -539,26 +539,79 @@ export async function fetchIcs(
   }
 }
 
+/** Read-time migration — the ONLY place both at-rest shapes are understood.
+ *  A valid `calendars` array wins (malformed entries filtered, not fatal);
+ *  else a non-empty legacy `url` becomes one calendar named 'Calendar';
+ *  else []. No storage migration exists: the first save from the new
+ *  settings card writes the new shape. */
+export function icsCalendarsOf(config: IcsConfig | undefined): IcsCalendar[] {
+  if (!config) return []
+  if (Array.isArray(config.calendars)) {
+    return config.calendars.filter(
+      (c): c is IcsCalendar =>
+        !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.url === 'string' && c.url.length > 0,
+    )
+  }
+  if (typeof config.url === 'string' && config.url.length > 0) return [{ name: 'Calendar', url: config.url }]
+  return []
+}
+
+/** View defaults, same read-time-tolerance discipline as icsCalendarsOf. */
+export function icsViewOf(config: IcsConfig | undefined): {
+  view: 'today' | 'upcoming' | 'per-calendar'
+  upcomingCount: number
+} {
+  const view = config?.view === 'upcoming' || config?.view === 'per-calendar' ? config.view : 'today'
+  const n = config?.upcomingCount
+  const upcomingCount = typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= 4 ? n : 3
+  return { view, upcomingCount }
+}
+
+/** Dot color per calendar, keyed by LIST POSITION (index % length). Position
+ *  1 is the theme accent; 2–5 are stock Tailwind hues checked against both
+ *  themes at the visual gate. Lives here (not in a component) because both
+ *  the widget rows and the settings legend render the same dot. */
+export const CALENDAR_DOT_CLASSES: readonly string[] = [
+  'bg-accent',
+  'bg-sky-400',
+  'bg-emerald-400',
+  'bg-amber-400',
+  'bg-fuchsia-400',
+]
+
 export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   id: 'ics',
   label: 'Calendar',
   blurb: 'Your next events, from any calendar app',
   // auth 'none', NOT 'token': there's no identity to render — the URL itself is
   // the secret (it grants read access to the whole calendar). Hence
-  // secretFields:['url'] and no identityField (authState reads 'none').
+  // secretFields:['url', 'calendars'] and no identityField (authState reads
+  // 'none'). Both at-rest shapes strip: a config mid-migration (icsCalendarsOf
+  // prefers `calendars` but a lingering legacy `url` can still be present) must
+  // never leak either one on export.
   auth: 'none',
   ttlMs: 15 * 60_000,
-  secretFields: ['url'],
-  // Filter, don't throw — same contract rss/crypto document: a restored config
-  // can hold a non-https or unparseable url (import validates only `enabled`
-  // structurally), and origins() must degrade to fewer origins rather than
-  // throwing out of a registry-wide sweep. originPattern throws on non-https or
-  // an unparseable url; we swallow that to [].
-  origins: (config) => {
-    try {
-      return [originPattern(config.url)]
-    } catch {
-      return []
-    }
-  },
+  secretFields: ['url', 'calendars'],
+  // One origin per calendar, filtered not thrown — same contract rss/crypto
+  // document: a restored config can hold a non-https or unparseable url per
+  // entry (import validates only `enabled` structurally), and origins() must
+  // degrade to fewer origins rather than throwing out of a registry-wide
+  // sweep. originPattern throws on non-https or an unparseable url; each
+  // calendar's throw is swallowed independently so one bad entry never blanks
+  // the rest. icsCalendarsOf folds in the legacy single-url shape too, so a
+  // config that hasn't been re-saved through the new card still grants its
+  // one origin. De-duped via Set (two calendars sharing a host — e.g. two
+  // paths under the same iCloud account — collapse to one origin pattern).
+  origins: (config) =>
+    [
+      ...new Set(
+        icsCalendarsOf(config).flatMap((c) => {
+          try {
+            return [originPattern(c.url)]
+          } catch {
+            return []
+          }
+        }),
+      ),
+    ],
 }

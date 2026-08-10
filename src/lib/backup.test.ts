@@ -172,22 +172,33 @@ describe('connector config / snapshot handling (Task 39)', () => {
     expect(stored.coins).toEqual(['bitcoin', 'ethereum', 'dogecoin'])
   })
 
-  it('a real serializeBackup strips the ics url — the WHOLE url IS the secret (Task 53, first auth-none connector that strips)', () => {
+  it('a real serializeBackup strips both the legacy url AND calendars — the WHOLE url IS the secret, in either shape (Task 53, first auth-none connector that strips)', () => {
     // The FIRST of its kind: an auth:'none' connector (like crypto/rss — no
-    // token, no identity) that STILL declares a secretField. The ICS url is a
+    // token, no identity) that STILL declares a secretField. An ICS url is a
     // calendar's "private address" — it grants read access to the entire
-    // calendar, so it must never leave the device on export. Unlike crypto
-    // (secretFields: [], round-trips whole), a real serialize -> parse must
-    // emit an ics config shorn of its url but keeping `enabled`, and must never
-    // mutate what's sitting in storage.
-    const stored: IcsConfig = { enabled: true, url: 'https://calendar.example.com/private-abc123/basic.ics' }
+    // calendar, so it must never leave the device on export, in EITHER at-rest
+    // shape: the legacy single `url` field or the new `calendars` array (each
+    // entry's url is the same kind of secret). A config mid-migration can
+    // legally hold both at once (icsCalendarsOf prefers `calendars`; see
+    // ics.test.ts) so a real serialize -> parse must strip both, keeping
+    // `enabled` and the non-secret view fields, and must never mutate what's
+    // sitting in storage.
+    const stored: IcsConfig = {
+      enabled: true,
+      url: 'https://calendar.example.com/private-abc123/basic.ics',
+      calendars: [{ name: 'P', url: 'https://calendar.example.com/private-def456/personal.ics' }],
+      view: 'upcoming',
+      upcomingCount: 3,
+    }
     const input = { ...defaults(), connectors: { ics: stored } as AuroraData['connectors'] }
 
     const envelope = JSON.parse(serializeBackup(input))
-    expect(envelope.data.connectors.ics).toEqual({ enabled: true })
+    expect(envelope.data.connectors.ics).toEqual({ enabled: true, view: 'upcoming', upcomingCount: 3 })
     expect('url' in envelope.data.connectors.ics).toBe(false)
+    expect('calendars' in envelope.data.connectors.ics).toBe(false)
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.url).toBe('https://calendar.example.com/private-abc123/basic.ics')
+    expect(stored.calendars).toEqual([{ name: 'P', url: 'https://calendar.example.com/private-def456/personal.ics' }])
   })
 
   it('leaves a connector untouched when no descriptor declares a secret for it (default path)', () => {
