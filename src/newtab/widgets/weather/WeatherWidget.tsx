@@ -9,6 +9,7 @@ import {
   displayTemp,
   displayTempWithUnit,
   displayWind,
+  unitLetter,
 } from '../../../services/weather/units'
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
@@ -363,10 +364,27 @@ export default function WeatherWidget({
                               ? 'NOW'
                               : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
                           </span>
+                          {/* The scale letter on the end slots renders SMALLER
+                              (0.7em, so it holds ~70% of the digit height at
+                              both the default and `narrow` sizes) and QUIETER
+                              (text-fg-muted) than the digits — matching the
+                              picked render, where the bright number is the
+                              display and the unit is a subscript-weight
+                              annotation. This splits PRESENTATION only:
+                              `displayTempWithUnit` stays the one canonical
+                              full-string helper (the header Low, the screen-
+                              reader reading via DOM order, and the tests all
+                              use it), and it is `displayTemp` + `unitLetter`
+                              by definition — so the grid renders those exact
+                              two constituent pieces, styled apart, never a
+                              second derivation of the string. */}
                           <span className="text-[15px] narrow:text-[12px] font-medium leading-none tabular-nums text-fg">
-                            {atEnd
-                              ? displayTempWithUnit(slot.point.tempC, settings.units)
-                              : displayTemp(slot.point.tempC, settings.units)}
+                            {displayTemp(slot.point.tempC, settings.units)}
+                            {atEnd && (
+                              <span className="align-baseline text-[0.7em] text-fg-muted">
+                                {unitLetter(settings.units)}
+                              </span>
+                            )}
                           </span>
                           {rain !== null && (
                             <span className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">

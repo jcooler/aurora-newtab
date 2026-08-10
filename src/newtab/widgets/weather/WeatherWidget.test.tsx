@@ -234,6 +234,9 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
   // 9 AM (NOW), 11 AM, 1 PM, 3 PM, 5 PM, 7 PM.
   const grid = () =>
     screen.getByText('Next 12 hours').closest('div.border-t')!.querySelector('div.grid')!
+  // The temperature span in a slot is the bright, digit-sized one (tabular-nums
+  // text-fg); the label above it is muted, the rain below it is accent.
+  const tempOf = (cell: Element) => cell.querySelector('span.tabular-nums.text-fg')!
 
   it('renders exactly six every-two-hours slots with real temperature digits', async () => {
     await renderWidget()
@@ -250,17 +253,29 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     })
   })
 
-  it('labels the scale on the first and last slot and on the Low (imperial → °F)', async () => {
-    await renderWidget({ snapshot: makeSnapshot() }) // settings default to metric…
+  it('labels the scale on the first and last slot and on the Low (metric → °C)', async () => {
+    await renderWidget() // default settings are metric
     await expandPanel()
-    // …but re-render under imperial to prove the letter follows settings.units.
-    // Default settings are metric, so assert the metric letter here.
     const cells = [...grid().children]
-    expect(cells[0]!.textContent).toContain('20°C') // first slot
-    expect(cells[5]!.textContent).toContain('30°C') // last slot
-    expect(cells[1]!.textContent).toContain('22°') // middle slots: no letter
-    expect(cells[1]!.textContent).not.toContain('22°C')
-    // Header range: High unlettered, Low lettered.
+    // The end slots split the temp: bright digits (a leading text node) plus a
+    // SMALLER, MUTED scale letter — matching the picked render, where the unit
+    // is a subscript-weight annotation on the number, not a peer of it.
+    for (const i of [0, 5]) {
+      const temp = tempOf(cells[i]!)
+      const letter = temp.querySelector('span')!
+      expect(letter).toBeTruthy()
+      expect(letter.textContent).toBe('C')
+      expect(letter.className).toContain('text-fg-muted') // quieter than the digits
+      expect(letter.className).toContain('text-[0.7em]') // ~70% of the digit height
+      // The digits themselves are the bright leading text node, at full size.
+      expect(temp.firstChild!.textContent).toBe(`${i === 0 ? 20 : 30}°`)
+      expect(temp.textContent).toBe(`${i === 0 ? 20 : 30}°C`) // full string still assembled in the DOM
+    }
+    // Middle slots carry no letter at all — no nested span under the temp.
+    expect(tempOf(cells[1]!).querySelector('span')).toBeNull()
+    expect(tempOf(cells[1]!).textContent).toBe('22°')
+    // Header range: High unlettered, Low lettered (full-size — that treatment
+    // is faithful and stays).
     const range = screen.getByText(/^High/)
     expect(range.textContent).toContain('High 31°')
     expect(range.textContent).toContain('Low 20°C')
@@ -282,9 +297,13 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     await act(async () => {})
     await expandPanel()
     const cells = [...grid().children]
-    // 20°C → 68°F, 30°C → 86°F.
-    expect(cells[0]!.textContent).toContain('68°F')
-    expect(cells[5]!.textContent).toContain('86°F')
+    // 20°C → 68°F, 30°C → 86°F. Same split: bright digits + a muted "F".
+    const first = tempOf(cells[0]!)
+    expect(first.firstChild!.textContent).toBe('68°')
+    expect(first.querySelector('span')!.textContent).toBe('F')
+    expect(first.querySelector('span')!.className).toContain('text-fg-muted')
+    expect(first.textContent).toBe('68°F')
+    expect(tempOf(cells[5]!).textContent).toBe('86°F')
     const range = screen.getByText(/^High/)
     expect(range.textContent).toContain('Low 68°F')
   })
