@@ -1,8 +1,8 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { useNow } from '../../../lib/hooks/useNow'
-import { fetchIcs, type IcsData, type IcsEvent } from '../../../services/connectors/ics'
-import type { IcsConfig } from '../../../services/connectors/types'
+import { fetchIcs, icsCalendarsOf, type IcsData, type IcsEvent } from '../../../services/connectors/ics'
+import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -36,7 +36,7 @@ export default function CalendarWidget() {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (RssWidget/CryptoWidget's own doc comments): the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled
-  // connector, or an enabled one with no url yet, never mounts
+  // connector, or an enabled one with no calendars yet, never mounts
   // CalendarInner and therefore never runs useConnectorSnapshot's own
   // subscribe/refresh or the 60s tick below.
   const [connectors] = useStoredKey('connectors')
@@ -45,16 +45,19 @@ export default function CalendarWidget() {
   // level (schema.ts ties every id to the same union), but only the ics
   // connector ever writes here — one documented cast.
   const ics = connectors?.ics as IcsConfig | undefined
-  // Gate defends BOTH shape checks a hand-edited/backup-restored config can
-  // violate structurally (backup import validates only `enabled` — see
-  // Connectors.tsx's own CryptoBody comment for the same discipline):
-  // `typeof url === 'string'` (a stripped-then-partially-restored backup can
-  // legally omit it) AND `url.length > 0` (an emptied field is not a URL).
-  if (!ics?.enabled || typeof ics.url !== 'string' || ics.url.length === 0) return null
-  return <CalendarInner url={ics.url} />
+  // icsCalendarsOf (Task 1) is now the ONLY place that understands both
+  // at-rest shapes (new `calendars` array, legacy single `url`) and defends
+  // every malformed-entry edge a hand-edited/backup-restored config can hit
+  // structurally — this gate just checks enabled + non-empty.
+  const calendars = icsCalendarsOf(ics)
+  if (!ics?.enabled || calendars.length === 0) return null
+  // key: a config change (add/remove/reorder) REMOUNTS the inner widget so
+  // useConnectorSnapshot's one-refresh-per-mount fires against the new list —
+  // this is what makes the spec's index-keyed-fallback edge transient.
+  return <CalendarInner key={calendars.map((c) => c.url).join('\n')} calendars={calendars} />
 }
 
-function CalendarInner({ url }: { url: string }) {
+function CalendarInner({ calendars }: { calendars: IcsCalendar[] }) {
   // Re-render cadence: reuses the app's existing minute-scale time source
   // (useNow, exported by Clock.tsx's own module and already parameterized
   // by interval) rather than rolling a second bespoke setInterval — Clock
@@ -72,7 +75,7 @@ function CalendarInner({ url }: { url: string }) {
   // to parseIcs as `windowStart`, and parseIcs itself never calls
   // Date.now() (see ics.ts's own doc comment). `prev` carries the
   // last-known events forward through fetchIcs's own quiet-failure path.
-  const { data } = useConnectorSnapshot<IcsData>('ics', (prev) => fetchIcs(url, Date.now(), prev))
+  const { data } = useConnectorSnapshot<IcsData>('ics', (prev) => fetchIcs(calendars, Date.now(), prev))
   if (!data) return null
 
   const nowMs = now.getTime()

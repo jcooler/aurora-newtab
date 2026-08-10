@@ -21,10 +21,13 @@ const DAY_MS = 86_400_000
 // relative-time/agenda-membership assertion below is deterministic
 // regardless of the wall-clock date the suite happens to run on.
 const NOW = new Date(2026, 7, 7, 9, 0, 0).getTime() // 2026-08-07 09:00 local
-const CONNECTED: IcsConfig = { enabled: true, url: 'https://calendar.example.com/private-abc/basic.ics' }
+const CONNECTED: IcsConfig = {
+  enabled: true,
+  calendars: [{ name: 'Personal', url: 'https://calendar.example.com/private-abc/basic.ics' }],
+}
 
-function ev(summary: string, start: number, end: number): IcsEvent {
-  return { summary, start, end }
+function ev(summary: string, start: number, end: number, cal = 0): IcsEvent {
+  return { summary, start, end, cal }
 }
 
 const EVENT_NEXT = ev('Standup', new Date(2026, 7, 7, 11, 0, 0).getTime(), new Date(2026, 7, 7, 11, 30, 0).getTime()) // 2h out, today
@@ -143,6 +146,17 @@ describe('CalendarWidget', () => {
 
     expect(container.firstChild).toBeNull()
     expect((await storage.get('connectorSnapshots')).ics).toBeUndefined()
+  })
+
+  it('a legacy single-url config still renders — icsCalendarsOf wraps it as one calendar, proving read-time migration end-to-end through the widget gate', async () => {
+    const storage = await seededStorage(
+      { enabled: true, url: 'https://calendar.example.com/private-abc/basic.ics' },
+      { events: [EVENT_NEXT] },
+    )
+    mount(storage)
+    await act(async () => {})
+
+    expect(screen.getByText('Next: Standup · in 2 h')).toBeTruthy()
   })
 })
 

@@ -37,6 +37,7 @@ export interface IcsEvent {
   summary: string
   start: number // epoch ms — an expanded occurrence's start instant
   end: number // epoch ms
+  cal: number // index into the calendars array — drives dot color and the per-calendar view; parseIcs emits events WITHOUT it, fetchIcs tags per feed
 }
 
 export interface IcsData {
@@ -410,7 +411,7 @@ function compareWall(a: Wall, b: Wall): number {
 }
 
 /** Expands one parsed event into its in-window occurrences. */
-function expand(pe: ParsedEvent, windowStart: number, windowDays: number): IcsEvent[] {
+function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<IcsEvent, 'cal'>[] {
   const winEnd = windowStart + windowDays * DAY_MS
   const zone = pe.start.zone
   const startEpoch = toEpoch(pe.start.wall, zone)
@@ -419,7 +420,7 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): IcsEv
     endEpoch !== null ? Math.max(0, endEpoch - startEpoch) : pe.duration ?? (pe.start.allDay ? DAY_MS : 0)
   const exSet = new Set(pe.exdates.map((x) => toEpoch(x.wall, x.zone)))
 
-  const out: IcsEvent[] = []
+  const out: Omit<IcsEvent, 'cal'>[] = []
   const push = (start: number): void => {
     if (exSet.has(start)) return
     const end = start + durationMs
@@ -492,9 +493,9 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): IcsEv
 /** Parses a VCALENDAR and expands recurrences across [windowStart,
  *  windowStart + windowDays). PURE — no Date.now(). Malformed input → []. A
  *  single un-expandable event is dropped rather than poisoning the rest. */
-export function parseIcs(text: string, windowStart: number, windowDays: number): IcsEvent[] {
+export function parseIcs(text: string, windowStart: number, windowDays: number): Omit<IcsEvent, 'cal'>[] {
   try {
-    const out: IcsEvent[] = []
+    const out: Omit<IcsEvent, 'cal'>[] = []
     for (const pe of parseCalendar(text)) {
       try {
         out.push(...expand(pe, windowStart, windowDays))
@@ -512,31 +513,39 @@ export function parseIcs(text: string, windowStart: number, windowDays: number):
 const FETCH_TIMEOUT_MS = 8_000
 const WINDOW_DAYS = 60 // production window
 
-/** Fetches the ICS text (response .text(), NOT getJson) and parses+expands it
- *  across a 60-day window from `windowStart` (Date.now() taken in the widget's
- *  refresh closure — the impure boundary — in Task 54). Quiet failure: a
- *  network error, our own 8s abort, or a non-OK status keeps `prev` (or an
- *  empty result when there is none), same degradation idiom as every other
- *  connector. `fetchFn` is injectable so tests never touch a real network. */
+/** Fetches every calendar in PARALLEL (each with its own 8s abort), parses
+ *  with the unchanged pure parseIcs, tags each event with its calendar
+ *  index, merges and sorts. Failure is PER-FEED: a feed that errors
+ *  contributes prev's events for that index instead of blanking, while the
+ *  others refresh. Accepted edge (spec): the fallback keys by index, so a
+ *  snapshot taken under a differently-ordered list can transiently mis-tag
+ *  a failed feed's carried-over events until the next successful refresh. */
 export async function fetchIcs(
-  url: string,
+  calendars: IcsCalendar[],
   windowStart: number,
   prev: IcsData | null,
   fetchFn: typeof fetch = fetch,
 ): Promise<IcsData> {
-  const fallback = prev ?? { events: [] }
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
-  try {
-    const res = await fetchFn(url, { signal: controller.signal })
-    if (!res.ok) return fallback
-    const text = await res.text()
-    return { events: parseIcs(text, windowStart, WINDOW_DAYS) }
-  } catch {
-    return fallback
-  } finally {
-    clearTimeout(timer)
-  }
+  if (calendars.length === 0) return prev ?? { events: [] }
+  const perFeed = await Promise.all(
+    calendars.map(async (c, i): Promise<IcsEvent[] | null> => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+      try {
+        const res = await fetchFn(c.url, { signal: controller.signal })
+        if (!res.ok) return null
+        const text = await res.text()
+        return parseIcs(text, windowStart, WINDOW_DAYS).map((ev) => ({ ...ev, cal: i }))
+      } catch {
+        return null
+      } finally {
+        clearTimeout(timer)
+      }
+    }),
+  )
+  const events = perFeed.flatMap((feed, i) => feed ?? prev?.events.filter((e) => e.cal === i) ?? [])
+  events.sort((a, b) => a.start - b.start)
+  return { events }
 }
 
 /** Read-time migration — the ONLY place both at-rest shapes are understood.

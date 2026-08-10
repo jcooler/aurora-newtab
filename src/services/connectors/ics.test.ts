@@ -669,44 +669,44 @@ function fakeResponse(opts: { ok?: boolean; status: number; text?: string }) {
 }
 
 describe('fetchIcs', () => {
-  const url = 'https://calendar.example.com/private/basic.ics'
+  const CALS = [{ name: 'A', url: 'https://calendar.example.com/private/basic.ics' }]
 
   it('reads response.text() (NOT json) and parses it into events', async () => {
     const body = cal(
       vevent(['UID:fetch1@test', 'SUMMARY:Fetched', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']),
     )
     const fetchFn = vi.fn(async () => fakeResponse({ status: 200, text: body }))
-    const data = await fetchIcs(url, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
     expect(data.events).toHaveLength(1)
     expect(data.events[0]!.summary).toBe('Fetched')
   })
 
   it('carries an AbortSignal (shared 8s-abort discipline)', async () => {
     const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => fakeResponse({ status: 200, text: cal('') }))
-    await fetchIcs(url, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
     const [, init] = fetchFn.mock.calls[0]!
     expect(init?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('a non-OK status returns prev unchanged', async () => {
-    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2 }] }
+    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2, cal: 0 }] }
     const fetchFn = vi.fn(async () => fakeResponse({ ok: false, status: 404 }))
-    const data = await fetchIcs(url, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, prev, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
   })
 
   it('a non-OK status with no prev falls back to an empty events list', async () => {
     const fetchFn = vi.fn(async () => fakeResponse({ ok: false, status: 500 }))
-    const data = await fetchIcs(url, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
     expect(data).toEqual({ events: [] })
   })
 
   it('a network/abort rejection keeps prev verbatim', async () => {
-    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2 }] }
+    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2, cal: 0 }] }
     const fetchFn = vi.fn(async () => {
       throw new Error('network down')
     })
-    const data = await fetchIcs(url, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, prev, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
   })
 
@@ -714,8 +714,53 @@ describe('fetchIcs', () => {
     const fetchFn = vi.fn(async () => {
       throw new Error('boom')
     })
-    const data = await fetchIcs(url, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
     expect(data).toEqual({ events: [] })
+  })
+
+  it('fetches every calendar in parallel and tags events with their calendar index', async () => {
+    const bodyA = cal(vevent(['UID:a@test', 'SUMMARY:From A', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']))
+    const bodyB = cal(vevent(['UID:b@test', 'SUMMARY:From B', 'DTSTART:20260610T090000Z', 'DTEND:20260610T100000Z']))
+    const fetchFn = vi.fn(async (u: string) => fakeResponse({ status: 200, text: u.includes('feed-a') ? bodyA : bodyB }))
+    const two = [
+      { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
+      { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
+    ]
+    const data = await fetchIcs(two, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    expect(fetchFn).toHaveBeenCalledTimes(2)
+    // Merged AND sorted ascending across feeds — B's 09:00 sorts before A's 12:00.
+    expect(data.events.map((e) => [e.summary, e.cal])).toEqual([
+      ['From B', 1],
+      ['From A', 0],
+    ])
+  })
+
+  it('one failing feed keeps ITS previous events while the healthy feed refreshes', async () => {
+    const bodyA = cal(vevent(['UID:a2@test', 'SUMMARY:Fresh A', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']))
+    const fetchFn = vi.fn(async (u: string) =>
+      u.includes('feed-a') ? fakeResponse({ status: 200, text: bodyA }) : fakeResponse({ ok: false, status: 500 }),
+    )
+    const prev: IcsData = {
+      events: [
+        { summary: 'Stale A', start: 1, end: 2, cal: 0 },
+        { summary: 'Kept B', start: 3, end: 4, cal: 1 },
+      ],
+    }
+    const two = [
+      { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
+      { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
+    ]
+    const data = await fetchIcs(two, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const summaries = data.events.map((e) => e.summary)
+    expect(summaries).toContain('Fresh A')
+    expect(summaries).toContain('Kept B')
+    expect(summaries).not.toContain('Stale A')
+  })
+
+  it('an empty calendar list returns prev (or empty) without fetching', async () => {
+    const fetchFn = vi.fn()
+    expect(await fetchIcs([], JUNE_START, null, fetchFn as unknown as typeof fetch)).toEqual({ events: [] })
+    expect(fetchFn).not.toHaveBeenCalled()
   })
 })
 
