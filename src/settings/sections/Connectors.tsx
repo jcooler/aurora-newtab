@@ -16,7 +16,7 @@ import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
-import { control, eyebrow, select, submitBtn } from './shared'
+import { control, eyebrow, label, row, select, submitBtn } from './shared'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -1172,7 +1172,7 @@ function IcsBody({ config, storage }: BodyProps) {
   // ics.ts — so this component never has to know either fallback shape.
   const ics = config as IcsConfig | undefined
   const calendars = icsCalendarsOf(ics)
-  const { view, upcomingCount } = icsViewOf(ics)
+  const { view, upcomingCount, meetLinks } = icsViewOf(ics)
 
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
@@ -1183,11 +1183,15 @@ function IcsBody({ config, storage }: BodyProps) {
   // first save is the migration moment: a lingering legacy `url` key is
   // dropped here (icsCalendarsOf/icsViewOf read `prev`, but the write below
   // only ever emits the new shape). `patch` lets the view controls further
-  // down write view/upcomingCount immediately, with no Save button, without
-  // disturbing the calendar list — and vice versa for add/remove below.
+  // down write view/upcomingCount/meetLinks immediately, with no Save button,
+  // without disturbing the calendar list — and vice versa for add/remove
+  // below. meetLinks (Task 89) rides the same v.* pull-forward as
+  // view/upcomingCount: a write that doesn't touch it (add/remove, or a view
+  // change) still carries the CURRENT effective value forward rather than
+  // dropping it.
   const updateIcs = (
     fn: (cals: IcsCalendar[]) => IcsCalendar[],
-    patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount'>>,
+    patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount' | 'meetLinks'>>,
   ) =>
     storage.update('connectors', (prev) => {
       const prevIcs = prev.ics as IcsConfig | undefined
@@ -1199,6 +1203,7 @@ function IcsBody({ config, storage }: BodyProps) {
           calendars: fn(icsCalendarsOf(prevIcs)),
           view: v.view,
           upcomingCount: v.upcomingCount,
+          meetLinks: v.meetLinks,
           ...patch,
         },
       }
@@ -1432,6 +1437,25 @@ function IcsBody({ config, storage }: BodyProps) {
             </select>
           )}
         </div>
+      </div>
+
+      {/* No clearIcsSnapshot() call here (contrast handleAdd/handleRemove
+          above): meetUrl already lives inside the cached snapshot untouched
+          (Task 88 stores it on the event; this toggle only gates whether the
+          widget is ALLOWED to render it) — there is nothing stale to
+          invalidate, so this is render-only, same shape as the view/count
+          selects just above (which also write with no Save button and no
+          snapshot clear). */}
+      <div className={row}>
+        <label htmlFor="connector-ics-meetlinks" className={label}>
+          Meeting links
+        </label>
+        <Switch
+          id="connector-ics-meetlinks"
+          checked={meetLinks}
+          onChange={(checked) => void updateIcs((cals) => cals, { meetLinks: checked })}
+          label="Meeting links"
+        />
       </div>
     </div>
   )

@@ -149,6 +149,7 @@ export interface IcsConfig {
   calendars?: IcsCalendar[] // max 5 (MAX_CALENDARS in Connectors.tsx)
   view?: 'today' | 'upcoming' | 'per-calendar' // widget row mode; absent → 'today' (icsViewOf)
   upcomingCount?: number // 2–4; absent/invalid → 3 (icsViewOf); meaningful only for view 'upcoming'
+  meetLinks?: boolean // headline Join link (Task 89); absent/non-boolean → true (icsViewOf)
 }
 
 // W3-SP2 (status chips connector, Task 83): a service's stored url is the FULL

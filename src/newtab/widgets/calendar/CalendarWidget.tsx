@@ -62,7 +62,7 @@ export default function CalendarWidget() {
   // malformed value defaults rather than throwing. Read unconditionally
   // (before the gate below) so the Rules-of-Hooks-free gate stays a single
   // early return; icsViewOf itself is a pure function, not a hook.
-  const { view, upcomingCount } = icsViewOf(ics)
+  const { view, upcomingCount, meetLinks } = icsViewOf(ics)
   if (!ics?.enabled || calendars.length === 0) return null
   // key: a config change (add/remove/reorder, OR a view-mode/count change)
   // REMOUNTS the inner widget so selectAgenda re-runs from a clean slate
@@ -83,6 +83,7 @@ export default function CalendarWidget() {
       calendars={calendars}
       view={view}
       upcomingCount={upcomingCount}
+      meetLinks={meetLinks}
     />
   )
 }
@@ -91,10 +92,19 @@ function CalendarInner({
   calendars,
   view,
   upcomingCount,
+  meetLinks,
 }: {
   calendars: IcsCalendar[]
   view: 'today' | 'upcoming' | 'per-calendar'
   upcomingCount: number
+  // Task 89 — deliberately NOT folded into CalendarWidget's own `key` above:
+  // unlike view/upcomingCount/calendars (which change what selectAgenda
+  // computes, so need a clean remount), meetLinks only gates whether the
+  // headline's ALREADY-selected `next` event renders its Join anchor — a pure
+  // render decision. A toggle flip re-renders this component with a new
+  // meetLinks prop through the normal parent-rerender path (useStoredKey's
+  // connectors subscription), no remount required.
+  meetLinks: boolean
 }) {
   // Re-render cadence: reuses the app's existing minute-scale time source
   // (useNow, exported by Clock.tsx's own module and already parameterized
@@ -145,6 +155,14 @@ function CalendarInner({
 
   const relative = isAllDay(next) ? 'All day' : relNext(nowMs, next.start)
 
+  // Task 89 — Join visibility, the HEADLINE event only (never an agenda row —
+  // rows render through formatAgendaRow below, which never touches meetUrl):
+  // the connector's own meetLinks flag is on, `next` actually carries a link,
+  // and its meeting is either already running or starts within 15 minutes.
+  // `next.start - nowMs` goes negative once the meeting has started — still
+  // <=15*60_000, so an in-progress meeting keeps showing Join until `end`.
+  const showJoin = meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
+
   return (
     <section
       aria-label="Calendar"
@@ -152,9 +170,24 @@ function CalendarInner({
     >
       <p className="flex min-w-0 items-center gap-1.5 text-sm dense:text-xs font-medium text-fg">
         {multi && dot(next.cal)}
-        <span className="block truncate">
+        {/* min-w-0 (not just the row's own): with the Join anchor as a shrink-0
+            sibling, this span must be free to shrink below its own content
+            width for `truncate` to actually bite — otherwise a flex item's
+            default min-width:auto would push Join out past the card edge
+            before the title ever gives up space. */}
+        <span className="block min-w-0 truncate">
           Next: {next.summary} · {relative}
         </span>
+        {showJoin && (
+          <a
+            href={next.meetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="shrink-0 cursor-pointer text-accent transition-colors hover:text-accent/80 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          >
+            Join
+          </a>
+        )}
       </p>
       {rows.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">

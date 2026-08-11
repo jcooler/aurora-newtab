@@ -686,15 +686,25 @@ export function icsCalendarsOf(config: IcsConfig | undefined): IcsCalendar[] {
   return []
 }
 
-/** View defaults, same read-time-tolerance discipline as icsCalendarsOf. */
+/** View defaults, same read-time-tolerance discipline as icsCalendarsOf.
+ *  `meetLinks` (Task 89) joined the same reader rather than a sibling
+ *  function: both call sites (CalendarWidget.tsx's outer gate, Connectors.tsx's
+ *  IcsBody) already destructure this one return value at the exact point they'd
+ *  otherwise need a second call, and IcsBody's updateIcs already pulls
+ *  view/upcomingCount forward through THIS function on every write — meetLinks
+ *  rides the same v.meetLinks path with no new plumbing. Absent or non-boolean
+ *  → true (default ON — a calendar entry with a real meeting link should surface
+ *  it until a user actively turns it off). */
 export function icsViewOf(config: IcsConfig | undefined): {
   view: 'today' | 'upcoming' | 'per-calendar'
   upcomingCount: number
+  meetLinks: boolean
 } {
   const view = config?.view === 'upcoming' || config?.view === 'per-calendar' ? config.view : 'today'
   const n = config?.upcomingCount
   const upcomingCount = typeof n === 'number' && Number.isInteger(n) && n >= 2 && n <= 4 ? n : 3
-  return { view, upcomingCount }
+  const meetLinks = typeof config?.meetLinks === 'boolean' ? config.meetLinks : true
+  return { view, upcomingCount, meetLinks }
 }
 
 /** Dot color per calendar, keyed by LIST POSITION (index % length). Position

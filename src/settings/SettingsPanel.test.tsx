@@ -2662,6 +2662,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       calendars: [{ name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' }],
       view: 'today',
       upcomingCount: 3,
+      meetLinks: true,
     })
   })
 
@@ -2839,6 +2840,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       calendars: [{ name: 'Personal', url: ICS_URL }],
       view: 'per-calendar',
       upcomingCount: 3,
+      meetLinks: true,
     })
 
     await act(async () => {
@@ -2855,6 +2857,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       calendars: [{ name: 'Personal', url: ICS_URL }],
       view: 'upcoming',
       upcomingCount: 4,
+      meetLinks: true,
     })
   })
 
@@ -2914,6 +2917,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       calendars: [{ name: 'Personal', url: ICS_URL }],
       view: 'per-calendar',
       upcomingCount: 3,
+      meetLinks: true,
     })
     expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
   })
@@ -2925,6 +2929,66 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] })
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+
+  // Task 89 — the Meeting links toggle, placed with the view controls above.
+  describe('the Meeting links toggle (Task 89)', () => {
+    it('renders checked by default when the flag is absent from config', async () => {
+      await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] })
+      const toggle = within(connectorsRegion()).getByLabelText('Meeting links') as HTMLButtonElement
+      expect(attr(toggle, 'aria-checked')).toBe('true')
+    })
+
+    it('flipping it writes meetLinks while preserving calendars/view/upcomingCount, and flipping back restores true', async () => {
+      const storage = await renderWithIcs({
+        enabled: true,
+        calendars: [{ name: 'Personal', url: ICS_URL }],
+        view: 'upcoming',
+        upcomingCount: 4,
+      })
+      const toggle = within(connectorsRegion()).getByLabelText('Meeting links') as HTMLButtonElement
+
+      await act(async () => {
+        fireEvent.click(toggle)
+      })
+      expect(await readIcs(storage)).toEqual({
+        enabled: true,
+        calendars: [{ name: 'Personal', url: ICS_URL }],
+        view: 'upcoming',
+        upcomingCount: 4,
+        meetLinks: false,
+      })
+
+      await act(async () => {
+        fireEvent.click(toggle)
+      })
+      expect(await readIcs(storage)).toEqual({
+        enabled: true,
+        calendars: [{ name: 'Personal', url: ICS_URL }],
+        view: 'upcoming',
+        upcomingCount: 4,
+        meetLinks: true,
+      })
+    })
+
+    // Contrast handleAdd/handleRemove above (which DO clear the cached
+    // snapshot): meetUrl already lives inside the cached events (Task 88), so
+    // toggling meetLinks changes nothing about what's cached — only whether
+    // rendering is ALLOWED to show it. Render-only, no invalidation.
+    it('does NOT clear the cached ics snapshot — render-only', async () => {
+      const storage = await renderWithIcs(
+        { enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] },
+        true,
+      )
+      expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+
+      const toggle = within(connectorsRegion()).getByLabelText('Meeting links') as HTMLButtonElement
+      await act(async () => {
+        fireEvent.click(toggle)
+      })
+
+      expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+    })
   })
 })
 

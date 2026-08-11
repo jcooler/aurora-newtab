@@ -1049,20 +1049,38 @@ describe('icsCalendarsOf — read-time config normalization', () => {
 
 describe('icsViewOf — view defaults', () => {
   it('defaults to today/3 for missing or invalid values', () => {
-    expect(icsViewOf(undefined)).toEqual({ view: 'today', upcomingCount: 3 })
+    expect(icsViewOf(undefined)).toEqual({ view: 'today', upcomingCount: 3, meetLinks: true })
     expect(icsViewOf({ enabled: true, view: 'bogus' as never, upcomingCount: 99 })).toEqual({
       view: 'today',
       upcomingCount: 3,
+      meetLinks: true,
     })
   })
   it('passes through valid values', () => {
     expect(icsViewOf({ enabled: true, view: 'per-calendar', upcomingCount: 2 })).toEqual({
       view: 'per-calendar',
       upcomingCount: 2,
+      meetLinks: true,
     })
     expect(icsViewOf({ enabled: true, view: 'upcoming', upcomingCount: 4 })).toEqual({
       view: 'upcoming',
       upcomingCount: 4,
+      meetLinks: true,
     })
+  })
+})
+
+// Task 89 — meetLinks joined the same reader (see icsViewOf's own doc
+// comment for why); same read-time-tolerance discipline as view/upcomingCount
+// above: absent or non-boolean defaults ON, an explicit boolean passes through.
+describe('icsViewOf — meetLinks (Task 89)', () => {
+  it('defaults to true when the flag is absent or not a boolean', () => {
+    expect(icsViewOf(undefined).meetLinks).toBe(true)
+    expect(icsViewOf({ enabled: true }).meetLinks).toBe(true)
+    expect(icsViewOf({ enabled: true, meetLinks: 'yes' as never }).meetLinks).toBe(true)
+  })
+  it('passes through an explicit true or false', () => {
+    expect(icsViewOf({ enabled: true, meetLinks: true }).meetLinks).toBe(true)
+    expect(icsViewOf({ enabled: true, meetLinks: false }).meetLinks).toBe(false)
   })
 })

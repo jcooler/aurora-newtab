@@ -33,9 +33,18 @@ const CONNECTED_TWO: IcsConfig = {
   ],
 }
 
-function ev(summary: string, start: number, end: number, cal = 0): IcsEvent {
-  return { summary, start, end, cal }
+// meetUrl optional (Task 89): the widget-boundary Join-link cases below pass
+// it; every pre-existing fixture call omits it and gets the same
+// no-meetUrl-key shape ics.ts's own expand() produces for a no-match event
+// (conditional spread, never a `meetUrl: undefined` property).
+function ev(summary: string, start: number, end: number, cal = 0, meetUrl?: string): IcsEvent {
+  return { summary, start, end, cal, ...(meetUrl ? { meetUrl } : {}) }
 }
+
+// A realistic provider link (Task 88's own extractMeetUrl fixtures use the
+// same host) — the Join-link cases below only need A string to assert the
+// anchor's href against, not a parsed one.
+const MEET_URL = 'https://meet.google.com/abc-defg-hij'
 
 const EVENT_NEXT = ev('Standup', new Date(2026, 7, 7, 11, 0, 0).getTime(), new Date(2026, 7, 7, 11, 30, 0).getTime()) // 2h out, today
 const EVENT_B = ev('Design review', new Date(2026, 7, 7, 14, 0, 0).getTime(), new Date(2026, 7, 7, 14, 30, 0).getTime()) // today, later
@@ -302,6 +311,71 @@ describe('CalendarWidget', () => {
     await act(async () => {})
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     expect(rows).toEqual(['All day · Vacation'])
+  })
+
+  // Task 89 — the Join link. Visibility rule (the plan's own words): meetLinks
+  // ON && HEADLINE event has meetUrl && (start - now <= 15min && now < end).
+  // Never on agenda rows.
+  describe('the Join link (Task 89)', () => {
+    it('shows on the headline when its meeting starts within 15 minutes — and CONNECTED carries no meetLinks key, proving absent-flag defaults to ON', async () => {
+      const soon = ev('Standup', NOW + 10 * 60_000, NOW + 40 * 60_000, 0, MEET_URL) // 10 min out
+      const storage = await seededStorage(CONNECTED, { events: [soon] })
+      mount(storage)
+      await act(async () => {})
+
+      const link = screen.getByRole('link', { name: 'Join' }) as HTMLAnchorElement
+      expect(link.getAttribute('href')).toBe(MEET_URL)
+      expect(link.getAttribute('target')).toBe('_blank')
+      expect(link.getAttribute('rel')).toContain('noopener')
+    })
+
+    it('is absent when the headline is more than 15 minutes out; an already-ended event with a meetUrl never becomes headline (and so never leaks a Join) either', async () => {
+      const ended = ev('Old standup', NOW - 60 * 60_000, NOW - 30 * 60_000, 0, MEET_URL) // ended 30 min ago
+      const farOut = ev('Design review', NOW + 30 * 60_000, NOW + 60 * 60_000, 0, MEET_URL) // 30 min out
+      const storage = await seededStorage(CONNECTED, { events: [ended, farOut] })
+      mount(storage)
+      await act(async () => {})
+
+      expect(screen.getByText(/Next: Design review/)).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
+    })
+
+    it('shows for a currently-running meeting (started before now, ends after now)', async () => {
+      const running = ev(
+        'Standup',
+        new Date(2026, 7, 7, 8, 50, 0).getTime(),
+        new Date(2026, 7, 7, 9, 30, 0).getTime(),
+        0,
+        MEET_URL,
+      )
+      const storage = await seededStorage(CONNECTED, { events: [running] })
+      mount(storage)
+      await act(async () => {})
+
+      expect(screen.getByRole('link', { name: 'Join' })).toBeTruthy()
+    })
+
+    it('never renders on an agenda row, even when that row event carries a meetUrl and would itself qualify time-wise', async () => {
+      const headline = ev('Standup', NOW + 2 * 60_000, NOW + 20 * 60_000) // 2 min out, no meetUrl — claims the headline slot
+      const row = ev('Design review', NOW + 10 * 60_000, NOW + 40 * 60_000, 0, MEET_URL) // 10 min out — inside the 15-min window, but this is a ROW
+      const storage = await seededStorage(CONNECTED, { events: [headline, row] })
+      mount(storage)
+      await act(async () => {})
+
+      expect(screen.getByText(/Design review/)).toBeTruthy() // the row itself renders
+      expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
+      expect(document.querySelector('section[aria-label="Calendar"] ul a')).toBeNull()
+    })
+
+    it('meetLinks: false suppresses the Join link even when the headline is imminent and has a meetUrl', async () => {
+      const soon = ev('Standup', NOW + 5 * 60_000, NOW + 35 * 60_000, 0, MEET_URL)
+      const storage = await seededStorage({ ...CONNECTED, meetLinks: false }, { events: [soon] })
+      mount(storage)
+      await act(async () => {})
+
+      expect(screen.getByText(/Next: Standup/)).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
+    })
   })
 })
 
