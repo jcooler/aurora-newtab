@@ -543,11 +543,16 @@ v1.9.0 carries two changes, in the order they shipped:
    review). Jira gains a "due soon" list alongside its existing assigned-
    issues/status-chips sections. Vercel's existing deployments/status-
    summary split becomes two independent toggles instead of one bundled
-   view. In every case, a section a user turns off is not merely hidden —
-   Aurora never issues the network request for it, so switching sections
-   off can only reduce what a card fetches, never add to it (the same
-   guarantee v1.8.0's addendum stated for GitHub). No new permission and
-   no new host: every section reads through the SAME per-connector access
+   view — independent as a UI choice, though the two still ride the SAME
+   single deployments request (Vercel's API doesn't expose them
+   separately), so that request fires as long as either one is on. In
+   every case, turning a section off can only reduce what a card fetches,
+   never add to it (the same guarantee v1.8.0's addendum stated for
+   GitHub) — most sections gate an independent request of their own; the
+   two exceptions are Vercel's pair above and Jira's status-count line,
+   which rides along with the assigned-issues request rather than firing
+   one of its own. No new permission and no new host: every section reads
+   through the SAME per-connector access
    already justified above — including GitLab's new activity graph, which
    reads `calendar.json` on the user's own configured GitLab instance
    (`instanceUrl`, already covered by that connector's origin grant), not
@@ -606,8 +611,9 @@ with:
       each shows in Settings → Connectors: GitHub (commit graph, pull
       requests, issues, notifications), GitLab (merge requests, review
       asks, to-dos, activity graph), Jira (assigned issues, status chips,
-      due soon), and Vercel (deployments, status summary). A section you
-      turn off is never fetched, not merely hidden. Calendar now holds up
-      to 5 named calendars in one card — paste any ICS/iCal feed,
-      including Apple Calendar's webcal links — with a Today, Upcoming, or
-      One-per-calendar view.
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view.

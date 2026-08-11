@@ -176,8 +176,12 @@ Settings → Connectors:
   then newest to oldest) and a status summary; choose which of the two
   appear. Connect with a personal access token; reads `api.vercel.com`.
 
-For all four of the above, a section you turn off is never fetched, not
-merely hidden — the request for it is simply never sent.
+For all four of the above, turning a section off can only reduce what its
+card fetches, never add to it. Most sections gate their own request
+independently; two ride along with a sibling instead — Jira's
+status-count line reads off the assigned-issues request rather than
+firing one of its own, and Vercel's deployments and status summary share
+a single request that keeps firing as long as either section is on.
 
 - **Crypto** — live price and 24-hour change for up to 5 coins you choose.
   No account, no token — reads the public `api.coingecko.com` markets
