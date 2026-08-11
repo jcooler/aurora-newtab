@@ -662,3 +662,86 @@ under FEATURES), appending one sentence to its end:
       Today, Upcoming, or One-per-calendar view. Find connectors by name
       or purpose — the catalog is searchable, and anything on your board
       stays pinned on top.
+
+---
+
+### v1.11.0 addendum — green dots until they aren't (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.11.0 adds an eighth connector: **Status**, a quiet dot row for the
+services a user depends on — green and silent on a normal day, with
+trouble text appearing only for a service that's actually down (worst
+first, capped at three lines). Users pick from six curated status pages
+(GitHub, Cloudflare, OpenAI, npm, Vercel, Discord) or add any
+statuspage.io-style URL themselves, up to 8 services total. No credential
+of any kind — Status is `auth: 'none'`, the same as Crypto and Calendar,
+and declares no secret fields, since a public status-page URL grants no
+access to anything and identifies no one. No new permission and no new
+install-time host: every service Status fetches reaches its own host
+through the SAME per-origin `optional_host_permissions` grant already
+justified above, requested one origin at a time on the same "Add" gesture
+RSS and Calendar already use — declining leaves that service un-added,
+same as every other connector; removing the last service on a given host
+revokes that host's grant automatically, same as every other connector. A
+service that fails to respond reads as unknown rather than carrying
+forward a stale "healthy" reading from an earlier check. The Summary,
+Category, Single purpose statement, and Data Usage disclosure table remain
+unaffected for the same reason every earlier no-credential connector
+addendum gave (Crypto and Calendar in particular) — one more source
+reading a public endpoint the user chose, not a new kind of data or a new
+permission.
+
+#### Detailed description delta
+
+REPLACE the Connectors bullet (as it stands after the v1.10.0 addendum
+above, under FEATURES):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your calendar events, each reading only what its own
+      card describes. Every connector card is composable — choose what
+      each shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view. Find connectors by name
+      or purpose — the catalog is searchable, and anything on your board
+      stays pinned on top.
+
+with:
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Eight ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, and
+      Status — covering your feeds, your PRs/issues/MRs/tickets/
+      deployments, coin prices, your calendar events, and the health of
+      the services you depend on, each reading only what its own card
+      describes. Every connector card is composable — choose what each
+      shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view. Status shows a quiet dot
+      row for up to 8 services — six curated status pages, or any
+      statuspage.io-style URL you add yourself — that stays green and
+      silent until something's actually down. Find connectors by name or
+      purpose — the catalog is searchable, and anything on your board
+      stays pinned on top.

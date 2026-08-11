@@ -32,9 +32,10 @@ no backend — everything lives on your machine.
   countdown for. Off by default.
 - **Connectors** — an extensible framework for pulling outside data into the
   dashboard, one card per source under Settings → Connectors, each asking
-  Chrome for access to exactly the site you add and nothing more. Seven
+  Chrome for access to exactly the site you add and nothing more. Eight
   connectors ship today: **RSS**, **GitHub**, **GitLab**, **Jira**,
-  **Vercel**, **Crypto**, and **Calendar** (any ICS/iCal feed). See
+  **Vercel**, **Crypto**, **Calendar** (any ICS/iCal feed), and **Status**
+  (a quiet dot row for services you depend on). See
   [Connectors](#connectors) below for what each one shows, what it reads,
   and how the permission model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
@@ -147,7 +148,7 @@ fetched, asking Chrome for permission to reach a site, and keeping anything
 sensitive out of backup exports) is written once and shared. **RSS** was the
 first connector; the framework was built so adding another source meant
 writing that connector's own card/widget/service, not re-solving caching,
-permissions, or backups again — the other six below are exactly that.
+permissions, or backups again — the other seven below are exactly that.
 
 Find connectors by name or purpose — the catalog is searchable, and
 anything on your board stays pinned on top.
@@ -159,7 +160,7 @@ the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
 once every 30 minutes, or sooner if you refresh).
 
-The other six, briefly — what you see, and what Aurora reads to show it.
+The other seven, briefly — what you see, and what Aurora reads to show it.
 Every connector card is composable — choose what each shows in
 Settings → Connectors:
 
@@ -197,6 +198,12 @@ a single request that keeps firing as long as either section is on.
   next few events across days), or **One per calendar** (each calendar's
   soonest event). No account, no token — just paste each feed's URL,
   which Aurora treats as a secret (see [Privacy](#privacy)).
+- **Status** — a quiet dot row for up to 8 services you depend on: green
+  and silent on a normal day, with trouble text appearing only for a
+  service that's actually down (worst first). Pick from six curated
+  status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Discord) or add
+  any statuspage.io-style URL yourself. No account, no token — reads only
+  the public status endpoint each entry points to.
 
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
@@ -336,6 +343,7 @@ list) — is stored locally in `chrome.storage.local`. The one exception is an
 uploaded background photo, which is stored locally in IndexedDB (as a blob,
 never uploaded anywhere).
 
+
 The **fixed** outbound network calls Aurora makes on its own are to
 Open-Meteo: the forecast endpoint (`api.open-meteo.com`), only once the
 weather widget is enabled and a location is set, and the geocoder
@@ -348,12 +356,12 @@ with a real place name. That lookup happens once, only for device location,
 and sends the same ~1 km-rounded coordinates the forecast call already
 uses. Beyond those fixed calls, the **Connectors** framework lets you point
 Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
-Crypto, and Calendar today: every connector fetch goes directly from your
-browser to that connector's own host, with no Aurora server in between,
-only for connectors you've actually configured. GitHub/GitLab/Jira/Vercel
-send only the token (or, for Jira, email + token) you connected with;
-Crypto and Calendar need no account at all. There is no analytics, no
-telemetry, and no tracking of any kind.
+Crypto, Calendar, and Status today: every connector fetch goes directly
+from your browser to that connector's own host, with no Aurora server in
+between, only for connectors you've actually configured. GitHub/GitLab/
+Jira/Vercel send only the token (or, for Jira, email + token) you
+connected with; Crypto, Calendar, and Status need no account at all. There
+is no analytics, no telemetry, and no tracking of any kind.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.

@@ -15,14 +15,15 @@ Aurora stores lives only on your own device. The outbound network calls
 Aurora makes on its own, with no action from you beyond turning a widget
 on, are three read-only, keyless weather/location lookups described in full
 below. Beyond those, Aurora's **Connectors** framework lets you point it at
-outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and
-Calendar today — and every such request goes directly from your browser to
-the site you configured, never through any server Aurora operates (it has
-none). Four of those seven (GitHub, GitLab, Jira, Vercel) need a
-credential — a personal access token, or for Jira, an email + API token —
-which is stored locally like everything else and sent only to the one
-service it authenticates to; the other three (RSS, Crypto, Calendar) need
-no credential at all. See "Connectors" below for the complete disclosure.
+outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto,
+Calendar, and Status today — and every such request goes directly from
+your browser to the site you configured, never through any server Aurora
+operates (it has none). Four of those eight (GitHub, GitLab, Jira, Vercel)
+need a credential — a personal access token, or for Jira, an email + API
+token — which is stored locally like everything else and sent only to the
+one service it authenticates to; the other four (RSS, Crypto, Calendar,
+Status) need no credential at all. See "Connectors" below for the complete
+disclosure.
 
 ## What Aurora stores, and where
 
@@ -50,7 +51,8 @@ anywhere except as explicitly described under "Network calls" below:
 - Connector configuration (e.g., for RSS: which feed URLs you've added; for
   GitHub/GitLab/Jira/Vercel: the token or email+token you connected with;
   for Calendar: the calendar addresses you added, up to 5; for Crypto: the
-  coins you chose)
+  coins you chose; for Status: the services you've added — curated picks
+  or custom status page URLs — up to 8)
   and a local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
@@ -105,16 +107,16 @@ below):
    call happens once per click of that button, never on a schedule.
 4. **Connector fetches** — only to the connector(s) you've actually
    configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,
-   Vercel, Crypto, Calendar); there are none until you add or connect one.
-   Each fetch is a single HTTP request sent directly from your browser to
-   that connector's own host — nothing is sent but the request itself (plus
-   a token/credential for the four that need one), and no Aurora server
-   sees or relays it, because Aurora has none. Refreshed on a per-connector
-   interval (5 minutes for GitHub/GitLab/Vercel/Crypto, 10 for Jira, 15 for
-   Calendar, 30 for RSS), or sooner if you open a widget with a stale
-   cache. See "Connectors" below for the full, per-connector disclosure,
-   including the permission model that gates which sites Aurora is even
-   allowed to reach.
+   Vercel, Crypto, Calendar, Status); there are none until you add or
+   connect one. Each fetch is a single HTTP request sent directly from your
+   browser to that connector's own host — nothing is sent but the request
+   itself (plus a token/credential for the four that need one), and no
+   Aurora server sees or relays it, because Aurora has none. Refreshed on a
+   per-connector interval (5 minutes for GitHub/GitLab/Vercel/Crypto/
+   Status, 10 for Jira, 15 for Calendar, 30 for RSS), or sooner if you open
+   a widget with a stale cache. See "Connectors" below for the full,
+   per-connector disclosure, including the permission model that gates
+   which sites Aurora is even allowed to reach.
 
 Aurora makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,
@@ -214,7 +216,7 @@ pre-granted at install, nothing is granted in the background, and removing
 the last thing pointed at a given origin releases that origin's permission
 automatically.
 
-**Token connectors.** RSS, Crypto, and Calendar need no credential
+**Token connectors.** RSS, Crypto, Calendar, and Status need no credential
 (`auth: 'none'`) — there's nothing to keep secret beyond, for Calendar,
 each calendar address itself (see below). GitHub, GitLab, Jira, and Vercel do
 require a credential to read your own data, and each one stores it only in
@@ -231,8 +233,9 @@ config, unstripped — it identifies you to Jira, the same way a username
 would, and isn't itself a bearer credential); Calendar declares its whole
 `calendars` list (every entry's own address) secret, since each address
 alone is what grants read access to that calendar — up to 5 per the
-connector's own cap; RSS and Crypto declare no secret fields, because they
-have none.
+connector's own cap; RSS, Crypto, and Status declare no secret fields,
+because they have none — a status page URL, curated or custom, grants no
+access to anything and identifies no one.
 
 **RSS, concretely.** Aurora fetches only the feed URLs you've added in
 Settings → Connectors — nothing else — at most about once every 30 minutes
@@ -245,7 +248,7 @@ doesn't need to refetch on every new tab; that cache is excluded from
 backup exports entirely, same as uploaded photos, because it's disposable
 and rebuilds itself rather than being data you entered.
 
-**The other six, concretely** — each fetch is a single HTTP request sent
+**The other seven, concretely** — each fetch is a single HTTP request sent
 directly from your browser to the named host, cached locally the same way
 RSS is (and excluded from backup exports the same way), and refreshed on
 its own interval or sooner on demand:
@@ -274,6 +277,16 @@ its own interval or sooner on demand:
   up to 5; each address itself is treated as a secret (see "Token
   connectors" above) and never leaves your device except to its own
   calendar host. Refreshed roughly every 15 minutes.
+- **Status** — talks only to the public status endpoint(s) you've added,
+  up to 8: six curated picks (GitHub, Cloudflare, OpenAI, npm, Vercel,
+  Discord's own statuspage.io status pages) or any statuspage.io-style URL
+  you paste in yourself. No account, no token — sends nothing but the
+  request itself. A service that fails to respond reads as unknown (a gray
+  dot), never as a stale "healthy" reading carried over from an earlier
+  check — the one connector where a failed fetch is deliberately shown
+  rather than papered over, since a status widget that could show a stale
+  green during a real outage would be actively misleading. Refreshed
+  roughly every 5 minutes.
 
 ## Data collection, sale, and sharing
 
