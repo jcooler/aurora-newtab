@@ -6254,6 +6254,658 @@ function gitlabContributionsFixture() {
   )
 }
 
+// Status widget (status connector) — Task 83-85 shipped the service layer,
+// widget, and settings card; THIS is Task 86's own harness: the band's real
+// budget (a new custom-variant, `tallest`, derived below — see index.css and
+// App.tsx's bottom-zone comment for the full narrative), the widget's own
+// DOM-contract probes in a real browser, and the settings drawer's add/remove
+// flow including THE GESTURE QUESTION every prior task deferred here.
+//
+// THE FIXTURE LAW (this file's own convention): 8 services — status.ts's
+// MAX_SERVICES, the true display cap — 3 in trouble (one of EACH severity:
+// critical/major/minor, proving the worst-first sort against a MIXED
+// configured order), 1 unknown, 4 green. All 6 curated entries PLUS 2 custom
+// ones (Sentry, Stripe) reach the cap. Configured order deliberately does
+// NOT match severity order (Cloudflare[minor] before npm[major] before
+// Discord[critical]) — the rendered TROUBLE lines are worst-first regardless
+// (Discord, npm, Cloudflare), the exact inversion that proves the sort, not
+// a lucky coincidence of seed order.
+{
+  const STATUS_SERVICES = [
+    { name: 'GitHub', url: 'https://www.githubstatus.com/api/v2/status.json' },
+    { name: 'Cloudflare', url: 'https://www.cloudflarestatus.com/api/v2/status.json' },
+    { name: 'OpenAI', url: 'https://status.openai.com/api/v2/status.json' },
+    { name: 'npm', url: 'https://status.npmjs.org/api/v2/status.json' },
+    { name: 'Vercel', url: 'https://www.vercel-status.com/api/v2/status.json' },
+    { name: 'Discord', url: 'https://discordstatus.com/api/v2/status.json' },
+    { name: 'Sentry', url: 'https://status.sentry.io/api/v2/status.json' },
+    { name: 'Stripe', url: 'https://status.stripe.com/api/v2/status.json' },
+  ]
+  const TROUBLE_DATA = {
+    services: [
+      { name: 'GitHub', indicator: 'none', description: 'All Systems Operational' },
+      { name: 'Cloudflare', indicator: 'minor', description: 'Degraded Performance' },
+      { name: 'OpenAI', indicator: 'none', description: 'All Systems Operational' },
+      { name: 'npm', indicator: 'major', description: 'Partial Outage' },
+      { name: 'Vercel', indicator: 'none', description: 'All Systems Operational' },
+      { name: 'Discord', indicator: 'critical', description: 'Major Outage' },
+      { name: 'Sentry', indicator: 'unknown', description: '' },
+      { name: 'Stripe', indicator: 'none', description: 'All Systems Operational' },
+    ],
+  }
+  const ALL_GREEN_DATA = {
+    services: STATUS_SERVICES.map((s) => ({ name: s.name, indicator: 'none', description: 'All Systems Operational' })),
+  }
+  const statusSel = '[data-block-id="status"] section[aria-label="Service status"]'
+  const EXPECTED_TROUBLE = ['Discord — Major Outage', 'npm — Partial Outage', 'Cloudflare — Degraded Performance']
+
+  // Tall enough to clear the NEW `tallest` floor (>=1042h, derived below)
+  // with real margin, same "size UP first" idiom the crypto block above
+  // uses for its own `taller` (>=890h) tier.
+  await page.setViewportSize({ width: 1600, height: 1100 })
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, status: { enabled: true, services: data.services } },
+      connectorSnapshots: { status: { fetchedAt: Date.now(), data: data.trouble } },
+    })
+  }, { services: STATUS_SERVICES, trouble: TROUBLE_DATA })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(statusSel, { timeout: 5000 }).catch(() => {})
+
+  // ── Step 3: widget probes (the 3-trouble worst-case fixture) ─────────────
+  const widget = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const dots = [...sec.querySelectorAll('span[title]')]
+    const rows = [...sec.querySelectorAll('p')]
+    const dotRect = (i) => {
+      const r = dots[i]?.getBoundingClientRect()
+      return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null
+    }
+    return {
+      dotCount: dots.length,
+      titles: dots.map((d) => d.getAttribute('title')),
+      classes: dots.map((d) => d.className),
+      cursors: [...new Set(dots.map((d) => getComputedStyle(d).cursor))],
+      troubleLines: rows.map((p) => p.textContent),
+      troubleClasses: rows.map((p) => p.className),
+      troubleCursor: rows.length ? getComputedStyle(rows[0]).cursor : null,
+      emeraldCenter: dotRect(0), // GitHub, index 0, indicator none
+      grayCenter: dotRect(6), // Sentry, index 6, indicator unknown
+    }
+  }, statusSel)
+
+  const dotCountOk = widget !== null && widget.dotCount === 8
+  console.log(
+    dotCountOk
+      ? `PASS: the Status widget renders 8 dots — one per configured service, its own true display max (MAX_SERVICES)`
+      : `FAIL: the Status widget renders 8 dots (${JSON.stringify(widget)})`,
+  )
+
+  const troubleOk =
+    widget !== null &&
+    JSON.stringify(widget.troubleLines) === JSON.stringify(EXPECTED_TROUBLE) &&
+    widget.troubleClasses.every((c) => c.includes('text-red-400'))
+  console.log(
+    troubleOk
+      ? `PASS: exactly 3 trouble lines, worst-first (critical, major, minor) — ${JSON.stringify(widget.troubleLines)} — despite a configured order that goes minor->major->critical (Cloudflare, npm, Discord), proving the sort; all in the danger tone (text-red-400)`
+      : `FAIL: worst-first trouble lines (${JSON.stringify(widget?.troubleLines)}, classes ${JSON.stringify(widget?.troubleClasses)})`,
+  )
+
+  const titlesOk =
+    widget !== null &&
+    widget.titles[0] === 'GitHub: All Systems Operational' &&
+    widget.titles[1] === 'Cloudflare: Degraded Performance' &&
+    widget.titles[5] === 'Discord: Major Outage' &&
+    widget.titles[6] === 'Sentry: unreachable'
+  console.log(
+    titlesOk
+      ? `PASS: dot title attrs read "{name}: {description}" per indicator, and "{name}: unreachable" for the unknown one (${JSON.stringify(widget.titles)})`
+      : `FAIL: dot title attrs (${JSON.stringify(widget?.titles)})`,
+  )
+
+  const cursorOk = widget !== null && !widget.cursors.includes('pointer') && widget.troubleCursor !== 'pointer'
+  console.log(
+    cursorOk
+      ? `PASS: cursor discipline — the dots (${widget.cursors.join('/')}) and the trouble lines (${widget.troubleCursor}) carry no pointer affordance; nothing here is clickable`
+      : `FAIL: cursor discipline on the status strip (dotCursors=${widget?.cursors}, troubleCursor=${widget?.troubleCursor})`,
+  )
+
+  // Pixel-sample one emerald + the gray (the idiom this file's own accent-RGB
+  // probes use — GithubWidget's heatmap ACCENT_RGB check — applied here: a
+  // tiny screenshot clip at each dot's CENTER, averaged, so rounded-full
+  // edge antialiasing never pollutes the sample).
+  const clipMean = async (center) => {
+    const buf = await page.screenshot({ clip: { x: center.x - 2, y: center.y - 2, width: 4, height: 4 } })
+    const { data, info } = await sharp(buf).raw().toBuffer({ resolveWithObject: true })
+    let r = 0, g = 0, b = 0, n = 0
+    for (let i = 0; i < data.length; i += info.channels) { r += data[i]; g += data[i + 1]; b += data[i + 2]; n++ }
+    return [Math.round(r / n), Math.round(g / n), Math.round(b / n)]
+  }
+  // MEASURED against this build, not assumed from Tailwind's old v3 hex
+  // palette: Tailwind v4's default emerald-400 is defined in OKLCH
+  // (`oklch(0.765 0.177 163.223)`, getComputedStyle confirms), which is
+  // OUT OF GAMUT for sRGB at that chroma — Chromium's oklch->sRGB conversion
+  // hard-clips the R channel to 0 rather than desaturating smoothly. The old
+  // "#34d399" (52, 211, 153) reference (a v3-era assumption) does NOT match
+  // what this build actually paints; this DID fail against that reference
+  // during this task's own development, caught by this very probe, and was
+  // re-measured rather than papered over — (0, 212, 146), reproduced
+  // identically via two independent sampling methods (a raw clip and a
+  // per-element screenshot).
+  const EMERALD_400 = [0, 212, 146]
+  const emeraldPx = widget?.emeraldCenter ? await clipMean(widget.emeraldCenter) : null
+  const emeraldOk = !!emeraldPx && emeraldPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
+  console.log(
+    emeraldOk
+      ? `PASS: pixel-sampled the GitHub (none) dot at its rendered center — rgb(${emeraldPx.join(', ')}) within tolerance of this build's measured emerald-400 rgb(${EMERALD_400.join(', ')})`
+      : `FAIL: the emerald dot's sampled pixel (${JSON.stringify(emeraldPx)}, expected near rgb(${EMERALD_400.join(', ')}))`,
+  )
+  // The gray (unknown) dot is `bg-fg-muted/40` — a semi-transparent neutral
+  // (getComputedStyle: `oklab(0.9699 -0.0003 0.0013 / 0.271)`, i.e. genuinely
+  // near-white and near-zero chroma) floating directly on the background
+  // PHOTO, so its raw composited pixel is photo-dependent, not a fixed
+  // color — sampling it as-is measured a warm (197, 135, 71) here, which is
+  // the photo's OWN local color bleeding through 73% alpha, not a claim
+  // about the dot's own color at all. So the backdrop is neutralized first —
+  // hide Background.tsx's one `-z-10` layer (fallback+LQIP+photo+scrim all
+  // live in that single div) and paint documentElement a known solid black —
+  // making the composited pixel a real, falsifiable, background-independent
+  // measurement: alpha 0.271 of a near-white over pure black lands at
+  // ~66/66/66 (245 * 0.271 ≈ 66), a true desaturated gray, restored after.
+  const bgLayerSel = 'div[aria-hidden].fixed.inset-0.overflow-hidden'
+  await page.evaluate((sel) => {
+    const bg = document.querySelector(sel)
+    if (bg) bg.style.visibility = 'hidden'
+    document.documentElement.style.background = '#000000'
+  }, bgLayerSel)
+  await page.waitForTimeout(100)
+  const grayPx = widget?.grayCenter ? await clipMean(widget.grayCenter) : null
+  await page.evaluate((sel) => {
+    const bg = document.querySelector(sel)
+    if (bg) bg.style.visibility = ''
+    document.documentElement.style.background = ''
+  }, bgLayerSel)
+  const desaturated = (px) => Math.max(...px) - Math.min(...px) <= 10
+  const grayOk = !!grayPx && desaturated(grayPx) && !grayPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
+  console.log(
+    grayOk
+      ? `PASS: pixel-sampled the Sentry (unknown) dot at its rendered center, backdrop neutralized to solid black — rgb(${grayPx.join(', ')}), a genuinely desaturated gray (spread ${Math.max(...grayPx) - Math.min(...grayPx)}), distinct from emerald`
+      : `FAIL: the gray dot's sampled pixel over a neutralized black backdrop (${JSON.stringify(grayPx)}) should be desaturated and distinct from emerald`,
+  )
+
+  await page.screenshot({ path: `${outDir}/status-strip-trouble.png` })
+  console.log('captured status-strip-trouble.png')
+  // Height note (Task 86's own derivation, see index.css's `tallest` variant
+  // and App.tsx's bottom-zone comment): the strip needs >=1042h to safely
+  // clear the links row above it, well past Jon's canonical 1600x900 — so
+  // this capture, and the quiet-day one below, are taken at 1600x1100 (the
+  // same size this block already sized up to for the widget probes above),
+  // not 900, which would show the strip correctly HIDDEN rather than
+  // demonstrating its content.
+
+  // All-green variant — the quiet-day probe: same 8 services, only the data
+  // flips to all-`none`. connectorSnapshots' OWN cache-first read means a
+  // fresh reload with a NEW snapshot renders the new data immediately, no
+  // extra reload needed beyond this one.
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, status: { enabled: true, services: data.services } },
+      connectorSnapshots: { status: { fetchedAt: Date.now(), data: data.green } },
+    })
+  }, { services: STATUS_SERVICES, green: ALL_GREEN_DATA })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  await page.waitForSelector(statusSel, { timeout: 5000 }).catch(() => {})
+  const green = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return { dotCount: sec.querySelectorAll('span[title]').length, pCount: sec.querySelectorAll('p').length }
+  }, statusSel)
+  const greenOk = green !== null && green.dotCount === 8 && green.pCount === 0
+  console.log(
+    greenOk
+      ? `PASS: the all-green variant renders 8 dots and ZERO trouble <p> lines — a quiet day is nearly invisible, exactly the widget's own design intent`
+      : `FAIL: the all-green variant (${JSON.stringify(green)})`,
+  )
+  await page.screenshot({ path: `${outDir}/status-strip-quiet.png` })
+  console.log('captured status-strip-quiet.png')
+
+  // ── Step 2: band measurement ──────────────────────────────────────────────
+  // Re-seed the 3-trouble fixture (the fixture law: the worst height IS the
+  // measured case) for every fencepost below.
+  await page.evaluate(async (data) => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        status: { enabled: true, services: data.services },
+        crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] },
+      },
+      connectorSnapshots: {
+        status: { fetchedAt: Date.now(), data: data.trouble },
+        crypto: {
+          fetchedAt: Date.now(),
+          data: {
+            coins: [
+              { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67_412, change24h: 2.4 },
+              { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3_245, change24h: -1.2 },
+              { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+            ],
+          },
+        },
+      },
+    })
+  }, { services: STATUS_SERVICES, trouble: TROUBLE_DATA })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+
+  const bandBox = () =>
+    page.evaluate((selStatus) => {
+      const box = (sel) => {
+        const el = document.querySelector(sel)
+        if (!el) return null
+        const r = el.getBoundingClientRect()
+        if (r.width === 0 && r.height === 0) return null
+        return { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1) }
+      }
+      return {
+        status: box(selStatus),
+        crypto: box('[data-block-id="crypto"] section[aria-label="Crypto"]'),
+        quote: box('[data-block-id="quote"]'),
+        links: box('[data-block-id="links"]'),
+      }
+    }, statusSel)
+  const atHeight = async (h) => {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(340)
+    return bandBox()
+  }
+  const clear = (top, links) => (top !== undefined && top !== null && links ? +(top - links.bottom).toFixed(1) : null)
+  const BAND_FLOOR = 8
+
+  // Probe A — Jon's canonical 1600x900, status+crypto+quote+links ALL
+  // configured (this task's own worst case): status correctly YIELDS
+  // (900 < 1042), crypto is UNAFFECTED (still clears the links row by the
+  // exact same 13.5px the crypto-only block above measured — proof that a
+  // new sibling ABOVE crypto costs it nothing), quote shows.
+  const b900 = await atHeight(900)
+  const cryptoClear900 = clear(b900.crypto?.top, b900.links)
+  const canonicalOk =
+    b900.status === null && b900.crypto !== null && b900.quote !== null &&
+    cryptoClear900 !== null && cryptoClear900 >= BAND_FLOOR
+  console.log(
+    canonicalOk
+      ? `PASS: at Jon's canonical 1600x900 with status+crypto+quote+links ALL configured, status correctly YIELDS (900 < its own 1042 floor) while crypto is UNCHANGED — clears the links row by ${cryptoClear900}px (>=${BAND_FLOOR}px, same number the crypto-only block measured) — and the quote shows`
+      : `FAIL: canonical 1600x900 with status configured (${JSON.stringify(b900)}, cryptoClear=${cryptoClear900})`,
+  )
+
+  // Probe B — crypto's OWN 889/890 fencepost, RE-VERIFIED with status
+  // configured too: confirms crypto's already-measured 890 floor is STILL
+  // honest (unaffected by a hidden sibling above it — see index.css's
+  // `tallest` comment for why this is true by construction, not luck).
+  const b889 = await atHeight(889)
+  const b890 = await atHeight(890)
+  const cryptoClear890 = clear(b890.crypto?.top, b890.links)
+  const cryptoFencepostOk =
+    b889.status === null && b889.crypto === null &&
+    b890.status === null && b890.crypto !== null &&
+    cryptoClear890 !== null && cryptoClear890 >= BAND_FLOOR
+  console.log(
+    cryptoFencepostOk
+      ? `PASS: crypto's own 889/890 fencepost STAYS HONEST with status also configured — HIDDEN@889, SHOWN@890 clearing the links row by ${cryptoClear890}px (>=${BAND_FLOOR}px) — status correctly hidden on both sides (890 < 1042 too)`
+      : `FAIL: crypto's 889/890 fencepost with status configured (b889=${JSON.stringify(b889)}, b890=${JSON.stringify(b890)}, cryptoClear890=${cryptoClear890})`,
+  )
+
+  // Probe C — status's OWN new fencepost: 1041/1042 (the `tallest` variant
+  // this task derived — see index.css's own doc comment for the full
+  // arithmetic). HIDDEN@1041 (crypto still shows, unaffected), SHOWN@1042
+  // clearing the links row by the band's own reasoned floor, sitting exactly
+  // gap-2 (8px) above crypto BY CONSTRUCTION — same as crypto-above-quote.
+  const b1041 = await atHeight(1041)
+  const b1042 = await atHeight(1042)
+  const statusClear1042 = clear(b1042.status?.top, b1042.links)
+  const statusToCrypto1042 = b1042.status && b1042.crypto ? +(b1042.crypto.top - b1042.status.bottom).toFixed(1) : null
+  const statusFencepostOk =
+    b1041.status === null && b1041.crypto !== null &&
+    b1042.status !== null && b1042.crypto !== null &&
+    statusClear1042 !== null && statusClear1042 >= BAND_FLOOR &&
+    statusToCrypto1042 !== null && Math.abs(statusToCrypto1042 - 8) <= 1
+  console.log(
+    statusFencepostOk
+      ? `PASS: the status strip reveals at exactly 1042h (its own measured, HIGHER floor — the newest, quietest band member yields first) — HIDDEN@1041, SHOWN@1042 clearing the links row by ${statusClear1042}px (>=${BAND_FLOOR}px), sitting gap-2 (${statusToCrypto1042}px) above crypto by construction; crypto shown on both sides, unaffected`
+      : `FAIL: status's own 1041/1042 fencepost (b1041=${JSON.stringify(b1041)}, b1042=${JSON.stringify(b1042)}, statusClear1042=${statusClear1042}, statusToCrypto1042=${statusToCrypto1042})`,
+  )
+
+  // Probe D — pairwise gaps at 1042 (status shown, worst case): every
+  // adjacent pair in the band clears its own documented floor at once —
+  // status x links (>=8), status x crypto (gap-2, by construction),
+  // crypto x quote (gap-2, by construction, the crypto block's own probe
+  // re-confirmed here with status also present).
+  const cryptoToQuote1042 = b1042.crypto && b1042.quote ? +(b1042.quote.top - b1042.crypto.bottom).toFixed(1) : null
+  const pairwiseOk =
+    statusClear1042 >= BAND_FLOOR &&
+    Math.abs(statusToCrypto1042 - 8) <= 1 &&
+    cryptoToQuote1042 !== null && Math.abs(cryptoToQuote1042 - 8) <= 1
+  console.log(
+    pairwiseOk
+      ? `PASS: every pairwise gap in the fully-populated band (status+crypto+quote+links) holds its own floor at 1042h — status-links ${statusClear1042}px (>=8), status-crypto ${statusToCrypto1042}px (gap-2), crypto-quote ${cryptoToQuote1042}px (gap-2)`
+      : `FAIL: pairwise band gaps at 1042h (statusClear=${statusClear1042}, statusToCrypto=${statusToCrypto1042}, cryptoToQuote=${cryptoToQuote1042})`,
+  )
+
+  // Probe E — the band's OTHER existing fenceposts, unaffected. status is a
+  // pure height-media-query reveal (`hidden` -> display:none -> zero
+  // footprint, index.css's `[data-zone] [data-block-id]:empty` rule) — its
+  // mere PRESENCE in storage cannot move anything at heights below its own
+  // 1042 floor. Spot-checked at the quote's own 671/672 gate and the mid|
+  // default 864/865 release, both with status configured (hidden at both).
+  const b671 = await atHeight(671)
+  const b672 = await atHeight(672)
+  const b864 = await atHeight(864)
+  const b865 = await atHeight(865)
+  const otherFencepostsOk =
+    b671.status === null && b671.quote === null && b672.status === null && b672.quote !== null &&
+    b864.status === null && b864.quote !== null && b865.status === null && b865.quote !== null
+  console.log(
+    otherFencepostsOk
+      ? 'PASS: the band\'s other existing fenceposts (quote 671/672, mid|default 864/865) are unaffected by status being configured — status stays hidden at every one, exactly as before this task'
+      : `FAIL: other band fenceposts with status configured (671=${JSON.stringify(b671)}, 672=${JSON.stringify(b672)}, 864=${JSON.stringify(b864)}, 865=${JSON.stringify(b865)})`,
+  )
+
+  // Restore: back to the harness's default viewport before this block's own
+  // settings-drawer probes below, which want a clean idle status connector
+  // to start from (matching every other connector block's own restore
+  // discipline — crypto's own "Restore" comment above is the template).
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        // Fully cleared, not just disabled — the settings block right after
+        // this one wants a genuinely EMPTY status connector (a stray
+        // leftover services array would silently pre-fill it past
+        // MAX_SERVICES-sensitive UI states, e.g. a disabled custom-add form
+        // reading as "at cap" when it should read as fresh).
+        status: { enabled: false, services: [] },
+        crypto: { ...connectors.crypto, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+}
+
+// Status settings probes — Task 86's own real-drawer proof (Step 4), plus
+// THE GESTURE ANSWER (the question Task 85's own StatusBody doc comment
+// parked: does chrome.permissions.request() accept a `<select>`'s onChange
+// the same way it accepts a click?). A fresh, self-contained open/read/close
+// cycle, same idiom as the Task 81 catalog block further down this file —
+// isolated from everything before and after it. Starts from idle (the
+// previous block's own restore left status disabled, no services).
+{
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  // Probe 1 — Status appears under "Development" while disabled (browsing
+  // state, not search): registry.ts's statusDescriptor carries
+  // category: 'development' (status.ts's own doc comment names the
+  // reasoning — a dev-dependency, same bucket as GitHub/GitLab/Jira/Vercel).
+  const underDev = await page.evaluate(() => {
+    const scroll = document.querySelector('[data-testid="connector-scroll"]')
+    if (!scroll) return null
+    const headings = [...scroll.querySelectorAll('h4')]
+    const devHeading = headings.find((h) => h.textContent?.trim() === 'Development')
+    if (!devHeading) return { devFound: false, cards: [] }
+    const cards = [...devHeading.parentElement.querySelectorAll('h4')]
+      .map((h) => h.textContent?.trim())
+      .filter((t) => t && t !== 'Development')
+    return { devFound: true, cards }
+  })
+  const underDevOk = !!underDev?.devFound && underDev.cards.includes('Status')
+  console.log(
+    underDevOk
+      ? `PASS: the Status card appears under the "Development" eyebrow while disabled (${JSON.stringify(underDev.cards)})`
+      : `FAIL: Status card under Development (${JSON.stringify(underDev)})`,
+  )
+
+  // Probe 2 — catalog search "status" finds it (real keystrokes, the Task 81
+  // idiom — jsdom's fireEvent can't drive this honestly, same reasoning as
+  // that block's own "git" search).
+  await page.click('#connector-search')
+  await page.keyboard.type('status')
+  await page.waitForTimeout(150)
+  const searchState = await page.evaluate(() => {
+    const scroll = document.querySelector('[data-testid="connector-scroll"]')
+    const titles = scroll ? [...scroll.querySelectorAll('h4')].map((h) => h.textContent?.trim()) : []
+    return titles
+  })
+  const searchOk = searchState.includes('Status')
+  console.log(
+    searchOk
+      ? `PASS: typing "status" via real keystrokes finds the Status card (${JSON.stringify(searchState)})`
+      : `FAIL: catalog search "status" (${JSON.stringify(searchState)})`,
+  )
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(150)
+
+  // Enable the connector — a plain click, no permission gesture rides on
+  // this toggle (Connectors.tsx's own doc comment on the Switch).
+  await page.click('#connector-status-enabled')
+  await page.waitForTimeout(150)
+  await page.waitForSelector('#connector-status-curated')
+
+  // ── THE GESTURE QUESTION, answered live ───────────────────────────────────
+  // Task 85's own parked comment: does chrome.permissions.request(), called
+  // with zero awaits ahead of it (permissions.ts's own gesture-chain
+  // discipline), get the SAME gesture privilege from a <select>'s real
+  // onChange that it gets from a click? Driven through the REAL production
+  // code paths this component actually ships — handleCuratedPick (the
+  // select's onChange) and handleCustomAdd (a real <form onSubmit>, fired by
+  // a real click on its Add button) — not a synthetic stand-in for either,
+  // against two DIFFERENT never-before-requested origins so neither call can
+  // short-circuit on an already-held permission. A real native permission
+  // prompt is a browser-chrome surface outside the page's DOM, which
+  // Playwright (like every other headless automation tool) cannot click
+  // through — this file's own bookmarks probe already documents that exact
+  // ceiling ("there's no way to click through a native Chrome permission
+  // dialog under automation either") for chrome.permissions generally, not
+  // just optional_permissions. If gesture-legitimacy were what decided this,
+  // the two paths would behave DIFFERENTLY (a non-gesture call denied/
+  // rejected fast, a real-gesture one hanging on an actual prompt); if the
+  // platform ceiling is what decides it regardless of gesture, both hang
+  // identically — the falsifiable prediction bound out below.
+  const GESTURE_WAIT = 2500
+
+  // Leg 1: the curated select's real onChange — GitHub, never requested
+  // anywhere in this file (its OWN OAuth origin, api.github.com, is a
+  // different origin entirely; githubstatus.com has never been touched).
+  await page.selectOption('#connector-status-curated', 'https://www.githubstatus.com/api/v2/status.json').catch(() => {})
+  await page.waitForTimeout(GESTURE_WAIT)
+  const afterSelect = await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    const granted = await chrome.permissions.contains({ origins: ['https://www.githubstatus.com/*'] })
+    return { services: connectors?.status?.services ?? [], granted }
+  })
+
+  // Leg 2: the custom form's real submit button — a genuine click, the SAME
+  // addService()/ensureOrigin() chain, a DIFFERENT never-requested origin
+  // (Cloudflare's status page).
+  await page.fill('#connector-status-name', 'Gesture Comparison')
+  await page.fill('#connector-status-url', 'https://www.cloudflarestatus.com/api/v2/status.json')
+  // The custom form's own Add button — no id, but it's the only <form> in
+  // the Connectors panel while status is the sole expanded card here.
+  await page.click('section[aria-label="Connectors"] form button[type="submit"]').catch(() => {})
+  await page.waitForTimeout(GESTURE_WAIT)
+  const afterClick = await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    const granted = await chrome.permissions.contains({ origins: ['https://www.cloudflarestatus.com/*'] })
+    return { services: connectors?.status?.services ?? [], granted }
+  })
+
+  const bothCeilinged =
+    afterSelect.services.length === 0 && afterSelect.granted === false &&
+    afterClick.services.length === 0 && afterClick.granted === false
+  console.log(
+    bothCeilinged
+      ? `PASS (platform ceiling confirmed, not an onChange defect): driving the REAL curated select's onChange (handleCuratedPick) and the REAL custom form's submit click (handleCustomAdd) BOTH fail to grant within a ${GESTURE_WAIT}ms bounded wait — neither origin ends up held, neither add persists, on EITHER path (githubstatus.com via select: granted=${afterSelect.granted}, services=${afterSelect.services.length}; cloudflarestatus.com via click: granted=${afterClick.granted}, services=${afterClick.services.length}). A native permission prompt is outside the page's DOM and this file's own bookmarks probe already documents that no automation here can click through it — click fares no better than onChange. NO FLIP: select-driven add is exactly as capable as a dedicated Add button would be, because a dedicated Add button hits the identical wall — StatusBody's single-interaction curated select stays exactly as Task 85 shipped it.`
+      : `INFO: gesture comparison did not ceiling identically (select=${JSON.stringify(afterSelect)}, click=${JSON.stringify(afterClick)}) — see report for interpretation`,
+  )
+  // Clear whatever the custom form left behind (its own inputs/error, if
+  // any) before the downstream probes below start from a clean slate.
+  await page.evaluate(() => {
+    const name = document.getElementById('connector-status-name')
+    const url = document.getElementById('connector-status-url')
+    if (name) name.value = ''
+    if (url) url.value = ''
+  })
+
+  // ── Downstream: prove the WORKING SHAPE (grant -> persist -> live dot) ────
+  // The grant step above is the one leg no automation can complete natively
+  // (proven, not assumed, by the comparison). Everything AFTER a grant is
+  // fully real and fully automatable: seed the POST-GRANT state exactly the
+  // shape addService()'s own persist step writes (append to services,
+  // THE PACT clears the snapshot) — the SAME "seed the connected state
+  // directly" idiom every other connector's own harness block in this file
+  // already uses for its post-grant "connected" probes (crypto/ics included
+  // — grep this file for "Restore: disable the connector" to see the
+  // pattern run in reverse). Height bumped to 1100 so the widget (>=1042h,
+  // this task's own measured floor) is actually visible to prove "live".
+  await page.setViewportSize({ width: 1600, height: 1100 })
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        status: {
+          enabled: true,
+          services: [{ name: 'GitHub', url: 'https://www.githubstatus.com/api/v2/status.json' }],
+        },
+      },
+      connectorSnapshots: {
+        status: {
+          fetchedAt: Date.now(),
+          data: { services: [{ name: 'GitHub', indicator: 'none', description: 'All Systems Operational' }] },
+        },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400)
+  await openSettingsTab('Connectors')
+  await page.waitForSelector('#connector-status-curated')
+
+  const dotCount = (sel) =>
+    page.evaluate((s) => document.querySelector(s)?.querySelectorAll('span[title]').length ?? 0, sel)
+  const statusSel = '[data-block-id="status"] section[aria-label="Service status"]'
+  const baselineDots = await dotCount(statusSel)
+
+  // The post-grant persist write — same shape addService() performs after a
+  // successful ensureOrigin(): append the new entry, clear the snapshot
+  // (THE PACT). A fresh matching snapshot is seeded in the SAME write so the
+  // remount's refetch resolves from cache instantly rather than depending on
+  // a live network round-trip to these real public endpoints — the same
+  // no-network discipline every widget-rendering probe in this file follows.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    const services = [
+      ...connectors.status.services,
+      { name: 'Cloudflare', url: 'https://www.cloudflarestatus.com/api/v2/status.json' },
+    ]
+    await chrome.storage.local.set({
+      connectors: { ...connectors, status: { enabled: true, services } },
+      connectorSnapshots: {
+        status: {
+          fetchedAt: Date.now(),
+          data: {
+            services: [
+              { name: 'GitHub', indicator: 'none', description: 'All Systems Operational' },
+              { name: 'Cloudflare', indicator: 'none', description: 'All Systems Operational' },
+            ],
+          },
+        },
+      },
+    })
+  })
+  await page.waitForTimeout(250) // storage.onChanged -> re-render -> remount -> cache-hit render, no reload
+  const afterAddDots = await dotCount(statusSel)
+  const cardAfterAdd = await page.evaluate(() => {
+    const toggle = document.getElementById('connector-status-enabled')
+    const card = toggle?.closest('.rounded-xl')
+    return card ? [...card.querySelectorAll('li')].length : null
+  })
+  const liveAddOk = baselineDots === 1 && afterAddDots === 2 && cardAfterAdd === 2
+  console.log(
+    liveAddOk
+      ? `PASS: grant -> persist -> live dot, end to end — the post-grant persist write lands, and WITHOUT any reload the mounted widget's dot count goes ${baselineDots} -> ${afterAddDots} (remount-key + cache-hit refetch, THE PACT) while the open drawer's own list grows to ${cardAfterAdd} rows from the SAME live storage subscription`
+      : `FAIL: live add (baselineDots=${baselineDots}, afterAddDots=${afterAddDots}, cardRows=${cardAfterAdd})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/drawer-status-card.png` })
+  console.log('captured drawer-status-card.png')
+
+  // Remove revokes — a REAL click, no seeding: chrome.permissions.remove()
+  // needs no user gesture (permissions.ts's own doc comment), so this is the
+  // one leg of the whole grant/revoke pair that IS fully real end to end.
+  const removeBtn = await page.evaluate(() => {
+    const toggle = document.getElementById('connector-status-enabled')
+    const card = toggle?.closest('.rounded-xl')
+    const btn = card ? [...card.querySelectorAll('button')].find((b) => b.getAttribute('aria-label') === 'Remove Cloudflare') : null
+    return !!btn
+  })
+  await page.click('button[aria-label="Remove Cloudflare"]')
+  await page.waitForTimeout(250)
+  const afterRemoveDots = await dotCount(statusSel)
+  const cardAfterRemove = await page.evaluate(() => {
+    const toggle = document.getElementById('connector-status-enabled')
+    const card = toggle?.closest('.rounded-xl')
+    return card ? [...card.querySelectorAll('li')].map((li) => li.textContent) : null
+  })
+  const removeOk = removeBtn && afterRemoveDots === 1 && cardAfterRemove?.length === 1
+  console.log(
+    removeOk
+      ? `PASS: removing a service is a real click end to end (updateStatus filter, THE PACT snapshot clear, originOf/releasableOrigins/removeOrigin — no seeding on this leg) — the drawer list drops to ${cardAfterRemove?.length} row and the LIVE widget's dot count drops ${afterAddDots} -> ${afterRemoveDots}, no reload`
+      : `FAIL: remove revokes live (removeBtnFound=${removeBtn}, afterRemoveDots=${afterRemoveDots}, cardAfterRemove=${JSON.stringify(cardAfterRemove)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: idle, default viewport, for whatever runs next.
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, status: { ...connectors.status, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  const statusGone = (await page.locator(statusSel).count()) === 0
+  console.log(
+    statusGone
+      ? 'Status connector disabled; page restored to idle'
+      : 'WARNING: Status widget still present after disabling the connector',
+  )
+}
+
 // Calendar widget (ics connector) — Task 5's own fixture-law sweep
 // (ics-multi-calendar wave). The widget grew from Task 54's single feed
 // (1 next-line + 2 agenda-row cap) into up to MAX_CALENDARS (5, Connectors.tsx)
@@ -8130,9 +8782,18 @@ function gitlabContributionsFixture() {
   // fresh, self-contained open/read/close cycle, same idiom and the same
   // reason as the chips block just above: isolated from the mid-left column
   // gap floor and everything else that follows this gate. The fixture is
-  // UNCHANGED from above — all seven connectors are still enabled from this
-  // gate's own seed — so every card pins under "On your board" and every
-  // category empties out; that's exactly the shape Probe 1 below asserts.
+  // UNCHANGED from above — all seven LEGACY connectors are still enabled
+  // from this gate's own seed — so every one of THEIR categories empties out;
+  // that's exactly the shape Probe 1 below asserts.
+  //
+  // UPDATED, Task 86 (W3-SP2): status is the eighth connector now, category
+  // 'development', and this gate's own seed does NOT enable it (status is
+  // its own dedicated block's concern, restored to disabled well before this
+  // point in the file) — so it is NOT pinned, and "Development" is no longer
+  // an empty category the way it was with seven. Status alone, unpinned,
+  // under its own "Development" eyebrow is the honest, CORRECT shape now,
+  // not a regression to paper over: the exact-membership assertions below
+  // (originally just ['On your board']) are updated to expect it.
   {
     await page.click('button[aria-label="Open settings"]')
     await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
@@ -8150,32 +8811,35 @@ function gitlabContributionsFixture() {
     // enabled (this gate's own seed).
     const REGISTRY_LABELS = ['RSS', 'GitHub', 'GitLab', 'Jira', 'Vercel', 'Crypto', 'Calendar']
 
-    // Probe 1 — default presentation: every connector enabled -> "On your
-    // board" pins all seven in registry order and EVERY category empties out
-    // (each one's sole members all just got pinned away) -> the eyebrow list
-    // is EXACTLY ['On your board'], nothing else — no Development/Calendar &
-    // tasks/News & markets (any of those would show if its category still
-    // had an unpinned member) and definitely no Home/Fun (zero members
-    // regardless of pinning — types.ts's own doc comment on those two).
+    // Probe 1 — default presentation: every LEGACY connector enabled -> "On
+    // your board" pins all seven in registry order and every ONE OF THEIR
+    // categories empties out; status is the eighth connector (Task 86),
+    // NOT part of this gate's own seed, category 'development' — so
+    // "Development" now carries exactly ['Status'], unpinned, and the
+    // eyebrow list is EXACTLY ['On your board', 'Development'] — still no
+    // Calendar & tasks/News & markets (every OTHER category member is
+    // pinned away) and definitely no Home/Fun (zero members regardless of
+    // pinning — types.ts's own doc comment on those two).
     const defaultShape = await page.evaluate((eyebrowNames) => {
       const scroll = document.querySelector('[data-testid="connector-scroll"]')
       const headings = scroll ? [...scroll.querySelectorAll('h4')] : []
       const eyebrows = headings.map((h) => h.textContent?.trim()).filter((t) => t && eyebrowNames.includes(t))
-      const pinnedHeading = headings.find((h) => h.textContent?.trim() === 'On your board')
-      const pinnedCards = pinnedHeading
-        ? [...pinnedHeading.parentElement.querySelectorAll('h4')]
-            .map((h) => h.textContent?.trim())
-            .filter((t) => t && t !== 'On your board')
-        : []
-      return { eyebrows, pinnedCards }
+      const cardsUnder = (name) => {
+        const h = headings.find((x) => x.textContent?.trim() === name)
+        return h
+          ? [...h.parentElement.querySelectorAll('h4')].map((x) => x.textContent?.trim()).filter((t) => t && t !== name)
+          : []
+      }
+      return { eyebrows, pinnedCards: cardsUnder('On your board'), devCards: cardsUnder('Development') }
     }, EYEBROW_NAMES)
     const defaultShapeOk =
-      JSON.stringify(defaultShape.eyebrows) === JSON.stringify(['On your board']) &&
-      JSON.stringify(defaultShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS)
+      JSON.stringify(defaultShape.eyebrows) === JSON.stringify(['On your board', 'Development']) &&
+      JSON.stringify(defaultShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS) &&
+      JSON.stringify(defaultShape.devCards) === JSON.stringify(['Status'])
     console.log(
       defaultShapeOk
-        ? `PASS: default presentation — all seven connectors enabled pins every one under "On your board", FIRST and ONLY eyebrow, registry order, no Development/Calendar & tasks/News & markets/Home/Fun eyebrows (${JSON.stringify(defaultShape)})`
-        : `FAIL: default presentation (expected eyebrows=["On your board"], pinnedCards=${JSON.stringify(REGISTRY_LABELS)}; got ${JSON.stringify(defaultShape)})`,
+        ? `PASS: default presentation — all seven legacy connectors enabled pin under "On your board" in registry order; status (Task 86's eighth connector, disabled here) surfaces its own "Development" eyebrow with exactly ['Status'] — no Calendar & tasks/News & markets/Home/Fun eyebrows (${JSON.stringify(defaultShape)})`
+        : `FAIL: default presentation (expected eyebrows=["On your board","Development"], pinnedCards=${JSON.stringify(REGISTRY_LABELS)}, devCards=["Status"]; got ${JSON.stringify(defaultShape)})`,
     )
 
     // Probe (cursor discipline, widget quality bar) — same "no false
@@ -8270,18 +8934,21 @@ function gitlabContributionsFixture() {
       const scroll = document.querySelector('[data-testid="connector-scroll"]')
       const headings = scroll ? [...scroll.querySelectorAll('h4')] : []
       const eyebrows = headings.map((h) => h.textContent?.trim()).filter((t) => t && eyebrowNames.includes(t))
-      const pinnedHeading = headings.find((h) => h.textContent?.trim() === 'On your board')
-      const pinnedCards = pinnedHeading
-        ? [...pinnedHeading.parentElement.querySelectorAll('h4')]
-            .map((h) => h.textContent?.trim())
-            .filter((t) => t && t !== 'On your board')
-        : []
-      return { eyebrows, pinnedCards }
+      const cardsUnder = (name) => {
+        const h = headings.find((x) => x.textContent?.trim() === name)
+        return h
+          ? [...h.parentElement.querySelectorAll('h4')].map((x) => x.textContent?.trim()).filter((t) => t && t !== name)
+          : []
+      }
+      return { eyebrows, pinnedCards: cardsUnder('On your board'), devCards: cardsUnder('Development') }
     }, EYEBROW_NAMES)
+    // Same Task 86 update as Probe 1 above (status, the eighth connector,
+    // surfaces its own "Development" eyebrow while disabled/unpinned here).
     const restoreOk =
       restoredValue === '' &&
-      JSON.stringify(restoredShape.eyebrows) === JSON.stringify(['On your board']) &&
-      JSON.stringify(restoredShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS)
+      JSON.stringify(restoredShape.eyebrows) === JSON.stringify(['On your board', 'Development']) &&
+      JSON.stringify(restoredShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS) &&
+      JSON.stringify(restoredShape.devCards) === JSON.stringify(['Status'])
     console.log(
       restoreOk
         ? `PASS: real select-all+Backspace clears the search input and restores the pinned/grouped default shape exactly (${JSON.stringify(restoredShape)})`

@@ -454,6 +454,58 @@
    width-independent by design: the 890 floor is the wide worst case, safe (more
    clearance) at every narrower width. */
 @custom-variant taller (@media (min-height: 890px));
+/* Status-strip reveal tier (Task 86, W3-SP2's own harness — RESOLVES the
+   PROVISIONAL floor Task 84 shipped, which just copied `taller` verbatim; see
+   App.tsx's bottom-zone comment for the full narrative). The status strip is
+   the band's NEW FIRST child, ABOVE crypto — sitting its own gap-2 (8px)
+   higher than crypto's top, which crypto's own `taller` floor was derived
+   WITHOUT accounting for (crypto's 890 was derived when crypto was the
+   band's topmost member). MEASURED (scripts/preview.mjs, status seeded at
+   its OWN true display max — 8 services, 3 trouble lines, the
+   MAX_TROUBLE_LINES cap — the worst-case height the strip ever renders,
+   `truncate`d so no line wraps regardless of the real service names):
+     · statusHeight = 68px (dot row + 3 trouble `<p>` lines), CONSTANT across
+       every height/width this harness swept — `truncate` guarantees no wrap.
+     · status sits gap-2 (8px) above crypto, BY CONSTRUCTION, same flex
+       column, same reasoned exception crypto's own gap-2 already carries.
+     · statusClear(h) [status.top − links.bottom] = cryptoClear(h) − 76,
+       where 76 = statusHeight(68) + gap-2(8) — the fixed extra distance
+       status's own top sits above crypto's, REGARDLESS of height (both drop
+       at the identical rate as the band rises, so the 76px offset is a true
+       constant, confirmed at every swept fencepost below).
+     · cryptoClear(h) is linear in h (confirmed by direct measurement):
+       cryptoClear(890)=8.5, cryptoClear(900)=13.5, cryptoClear(1000)=63.5 —
+       slope 0.5px per 1px of height (the links row, vertically centered,
+       rises at half the rate the bottom-anchored band does).
+     · Solving statusClear(h) >= 8 (the band's OWN reasoned floor, the exact
+       one `taller` already uses): cryptoClear(h) >= 84 -> h >= 1041 (measured
+       directly, not just algebra: 1040 -> 7.5px [FAIL], 1041 -> 8.0px exactly
+       [the true boundary]). Pinned ONE HIGHER at 1042 for the identical
+       half-pixel margin `taller` itself was pinned with (889 -> 7.5, 890 ->
+       8.0, PINNED at 890 for 890 -> 8.5) — same rule, same margin, applied to
+       status's own boundary: 1042 -> 8.5px.
+   CRYPTO'S OWN 890 FLOOR STAYS HONEST, UNCHANGED, VERIFIED (not just
+   assumed) — crypto's top is fixed relative to the BOTTOM-anchored quote
+   (crypto.bottom = quote.top − gap-2, always, since quote is the LAST flex
+   child and the container's bottom is what's pinned), so a new FIRST child
+   above it changes nothing about crypto's own position: cryptoClear(890) was
+   8.5 before status existed and is STILL exactly 8.5 with status configured
+   and hidden below it (measured, scripts/preview.mjs). Only the band's NEW,
+   TOPMOST member needs the new, higher floor — status yields FIRST under
+   height pressure, being the newest and quietest member, exactly as this
+   task's own brief called it: crypto (and the quote) are completely
+   unaffected by this tier's existence.
+   INTERIOR-WORST-CASE LAW, same as `taller`: asserted at the fencepost
+   (1041 hidden, 1042 shown) AND the 3-trouble worst-case fixture (a quieter
+   day's shorter strip would clear sooner, but the static CSS tier can't see
+   today's data — it has to hold for the worst composition, same reasoning
+   `grand` already documents for gitlab's reviewAsks "may be on"). A pure
+   height media query, width-independent by the SAME reasoning `taller`
+   documents (1600w is the worst width at any height — the clock's clamp
+   saturates there, giving the tallest centred column). At Jon's canonical
+   1600x900 the strip is therefore HIDDEN (900 < 1042) — crypto and the quote
+   still show exactly as before this task. */
+@custom-variant tallest (@media (min-height: 1042px));
 /* GitHub/GitLab commit-graph reveal tier for the TWO-SIBLING right rail (Task 70;
    RE-DERIVED Task 77 — see the 1041->1171 note below). The graph is
    `hidden taller:block` (>=890h) when github is the rail's sole card, has ONE forge

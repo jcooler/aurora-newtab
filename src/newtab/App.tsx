@@ -715,19 +715,33 @@ export default function App() {
               INTERIOR-WORST-CASE LAW: the tier is asserted at its own minimum, both
               fenceposts, by scripts/preview.mjs.
 
-              STATUS (Task 84, PROVISIONAL). The status strip is the band's NEW
-              first child, above crypto. It is shorter and quieter than crypto
-              (an all-green day is a single row of small dots, no text at all),
-              so its own honest reveal floor is almost certainly LOWER than
-              crypto's measured ~890h — but that measurement hasn't been taken
-              yet. Rather than guess a number, it starts on the EXACT SAME
-              `taller` (>=890h) floor as crypto, crypto's own already-measured
-              mechanism copied verbatim (`tier-fade hidden opacity-0
-              taller:block taller:opacity-100`) — a deliberately conservative
-              placeholder, not a derived one. Task 86 (the harness — band
-              budgets + probes + captures) is where this gets a real
-              measurement and, if the honest boundary differs from crypto's,
-              its own named height tier.
+              STATUS (Task 84 shipped it PROVISIONAL; Task 86 — this harness —
+              RESOLVED it). The status strip is the band's NEW first child,
+              ABOVE crypto, which is exactly why it does NOT get to share
+              crypto's own 890 floor: crypto's 890 was derived when crypto was
+              the band's TOPMOST member, and status now sits its own gap-2
+              (8px) higher than crypto's top PLUS its own measured height
+              (68px at its true display max — 8 dots, 3 worst-first trouble
+              lines, the MAX_TROUBLE_LINES cap) — 76px of extra distance from
+              the flowing links row that crypto's own floor never had to
+              clear. Measured directly (scripts/preview.mjs): at crypto's own
+              890, status's top OVERLAPS the links row by -67.5px — a real,
+              confirmed collision if status shared `taller`, exactly the
+              failure mode this task's own brief anticipated ("if a floor
+              breaks, status yields first"). So status gets its OWN, HIGHER,
+              measured tier — index.css's `tallest` (>=1042h; see that
+              variant's own doc comment for the full derivation:
+              statusClear(h) = cryptoClear(h) − 76, solved for the same >=8px
+              band floor `taller` already uses, pinned at 1042 with the
+              identical half-pixel margin convention 890 was pinned with).
+              `taller:block taller:opacity-100` is now `tallest:block
+              tallest:opacity-100` on this block ONLY — crypto below keeps
+              `taller` unchanged, and stays exactly as honest as before (its
+              own 890 clearance is unaffected by a new sibling ABOVE it,
+              verified by direct measurement, not just reasoned from
+              construction). Net effect at Jon's canonical 1600x900
+              (900 < 1042): status stays hidden, crypto and the quote render
+              exactly as they did before this task.
 
               CONTAINMENT LAW binds here too (see index.css's .rail-col2 rule): this
               zone needs NO container query — a height media tier suffices for the
@@ -757,12 +771,14 @@ export default function App() {
                   the flex flow by index.css's `[data-zone] [data-block-id]:empty`
                   rule, same as every other rail/band widget. A stored
                   arrange-mode `pos` still wins (PositionedBlock drops this
-                  className on that branch). PROVISIONAL height tier — see
-                  this comment block's own "STATUS (Task 84, PROVISIONAL)"
-                  paragraph above: mirrors crypto's already-measured `taller`
-                  (>=890h) floor verbatim rather than a derived number, pending
-                  Task 86's own measurement. */}
-              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
+                  className on that branch). MEASURED height tier (Task 86) —
+                  see this comment block's own "STATUS (Task 84 shipped it
+                  PROVISIONAL; Task 86 RESOLVED it)" paragraph above and
+                  index.css's `tallest` variant for the full derivation:
+                  status sits its own gap-2 + measured height ABOVE crypto, so
+                  it needs a HIGHER floor than crypto's `taller` (>=890h) —
+                  `tallest` (>=1042h), status's own measured boundary. */}
+              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 tallest:block tallest:opacity-100">
                 <StatusWidget />
               </PositionedBlock>
             </WidgetBoundary>
