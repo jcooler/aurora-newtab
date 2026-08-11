@@ -564,12 +564,22 @@ export default function App() {
               GRAPH YIELDS note just below), extended from "the graph" to "the
               second row-section". Four measured thresholds
               (`roomy`/`roomier`/`grand`/`roomiest`, index.css) cover the
-              composition space (neither section is gated at all when its
-              sibling forge card isn't enabled — measured safe at every height in
-              that case); full derivation, every fencepost, and the
-              screenshotted before/after live in index.css's
-              `roomy`/`roomier`/`roomiest` comment and each widget's own
-              `reviewAsksTier`/`dueSoonTier`.
+              THREE-CARD composition space (neither section is gated at all
+              when its sibling forge card isn't enabled AND github's own graph
+              is off too — measured safe at every height in that case).
+              FIX WAVE, FINDING C1: that "sibling forge card isn't enabled"
+              branch was UNMEASURED for the case github's OWN graph is on with
+              no jira/gitlab needed — github alone reaches its taller 411px
+              graph card at `taller` (890h) with just ONE sibling, and the
+              other new-section-bearing sibling then becomes the right rail's
+              SECOND card, right below it: a real, measured overlap at Jon's
+              own 1600x900 (github+graph bottom 591 + 16 + a 129.5px-taller
+              sibling 303.5 = 910.5 vs pillTop 846). This TWO-CARD composition
+              now reuses `roomy` too (conservative — its true floor is only
+              980.5, 14.5px inside roomy's 995); full derivation, every
+              fencepost, and the screenshotted before/after live in
+              index.css's `roomy`/`roomier`/`roomiest` comment and each
+              widget's own `reviewAsksTierName`/`dueSoonTierName`.
 
               GITHUB SURVIVES the compact band. It dense-condenses to 193px (bottom
               373) and clears the pill down to the SHORT floor (451px, pill top 397)

@@ -398,7 +398,7 @@ const hasNoTier = (el: HTMLElement) =>
   !['roomy', 'roomier', 'grand', 'roomiest'].some((t) => el.className.includes(`${t}:block`))
 
 describe('GitlabWidget — review-asks section tier (Task 77)', () => {
-  it('no jira sibling → review-asks renders unconditionally (no height tier at all — safe at every height gitlab itself is shown)', async () => {
+  it('no forge siblings at all → review-asks renders unconditionally (no jira to push toward, and no github graph either)', async () => {
     mount(await seededMulti(ALL_ON, FULL_DATA)) // no siblings
     await screen.findByText('Review: refactor the auth guard')
     expect(hasNoTier(reviewAsksWrapper())).toBe(true)
@@ -434,9 +434,62 @@ describe('GitlabWidget — review-asks section tier (Task 77)', () => {
     expect(hasTier(reviewAsksWrapper(), 'roomiest')).toBe(true)
   })
 
-  it('gitlab+github only (no jira) → review-asks renders unconditionally even though github is present', async () => {
+  // Fix wave, Finding C1: this used to assert `hasNoTier` — the UNMEASURED
+  // "safe at every height" claim the whole-plan review falsified. github's
+  // graph reveals at `taller`/890 with just gitlab as its one sibling (no
+  // jira needed), growing github to 411px; gitlab-with-reviewAsks then sits
+  // right below it as the STACK's own lowest card, and github+graph(bottom
+  // 591) + 16 + gitlab-with-reviewAsks(303.5) = 910.5 vs pillTop 846 at
+  // Jon's canonical 900h is a real, measured 64.5px overlap. Now reuses
+  // `roomy` (needed floor 980.5 <= roomy's 995 — see GitlabWidget.tsx's own
+  // `reviewAsksTierName` comment).
+  it('gitlab+github only (no jira), github\'s graph ON → review-asks reveals on `roomy` (the two-card composition C1 found unsafe)', async () => {
     mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { github: GITHUB_GRAPH_ON }))
     await screen.findByText('Review: refactor the auth guard')
+    expect(hasTier(reviewAsksWrapper(), 'roomy')).toBe(true)
+  })
+
+  // The companion SAFE case (finding C1's own second check): the two-card
+  // composition WITHOUT github's graph is genuinely safe unconditionally
+  // (github rows-only 235 bottom 415 + 16 + 303.5 = 734.5, clears pillTop 846
+  // at 900h) — review-asks must stay untiered here, not over-conservatively
+  // tiered just because github is present.
+  it('gitlab+github only (no jira), github\'s graph OFF → review-asks renders unconditionally (the two-card composition IS safe without the graph)', async () => {
+    mount(await seededMulti(REVIEW_NO_GRAPH, FULL_DATA, { github: GITHUB_GRAPH_OFF }))
+    await screen.findByText('Review: refactor the auth guard')
     expect(hasNoTier(reviewAsksWrapper())).toBe(true)
+  })
+})
+
+// ── Fix wave, Finding I3: the tier-hidden-only content husk ──
+// mrs empty + review-asks has real rows, but those rows are THEMSELVES
+// CSS-tier-gated (reviewAsksTierName truthy) — below the reveal height, the
+// old showEmpty (`reviewMrs.length === 0`) was FALSE (real data exists), so
+// the empty line never rendered either: a bare "GitLab" header with nothing
+// visible beneath it. This is the falsifying case (must FAIL before the
+// fix): the empty line must render, carrying the review-asks tier's INVERSE
+// so exactly one of {review rows, empty line} is ever visible.
+describe('GitlabWidget — the tier-hidden-only content husk (Task 77 fix wave, Finding I3)', () => {
+  it('0 MRs + review-asks rows that are tier-hidden (roomy) → the empty line still renders, carrying `roomy:hidden` — never a bare header', async () => {
+    const data: GitlabData = { ...DATA, mrs: [], reviewMrs: REVIEW_MRS, todos: 0, contributions: null }
+    mount(await seededMulti(REVIEW_NO_GRAPH, data, { jira: JIRA_SIBLING }))
+    const line = await screen.findByText('No MRs assigned to you.')
+    expect(line.className).toContain('roomy:hidden')
+    // the review-asks rows are still in the DOM (real data), just CSS-tier-hidden.
+    expect(screen.getByText('Review: refactor the auth guard')).toBeTruthy()
+  })
+
+  it('0 MRs + review-asks rows that are tier-hidden (grand, via a graph elsewhere) → the empty line carries `grand:hidden`', async () => {
+    const data: GitlabData = { ...DATA, mrs: [], reviewMrs: REVIEW_MRS, todos: 0, contributions: null }
+    mount(await seededMulti(REVIEW_NO_GRAPH, data, { jira: JIRA_SIBLING, github: GITHUB_GRAPH_ON }))
+    const line = await screen.findByText('No MRs assigned to you.')
+    expect(line.className).toContain('grand:hidden')
+  })
+
+  it('0 MRs + review-asks rows that render UNCONDITIONALLY (no tier at all) → the empty line does NOT render (no husk risk, rows always show)', async () => {
+    const data: GitlabData = { ...DATA, mrs: [], reviewMrs: REVIEW_MRS, todos: 0, contributions: null }
+    mount(await seededMulti(REVIEW_NO_GRAPH, data)) // no siblings — reviewAsksTierName is ''
+    await screen.findByText('Review: refactor the auth guard')
+    expect(screen.queryByText('No MRs assigned to you.')).toBeNull()
   })
 })

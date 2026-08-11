@@ -211,7 +211,23 @@ async function fetchDueSoonSection(
  *  `views` GATES each search: a section the user turned off never issues a
  *  request — it resolves straight to its prev slice. A bad SITE shape, though,
  *  is a whole-fetch failure (no valid URL can be built for EITHER search), so
- *  it returns the whole prev fallback without attempting anything. */
+ *  it returns the whole prev fallback without attempting anything.
+ *
+ *  Fix wave, Finding I4 (Jon-ruled): the ASSIGNED search fires when EITHER
+ *  `views.assigned` OR `views.statusChips` is on — the same "fetch gating
+ *  keys on DATA needs, not sections 1:1" principle vercel.ts's own
+ *  fetchVercel already applies (its one endpoint fires when EITHER
+ *  deployments OR statusSummary is on, because statusSummary is DERIVED from
+ *  the same data). `counts` here is likewise derived from the assigned
+ *  section, so a chips-only card (assigned off, statusChips on) still needs
+ *  a live assigned fetch to have any counts to show — before this fix, that
+ *  composition fetched NOTHING, ever, so a fresh connect showed no chips at
+ *  all and a later toggle-on never healed it (`views.assigned` being off
+ *  carried `prev` forever). `counts` still derives from the assigned section
+ *  ONLY (never dueSoon), and the ISSUES LIST still renders only when
+ *  `views.assigned` is on (JiraWidget.tsx's own `views.assigned ? ... : []`
+ *  gate) — this only widens WHEN the request fires, not what the fetched
+ *  data is used for. */
 export async function fetchJira(
   site: string,
   email: string,
@@ -232,7 +248,7 @@ export async function fetchJira(
   const headers = authHeaders(email, apiToken)
 
   const [assigned, dueSoon] = await Promise.all([
-    views.assigned
+    views.assigned || views.statusChips
       ? fetchAssignedSection(normalizedSite, headers, fallback.issues, fallback.counts, fetchFn)
       : Promise.resolve({ issues: fallback.issues, counts: fallback.counts }),
     views.dueSoon

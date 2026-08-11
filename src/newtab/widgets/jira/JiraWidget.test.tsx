@@ -328,6 +328,8 @@ const GITLAB_REVIEWASKS_ON = { ...GITLAB_SIBLING, views: { mergeRequests: true, 
 const GITLAB_GRAPH_ON = { ...GITLAB_SIBLING, views: { mergeRequests: true, reviewAsks: false, todos: true, activityGraph: true } }
 /** A github sibling with its commit graph ON (no views → all-on default). */
 const GITHUB_GRAPH_ON = { enabled: true, token: 'gh', username: 'x' }
+/** A github sibling with its commit graph explicitly OFF (present but not the graph hero) — fix wave, Finding C1's own SAFE-case control. */
+const GITHUB_GRAPH_OFF = { enabled: true, token: 'gh', username: 'x', views: { commitGraph: false, pulls: true, issues: true, notifications: true } }
 
 const dueSoonWrapper = () => screen.getByText('Ship the release notes').closest('div') as HTMLElement
 const hasTier = (el: HTMLElement, tier: string) => el.classList.contains('hidden') && el.className.includes(`${tier}:block`)
@@ -336,7 +338,7 @@ const hasNoTier = (el: HTMLElement) =>
   !['roomy', 'roomier', 'grand', 'roomiest'].some((t) => el.className.includes(`${t}:block`))
 
 describe('JiraWidget — due-soon section tier (Task 77)', () => {
-  it('no gitlab sibling → due-soon renders unconditionally (no height tier at all — safe at every height jira itself is shown)', async () => {
+  it('no forge siblings at all → due-soon renders unconditionally (no gitlab to push toward, and no github graph either)', async () => {
     mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON })) // no siblings
     await screen.findByText('Ship the release notes')
     expect(hasNoTier(dueSoonWrapper())).toBe(true)
@@ -373,9 +375,65 @@ describe('JiraWidget — due-soon section tier (Task 77)', () => {
     expect(hasTier(dueSoonWrapper(), 'roomiest')).toBe(true)
   })
 
-  it('jira+github only (no gitlab) → due-soon renders unconditionally even though github is present', async () => {
+  // Fix wave, Finding C1: this used to assert `hasNoTier` — the UNMEASURED
+  // "safe at every height" claim the whole-plan review falsified. github's
+  // graph reveals at `taller`/890 with just jira as its one sibling (no
+  // gitlab needed — gitlab renders null when disabled, so jira slides up
+  // into the SECOND slot right below github+graph). github+graph(bottom 591)
+  // + 16 + jira-with-dueSoon(303.5) = 910.5 vs pillTop 846 at Jon's canonical
+  // 900h is the identical 64.5px overlap GitlabWidget.tsx's own composition
+  // measures. Now reuses `roomy` (see JiraWidget.tsx's own `dueSoonTierName`
+  // comment).
+  it('jira+github only (no gitlab), github\'s graph ON → due-soon reveals on `roomy` (the two-card composition C1 found unsafe)', async () => {
     mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { github: GITHUB_GRAPH_ON }))
     await screen.findByText('Ship the release notes')
+    expect(hasTier(dueSoonWrapper(), 'roomy')).toBe(true)
+  })
+
+  // The companion SAFE case (finding C1's own second check): the two-card
+  // composition WITHOUT github's graph is genuinely safe unconditionally
+  // (github rows-only 235 bottom 415 + 16 + 303.5 = 734.5, clears pillTop 846
+  // at 900h) — due-soon must stay untiered here, not over-conservatively
+  // tiered just because github is present.
+  it('jira+github only (no gitlab), github\'s graph OFF → due-soon renders unconditionally (the two-card composition IS safe without the graph)', async () => {
+    mount(await seededMulti(ALL_ON, { ...DATA, dueSoon: DUE_SOON }, { github: GITHUB_GRAPH_OFF }))
+    await screen.findByText('Ship the release notes')
     expect(hasNoTier(dueSoonWrapper())).toBe(true)
+  })
+})
+
+// ── Fix wave, Finding I3: the tier-hidden-only content husk ──
+// issues empty + due-soon has real rows, but those rows are THEMSELVES
+// CSS-tier-gated (dueSoonTierName truthy) — below the reveal height, the old
+// showEmpty (`dueSoon.length === 0`) was FALSE (real data exists), so the
+// empty line never rendered either: a bare "Jira" header with nothing
+// visible beneath it. This is the falsifying case (must FAIL before the
+// fix): the empty line must render, carrying the due-soon tier's INVERSE so
+// exactly one of {due-soon rows, empty line} is ever visible.
+describe('JiraWidget — the tier-hidden-only content husk (Task 77 fix wave, Finding I3)', () => {
+  it('0 issues + due-soon rows that are tier-hidden (roomy) → the empty line still renders, carrying `roomy:hidden` — never a bare header', async () => {
+    mount(await seededMulti(ALL_ON, { issues: [], counts: {}, dueSoon: DUE_SOON }, { gitlab: GITLAB_SIBLING }))
+    const line = await screen.findByText('Nothing assigned to you.')
+    expect(line.className).toContain('roomy:hidden')
+    // the due-soon rows are still in the DOM (real data), just CSS-tier-hidden.
+    expect(screen.getByText('Ship the release notes')).toBeTruthy()
+  })
+
+  it('0 issues + due-soon rows that are tier-hidden (grand, via a graph elsewhere) → the empty line carries `grand:hidden`', async () => {
+    mount(
+      await seededMulti(
+        ALL_ON,
+        { issues: [], counts: {}, dueSoon: DUE_SOON },
+        { gitlab: GITLAB_SIBLING, github: GITHUB_GRAPH_ON },
+      ),
+    )
+    const line = await screen.findByText('Nothing assigned to you.')
+    expect(line.className).toContain('grand:hidden')
+  })
+
+  it('0 issues + due-soon rows that render UNCONDITIONALLY (no tier at all) → the empty line does NOT render (no husk risk, rows always show)', async () => {
+    mount(await seededMulti(ALL_ON, { issues: [], counts: {}, dueSoon: DUE_SOON })) // no siblings — dueSoonTierName is ''
+    await screen.findByText('Ship the release notes')
+    expect(screen.queryByText('Nothing assigned to you.')).toBeNull()
   })
 })

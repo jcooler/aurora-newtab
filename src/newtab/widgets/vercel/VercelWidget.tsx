@@ -60,10 +60,31 @@ export default function VercelWidget() {
   const [connectors] = useStoredKey('connectors')
   const vercel = connectedVercel(connectors?.vercel)
   if (!vercel) return null
-  return <VercelInner token={vercel.token} views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)} />
+  // Fix wave, Finding I2 — the left column's OWN cross-card read, mirroring
+  // GitlabWidget's `jiraEnabled`/JiraWidget's `gitlabEnabled`: vercel is the
+  // left column's lowest card, stacked below ics and rss, and its
+  // `statusSummary` line only threatens the Notes pill when BOTH of those
+  // siblings actually share the column (see VercelInner's own `summaryTier`
+  // comment for the measured overlap this closes). Same conservative
+  // "enabled, not rendered" read every other cross-card check in this wave
+  // uses — an enabled-but-empty ics/rss still forces the taller reveal,
+  // which fails QUIET/SAFE (the summary waits for a window it did not
+  // strictly need) rather than the reverse (a summary that laps the pill).
+  // Deliberately booleans only (not each sibling's OWN row/calendar count):
+  // this widget has no reason to import ics.ts's calendar-parsing helpers or
+  // replicate rss's shownCount logic just to shave a few safe pixels off an
+  // already-conservative floor.
+  const leftColumnCrowded = connectors?.ics?.enabled === true && connectors?.rss?.enabled === true
+  return (
+    <VercelInner
+      token={vercel.token}
+      views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
+      leftColumnCrowded={leftColumnCrowded}
+    />
+  )
 }
 
-function VercelInner({ token, views }: { token: string; views: VercelViews }) {
+function VercelInner({ token, views, leftColumnCrowded }: { token: string; views: VercelViews; leftColumnCrowded: boolean }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
   // quiet-failure path keeps it (no ETag round-trip here — see vercel.ts's
@@ -115,13 +136,58 @@ function VercelInner({ token, views }: { token: string; views: VercelViews }) {
   // exact second boundaries (vercel.test.ts).
   const now = Date.now()
 
+  // Fix wave, Finding I2: vercel is the left column's LOWEST card, stacked
+  // below ics (up to 132px at ics's own TRUE display max — 5 calendars,
+  // 'per-calendar' view, MAX_CALENDARS, ics.ts) and rss (up to 336px at its
+  // own shownCount ceiling, 8). Neither wave-2 probe (this one, nor the
+  // gitlab/jira "roomy" review above) had ever combined those two OTHER
+  // waves' own true maxes with vercel's — a real, measured gap the whole-plan
+  // review's own I2 finding named and this fix closes. At that combined
+  // worst case (col1 flow: rail-top-left 120 + 132 + 16 + 336 + 16 = vercel
+  // top 620), vercel WITH the summary line (216px — the existing +24px over
+  // rows-only, Task 77) bottoms at 836, and the Notes pill (top = viewportH
+  // − 54, the left rail's own mirror of the right rail's Tasks-pill formula)
+  // clears it by the house 16px floor only at height >= 906 (836+16+54) — at
+  // Jon's own canonical 900h that's a real, measured 10px of clearance, 6px
+  // SHORT of the 16px floor (836 vs pillTop 846 − 16 = 830), and a real
+  // overlap at the 865 dense fencepost (836 vs pillTop 811, −25px).
+  //
+  // The fix: when `statusSummary` is on AND the column is genuinely crowded
+  // (`leftColumnCrowded` — BOTH ics and rss enabled, read one level up),
+  // vercel's OWN hide edge rises — the SAME "an extra section forces a
+  // taller reveal tier" pattern gitlab's `reviewAsksTier`/jira's
+  // `dueSoonTier` establish, except vercel has no rows-vs-extra-section split
+  // to fall back on (unlike gitlab/jira, vercel ALREADY whole-card-hides
+  // under height pressure — `dense:hidden`, App.tsx, Task 65 — so raising ITS
+  // OWN existing edge is the idiom that fits THIS card's own established
+  // pattern, not a new one). Reuses `roomy` (995h) conservatively (the true
+  // floor is 906, 89px inside roomy's margin) — the SAME reused tier C1's own
+  // two-card fix uses, so no sixth CSS variant is minted for a threshold this
+  // close to an existing one.
+  //
+  // `leftColumnCrowded` is LOAD-BEARING, not decoration: without it, EVERY
+  // `statusSummary`-on card would hide below 995h regardless of whether ics/
+  // rss are even enabled — a real regression to the Task 77 "vercel composed"
+  // probe (vercel ALONE, no ics/rss, comfortably clears the pill at 900h with
+  // the summary on) and to any real user who has vercel+statusSummary but no
+  // calendar/rss competing for the column. `statusSummary` OFF (the default)
+  // is COMPLETELY UNCHANGED regardless of `leftColumnCrowded` — still the
+  // plain, unconditional `dense:hidden` App.tsx's wrapper already carries —
+  // preserving the wave's own additive guarantee (default-path geometry
+  // byte-identical). This class lands on the SECTION itself (mirroring
+  // GitlabWidget's own `sectionTier` idiom for a whole-card yield) — a
+  // literal string, not interpolated, so Tailwind's scanner emits it (see
+  // GitlabWidget.tsx's own REVIEW_ASKS_TIER_CLASS comment for why that
+  // distinction matters).
+  const summaryTier = views.statusSummary && leftColumnCrowded ? ' hidden roomy:block' : ''
+
   return (
     // Floating panel surface — identical shape/elevation to every other
     // connector card (the house rule for floating surfaces): the solid panel
     // token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width. Vercel sits in
     // the LEFT column (not the right rail's Task 55 budget), so its p-4/mb-2
     // chrome stays untouched — see GithubWidget.tsx's own MAX_PRS comment.
-    <section aria-label="Vercel" className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
+    <section aria-label="Vercel" className={`w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg${summaryTier}`}>
       <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
 
       {/* Status summary — a one-line chips row, order-pinned ABOVE the

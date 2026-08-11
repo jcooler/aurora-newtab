@@ -34,6 +34,27 @@ const EYEBROW = 'mb-2 dense:mb-1 text-[11px] uppercase tracking-[0.08em] text-fg
 // tier-gated section, so there is no graph separator variant here).
 const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 
+/** Fix wave, Finding C1/I3 fallout: mirrors GitlabWidget.tsx's own
+ *  REVIEW_ASKS_TIER_CLASS/REVIEW_ASKS_INVERSE_TIER_CLASS — `dueSoonTier`/its
+ *  INVERSE must never be built from a template-interpolated tier name
+ *  (Tailwind's scanner only extracts COMPLETE literal class-name strings from
+ *  the source text; an interpolated one never generates the real CSS, which a
+ *  jsdom unit test can't catch — it only asserts the className STRING — but
+ *  the real-Chromium harness did). Literal lookup maps, keyed by the same
+ *  tier-name string the reveal logic derives once. */
+const DUE_SOON_TIER_CLASS: Record<'roomy' | 'roomier' | 'grand' | 'roomiest', string> = {
+  roomy: ' hidden roomy:block',
+  roomier: ' hidden roomier:block',
+  grand: ' hidden grand:block',
+  roomiest: ' hidden roomiest:block',
+}
+const DUE_SOON_INVERSE_TIER_CLASS: Record<'roomy' | 'roomier' | 'grand' | 'roomiest', string> = {
+  roomy: ' roomy:hidden',
+  roomier: ' roomier:hidden',
+  grand: ' grand:hidden',
+  roomiest: ' roomiest:hidden',
+}
+
 /** Narrow `connectors.jira` (a ConnectorConfig union member, or undefined) to
  *  a CONNECTED JiraConfig, defensively — same rationale and shape as
  *  gitlab's connectedGitlab (GitlabWidget.tsx): schema.ts ties every
@@ -76,12 +97,17 @@ export default function JiraWidget() {
   // +176px regardless of which card carries it.
   const gitlab = connectors?.gitlab
   const gitlabEnabled = gitlab?.enabled === true
-  const gitlabReviewAsksEnabled =
-    gitlabEnabled && resolveViews(DEFAULT_GITLAB_VIEWS, (gitlab as GitlabConfig).views).reviewAsks
+  // Minor fix (review pass): resolveViews(DEFAULT_GITLAB_VIEWS, ...) used to be
+  // called TWICE here — once for gitlabReviewAsksEnabled, once inline inside
+  // anyGraphEnabled — against the identical config. Resolved ONCE into
+  // `gitlabViews` (null when gitlab isn't enabled, so the two reads below stay
+  // defensive without re-deriving); both booleans then just read a field off it.
+  const gitlabViews = gitlabEnabled ? resolveViews(DEFAULT_GITLAB_VIEWS, (gitlab as GitlabConfig).views) : null
+  const gitlabReviewAsksEnabled = gitlabViews?.reviewAsks ?? false
   const github = connectors?.github
   const anyGraphEnabled =
     (github?.enabled === true && resolveGithubViews(github as GithubConfig).commitGraph) ||
-    (gitlabEnabled && resolveViews(DEFAULT_GITLAB_VIEWS, (gitlab as GitlabConfig).views).activityGraph)
+    (gitlabViews?.activityGraph ?? false)
 
   return (
     <JiraInner
@@ -144,29 +170,61 @@ function JiraInner({
   // `roomy`/`roomier`/`roomiest` derivation for the full measurement writeup,
   // including the screenshotted overlap this closes: jira is the right rail's
   // LOWEST card, and due-soon's extra height pushed its own bottom past the
-  // Tasks pill at Jon's own 1600x900 board before this fix). Only gated when
+  // Tasks pill at Jon's own 1600x900 board before this fix). Gated when
   // gitlab actually shares the rail (gitlabEnabled, passed down from
-  // JiraWidget); a gitlab-less stack (or jira sole) is measured SAFE at every
-  // height jira itself is shown, so it renders unconditionally there — never
-  // data-gated, only CSS-gated.
-  const dueSoonTier = !gitlabEnabled
-    ? ''
+  // JiraWidget) OR — fix wave, Finding C1 — when gitlab is ABSENT but
+  // github's own graph is enabled: jira then becomes the right rail's SECOND
+  // card, directly below github+graph (gitlab renders null when disabled, so
+  // jira moves up into its slot), and that TWO-CARD composition is not safe
+  // at every height either — the identical 910.5-vs-846 overlap
+  // GitlabWidget.tsx's own reviewAsksTier measures for gitlab's version of
+  // this composition; the arithmetic is symmetric because
+  // gitlab-with-reviewAsks and jira-with-dueSoon are both the SAME
+  // 129.5px-taller card sitting right under github+graph. Reuses `roomy` too.
+  // `anyGraphEnabled` already reduces to exactly `githubGraphEnabled`
+  // whenever `!gitlabEnabled` (its own gitlab term is gated on
+  // gitlabEnabled), so reusing it here for the two-card branch is the SAME
+  // check, not a new one. A gitlab-less stack WITHOUT github's graph enabled
+  // (jira sole, or jira+github-no-graph) IS still safe unconditionally
+  // (github rows-only 235 bottom 415 + 16 + 303.5 = 734.5, clears pillTop 846
+  // at 900h) — that remains the ONLY composition that renders due-soon
+  // untiered.
+  const dueSoonTierName: '' | keyof typeof DUE_SOON_TIER_CLASS = !gitlabEnabled
+    ? anyGraphEnabled
+      ? 'roomy'
+      : ''
     : anyGraphEnabled && gitlabReviewAsksEnabled
-      ? ' hidden roomiest:block'
+      ? 'roomiest'
       : anyGraphEnabled
-        ? ' hidden grand:block'
+        ? 'grand'
         : gitlabReviewAsksEnabled
-          ? ' hidden roomier:block'
-          : ' hidden roomy:block'
+          ? 'roomier'
+          : 'roomy'
+  const dueSoonTier = dueSoonTierName ? DUE_SOON_TIER_CLASS[dueSoonTierName] : ''
 
-  // The friendly empty line shows when a rows section is enabled and BOTH lists
-  // are empty — a quiet day. Jira has no INVERSE-tier machinery the way
-  // github/gitlab's graph needs (there's no second "always show something"
-  // element competing for the same space), so the line simply shows or
-  // doesn't — unaffected by dueSoonTier, which only ever hides due-soon's OWN
-  // rows, never substitutes an empty-state line for them (never data-gates
-  // what CSS tier-gates: `dueSoon.length===0` stays a pure data check).
-  const showEmpty = (views.assigned || views.dueSoon) && issues.length === 0 && dueSoon.length === 0
+  // The friendly empty line shows when a rows section is enabled and NOTHING
+  // from either rows list would actually be VISIBLE. Jira has no GRAPH
+  // competing for the space the way github/gitlab do, but `dueSoonTier`
+  // (above) CSS-tier-gates the due-soon rows exactly the same way a graph
+  // does — so the same husk this fix wave closed on gitlab (Finding I3) is
+  // real here too: assigned on w/ 0 issues, dueSoon on w/ rows that are
+  // themselves tier-hidden used to fall through to a bare "Jira" heading (the
+  // rows tier-hidden, the empty line gated off by the plain data check
+  // `dueSoon.length === 0` alone, which is false whenever real due-soon data
+  // exists — exactly the "never gate visibility on DATA when display is
+  // CSS-tier-gated" violation the wave-1 law forbids). Fixed with the
+  // identical inverse-tier machinery gitlab's `emptyLineTier` uses: when
+  // dueSoon has rows that are themselves tier-gated (dueSoonTierName
+  // truthy), the empty line takes the INVERSE of that tier, so exactly one
+  // of {due-soon rows, empty line} is visible at any height. When dueSoon is
+  // genuinely empty, or its own tier is '' (unconditional — no gitlab
+  // sibling threatens it), the line shows unconditionally, exactly as
+  // before.
+  const showEmpty =
+    (views.assigned || views.dueSoon) &&
+    issues.length === 0 &&
+    (dueSoon.length === 0 || dueSoonTierName !== '')
+  const emptyLineTier = dueSoon.length > 0 && dueSoonTierName ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName] : ''
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
   // would render — no rows in either enabled list, no status chip with a value,
@@ -220,7 +278,7 @@ function JiraInner({
         </div>
       )}
 
-      {showEmpty && <p className="text-sm text-fg-muted">Nothing assigned to you.</p>}
+      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
     </section>
   )
 }

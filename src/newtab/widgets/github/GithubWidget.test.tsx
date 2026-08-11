@@ -230,7 +230,8 @@ describe('GithubWidget', () => {
   // sibling count (gitlab, jira) AND github's OWN composition, because a
   // rows-bearing card is far taller than a graph-only one: sole card / one
   // sibling → `hidden taller:block` (>=890h) for any composition; two siblings
-  // WITH rows (pulls or issues) → `hidden grand:block` (>=1041h); two siblings
+  // WITH rows (pulls or issues) → `hidden grand:block` (>=1171h, re-derived
+  // Task 77 — was 1041h; see index.css's own `grand` comment); two siblings
   // GRAPH-ONLY → back to `taller` (the 201px card fits at 890). Class-pinned here
   // (jsdom, the RSS tier-test idiom) so a regression — the graph riding too LOW
   // (lapping the pill when three tall cards stack) or too HIGH (a graph-only husk
@@ -276,7 +277,7 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeNull()
   })
 
-  it('yields the graph to `grand` (>=1041h) with TWO forge siblings and a full (rows-bearing) card', async () => {
+  it('yields the graph to `grand` (>=1171h, re-derived Task 77 — was 1041h) with TWO forge siblings and a full (rows-bearing) card', async () => {
     mount(await seededWithSiblings(true, true))
     const img = await screen.findByRole('img')
     const wrapper = graphWrapper().querySelector('[class*="grand:block"]')
@@ -286,7 +287,7 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
-  it('with TWO siblings and a single rows section (pulls on), github reveals on `grand` (>=1041h) — conservatively, not the ~936h a precise tier would allow', async () => {
+  it('with TWO siblings and a single rows section (pulls on), github reveals on `grand` (>=1171h, re-derived Task 77 — was 1041h) — conservatively, not the ~936h a precise tier would allow', async () => {
     mount(await seededWithSiblings(true, true, GRAPH_PLUS_PULLS))
     await screen.findByRole('img')
     expect(graphWrapper().querySelector('[class*="grand:block"]')).toBeTruthy()

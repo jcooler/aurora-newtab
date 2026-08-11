@@ -385,7 +385,11 @@ describe('fetchJira — the two searches are independent', () => {
 })
 
 describe('fetchJira — per-view gating', () => {
-  it('assigned off: no assigned request; prev.issues+counts carried (counts NOT recomputed)', async () => {
+  // Fix wave, Finding I4: the assigned search now fires when EITHER
+  // `assigned` OR `statusChips` is on (counts are derived from it) — so
+  // testing "assigned off" in isolation from statusChips no longer
+  // distinguishes a real gate; this case now needs statusChips OFF too.
+  it('assigned AND statusChips both off: no assigned request; prev.issues+counts carried (counts NOT recomputed)', async () => {
     const prev: JiraData = {
       issues: [{ key: 'AUR-1', summary: 'old', status: 'To Do', url: browse('AUR-1') }],
       counts: { 'To Do': 1 },
@@ -395,13 +399,38 @@ describe('fetchJira — per-view gating', () => {
       dueSoon: fakeResponse({ status: 200, body: { issues: [] } }),
       // search intentionally unstubbed — a request there would throw.
     })
-    const views = { assigned: false, statusChips: true, dueSoon: true }
+    const views = { assigned: false, statusChips: false, dueSoon: true }
     const data = await fetchJira(SITE, 'jon@acme.com', 't', views, prev, fetchFn as unknown as typeof fetch)
     expect(data.issues).toEqual(prev.issues)
     expect(data.counts).toEqual(prev.counts)
     const urls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
     // The assigned search is the one WITHOUT the duedate field — assert none fired.
     expect(urls.some((u) => u.includes('/rest/api/3/search/jql') && !u.includes('duedate'))).toBe(false)
+  })
+
+  // Fix wave, Finding I4 (Jon-ruled): the case this test used to pin (assigned
+  // off, statusChips on → no request, counts frozen forever) was the BUG.
+  // statusChips derives its counts from the assigned search, so a
+  // chips-only card must still fetch — same "fetch gating keys on DATA
+  // needs, not sections 1:1" principle as vercel.ts's own statusSummary.
+  // Falsifies the fix: before it, this request never fires and the test
+  // fails (fetchFn throws on the unstubbed `search` route).
+  it('assigned off but statusChips ON: the assigned search STILL fires (I4 fix — chips need fresh data too)', async () => {
+    const fetchFn = router({
+      search: fakeResponse({
+        status: 200,
+        body: { issues: [{ key: 'AUR-7', fields: { summary: 'fresh', status: { name: 'To Do' } } }] },
+      }),
+    })
+    const views = { assigned: false, statusChips: true, dueSoon: false }
+    const data = await fetchJira(SITE, 'jon@acme.com', 't', views, null, fetchFn as unknown as typeof fetch)
+    // The service returns the fetched issues regardless (the widget is the
+    // one that re-gates the RENDERED list on `views.assigned` — see
+    // JiraWidget.tsx's own `views.assigned ? ... : []`); counts are what a
+    // chips-only card actually needs, and they land.
+    expect(data.counts).toEqual({ 'To Do': 1 })
+    const urls = (fetchFn.mock.calls as unknown as Array<[string]>).map(([url]) => url)
+    expect(urls.some((u) => u.includes('/rest/api/3/search/jql') && !u.includes('duedate'))).toBe(true)
   })
 
   it('dueSoon off (the default): no due-soon request; prev.dueSoon carried', async () => {
@@ -420,14 +449,18 @@ describe('fetchJira — per-view gating', () => {
     expect(urls.some((u) => u.includes('duedate'))).toBe(false)
   })
 
-  it('both assigned and dueSoon off: NO request; whole prev carried verbatim', async () => {
+  // Fix wave, Finding I4: with statusChips now ALSO an assigned-fetch
+  // trigger (see the "assigned off but statusChips ON" test above), the
+  // whole-prev-carried case needs ALL THREE views off — not just assigned
+  // and dueSoon — to genuinely issue zero requests.
+  it('assigned, statusChips, AND dueSoon all off: NO request; whole prev carried verbatim', async () => {
     const prev: JiraData = {
       issues: [{ key: 'AUR-1', summary: 'old', status: 'To Do', url: browse('AUR-1') }],
       counts: { 'To Do': 1 },
       dueSoon: [{ key: 'AUR-5', summary: 'old', status: 'To Do', url: browse('AUR-5'), due: '2026-08-09' }],
     }
     const fetchFn = router({}) // nothing stubbed — any request throws
-    const views = { assigned: false, statusChips: true, dueSoon: false }
+    const views = { assigned: false, statusChips: false, dueSoon: false }
     const data = await fetchJira(SITE, 'jon@acme.com', 't', views, prev, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
     expect(fetchFn).not.toHaveBeenCalled()

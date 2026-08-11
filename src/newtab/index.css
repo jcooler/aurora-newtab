@@ -525,11 +525,11 @@
    rejected) or the overlap shipping silently (rejected outright — never ship
    the overlap).
 
-   FOUR distinct thresholds cover the composition space (jiraEnabled and
-   gitlabEnabled are each gitlab's/jira's OWN precondition for gating AT ALL —
-   neither section threatens anything when its sibling forge card isn't even
-   present, measured safe at every height down to the dense floor in that case,
-   so NO class is applied there):
+   FOUR distinct thresholds cover the THREE-CARD composition space (jiraEnabled
+   and gitlabEnabled are each gitlab's/jira's OWN precondition for gating in
+   THAT shape — neither section threatens anything when its sibling forge card
+   isn't even present AND github's own graph is off too, measured safe at every
+   height down to the dense floor in that case, so NO class is applied there):
      roomy     section alone (no graph anywhere in the stack, sibling's own new
                section off) — jira.bottom 924.5, clears the pill by the 16px
                floor at h=995 (16.5px), fails at 994 (15.5px).
@@ -544,13 +544,60 @@
      roomiest  the full three-way worst case — both new sections AND a graph —
                jira.bottom 1230, clears at h=1300 (16.0px exactly), fails at
                1299 (15.0px).
-   All four measured via scripts/preview.mjs direct height sweeps (real
+
+   FIX WAVE, FINDING C1 — `roomy` GAINS A FIFTH CALL SITE, the TWO-CARD
+   composition the "neither section threatens anything when its sibling forge
+   card isn't present" claim above missed: github's OWN graph, with only ONE
+   forge sibling (gitlab OR jira, not both), already reveals at `taller`
+   (890h — see that variant's own comment) and grows github to 411px on its
+   own, with NO jira/gitlab card needed at all. The new-section-bearing
+   sibling then becomes the right rail's SECOND card, directly below
+   github+graph, and THAT is its own, DIFFERENT overlap: github+graph(bottom
+   591) + the 16px flow gap + a 129.5px-taller sibling card(303.5) = 910.5 vs
+   pillTop 846 at Jon's own canonical 1600x900 — a real, measured 64.5px
+   overlap, screenshotted. Reusing `roomy` here is CONSERVATIVE, not exact:
+   this composition's true floor is only 980.5 (910.5 + 16 + 54), 14.5px
+   inside roomy's 995 — verified arithmetically rather than re-derived into a
+   sixth named tier, the same "an enabled-but-taller sibling forces the higher
+   tier" conservatism `grand`'s own re-derivation above already establishes.
+   So `reviewAsksTier`/`dueSoonTier` (below) now read TWO independent
+   preconditions, not one: the THREE-CARD family above (their OWN sibling
+   forge card actually present) OR, when that sibling is absent, github's own
+   graph state alone (`githubGraphEnabled`) — `roomy` when true, untiered
+   (genuinely safe at every height: github rows-only 235 bottom 415 + 16 +
+   303.5 = 734.5, clears pillTop 846 at 900h) when false.
+
+   All five measured via scripts/preview.mjs direct height sweeps (real
    getBoundingClientRect reads against the built extension, both possible graph
    owners spot-checked for the symmetry the arithmetic above predicts — github's
    graph and gitlab's own graph land the IDENTICAL jira.bottom at every shared
-   fencepost). Each card computes which ONE of these four (or no class at all)
-   its own extra section needs from its sibling's enabled+view state — see
-   GitlabWidget.tsx's `reviewAsksTier` and JiraWidget.tsx's `dueSoonTier`. */
+   fencepost; the two-card composition's own fencepost block spot-checks BOTH
+   gitlab-carries-reviewAsks and jira-carries-dueSoon land the identical 995h
+   boundary too). Each card computes which ONE of these four class names (or no
+   class at all) its own extra section needs from its sibling's enabled+view
+   state AND github's own graph state — see GitlabWidget.tsx's
+   `reviewAsksTierName` and JiraWidget.tsx's `dueSoonTierName`.
+
+   FIX WAVE, FINDING I2 — `roomy` GAINS A SIXTH CALL SITE, in the LEFT rail
+   this time (unrelated to the right-rail arithmetic above, sharing only the
+   tier NUMBER by coincidence of scale, not by any shared derivation): vercel
+   is the left column's own lowest card, stacked below ics (up to 132px at
+   its own true display max, 5 calendars in 'per-calendar' view — ics.ts's
+   MAX_CALENDARS) and rss (up to 336px at shownCount 8, its own ceiling) — a
+   combination NO probe had ever jointly seeded before this fix wave (Task
+   77's own vercel budget probe ran with no calendar configured; the
+   ics-multi-calendar wave's own sweeps ran with vercel disabled). At that
+   combined worst case, vercel WITH `statusSummary` on bottoms at 836px (col1
+   top 620 + its own 216px), and the left rail's Notes pill (top = viewportH
+   − 54, the mirror of the right rail's Tasks-pill formula) clears it by only
+   10px at Jon's canonical 900h — 6px short of the floor — and OVERLAPS by
+   25px at the 865 dense fencepost. VercelWidget.tsx's own `summaryTier`
+   fixes it by raising vercel's WHOLE reveal threshold from the unconditional
+   `dense:hidden` (<=864, App.tsx) to THIS tier whenever `views.statusSummary`
+   is on (true floor 906px, so `roomy` is conservative with 89px to spare) —
+   `statusSummary` OFF (the default) is untouched, still plain `dense:hidden`.
+   Measured via scripts/preview.mjs's own "LEFT-COLUMN combined worst case"
+   block. */
 @custom-variant roomy (@media (min-height: 995px));
 @custom-variant roomier (@media (min-height: 1124px));
 @custom-variant roomiest (@media (min-height: 1300px));

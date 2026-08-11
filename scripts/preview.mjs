@@ -3893,6 +3893,252 @@ function gitlabContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
+// TWO-CARD fencepost (fix wave, Finding C1) — the overlap the whole-plan
+// review found: `reviewAsksTier`/`dueSoonTier` used to gate ONLY on the
+// SIBLING forge card's own presence (jiraEnabled / gitlabEnabled), missing
+// the case where that sibling is ABSENT but github's graph alone already
+// grows github to its taller 411px card — the new section's own card then
+// becomes the right rail's SECOND card, directly below github+graph, and
+// that TWO-CARD composition overlapped the Tasks pill at heights the old
+// "untiered" branch assumed were safe (measured: github+graph bottom 591 +
+// the 16px flow gap + a 129.5px-taller sibling card 303.5 = 910.5 vs pillTop
+// 846 at Jon's canonical 1600x900, a real 64.5px overlap). The fix reuses
+// `roomy` (995h, index.css) for this composition — arithmetically
+// conservative-safe (the TRUE floor is only 980.5, so 995 clears with 14.5px
+// to spare) rather than a dedicated tighter tier. This block measures the
+// REAL DOM against that pinned 995h boundary, mirroring GitLab's own STACKED
+// fencepost above. Covers BOTH sides — gitlab's reviewAsks (sub-scenario A)
+// and jira's dueSoon (sub-scenario B, the symmetric mirror since jira slides
+// up into the SECOND slot when gitlab is disconnected) — sequentially in one
+// block (the shared fixture/restore idiom makes two top-level blocks pure
+// duplication).
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const heights = [994, 995, 900] // the pinned `roomy` boundary ±1, plus Jon's canonical 900
+  const FLOOR = 16
+
+  const weatherCacheFixture = () => {
+    const MAX_AGE_MS = 30 * 60 * 1000
+    const now = Date.now()
+    const hourly = Array.from({ length: 12 }, (_, i) => {
+      const t = new Date(now + i * 3_600_000)
+      const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+      return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+    })
+    return {
+      current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+      hourly,
+      fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
+      locationLabel: 'New York',
+    }
+  }
+  // The SAME rows-bearing github shape Task 70's original 591-bottom
+  // derivation measured (2 PRs + 2 issues + notifications + the graph) —
+  // github default views (absent `views`) resolve every section ON.
+  const GITHUB_DATA = {
+    prs: [
+      { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+      { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+    ],
+    issues: [
+      { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+      { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+    ],
+    notifications: 3,
+    etags: {},
+  }
+
+  const measureTwoCard = (cardSel, needleText) =>
+    page.evaluate(
+      ({ ghSel, cardSel: cSel, needle }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const card = document.querySelector(cSel)
+        const link = card ? [...card.querySelectorAll('a')].find((a) => a.textContent.includes(needle)) : null
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gh: box(ghSel),
+          card: box(cSel),
+          shown: !!link && link.getBoundingClientRect().height > 0,
+          pill: pill ? { top: +pill.getBoundingClientRect().top.toFixed(1) } : null,
+        }
+      },
+      { ghSel: githubSel, cardSel, needle: needleText },
+    )
+
+  const runTwoCardSweep = async (label) => {
+    const fp = []
+    for (const h of heights) {
+      await page.setViewportSize({ width: 1600, height: h })
+      await page.waitForTimeout(300)
+      fp.push({ h, ...(await measureTwoCard(label.cardSel, label.needle)) })
+    }
+    const visOk = fp.every((r) => r.shown === (r.h >= 995))
+    console.log(
+      visOk
+        ? `PASS: ${label.name} (two-card composition — github+graph directly above it, ${label.siblingName} disconnected) reveals MONOTONICALLY at the pinned \`roomy\` boundary (995h) — shown at ${fp.filter((r) => r.shown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp.filter((r) => !r.shown).map((r) => r.h).join(', ')}) — the 900h canonical board is hidden, closing the C1 overlap`
+        : `FAIL: ${label.name}'s two-card boundary is not the pinned 995h (${JSON.stringify(fp.map((r) => ({ h: r.h, shown: r.shown })))})`,
+    )
+    const shownRows = fp.filter((r) => r.shown && r.card && r.pill)
+    const floorOk = shownRows.length > 0 && shownRows.every((r) => +(r.pill.top - r.card.bottom).toFixed(1) >= FLOOR)
+    console.log(
+      floorOk
+        ? `PASS: once revealed, ${label.name}'s card clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pill.top - r.card.bottom).toFixed(1))}px`).join(', ')}`
+        : `FAIL: ${label.name}'s card clears the Tasks pill by >=${FLOOR}px once revealed (${JSON.stringify(shownRows)})`,
+    )
+  }
+
+  // Sub-scenario A — github+graph, gitlab-with-reviewAsks (mrs+todos at their
+  // OWN display max too, so gitlab's card is genuinely the measured 303.5px,
+  // not a shorter stand-in), jira DISCONNECTED.
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ ghData, weatherCache, contributions }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      const now = Date.now()
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'gh', username: 'octocat' }, // default views — graph ON
+          gitlab: {
+            enabled: true,
+            token: 'gl',
+            instanceUrl: 'https://gitlab.com',
+            username: 'jcooler',
+            views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false },
+          },
+          jira: { ...connectors.jira, enabled: false },
+        },
+        connectorSnapshots: {
+          github: { fetchedAt: now, data: { ...ghData, contributions } },
+          gitlab: {
+            fetchedAt: now,
+            data: {
+              mrs: [
+                { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+                { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+                { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
+              ],
+              reviewMrs: [
+                { title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+                { title: 'Review: add integration tests for the webhook relay', url: 'https://gitlab.com/acme/platform/-/merge_requests/305', project: 'acme/platform' },
+              ],
+              todos: 6,
+              contributions: null,
+            },
+          },
+        },
+        weatherCache,
+      })
+    },
+    { ghData: GITHUB_DATA, weatherCache: weatherCacheFixture(), contributions: githubContributionsFixture() },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  await runTwoCardSweep({
+    name: "gitlab's review-asks",
+    cardSel: gitlabSel,
+    needle: 'Review: rework the ingest queue backoff',
+    siblingName: 'jira',
+  })
+
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, github: { ...connectors.github, enabled: false }, gitlab: { ...connectors.gitlab, enabled: false } },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  // Sub-scenario B (the mirror) — github+graph, jira-with-dueSoon (assigned +
+  // dueSoon both at display max), gitlab DISCONNECTED. jira slides up into
+  // the right rail's SECOND slot (gitlab renders null, dropped from flow by
+  // index.css's `:empty` rule), directly below github+graph — the identical
+  // arithmetic shape as sub-scenario A.
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ ghData, weatherCache, contributions }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      const now = Date.now()
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'gh', username: 'octocat' }, // default views — graph ON
+          gitlab: { ...connectors.gitlab, enabled: false },
+          jira: {
+            enabled: true,
+            email: 'jon@acme.com',
+            apiToken: 'jr',
+            site: 'yoursite.atlassian.net',
+            displayName: 'Jon Cooler',
+            views: { assigned: true, statusChips: true, dueSoon: true },
+          },
+        },
+        connectorSnapshots: {
+          github: { fetchedAt: now, data: { ...ghData, contributions } },
+          jira: {
+            fetchedAt: now,
+            data: {
+              issues: [
+                { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+                { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+                { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+              ],
+              counts: { 'In Progress': 2, 'To Do': 1 },
+              dueSoon: [
+                { key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' },
+                { key: 'AUR-111', summary: 'Renew the staging TLS certificate', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-111', due: '2026-08-14' },
+              ],
+            },
+          },
+        },
+        weatherCache,
+      })
+    },
+    { ghData: GITHUB_DATA, weatherCache: weatherCacheFixture(), contributions: githubContributionsFixture() },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  await runTwoCardSweep({
+    name: "jira's due-soon",
+    cardSel: jiraSel,
+    needle: 'Ship the connector views wave',
+    siblingName: 'gitlab',
+  })
+
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, github: { ...connectors.github, enabled: false }, jira: { ...connectors.jira, enabled: false } },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
 // BOTH new sections on, NO graph (Task 77) — the `roomier` fencepost's own
 // live sweep. gitlab's reviewAsks AND jira's dueSoon are BOTH enabled at
 // once (no activity graph anywhere), the composition `roomier` (1124h, index.css)
@@ -6513,6 +6759,196 @@ function gitlabContributionsFixture() {
       ? 'ics + rss connectors disabled; page restored to idle'
       : `WARNING: Calendar/Headlines widget still present after disabling the connectors (icsGone=${icsGone}, rssGone=${rssGoneIcs})`,
   )
+}
+
+// ---------------------------------------------------------------------------
+// LEFT-COLUMN combined worst case (fix wave, Finding I2) — the seam between
+// two waves that never got a joint probe: Task 77's own vercel budget probe
+// (search "vercel WITH the summary line") ran with NO calendar configured at
+// all, and the calendar wave's own sweeps (the ics block just above) ran with
+// vercel disabled throughout. So the left column's three cards had never all
+// been at their OWN true display max SIMULTANEOUSLY: calendar's 5-calendar
+// 'per-calendar' view (1 headline + 5 rows, its true max — MAX_CALENDARS,
+// ics.ts), rss at shownCount 8 (its own ceiling), and vercel with BOTH
+// deployments (5, MAX_DEPLOYMENTS) AND statusSummary on (the +24px line Task
+// 77 measured alone). Every OTHER connector (github/gitlab/jira/crypto) and
+// monthCal/habits stay OFF — this probe isolates the left column's own
+// budget, not the combined-defaults gate's already-proven cross-column one.
+//
+// THE FLOOR FAILED (real, measured — NOT the review's comment-derived
+// suspicion, confirmed by this probe against the built extension): at
+// col1's true combined worst case, vercel WITH statusSummary bottoms at 836
+// (top 620 + 216), and the left rail's own Notes pill (`fixed bottom-4
+// left-16`, top = viewportH − 54 — the identical formula the right rail's
+// Tasks-pill comment derives) clears it by only 10px at Jon's canonical
+// 1600x900 (846 − 836, 6px short of the 16px floor) and OVERLAPS by 25px at
+// the 865 dense fencepost (811 − 836). FIXED per the house pattern named in
+// the finding — "vercel's hide edge rises": VercelWidget.tsx's own
+// `summaryTier` now raises vercel's WHOLE reveal threshold from the
+// unconditional `dense:hidden` (<=864, App.tsx) to `roomy` (995h) whenever
+// `views.statusSummary` is on — the true floor is only 906 (836+16+54), so
+// 995 is conservative-safe with 89px to spare, the SAME reused-tier idiom
+// C1's own two-card fix uses. `statusSummary` OFF (the default) is
+// UNTOUCHED — still the plain `dense:hidden` — so the wave's own additive
+// guarantee (default-path geometry byte-identical) holds.
+//
+// Three heights sweep the fix: 900 and 865 (both < 995 — vercel must be
+// SAFELY ABSENT, not overlapping) prove the floor failure is closed, and 995
+// (the pinned reveal boundary) proves vercel comes back once genuinely
+// safe — never a silent, permanent loss of the card. Every PAIRWISE gap in
+// the flowing col1 stack that's still live (ics->rss always; rss->vercel
+// only where vercel renders) is asserted the exact 16px flex gap (a flex gap
+// has no worst-case growth — the ics block's own col1-flow probe uses the
+// same exact-not->=floor idiom), and wherever vercel is shown it clears the
+// Notes pill by >=16px.
+{
+  const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+  const rssSel = '[data-block-id="rss"] section[aria-label="Headlines"]'
+  const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
+
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    const now = Date.now()
+    const H = 3_600_000
+    const DAY_MS = 86_400_000
+    // The IDENTICAL 5-calendar 'per-calendar' true-max event set the ics
+    // block above measures (1 headline + 5 rows) — reused verbatim rather
+    // than re-derived, so this probe's calendar card is provably the SAME
+    // worst case, not a coincidentally-similar stand-in.
+    const d = new Date(now)
+    const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+    const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 2))
+    const events = [
+      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0 },
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0 },
+      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1 },
+      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2 },
+      {
+        summary: 'Parent-teacher conference',
+        start: todayEnd + 10 * DAY_MS + 15 * H + 30 * 60_000,
+        end: todayEnd + 10 * DAY_MS + 16 * H,
+        cal: 3,
+      },
+      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4 },
+    ]
+    const RSS_HEADLINES = Array.from({ length: 8 }, (_, i) => ({
+      source: i % 2 === 0 ? 'Hacker News' : 'The Verge',
+      title: `Left-column combined probe headline ${i}`,
+      url: `https://example.com/headline-${i}`,
+      publishedAt: 8 - i,
+    }))
+    const VERCEL_DEPLOYMENTS = [
+      { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: now - 6 * H },
+      { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: now - 3 * 60_000 },
+      { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: now - 10 * 60_000 },
+      { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: now - 20 * 60_000 },
+      { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: now - 60 * 60_000 },
+    ]
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        ics: {
+          enabled: true,
+          view: 'per-calendar',
+          upcomingCount: 3,
+          calendars: [
+            { name: 'Personal', url: 'https://calendar.example.com/personal.ics' },
+            { name: 'Family', url: 'https://calendar.example.com/family.ics' },
+            { name: 'Work', url: 'https://calendar.example.com/work.ics' },
+            { name: 'School', url: 'https://calendar.example.com/school.ics' },
+            { name: 'Travel', url: 'https://calendar.example.com/travel.ics' },
+          ],
+        },
+        rss: { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
+        vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler', views: { deployments: true, statusSummary: true } },
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+        crypto: { ...connectors.crypto, enabled: false },
+      },
+      connectorSnapshots: {
+        ics: { fetchedAt: now, data: { events } },
+        rss: { fetchedAt: now, data: RSS_HEADLINES },
+        vercel: { fetchedAt: now, data: { deployments: VERCEL_DEPLOYMENTS } },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measureCol1 = () =>
+    page.evaluate(
+      ({ icsSelector, rssSelector, vercelSelector }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const notes = document.querySelector('[data-block-id="notes"] button')
+        return {
+          ics: box(icsSelector),
+          rss: box(rssSelector),
+          vercel: box(vercelSelector),
+          notes: notes ? { top: +notes.getBoundingClientRect().top.toFixed(1) } : null,
+        }
+      },
+      { icsSelector: icsSel, rssSelector: rssSel, vercelSelector: vercelSel },
+    )
+
+  const FLOOR = 16
+  const COL1_FLOW_GAP = 16
+  const rows = []
+  for (const h of [900, 865, 995]) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    const m = await measureCol1()
+    const icsRssGap = m.ics && m.rss ? +(m.rss.top - m.ics.bottom).toFixed(1) : null
+    const rssVercelGap = m.rss && m.vercel ? +(m.vercel.top - m.rss.bottom).toFixed(1) : null
+    const notesGap = m.vercel && m.notes ? +(m.notes.top - m.vercel.bottom).toFixed(1) : null
+    rows.push({ h, m, icsRssGap, rssVercelGap, notesGap, vercelShown: m.vercel !== null })
+  }
+
+  // ics->rss stays live at every height (calendar/rss carry no height tier of
+  // their own in this probe); vercel's own presence — and therefore its flex
+  // gap to rss — is exactly the `roomy` (995h) boundary the fix pins.
+  const icsRssOk = rows.every((r) => r.m.ics && r.m.rss && r.icsRssGap === COL1_FLOW_GAP)
+  const vercelVisOk = rows.every((r) => r.vercelShown === (r.h >= 995))
+  console.log(
+    icsRssOk && vercelVisOk
+      ? `PASS: col1's ics->rss gap stays the exact ${COL1_FLOW_GAP}px flex rhythm at every sampled height, and vercel (statusSummary on) reveals MONOTONICALLY at the pinned \`roomy\` boundary (995h) — shown at ${rows.filter((r) => r.vercelShown).map((r) => r.h).join(', ') || '(none)'}, safely absent below (${rows.filter((r) => !r.vercelShown).map((r) => r.h).join(', ')}) — the 900h/865h overlap this fix closes never reaches the page`
+      : `FAIL: col1's ics->rss flex rhythm or vercel's 995h reveal boundary (${JSON.stringify(rows.map((r) => ({ h: r.h, icsRssGap: r.icsRssGap, vercelShown: r.vercelShown })))})`,
+  )
+  const shownRows = rows.filter((r) => r.vercelShown)
+  const floorOk =
+    shownRows.length > 0 &&
+    shownRows.every((r) => r.rssVercelGap === COL1_FLOW_GAP && r.notesGap !== null && r.notesGap >= FLOOR)
+  console.log(
+    floorOk
+      ? `PASS: once revealed (>=995h), vercel (with statusSummary on) sits the exact ${COL1_FLOW_GAP}px below rss and clears the left rail's own Notes pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${r.notesGap}px`).join(', ')} — the seam Task 77's vercel probe (no calendar) and the calendar wave's own sweeps (vercel disabled) never jointly proved is CLOSED`
+      : `FAIL: vercel clears the Notes pill by >=${FLOOR}px once revealed at the left column's true combined worst case (${JSON.stringify(rows)})`,
+  )
+
+  // Restore: disable all three, clear the seeded snapshots, viewport back to
+  // launch — same restore discipline as every block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        ics: { ...connectors.ics, enabled: false },
+        rss: { ...connectors.rss, enabled: false },
+        vercel: { ...connectors.vercel, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
 }
 
 // ---------------------------------------------------------------------------

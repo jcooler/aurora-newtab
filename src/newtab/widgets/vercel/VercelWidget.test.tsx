@@ -268,3 +268,65 @@ describe('VercelWidget — composed card (wave 2)', () => {
     expect(screen.queryByText('No deployments yet.')).toBeNull()
   })
 })
+
+// ── Fix wave, Finding I2: the left-column-crowded reveal tier ──
+// vercel is the left column's lowest card, stacked below ics and rss — at
+// their OWN true display maxes (5 calendars, rss shownCount 8) the combined
+// column overlaps the Notes pill once vercel's statusSummary line is also on
+// (measured, real Chromium: 836 vs pillTop 846 at 900h, only 10px clear — 6px
+// short of the 16px floor; a real overlap at the 865 dense fencepost). Fixed
+// by raising vercel's OWN reveal threshold to `roomy` (995h) whenever BOTH
+// `statusSummary` is on AND the column is genuinely crowded (ics AND rss both
+// enabled — VercelWidget.tsx's own `leftColumnCrowded`, a conservative
+// enabled-state read, not each sibling's own row count). These pin the CLASS
+// SELECTION only — scripts/preview.mjs pins the real pixel fenceposts.
+
+async function seededMulti(
+  vercel: VercelConfig,
+  data: VercelData | null,
+  siblings: Record<string, unknown> = {},
+): Promise<AuroraStorage> {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  await storage.set('connectors', { vercel, ...siblings })
+  if (data) await storage.set('connectorSnapshots', { vercel: { fetchedAt: Date.now(), data } })
+  return storage
+}
+
+const ICS_SIBLING = { enabled: true, calendars: [{ name: 'Personal', url: 'https://calendar.example.com/personal.ics' }] }
+const RSS_SIBLING = { enabled: true, feeds: ['https://example.com/feed'], shownCount: 8 }
+
+const vercelSection = () => document.querySelector('section[aria-label="Vercel"]') as HTMLElement
+const hasRoomyTier = (el: HTMLElement) => el.classList.contains('hidden') && el.className.includes('roomy:block')
+
+describe('VercelWidget — left-column-crowded reveal tier (Task 77 fix wave, Finding I2)', () => {
+  it('statusSummary on, no ics/rss siblings at all → untiered (matches the Task 77 "vercel alone" composition — safe at every height without them)', async () => {
+    mount(await seededStorage(SUMMARY_ON, SUMMARY_DATA))
+    await screen.findByText('3 ready')
+    expect(hasRoomyTier(vercelSection())).toBe(false)
+  })
+
+  it('statusSummary on, only ics enabled (no rss) → still untiered (BOTH siblings are required to threaten the floor)', async () => {
+    mount(await seededMulti(SUMMARY_ON, SUMMARY_DATA, { ics: ICS_SIBLING }))
+    await screen.findByText('3 ready')
+    expect(hasRoomyTier(vercelSection())).toBe(false)
+  })
+
+  it('statusSummary on, only rss enabled (no ics) → still untiered', async () => {
+    mount(await seededMulti(SUMMARY_ON, SUMMARY_DATA, { rss: RSS_SIBLING }))
+    await screen.findByText('3 ready')
+    expect(hasRoomyTier(vercelSection())).toBe(false)
+  })
+
+  it('statusSummary on, BOTH ics and rss enabled → the section carries `hidden roomy:block` (the two-card-crowded composition C1\'s sibling I2 found unsafe)', async () => {
+    mount(await seededMulti(SUMMARY_ON, SUMMARY_DATA, { ics: ICS_SIBLING, rss: RSS_SIBLING }))
+    await screen.findByText('3 ready')
+    expect(hasRoomyTier(vercelSection())).toBe(true)
+  })
+
+  it('statusSummary OFF, both ics and rss enabled → still untiered (the default path stays byte-identical — only statusSummary can ever trigger this tier)', async () => {
+    mount(await seededMulti(DEPLOYMENTS_ONLY, SUMMARY_DATA, { ics: ICS_SIBLING, rss: RSS_SIBLING }))
+    await screen.findByText('svc-error')
+    expect(hasRoomyTier(vercelSection())).toBe(false)
+  })
+})

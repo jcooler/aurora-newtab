@@ -40,6 +40,32 @@ const ROW_SEP = ' mt-3 dense:mt-2 border-t border-panel-border pt-3 dense:pt-2'
 const GRAPH_SEP_TALLER = ' taller:mt-3 taller:border-t taller:border-panel-border taller:pt-3'
 const GRAPH_SEP_GRAND = ' grand:mt-3 grand:border-t grand:border-panel-border grand:pt-3'
 
+/** Fix wave, Finding C1/I3 fallout: `reviewAsksTier`/its INVERSE both used to
+ *  be built with `` `hidden ${tierName}:block` `` — a template-interpolated
+ *  class name. Tailwind's build-time scanner extracts candidate classes by
+ *  scanning the SOURCE TEXT for complete, unbroken class-name strings (the
+ *  same rule GRAPH_SEP_TALLER/GRAPH_SEP_GRAND's own comment states above); an
+ *  interpolated template never appears as a complete string anywhere in the
+ *  file, so `roomiest:block`/`grand:hidden`/etc. were silently never
+ *  generated — jsdom unit tests still passed (they only assert the
+ *  className STRING, never real CSS), but the real-Chromium harness caught
+ *  it: the tier never actually revealed/hid in a built page. Fixed with
+ *  literal lookup maps — every VALUE below is a complete literal string
+ *  Tailwind's scanner can see, keyed by the SAME tier-name string the reveal
+ *  logic already derives once. */
+const REVIEW_ASKS_TIER_CLASS: Record<'roomy' | 'roomier' | 'grand' | 'roomiest', string> = {
+  roomy: ' hidden roomy:block',
+  roomier: ' hidden roomier:block',
+  grand: ' hidden grand:block',
+  roomiest: ' hidden roomiest:block',
+}
+const REVIEW_ASKS_INVERSE_TIER_CLASS: Record<'roomy' | 'roomier' | 'grand' | 'roomiest', string> = {
+  roomy: ' roomy:hidden',
+  roomier: ' roomier:hidden',
+  grand: ' grand:hidden',
+  roomiest: ' roomiest:hidden',
+}
+
 // The house eyebrow for a quiet section separator (the tasks panel + wave-1
 // language): 11px, uppercased, wide-tracked, muted.
 const EYEBROW = 'mb-2 dense:mb-1 text-[11px] uppercase tracking-[0.08em] text-fg-muted'
@@ -202,35 +228,84 @@ function GitlabInner({
   // comment on this and index.css's `roomy`/`roomier`/`roomiest` derivation for
   // the full measurement writeup, including the screenshotted overlap this
   // closes: gitlab's reviewAsks pushes jira — the right rail's lowest card —
-  // toward the Tasks pill when both are enabled). Only gated when jira actually
-  // shares the rail (jiraEnabled, passed down from GitlabWidget); a jira-less
-  // stack (or gitlab sole) is measured SAFE at every height gitlab itself is
-  // shown, so it renders unconditionally there — never data-gated, only
-  // CSS-gated, and never gated for no reason. `anyGraphEnabled` folds in BOTH
-  // possible graph owners (github's or gitlab's own) since jira's bottom moves
-  // by the identical +176px regardless of which card carries it (index.css's
-  // derivation proves the two totals equal).
+  // toward the Tasks pill when both are enabled). Gated when jira actually
+  // shares the rail (jiraEnabled, passed down from GitlabWidget) OR — fix wave,
+  // Finding C1 — when jira is ABSENT but github's own graph is enabled: that
+  // TWO-CARD composition (github+graph directly above gitlab, gitlab then the
+  // stack's own LOWEST card) is not safe at every height either — measured,
+  // real overlap at Jon's canonical 1600x900 (github+graph bottom 591 + the
+  // 16px flow gap + gitlab-with-reviewAsks 303.5 = 910.5 vs pillTop 846, a
+  // 64.5px overlap). Reuses `roomy` (the needed floor is only 980.5, <= roomy's
+  // 995 — conservative-safe, verified arithmetically rather than re-derived; see
+  // index.css's own `roomy` comment for the ledger of every call site). A
+  // jira-less stack WITHOUT github's graph enabled IS still safe
+  // unconditionally (github rows-only 235 bottom 415 + 16 + 303.5 = 734.5,
+  // clears pillTop 846 at 900h) — that remains the ONLY composition that
+  // renders review-asks untiered. `anyGraphEnabled` folds in BOTH possible
+  // graph owners (github's or gitlab's own) since jira's bottom moves by the
+  // identical +176px regardless of which card carries it (index.css's
+  // derivation proves the two totals equal); note it reduces to exactly
+  // `githubGraphEnabled` whenever `!jiraEnabled` (its own gitlab term needs
+  // jira absent from the composition to matter, and gitlab's OWN graph can't
+  // push GITLAB's own card height against itself), so the two-card branch
+  // below reads `githubGraphEnabled` directly rather than re-deriving it.
   const anyGraphEnabled = githubGraphEnabled || views.activityGraph
-  const reviewAsksTier = !jiraEnabled
-    ? ''
+  const reviewAsksTierName: '' | keyof typeof REVIEW_ASKS_TIER_CLASS = !jiraEnabled
+    ? githubGraphEnabled
+      ? 'roomy'
+      : ''
     : anyGraphEnabled && jiraDueSoonEnabled
-      ? ' hidden roomiest:block'
+      ? 'roomiest'
       : anyGraphEnabled
-        ? ' hidden grand:block'
+        ? 'grand'
         : jiraDueSoonEnabled
-          ? ' hidden roomier:block'
-          : ' hidden roomy:block'
+          ? 'roomier'
+          : 'roomy'
+  const reviewAsksTier = reviewAsksTierName ? REVIEW_ASKS_TIER_CLASS[reviewAsksTierName] : ''
 
   // The friendly empty line ("No MRs assigned to you.") shows whenever a rows
-  // section is enabled and both enabled lists are empty — a quiet day. Its
-  // VISIBILITY is the exact INVERSE of the graph's: when the graph is CSS
-  // tier-gated the line carries the matching inverse tier, so exactly ONE of
-  // graph/line is visible at any height (never a husk band, never a double
-  // render) — the wave-1 empty-state law. With no graph data, or when the graph
-  // yielded to github (it never renders), the line shows unconditionally.
-  const showEmpty = (views.mergeRequests || views.reviewAsks) && mrs.length === 0 && reviewMrs.length === 0
+  // section is enabled and NOTHING from either rows list would actually be
+  // VISIBLE — a quiet day, or an all-tier-hidden one. Two independent things
+  // can occupy the "rows" slot instead of real visible rows: the activity
+  // graph (above) and, since Task 77 shipped `reviewAsksTier`, the review-asks
+  // list itself. Its VISIBILITY is the exact INVERSE of whichever of those is
+  // the one actually competing for the space:
+  //   · the graph competes whenever it renders at all (graph !== null &&
+  //     !githubGraphEnabled) — the ORIGINAL wave-1 empty-state law, unchanged.
+  //   · fix wave, Finding I3: when the graph does NOT compete (no data, or
+  //     yielded to github) but reviewMrs DOES have rows that are themselves
+  //     CSS-tier-gated (reviewAsksTierName truthy), the empty line takes THAT
+  //     tier's inverse instead. Before this fix, a "0 MRs, review-asks
+  //     tier-hidden" composition fell through to a bare "GitLab" header below
+  //     the reveal height: the rows were tier-hidden, but the empty line was
+  //     gated off by the plain data check `reviewMrs.length === 0` alone,
+  //     which is false whenever real review-asks data exists — exactly the
+  //     "never gate visibility on DATA when display is CSS-tier-gated"
+  //     violation the wave-1 law forbids. When the graph DOES compete, its own
+  //     tier is proven to always be <= reviewAsksTierName's own tier in every
+  //     composition where BOTH are active (the graph's own tier is `grand`
+  //     whenever jiraEnabled — the precondition for a non-'' reviewAsksTierName
+  //     — and reviewAsksTierName's own values in that same state are `grand`
+  //     or the strictly TALLER `roomiest`, never smaller), so the graph's
+  //     existing inverse tier already covers the combined case and needs no
+  //     further change here.
+  //   · with NEITHER competing (no graph data and reviewMrs empty, or
+  //     reviewAsksTierName is '' — review-asks renders unconditionally), the
+  //     line shows unconditionally, exactly as before.
+  // Exactly one of {graph, review-asks rows, empty line} is ever visible at
+  // any height — never a husk band, never a double render.
+  const showEmpty =
+    (views.mergeRequests || views.reviewAsks) &&
+    mrs.length === 0 &&
+    (reviewMrs.length === 0 || reviewAsksTierName !== '')
   const emptyLineTier =
-    graph === null || githubGraphEnabled ? '' : soleForgeCard ? ' taller:hidden' : ' grand:hidden'
+    graph === null || githubGraphEnabled
+      ? reviewMrs.length > 0 && reviewAsksTierName
+        ? REVIEW_ASKS_INVERSE_TIER_CLASS[reviewAsksTierName]
+        : ''
+      : soleForgeCard
+        ? ' taller:hidden'
+        : ' grand:hidden'
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
   // would render — no data-bearing graph section, no rows in any enabled list, no
