@@ -4005,14 +4005,27 @@ function gitlabContributionsFixture() {
 // gitlab's reviewAsks + jira's dueSoon all enabled at once (gitlab's OWN
 // activity graph stays off — the cross-card rule already withholds it
 // whenever github's is on, so seeding both would just re-test Step 3c below,
-// not this tier). Proves the real DOM reveals all three MONOTONICALLY at the
-// measured 1300 and clears the Tasks pill by >=16px once shown. Restores
-// before Step 3c.
+// not this tier). The reveal is STAGED, not simultaneous, and that's the
+// ratified design (index.css's `roomiest` comment): github's graph keeps
+// gating on `grand` (1171h) regardless of the two new sections — `grand`
+// already "assumes gitlab's reviewAsks MAY be on whenever a graph is" — while
+// gitlab's reviewAsks and jira's dueSoon both gate on `roomiest` (1300h) in
+// THIS composition. A visible graph with the two new sections still hidden
+// across 1171-1299h is safe by a wide margin: the graph-only column
+// (github rows 795 + graph 176 = 971px) already clears the Tasks pill from
+// 1041h. Proves each flag reveals MONOTONICALLY at ITS OWN boundary and,
+// once all three are up, jira (the lowest card) clears the Tasks pill by
+// >=16px. Restores before Step 3c.
 {
   const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
   const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
   const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
-  const heights = [1301, 1300, 1299, 900]
+  // 1171/1170 re-sampled here too (cheap — same measure loop below, no extra
+  // page reload) to fencepost the graph's OWN `grand` boundary WITHIN this
+  // specific three-way stack, even though that boundary is already
+  // independently proven at github's sole-card fencepost (~line 2647) and
+  // gitlab's STACKED fencepost (~line 3738, Step 3b).
+  const heights = [1301, 1300, 1299, 1171, 1170, 900]
   await page.evaluate(
     async ({ counts, total }) => {
       const today = new Date()
@@ -4109,13 +4122,25 @@ function gitlabContributionsFixture() {
     rows.push({ h, ...(await measureRoomiest()) })
   }
   const allThree = (r) => r.githubGraphVisible && r.reviewVisible && r.dueVisible
-  const visOk = rows.every((r) => allThree(r) === (r.h >= 1300))
+  // Per-flag comparison (mirrors the roomier block's pattern above), each
+  // against ITS OWN boundary — NOT one shared one, and NOT an ANDed
+  // aggregate. This composition's reveal is STAGED (index.css's `roomiest`
+  // comment): github's graph gates on `grand` (1171h) regardless of the two
+  // new sections, while gitlab's reviewAsks and jira's dueSoon both gate on
+  // `roomiest` (1300h). Comparing only `allThree(r) === (r.h >= 1300)` would
+  // mask a single flag drifting to the wrong tier (e.g. dueSoonTier miswired
+  // to `roomier`/1124h) — the correctly-gated flags would keep the aggregate
+  // false at every sampled height below 1300, so the bug would pass. It would
+  // ALSO wrongly demand the graph hold off until 1300, when its own ratified
+  // tier is 1171. Each flag must match its own expected boolean independently.
+  const visOk = rows.every((r) => r.githubGraphVisible === (r.h >= 1171) && r.reviewVisible === (r.h >= 1300) && r.dueVisible === (r.h >= 1300))
   let mono = true
-  for (let i = 1; i < rows.length; i++) if (allThree(rows[i]) && !allThree(rows[i - 1])) mono = false
+  for (let i = 1; i < rows.length; i++)
+    if ((rows[i].githubGraphVisible && !rows[i - 1].githubGraphVisible) || (rows[i].reviewVisible && !rows[i - 1].reviewVisible) || (rows[i].dueVisible && !rows[i - 1].dueVisible)) mono = false
   console.log(
     visOk && mono
-      ? `PASS: the full three-way worst case (github's graph + gitlab's reviewAsks + jira's dueSoon) reveals MONOTONICALLY at the measured \`roomiest\` (1300h) — all three shown at ${rows.filter(allThree).map((r) => r.h).join(', ') || '(none)'}, at least one hidden below (${rows.filter((r) => !allThree(r)).map((r) => r.h).join(', ')})`
-      : `FAIL: the three-way worst case reveals monotonically at 1300 (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphVisible, review: r.reviewVisible, due: r.dueVisible })))})`,
+      ? `PASS: the three-way worst case (github's graph + gitlab's reviewAsks + jira's dueSoon) reveals STAGED and MONOTONICALLY, each at its own boundary — github's graph at \`grand\` (>=1171h: ${rows.filter((r) => r.githubGraphVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.githubGraphVisible).map((r) => r.h).join(', ')}), gitlab's reviewAsks at \`roomiest\` (>=1300h: ${rows.filter((r) => r.reviewVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.reviewVisible).map((r) => r.h).join(', ')}), jira's dueSoon at \`roomiest\` (>=1300h: ${rows.filter((r) => r.dueVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.dueVisible).map((r) => r.h).join(', ')})`
+      : `FAIL: the three-way worst case does not reveal monotonically at each flag's own boundary (github's graph @ grand/1171h, reviewAsks + dueSoon @ roomiest/1300h) (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphVisible, review: r.reviewVisible, due: r.dueVisible })))})`,
   )
   const FLOOR = 16
   const shownRows = rows.filter((r) => allThree(r) && r.jr && r.pillTop !== null)

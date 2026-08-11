@@ -484,9 +484,16 @@
    on whenever a graph is — the same conservative "an enabled-but-broken/-taller
    sibling forces the higher tier" rule soleForgeCard already documents — costing
    nothing below 900h (900 < 1041 < 1171: the graph was hidden at Jon's canonical
-   board before this change and stays hidden after it). `grand` is used ONLY by
-   the two graphs (verified — no other widget references this variant), so this
-   is a pure tightening with zero effect anywhere else in the app.
+   board before this change and stays hidden after it). `grand` is SHARED: the
+   two graphs use it directly (`graphWrap`/GRAPH_SEP_GRAND above), and it is
+   ALSO the "one new section + a graph" branch of gitlab's `reviewAsksTier`
+   (GitlabWidget.tsx:219) and jira's `dueSoonTier` (JiraWidget.tsx:157) — both
+   emit `hidden grand:block` for that composition. That sharing is exactly why
+   the reuse is safe: it's the SAME 235+479.5 = 411+303.5 = 714.5 arithmetic
+   either way (only one graph ever renders, and gitlab's reviewAsks folds into
+   whichever card carries the graph), so one threshold correctly serves both
+   call sites. A future retune of `grand`'s px value must account for every
+   site listed here, not just the graphs.
 
    jira is the LOWEST card, so its bottom must clear the bottom-anchored Tasks
    pill (top = viewportH − 54) by the house 16px rail floor. A pure height query,
