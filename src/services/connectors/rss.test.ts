@@ -418,6 +418,7 @@ describe('rssDescriptor', () => {
     expect(rssDescriptor.auth).toBe('none')
     expect(rssDescriptor.ttlMs).toBe(30 * 60_000)
     expect(rssDescriptor.secretFields).toEqual([])
+    expect(rssDescriptor.category).toBe('news-markets')
   })
 
   it('origins() maps every configured feed to its https origin pattern', () => {

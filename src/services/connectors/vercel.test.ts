@@ -301,6 +301,7 @@ describe('vercelDescriptor', () => {
     expect(vercelDescriptor.ttlMs).toBe(5 * 60_000)
     expect(vercelDescriptor.secretFields).toEqual(['token'])
     expect(vercelDescriptor.identityField).toBe('username')
+    expect(vercelDescriptor.category).toBe('development')
     expect(vercelDescriptor.origins({ enabled: true, token: 't', username: 'jon' })).toEqual([
       'https://api.vercel.com/*',
     ])

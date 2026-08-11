@@ -191,6 +191,7 @@ export const vercelDescriptor: ConnectorDescriptor<VercelConfig> = {
   id: 'vercel',
   label: 'Vercel',
   blurb: 'Your latest deployments',
+  category: 'development', // dev-tool connector — see types.ts's CATEGORY_LABELS
   auth: 'token',
   ttlMs: 5 * 60_000,
   secretFields: ['token'],

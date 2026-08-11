@@ -54,6 +54,7 @@ describe('connector config / snapshot handling (Task 39)', () => {
       id: 'rss',
       label: 'RSS (test)',
       blurb: 'test',
+      category: 'news-markets', // Task 79 made this required; matches the real rssDescriptor's category
       auth: 'token',
       ttlMs: 1_000,
       secretFields: ['apiKey'],

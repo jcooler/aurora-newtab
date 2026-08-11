@@ -110,6 +110,7 @@ export const cryptoDescriptor: ConnectorDescriptor<CryptoConfig> = {
   id: 'crypto',
   label: 'Crypto',
   blurb: 'Prices for the coins you watch',
+  category: 'news-markets', // market-data connector — see types.ts's CATEGORY_LABELS
   auth: 'none',
   ttlMs: 5 * 60_000,
   secretFields: [],

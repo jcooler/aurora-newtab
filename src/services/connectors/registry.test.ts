@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { CONNECTORS, getConnector, releasableOrigins } from './registry'
 import {
+  CATEGORY_ORDER,
   CONNECTOR_IDS,
+  type ConnectorCategory,
   type ConnectorConfig,
   type ConnectorDescriptor,
   type ConnectorId,
@@ -58,6 +60,36 @@ describe('connector registry invariants', () => {
   })
 })
 
+// Task 79: every descriptor names its purpose. The drawer (Task 80) groups
+// cards by category, so this pins both directions — every registered
+// descriptor's category is a real CATEGORY_ORDER member (catches a typo'd
+// literal tsc alone won't, since the per-descriptor `category:` line is
+// still just a string) — and the exact per-id mapping the wave-3 plan
+// specifies, so a future connector landing in the wrong bucket fails here
+// instead of silently mis-grouping in the drawer.
+describe('descriptor categories', () => {
+  it("every registered descriptor's category is a CATEGORY_ORDER member", () => {
+    for (const d of CONNECTORS) {
+      expect(CATEGORY_ORDER).toContain(d.category)
+    }
+  })
+
+  it('the exact per-id category mapping the wave-3 plan specifies', () => {
+    const expected: Record<ConnectorId, ConnectorCategory> = {
+      github: 'development',
+      gitlab: 'development',
+      jira: 'development',
+      vercel: 'development',
+      ics: 'calendar-tasks',
+      rss: 'news-markets',
+      crypto: 'news-markets',
+    }
+    for (const d of CONNECTORS) {
+      expect(d.category).toBe(expected[d.id])
+    }
+  })
+})
+
 // releasableOrigins needs a SECOND registered connector to exercise the
 // "shared origin" cases, but CONNECTORS is rss-only until Tasks 48-51 land
 // their real descriptors. CONNECTORS is a `const` BINDING but a mutable
@@ -78,6 +110,7 @@ describe('releasableOrigins', () => {
     id: 'github',
     label: 'Fake Github',
     blurb: 'test',
+    category: 'development', // Task 79 made this required; matches the real githubDescriptor's category
     auth: 'token',
     ttlMs: 1_000,
     secretFields: ['token'],
@@ -89,6 +122,7 @@ describe('releasableOrigins', () => {
     id: 'jira',
     label: 'Fake Jira (bad row)',
     blurb: 'test',
+    category: 'development', // Task 79 made this required; matches the real jiraDescriptor's category
     auth: 'token',
     ttlMs: 1_000,
     secretFields: ['apiToken'],

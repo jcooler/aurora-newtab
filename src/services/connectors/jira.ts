@@ -299,6 +299,7 @@ export const jiraDescriptor: ConnectorDescriptor<JiraConfig> = {
   id: 'jira',
   label: 'Jira',
   blurb: 'Issues assigned to you',
+  category: 'development', // dev-tool connector — see types.ts's CATEGORY_LABELS
   auth: 'token',
   ttlMs: 10 * 60_000,
   secretFields: ['apiToken'],

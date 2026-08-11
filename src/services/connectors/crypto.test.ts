@@ -159,6 +159,7 @@ describe('cryptoDescriptor', () => {
     expect(cryptoDescriptor.ttlMs).toBe(5 * 60_000)
     expect(cryptoDescriptor.secretFields).toEqual([])
     expect(cryptoDescriptor.identityField).toBeUndefined()
+    expect(cryptoDescriptor.category).toBe('news-markets')
     expect(cryptoDescriptor.origins({ enabled: true, coins: ['bitcoin'] })).toEqual([
       'https://api.coingecko.com/*',
     ])

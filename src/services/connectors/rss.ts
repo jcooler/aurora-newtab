@@ -188,6 +188,7 @@ export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
   id: 'rss',
   label: 'RSS',
   blurb: 'Headlines from your favorite feeds',
+  category: 'news-markets', // headlines connector — see types.ts's CATEGORY_LABELS
   auth: 'none',
   ttlMs: 30 * 60_000,
   secretFields: [],

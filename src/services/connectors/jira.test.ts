@@ -516,6 +516,7 @@ describe('jiraDescriptor', () => {
     expect(jiraDescriptor.ttlMs).toBe(10 * 60_000)
     expect(jiraDescriptor.secretFields).toEqual(['apiToken'])
     expect(jiraDescriptor.identityField).toBe('displayName')
+    expect(jiraDescriptor.category).toBe('development')
   })
 
   it('derives the origin from the configured site', () => {

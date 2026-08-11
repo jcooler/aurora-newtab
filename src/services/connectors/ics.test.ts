@@ -776,6 +776,7 @@ describe('icsDescriptor', () => {
     // secret) so a legacy config mid-migration never leaks either shape.
     expect(icsDescriptor.secretFields).toEqual(['url', 'calendars'])
     expect(icsDescriptor.identityField).toBeUndefined()
+    expect(icsDescriptor.category).toBe('calendar-tasks')
   })
 
   it('derives the https origin from the config url', () => {

@@ -8,6 +8,36 @@
 export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics'] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
+// Task 79 (W3-SP1): the drawer (Task 80) groups connector cards by purpose
+// instead of listing all seven flat, so every descriptor now names which
+// group it belongs to. The label text AND the group order live HERE, beside
+// the type — not in a drawer component — because the registry is already the
+// single source of truth for connector NAMING (descriptor.label); grouping is
+// the same kind of fact and belongs in the same place, not duplicated into a
+// UI-layer lookup that could drift from it. `home` and `fun` have no
+// occupants yet (future sub-projects) — they exist here so the type and the
+// drawer's rendering are ready before the first connector lands in either.
+export type ConnectorCategory = 'development' | 'calendar-tasks' | 'home' | 'news-markets' | 'fun'
+
+export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
+  development: 'Development',
+  'calendar-tasks': 'Calendar & tasks',
+  home: 'Home',
+  'news-markets': 'News & markets',
+  fun: 'Fun',
+}
+
+// Display order for the drawer's grouped sections — array, not just the
+// Record's key order, so it's an explicit contract Task 80 can iterate
+// without relying on JS object key enumeration order.
+export const CATEGORY_ORDER: readonly ConnectorCategory[] = [
+  'development',
+  'calendar-tasks',
+  'home',
+  'news-markets',
+  'fun',
+]
+
 export interface RssConfig {
   enabled: boolean
   feeds: string[] // https URLs, max 5
@@ -153,6 +183,12 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
   id: ConnectorId
   label: string // card + widget aria naming
   blurb: string // one-line what-you-get on the card
+  // Which drawer group (Task 80) this connector's card sorts into. Required —
+  // not optional or defaulted — so tsc fails a build the moment a new
+  // descriptor forgets to name its purpose, the same way a missing `id` or
+  // `auth` would. See CATEGORY_LABELS/CATEGORY_ORDER above for display text
+  // and grouping order.
+  category: ConnectorCategory
   auth: 'none' | 'token' | 'oauth'
   ttlMs: number
   secretFields: (keyof C & string)[]

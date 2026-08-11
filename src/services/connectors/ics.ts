@@ -606,6 +606,7 @@ export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   id: 'ics',
   label: 'Calendar',
   blurb: 'Your next events, from any calendar app',
+  category: 'calendar-tasks', // the drawer groups by purpose — see types.ts's CATEGORY_LABELS
   // auth 'none', NOT 'token': there's no identity to render — the URL itself is
   // the secret (it grants read access to the whole calendar). Hence
   // secretFields:['url', 'calendars'] and no identityField (authState reads

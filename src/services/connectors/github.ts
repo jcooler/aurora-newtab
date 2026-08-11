@@ -300,6 +300,7 @@ export const githubDescriptor: ConnectorDescriptor<GithubConfig> = {
   id: 'github',
   label: 'GitHub',
   blurb: 'PRs waiting on you, your issues, notifications',
+  category: 'development', // dev-tool connector — see types.ts's CATEGORY_LABELS
   auth: 'token',
   ttlMs: 5 * 60_000,
   secretFields: ['token'],

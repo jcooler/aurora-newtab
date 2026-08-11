@@ -2761,6 +2761,7 @@ describe('authState (Connectors.tsx card auth-state helper)', () => {
     id: 'github',
     label: 'Fake Token Connector',
     blurb: 'test',
+    category: 'development', // Task 79 made this required; matches the real githubDescriptor's category
     auth: 'token',
     ttlMs: 1_000,
     secretFields: ['token'],

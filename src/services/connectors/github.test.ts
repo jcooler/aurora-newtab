@@ -458,6 +458,7 @@ describe('githubDescriptor', () => {
     expect(githubDescriptor.auth).toBe('token')
     expect(githubDescriptor.secretFields).toEqual(['token'])
     expect(githubDescriptor.identityField).toBe('username')
+    expect(githubDescriptor.category).toBe('development')
     expect(githubDescriptor.origins({ enabled: true, token: 't', username: 'jon' })).toEqual([
       'https://api.github.com/*',
     ])

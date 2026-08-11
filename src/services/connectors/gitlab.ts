@@ -336,6 +336,7 @@ export const gitlabDescriptor: ConnectorDescriptor<GitlabConfig> = {
   id: 'gitlab',
   label: 'GitLab',
   blurb: 'Assigned MRs and to-dos',
+  category: 'development', // dev-tool connector — see types.ts's CATEGORY_LABELS
   auth: 'token',
   ttlMs: 5 * 60_000,
   secretFields: ['token'],

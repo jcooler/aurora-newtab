@@ -557,6 +557,7 @@ describe('gitlabDescriptor', () => {
     expect(gitlabDescriptor.auth).toBe('token')
     expect(gitlabDescriptor.secretFields).toEqual(['token'])
     expect(gitlabDescriptor.identityField).toBe('username')
+    expect(gitlabDescriptor.category).toBe('development')
   })
 
   it('derives the origin from the configured instanceUrl', () => {
