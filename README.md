@@ -156,29 +156,40 @@ the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
 once every 30 minutes, or sooner if you refresh).
 
-The other six, briefly — what you see, and what Aurora reads to show it:
+The other six, briefly — what you see, and what Aurora reads to show it.
+Every connector card is composable — choose what each shows in
+Settings → Connectors:
 
-- **GitHub** — your open PRs waiting on your review and issues assigned to
-  you, plus an unread-notifications count. Connect with a personal access
-  token; reads `api.github.com`. The card is composable — choose what it
-  shows (commit graph, pull requests, issues, notifications) in Settings →
-  Connectors.
-- **GitLab** — merge requests assigned to you and a to-dos count. Connect
-  with a personal access token against your instance (`gitlab.com` unless
-  you point it at your own).
-- **Jira** — issues assigned to you (unresolved, newest first) with a
-  status-count line. Connect with your email and an API token against your
-  own Jira Cloud site (`yoursite.atlassian.net`).
-- **Vercel** — your most recent deployments, failed ones surfaced first,
-  then newest to oldest. Connect with a personal access token; reads
-  `api.vercel.com`.
+- **GitHub** — your open PRs waiting on your review, issues assigned to
+  you, an unread-notifications count, and a 16-week commit-activity graph;
+  choose which of the four appear. Connect with a personal access token;
+  reads `api.github.com`.
+- **GitLab** — merge requests assigned to you, merge requests waiting on
+  your review, a to-dos count, and an activity graph; choose which of the
+  four appear. Connect with a personal access token against your instance
+  (`gitlab.com` unless you point it at your own).
+- **Jira** — issues assigned to you (unresolved, newest first), a
+  status-count line, and issues due soon; choose which of the three
+  appear. Connect with your email and an API token against your own Jira
+  Cloud site (`yoursite.atlassian.net`).
+- **Vercel** — your most recent deployments (failed ones surfaced first,
+  then newest to oldest) and a status summary; choose which of the two
+  appear. Connect with a personal access token; reads `api.vercel.com`.
+
+For all four of the above, a section you turn off is never fetched, not
+merely hidden — the request for it is simply never sent.
+
 - **Crypto** — live price and 24-hour change for up to 5 coins you choose.
   No account, no token — reads the public `api.coingecko.com` markets
   endpoint.
-- **Calendar** — your next event and today's remaining agenda (two rows,
-  by design — a glance, not a full month view), from any calendar app's
-  ICS/iCal feed. No account, no token — just paste the feed's URL, which
-  Aurora treats as a secret (see [Privacy](#privacy)).
+- **Calendar** — up to 5 named calendars in one card, each with its own
+  colored dot; paste any calendar app's ICS/iCal feed URL, including
+  `webcal://` links (Apple Calendar's own format — Aurora converts them
+  automatically). Pick how you want to see them in Settings → Connectors:
+  **Today** (next event + today's remaining agenda), **Upcoming** (the
+  next few events across days), or **One per calendar** (each calendar's
+  soonest event). No account, no token — just paste each feed's URL,
+  which Aurora treats as a secret (see [Privacy](#privacy)).
 
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
@@ -282,8 +293,8 @@ as a single JSON file:
   today's focus text, background preferences, weather cache, location,
   notes, world clocks, countdowns, and connector configuration (e.g. your
   RSS feed list) — with any field a connector marks as secret (a GitHub/
-  GitLab/Jira/Vercel token, or the Calendar connector's ICS URL) stripped
-  out first (see [Connectors](#connectors)).
+  GitLab/Jira/Vercel token, or the Calendar connector's saved calendar
+  addresses) stripped out first (see [Connectors](#connectors)).
 - **Background photo uploads are not included**, and neither is connectors'
   cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
   blob and connector caches are disposable, re-fetched automatically —

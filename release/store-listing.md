@@ -520,3 +520,94 @@ with:
       own card describes. GitHub's card is composable — choose what it
       shows (commit graph, pull requests, issues, notifications) in
       Settings → Connectors.
+
+---
+
+### v1.9.0 addendum — every card you compose, and the weather says its unit (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.9.0 carries two changes, in the order they shipped:
+
+1. **GitLab, Jira, and Vercel go composable**, the same "Show on your
+   board" pattern v1.8.0 gave GitHub: each card's Settings → Connectors
+   entry gains toggle chips for its own sections, so it shows only what a
+   user actually wants. GitLab gains an activity graph (matching GitHub's
+   commit graph) alongside its existing merge-requests/to-dos sections,
+   plus a new "review asks" list (merge requests waiting on the user's own
+   review). Jira gains a "due soon" list alongside its existing assigned-
+   issues/status-chips sections. Vercel's existing deployments/status-
+   summary split becomes two independent toggles instead of one bundled
+   view. In every case, a section a user turns off is not merely hidden —
+   Aurora never issues the network request for it, so switching sections
+   off can only reduce what a card fetches, never add to it (the same
+   guarantee v1.8.0's addendum stated for GitHub). No new permission and
+   no new host: every section reads through the SAME per-connector access
+   already justified above — including GitLab's new activity graph, which
+   reads `calendar.json` on the user's own configured GitLab instance
+   (`instanceUrl`, already covered by that connector's origin grant), not
+   a new host. The Summary, Category, Single purpose statement, and Data
+   Usage disclosure table remain unaffected for the same reason v1.8.0's
+   addendum gave — more shapes for existing connectors to show data in,
+   not a new source or a new kind of data.
+2. **Calendar goes multi-feed.** The Calendar connector now holds up to 5
+   named calendars in one card instead of one anonymous feed, each with
+   its own colored dot, and accepts `webcal://` links (Apple Calendar's
+   native format) by converting them to `https://` before they're saved —
+   everything downstream of that conversion stays https-only, so the
+   existing origin-permission mechanics are untouched. Three view modes
+   are selectable in Settings → Connectors: Today (unchanged), Upcoming
+   (the next several events across days), and One per calendar (each
+   calendar's soonest event). No new permission and no new network host:
+   every calendar fetch goes through the SAME `optional_host_permissions`
+   grant already justified above, one origin per calendar URL, on the same
+   "Add" gesture. Every calendar address is still treated as a secret and
+   stripped from backup exports, exactly as the single URL was before —
+   now as a list instead of one field. The Summary, Category, Single
+   purpose statement, and Data Usage disclosure table remain unaffected
+   for the same reason the v1.4.0 Calendar entry gave when it first
+   shipped — one connector reading more addresses of the same kind, not a
+   new source or a new kind of data.
+
+A small third change ships in the same release: the Weather widget's big
+temperature number now shows its unit letter (°F or °C) directly, in place
+of the plain number. Purely a display change over data already fetched and
+disclosed — no listing text depends on it.
+
+#### Detailed description delta
+
+REPLACE the Connectors bullet (as it stands after the v1.8.0 addendum
+above, under FEATURES):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your next calendar events, each reading only what its
+      own card describes. GitHub's card is composable — choose what it
+      shows (commit graph, pull requests, issues, notifications) in
+      Settings → Connectors.
+
+with:
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Seven ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, and Calendar —
+      covering your feeds, your PRs/issues/MRs/tickets/deployments, coin
+      prices, and your calendar events, each reading only what its own
+      card describes. Every connector card is composable — choose what
+      each shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary). A section you
+      turn off is never fetched, not merely hidden. Calendar now holds up
+      to 5 named calendars in one card — paste any ICS/iCal feed,
+      including Apple Calendar's webcal links — with a Today, Upcoming, or
+      One-per-calendar view.
