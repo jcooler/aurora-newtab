@@ -206,15 +206,37 @@ function isMeetingUrl(url: URL): boolean {
   return false
 }
 
+// Calendar-invite prose routinely ends a sentence right at the link with no
+// separating space ("Join: https://.../j/123.") or wraps it in parens
+// ("(https://.../xyz)") — none of `.` `,` `;` `:` `)` `]` `>` `'` `"` stop the
+// candidate regex above, and `new URL()` happily accepts them as extra
+// path/query content (a syntactically valid URL isn't proof the WHOLE
+// candidate is the intended link), so they must be trimmed explicitly once a
+// candidate is otherwise a real URL. The class is `+`-quantified so a MIXED
+// trailing run ("url.).") comes off in one pass, not just its last character;
+// legitimate trailing path/query content (".../j/123?pwd=abc") is untouched
+// because trimming stops the instant it hits a character outside the set.
+const TRAILING_PUNCTUATION_RE = /[.,;:)\]>'"]+$/
+
 /** Scans one field's text for the first https URL that resolves to a
  *  supported provider (isMeetingUrl above), or undefined if none does. */
 function firstMeetingUrlIn(text: string): string | undefined {
-  for (const candidate of text.match(HTTPS_CANDIDATE_RE) ?? []) {
+  for (const raw of text.match(HTTPS_CANDIDATE_RE) ?? []) {
+    let url: URL
     try {
-      if (isMeetingUrl(new URL(candidate))) return candidate
+      url = new URL(raw)
     } catch {
-      // Unparseable candidate — skip it, keep scanning the rest of the field.
+      continue // Unparseable candidate — skip it, keep scanning the rest of the field.
     }
+    const trimmed = raw.replace(TRAILING_PUNCTUATION_RE, '')
+    if (trimmed !== raw) {
+      try {
+        url = new URL(trimmed) // re-validate: trimming can leave garbage (e.g. a bare "https://")
+      } catch {
+        continue // trimmed candidate no longer parses — skip it entirely
+      }
+    }
+    if (isMeetingUrl(url)) return trimmed
   }
   return undefined
 }

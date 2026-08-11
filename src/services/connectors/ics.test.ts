@@ -742,6 +742,36 @@ describe('extractMeetUrl — provider matching (LOCATION/DESCRIPTION → a join 
     const description = 'Doc: https://example.com/notes — call: https://meet.google.com/xyz-abcd-efg'
     expect(extractMeetUrl('', description)).toBe('https://meet.google.com/xyz-abcd-efg')
   })
+
+  it('rejects a lookalike host that merely CONTAINS "webex.com" as a substring (suffix-safety)', () => {
+    expect(extractMeetUrl('https://evilwebex.com.attacker.com/meet/x', '')).toBeUndefined()
+  })
+
+  it('rejects a lookalike host that merely CONTAINS "whereby.com" as a substring (suffix-safety)', () => {
+    expect(extractMeetUrl('https://evilwhereby.com.attacker.com/room', '')).toBeUndefined()
+  })
+})
+
+describe('extractMeetUrl — trailing punctuation from calendar-invite prose does not leak into the link', () => {
+  it('a bare sentence period right after the URL (no space) is trimmed off', () => {
+    expect(extractMeetUrl('', 'Join: https://us02web.zoom.us/j/123.')).toBe('https://us02web.zoom.us/j/123')
+  })
+
+  it('a wrapping close-paren right after the URL is trimmed off', () => {
+    expect(extractMeetUrl('', '(https://meet.google.com/xyz-abcd-efg)')).toBe('https://meet.google.com/xyz-abcd-efg')
+  })
+
+  it('mixed trailing punctuation ("url.).") is trimmed fully, not just the last character', () => {
+    expect(extractMeetUrl('', 'Call in at https://us02web.zoom.us/j/456.).')).toBe('https://us02web.zoom.us/j/456')
+  })
+
+  it('does NOT trim legitimate path/query content — only the actual trailing punctuation run comes off', () => {
+    // The query string ?pwd=abc is part of the real link; only the sentence-
+    // ending period after it is prose, not URL content.
+    expect(extractMeetUrl('https://us02web.zoom.us/j/123?pwd=abc.', '')).toBe(
+      'https://us02web.zoom.us/j/123?pwd=abc',
+    )
+  })
 })
 
 describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)', () => {
