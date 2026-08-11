@@ -5,15 +5,16 @@ import { migrate } from './storage/migrations'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
 describe('serializeBackup / parseBackup round-trip', () => {
-  it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots (excluded from export)', () => {
+  it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots and apodCache (both excluded from export)', () => {
     const input = { ...defaults(), links: [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }] }
     const json = serializeBackup(input)
     const result = parseBackup(json)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const { connectorSnapshots: _connectorSnapshots, ...expected } = input
+      const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expected } = input
       expect(result.data).toEqual(expected)
       expect('connectorSnapshots' in result.data).toBe(false)
+      expect('apodCache' in result.data).toBe(false)
       expect(result.version).toBe(CURRENT_VERSION)
     }
   })
@@ -25,7 +26,7 @@ describe('serializeBackup / parseBackup round-trip', () => {
     expect(envelope.version).toBe(CURRENT_VERSION)
     expect(typeof envelope.exportedAt).toBe('string')
     expect(new Date(envelope.exportedAt).toString()).not.toBe('Invalid Date')
-    const { connectorSnapshots: _connectorSnapshots, ...expectedData } = defaults()
+    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expectedData } = defaults()
     expect(envelope.data).toEqual(expectedData)
     // Pretty-printed: multiple lines, not a single minified line.
     expect(json.split('\n').length).toBeGreaterThan(1)
@@ -232,6 +233,48 @@ describe('connector config / snapshot handling (Task 39)', () => {
     const bad = { ...defaults(), connectors: 'oops' }
     const result = validateBackupShape(bad as never)
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "connectors" data is invalid.' })
+  })
+})
+
+// Task 95: apodCache is cache, not user data — same exclusion mechanism as
+// connectorSnapshots above (excluded from every export, never trusted on
+// import, hard-reset instead). Unlike connectorSnapshots (a Partial<Record<...>>
+// that resets to `{}`), apodCache's "empty" value is `null` (see schema.ts's
+// AuroraData.apodCache and defaults()).
+describe('apodCache export / import exclusion (Task 95)', () => {
+  it('export of defaults contains no apodCache key at all', () => {
+    const json = serializeBackup(defaults())
+    const envelope = JSON.parse(json)
+    expect('apodCache' in envelope.data).toBe(false)
+  })
+
+  it('a real apodCache sitting in storage never reaches a serialized export', () => {
+    const input = {
+      ...defaults(),
+      apodCache: { date: '2026-08-11', photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' } },
+    }
+    const envelope = JSON.parse(serializeBackup(input))
+    expect('apodCache' in envelope.data).toBe(false)
+  })
+
+  it('import resets a forged apodCache to null regardless of what the backup carries', () => {
+    const data = { ...defaults(), apodCache: { date: 'bogus', photo: { url: 'not a real url', title: 'forged' } } }
+    const result = validateBackupShape(data as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.apodCache).toBeNull()
+  })
+
+  it('a pre-apodCache backup (key entirely absent, from before Task 95) still validates, defaulting apodCache to null', () => {
+    const { apodCache: _apodCache, ...withoutApodCache } = defaults()
+    const result = validateBackupShape(withoutApodCache as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.apodCache).toBeNull()
+  })
+
+  it('a fully-defaulted backup (apodCache already null) still validates cleanly', () => {
+    const result = validateBackupShape(defaults())
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.apodCache).toBeNull()
   })
 })
 

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { CONNECTORS, getConnector, releasableOrigins } from './registry'
+import { CONNECTORS, getConnector, releasableOrigins, heldOrigins } from './registry'
 import {
   CATEGORY_ORDER,
   CONNECTOR_IDS,
@@ -8,6 +8,7 @@ import {
   type ConnectorDescriptor,
   type ConnectorId,
   type GithubConfig,
+  type GitlabConfig,
   type JiraConfig,
   type RssConfig,
 } from './types'
@@ -174,5 +175,94 @@ describe('releasableOrigins', () => {
 
   it('an id with no config for the disconnecting connector returns []', () => {
     expect(releasableOrigins('github', {})).toEqual([])
+  })
+})
+
+// Task 95: heldOrigins is the "still claimed" sweep releasableOrigins already
+// needed, pulled out as its own export — the APOD gesture helper (Task 96)
+// wants to know which origins are ALREADY granted via some enabled connector,
+// with no "exclude this one id" notion releasableOrigins has. Unlike the
+// releasableOrigins describe block above (which only asserts a FILTERED
+// difference, so an incidental extra origin from a duplicate-id fake push
+// never shows up), these tests assert heldOrigins' raw output directly — so
+// rather than pushing a fake descriptor under an id CONNECTOR_IDS already
+// gives a REAL descriptor to (github/gitlab/jira/etc. — every id has one
+// today), the cross-connector cases below use TWO REAL descriptors
+// (rss + gitlab) pointed at the same or different hosts via their own
+// config fields, which exercises the real origins() implementations instead
+// of a stand-in.
+describe('heldOrigins', () => {
+  const original = [...CONNECTORS]
+
+  afterEach(() => {
+    CONNECTORS.length = 0
+    CONNECTORS.push(...original)
+  })
+
+  const fakeJiraThrows: ConnectorDescriptor<JiraConfig> = {
+    id: 'jira',
+    label: 'Fake Jira (bad row)',
+    blurb: 'test',
+    category: 'development',
+    auth: 'token',
+    ttlMs: 1_000,
+    secretFields: ['apiToken'],
+    identityField: 'displayName',
+    origins: () => {
+      throw new Error('malformed config')
+    },
+  }
+
+  it('an empty configs map returns []', () => {
+    expect(heldOrigins({})).toEqual([])
+  })
+
+  it("is the union of every ENABLED connector's derived origins", () => {
+    const rssConfig: RssConfig = { enabled: true, feeds: ['https://news.example.com/feed'], shownCount: 5 }
+    const gitlabConfig: GitlabConfig = {
+      enabled: true,
+      token: 't',
+      instanceUrl: 'https://gitlab.example.com',
+      username: 'jon',
+    }
+    const configs: Partial<Record<ConnectorId, ConnectorConfig>> = { rss: rssConfig, gitlab: gitlabConfig }
+    expect(heldOrigins(configs).sort()).toEqual(['https://gitlab.example.com/*', 'https://news.example.com/*'])
+  })
+
+  it('a DISABLED connector does not contribute its origins', () => {
+    const gitlabConfig: GitlabConfig = {
+      enabled: false,
+      token: 't',
+      instanceUrl: 'https://gitlab.example.com',
+      username: 'jon',
+    }
+    const configs: Partial<Record<ConnectorId, ConnectorConfig>> = { gitlab: gitlabConfig }
+    expect(heldOrigins(configs)).toEqual([])
+  })
+
+  it('dedupes an origin claimed by two different enabled connectors (rss + gitlab, same host) down to one entry', () => {
+    const rssConfig: RssConfig = { enabled: true, feeds: ['https://shared.example.com/feed'], shownCount: 5 }
+    const gitlabConfig: GitlabConfig = {
+      enabled: true,
+      token: 't',
+      instanceUrl: 'https://shared.example.com',
+      username: 'jon',
+    }
+    const configs: Partial<Record<ConnectorId, ConnectorConfig>> = { rss: rssConfig, gitlab: gitlabConfig }
+    expect(heldOrigins(configs)).toEqual(['https://shared.example.com/*'])
+  })
+
+  it("a bad config row whose origins() throws is swept over, not thrown out of", () => {
+    CONNECTORS.push(fakeJiraThrows as ConnectorDescriptor)
+    const rssConfig: RssConfig = { enabled: true, feeds: ['https://shared.example.com/feed'], shownCount: 5 }
+    const jiraConfig: JiraConfig = { enabled: true, email: 'a@b.com', apiToken: 't', site: 'x', displayName: 'x' }
+    const configs: Partial<Record<ConnectorId, ConnectorConfig>> = { rss: rssConfig, jira: jiraConfig }
+    expect(() => heldOrigins(configs)).not.toThrow()
+    // toContain, not toEqual: the REAL jiraDescriptor (still registered
+    // alongside the pushed fake, both under id 'jira') also contributes
+    // whatever it derives from this jiraConfig — this test's point is that
+    // the THROWING descriptor doesn't take the sweep down with it, not the
+    // exact full set.
+    expect(heldOrigins(configs)).toContain('https://shared.example.com/*')
   })
 })

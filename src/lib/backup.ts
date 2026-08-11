@@ -17,12 +17,13 @@ export interface BackupEnvelope {
   app: typeof APP_ID
   version: number
   exportedAt: string
-  // connectorSnapshots is cache, not user data — deliberately excluded from
-  // every export (smaller files, and one less validator surface on import:
-  // see validateBackupShape's matching never-trust-it-on-import handling
-  // below). `connectors` (user-chosen config) IS exported, minus anything a
-  // connector's registry descriptor lists in `secretFields`.
-  data: Omit<AuroraData, 'connectorSnapshots'>
+  // connectorSnapshots and apodCache are both cache, not user data —
+  // deliberately excluded from every export (smaller files, and one less
+  // validator surface on import: see validateBackupShape's matching
+  // never-trust-it-on-import handling below). `connectors` (user-chosen
+  // config) IS exported, minus anything a connector's registry descriptor
+  // lists in `secretFields`.
+  data: Omit<AuroraData, 'connectorSnapshots' | 'apodCache'>
 }
 
 export type ParseBackupResult =
@@ -64,7 +65,7 @@ export function stripSecrets(
 }
 
 export function serializeBackup(data: AuroraData): string {
-  const { connectorSnapshots: _connectorSnapshots, ...rest } = data
+  const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...rest } = data
   const envelope: BackupEnvelope = {
     app: APP_ID,
     version: CURRENT_VERSION,
@@ -302,7 +303,7 @@ function isHabits(v: unknown): boolean {
   return Array.isArray(v)
 }
 
-const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots'>, (v: unknown) => boolean> = {
+const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
   todoLists: isTodoLists,
@@ -387,12 +388,19 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
   const source = data as unknown as Record<string, unknown>
   const cleaned = {} as Record<string, unknown>
   for (const key of DATA_KEYS) {
-    // connectorSnapshots is cache, not user data (see serializeBackup's doc
-    // comment): never trusted from an import, always reset to empty
-    // regardless of what — if anything — is present for this key. No
-    // validator needed; it's simply never read.
+    // connectorSnapshots and apodCache are both cache, not user data (see
+    // serializeBackup's doc comment): neither is ever trusted from an
+    // import, both are always reset regardless of what — if anything — is
+    // present for the key. No validator needed for either; they're simply
+    // never read. Their "empty" values differ by shape: connectorSnapshots
+    // is a Partial<Record<...>> (empty object), apodCache is a nullable
+    // single value (null) — see schema.ts's AuroraData.apodCache/defaults().
     if (key === 'connectorSnapshots') {
       cleaned[key] = {}
+      continue
+    }
+    if (key === 'apodCache') {
+      cleaned[key] = null
       continue
     }
     const value = source[key]

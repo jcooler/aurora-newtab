@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { hasPermission, ensurePermission, originPattern, hasOrigin, ensureOrigin, removeOrigin } from './permissions'
+import {
+  hasPermission,
+  ensurePermission,
+  originPattern,
+  hasOrigin,
+  ensureOrigin,
+  removeOrigin,
+  ensureOrigins,
+} from './permissions'
 
 describe('hasPermission / ensurePermission (chrome.permissions wrappers)', () => {
   afterEach(() => {
@@ -129,5 +137,49 @@ describe('hasOrigin / ensureOrigin / removeOrigin (chrome.permissions origin wra
     vi.stubGlobal('chrome', { permissions: { remove } })
 
     await expect(removeOrigin('https://example.com/')).resolves.toBeUndefined()
+  })
+})
+
+// Task 95: the plural counterpart to ensureOrigin, first needed by the APOD
+// background feature (two origins — api.nasa.gov and apod.nasa.gov — granted
+// via ONE settings-toggle click, since Chrome only shows its permission
+// prompt once per gesture).
+describe('ensureOrigins (plural gesture helper)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('computes every pattern synchronously and requests them all in ONE chrome.permissions.request call', async () => {
+    const request = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(
+      ensureOrigins(['https://api.nasa.gov/planetary/apod', 'https://apod.nasa.gov/apod/image/x.jpg']),
+    ).resolves.toBe(true)
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request).toHaveBeenCalledWith({ origins: ['https://api.nasa.gov/*', 'https://apod.nasa.gov/*'] })
+  })
+
+  it('forwards a denial (request resolving false) rather than swallowing it', async () => {
+    const request = vi.fn().mockResolvedValue(false)
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(ensureOrigins(['https://api.nasa.gov/', 'https://apod.nasa.gov/'])).resolves.toBe(false)
+  })
+
+  it('a non-https member resolves false with ZERO awaits/request calls — the throw is caught before the gesture-consuming call', async () => {
+    const request = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(ensureOrigins(['https://api.nasa.gov/', 'http://apod.nasa.gov/'])).resolves.toBe(false)
+    expect(request).not.toHaveBeenCalled()
+  })
+
+  it('a garbage/unparseable URL member also resolves false with zero request calls', async () => {
+    const request = vi.fn().mockResolvedValue(true)
+    vi.stubGlobal('chrome', { permissions: { request } })
+
+    await expect(ensureOrigins(['not a url'])).resolves.toBe(false)
+    expect(request).not.toHaveBeenCalled()
   })
 })

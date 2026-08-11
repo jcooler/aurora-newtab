@@ -109,6 +109,39 @@ export async function ensureOrigin(url: string): Promise<boolean> {
   return chrome.permissions.request({ origins: [originPattern(url)] })
 }
 
+/** Plural counterpart to ensureOrigin above, for a caller that needs MULTIPLE
+ *  origins granted via a SINGLE user gesture — the APOD background feature
+ *  (Task 95) is the first: it needs both api.nasa.gov (the JSON endpoint) and
+ *  apod.nasa.gov (the image host) from one settings-toggle click. Chrome
+ *  shows its permission prompt only once per gesture, so this batches every
+ *  pattern into ONE chrome.permissions.request({ origins }) call rather than
+ *  one ensureOrigin() call per site — which would consume the gesture on the
+ *  first request and silently no-op (or reject) on the rest. That's the
+ *  entire reason this exists as its own function instead of a caller looping
+ *  ensureOrigin: two origins, one prompt, one gesture.
+ *
+ *  Same gesture-chain discipline as ensureOrigin: MUST be called directly
+ *  from within a user gesture, with zero awaits ahead of the request() call.
+ *  originPattern() is synchronous, so computing every pattern up front costs
+ *  nothing against the gesture window — but unlike the singular ensureOrigin
+ *  (which lets a bad URL's throw propagate straight out), this resolves to
+ *  `false` instead: a caller passing a batch wants "did the grant happen",
+ *  not an exception from one bad entry, and computing every pattern BEFORE
+ *  request() is called means a bad entry is caught with ZERO awaits and ZERO
+ *  chrome.permissions.request calls made — not a request already in flight
+ *  followed by a thrown error. All-or-nothing throughout: request() itself
+ *  already grants every listed origin together or none at all, so there's no
+ *  partial-grant case beyond the pattern-computation guard above. */
+export async function ensureOrigins(urls: readonly string[]): Promise<boolean> {
+  let origins: string[]
+  try {
+    origins = urls.map(originPattern)
+  } catch {
+    return false
+  }
+  return chrome.permissions.request({ origins })
+}
+
 /** Revokes host access to the given URL's origin, e.g. when a connector
  *  pointed at that site is deleted. Safe no-op if the origin was never
  *  granted — chrome.permissions.remove resolves false rather than throwing

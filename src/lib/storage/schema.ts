@@ -164,6 +164,30 @@ export interface Habit {
   log: string[]
 }
 
+/** One APOD (Astronomy Picture of the Day) photo, already validated down to
+ *  exactly what the widget needs to render — see src/services/apod.ts's
+ *  fetchApod for the parsing/host-validation contract that produces this
+ *  shape. `copyright` is present only when NASA's response carried a
+ *  non-empty one after whitespace-trimming (the API pads the field with
+ *  newlines). */
+export interface ApodPhoto {
+  url: string
+  title: string
+  copyright?: string
+}
+
+/** The daily APOD cache: `date` is the LOCAL day the extension last
+ *  attempted a fetch (not necessarily NASA's own `date` field in the
+ *  response), so a second render on the same day trusts the cache instead of
+ *  re-fetching. `photo: null` means that day's attempt was made and failed
+ *  (rate limit, network, a non-image APOD, ...) — a fallback day, not an
+ *  error; Task 96's render side is the one that decides what a null photo
+ *  falls back to. */
+export interface ApodCache {
+  date: string
+  photo: ApodPhoto | null
+}
+
 export interface AuroraData {
   settings: Settings
   focus: Focus | null
@@ -180,6 +204,15 @@ export interface AuroraData {
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
   habits: Habit[]
+  // apodCache (Task 95): a top-level key, so it needs neither a
+  // CURRENT_VERSION bump nor a new migrations.ts step — migrate()'s own
+  // contract comment on its final default-merge covers exactly this case:
+  // "the default-merge below backfills MISSING TOP-LEVEL KEYS ONLY". An
+  // existing user's stored snapshot simply won't have this key yet, and the
+  // merge backfills it to `null` on load, the same way connectors/
+  // connectorSnapshots (v4->v5) and habits (v5->v6) were backfilled before
+  // either needed its own dedicated migration step.
+  apodCache: ApodCache | null
 }
 
 export type DataKey = keyof AuroraData
@@ -223,5 +256,6 @@ export function defaults(): AuroraData {
     connectors: {},
     connectorSnapshots: {},
     habits: [],
+    apodCache: null,
   }
 }
