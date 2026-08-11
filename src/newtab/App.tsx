@@ -28,6 +28,7 @@ import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import JiraWidget from './widgets/jira/JiraWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import CryptoWidget from './widgets/crypto/CryptoWidget'
+import StatusWidget from './widgets/status/StatusWidget'
 import CalendarWidget from './widgets/calendar/CalendarWidget'
 import HabitsWidget from './widgets/habits/HabitsWidget'
 import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
@@ -659,8 +660,9 @@ export default function App() {
               crypto+links+quote all on). Same disease the rails cured, same cure:
               a `fixed`, BOTTOM-anchored flow container.
 
-              This <aside data-zone="bottom"> holds, top-to-bottom, the crypto
-              strip then the quote, stacked by `flex flex-col items-center gap-2`.
+              This <aside data-zone="bottom"> holds, top-to-bottom, the status
+              strip, the crypto strip, then the quote, stacked by `flex
+              flex-col items-center gap-2`.
               The gap is gap-2 (8px), not gap-4 — the SAME deliberate, reasoned
               exception this band has carried since SP2 (HALF this file's usual
               16px convention): this is the TIGHTEST vertical band on the page,
@@ -713,6 +715,20 @@ export default function App() {
               INTERIOR-WORST-CASE LAW: the tier is asserted at its own minimum, both
               fenceposts, by scripts/preview.mjs.
 
+              STATUS (Task 84, PROVISIONAL). The status strip is the band's NEW
+              first child, above crypto. It is shorter and quieter than crypto
+              (an all-green day is a single row of small dots, no text at all),
+              so its own honest reveal floor is almost certainly LOWER than
+              crypto's measured ~890h — but that measurement hasn't been taken
+              yet. Rather than guess a number, it starts on the EXACT SAME
+              `taller` (>=890h) floor as crypto, crypto's own already-measured
+              mechanism copied verbatim (`tier-fade hidden opacity-0
+              taller:block taller:opacity-100`) — a deliberately conservative
+              placeholder, not a derived one. Task 86 (the harness — band
+              budgets + probes + captures) is where this gets a real
+              measurement and, if the honest boundary differs from crypto's,
+              its own named height tier.
+
               CONTAINMENT LAW binds here too (see index.css's .rail-col2 rule): this
               zone needs NO container query — a height media tier suffices for the
               crypto hide — but it still hosts arranged (`position: fixed`)
@@ -731,6 +747,25 @@ export default function App() {
             aria-label="Bottom widget band"
             className="fixed inset-x-0 bottom-6 short:bottom-2 xshort:bottom-1 mx-auto flex w-fit flex-col items-center gap-2"
           >
+            <WidgetBoundary name="status">
+              {/* DEFAULT placement — the band's FIRST child, above crypto.
+                  StatusWidget self-gates on the connector's enabled+services
+                  state (statusServicesOf) and renders a centered dot row (one
+                  span[title] per configured service) plus up to
+                  MAX_TROUBLE_LINES=3 worst-first red lines when something
+                  isn't `none` — an empty box until configured, dropped from
+                  the flex flow by index.css's `[data-zone] [data-block-id]:empty`
+                  rule, same as every other rail/band widget. A stored
+                  arrange-mode `pos` still wins (PositionedBlock drops this
+                  className on that branch). PROVISIONAL height tier — see
+                  this comment block's own "STATUS (Task 84, PROVISIONAL)"
+                  paragraph above: mirrors crypto's already-measured `taller`
+                  (>=890h) floor verbatim rather than a derived number, pending
+                  Task 86's own measurement. */}
+              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
+                <StatusWidget />
+              </PositionedBlock>
+            </WidgetBoundary>
             <WidgetBoundary name="crypto">
               {/* DEFAULT placement — flows in the bottom band, centered by the
                   aside's `items-center`, hidden below the measured `taller`

@@ -38,6 +38,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   vercel: 'Deploys',
   crypto: 'Crypto',
   ics: 'Calendar',
+  status: 'Service status',
   habits: 'Habits',
   monthCal: 'Month',
 }
