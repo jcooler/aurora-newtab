@@ -30,6 +30,12 @@ export default function Drawer({
           className="fixed inset-0 z-40 bg-black/30"
         />
       )}
+      {/* This element is simultaneously the scroll container, the blur surface, and
+          the transform target. The Connectors tab's sticky search block (see
+          Connectors.tsx ~line 81-95) depends on staying this way: never
+          introduce a transformed/filtered/contained wrapper between this
+          element and the tab content, and its p-6 is mirrored by the sticky
+          block's -top-6. See also Connectors.tsx's own structural warning. */}
       <div
         ref={panelRef}
         role="dialog"

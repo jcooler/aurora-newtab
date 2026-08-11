@@ -92,7 +92,8 @@ function originOf(url: string): string | null {
  *  tests below assert the BEHAVIORAL contract only (markers, filtering,
  *  grouping) — the real pinned-while-scrolled proof is Task 81's
  *  browser probe. `data-testid="connector-scroll"` names the list wrapper for
- *  that probe, even though (in this variant) it never scrolls itself. */
+ *  that probe, even though (in this variant) it never scrolls itself.
+ *  See Drawer.tsx's own structural warning (the panel element doc comment). */
 export default function Connectors({
   connectors,
   storage,
