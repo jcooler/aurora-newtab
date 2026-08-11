@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { useUploads } from '../../lib/hooks/useUploads'
+import { useStorage } from '../../lib/storage/context'
+import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import { fetchApod } from '../../services/apod'
 import {
   BUNDLED,
   bundledLqip,
@@ -11,6 +14,18 @@ import {
   type PhotoTier,
 } from '../../services/photos/index'
 import { todayKey } from '../../lib/dates'
+
+// Module-level in-flight guard for the once-per-day APOD fetch (Task 96) —
+// the SAME dedupe idiom useWeather.ts's own `inFlight` ref uses, just at
+// module scope rather than a per-component ref: Background can remount
+// (e.g. arrange mode's own tree churn) mid-fetch, and a component-level ref
+// would reset on that remount and risk a second concurrent request for the
+// same day. Module scope survives a remount; the DATE check inside the
+// effect below is what actually stops a second calendar day's fetch from
+// being blocked forever by a stale leftover reference. Not a photoKey/date
+// map — this whole feature is one photo a day, so "one fetch in flight at a
+// time, ever" and "one fetch per day" collapse to the same guard.
+let apodFetchInFlight: Promise<void> | null = null
 
 // Physical display size drives the tier pick (see pickTier's own doc): the
 // larger of screen width/height times devicePixelRatio, falling back to the
@@ -50,11 +65,32 @@ export default function Background({
   } | null>(null)
   const today = todayKey()
 
+  // apodCache (Task 96): read the same way useWeather.ts reads weatherCache —
+  // straight off context, since Background (unlike its settings-side
+  // namesake) isn't handed a `storage` prop. `undefined` = not loaded yet
+  // (useStoredKey's own contract); `null` = loaded, no cache ever written;
+  // an ApodCache object = loaded, a fetch was attempted for `.date`.
+  const storage = useStorage()
+  const [apodCache] = useStoredKey('apodCache')
+
+  // "Usable" mirrors the upload-with-empty-gallery seam exactly: a photo
+  // this component can actually show TODAY, not merely a cache entry that
+  // exists. `photo: null` (yesterday's fetch failed, or today's did) is
+  // exactly as unusable as no cache at all — both cascade to 'auto' below.
+  const apodUsable = apodCache != null && apodCache.date === today && apodCache.photo !== null
+
   // Empty gallery in upload mode cascades to the bundled set, same as 'auto'
   // — a user who picked "My photo" but hasn't uploaded anything yet should
   // still get a photo background, not drop straight to a bare gradient.
+  // 'apod' without a usable today-photo cascades the same way — the exact
+  // same seam, just gated on apodUsable instead of an empty gallery.
   const galleryEmpty = uploads !== null && uploads.length === 0
-  const effectiveMode = prefs.mode === 'upload' && galleryEmpty ? 'auto' : prefs.mode
+  const effectiveMode =
+    prefs.mode === 'upload' && galleryEmpty
+      ? 'auto'
+      : prefs.mode === 'apod' && !apodUsable
+        ? 'auto'
+        : prefs.mode
 
   const count =
     effectiveMode === 'upload'
@@ -85,6 +121,35 @@ export default function Background({
       if (lqip) URL.revokeObjectURL(lqip)
     }
   }, [effectiveMode, uploads, index])
+
+  // The once-per-day APOD fetch (Task 96). Deliberately keyed off `prefs.mode`
+  // (the RAW pref), not `effectiveMode` — a `photo: null` cache already
+  // cascades effectiveMode to 'auto', and gating the fetch on effectiveMode
+  // too would mean a failed day can NEVER be retried the next day, because
+  // by the time tomorrow's `today` makes the cache stale again,
+  // effectiveMode would already have flipped away from 'apod' on THIS read.
+  // Gating on the raw mode keeps "is the user asking for apod" and "do we
+  // currently have something usable to show for it" as two separate
+  // questions, exactly as apodUsable's own derivation above treats them.
+  useEffect(() => {
+    if (prefs.mode !== 'apod') return
+    if (apodCache === undefined) return // not loaded yet — don't fetch on a guess
+    if (apodCache !== null && apodCache.date === today) return // already attempted today
+    if (apodFetchInFlight) return // a fetch from this or a prior instance is already running
+
+    apodFetchInFlight = (async () => {
+      const photo = await fetchApod()
+      await storage.update('apodCache', (current) =>
+        // Fresh-read update (the section's own stale-spread law, mirrored
+        // here): re-check staleness against the value storage.update hands
+        // back, not the `today` closed over above, in case another write
+        // already landed today's cache while this fetch was in flight.
+        current && current.date === today ? current : { date: today, photo },
+      )
+    })().finally(() => {
+      apodFetchInFlight = null
+    })
+  }, [prefs.mode, apodCache, today, storage])
 
   useEffect(() => {
     // Gradient never owns index/lastRotated. Auto and upload both do now —
@@ -128,17 +193,53 @@ export default function Background({
   // bundledUrl must never run with an empty set (or in gradient mode) — an
   // out-of-range access would throw during render and blank the whole page.
   const bundledActive = effectiveMode === 'auto' && BUNDLED[index] !== undefined
-  const src = effectiveMode === 'upload' ? (uploadPhoto?.url ?? null) : bundledActive ? bundledUrl(index, tier) : null
+  // apodUsable (not just effectiveMode === 'apod', though the two always
+  // agree — effectiveMode only ever holds 'apod' when apodUsable is true)
+  // reads the same as every other branch here: apodCache.photo is exactly
+  // what's usable at this point.
+  const apodPhoto = effectiveMode === 'apod' && apodUsable ? apodCache!.photo! : null
+  const src =
+    effectiveMode === 'upload'
+      ? (uploadPhoto?.url ?? null)
+      : apodPhoto
+        ? apodPhoto.url
+        : bundledActive
+          ? bundledUrl(index, tier)
+          : null
   // The placeholder and the identity it belongs to are derived from the same
   // `index` in the same render pass as `src` above (bundled) or read off the
-  // same single state object (uploads) — see the useState comment.
+  // same single state object (uploads) — see the useState comment. APOD
+  // carries no `lqip` branch at all: the LQIP underlay comment below (on the
+  // `{lqip && (...)}` block a few lines down in the JSX) documents WHY it
+  // exists (Chrome purging a background tab's
+  // decoded image memory, then re-decoding on redisplay) and WHY it can be a
+  // data URI/object URL cheaply (bundled photos ship an inline placeholder,
+  // uploads have one backfilled into IndexedDB) — NASA's API returns no
+  // low-res placeholder at all, so the only "placeholder" available would be
+  // another network fetch, which defeats the entire point of an underlay
+  // that must be ready the INSTANT the decode gap opens. A bare re-decode on
+  // redisplay (falling through to `--bg-fallback` for that gap, same as the
+  // pre-2026-08-07 behaviour every other mode had) is the honest tradeoff
+  // for a source with no cheap placeholder to offer.
   const lqip = effectiveMode === 'upload' ? (uploadPhoto?.lqip ?? null) : bundledActive ? bundledLqip(index) : null
-  const photoKey = effectiveMode === 'upload' ? (uploadPhoto?.key ?? null) : bundledActive ? BUNDLED[index]!.id : null
+  const photoKey =
+    effectiveMode === 'upload'
+      ? (uploadPhoto?.key ?? null)
+      : apodPhoto
+        ? apodPhoto.url
+        : bundledActive
+          ? BUNDLED[index]!.id
+          : null
   const showPhoto = src !== null
   const credit = effectiveMode === 'auto' && BUNDLED[index] ? BUNDLED[index] : null
   // Auto keeps its original ">0" threshold (rotating a single bundled photo
   // is harmless); upload only shows the control once there's more than one
-  // photo to rotate through.
+  // photo to rotate through. apod never rotates (one photo a day, no index
+  // to advance through), so it's absent here by construction, not by an
+  // explicit `false` branch — the credit CAPTION below is what apod shows
+  // in this same bottom-left spot instead, and the two are mutually
+  // exclusive because effectiveMode is never simultaneously 'apod' and
+  // 'auto'/'upload'.
   const showRefresh =
     (effectiveMode === 'auto' && BUNDLED.length > 0) || (effectiveMode === 'upload' && count > 1)
 
@@ -227,6 +328,20 @@ export default function Background({
             <path d="M21 3v6h-6" />
           </svg>
         </button>
+      )}
+      {/* NASA APOD credit caption (Task 96) — the same bottom-left spot the
+          refresh button occupies in auto/upload mode. The two never
+          co-render: showRefresh is derived from effectiveMode === 'auto' |
+          'upload', apodPhoto only from effectiveMode === 'apod', and
+          effectiveMode is never more than one of those at once. No title
+          attribute/hover affordance the way the refresh button has one —
+          this is static attribution text, not a control. */}
+      {apodPhoto && (
+        <p className="absolute bottom-4 left-4 text-photo text-xs text-canvas-fg-muted">
+          {apodPhoto.copyright
+            ? `${apodPhoto.title} © ${apodPhoto.copyright} · NASA APOD`
+            : `${apodPhoto.title} · NASA APOD`}
+        </p>
       )}
     </>
   )

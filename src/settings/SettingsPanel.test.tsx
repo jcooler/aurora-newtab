@@ -10,6 +10,7 @@ import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, Ics
 import { CURATED_STATUS } from '../services/connectors/status'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
+import { APOD_ORIGINS } from '../services/apod'
 import SettingsPanel from './SettingsPanel'
 import { authState } from './sections/Connectors'
 // Imported (not hardcoded) so the About footer's version assertion below
@@ -39,15 +40,17 @@ vi.mock('../lib/premium', () => ({ isPremium: vi.fn(() => true) }))
 import { isPremium } from '../lib/premium'
 
 // The Connectors section's add/remove-feed flow calls ensureOrigin/removeOrigin
-// (chrome.permissions — unavailable in jsdom). Mock only those two; originPattern
-// stays REAL (the section's "does a remaining feed share this origin?" check
-// depends on it, and the rss registry descriptor imported transitively also
-// reads it).
+// (chrome.permissions — unavailable in jsdom); the Background section's apod
+// source (Task 96) calls ensureOrigins, the plural sibling. Mock only those
+// three; originPattern stays REAL (the section's "does a remaining feed
+// share this origin?" check depends on it, and the rss registry descriptor
+// imported transitively also reads it — same for Background's own
+// "still held by an enabled connector?" check).
 vi.mock('../services/permissions', async (importActual) => {
   const actual = await importActual<typeof import('../services/permissions')>()
-  return { ...actual, ensureOrigin: vi.fn(), removeOrigin: vi.fn() }
+  return { ...actual, ensureOrigin: vi.fn(), removeOrigin: vi.fn(), ensureOrigins: vi.fn() }
 })
-import { ensureOrigin, removeOrigin } from '../services/permissions'
+import { ensureOrigin, ensureOrigins, removeOrigin } from '../services/permissions'
 
 // The GitHub connector card's connect flow calls whoamiGithub (a real network
 // GET /user) — mock ONLY that. githubDescriptor and fetchGithub stay REAL via
@@ -731,6 +734,171 @@ describe('SettingsPanel Background section (upload gallery)', () => {
 
     // Same live-object-URL ordering concern as the other gallery tests above.
     unmount()
+  })
+})
+
+describe('SettingsPanel Background section (APOD source — Task 96)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigins).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockResolvedValue(undefined)
+  })
+
+  function sourceSelect() {
+    return screen.getByLabelText('Source') as HTMLSelectElement
+  }
+
+  it('lists "NASA photo of the day" after Gradient', async () => {
+    await renderPanel()
+    const options = Array.from(sourceSelect().options).map((o) => o.value)
+    expect(options).toEqual(['auto', 'upload', 'gradient', 'apod'])
+    expect(sourceSelect().options[3]!.textContent).toBe('NASA photo of the day')
+  })
+
+  it('selecting apod calls ensureOrigins(APOD_ORIGINS) synchronously, before any await settles', async () => {
+    vi.mocked(ensureOrigins).mockResolvedValue(true)
+    await renderPanel()
+    const select = sourceSelect()
+
+    // Deliberately NOT wrapped in `act(async () => {})`: if the handler
+    // awaited anything BEFORE ensureOrigins, this synchronous assertion
+    // would fail, because the mock call wouldn't have landed yet. This is
+    // the gesture-chain discipline Switch.tsx's own doc comment describes
+    // ("do not make this handler async" in spirit — here the handler IS
+    // async, but ensureOrigins must still be the first await in it).
+    act(() => {
+      fireEvent.change(select, { target: { value: 'apod' } })
+    })
+    expect(ensureOrigins).toHaveBeenCalledWith(APOD_ORIGINS)
+
+    // Flush the pending resolution + save so nothing leaks into the next test.
+    await act(async () => {})
+  })
+
+  it('granting the permission saves apod mode and shows no alert', async () => {
+    vi.mocked(ensureOrigins).mockResolvedValue(true)
+    const storage = await renderPanel()
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'apod' } })
+    })
+
+    expect(select.value).toBe('apod')
+    expect((await storage.get('photoPrefs')).mode).toBe('apod')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('denying the permission leaves the mode unwritten, the select reverted, and shows the pinned alert', async () => {
+    vi.mocked(ensureOrigins).mockResolvedValue(false)
+    const storage = await renderPanel()
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'apod' } })
+    })
+
+    expect(select.value).toBe('auto')
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    const error = await screen.findByRole('alert')
+    expect(error.id).toBe('bg-apod-error')
+    expect(error.textContent).toBe(
+      'Permission to reach NASA was denied, so the background is unchanged.',
+    )
+    expect(error.className).toContain('text-xs')
+    expect(error.className).toContain('text-fg-muted')
+    expect(select.getAttribute('aria-describedby')).toBe('bg-apod-error')
+  })
+
+  it('a rejected ensureOrigins (not just an explicit false) is caught and routed to the same alert', async () => {
+    vi.mocked(ensureOrigins).mockRejectedValue(new Error('gesture context lost'))
+    const storage = await renderPanel()
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'apod' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('a later successful source change clears the apod alert', async () => {
+    vi.mocked(ensureOrigins).mockResolvedValue(false)
+    await renderPanel()
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'apod' } })
+    })
+    expect(await screen.findByRole('alert')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'gradient' } })
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('switching away from apod clears the cache and releases both origins when nothing else holds them', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    await storage.set('apodCache', {
+      date: '2026-08-11',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    const select = sourceSelect()
+    expect(select.value).toBe('apod')
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'gradient' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(await storage.get('apodCache')).toBeNull()
+    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
+    expect(removeOrigin).toHaveBeenCalledWith('https://apod.nasa.gov/')
+  })
+
+  it('switching away from apod keeps an origin a still-enabled connector holds', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    await storage.set('connectors', {
+      rss: { enabled: true, feeds: ['https://apod.nasa.gov/rss.xml'], shownCount: 5 },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'gradient' } })
+    })
+
+    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
+    expect(removeOrigin).not.toHaveBeenCalledWith('https://apod.nasa.gov/')
+  })
+
+  it('switching between two non-apod modes never touches ensureOrigins/removeOrigin', async () => {
+    const storage = await renderPanel()
+    const select = sourceSelect()
+
+    await act(async () => {
+      fireEvent.change(select, { target: { value: 'gradient' } })
+    })
+
+    expect(ensureOrigins).not.toHaveBeenCalled()
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
   })
 })
 

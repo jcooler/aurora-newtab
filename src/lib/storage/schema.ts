@@ -94,7 +94,12 @@ export interface TimerConfig {
 }
 
 export interface PhotoPrefs {
-  mode: 'auto' | 'upload' | 'gradient'
+  // 'apod' (Task 96): NASA's Astronomy Picture of the Day — the fourth
+  // source, sitting alongside auto/upload/gradient. Its own cache lives in
+  // AuroraData.apodCache below (a top-level key, not nested here), keyed by
+  // LOCAL day rather than the index/lastRotated rotation pair the other two
+  // photo modes share — a single daily photo has nothing to rotate through.
+  mode: 'auto' | 'upload' | 'gradient' | 'apod'
   index: number
   lastRotated: string
   /** Bumped on every new upload so the write is never deep-equal (chrome.storage
