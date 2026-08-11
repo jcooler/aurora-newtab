@@ -149,6 +149,9 @@ first connector; the framework was built so adding another source meant
 writing that connector's own card/widget/service, not re-solving caching,
 permissions, or backups again — the other six below are exactly that.
 
+Find connectors by name or purpose — the catalog is searchable, and
+anything on your board stays pinned on top.
+
 **RSS**, concretely: turn it on in Settings → Connectors, add up to 5
 `https://` feed URLs, and pick how many headlines to show (3–8). Aurora
 fetches each feed directly from your browser — there's no Aurora server in
