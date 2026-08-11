@@ -1,7 +1,7 @@
 import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
@@ -10,6 +10,7 @@ import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../service
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
+import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
@@ -184,6 +185,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   vercel: VercelBody,
   crypto: CryptoBody,
   ics: IcsBody,
+  status: StatusBody,
 }
 
 function ConnectorCard({
@@ -1431,6 +1433,270 @@ function IcsBody({ config, storage }: BodyProps) {
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// The Status connector's card body — Task 85 (W3-SP2), the eighth connector
+// and third no-auth one (crypto.ts/ics.ts's own company). Structurally this
+// is IcsBody's `<ul>`-of-rows-plus-add-affordance shape again (list, then an
+// add control, a shared cap), but with TWO ways to add instead of one: a
+// curated `<select>` (CURATED_STATUS, status.ts's verified six) for the
+// common case, and a custom name+url form underneath for anything else. Both
+// converge on the single addService() below — same "one function, many call
+// sites" discipline RssBody/IcsBody's own updateXxx helpers use for their
+// writes, just applied to the whole gesture chain this time, not only the
+// persist step.
+//
+// THE PACT, settings side, restated for status (StatusWidget.tsx's own doc
+// comment names it too): a services-LIST-changing save clears
+// connectorSnapshots.status so the widget's remount (keyed on the service
+// urls) finds no cached snapshot and fetches immediately, rather than
+// serving up to ttlMs-stale (5 min) data for a service that was just added,
+// or stale index-aligned data for one that was just removed.
+//
+// GESTURE QUESTION (Task 85 brief, VERIFY in Task 86's real-browser probe):
+// chrome.permissions.request must run inside an unbroken user-gesture call
+// chain, and every OTHER add-flow in this file rides a click (a button's
+// onClick, or a <form>'s onSubmit triggered by one) — never previously
+// tested is whether a <select>'s onChange fires with the SAME gesture
+// privilege a click does. If Chrome accepts it (curated pick = ONE
+// interaction, no separate Add click), great; if the grant prompt silently
+// fails to appear from onChange, the fix is cheap by construction: addService
+// already takes (name, url) as plain arguments rather than reading component
+// state, so the fallback is just moving its call from handleCuratedPick
+// (fired on change) to a small dedicated "Add" button beside the select
+// (fired on click, reading a held `curatedPick` selection) — TWO call sites
+// today (handleCuratedPick below, handleCustomAdd further down), and the
+// flip touches only which of them the select's own choice feeds through, not
+// addService itself.
+function StatusBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as every other body above: BodyProps.config is
+  // the generic union (the body map is shared across ids), and this
+  // component is registered only under 'status', so it is always
+  // StatusConfig at runtime — one documented cast. statusServicesOf carries
+  // the read-time tolerance (malformed entries, the MAX_SERVICES cap) — see
+  // status.ts — so this component never has to know either fallback shape.
+  const status = config as StatusConfig | undefined
+  const services = statusServicesOf(status)
+  const atCap = services.length >= MAX_SERVICES
+
+  const [name, setName] = useState('')
+  const [url, setUrl] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  // Every write rebuilds the whole status entry from prev's OWN current
+  // list (never the render-time `services` above) — same double-submit
+  // discipline RssBody's updateRss/IcsBody's updateIcs document: storage.update
+  // serializes per key and hands each call the prior call's own result, so a
+  // second write queued before a re-render still sees the first's effect.
+  const updateStatus = (fn: (services: StatusService[]) => StatusService[]) =>
+    storage.update('connectors', (prev) => ({
+      ...prev,
+      status: { enabled: true, services: fn(statusServicesOf(prev.status as StatusConfig | undefined)) },
+    }))
+
+  // THE PACT's settings-side helper, named identically to IcsBody's own
+  // clearIcsSnapshot for the identical reason (see that function's doc
+  // comment for the full rationale) — deliberately NOT called from anywhere
+  // that doesn't change the services list.
+  const clearStatusSnapshot = () =>
+    storage.update('connectorSnapshots', (prev) => {
+      const next = { ...prev }
+      delete next.status
+      return next
+    })
+
+  // THE gesture chain, shared by both add paths (see the GESTURE QUESTION
+  // doc comment above): sync validate (originPattern, https-only) ->
+  // duplicate check on the RESOLVED url (a curated pick and a custom entry
+  // collide exactly like two custom entries would, since both are checked
+  // against the same `services` list by url) -> cap check -> ensureOrigin as
+  // the FIRST await -> persist -> clear the snapshot. Returns whether the add
+  // actually landed, so each call site can decide its OWN post-success
+  // behavior (the custom form clears its two inputs; the curated select has
+  // already reset itself before calling this, gesture or no).
+  async function addService(rawName: string, rawUrl: string): Promise<boolean> {
+    setError(null)
+    try {
+      originPattern(rawUrl)
+    } catch {
+      setError('Enter a status page URL that starts with https://')
+      return false
+    }
+    if (services.some((s) => s.url === rawUrl)) {
+      setError('That service is already in the list.')
+      return false
+    }
+    if (atCap) return false // guarded by the disabled select/inputs/button too; belt and braces
+
+    // ensureOrigin -> chrome.permissions.request is the first await, per the
+    // comment above.
+    let granted: boolean
+    try {
+      granted = await ensureOrigin(rawUrl)
+    } catch {
+      granted = false
+    }
+    if (!granted) {
+      setError('Permission to read that status page was denied, so nothing was saved.')
+      return false
+    }
+
+    const trimmedName = rawName.trim()
+    await updateStatus((svcs) =>
+      // Re-checked HERE (not just the disabled controls, and not just the
+      // `atCap`/`services` closed over from render) — same belt-and-braces
+      // re-derivation IcsBody's handleAdd documents for its own write.
+      svcs.some((s) => s.url === rawUrl) || svcs.length >= MAX_SERVICES
+        ? svcs
+        // Empty name -> the url's host, NOT "Service N": unlike a calendar
+        // (IcsBody's own "Calendar N" default), a status page's host IS
+        // meaningful information (which service this actually is), so
+        // falling back to it loses nothing a numbered placeholder would have
+        // hidden anyway.
+        : [...svcs, { name: trimmedName || hostOf(rawUrl), url: rawUrl }],
+    )
+    await clearStatusSnapshot()
+    return true
+  }
+
+  // Call site 1 of 2 (see the GESTURE QUESTION doc comment above): the
+  // curated select's own onChange. Resets the select back to its placeholder
+  // BEFORE the async chain starts (not after) — synchronously, so a retry of
+  // the SAME entry (e.g. re-picking GitHub after a denial) still fires a
+  // change event; deferring the reset to addService's return would leave the
+  // select stuck on the picked value between click and settle, silently
+  // eating that retry.
+  function handleCuratedPick(e: React.ChangeEvent<HTMLSelectElement>) {
+    const pickedUrl = e.currentTarget.value
+    e.currentTarget.value = ''
+    const picked = CURATED_STATUS.find((c) => c.url === pickedUrl)
+    if (!picked) return // the disabled placeholder option, or a stray event
+    void addService(picked.name, picked.url)
+  }
+
+  // Call site 2 of 2: the custom name+url form below.
+  async function handleCustomAdd(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (await addService(name, url.trim())) {
+      setName('')
+      setUrl('')
+    }
+  }
+
+  async function handleRemove(target: string) {
+    // Same before-record / write-result-survivors / releasableOrigins
+    // discipline as IcsBody's handleRemove above (see its doc comment for the
+    // full rationale) — snapshot cleared before the origin-revoke early
+    // return, since a bad/unparseable url still removes its service from the
+    // list regardless of whether an origin can be derived from it.
+    const before = await storage.get('connectors')
+    const next = await updateStatus((svcs) => svcs.filter((s) => s.url !== target))
+    await clearStatusSnapshot()
+    const origin = originOf(target)
+    if (!origin) return
+    const remaining = statusServicesOf(next.status as StatusConfig | undefined)
+    const stillUsed = remaining.some((s) => originOf(s.url) === origin)
+    if (!stillUsed && releasableOrigins('status', before).includes(origin)) await removeOrigin(origin)
+  }
+
+  return (
+    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+      <ul className="flex flex-col gap-1">
+        {services.map((s) => (
+          <li key={s.url} className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0 truncate text-xs text-fg">{s.name}</span>
+              <span className="shrink-0 truncate text-xs text-fg-muted">{hostOf(s.url)}</span>
+            </span>
+            <button
+              type="button"
+              aria-label={`Remove ${s.name}`}
+              onClick={() => void handleRemove(s.url)}
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              ✕
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div>
+        <label htmlFor="connector-status-curated" className="mb-1 block text-xs text-fg-muted">
+          Add a service
+        </label>
+        <select
+          id="connector-status-curated"
+          defaultValue=""
+          disabled={atCap}
+          onChange={handleCuratedPick}
+          className={`${select} w-full disabled:opacity-50`}
+        >
+          <option value="" disabled>
+            Choose a service…
+          </option>
+          {/* Every curated entry always renders (stable list, no reordering)
+              — one already in `services` is a DISABLED option rather than an
+              omitted one, so the picker's shape doesn't shift under the user
+              as they add things. addService's own duplicate check above is
+              the real belt-and-braces guard either way. */}
+          {CURATED_STATUS.map((c) => (
+            <option key={c.url} value={c.url} disabled={services.some((s) => s.url === c.url)}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <form className="flex flex-col gap-2" onSubmit={(e) => void handleCustomAdd(e)}>
+        <div>
+          <label htmlFor="connector-status-name" className="mb-1 block text-xs text-fg-muted">
+            Name
+          </label>
+          <input
+            id="connector-status-name"
+            type="text"
+            placeholder="My API"
+            value={name}
+            disabled={atCap}
+            onChange={(e) => setName(e.currentTarget.value)}
+            className={`${control} w-full disabled:opacity-50`}
+          />
+        </div>
+        <div>
+          <label htmlFor="connector-status-url" className="mb-1 block text-xs text-fg-muted">
+            Status page URL
+          </label>
+          <input
+            id="connector-status-url"
+            type="url"
+            inputMode="url"
+            placeholder="https://status.example.com/api/v2/status.json"
+            value={url}
+            disabled={atCap}
+            onChange={(e) => {
+              setUrl(e.currentTarget.value)
+              setError(null)
+            }}
+            aria-describedby={error ? 'connector-status-error' : undefined}
+            className={`${control} w-full disabled:opacity-50`}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button type="submit" disabled={atCap} className={submitBtn}>
+            Add
+          </button>
+          {atCap && <p className="text-xs text-fg-muted">Up to {MAX_SERVICES} services.</p>}
+        </div>
+
+        {error && (
+          <p id="connector-status-error" role="alert" className="text-xs text-fg-muted">
+            {error}
+          </p>
+        )}
+      </form>
     </div>
   )
 }

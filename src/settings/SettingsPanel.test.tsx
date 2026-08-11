@@ -6,7 +6,8 @@ import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
 import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
-import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
+import { CURATED_STATUS } from '../services/connectors/status'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import SettingsPanel from './SettingsPanel'
@@ -2924,6 +2925,268 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url: ICS_URL }] })
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+})
+
+describe('SettingsPanel Connectors section (Status card — Task 85, curated picks + custom URLs)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+  })
+
+  // CURATED_STATUS[0] is GitHub (status.ts) — read from the real module
+  // rather than re-hardcoding its url, so this suite can't silently drift
+  // from the service layer's own curated list.
+  const GITHUB = CURATED_STATUS[0]!
+  const CUSTOM_URL = 'https://status.example.com/api/v2/status.json'
+
+  // `seedSnapshot`: mirrors renderWithIcs's own helper above (and
+  // CalendarWidget.test.tsx's seededStorage before it) — a FRESH
+  // connectorSnapshots.status entry, present so the add/remove-clears-it
+  // tests below have something to observe disappearing.
+  async function renderWithStatus(status?: StatusConfig, seedSnapshot = false) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (status) await storage.set('connectors', { status })
+    if (seedSnapshot) {
+      await storage.set('connectorSnapshots', { status: { fetchedAt: Date.now(), data: { services: [] } } })
+    }
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    return storage
+  }
+
+  function connectorsRegion() {
+    return screen.getByRole('region', { name: 'Connectors' })
+  }
+
+  async function readStatus(storage: AuroraStorage): Promise<StatusConfig | undefined> {
+    return (await storage.get('connectors')).status as StatusConfig | undefined
+  }
+
+  it('the card shell renders the Status descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+    await renderWithStatus()
+    expect(screen.getByRole('heading', { name: 'Status' })).toBeTruthy()
+    expect(screen.getByText('Green dots for the services you depend on')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Status')).toBeTruthy()
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+    expect(screen.queryByLabelText('Add a service')).toBeNull()
+  })
+
+  it('a curated pick (selecting GitHub) requests the githubstatus origin, persists { name, url }, and clears the cached snapshot', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true }, true)
+    expect((await storage.get('connectorSnapshots')).status).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add a service'), { target: { value: GITHUB.url } })
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith(GITHUB.url)
+    expect(await readStatus(storage)).toEqual({
+      enabled: true,
+      services: [{ name: GITHUB.name, url: GITHUB.url }],
+    })
+    expect((await storage.get('connectorSnapshots')).status).toBeUndefined()
+  })
+
+  it('a custom add (name + url) persists after the origin grant', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'My API' } })
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith(CUSTOM_URL)
+    expect(await readStatus(storage)).toEqual({
+      enabled: true,
+      services: [{ name: 'My API', url: CUSTOM_URL }],
+    })
+  })
+
+  it('an empty custom name defaults to the url\'s host, not "Service N" (hosts are meaningful here)', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect((await readStatus(storage))?.services).toEqual([{ name: 'status.example.com', url: CUSTOM_URL }])
+  })
+
+  it('http:// is rejected with the https copy; nothing persisted, ensureOrigin never called', async () => {
+    const storage = await renderWithStatus({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), {
+        target: { value: 'http://status.example.com/api/v2/status.json' },
+      })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Enter a status page URL that starts with https://')
+    expect(await readStatus(storage)).toEqual({ enabled: true })
+  })
+
+  it('a custom url matching an already-configured curated entry is rejected as a duplicate (curated/custom collision on url)', async () => {
+    const storage = await renderWithStatus({ enabled: true, services: [{ name: GITHUB.name, url: GITHUB.url }] })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: GITHUB.url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('That service is already in the list.')
+    expect((await readStatus(storage))?.services).toEqual([{ name: GITHUB.name, url: GITHUB.url }])
+  })
+
+  it('a denied origin grant blocks the add: the denial copy shows, nothing is persisted', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(false)
+    const storage = await renderWithStatus({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Permission to read that status page was denied, so nothing was saved.')
+    expect(await readStatus(storage)).toEqual({ enabled: true })
+  })
+
+  it('enforces a maximum of 8 services: BOTH the curated select and the custom add row are disabled at the cap', async () => {
+    const services = Array.from({ length: 8 }, (_, i) => ({
+      name: `Svc ${i + 1}`,
+      url: `https://status${i}.example.com/api/v2/status.json`,
+    }))
+    await renderWithStatus({ enabled: true, services })
+
+    expect((screen.getByLabelText('Add a service') as HTMLSelectElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Name') as HTMLInputElement).disabled).toBe(true)
+    expect((screen.getByLabelText('Status page URL') as HTMLInputElement).disabled).toBe(true)
+    expect((within(connectorsRegion()).getByRole('button', { name: 'Add' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    )
+    expect(screen.getByText('Up to 8 services.')).toBeTruthy()
+  })
+
+  it('a configured list shows each name, host, and a per-row Remove button', async () => {
+    await renderWithStatus({
+      enabled: true,
+      services: [
+        { name: 'GitHub', url: 'https://www.githubstatus.com/api/v2/status.json' },
+        { name: 'My API', url: 'https://status.example.com/api/v2/status.json' },
+      ],
+    })
+
+    const region = connectorsRegion()
+    // { selector: 'span' } disambiguates each row's own name span from the
+    // curated <select>'s identically-texted <option>GitHub</option> living in
+    // the very same card (the select always renders every curated name,
+    // added or not — see the select's own doc comment above).
+    expect(within(region).getByText('GitHub', { selector: 'span' })).toBeTruthy()
+    expect(within(region).getByText('www.githubstatus.com')).toBeTruthy()
+    expect(within(region).getByText('My API', { selector: 'span' })).toBeTruthy()
+    expect(within(region).getByText('status.example.com')).toBeTruthy()
+    expect(within(region).getByRole('button', { name: 'Remove GitHub' })).toBeTruthy()
+    expect(within(region).getByRole('button', { name: 'Remove My API' })).toBeTruthy()
+  })
+
+  it('curated entries already in the list appear as disabled options in the select (no duplicate offers)', async () => {
+    await renderWithStatus({ enabled: true, services: [{ name: GITHUB.name, url: GITHUB.url }] })
+    const select = screen.getByLabelText('Add a service') as HTMLSelectElement
+    const option = [...select.options].find((o) => o.value === GITHUB.url)
+    expect(option?.disabled).toBe(true)
+  })
+
+  it('removing a service revokes its origin ONLY when no remaining service shares that origin (two custom services, one host)', async () => {
+    const storage = await renderWithStatus({
+      enabled: true,
+      services: [
+        { name: 'API One', url: 'https://status.example.com/one/status.json' },
+        { name: 'API Two', url: 'https://status.example.com/two/status.json' }, // shares the host
+      ],
+    })
+
+    // Removing one of the two same-host services must NOT revoke — the
+    // origin is still claimed by the other.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove API One' }))
+    })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await readStatus(storage))?.services).toEqual([
+      { name: 'API Two', url: 'https://status.example.com/two/status.json' },
+    ])
+
+    // Removing the last remaining service on that host DOES revoke.
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove API Two' }))
+    })
+    expect(removeOrigin).toHaveBeenCalledWith('https://status.example.com/*')
+    expect((await readStatus(storage))?.services).toEqual([])
+  })
+
+  it('adding a service clears the cached status snapshot', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true }, true)
+    expect((await storage.get('connectorSnapshots')).status).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect((await readStatus(storage))?.services).toEqual([{ name: 'status.example.com', url: CUSTOM_URL }])
+    expect((await storage.get('connectorSnapshots')).status).toBeUndefined()
+  })
+
+  it('removing a service clears the cached status snapshot', async () => {
+    const storage = await renderWithStatus(
+      { enabled: true, services: [{ name: GITHUB.name, url: GITHUB.url }] },
+      true,
+    )
+    expect((await storage.get('connectorSnapshots')).status).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${GITHUB.name}` }))
+    })
+
+    expect((await readStatus(storage))?.services).toEqual([])
+    expect((await storage.get('connectorSnapshots')).status).toBeUndefined()
+  })
+
+  // Status is auth 'none' — the card shell's status chip (Task 46) is a
+  // 'token'-auth-only affordance, so Status's card must never show one,
+  // enabled or not (same rule Crypto's/Calendar's own cases document).
+  it('auth "none" (Status) never shows a status chip, enabled or not', async () => {
+    await renderWithStatus({ enabled: true, services: [{ name: GITHUB.name, url: GITHUB.url }] })
+    expect(screen.queryByText(/Connected as/)).toBeNull()
+    expect(screen.queryByText('Reconnect needed')).toBeNull()
+  })
+
+  it('sits in the Development category in the drawer, and search finds "status"', async () => {
+    await renderWithStatus()
+    const region = connectorsRegion()
+    const devHeading = within(region).getByRole('heading', { name: 'Development' })
+    expect(within(devHeading.parentElement as HTMLElement).getByRole('heading', { name: 'Status' })).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'status' } })
+    expect(within(connectorsRegion()).getByRole('heading', { name: 'Status' })).toBeTruthy()
   })
 })
 
