@@ -80,6 +80,7 @@ describe('descriptor categories', () => {
       gitlab: 'development',
       jira: 'development',
       vercel: 'development',
+      status: 'development',
       ics: 'calendar-tasks',
       rss: 'news-markets',
       crypto: 'news-markets',

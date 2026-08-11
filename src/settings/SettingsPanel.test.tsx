@@ -1249,6 +1249,7 @@ describe('Connectors tab — search and categories', () => {
       'GitLab',
       'Jira',
       'Vercel',
+      'Status',
     ])
     expect(cardsUnder(within(region).getByRole('heading', { name: 'Calendar & tasks' }))).toEqual(['Calendar'])
     expect(cardsUnder(within(region).getByRole('heading', { name: 'News & markets' }))).toEqual(['RSS', 'Crypto'])
@@ -1268,11 +1269,12 @@ describe('Connectors tab — search and categories', () => {
       'Calendar',
     ])
 
-    // Development keeps its other three, minus the now-pinned github.
+    // Development keeps its other four, minus the now-pinned github.
     expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
       'GitLab',
       'Jira',
       'Vercel',
+      'Status',
     ])
 
     // Calendar & tasks had ONLY ics -> now empty -> no eyebrow at all (not an

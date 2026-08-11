@@ -16,6 +16,7 @@ import { jiraDescriptor } from './jira'
 import { vercelDescriptor } from './vercel'
 import { cryptoDescriptor } from './crypto'
 import { icsDescriptor } from './ics'
+import { statusDescriptor } from './status'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -42,7 +43,9 @@ import { icsDescriptor } from './ics'
 // multi-calendar wave (2026-08-10) added `calendars`, each entry's own url
 // the same kind of secret, so a config mid-migration never leaks either
 // shape; see backup.test.ts's ics case), with a per-config derived https
-// origin like gitlab's/jira's.
+// origin like gitlab's/jira's. Task 83 (W3-SP2) adds status as #8 — back to
+// `auth: 'none'` with nothing secret (crypto's shape, not ics's): a
+// status.json url grants no access to anything, so secretFields stays [].
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,
@@ -51,6 +54,7 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   vercelDescriptor as ConnectorDescriptor,
   cryptoDescriptor as ConnectorDescriptor,
   icsDescriptor as ConnectorDescriptor,
+  statusDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

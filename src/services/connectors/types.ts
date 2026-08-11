@@ -5,7 +5,7 @@
 // becomes a real (multi-member) union to match — see the variance note below
 // on ConnectorDescriptor for what that costs at the registration site.
 
-export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics'] as const
+export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status'] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
 // Task 79 (W3-SP1): the drawer (Task 80) groups connector cards by purpose
@@ -151,6 +151,19 @@ export interface IcsConfig {
   upcomingCount?: number // 2–4; absent/invalid → 3 (icsViewOf); meaningful only for view 'upcoming'
 }
 
+// W3-SP2 (status chips connector, Task 83): a service's stored url is the FULL
+// statuspage-style status.json endpoint — nothing is appended at fetch time
+// (see status.ts's fetchStatus). No secret lives in either field, unlike
+// ics's url (secretFields stays [] — see statusDescriptor).
+export interface StatusService {
+  name: string
+  url: string
+}
+export interface StatusConfig {
+  enabled: boolean
+  services?: StatusService[] // up to MAX_SERVICES (status.ts); absent/malformed → [] (statusServicesOf)
+}
+
 export type ConnectorConfig =
   | RssConfig
   | GithubConfig
@@ -159,6 +172,7 @@ export type ConnectorConfig =
   | VercelConfig
   | CryptoConfig
   | IcsConfig
+  | StatusConfig
 
 export interface ConnectorSnapshot {
   fetchedAt: number // epoch ms
