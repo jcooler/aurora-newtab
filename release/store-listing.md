@@ -745,3 +745,84 @@ with:
       silent until something's actually down. Find connectors by name or
       purpose — the catalog is searchable, and anything on your board
       stays pinned on top.
+
+---
+
+### v1.12.0 addendum — join the meeting from the board (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.12.0 adds one feature to the existing Calendar connector — no new
+connector, no new host, no new permission. When the calendar card's
+headline event carries a Zoom, Meet, Teams, Webex, or Whereby link, an
+accent **Join** link appears starting 15 minutes before it (or while it's
+running), so a meeting already on the board is one click away. The link is
+found by scanning the LOCATION/DESCRIPTION text your calendar feed already
+sent — the same fetch Calendar always made, nothing new requested and
+nothing sent anywhere; the URL only leaves the device when you click it
+yourself, opening it the same way any link does. A **Meeting links** toggle
+on the card (default on) turns the feature off entirely. The Summary,
+Category, Single purpose statement, and Data Usage disclosure table remain
+unaffected for the same reason every feature-only addendum has given
+before — no new kind of data, no new host, no new permission, just more
+use made of a feed the user already pointed Aurora at.
+
+#### Detailed description delta
+
+REPLACE the Connectors bullet (as it stands after the v1.11.0 addendum
+above, under FEATURES):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Eight ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, and
+      Status — covering your feeds, your PRs/issues/MRs/tickets/
+      deployments, coin prices, your calendar events, and the health of
+      the services you depend on, each reading only what its own card
+      describes. Every connector card is composable — choose what each
+      shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view. Status shows a quiet dot
+      row for up to 8 services — six curated status pages, or any
+      statuspage.io-style URL you add yourself — that stays green and
+      silent until something's actually down. Find connectors by name or
+      purpose — the catalog is searchable, and anything on your board
+      stays pinned on top.
+
+with:
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Eight ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, and
+      Status — covering your feeds, your PRs/issues/MRs/tickets/
+      deployments, coin prices, your calendar events, and the health of
+      the services you depend on, each reading only what its own card
+      describes. Every connector card is composable — choose what each
+      shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view, and a one-click **Join**
+      link that appears next to the headline event starting 15 minutes
+      before a Zoom, Meet, Teams, Webex, or Whereby meeting (a toggle
+      turns it off). Status shows a quiet dot row for up to 8 services —
+      six curated status pages, or any statuspage.io-style URL you add
+      yourself — that stays green and silent until something's actually
+      down. Find connectors by name or purpose — the catalog is
+      searchable, and anything on your board stays pinned on top.

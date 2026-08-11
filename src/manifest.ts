@@ -60,7 +60,7 @@ const PREVIEW = 'preview'
 export default defineManifest((env) => ({
   manifest_version: 3,
   name: 'Aurora',
-  version: '1.11.0',
+  version: '1.12.0',
   description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
   // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
   // — see src/services/search.ts, the ONLY caller of chrome.search.query()

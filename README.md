@@ -196,8 +196,11 @@ a single request that keeps firing as long as either section is on.
   automatically). Pick how you want to see them in Settings → Connectors:
   **Today** (next event + today's remaining agenda), **Upcoming** (the
   next few events across days), or **One per calendar** (each calendar's
-  soonest event). No account, no token — just paste each feed's URL,
-  which Aurora treats as a secret (see [Privacy](#privacy)).
+  soonest event). When the headline event carries a Zoom, Meet, Teams,
+  Webex, or Whereby link, an accent **Join** link appears starting 15
+  minutes before it (or while it's running) — a **Meeting links** toggle
+  on the card turns this off. No account, no token — just paste each
+  feed's URL, which Aurora treats as a secret (see [Privacy](#privacy)).
 - **Status** — a quiet dot row for up to 8 services you depend on: green
   and silent on a normal day, with trouble text appearing only for a
   service that's actually down (worst first). Pick from six curated

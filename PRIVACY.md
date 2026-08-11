@@ -276,7 +276,10 @@ its own interval or sooner on demand:
 - **Calendar** — fetches only the secret calendar addresses you've added,
   up to 5; each address itself is treated as a secret (see "Token
   connectors" above) and never leaves your device except to its own
-  calendar host. Refreshed roughly every 15 minutes.
+  calendar host. Refreshed roughly every 15 minutes. Meeting URLs (Zoom,
+  Meet, Teams, Webex, Whereby) are parsed locally out of whatever your
+  calendar feed already sent — no separate fetch, and Aurora never sends
+  the URL anywhere; a link only opens when you click it.
 - **Status** — talks only to the public status endpoint(s) you've added,
   up to 8: six curated picks (GitHub, Cloudflare, OpenAI, npm, Vercel,
   Discord's own statuspage.io status pages) or any statuspage.io-style URL
