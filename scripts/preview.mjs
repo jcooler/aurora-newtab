@@ -7760,6 +7760,312 @@ function gitlabContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
+// Task 97 — the sky proves itself: SunWidget.tsx/MoonWidget.tsx (Tasks 92-96,
+// shipped to main; this harness never drove them). Both widgets gate on TWO
+// INDEPENDENT preconditions before rendering anything — their own
+// `settings.widgets.{sun,moon}` toggle (default OFF, schema.ts) AND
+// `location` (the weather widget's own stored location, a top-level key that
+// outlives the weather widget itself and doubles as this pair's own gate too
+// — both widgets' own doc comments say so explicitly). This block proves
+// both gates independently: widgets ON + a location present renders both
+// strips with their pinned text shapes in col2; clearing location (widgets
+// left ON) removes both — the location gate, not the toggle, decides.
+{
+  const sunSel = 'section[aria-label="Sun times"]'
+  const moonSel = 'section[aria-label="Moon phase"]'
+
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(150)
+
+  // The global seed (top of file) already sets `location` to New York, and
+  // the location-typeahead block re-seeds it back after clearing it for its
+  // own probe — verified LIVE here rather than assumed, so a future
+  // reordering that left it unset would fail loudly instead of silently
+  // passing on an accidental one-off.
+  const locationGoingIn = await page.evaluate(async () => (await chrome.storage.local.get('location')).location)
+  console.log(
+    locationGoingIn && locationGoingIn.lat != null
+      ? `PASS: a location is already seeded going into the sun/moon block (${JSON.stringify(locationGoingIn)})`
+      : `FAIL: a location is already seeded going into the sun/moon block (${JSON.stringify(locationGoingIn)})`,
+  )
+
+  // Widgets ON, location present — spread-preserving (merge into whatever
+  // settings.widgets already holds), same idiom every widget-toggle seed in
+  // this file uses.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({
+      settings: { ...settings, widgets: { ...settings.widgets, sun: true, moon: true } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(sunSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector(moonSel, { timeout: 5000 }).catch(() => {})
+
+  const onState = await page.evaluate(
+    ({ sunSel, moonSel }) => {
+      const sun = document.querySelector(sunSel)
+      const moon = document.querySelector(moonSel)
+      return { sunText: sun ? sun.textContent : null, moonText: moon ? moon.textContent : null }
+    },
+    { sunSel, moonSel },
+  )
+  // SunWidget's pinned shape: `☀ HH:MM → HH:MM` (+ an optional golden-hour
+  // suffix) — sun.ts's own doc comment on the string it builds.
+  const SUN_SHAPE = /^☀ .+ → .+/
+  const sunOk = onState.sunText !== null && SUN_SHAPE.test(onState.sunText)
+  console.log(
+    sunOk
+      ? `PASS: the Sun times strip renders in col2 with widgets.sun on + a location set, matching the pinned shape (${JSON.stringify(onState.sunText)})`
+      : `FAIL: the Sun times strip renders in col2 with widgets.sun on + a location set (${JSON.stringify(onState.sunText)})`,
+  )
+  // MoonWidget's pinned shape: one of the eight standard phase glyphs
+  // (moon.ts's NORTHERN_GLYPHS/SOUTHERN_GLYPHS — the union of both sets is
+  // exactly these eight) followed by a space and the phase name.
+  const MOON_GLYPHS = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘']
+  const moonOk =
+    onState.moonText !== null && MOON_GLYPHS.some((g) => onState.moonText.startsWith(`${g} `))
+  console.log(
+    moonOk
+      ? `PASS: the Moon phase strip renders in col2 with widgets.moon on + a location set, starting with one of the eight standard glyphs (${JSON.stringify(onState.moonText)})`
+      : `FAIL: the Moon phase strip renders in col2 with widgets.moon on + a location set (${JSON.stringify(onState.moonText)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/sky-strips.png` })
+  console.log('captured sky-strips.png')
+
+  // Clear location (widgets stay ON): the location gate, not the toggle,
+  // decides — both widgets' own doc comments name `location` as their real
+  // gate, independent of the settings toggle.
+  await page.evaluate(() => chrome.storage.local.set({ location: null }))
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  const offState = await page.evaluate(
+    ({ sunSel, moonSel }) => ({
+      sunAbsent: !document.querySelector(sunSel),
+      moonAbsent: !document.querySelector(moonSel),
+    }),
+    { sunSel, moonSel },
+  )
+  console.log(
+    offState.sunAbsent && offState.moonAbsent
+      ? 'PASS: clearing location removes both strips even with widgets.sun/moon still on — the location gate, not the toggle, decides'
+      : `FAIL: clearing location removes both strips even with widgets.sun/moon still on (sunAbsent=${offState.sunAbsent}, moonAbsent=${offState.moonAbsent})`,
+  )
+
+  // Restore: location back to New York, sun/moon back to their off default,
+  // reload — nothing captured after this block should see either strip
+  // unless a later block explicitly re-seeds it (the combined-defaults gate
+  // and the rails resize sweep below each do their own seeding for their own
+  // worst-case proofs).
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({
+      location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+      settings: { ...settings, widgets: { ...settings.widgets, sun: false, moon: false } },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+}
+
+// ---------------------------------------------------------------------------
+// Task 97 — APOD (NASA's Astronomy Picture of the Day) background source.
+// Tasks 95/96 shipped the service + the cache/render plumbing to main; this
+// harness never drove it. Three legs:
+//   (a) SETTINGS deny path, through the REAL drawer: selecting 'apod' in
+//       General's Source <select> runs Background.tsx (settings section)'s
+//       handleSourceChange, whose first (and only) await is
+//       ensureOrigins(APOD_ORIGINS) — chrome.permissions.request() for
+//       api.nasa.gov + apod.nasa.gov. Headless Chromium has no surface to
+//       show (let alone answer) that native prompt — the SAME platform
+//       ceiling this file's own bookmarks SKIP documents, and the one this
+//       file's own "gesture question" status-connector probe (search
+//       "THE GESTURE QUESTION") already measured directly for a different
+//       origin: chrome.permissions.request() does not merely resolve
+//       false quickly, it never SETTLES at all under this harness (verified
+//       here too, by direct measurement, before writing this probe: a bounded
+//       wait up to 15s left the promise still pending, matching that
+//       precedent's own "bothCeilinged" finding). That has one honest
+//       consequence this probe's assertions respect: handleSourceChange's
+//       `if (!granted) { setApodError(...) }` branch is gated on that same
+//       promise SETTLING, so `#bg-apod-error` never renders either — not
+//       because the copy is wrong, but because the deny branch is never
+//       reached in the first place. So this probe asserts everything that
+//       IS independently verifiable (prefs stay unwritten, the controlled
+//       <select> reverts to the prior mode, the origin stays ungranted — all
+//       true within the SAME bounded wait the gesture-question probe uses)
+//       and SKIPs the one claim that structurally can't complete headless,
+//       rather than encoding a probe that can never pass.
+//   (b) RENDER path, permission-free: seed photoPrefs.mode:'apod' plus an
+//       apodCache whose photo.url is a BUNDLED photo's own url (same-origin,
+//       no grant needed — proves the real `<img key={src}>` path Background.tsx
+//       renders apod through, not a stand-in) — credit caption exact text,
+//       refresh button absent.
+//   (c) FALLBACK: photo:null in today's cache — Background.tsx's own
+//       `apodUsable` cascade drops effectiveMode to 'auto': the curated
+//       background renders, refresh button present, caption absent.
+// Restores 'auto' + a cleared cache at the end.
+{
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in transition
+  await openSettingsTab('General') // Background section
+  await page.waitForSelector('#set-bg-mode')
+
+  const priorMode = await page.evaluate(async () => (await chrome.storage.local.get('photoPrefs')).photoPrefs?.mode ?? 'auto')
+
+  // Same bounded-wait idiom as the status-connector "gesture question" probe
+  // (GESTURE_WAIT there, search "THE GESTURE QUESTION") — chrome.permissions
+  // .request() never settles headless, so there is no "wait for it to
+  // resolve" to do; this is just long enough to prove nothing sneaks through
+  // on some other timer.
+  const DENY_WAIT = 2500
+  await page.selectOption('#set-bg-mode', 'apod').catch(() => {})
+  await page.waitForTimeout(DENY_WAIT)
+
+  const denyState = await page.evaluate(async () => {
+    const { photoPrefs } = await chrome.storage.local.get('photoPrefs')
+    const granted = await chrome.permissions.contains({
+      origins: ['https://api.nasa.gov/*', 'https://apod.nasa.gov/*'],
+    })
+    const alert = document.querySelector('#bg-apod-error')
+    return {
+      mode: photoPrefs?.mode ?? null,
+      selectValue: document.querySelector('#set-bg-mode')?.value ?? null,
+      granted,
+      alertText: alert ? alert.textContent : null,
+    }
+  })
+  const denyOk =
+    denyState.mode === priorMode && denyState.selectValue === priorMode && denyState.granted === false
+  console.log(
+    denyOk
+      ? `PASS: selecting "NASA photo of the day" through the real drawer leaves prefs UNWRITTEN and the origin UNGRANTED after a ${DENY_WAIT}ms bounded wait (mode stays "${denyState.mode}", the controlled select reverts to "${denyState.selectValue}", granted=${denyState.granted}) — the honest headless deny path`
+      : `FAIL: the apod settings deny path (prior=${priorMode}, ${JSON.stringify(denyState)})`,
+  )
+  console.log(
+    `SKIP: the #bg-apod-error alert text ("Permission to reach NASA was denied, so the background is unchanged.") — Background.tsx (settings section)'s own deny branch only runs once ensureOrigins() SETTLES to false, and it never settles under headless automation (measured up to 15s pending, matching the gesture-question probe's own finding for a different origin); observed alert state this run: ${JSON.stringify(denyState.alertText)}. A headed spot-check owed by the controller: confirm the copy renders when a real "Block" click resolves the prompt.`,
+  )
+  console.log(
+    'SKIP: the successful-grant render path (a real "Allow" click through the NASA host-permission prompt cannot be driven under headless automation, same ceiling as the deny path above). A headed spot-check owed by the controller: confirm mode flips to "apod" and the fetch/cache/render path runs once the origins are actually granted.',
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out transition
+
+  // (b) RENDER path — permission-free. `01-Ovn1hyBge38-2560x1600.avif` is
+  // BUNDLED[0]'s own '2560x1600' tier file (photos.json) — the SAME file this
+  // script's own upload-gallery block above already references by exact name
+  // (search 'public/photos/01-Ovn1hyBge38-2560x1600.avif'), computed here
+  // against `location.origin` (the extension's own chrome-extension:// origin
+  // inside the page) rather than a relative path, so the seeded fixture is
+  // unambiguously the same absolute URL the real `<img src>` would resolve to.
+  const BUNDLED_FILE = '01-Ovn1hyBge38-2560x1600.avif'
+  const APOD_TITLE = 'Pillars of Creation'
+  const APOD_COPYRIGHT = 'NASA, ESA, CSA'
+  const bundledUrlSeeded = await page.evaluate(
+    async ({ file, title, copyright }) => {
+      function localDateKey(dt) {
+        const y = dt.getFullYear()
+        const m = String(dt.getMonth() + 1).padStart(2, '0')
+        const d = String(dt.getDate()).padStart(2, '0')
+        return `${y}-${m}-${d}`
+      }
+      const today = localDateKey(new Date())
+      const url = `${location.origin}/photos/${file}`
+      const { photoPrefs } = await chrome.storage.local.get('photoPrefs')
+      await chrome.storage.local.set({
+        photoPrefs: { ...photoPrefs, mode: 'apod' },
+        apodCache: { date: today, photo: { url, title, copyright } },
+      })
+      return url
+    },
+    { file: BUNDLED_FILE, title: APOD_TITLE, copyright: APOD_COPYRIGHT },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await waitForPhotoSettle()
+
+  const renderState = await page.evaluate(() => {
+    const img = document.querySelector('div[aria-hidden] > img')
+    const caption = [...document.querySelectorAll('p')].find((p) => p.textContent?.includes('NASA APOD')) ?? null
+    const refresh = document.querySelector('button[aria-label="New background photo"]')
+    return {
+      imgSrc: img ? img.src : null,
+      captionText: caption ? caption.textContent : null,
+      refreshPresent: !!refresh,
+    }
+  })
+  const EXPECTED_CAPTION = `${APOD_TITLE} © ${APOD_COPYRIGHT} · NASA APOD`
+  const renderOk =
+    renderState.imgSrc === bundledUrlSeeded &&
+    renderState.captionText === EXPECTED_CAPTION &&
+    renderState.refreshPresent === false
+  console.log(
+    renderOk
+      ? `PASS: the apod render path shows the seeded bundled photo (img src === seeded url ${bundledUrlSeeded}), the exact credit caption ("${renderState.captionText}"), and no refresh button`
+      : `FAIL: the apod render path (${JSON.stringify(renderState)}, seeded url ${bundledUrlSeeded})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/apod-background.png` })
+  console.log('captured apod-background.png')
+
+  // (c) FALLBACK — today's cache attempted, no usable photo.
+  await page.evaluate(async () => {
+    function localDateKey(dt) {
+      const y = dt.getFullYear()
+      const m = String(dt.getMonth() + 1).padStart(2, '0')
+      const d = String(dt.getDate()).padStart(2, '0')
+      return `${y}-${m}-${d}`
+    }
+    await chrome.storage.local.set({ apodCache: { date: localDateKey(new Date()), photo: null } })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await waitForPhotoSettle()
+
+  const fallbackState = await page.evaluate(() => {
+    const img = document.querySelector('div[aria-hidden] > img')
+    const caption = [...document.querySelectorAll('p')].find((p) => p.textContent?.includes('NASA APOD')) ?? null
+    const refresh = document.querySelector('button[aria-label="New background photo"]')
+    return { imgSrc: img ? img.src : null, refreshPresent: !!refresh, captionPresent: !!caption }
+  })
+  const fallbackOk =
+    !!fallbackState.imgSrc &&
+    fallbackState.imgSrc.includes('/photos/') &&
+    fallbackState.refreshPresent === true &&
+    fallbackState.captionPresent === false
+  console.log(
+    fallbackOk
+      ? `PASS: an apod cache with photo:null falls back to the curated background (img src ${fallbackState.imgSrc}), refresh button present, no credit caption`
+      : `FAIL: the apod fallback path (${JSON.stringify(fallbackState)})`,
+  )
+
+  // Restore: 'auto' + a cleared cache, reload, verify the restore landed.
+  await page.evaluate(async () => {
+    const { photoPrefs } = await chrome.storage.local.get('photoPrefs')
+    await chrome.storage.local.set({ photoPrefs: { ...photoPrefs, mode: 'auto' }, apodCache: null })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await waitForPhotoSettle()
+  const restored = await page.evaluate(async () => {
+    const { photoPrefs, apodCache } = await chrome.storage.local.get(['photoPrefs', 'apodCache'])
+    return { mode: photoPrefs?.mode ?? null, apodCache: apodCache ?? null }
+  })
+  console.log(
+    restored.mode === 'auto' && restored.apodCache === null
+      ? 'PASS: apod restored to auto + a cleared cache'
+      : `FAIL: apod restore (${JSON.stringify(restored)})`,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // LEFT-COLUMN combined worst case (fix wave, Finding I2) — the seam between
 // two waves that never got a joint probe: Task 77's own vercel budget probe
 // (search "vercel WITH the summary line") ran with NO calendar configured at
@@ -8484,20 +8790,26 @@ function gitlabContributionsFixture() {
 // floor` probe below for this gate's own measured proof with all nine
 // widgets on at once (Task 59 — the two widgets Task 57/58 shipped, joining
 // this gate for the first time; every fixture above them is unchanged from
-// Task 55). Runs after the calendar block (every connector left disabled by
-// its own block above), captures connectors-all.png — now the FULL vision:
-// all seven connectors, monthCal, and habits, every widget on the page
-// simultaneously — then runs a pairwise rect-intersection over EVERY pair
-// drawn from a 20-element set — the 7 connector widgets, monthCal, habits,
-// plus every peripheral a user's eye actually shares the page with (timer
-// pill, the COLLAPSED weather chip, Notes pill, photo refresh button, Tasks
-// pill, settings gear, quote, links row, search bar, clock, greeting) —
-// C(20,2) = 190 pairs, every one asserted (never eyeballed), `found`
-// required for all 20 rects first so a vanished element can't report a
-// false PASS by omission. Repeats the CAPTURE ONLY (plus a
-// console-error check — no re-assertion of the 190 pairs; `setViewportSize`
-// reflows the identical seeded DOM into a different layout of the SAME
-// scenario, not a different one) at 1280x800 and 2560x1440. Back at
+// Task 55). TASK 97 adds sun+moon to this same all-on scenario (both seeded
+// ON in the mega-seed below, alongside habits/monthCal) — the mid-left
+// column's own worst case now runs monthCal -> habits -> sun -> moon, and the
+// pairwise set below grows from 20 to 22 members. Runs after the calendar
+// block (every connector left disabled by its own block above), captures
+// connectors-all.png — now the FULL vision: all seven connectors, monthCal,
+// habits, sun, and moon, every widget on the page simultaneously — then runs
+// a pairwise rect-intersection over EVERY pair drawn from a 22-element set —
+// the 7 connector widgets, monthCal, habits, sun, moon, plus every peripheral
+// a user's eye actually shares the page with (timer pill, the COLLAPSED
+// weather chip, Notes pill, photo refresh button, Tasks pill, settings gear,
+// quote, links row, search bar, clock, greeting) — C(22,2) = 231 pairs, every
+// one asserted (never eyeballed; `pageElementCount`/`pairwise.pairCount`
+// below are computed off PAGE_ELEMENTS' own key count, not hand-typed, so
+// this comment is the only place the numbers are stated rather than derived),
+// `found` required for all 22 rects first so a vanished element can't report
+// a false PASS by omission. Repeats the CAPTURE ONLY (plus a console-error
+// check — no re-assertion of the 231 pairs; `setViewportSize` reflows the
+// identical seeded DOM into a different layout of the SAME scenario, not a
+// different one) at 1280x800 and 2560x1440. Back at
 // 1600x900, expands the weather panel: anchored `right-4` at a measured
 // ~352px wide there, it sits squarely over github's (and, since github
 // moved up in fix round 1 (and again in fix round 2), now also gitlab's)
@@ -8667,6 +8979,14 @@ function gitlabContributionsFixture() {
   // blocks below use.
   const habitsSel = '[data-block-id="habits"]'
   const monthCalSel = '[data-block-id="monthCal"]'
+  // Task 97: sun/moon join the same mid-left column, stacked below habits
+  // (App.tsx's own col2 order). Selected at the PositionedBlock wrapper
+  // level like monthCal/habits above (not the inner `section`) — same
+  // reasoning: the wrapper carries `.rail-col2` and goes display:none exactly
+  // when the container query / height gate hides the whole column, which is
+  // what this gate's pairwise/gap-floor probes need to observe.
+  const sunSel = '[data-block-id="sun"]'
+  const moonSel = '[data-block-id="moon"]'
 
   await page.evaluate(
     async ({ rssFeeds, rssHeadlines, githubFixture, gitlabFixture, jiraFixture, vercelFixture, cryptoFixture }) => {
@@ -8734,7 +9054,11 @@ function gitlabContributionsFixture() {
       ]
       await chrome.storage.local.set({
         habits,
-        settings: { ...settings, widgets: { ...settings.widgets, habits: true, monthCal: true } },
+        // Task 97: sun/moon join the all-on scenario too. `location` is
+        // untouched by this write (a separate top-level key, already seeded
+        // by the global seed and restored by the sun/moon block above), so
+        // both widgets' own location gate is already satisfied here.
+        settings: { ...settings, widgets: { ...settings.widgets, habits: true, monthCal: true, sun: true, moon: true } },
         connectors: {
           ...connectors,
           // shownCount:8 — RSS's own display-max option (SHOWN_COUNT_OPTIONS
@@ -8791,6 +9115,8 @@ function gitlabContributionsFixture() {
   }
   await page.waitForSelector(habitsSel, { timeout: 5000 }).catch(() => {})
   await page.waitForSelector(monthCalSel, { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector('section[aria-label="Sun times"]', { timeout: 5000 }).catch(() => {})
+  await page.waitForSelector('section[aria-label="Moon phase"]', { timeout: 5000 }).catch(() => {})
 
   // Force monthCal to its 6-row worst case BEFORE capturing anything or
   // measuring a single rect — same click-until-42-cells loop the Task 58
@@ -8847,10 +9173,11 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/connectors-all.png` })
   console.log('captured connectors-all.png')
 
-  // The full 20-element set (Task 59): the 7 connector widgets, monthCal
-  // (forced to its 6-row worst case above), habits (seeded at its own
-  // 6-chip MAX_HABIT_CHIPS worst case), plus every peripheral a user's eye
-  // actually shares the page with at defaults.
+  // The full 22-element set (Task 59, +sun/moon Task 97): the 7 connector
+  // widgets, monthCal (forced to its 6-row worst case above), habits (seeded
+  // at its own 6-chip MAX_HABIT_CHIPS worst case), sun, moon (both seeded ON
+  // in the mega-seed above, location already present), plus every peripheral
+  // a user's eye actually shares the page with at defaults.
   //
   // crypto IS included: it flows in the bottom band (<aside data-zone="bottom">,
   // App.tsx) height-gated `hidden taller:block`, and its reasoned 8px floor +
@@ -8861,6 +9188,8 @@ function gitlabContributionsFixture() {
     ...CONNECTOR_SELS,
     habits: habitsSel,
     monthCal: monthCalSel,
+    sun: sunSel,
+    moon: moonSel,
     timer: '[data-block-id="timer"]',
     weather: '[data-block-id="weather"]', // COLLAPSED chip — expanded is its own step below
     notes: '[data-block-id="notes"]',
@@ -8901,6 +9230,10 @@ function gitlabContributionsFixture() {
             : null,
         ]),
       ),
+      // Task 97: the mid-left gap-floor probe below needs the live viewport
+      // height (its own col2-vs-viewport clearance check) — cheap to return
+      // alongside everything else already read in this same pass.
+      vh: window.innerHeight,
     }
   }, PAGE_ELEMENTS)
   const allFound = Object.values(pairwise.found).every(Boolean)
@@ -9415,27 +9748,71 @@ function gitlabContributionsFixture() {
   // Tailwind classes), so every left-edge floor below is asserted exact.
   // Reuses `pairwise.rects` (aliased `rc` above), already captured from the
   // SAME render — no second DOM read needed.
+  //
+  // TASK 97 extends this to the four-widget stack — monthCal -> habits ->
+  // sun -> moon (App.tsx's own col2 order) — since sun+moon share the exact
+  // same flex column as monthCal/habits (the `<div className="flex flex-col
+  // gap-4">` in App.tsx's left rail) and are seeded ON above. The new seams
+  // (habits->sun, sun->moon) are MEASURED here, not assumed: gap-4 (16px) is
+  // a real flex gap between every col2 sibling, so each seam is expected to
+  // land exactly at MID_LEFT_GAP_FLOOR, same as monthCal->habits always has
+  // — asserted >= (not ===) for the seams, matching this probe's own existing
+  // discipline. MEASURED at 1600x900 with every widget at its own display
+  // max (this gate's own scenario, real run numbers): monthCal 120-367, habits
+  // 383-627, sun 643-703 (60px, single line, roomy padding), moon 719-759
+  // (40px) — habits->sun and sun->moon both land at exactly 16.0px, the flex
+  // gap, as predicted.
+  //
+  // THE OLD BOTTOM FLOOR (habits->links, this probe's Task-59 shape) IS
+  // RETIRED, not replaced 1:1 with moon->links — measured and found not to
+  // mean what it looked like it meant. `links` (the centred quick-links row)
+  // sits at x=684-916; col2 sits at x=368-568 — the two columns are
+  // PERMANENTLY x-disjoint by the rail/centre-reserve architecture (col2's
+  // width is a fixed `w-[200px]` regardless of content height), so
+  // `links.top - <col2 bottom>` was never a collision floor at all — it
+  // happened to read positive (27.5px) purely because the old two-widget
+  // worst case (habits.bottom 627) sat, by coincidence, above links.top
+  // (654.5). Extending it to moon.bottom (759, now BELOW links.top) makes it
+  // read -104.5px — a big, alarming-looking negative number for a pair that
+  // was proven, in this SAME render, to have zero actual overlap: the
+  // pairwise probe just above (231 pairs, x AND y both) reports 0 collisions,
+  // moon/links included. Reported to the controller as a concern (see the
+  // task report) rather than silently dropped: the REPLACEMENT floor below
+  // asserts the thing that's actually at risk once col2 grows a third and
+  // fourth member — that its true bottom (moon.bottom) still lands safely
+  // inside the viewport, not the arbitrary x-disjoint `links` comparison.
   const mc = rc.monthCal
   const hb = rc.habits
+  const sn = rc.sun
+  const mn = rc.moon
   const MID_LEFT_GAP_FLOOR = 16
   const RSS_GAP = 48
   const midLeftLeftGapMonthCal = rc.rss && mc ? +(mc.left - rc.rss.right).toFixed(1) : null
   const midLeftLeftGapHabits = rc.rss && hb ? +(hb.left - rc.rss.right).toFixed(1) : null
   const midLeftVercelGapHabits = rc.vercel && hb ? +(hb.left - rc.vercel.right).toFixed(1) : null
-  const midLeftSeamGap = mc && hb ? +(hb.top - mc.bottom).toFixed(1) : null
-  const midLeftBottomGap = rc.links && hb ? +(rc.links.top - hb.bottom).toFixed(1) : null
+  const midLeftSeamGapMonthCalHabits = mc && hb ? +(hb.top - mc.bottom).toFixed(1) : null
+  const midLeftSeamGapHabitsSun = hb && sn ? +(sn.top - hb.bottom).toFixed(1) : null
+  const midLeftSeamGapSunMoon = sn && mn ? +(mn.top - sn.bottom).toFixed(1) : null
+  // Informational only (not gating `midLeftOk`) — kept visible in the PASS
+  // line below precisely so this retirement is never silent.
+  const oldMoonLinksGap = rc.links && mn ? +(rc.links.top - mn.bottom).toFixed(1) : null
+  const midLeftViewportClearance = mn && pairwise.vh != null ? +(pairwise.vh - mn.bottom).toFixed(1) : null
   const midLeftOk =
     midLeftLeftGapMonthCal === RSS_GAP &&
     midLeftLeftGapHabits === RSS_GAP &&
     midLeftVercelGapHabits === MID_LEFT_GAP_FLOOR &&
-    midLeftSeamGap !== null &&
-    midLeftSeamGap >= MID_LEFT_GAP_FLOOR &&
-    midLeftBottomGap !== null &&
-    midLeftBottomGap >= MID_LEFT_GAP_FLOOR
+    midLeftSeamGapMonthCalHabits !== null &&
+    midLeftSeamGapMonthCalHabits >= MID_LEFT_GAP_FLOOR &&
+    midLeftSeamGapHabitsSun !== null &&
+    midLeftSeamGapHabitsSun >= MID_LEFT_GAP_FLOOR &&
+    midLeftSeamGapSunMoon !== null &&
+    midLeftSeamGapSunMoon >= MID_LEFT_GAP_FLOOR &&
+    midLeftViewportClearance !== null &&
+    midLeftViewportClearance >= MID_LEFT_GAP_FLOOR
   console.log(
     midLeftOk
-      ? `PASS: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case, all nine widgets on at once, clear their floors (RSS->monthCal ${midLeftLeftGapMonthCal}px, RSS->habits ${midLeftLeftGapHabits}px, vercel->habits ${midLeftVercelGapHabits}px, monthCal->habits ${midLeftSeamGap}px, habits->links ${midLeftBottomGap}px)`
-      : `FAIL: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case, all nine widgets on at once, clear their floors (RSS->monthCal=${midLeftLeftGapMonthCal}, RSS->habits=${midLeftLeftGapHabits}, vercel->habits=${midLeftVercelGapHabits}, monthCal->habits=${midLeftSeamGap}, habits->links=${midLeftBottomGap}, rects: monthCal=${JSON.stringify(mc)}, habits=${JSON.stringify(hb)}, rss=${JSON.stringify(rc.rss)}, vercel=${JSON.stringify(rc.vercel)}, links=${JSON.stringify(rc.links)})`,
+      ? `PASS: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case (monthCal->habits->sun->moon, all eleven widgets on at once), clear their floors (RSS->monthCal ${midLeftLeftGapMonthCal}px, RSS->habits ${midLeftLeftGapHabits}px, vercel->habits ${midLeftVercelGapHabits}px, monthCal->habits ${midLeftSeamGapMonthCalHabits}px, habits->sun ${midLeftSeamGapHabitsSun}px, sun->moon ${midLeftSeamGapSunMoon}px, moon->viewport-bottom ${midLeftViewportClearance}px [replaces the old habits->links floor — that comparison is x-disjoint and now reads ${oldMoonLinksGap}px, a non-collision confirmed by the 231-pair pairwise probe above, not a real regression; see the task report])`
+      : `FAIL: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case (monthCal->habits->sun->moon, all eleven widgets on at once), clear their floors (RSS->monthCal=${midLeftLeftGapMonthCal}, RSS->habits=${midLeftLeftGapHabits}, vercel->habits=${midLeftVercelGapHabits}, monthCal->habits=${midLeftSeamGapMonthCalHabits}, habits->sun=${midLeftSeamGapHabitsSun}, sun->moon=${midLeftSeamGapSunMoon}, moon->viewport-bottom=${midLeftViewportClearance}, rects: monthCal=${JSON.stringify(mc)}, habits=${JSON.stringify(hb)}, sun=${JSON.stringify(sn)}, moon=${JSON.stringify(mn)}, rss=${JSON.stringify(rc.rss)}, vercel=${JSON.stringify(rc.vercel)}, links=${JSON.stringify(rc.links)}, vh=${pairwise.vh})`,
   )
 
   const newErrorsAtDefault = errors.length - gateErrorsSeen
@@ -9619,7 +9996,7 @@ function gitlabContributionsFixture() {
       },
       connectorSnapshots: {},
       habits: [],
-      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } },
+      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false, sun: false, moon: false } },
     })
   })
   await page.reload()
@@ -9633,13 +10010,17 @@ function gitlabContributionsFixture() {
   // not (see PositionedBlock.tsx's own early-return branch) — the "gone"
   // signal is the gate returning null, i.e. no chip buttons / no table
   // inside it, same distinction the Task 57/58 isolated blocks' own
-  // gone-checks make against their inner content, not their wrapper.
+  // gone-checks make against their inner content, not their wrapper. sun/moon
+  // return null OUTRIGHT when gated off (no inner content at all), so their
+  // own "gone" signal is simpler: the inner `section[aria-label]` absent.
   const habitsGone = (await page.locator(`${habitsSel} button`).count()) === 0
   const monthCalGone = (await page.locator(`${monthCalSel} table`).count()) === 0
+  const sunGone = (await page.locator('section[aria-label="Sun times"]').count()) === 0
+  const moonGone = (await page.locator('section[aria-label="Moon phase"]').count()) === 0
   console.log(
-    allGone && habitsGone && monthCalGone
-      ? 'All seven connectors, monthCal, and habits disabled; page restored to idle'
-      : `WARNING: at least one connector/habits/monthCal widget still present after the combined-defaults gate (allGone=${allGone}, habitsGone=${habitsGone}, monthCalGone=${monthCalGone})`,
+    allGone && habitsGone && monthCalGone && sunGone && moonGone
+      ? 'All seven connectors, monthCal, habits, sun, and moon disabled; page restored to idle'
+      : `WARNING: at least one connector/habits/monthCal/sun/moon widget still present after the combined-defaults gate (allGone=${allGone}, habitsGone=${habitsGone}, monthCalGone=${monthCalGone}, sunGone=${sunGone}, moonGone=${moonGone})`,
   )
 }
 
@@ -9919,17 +10300,29 @@ function gitlabContributionsFixture() {
     await page.waitForTimeout(30)
   }
 
-  const RAIL_IDS = ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira']
+  // Task 97: sun/moon join RAIL_IDS/RAIL_SEL too — but note their `vis`
+  // membership below is deliberately narrower than monthCal/habits' (see the
+  // SWEEP array's own comment): they're only asserted shown at the two
+  // 1600x900 (col2-tier) steps, not the whole sweep, and the widgets are only
+  // switched ON for the duration of the sweep loop itself (see the ON/OFF
+  // toggle bracketing it below) — every OTHER sub-probe in this shared scope
+  // (A2's mid-tier fenceposts, A3's width fence, A4's col2 fencepost, B/C/D)
+  // keeps running with sun/moon OFF, unmodified from before this task, so
+  // none of their own monthCal/habits-only floor math silently goes stale.
+  const RAIL_IDS = ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'sun', 'moon', 'github', 'gitlab', 'jira']
   const RAIL_SEL = {
     ics: '[data-block-id="ics"] section',
     rss: '[data-block-id="rss"] section',
     vercel: '[data-block-id="vercel"] section',
-    // monthCal/habits render a root <div class="w-[200px]">, not a <section>
-    // (unlike the connector cards) — measure the PositionedBlock wrapper, which
-    // in col2 shrinks to that same 200px card and goes display:none (box null)
-    // exactly when the container query / height gate hides the column.
+    // monthCal/habits/sun/moon render a root <div class="w-[200px]">, not a
+    // <section> (unlike the connector cards) — measure the PositionedBlock
+    // wrapper, which in col2 shrinks to that same 200px card and goes
+    // display:none (box null) exactly when the container query / height gate
+    // hides the column.
     monthCal: '[data-block-id="monthCal"]',
     habits: '[data-block-id="habits"]',
+    sun: '[data-block-id="sun"]',
+    moon: '[data-block-id="moon"]',
     github: '[data-block-id="github"] section',
     gitlab: '[data-block-id="gitlab"] section',
     jira: '[data-block-id="jira"] section',
@@ -9971,7 +10364,11 @@ function gitlabContributionsFixture() {
   //     tall enough for every height tier yet <1193 wide — also an empty board.
   // The last row is the RETURN to 1600x900 — the reflow must be reversible.
   const SWEEP = [
-    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2' },
+    // Steps 1 and 9 (this one, and the RETURN row below) are the only two
+    // 1600x900 (col2-tier) steps — sun+moon join their `vis` lists here ONLY
+    // (see the ON/OFF toggle bracketing the loop below for how they're
+    // switched on for exactly this loop and no further).
+    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'sun', 'moon', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2' },
     { w: 1536, h: 864, vis: ['ics', 'rss', 'github'], cap: 'rails-1536.png', tier: 'mid (h864), no col2 (w<1593)' },
     { w: 1420, h: 900, vis: ['ics', 'rss', 'vercel', 'github', 'gitlab', 'jira'], cap: null, tier: 'default, no col2 (w<1593)' },
     { w: 1280, h: 800, vis: ['ics', 'rss', 'github'], cap: 'rails-1280.png', tier: 'mid (h800)' },
@@ -9985,7 +10382,7 @@ function gitlabContributionsFixture() {
     { w: 1024, h: 768, vis: [], cap: 'rails-1024-narrow.png', tier: 'narrow (w1024<1193) — rails hidden, centre board' },
     { w: 960, h: 1010, vis: [], cap: 'rails-960-halfsnap.png', tier: 'narrow (w960 half-snap, tall) — rails hidden' },
     { w: 800, h: 450, vis: [], cap: null, tier: 'xshort + narrow (w800<1193) — rails hidden' },
-    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2 (returned)' },
+    { w: 1600, h: 900, vis: ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'sun', 'moon', 'github', 'gitlab', 'jira'], cap: null, tier: 'default + col2 (returned)' },
   ]
 
   const measureSweep = async () =>
@@ -10015,6 +10412,19 @@ function gitlabContributionsFixture() {
   const hits = (a, b) => !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
   let sweepErrs = errors.length
   let sweepAllOk = true
+
+  // Task 97: switch sun/moon ON live (no reload — same chrome.storage
+  // onChanged path the ics "Meeting links" toggle probe above uses) for
+  // JUST this sweep loop — the current viewport is already 1600x900 (col2
+  // eligible) at this point, so both widgets mount immediately. `location`
+  // is untouched (already seeded). Switched back OFF right after the loop,
+  // below, before the shared scope's other sub-probes run.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, sun: true, moon: true } } })
+  })
+  await page.waitForTimeout(250)
+
   console.log('=== the resize sweep (rails prove themselves at every size) ===')
   for (const stepv of SWEEP) {
     await page.setViewportSize({ width: stepv.w, height: stepv.h })
@@ -10081,9 +10491,24 @@ function gitlabContributionsFixture() {
   }
   console.log(
     sweepAllOk
-      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, github survives the wide-short step, they hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
+      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, sun+moon join at both col2 (1600x900) steps, github survives the wide-short step, they hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
       : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
   )
+
+  // Task 97: switch sun/moon back OFF live — the sweep above is the ONLY
+  // sub-probe in this shared scope that needs them on. Every sub-probe below
+  // (A2's mid-tier fenceposts, A3's width fence, A4's col2 fencepost, B/C/D)
+  // reuses monthCal/habits' own two-widget col2 math UNMODIFIED — extending
+  // each of those to the four-widget worst case is out of this task's scope
+  // (the combined-defaults gate's own mid-left gap-floor probe is where that
+  // four-widget worst case is proven instead). Without this, A4's col2
+  // fencepost in particular would silently start measuring the WRONG
+  // bottom-of-col2 anchor (habits.bottom instead of the real moon.bottom).
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, sun: false, moon: false } } })
+  })
+  await page.waitForTimeout(250)
 
   // ── Sub-probe A2: the mid tier proves its OWN edges (fix round 1) ─────────
   // The phase LAW binds tier assertions to the tier's INTERIOR WORST CASE, and
@@ -10584,7 +11009,10 @@ function gitlabContributionsFixture() {
       habits: [],
       layout: {},
       weatherCache: null,
-      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } },
+      // sun/moon were already switched off live right after the sweep loop
+      // (see that toggle's own comment) — restated here too, defensively,
+      // same as every other widget this scope touched.
+      settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false, sun: false, moon: false } },
     })
   })
   await page.reload()
@@ -13202,6 +13630,8 @@ for (const { w, h } of viewportMatrix) {
       weatherChip: !!document.querySelector(s),
       bookmarksNav: !!document.querySelector('nav[aria-label="Bookmarks bar"]'),
       timerPill: !!document.querySelector('button[aria-label^="Focus timer"]'),
+      sunStrip: !!document.querySelector('section[aria-label="Sun times"]'),
+      moonStrip: !!document.querySelector('section[aria-label="Moon phase"]'),
     }),
     weatherSel,
   )
@@ -13219,6 +13649,21 @@ for (const { w, h } of viewportMatrix) {
     !defaultState.timerPill
       ? 'PASS: timer pill absent in the default fresh-install state'
       : 'FAIL: timer pill absent in the default fresh-install state (found in the DOM)',
+  )
+  // Task 97: sun/moon default OFF (schema.ts's defaults()) — `location` IS
+  // present here (untouched by this block's own settings-only reset), so
+  // this is the toggle default proving itself, not the location gate this
+  // same pair's own dedicated block (search "the sky proves itself") proves
+  // separately.
+  console.log(
+    !defaultState.sunStrip
+      ? 'PASS: sun strip absent in the default fresh-install state'
+      : 'FAIL: sun strip absent in the default fresh-install state (found in the DOM)',
+  )
+  console.log(
+    !defaultState.moonStrip
+      ? 'PASS: moon strip absent in the default fresh-install state'
+      : 'FAIL: moon strip absent in the default fresh-install state (found in the DOM)',
   )
 
   // Restore: original settings (bookmarks/timer back to whatever this
