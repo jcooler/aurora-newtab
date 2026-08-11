@@ -251,12 +251,16 @@ RSS is (and excluded from backup exports the same way), and refreshed on
 its own interval or sooner on demand:
 
 - **GitHub** — talks only to api.github.com; sends only your token (as the
-  Authorization header) and the queries for your own PRs, issues, and
-  notifications. Refreshed roughly every 5 minutes.
+  Authorization header) and the queries for your own PRs, issues,
+  notifications, and (opt-in, off by default) your contribution calendar
+  via GitHub's GraphQL endpoint. Refreshed roughly every 5 minutes.
 - **GitLab** — talks only to your configured GitLab instance (gitlab.com
   unless you've pointed it at your own); sends only your token (as the
   Authorization header) and the queries for your own merge requests and
-  to-dos. Refreshed roughly every 5 minutes.
+  to-dos, plus, opt-in and off by default: merge requests where you're the
+  requested reviewer, and your contribution calendar (fetched from
+  `/users/{username}/calendar.json` on that same configured instance — no
+  new host). Refreshed roughly every 5 minutes.
 - **Jira** — talks only to your own Jira Cloud site
   (`yoursite.atlassian.net`); sends only your email and API token (as
   HTTP Basic auth) and the query for issues assigned to you. Refreshed
