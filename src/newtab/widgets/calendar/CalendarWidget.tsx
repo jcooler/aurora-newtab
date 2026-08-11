@@ -161,7 +161,16 @@ function CalendarInner({
   // and its meeting is either already running or starts within 15 minutes.
   // `next.start - nowMs` goes negative once the meeting has started — still
   // <=15*60_000, so an in-progress meeting keeps showing Join until `end`.
-  const showJoin = meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
+  // !isAllDay(next) (whole-SP review finding): an all-day block's start is
+  // always local midnight, deeply in the past for a multi-day event already
+  // in progress, so start-now<=15min is trivially true for its ENTIRE span,
+  // and selectAgenda's own fallback (see its doc comment) lets an all-day
+  // event become `next` once no timed event remains — without this
+  // exclusion a multi-day "Company Offsite" with a meetUrl would show Join
+  // continuously for days. Join is a real-time meeting affordance; an
+  // all-day block is not a meeting you join at a moment. `relative` above
+  // already computes isAllDay(next) — reused here, not recomputed.
+  const showJoin = !isAllDay(next) && meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
 
   return (
     <section

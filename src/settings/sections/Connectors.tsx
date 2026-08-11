@@ -1454,7 +1454,6 @@ function IcsBody({ config, storage }: BodyProps) {
           id="connector-ics-meetlinks"
           checked={meetLinks}
           onChange={(checked) => void updateIcs((cals) => cals, { meetLinks: checked })}
-          label="Meeting links"
         />
       </div>
     </div>

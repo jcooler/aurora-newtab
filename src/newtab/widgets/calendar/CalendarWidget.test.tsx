@@ -376,6 +376,28 @@ describe('CalendarWidget', () => {
       expect(screen.getByText(/Next: Standup/)).toBeTruthy()
       expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
     })
+
+    it('never shows on an all-day headline — a multi-day all-day block spanning NOW with a meetUrl and no timed events left is not a meeting you "join"', async () => {
+      // Thu-Sun, spans NOW (start deeply in the past → start-now is always
+      // <=15min; end is days out → now<end holds too) — the same shape that
+      // made the pre-fix guard, which never excluded isAllDay, keep Join lit
+      // for the block's entire multi-day span. No timed events remain, so
+      // selectAgenda's own fallback (see its doc comment) makes this all-day
+      // event the headline itself.
+      const offsite = ev(
+        'Company Offsite',
+        new Date(2026, 7, 6, 0, 0, 0).getTime(), // Thu, local midnight
+        new Date(2026, 7, 9, 0, 0, 0).getTime(), // Sun, local midnight — spans NOW
+        0,
+        MEET_URL,
+      )
+      const storage = await seededStorage(CONNECTED, { events: [offsite] })
+      mount(storage)
+      await act(async () => {})
+
+      expect(screen.getByText('Next: Company Offsite · All day')).toBeTruthy()
+      expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
+    })
   })
 })
 
