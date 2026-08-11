@@ -2,6 +2,7 @@ import { useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
+import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
 import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
@@ -10,11 +11,11 @@ import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/ve
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
+import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
-import Section from '../Section'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
-import { control, select, submitBtn } from './shared'
+import { control, eyebrow, select, submitBtn } from './shared'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -61,11 +62,37 @@ function originOf(url: string): string | null {
   }
 }
 
-/** The Connectors tab body: one card per registered connector. The card SHELL
- *  is generic (it renders the descriptor's label/blurb/auth-state and an enable
- *  toggle), with a per-connector config body slotted in below — RSS is the only
- *  one today. `connectors` is owned by SettingsPanel (its useStoredKey read) and
- *  flows down; each card writes through `storage.update('connectors', …)`. */
+/** The Connectors tab body: one card per registered connector, under a search
+ *  box that narrows the catalog and (query empty) groups it — Task 80
+ *  (W3-SP1). The card SHELL itself is untouched (label/blurb/auth-state +
+ *  enable toggle, a per-connector body slotted in below); this component only
+ *  decides WHICH cards render and under what heading. `connectors` is owned by
+ *  SettingsPanel (its useStoredKey read) and flows down; each card writes
+ *  through `storage.update('connectors', …)`.
+ *
+ *  Query empty: every ENABLED connector surfaces first under "On your board"
+ *  (registry order), then the rest bucketed by ConnectorDescriptor.category in
+ *  CATEGORY_ORDER — an empty category (no members, or every member pinned
+ *  away) renders NO eyebrow at all, not an empty one (Home/Fun have no
+ *  occupants yet). Query non-empty: a single flat list ranked by fuzzyScore
+ *  (ties broken by registry order), no eyebrows, no pinning — search REPLACES
+ *  grouping rather than filtering within it.
+ *
+ *  Layout — STICKY, not a nested scroll region: the search block below is
+ *  `position: sticky` with `top: -1.5rem`, canceling the Drawer's own `p-6` so
+ *  it locks flush against the scrollport's top edge once scrolled past,
+ *  inside the Drawer's EXISTING single `overflow-y-auto` (Drawer.tsx) — zero
+ *  Drawer/SettingsPanel changes, one scroll context. This is
+ *  STRUCTURALLY safe here: nothing sits BETWEEN this sticky block and its
+ *  scrolling ancestor with a `transform`/`filter`/`contain` that would give it
+ *  a different containing block (the usual way sticky breaks) — the Drawer
+ *  panel's own slide-in `transform` and `backdrop-blur` live on the
+ *  scroll container ITSELF, not on an intermediate wrapper, so they don't
+ *  interpose. jsdom never lays out `position: sticky` (no scrolling), so the
+ *  tests below assert the BEHAVIORAL contract only (markers, filtering,
+ *  grouping) — the real pinned-while-scrolled proof is Task 81's
+ *  browser probe. `data-testid="connector-scroll"` names the list wrapper for
+ *  that probe, even though (in this variant) it never scrolls itself. */
 export default function Connectors({
   connectors,
   storage,
@@ -73,17 +100,73 @@ export default function Connectors({
   connectors: AuroraData['connectors'] | undefined
   storage: AuroraStorage
 }) {
+  const [query, setQuery] = useState('')
+  const q = query.trim()
+
+  // Grouping is DERIVED per render from the registry + live config — no
+  // memo: seven descriptors is nothing, and staleness bugs cost more than
+  // the map does.
+  const enabled = (d: ConnectorDescriptor) => !!connectors?.[d.id]?.enabled
+  const results = q
+    ? CONNECTORS.map((d, i) => ({ d, i, score: fuzzyScore(q, `${d.label} ${d.blurb}`) }))
+        .filter((r): r is { d: ConnectorDescriptor; i: number; score: number } => r.score !== null)
+        .sort((a, b) => b.score - a.score || a.i - b.i)
+        .map((r) => r.d)
+    : null
+  const pinned = q ? [] : CONNECTORS.filter(enabled)
+  const grouped = q
+    ? []
+    : CATEGORY_ORDER.map((cat) => ({
+        cat,
+        cards: CONNECTORS.filter((d) => d.category === cat && !enabled(d)),
+      })).filter((g) => g.cards.length > 0)
+
+  const card = (d: ConnectorDescriptor) => (
+    <ConnectorCard key={d.id} descriptor={d} config={connectors?.[d.id]} storage={storage} />
+  )
+
   return (
-    <Section title="Connectors">
-      {CONNECTORS.map((descriptor) => (
-        <ConnectorCard
-          key={descriptor.id}
-          descriptor={descriptor}
-          config={connectors?.[descriptor.id]}
-          storage={storage}
+    <section aria-label="Connectors" className="py-6 first:pt-0 last:pb-0">
+      <div className="sticky -top-6 z-10 bg-panel pb-3">
+        <h3 className={eyebrow}>Connectors</h3>
+        <label htmlFor="connector-search" className="sr-only">
+          Search connectors
+        </label>
+        <input
+          id="connector-search"
+          type="search"
+          placeholder="Search connectors"
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+          className={`${control} w-full`}
         />
-      ))}
-    </Section>
+      </div>
+
+      <div data-testid="connector-scroll">
+        {results !== null ? (
+          results.length > 0 ? (
+            results.map(card)
+          ) : (
+            <p className="text-sm text-fg-muted">No connector matches.</p>
+          )
+        ) : (
+          <>
+            {pinned.length > 0 && (
+              <div className="mt-6 first:mt-0">
+                <h4 className={eyebrow}>On your board</h4>
+                {pinned.map(card)}
+              </div>
+            )}
+            {grouped.map(({ cat, cards }) => (
+              <div key={cat} className="mt-6 first:mt-0">
+                <h4 className={eyebrow}>{CATEGORY_LABELS[cat]}</h4>
+                {cards.map(card)}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+    </section>
   )
 }
 

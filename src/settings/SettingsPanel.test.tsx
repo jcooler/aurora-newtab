@@ -1180,6 +1180,184 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   })
 })
 
+// Task 80 (W3-SP1): the Connectors tab default export grows a search box +
+// category grouping + a pinned "On your board" group on top of the plain
+// registry-order card list every describe block below still exercises. This
+// suite is about THAT restructuring specifically — grouping/search/ranking —
+// not any individual card's body, which is why it renders with no config
+// (default grouping) or a minimal github/ics seed (pinning), rather than
+// going through every connector's own describe block above.
+describe('Connectors tab — search and categories', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(whoamiGithub).mockReset()
+  })
+
+  async function renderConnectors(config?: { github?: GithubConfig; ics?: IcsConfig }) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (config) await storage.set('connectors', config)
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    return storage
+  }
+
+  function connectorsRegion() {
+    return screen.getByRole('region', { name: 'Connectors' })
+  }
+
+  // Every group/pinned eyebrow name that could possibly appear — used to
+  // filter getAllByRole('heading', { level: 4 }) down to JUST the eyebrows,
+  // since ConnectorCard's own title is ALSO an <h4> (its label, e.g.
+  // 'GitHub') and lives in the very same subtree.
+  const EYEBROW_NAMES = ['On your board', 'Development', 'Calendar & tasks', 'Home', 'News & markets', 'Fun']
+
+  function eyebrowsIn(container: HTMLElement): string[] {
+    return within(container)
+      .getAllByRole('heading', { level: 4 })
+      .map((h) => h.textContent)
+      .filter((t): t is string => t !== null && EYEBROW_NAMES.includes(t))
+  }
+
+  // The card titles (h4s that are NOT an eyebrow) inside one eyebrow's own
+  // group wrapper — `heading.parentElement` is that wrapper (the group <div>
+  // holding exactly its own eyebrow + its own cards, see Connectors.tsx),
+  // so `within` scopes strictly to that one group, not its siblings.
+  function cardsUnder(heading: HTMLElement): string[] {
+    return within(heading.parentElement as HTMLElement)
+      .getAllByRole('heading', { level: 4 })
+      .map((h) => h.textContent)
+      .filter((t): t is string => t !== null && t !== heading.textContent)
+  }
+
+  it('default grouping: eyebrows in CATEGORY_ORDER for non-empty categories only; cards in registry order beneath each', async () => {
+    await renderConnectors()
+    const region = connectorsRegion()
+
+    // No connector enabled -> no pinned group; Home/Fun have no members yet
+    // -> no eyebrow for either. Exactly the three non-empty categories, IN
+    // CATEGORY_ORDER.
+    expect(eyebrowsIn(region)).toEqual(['Development', 'Calendar & tasks', 'News & markets'])
+
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
+      'GitHub',
+      'GitLab',
+      'Jira',
+      'Vercel',
+    ])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'Calendar & tasks' }))).toEqual(['Calendar'])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'News & markets' }))).toEqual(['RSS', 'Crypto'])
+  })
+
+  it('pinning: enabling github + ics surfaces "On your board" first with exactly those two cards, absent from their categories', async () => {
+    await renderConnectors({
+      github: { enabled: true, token: '', username: '' },
+      ics: { enabled: true, calendars: [{ name: 'Personal', url: 'https://calendar.example.com/basic.ics' }] },
+    })
+    const region = connectorsRegion()
+
+    // 'On your board' FIRST, registry order (github before ics).
+    expect(eyebrowsIn(region)).toEqual(['On your board', 'Development', 'News & markets'])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'On your board' }))).toEqual([
+      'GitHub',
+      'Calendar',
+    ])
+
+    // Development keeps its other three, minus the now-pinned github.
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
+      'GitLab',
+      'Jira',
+      'Vercel',
+    ])
+
+    // Calendar & tasks had ONLY ics -> now empty -> no eyebrow at all (not an
+    // empty group, an ABSENT one).
+    expect(within(region).queryByRole('heading', { name: 'Calendar & tasks' })).toBeNull()
+  })
+
+  it('search filters: "git" is a flat list (no eyebrows) with GitHub + GitLab only; "calendar" matches the Calendar card by blurb', async () => {
+    await renderConnectors()
+    const region = connectorsRegion()
+    const input = screen.getByLabelText('Search connectors') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'git' } })
+
+    expect(eyebrowsIn(region)).toEqual([]) // query active -> flat, no eyebrows at all
+    expect(within(region).getByRole('heading', { name: 'GitHub' })).toBeTruthy()
+    expect(within(region).getByRole('heading', { name: 'GitLab' })).toBeTruthy()
+    expect(within(region).queryByRole('heading', { name: 'Calendar' })).toBeNull()
+    expect(within(region).queryByRole('heading', { name: 'RSS' })).toBeNull()
+    expect(within(region).queryByRole('heading', { name: 'Crypto' })).toBeNull()
+    expect(within(region).queryByRole('heading', { name: 'Jira' })).toBeNull()
+    expect(within(region).queryByRole('heading', { name: 'Vercel' })).toBeNull()
+
+    fireEvent.change(input, { target: { value: 'calendar' } })
+
+    expect(within(region).getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    expect(within(region).getByText('Your next events, from any calendar app')).toBeTruthy()
+  })
+
+  it('ranking: "crypto" puts the Crypto card first in the scroll region', async () => {
+    await renderConnectors()
+    fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'crypto' } })
+
+    const scroll = screen.getByTestId('connector-scroll')
+    const firstCardHeading = within(scroll).getAllByRole('heading', { level: 4 })[0]
+    expect(firstCardHeading?.textContent).toBe('Crypto')
+  })
+
+  it('empty state: no match renders the exact copy and no cards', async () => {
+    await renderConnectors()
+    const region = connectorsRegion()
+    fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'zzz' } })
+
+    const empty = within(region).getByText('No connector matches.')
+    expect(empty.tagName).toBe('P')
+    expect(within(region).queryAllByRole('heading', { level: 4 })).toEqual([])
+  })
+
+  it('clearing the search restores the default grouping shape', async () => {
+    await renderConnectors()
+    const input = screen.getByLabelText('Search connectors') as HTMLInputElement
+
+    fireEvent.change(input, { target: { value: 'git' } })
+    expect(screen.queryByRole('heading', { name: 'Development' })).toBeNull()
+
+    fireEvent.change(input, { target: { value: '' } })
+    expect(eyebrowsIn(connectorsRegion())).toEqual(['Development', 'Calendar & tasks', 'News & markets'])
+  })
+
+  // Behavior preservation: the exact "connect happy path" assertions from
+  // the GitHub describe block above (ensureOrigin -> whoami -> persisted
+  // config), just with a search query active throughout — proof the search/
+  // grouping rework changed navigation only, never the card's own behavior.
+  it('behavior preservation: the GitHub connect flow still works end-to-end with "github" active in search', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: true, identity: 'octocat' })
+    const storage = await renderConnectors({ github: { enabled: true, token: '', username: '' } })
+
+    fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'github' } })
+
+    const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'github_pat_123' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.github.com/*')
+    expect(whoamiGithub).toHaveBeenCalledWith('github_pat_123')
+    expect(await storage.get('connectors')).toMatchObject({
+      github: { enabled: true, token: 'github_pat_123', username: 'octocat' },
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+})
+
 describe('SettingsPanel Connectors section (RSS card)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
