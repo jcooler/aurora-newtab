@@ -100,7 +100,24 @@ function StatusInner({ services }: { services: { name: string; url: string }[] }
         ))}
       </div>
       {trouble.map((s, i) => (
-        <p key={i} className="mt-1 truncate text-xs text-red-400">
+        // FIX ROUND (post-Task 86, controller-approved): the OUTER
+        // PositionedBlock (App.tsx) now reveals this whole section at a
+        // NEW, LOWER `ampler` floor (>=922h — see index.css's own doc
+        // comment) sized for the dot row alone, so the glance-value dots
+        // survive Jon's canonical 1600x900. The trouble TEXT still needs the
+        // taller `tallest` floor (>=1042h) — Task 86's own measured number,
+        // UNCHANGED, just re-scoped from "the whole strip's floor" to "this
+        // text's own floor" (see App.tsx's bottom-zone comment and
+        // index.css's `tallest` doc comment for the arithmetic: a
+        // service with trouble text showing is a taller status block than
+        // dots alone, and it's THIS number that proves the taller block
+        // still clears the links row). `text-photo` is the house
+        // photo-floating-text shadow (index.css's own `@utility
+        // text-photo`) — this line sits directly on the background photo,
+        // same as every other bottom-band text (crypto's own price/change
+        // spans), so it needs the same legibility treatment; it never had
+        // it before this fix round.
+        <p key={i} className="hidden tallest:block mt-1 truncate text-xs text-red-400 text-photo">
           {s.name} — {s.description}
         </p>
       ))}
@@ -112,7 +129,26 @@ function StatusInner({ services }: { services: { name: string; url: string }[] }
  *  unknown gets its own muted gray rather than reusing red/amber — an
  *  unreachable check is a DIFFERENT claim than a confirmed problem (see
  *  status.ts's own doc comment on why fetchStatus never carries a stale
- *  `prev` indicator forward through a failed recheck). */
+ *  `prev` indicator forward through a failed recheck).
+ *
+ *  FIX ROUND: unknown's ink was `bg-fg-muted/40` — PANEL-adaptive ink
+ *  (re-tints toward black under a light `panelColor` pick, src/theme's own
+ *  applyPanelColor). Wrong axis: this strip floats directly on the
+ *  background PHOTO, never on a panel (same reasoning CryptoWidget.tsx's own
+ *  zero-tint cell already documents for its own `text-canvas-fg-muted`
+ *  choice over plain `text-fg-muted`) — a light panelColor pick would have
+ *  silently dropped this dot toward near-black, low-contrast against a
+ *  typically darker photo, while every OTHER indicator's color (emerald/
+ *  amber/red-400 below) stays fixed regardless of panelColor. `-canvas-`
+ *  is the FIXED, theme-independent ink family (index.css's `@theme inline`
+ *  registers `--color-canvas-fg-muted`, themes.css pins its value), so
+ *  `bg-canvas-fg-muted/40` now matches every other dot's own
+ *  panelColor-independence. Numerically identical to the old class at
+ *  DEFAULT settings (`--canvas-fg-muted` and `--fg-muted` share the same
+ *  default `rgb(245 245 244 / 0.68)`) — Task 86's own pixel-sample probe
+ *  (scripts/preview.mjs) measured `rgb(66, 66, 66)` before this change and
+ *  still does after it; the fix only matters once a user picks a light
+ *  panel. */
 function dotClass(indicator: StatusIndicator): string {
   switch (indicator) {
     case 'none':
@@ -123,7 +159,7 @@ function dotClass(indicator: StatusIndicator): string {
     case 'critical':
       return 'bg-red-400'
     case 'unknown':
-      return 'bg-fg-muted/40'
+      return 'bg-canvas-fg-muted/40'
   }
 }
 

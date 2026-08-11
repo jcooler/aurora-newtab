@@ -454,10 +454,67 @@
    width-independent by design: the 890 floor is the wide worst case, safe (more
    clearance) at every narrower width. */
 @custom-variant taller (@media (min-height: 890px));
-/* Status-strip reveal tier (Task 86, W3-SP2's own harness — RESOLVES the
-   PROVISIONAL floor Task 84 shipped, which just copied `taller` verbatim; see
-   App.tsx's bottom-zone comment for the full narrative). The status strip is
-   the band's NEW FIRST child, ABOVE crypto — sitting its own gap-2 (8px)
+/* Status DOT ROW reveal tier — the strip's OWN glance-value floor (fix
+   round, controller-approved, post-Task-86 review). Task 86 originally
+   gated the WHOLE status strip (dots AND trouble text together) behind one
+   number, `tallest` below — a real, confirmed defect: it hid the dot row's
+   entire glance value (the feature's whole point — a quiet day reads as
+   nearly invisible dots, one glance tells you everything's fine) at Jon's
+   canonical 1600x900, purely because the trouble TEXT didn't have room
+   there, even on an all-green day with zero text to show. This variant
+   fixes that: the dot row alone gates HERE, at its own, much lower,
+   independently measured floor; the trouble text keeps the original
+   `tallest` number (see that variant's own comment, below, for why the
+   number itself didn't need to change even though its JOB did).
+
+   Same construction as `tallest`'s own derivation (below), re-run with the
+   dot row's REAL, much smaller height instead of the 68px dots+text worst
+   case:
+     · dotRowHeight = 8px — MEASURED (scripts/preview.mjs), not merely
+       assumed from `size-2`'s nominal 8x8: the row is a bare `flex` of
+       `size-2` dots with no padding/line-height inflation (flex items size
+       to their own content box), confirmed constant across every
+       fencepost swept.
+     · the dot row sits gap-2 (8px) above crypto, same as the full strip
+       did — the flex column's own uniform gap, unaffected by which of the
+       strip's own children currently render.
+     · statusClear(h) [dots-only] = cryptoClear(h) − 16, where 16 =
+       dotRowHeight(8) + gap-2(8) — the SAME cryptoClear(h) formula
+       `tallest`'s own comment establishes (linear, slope 0.5px per 1px of
+       height: cryptoClear(890)=8.5, cryptoClear(900)=13.5,
+       cryptoClear(1000)=63.5).
+     · Solving statusClear(h) >= 8 (the SAME band floor every tier here
+       uses): cryptoClear(h) >= 24 -> h >= 921 (measured directly: 920 ->
+       7.5px [FAIL], 921 -> 8.0px exactly [the true boundary]). Pinned ONE
+       HIGHER at 922 for the identical half-pixel-margin convention `taller`
+       (890) and `tallest` (1042) were both pinned with: 922 -> 8.5px.
+
+   THE HONEST VERDICT AT JON'S CANONICAL 1600x900 (the controller's own
+   target height for this fix round): 900 < 922. The dot row does NOT clear
+   this floor at exactly 900 — measured, not guessed: forcing a reveal at
+   900 puts the dot row's own top 2.5px ABOVE where the links row ends (a
+   REAL, physical 2.5px overlap, not merely "under the margin" — even a 0px
+   floor would still fail at 900, because cryptoClear(900)=13.5 is 2.5px
+   short of the 16px offset alone, before any clearance is even asked for).
+   No floor choice makes 900 literally safe; 922 is not a conservative pin
+   padded for margin, it is the true physical boundary given the existing
+   gap-2 spacing this band already commits to everywhere else. This IS a
+   large, real improvement over the old all-or-nothing 1042 (the dot row
+   now survives 120 more px of the height range than before, and shows at
+   every height most users who actually enable status will run at — 922 is
+   BELOW `roomy`'s own 995), but it is NOT literally 900 — reported
+   honestly in Task 86's report addendum rather than silently claimed;
+   scripts/preview.mjs's own probe proves the true 921/922 fencepost, not a
+   pretend 899/900 one. */
+@custom-variant ampler (@media (min-height: 922px));
+/* Status TROUBLE TEXT reveal tier (Task 86, W3-SP2's own harness —
+   ORIGINALLY resolved the whole-strip PROVISIONAL floor Task 84 shipped,
+   which just copied `taller` verbatim; see App.tsx's bottom-zone comment
+   for the full original narrative — this fix round narrowed its JOB from
+   "the whole strip's reveal" to "the trouble text's reveal", see `ampler`
+   immediately above for the dot row's own separate floor). The status
+   strip is the band's NEW FIRST child, ABOVE crypto — sitting its own
+   gap-2 (8px)
    higher than crypto's top, which crypto's own `taller` floor was derived
    WITHOUT accounting for (crypto's 890 was derived when crypto was the
    band's topmost member). MEASURED (scripts/preview.mjs, status seeded at
@@ -502,9 +559,27 @@
    `grand` already documents for gitlab's reviewAsks "may be on"). A pure
    height media query, width-independent by the SAME reasoning `taller`
    documents (1600w is the worst width at any height — the clock's clamp
-   saturates there, giving the tallest centred column). At Jon's canonical
-   1600x900 the strip is therefore HIDDEN (900 < 1042) — crypto and the quote
-   still show exactly as before this task. */
+   saturates there, giving the tallest centred column).
+
+   FIX ROUND (controller-approved, post-Task-86 review): this number no
+   longer gates the whole strip's own reveal — that hid the dot row's
+   entire glance value at Jon's canonical 1600x900 for the sake of trouble
+   text that height didn't have room for anyway. `tallest` now gates ONLY
+   the trouble `<p>` elements INSIDE an already-visible strip
+   (StatusWidget.tsx's own `hidden tallest:block` on each one); the strip's
+   OWN reveal — the dot row — is `ampler`'s job, defined just above, at its
+   own much lower floor. The NUMBER here stays exactly 1042, unchanged: the
+   arithmetic above (statusHeight=68, the dots+text worst case) is EXACTLY
+   what determines "is there room for the text on top of the dots",
+   regardless of whether the dots were already visible below this floor —
+   the flex column's bottom-anchoring absorbs the status block's own height
+   change (8px dots-only -> 68px dots+text) by shifting the block's TOP
+   upward by the same 60px the text adds, and 1042 is precisely the height
+   where that shifted top still clears the links row by the >=8px floor
+   (re-verified by direct measurement post-split, not just carried over
+   unchanged on faith). At Jon's canonical 1600x900 the trouble text is
+   therefore HIDDEN (900 < 1042) — see `ampler` above for the dot row's own,
+   separate verdict at that same height. */
 @custom-variant tallest (@media (min-height: 1042px));
 /* GitHub/GitLab commit-graph reveal tier for the TWO-SIBLING right rail (Task 70;
    RE-DERIVED Task 77 — see the 1041->1171 note below). The graph is

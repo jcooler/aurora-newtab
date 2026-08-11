@@ -715,33 +715,42 @@ export default function App() {
               INTERIOR-WORST-CASE LAW: the tier is asserted at its own minimum, both
               fenceposts, by scripts/preview.mjs.
 
-              STATUS (Task 84 shipped it PROVISIONAL; Task 86 — this harness —
-              RESOLVED it). The status strip is the band's NEW first child,
-              ABOVE crypto, which is exactly why it does NOT get to share
-              crypto's own 890 floor: crypto's 890 was derived when crypto was
-              the band's TOPMOST member, and status now sits its own gap-2
-              (8px) higher than crypto's top PLUS its own measured height
-              (68px at its true display max — 8 dots, 3 worst-first trouble
-              lines, the MAX_TROUBLE_LINES cap) — 76px of extra distance from
-              the flowing links row that crypto's own floor never had to
-              clear. Measured directly (scripts/preview.mjs): at crypto's own
-              890, status's top OVERLAPS the links row by -67.5px — a real,
-              confirmed collision if status shared `taller`, exactly the
-              failure mode this task's own brief anticipated ("if a floor
-              breaks, status yields first"). So status gets its OWN, HIGHER,
-              measured tier — index.css's `tallest` (>=1042h; see that
-              variant's own doc comment for the full derivation:
-              statusClear(h) = cryptoClear(h) − 76, solved for the same >=8px
-              band floor `taller` already uses, pinned at 1042 with the
-              identical half-pixel margin convention 890 was pinned with).
-              `taller:block taller:opacity-100` is now `tallest:block
-              tallest:opacity-100` on this block ONLY — crypto below keeps
-              `taller` unchanged, and stays exactly as honest as before (its
-              own 890 clearance is unaffected by a new sibling ABOVE it,
-              verified by direct measurement, not just reasoned from
-              construction). Net effect at Jon's canonical 1600x900
-              (900 < 1042): status stays hidden, crypto and the quote render
-              exactly as they did before this task.
+              STATUS (Task 84 shipped it PROVISIONAL; Task 86 measured it;
+              this fix round SPLITS it). Task 86's own harness caught a real
+              defect the controller confirmed as Important: gating the WHOLE
+              strip — dots AND trouble text together — behind one tall floor
+              (`tallest`, >=1042h) meant the dot row's entire glance value
+              (the feature's whole point: a quiet day is nearly invisible,
+              one look tells you everything's fine) died at Jon's canonical
+              1600x900 right along with the trouble text it never actually
+              needed room for. The fix is TWO independent floors, one per
+              concern:
+                · THE DOT ROW (this PositionedBlock's own reveal, below) now
+                  gates on `ampler` (>=922h, index.css's own doc comment) —
+                  its OWN measured floor, sized for the dot row ALONE
+                  (~8px content, not 68px), which is why it's so much lower
+                  than `tallest`. `taller:block taller:opacity-100` (crypto's
+                  own class, unaffected) is now `ampler:block
+                  ampler:opacity-100` here.
+                · THE TROUBLE TEXT (StatusWidget.tsx's own `<p>` elements)
+                  stays gated behind `tallest` (>=1042h, Task 86's original
+                  number, UNCHANGED) via its own `hidden tallest:block` —
+                  see StatusWidget.tsx's doc comment on that class and
+                  index.css's `tallest` variant, now re-scoped from "the
+                  whole strip's floor" to "the trouble text's own floor
+                  within an already-visible strip."
+              Both numbers were independently re-measured for this fix round,
+              not just reasoned: `ampler`'s low boundary needed its own
+              cryptoClear arithmetic re-run with the dot-row's real 8px
+              height (not 68px) — see index.css's own doc comment for the
+              full derivation, including why `tallest` stays EXACTLY 1042
+              even though the dot row's own top position shifts once the
+              trouble text also appears (the shift is fully absorbed by the
+              flex column's bottom anchoring; crypto's 890 clearance is
+              STILL unaffected either way, re-confirmed by measurement).
+              Net effect at Jon's canonical 1600x900 — see index.css's
+              `ampler` doc comment for the honest verdict at exactly this
+              height, numbers included, rather than restated here.
 
               CONTAINMENT LAW binds here too (see index.css's .rail-col2 rule): this
               zone needs NO container query — a height media tier suffices for the
@@ -771,14 +780,19 @@ export default function App() {
                   the flex flow by index.css's `[data-zone] [data-block-id]:empty`
                   rule, same as every other rail/band widget. A stored
                   arrange-mode `pos` still wins (PositionedBlock drops this
-                  className on that branch). MEASURED height tier (Task 86) —
-                  see this comment block's own "STATUS (Task 84 shipped it
-                  PROVISIONAL; Task 86 RESOLVED it)" paragraph above and
-                  index.css's `tallest` variant for the full derivation:
-                  status sits its own gap-2 + measured height ABOVE crypto, so
-                  it needs a HIGHER floor than crypto's `taller` (>=890h) —
-                  `tallest` (>=1042h), status's own measured boundary. */}
-              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 tallest:block tallest:opacity-100">
+                  className on that branch). MEASURED height tier, SPLIT
+                  (Task 86 measured `tallest`; this fix round split the
+                  reveal in two) — see this comment block's own "STATUS"
+                  paragraph above and index.css's `ampler`/`tallest` variants
+                  for the full derivation. THIS wrapper gates the dot row
+                  alone — `ampler` (its own, much lower, measured floor,
+                  sized for ~8px of content instead of 68px) — so the
+                  strip's glance value survives far more of the height range
+                  than the old all-or-nothing `tallest` gate did; the trouble
+                  TEXT gets its own separate, still-`tallest`-gated reveal
+                  inside StatusWidget.tsx itself (each `<p>` carries its own
+                  `hidden tallest:block`), not this wrapper. */}
+              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 ampler:block ampler:opacity-100">
                 <StatusWidget />
               </PositionedBlock>
             </WidgetBoundary>

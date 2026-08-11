@@ -161,11 +161,15 @@ describe('StatusWidget — dot color + title per indicator', () => {
     expect(dot.className).toContain('bg-red-400')
   })
 
-  it('unknown -> bg-fg-muted/40 (gray), title "{name}: unreachable"', async () => {
+  // FIX ROUND (post-Task 86, controller-approved): was `bg-fg-muted/40`
+  // (panel-adaptive ink) — wrong axis for a strip that floats on the photo,
+  // never a panel; now the fixed, theme-independent `-canvas-` family
+  // (same discipline CryptoWidget.tsx's own zero-tint cell already uses).
+  it('unknown -> bg-canvas-fg-muted/40 (fixed canvas ink, not panel-adaptive), title "{name}: unreachable"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Echo: unreachable')
-    expect(dot.className).toContain('bg-fg-muted/40')
+    expect(dot.className).toContain('bg-canvas-fg-muted/40')
   })
 })
 
@@ -184,7 +188,18 @@ describe('StatusWidget — trouble lines', () => {
     expect(section.querySelectorAll('p').length).toBe(0)
   })
 
-  it('exact trouble text "{name} — {description}" in the danger tone (text-red-400)', async () => {
+  // FIX ROUND (post-Task 86, controller-approved): the trouble line now
+  // ALSO carries `text-photo` (the house photo-floating-text shadow,
+  // index.css's own `@utility text-photo` — this text sits directly on the
+  // background photo, same as every other bottom-band text) and its own
+  // `hidden tallest:block` CSS-visibility gate (the strip's outer
+  // PositionedBlock reveals at the much-lower `ampler` floor now; the text
+  // itself still needs `tallest`'s taller floor to have room — see
+  // App.tsx/index.css). jsdom never evaluates the height media query behind
+  // `tallest:block` (no real layout), so this only pins the CLASS NAMES
+  // being present — scripts/preview.mjs's own real-browser fenceposts are
+  // what prove the actual reveal-at-height behavior.
+  it('exact trouble text "{name} — {description}" in the danger tone (text-red-400), with the photo shadow and its own tallest-gated visibility class', async () => {
     const data: StatusData = {
       services: [{ name: 'Bravo', indicator: 'critical', description: 'Major Outage' }],
     }
@@ -196,6 +211,9 @@ describe('StatusWidget — trouble lines', () => {
     const line = await screen.findByText('Bravo — Major Outage')
     expect(line.tagName).toBe('P')
     expect(line.className).toContain('text-red-400')
+    expect(line.className).toContain('text-photo')
+    expect(line.className).toContain('hidden')
+    expect(line.className).toContain('tallest:block')
   })
 
   it('worst-first ordering: critical > major > minor, regardless of configured order', async () => {
