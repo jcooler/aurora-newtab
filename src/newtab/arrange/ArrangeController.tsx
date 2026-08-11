@@ -41,6 +41,8 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   status: 'Service status',
   habits: 'Habits',
   monthCal: 'Month',
+  sun: 'Sun times',
+  moon: 'Moon phase',
 }
 
 interface DragState {

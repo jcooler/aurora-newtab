@@ -22,6 +22,8 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
       countdown: false,
       habits: false,
       monthCal: false,
+      sun: false,
+      moon: false,
     },
   }
   return {

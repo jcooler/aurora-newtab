@@ -19,7 +19,8 @@ describe('migrate', () => {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
-      // registry[7] upgrades v7 -> v8 (CURRENT_VERSION)
+      // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9
+      // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
         return { ...data, focus: { text: 'migrated', date: '2026-07-26', done: false } }
@@ -52,9 +53,13 @@ describe('migrate', () => {
         calls.push(7)
         return data
       },
+      8: (data) => {
+        calls.push(8)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -379,5 +384,89 @@ describe('v7 -> v8', () => {
     expect(out.settings.widgets.monthCal).toBe(false) // v6->v7 ran
     expect('theme' in out.settings).toBe(false) // v7->v8 ran (stripped)
     expect(out.settings.panelColor).toBeNull() // v7->v8 ran (backfilled)
+  })
+})
+
+// Task 93: sun and moon widget toggles. Brand new NESTED keys inside
+// settings.widgets — exactly what the final default-merge does NOT backfill
+// (see v1->v2's own comment) — so this step is deliberately the same
+// GENERIC shape as v1->v2's and v6->v7's own steps (spreads
+// defaults().settings.widgets under whatever's already stored), not
+// hardcoded to `sun`/`moon` by name, per the STANDING RULE in schema.ts.
+describe('v8 -> v9', () => {
+  it('backfills sun AND moon while preserving a user choice for a key that already existed in v8', () => {
+    const v8Widgets = {
+      search: true, weather: false, links: true, todo: true, timer: false,
+      quote: true, bookmarks: false, notes: true, clocks: false, countdown: false,
+      habits: true, monthCal: false,
+      // sun/moon absent — the actual v8-era gap this step exists to close
+    }
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: v8Widgets } }, 8)
+    expect(out.settings.name).toBe('Jon')
+    expect(out.settings.widgets.weather).toBe(false) // stored choice survives
+    expect(out.settings.widgets.habits).toBe(true) // stored choice survives (an explicitly-true nested key)
+    expect(out.settings.widgets.sun).toBe(false) // new key backfilled from defaults()
+    expect(out.settings.widgets.moon).toBe(false) // new key backfilled from defaults()
+  })
+
+  it('tolerates a v8 snapshot with no settings at all', () => {
+    const out = migrate({}, 8)
+    expect(out.settings.widgets.sun).toBe(false)
+    expect(out.settings.widgets.moon).toBe(false)
+  })
+
+  it('guards against a non-object settings (e.g. a hand-edited string): defaults win, no garbage keys', () => {
+    const out = migrate({ settings: 'oops' }, 8)
+    expect(out.settings).toEqual(defaults().settings)
+    expect(Object.keys(out.settings)).toEqual(Object.keys(defaults().settings))
+  })
+
+  it('guards against a non-object widgets nested inside a valid settings object', () => {
+    const out = migrate({ settings: { ...defaults().settings, name: 'Jon', widgets: 'oops' } }, 8)
+    expect(out.settings.name).toBe('Jon') // rest of settings still preserved
+    expect(out.settings.widgets).toEqual(defaults().settings.widgets)
+  })
+
+  it('guards against an array settings (arrays are typeof "object" too)', () => {
+    const out = migrate({ settings: ['oops'] }, 8)
+    expect(out.settings).toEqual(defaults().settings)
+  })
+
+  it('spread-preserves the rest of the snapshot untouched by this step', () => {
+    const out = migrate(
+      { settings: defaults().settings, habits: [{ id: 'h1', name: 'Read', createdAt: 0, log: [] }] },
+      8,
+    )
+    expect(out.habits).toEqual([{ id: 'h1', name: 'Read', createdAt: 0, log: [] }])
+  })
+
+  it('a v1 snapshot chains through all eight migrations, ending with sun AND moon present and every v8-era key intact', () => {
+    const out = migrate({}, 1)
+    expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
+    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
+    expect(out.connectors).toEqual({}) // v4->v5 ran
+    expect(out.habits).toEqual([]) // v5->v6 ran
+    expect(out.settings.widgets.monthCal).toBe(false) // v6->v7 ran
+    expect('theme' in out.settings).toBe(false) // v7->v8 ran (stripped)
+    expect(out.settings.panelColor).toBeNull() // v7->v8 ran (backfilled)
+    expect(out.settings.widgets.sun).toBe(false) // v8->v9 ran (backfilled)
+    expect(out.settings.widgets.moon).toBe(false) // v8->v9 ran (backfilled)
+  })
+
+  it('an explicitly-true widget already present in a v1 snapshot survives the full v1->v9 chain untouched', () => {
+    const v1Settings = {
+      name: 'Jon',
+      use24Hour: false,
+      theme: 'aurora',
+      units: 'metric',
+      muted: false,
+      widgets: { search: false, weather: true, links: true, todo: true, timer: true, quote: false },
+    }
+    const out = migrate({ settings: v1Settings }, 1)
+    expect(out.settings.widgets.weather).toBe(true) // user's v1-era choice, still honored 8 steps later
+    expect(out.settings.widgets.monthCal).toBe(false) // backfilled default (v6->v7 step, unaffected by v8->v9)
+    expect(out.settings.widgets.sun).toBe(false) // backfilled default (v8->v9 step)
+    expect(out.settings.widgets.moon).toBe(false) // backfilled default (v8->v9 step)
   })
 })

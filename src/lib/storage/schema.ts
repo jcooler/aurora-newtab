@@ -1,7 +1,7 @@
 import type { Layout } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 8
+export const CURRENT_VERSION = 9
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -32,6 +32,8 @@ export interface WidgetToggles {
   countdown: boolean
   habits: boolean
   monthCal: boolean
+  sun: boolean
+  moon: boolean
 }
 
 export interface Settings {
@@ -203,6 +205,8 @@ export function defaults(): AuroraData {
         countdown: false,
         habits: false,
         monthCal: false,
+        sun: false,
+        moon: false,
       },
     },
     focus: null,

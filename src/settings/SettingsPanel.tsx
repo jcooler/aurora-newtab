@@ -121,7 +121,7 @@ export default function SettingsPanel({
 
       {tab === 'widgets' && (
         <>
-          <Widgets settings={settings} patch={patch} habits={habits} storage={storage} />
+          <Widgets settings={settings} patch={patch} habits={habits} storage={storage} location={location} />
 
           {location && <Weather location={location} storage={storage} />}
 

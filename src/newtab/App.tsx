@@ -32,6 +32,8 @@ import StatusWidget from './widgets/status/StatusWidget'
 import CalendarWidget from './widgets/calendar/CalendarWidget'
 import HabitsWidget from './widgets/habits/HabitsWidget'
 import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
+import SunWidget from './widgets/sun/SunWidget'
+import MoonWidget from './widgets/moon/MoonWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -511,6 +513,16 @@ export default function App() {
                 <WidgetBoundary name="habits">
                   <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2 tier-fade">
                     <HabitsWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                <WidgetBoundary name="sun">
+                  <PositionedBlock id="sun" pos={layout?.sun} className="rail-col2 tier-fade">
+                    <SunWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                <WidgetBoundary name="moon">
+                  <PositionedBlock id="moon" pos={layout?.moon} className="rail-col2 tier-fade">
+                    <MoonWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
               </div>

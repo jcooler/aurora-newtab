@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ensureBookmarksPermission } from '../../services/bookmarks'
 import type { AuroraStorage } from '../../lib/storage/index'
-import type { Habit, Settings, WidgetToggles } from '../../lib/storage/schema'
+import type { Habit, Settings, StoredLocation, WidgetToggles } from '../../lib/storage/schema'
 import Section from '../Section'
 import Switch from '../Switch'
 import { row, label, control, submitBtn } from './shared'
@@ -19,7 +19,16 @@ const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
   countdown: 'Countdown',
   habits: 'Habits',
   monthCal: 'Month calendar',
+  sun: 'Sun times',
+  moon: 'Moon phase',
 }
+
+// Both toggles gate on settings.widgets.<key> AND location != null (SunWidget/
+// MoonWidget's own doc comments) — the weather widget's own StoredLocation,
+// not the weather TOGGLE (location outlives it). This hint id is shared by
+// both switches' aria-describedby so a screen reader gets the explanation
+// exactly once, not duplicated per row.
+const SKY_LOCATION_HINT_ID = 'w-sky-location-hint'
 
 // Editor-side cap — independent of HabitsWidget.tsx's own MAX_HABIT_CHIPS
 // display cap (same widget-owns-its-cap convention as WorldClocks.tsx's
@@ -39,6 +48,7 @@ export default function Widgets({
   patch,
   habits,
   storage,
+  location,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
@@ -49,6 +59,12 @@ export default function Widgets({
   // getting its own always-mounted section file.
   habits: Habit[] | undefined
   storage: AuroraStorage
+  // SettingsPanel's own useStoredKey('location') read, threaded through the
+  // same way `habits` is — `undefined` (not yet loaded) is treated the same
+  // as `null` (unset): the hint shows and both switches carry describedBy,
+  // same as SunWidget/MoonWidget treating "not yet loaded" as "not set" on
+  // the render side.
+  location: StoredLocation | null | undefined
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
 
@@ -114,7 +130,11 @@ export default function Widgets({
               // exactly as it was for the checkbox.
               onChange={(checked) => void handleWidgetToggle(key, checked)}
               describedBy={
-                key === 'bookmarks' && bookmarksPermissionDenied ? 'w-bookmarks-error' : undefined
+                key === 'bookmarks' && bookmarksPermissionDenied
+                  ? 'w-bookmarks-error'
+                  : (key === 'sun' || key === 'moon') && !location
+                    ? SKY_LOCATION_HINT_ID
+                    : undefined
               }
             />
           </div>
@@ -124,6 +144,15 @@ export default function Widgets({
         <p id="w-bookmarks-error" role="alert" className="text-xs text-fg-muted">
           Bookmarks permission was denied, so the widget stays off. Turn it on
           again to re-request it.
+        </p>
+      )}
+      {/* Below the moon row (WIDGET_LABELS' last two entries), once, shared by
+          both switches' aria-describedby above — not per-toggle, so a screen
+          reader announces the explanation exactly once rather than twice. */}
+      {!location && (
+        <p id={SKY_LOCATION_HINT_ID} className="text-xs text-fg-muted">
+          Sun times and moon phase use the weather location. Turn on the
+          weather widget and set a location first.
         </p>
       )}
 

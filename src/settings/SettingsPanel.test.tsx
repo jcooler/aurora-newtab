@@ -1070,6 +1070,97 @@ describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
   })
 })
 
+// Task 94: sun/moon toggles. Same minimal on/off/persist shape as Month
+// calendar's own block above — no list editor of either widget's own — plus
+// the location-gate hint SunWidget/MoonWidget's own doc comments describe
+// (both widgets render nothing without a stored location; the Widgets tab
+// says why via this shared hint rather than leaving the toggle unexplained).
+describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () => {
+  const HINT_TEXT =
+    'Sun times and moon phase use the weather location. Turn on the weather widget and set a location first.'
+
+  it('the Sun times and Moon phase labels are present on the Widgets tab, off by default', async () => {
+    await renderPanel()
+    openTab('Widgets')
+    const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
+    const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
+    expect(attr(sun, 'aria-checked')).toBe('false')
+    expect(attr(moon, 'aria-checked')).toBe('false')
+  })
+
+  it('turning the toggles on writes widgets.sun / widgets.moon; turning them back off writes false', async () => {
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
+    const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(sun)
+    })
+    expect(attr(sun, 'aria-checked')).toBe('true')
+    expect((await storage.get('settings')).widgets.sun).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(moon)
+    })
+    expect(attr(moon, 'aria-checked')).toBe('true')
+    expect((await storage.get('settings')).widgets.moon).toBe(true)
+
+    // Separate act() blocks per click (not batched together): each
+    // handleWidgetToggle closes over the CURRENT settings prop, so two
+    // clicks fired in the same tick without a re-render between them would
+    // both patch off the same stale widgets object — same discipline as the
+    // Month calendar toggle's own sequential on/off test above.
+    await act(async () => {
+      fireEvent.click(sun)
+    })
+    expect((await storage.get('settings')).widgets.sun).toBe(false)
+
+    await act(async () => {
+      fireEvent.click(moon)
+    })
+    expect((await storage.get('settings')).widgets.moon).toBe(false)
+  })
+
+  it('with no location stored, a single hint paragraph renders below the moon row and both switches carry describedBy', async () => {
+    // renderPanel() never sets `location`, so it resolves to defaults()'s own
+    // `null` (unset) once storage.init() backfills it — the exact "no
+    // location" state SunWidget/MoonWidget gate on.
+    await renderPanel()
+    openTab('Widgets')
+    const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
+    const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
+
+    const hints = screen.getAllByText(HINT_TEXT)
+    expect(hints).toHaveLength(1) // renders ONCE, not once per switch
+    const hint = hints[0]!
+    expect(hint.id).toBe('w-sky-location-hint')
+    expect(hint.className).toBe('text-xs text-fg-muted')
+
+    expect(attr(sun, 'aria-describedby')).toBe(hint.id)
+    expect(attr(moon, 'aria-describedby')).toBe(hint.id)
+  })
+
+  it('with a location set, the hint is absent', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Widgets')
+
+    expect(screen.queryByText(HINT_TEXT)).toBeNull()
+    const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
+    const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
+    expect(attr(sun, 'aria-describedby')).toBeNull()
+    expect(attr(moon, 'aria-describedby')).toBeNull()
+  })
+})
+
 describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   afterEach(() => {
     // Only the premium-gating test below ever flips this — reset so it never

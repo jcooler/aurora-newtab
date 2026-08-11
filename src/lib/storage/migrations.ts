@@ -115,6 +115,32 @@ export const migrations: Record<number, Migration> = {
     const { theme: _theme, ...rest } = settings
     return { ...data, settings: { ...rest, panelColor: rest.panelColor ?? null } }
   },
+  // v8 -> v9: sun and moon widget toggles (Task 93). Brand new NESTED keys
+  // inside settings.widgets — exactly what the final default-merge does NOT
+  // backfill (see v1->v2's own comment) — so, per the STANDING RULE in
+  // schema.ts, this step is a byte-identical copy of v1->v2's and v6->v7's
+  // own generic shape: spreads defaults().settings.widgets under whatever's
+  // already stored (stored values always win), rather than hardcoding
+  // `sun`/`moon` by name, so any widget key missing from an older snapshot
+  // gets backfilled without needing yet another version of this same fix the
+  // next time a widget toggle ships without its own migration.
+  //
+  // Guarded the same way v1->v2 and v6->v7 guard `widgets` — a hand-edited
+  // backup can carry `"settings": "oops"` or a non-object `widgets`, and
+  // both are shape-checked before spreading, falling back to `{}` otherwise.
+  8: (data) => {
+    const d = defaults()
+    const settings = isPlainObject(data.settings) ? data.settings : {}
+    const widgets = isPlainObject(settings.widgets) ? settings.widgets : {}
+    return {
+      ...data,
+      settings: {
+        ...d.settings,
+        ...settings,
+        widgets: { ...d.settings.widgets, ...widgets },
+      },
+    }
+  },
 }
 
 export function migrate(
