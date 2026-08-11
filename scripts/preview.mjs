@@ -7497,6 +7497,269 @@ function gitlabContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
+// Task 90 — the Join link harness (W3-SP3): Task 89's showJoin rule
+// (CalendarWidget.tsx) is `meetLinks && headline.meetUrl && start-now<=15min
+// && now<end`, rendered as a shrink-0 accent anchor sitting after the
+// truncating title span. A fresh, ISOLATED single-calendar fixture — not the
+// 5-calendar true-max block above, whose headline TEXT and TIMING (`step`)
+// are already pinned to that block's own gap/sweep assertions — built
+// relative to Date.now() AT EVALUATE TIME, per this file's own fixture law.
+{
+  const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
+  const ZOOM_URL = 'https://zoom.us/j/5551234567'
+  const ROW_ZOOM_URL = 'https://us02web.zoom.us/j/9998887777'
+  const LONG_SUMMARY = 'Quarterly cross-team platform reliability retro and roadmap sync with extended stakeholders'
+
+  await page.evaluate(
+    async ({ zoomUrl, rowZoomUrl, longSummary }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      const now = Date.now()
+      const d = new Date(now)
+      const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
+      // Same-day-boundary guard (same idiom the ics fixture-law sweep block
+      // above uses for its own same-day cal-0 pair): the ROW event must land
+      // before `todayEnd` to appear in 'today' view's rows, so both offsets
+      // are clamped against the room actually left before local midnight,
+      // rather than assumed — irrelevant in practice (this harness is never
+      // run seconds from midnight) but keeps the fixture provably correct at
+      // ANY run time.
+      const minutesLeft = Math.max(3, Math.floor((todayEnd - now) / 60_000))
+      const headlineMin = Math.min(10, minutesLeft - 2) // inside the 15-min Join window
+      const rowMin = Math.min(15, minutesLeft - 1) // still "today", strictly after the headline
+      const events = [
+        // The headline: imminent (10 min out, clamped) AND a LONG summary —
+        // one fixture proves both presence/href/rel/cursor and the
+        // truncation shape (a short summary would never actually clip at
+        // the card's w-72 width).
+        {
+          summary: longSummary,
+          start: now + headlineMin * 60_000,
+          end: now + headlineMin * 60_000 + 30 * 60_000,
+          cal: 0,
+          meetUrl: zoomUrl,
+        },
+        // A same-day ROW event that ALSO carries a meetUrl and ALSO starts
+        // inside a Join-qualifying window — proves the anchor is a
+        // headline-only affordance (formatAgendaRow never touches meetUrl,
+        // CalendarWidget.tsx's own doc comment), never leaking onto a row
+        // even when that row event would itself qualify time-wise.
+        {
+          summary: 'Design review',
+          start: now + rowMin * 60_000,
+          end: now + rowMin * 60_000 + 30 * 60_000,
+          cal: 0,
+          meetUrl: rowZoomUrl,
+        },
+      ]
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          ics: {
+            enabled: true,
+            view: 'today',
+            upcomingCount: 3,
+            meetLinks: true,
+            calendars: [{ name: 'Personal', url: 'https://calendar.example.com/personal.ics' }],
+          },
+        },
+        connectorSnapshots: { ics: { fetchedAt: now, data: { events } } },
+      })
+    },
+    { zoomUrl: ZOOM_URL, rowZoomUrl: ROW_ZOOM_URL, longSummary: LONG_SUMMARY },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
+
+  // Probe 1: the Join anchor — present, EXACT href, target/rel, pointer
+  // cursor. Scoped to the headline `<p>` (`p a`), the only place it can ever
+  // render (rows are `<li>`, never an `<a>` — Probe 3 below).
+  const join = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    const a = sec ? sec.querySelector('p a') : null
+    if (!a) return null
+    return {
+      text: a.textContent,
+      href: a.getAttribute('href'),
+      target: a.getAttribute('target'),
+      rel: a.getAttribute('rel'),
+      cursor: getComputedStyle(a).cursor,
+    }
+  }, icsSel)
+  const joinOk =
+    join !== null &&
+    join.text === 'Join' &&
+    join.href === ZOOM_URL &&
+    join.target === '_blank' &&
+    join.rel === 'noopener noreferrer' &&
+    join.cursor === 'pointer'
+  console.log(
+    joinOk
+      ? `PASS: the imminent headline's Join anchor renders with the exact seeded href, target=_blank, rel=noopener noreferrer, cursor pointer (${JSON.stringify(join)})`
+      : `FAIL: the imminent headline's Join anchor (${JSON.stringify(join)})`,
+  )
+
+  // Probe 2: truncation — the long-summary title span actually clips
+  // (scrollWidth > clientWidth: `.truncate` is BITING, not merely present in
+  // the class list) while the Join anchor sitting right after it keeps its
+  // own full, un-clipped width (`shrink-0` held the line — scrollWidth ===
+  // clientWidth, and a real, non-zero box).
+  const widths = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const span = sec.querySelector('p span.truncate')
+    const a = sec.querySelector('p a')
+    if (!span || !a) return null
+    return {
+      spanScroll: span.scrollWidth,
+      spanClient: span.clientWidth,
+      aScroll: a.scrollWidth,
+      aClient: a.clientWidth,
+      aBoxWidth: a.getBoundingClientRect().width,
+    }
+  }, icsSel)
+  const truncationOk =
+    widths !== null &&
+    widths.spanScroll > widths.spanClient &&
+    widths.aScroll === widths.aClient &&
+    widths.aBoxWidth > 0 &&
+    Math.abs(widths.aBoxWidth - widths.aClient) < 1
+  console.log(
+    truncationOk
+      ? `PASS: the long-summary title span truncates (scrollWidth ${widths.spanScroll} > clientWidth ${widths.spanClient}) while the Join anchor keeps its full, un-clipped width (${widths.aBoxWidth.toFixed(1)}px, scrollWidth===clientWidth)`
+      : `FAIL: title truncation / Join full-width proof (${JSON.stringify(widths)})`,
+  )
+
+  // Probe 3: agenda rows carry zero anchors — even though the seeded row
+  // event ALSO has a meetUrl and an inside-the-window start, formatAgendaRow
+  // never touches meetUrl, so no <a> ever reaches a <li>.
+  const rowAnchors = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return {
+      rowCount: sec.querySelectorAll('ul > li').length,
+      rowAnchorCount: sec.querySelectorAll('ul a').length,
+      rowText: [...sec.querySelectorAll('ul > li')].map((li) => li.textContent),
+    }
+  }, icsSel)
+  const rowAnchorsOk = rowAnchors !== null && rowAnchors.rowCount === 1 && rowAnchors.rowAnchorCount === 0
+  console.log(
+    rowAnchorsOk
+      ? `PASS: the agenda row (also meetUrl-bearing, also inside the window) renders with zero anchors (${JSON.stringify(rowAnchors)})`
+      : `FAIL: agenda rows never carry an anchor (${JSON.stringify(rowAnchors)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/calendar-join-link.png` })
+  console.log('captured calendar-join-link.png')
+
+  // Probe 4: the real drawer's "Meeting links" Switch — toggling it OFF
+  // makes the Join anchor vanish from the LIVE card with no reload
+  // (connectorSnapshots is untouched; useStoredKey's connectors subscription
+  // alone re-renders CalendarInner with meetLinks=false — CalendarWidget.tsx's
+  // own doc comment on why meetLinks stays OUT of the remount key), and back
+  // ON restores it — the same "REAL drawer against the LIVE card" idiom as
+  // gitlab/jira's own chips probes above.
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  const meetToggleChecked = () =>
+    page.evaluate(() => document.querySelector('#connector-ics-meetlinks')?.getAttribute('aria-checked') ?? null)
+  const cardHasJoinLive = () => page.evaluate((s) => !!document.querySelector(s)?.querySelector('p a'), icsSel)
+
+  const beforeToggle = await meetToggleChecked()
+  const joinBeforeToggle = await cardHasJoinLive()
+  await page.click('#connector-ics-meetlinks')
+  await page
+    .waitForFunction((s) => !document.querySelector(s)?.querySelector('p a'), icsSel, { timeout: 3000 })
+    .catch(() => {})
+  const afterOff = { checked: await meetToggleChecked(), hasJoin: await cardHasJoinLive() }
+  const offOk = beforeToggle === 'true' && joinBeforeToggle === true && afterOff.checked === 'false' && afterOff.hasJoin === false
+  console.log(
+    offOk
+      ? 'PASS: flipping the real "Meeting links" Switch off drops the Join anchor from the live card immediately, no reload (aria-checked false)'
+      : `FAIL: flipping "Meeting links" off drops the live Join anchor (before=${beforeToggle}/${joinBeforeToggle}, after=${JSON.stringify(afterOff)})`,
+  )
+
+  await page.click('#connector-ics-meetlinks')
+  await page
+    .waitForFunction((s) => !!document.querySelector(s)?.querySelector('p a'), icsSel, { timeout: 3000 })
+    .catch(() => {})
+  const afterOn = { checked: await meetToggleChecked(), hasJoin: await cardHasJoinLive() }
+  const onOk = afterOn.checked === 'true' && afterOn.hasJoin === true
+  console.log(
+    onOk
+      ? 'PASS: flipping it back on restores the live Join anchor immediately, no reload (aria-checked true)'
+      : `FAIL: flipping "Meeting links" back on restores the live Join anchor (${JSON.stringify(afterOn)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Probe 5: the 30-min-out variant — same meetUrl, only the TIMING gate
+  // changed (start-now now 30min, past showJoin's 15-min ceiling) — proves
+  // the anchor is gated on timing, not merely on meetUrl's presence
+  // (CalendarWidget.test.tsx's own unit-test twin for this exact case).
+  // Single event, no row — the today-boundary guard above doesn't apply
+  // here, since headline selection never checks `todayEnd`. Only
+  // connectorSnapshots is rewritten — connectors.ics (enabled, view=today,
+  // meetLinks=true, the one Personal calendar) is already exactly right,
+  // restored by Probe 4's own two toggles.
+  await page.evaluate(
+    async ({ zoomUrl }) => {
+      const now = Date.now()
+      await chrome.storage.local.set({
+        connectorSnapshots: {
+          ics: {
+            fetchedAt: now,
+            data: { events: [{ summary: 'Design review', start: now + 30 * 60_000, end: now + 60 * 60_000, cal: 0, meetUrl: zoomUrl }] },
+          },
+        },
+      })
+    },
+    { zoomUrl: ZOOM_URL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(icsSel, { timeout: 5000 }).catch(() => {})
+
+  const farOut = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    return { headline: sec.querySelector('p')?.textContent ?? null, hasJoin: !!sec.querySelector('p a') }
+  }, icsSel)
+  const farOutOk = farOut !== null && !!farOut.headline && farOut.headline.includes('Design review') && farOut.hasJoin === false
+  console.log(
+    farOutOk
+      ? `PASS: a headline 30 minutes out (meetUrl present) renders with NO Join anchor — the timing gate, not meetUrl's presence, decides (${JSON.stringify(farOut)})`
+      : `FAIL: the 30-min-out variant suppresses Join (${JSON.stringify(farOut)})`,
+  )
+
+  // Restore: disable the connector and clear its cache, then reload — same
+  // restore discipline as every connector block above (and the ics block
+  // just above this one).
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, ics: { ...connectors.ics, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  const icsGoneJoin = (await page.locator(icsSel).count()) === 0
+  console.log(
+    icsGoneJoin
+      ? 'ics connector disabled; page restored to idle'
+      : `WARNING: Calendar widget still present after disabling ics (icsGone=${icsGoneJoin})`,
+  )
+}
+
+// ---------------------------------------------------------------------------
 // LEFT-COLUMN combined worst case (fix wave, Finding I2) — the seam between
 // two waves that never got a joint probe: Task 77's own vercel budget probe
 // (search "vercel WITH the summary line") ran with NO calendar configured at
