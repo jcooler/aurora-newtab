@@ -75,6 +75,8 @@ scripts/preview.mjs — waitForPhotoSettle (:1111-1119); openSettingsTab (:488-4
 
 ### Task 93: Schema v9 — the toggles exist and the law is obeyed
 
+> **MERGED INTO TASK 94 mid-execution (2026-08-11):** `WIDGET_LABELS` in Widgets.tsx is an exhaustive `Record<keyof WidgetToggles, string>` (and `commands.test.ts` carries a literal toggles fixture), so this task cannot pass `tsc` without Task 94's label entries — and landing labels without widgets would violate the no-placeholder-UI directive. Tasks 93+94 ship as ONE commit (Task 94's message). The requirements below stay binding.
+
 **Files:**
 - Modify: `src/lib/storage/schema.ts`, `src/lib/storage/migrations.ts`, `src/lib/storage/migrations.test.ts`
 - Test: extend `src/lib/backup.test.ts` only if a case there enumerates widget keys explicitly (grep first; `isWidgetToggles` auto-derives)
