@@ -944,6 +944,38 @@ await page.waitForTimeout(400) // slide-out transition
   )
 }
 
+// Task 72 — the collapsed chip's big number carries its own unit letter
+// ("72°" + a smaller "F"/"C" child span), so the chip states its scale without
+// the user ever having to open the expanded panel. The chip is COLLAPSED here
+// (the C2 block above just closed it), live weather data in place — captures
+// weather-chip-unit.png and asserts the letter matches the DEFAULT unit system
+// (metric -> "C"; settings.units is never seeded in this file, so it reads the
+// app's own default).
+{
+  const unit = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    // The big number is the font-display 2rem span; its unit-letter child is
+    // the SECOND span inside it (align-baseline text-[0.7em]) per
+    // WeatherWidget.tsx's own two-span idiom.
+    const bigNumber = sec.querySelector('.font-display')
+    const letterSpan = bigNumber ? bigNumber.querySelector('span') : null
+    return {
+      found: !!bigNumber,
+      text: bigNumber ? bigNumber.textContent.trim() : null,
+      letter: letterSpan ? letterSpan.textContent.trim() : null,
+    }
+  }, weatherSel)
+  const unitOk = unit !== null && unit.found && /^\d+°[CF]$/.test(unit.text ?? '') && (unit.letter === 'C' || unit.letter === 'F')
+  console.log(
+    unitOk
+      ? `PASS: the collapsed weather chip's big number carries its own unit letter ("${unit.text}", scale "${unit.letter}")`
+      : `FAIL: the collapsed weather chip states its unit letter (${JSON.stringify(unit)})`,
+  )
+  await page.screenshot({ path: `${outDir}/weather-chip-unit.png` })
+  console.log('captured weather-chip-unit.png')
+}
+
 await setWeatherExpanded(true)
 await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/weather-expanded.png` })
@@ -1933,7 +1965,8 @@ const GITHUB_CONTRIB_STREAK = 14
 // counts/total/streak the widget probes assert are the frozen literals above.
 // Used by the combined-defaults gate and the resize sweep so both render github
 // at its real display max and ASSERT the two-sibling graph yield (the stack stays
-// rows-only below `grand` 1041h) instead of being blind to it.
+// rows-only below `grand` 1171h — re-derived Task 77, was 1041h — see index.css's
+// `grand` comment) instead of being blind to it.
 function githubContributionsFixture() {
   const today = new Date()
   const days = GITHUB_CONTRIB_COUNTS.map((count, i) => {
@@ -1943,6 +1976,44 @@ function githubContributionsFixture() {
     return { date: iso, count }
   })
   return { days, total: GITHUB_CONTRIB_TOTAL }
+}
+
+// GitLab's own frozen 112-entry activity-graph literal (Task 77) — mirrors
+// GITHUB_CONTRIB_COUNTS exactly in role (a mulberry32 PRNG, seeded ONCE,
+// EMBEDDED here so total/streak/level assertions never drift with the run
+// date), a DISTINCT seed (0x6c61626f, 'labo') so gitlab's graph doesn't render
+// the identical shape github's does. Generated once by
+// scripts/_measure_tiers.mjs's throwaway sibling (a one-off mulberry32 run,
+// not committed — see the derivation comment on the numbers below), never
+// re-run at probe time. Derived from these exact numbers:
+//   total   = 326   (sum of the 112 counts)
+//   streak  = 11    (trailing run of count>0 ending today; a clean 0 sits at
+//             index 100 = day −11, the day BEFORE the forced trailing streak)
+//   level 4 (count>=8) days include index 1 (count 12) — the pixel probe's
+//             target, mirroring github's own level-4 sample.
+const GITLAB_CONTRIB_COUNTS = [
+  1, 12, 7, 2, 5, 3, 0, 7, 0, 1, 0, 0, 3, 1, 4, 1, 1, 5, 0, 3, 6, 4, 6, 6, 0, 4, 0, 3,
+  0, 3, 0, 0, 4, 3, 0, 0, 1, 0, 0, 2, 6, 5, 4, 4, 0, 0, 1, 6, 5, 3, 4, 5, 5, 4, 4, 2,
+  0, 0, 3, 1, 4, 3, 2, 2, 0, 3, 2, 0, 0, 12, 5, 0, 0, 1, 2, 7, 6, 7, 2, 7, 10, 4, 4, 0,
+  0, 0, 1, 0, 3, 3, 1, 5, 2, 0, 3, 7, 0, 4, 8, 9, 0, 5, 5, 2, 9, 2, 1, 2, 1, 4, 4, 2,
+]
+const GITLAB_CONTRIB_TOTAL = 326
+const GITLAB_CONTRIB_STREAK = 11
+
+/** Build a `contributions` slice (gitlab's TRUE graph-in display max) for a
+ *  fixture — same today−111…today date-building idiom as
+ *  githubContributionsFixture, reused (not duplicated in shape by accident):
+ *  dates are hover-title-only, counts/total/streak are the frozen literals
+ *  above. */
+function gitlabContributionsFixture() {
+  const today = new Date()
+  const days = GITLAB_CONTRIB_COUNTS.map((count, i) => {
+    const d = new Date(today)
+    d.setDate(today.getDate() - (GITLAB_CONTRIB_COUNTS.length - 1 - i))
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    return { date: iso, count }
+  })
+  return { days, total: GITLAB_CONTRIB_TOTAL }
 }
 
 // ---------------------------------------------------------------------------
@@ -2546,25 +2617,34 @@ function githubContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
-// GitHub graph-yield — the TWO-SIBLING fencepost (Task 70 fix). When gitlab AND
-// jira share the flow column below github, the graph's +176px lifts jira's bottom
-// to 971, so the graph must yield to its siblings: it waits for `grand` (>=1041h),
-// the height where the WHOLE stack (github+graph[180-591], gitlab[607-781],
-// jira[797-971]) clears the bottom-anchored Tasks pill (top = h−54) by the 16px
-// floor (971 <= (1041−54) − 16). Seeds all three forge cards at display max
-// (github WITH the contributions literal) + the forced 3-line weather chip, and
-// proves across the descent:
-//   (1) the graph reveals MONOTONICALLY at 1041 (shown >=1041, hidden <=1040, one
-//       transition, never re-shows) — the graph yields to its siblings;
-//   (2) at every height ZERO vertical overlap among the three cards and the pill,
-//       and the LOWEST card clears the pill by >=16px (exactly 16 at the 1041
-//       grand floor — the interior worst case — comfortably more below it, where
-//       the stack is rows-only). Restores as the sole-card block above.
+// GitHub graph-yield — the TWO-SIBLING fencepost (Task 70 fix; heights + floor
+// RE-DERIVED Task 77 for the `grand` 1041->1171 tightening — see index.css's
+// `grand` comment for the full writeup). When gitlab AND jira share the flow
+// column below github, the graph's +176px lifts jira's bottom to 971 (gitlab
+// at ITS OWN rows-only default here — reviewAsks stays off in this fixture),
+// so the graph must yield to its siblings. The composition THIS block seeds
+// would, on its own, only need >=1041h to clear the pill by 16px — but
+// `grand` is a SINGLE shared CSS variant, and Task 77 found that gitlab's
+// reviewAsks being ALSO on (a legitimate, independent user choice) pushes the
+// true worst case to 1171h; since the variant can't tell the two
+// compositions apart at the CSS level, it now conservatively waits for 1171h
+// always — costing nothing below 900h (this composition was already hidden
+// at both 1041 and 1171) and simply leaving THIS composition with extra
+// headroom once shown, rather than landing exactly on the floor. Seeds all
+// three forge cards at display max (github WITH the contributions literal) +
+// the forced 3-line weather chip, and proves across the descent:
+//   (1) the graph reveals MONOTONICALLY at 1171 (shown >=1171, hidden <=1170,
+//       one transition, never re-shows) — the graph yields to its siblings;
+//   (2) at every height ZERO vertical overlap among the three cards and the
+//       pill, and the LOWEST card clears the pill by >=16px (146px at the new
+//       1171 floor for THIS reviewAsks-off composition — see index.css's own
+//       `grand` comment for the composition that DOES land exactly on 16px,
+//       gitlab's reviewAsks on). Restores as the sole-card block above.
 {
   const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
   const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
   const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
-  const heights = [1100, 1041, 1040, 1010, 900]
+  const heights = [1200, 1171, 1170, 1100, 900]
   await page.route('**/api.open-meteo.com/**', (route) => route.abort())
   await page.evaluate(
     async ({ counts, total }) => {
@@ -2675,14 +2755,15 @@ function githubContributionsFixture() {
     fp2.push({ h, ...(await measure3()) })
   }
 
-  // (1) the graph reveals MONOTONICALLY at 1041 (yields to its two siblings).
-  const g2VisOk = fp2.every((r) => r.graphShown === (r.h >= 1041))
+  // (1) the graph reveals MONOTONICALLY at the RE-DERIVED 1171 (Task 77;
+  // yields to its two siblings).
+  const g2VisOk = fp2.every((r) => r.graphShown === (r.h >= 1171))
   let g2Mono = true
   for (let i = 1; i < fp2.length; i++) if (fp2[i].graphShown && !fp2[i - 1].graphShown) g2Mono = false
   console.log(
     g2VisOk && g2Mono
-      ? `PASS: with TWO forge siblings the commit graph yields to grand (>=1041h) — shown at ${fp2.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp2.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows`
-      : `FAIL: two-sibling graph yields monotonically at 1041 (${JSON.stringify(fp2.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+      ? `PASS: with TWO forge siblings the commit graph yields to the re-derived grand (>=1171h) — shown at ${fp2.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp2.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows`
+      : `FAIL: two-sibling graph yields monotonically at 1171 (${JSON.stringify(fp2.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
   )
 
   // (2) zero overlap + the lowest card clears the pill by >=16px at every height.
@@ -2696,7 +2777,7 @@ function githubContributionsFixture() {
   const stack2Ok = stack2.every((s) => !s.overlapPill && s.gap >= FP2_FLOOR)
   console.log(
     stack2Ok
-      ? `PASS: the three-forge-card stack clears the Tasks pill by >=${FP2_FLOOR}px at every height, zero overlap — ${stack2.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (the 1041 grand floor is the interior worst case, exactly 16px)`
+      ? `PASS: the three-forge-card stack clears the Tasks pill by >=${FP2_FLOOR}px at every height, zero overlap — ${stack2.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (146px at the 1171 floor for this reviewAsks-off composition — see index.css's own \`grand\` comment for the composition that lands exactly on 16px)`
       : `FAIL: the three-forge-card stack clears the pill by >=${FP2_FLOOR}px with zero overlap (${JSON.stringify(stack2)})`,
   )
 
@@ -2728,7 +2809,10 @@ function githubContributionsFixture() {
 // commit graph" — pulls/issues off) is only 201px, so even with gitlab AND jira
 // below it the stack (github[180-381] gitlab[397-571] jira[587-761]) clears the
 // bottom-anchored Tasks pill at the `taller` floor (890) by 75px — it must NOT be
-// grand-gated (fix 2: that rendered a header-only husk at 890-1040h). And fix 3:
+// grand-gated (fix 2: that rendered a header-only husk at 890h up to whatever
+// `grand` currently is — 1040h at the time of the original fix, 1170h after
+// Task 77's re-derivation; the bug window moves with the constant, the FIX
+// doesn't care what the number is). And fix 3:
 // when STRICTLY graph-only the whole SECTION carries the tier, so BELOW 890 the
 // entire card yields — not a lone "GitHub" heading. Seeds github graph-only +
 // gitlab + jira at display max + the forced 3-line weather chip, and proves:
@@ -3250,6 +3334,971 @@ function githubContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
+// GitLab composed card (Task 77) — the SOLE forge card, all four sections at
+// display max (mirrors GITHUB_FIXTURE's own graph-in display max, github's
+// connector block above): the render-fidelity class (112 filled cells, stat
+// text verbatim, accent pixel-sample), review-asks rows below their eyebrow,
+// cursor discipline, THEN the fencepost sweep deriving/confirming the reveal
+// boundary — the mirror of GitHub's own "graph-yield fenceposts" block. gitlab
+// is seeded ALONE (github/jira off): per GitlabWidget.tsx, `soleForgeCard` —
+// and therefore the `taller` (>=890h) tier, unchanged by Task 77's own
+// `grand` re-derivation — only applies with no forge siblings. Runs right
+// after the GitLab connector block (gitlab left disabled by its own restore),
+// captures connectors-gitlab-composed.png, then Task 77's own gitlab chips
+// probes (default pattern, toggle a new + an existing section, restore)
+// through the REAL drawer against the LIVE card — before restoring gitlab off
+// so every block below is undisturbed.
+{
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const FULL_FIXTURE = {
+    mrs: [
+      { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+      { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+      { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
+    ],
+    // Review-asks display max (MAX_REVIEW_ASKS=2, GitlabWidget.tsx) — distinct
+    // titles from the assigned MRs above, so a probe that mixed the two lists
+    // up would visibly fail rather than accidentally matching.
+    reviewMrs: [
+      { title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+      { title: 'Review: add integration tests for the webhook relay', url: 'https://gitlab.com/acme/platform/-/merge_requests/305', project: 'acme/platform' },
+    ],
+    todos: 6,
+    contributions: gitlabContributionsFixture(),
+  }
+  const ALL_ON_VIEWS = { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true }
+
+  // Force the weather chip's 3-line worst case too (rain callout + stale
+  // line — same deterministic idiom as the weather-chip worst-case probe and
+  // GitHub's own graph-yield fencepost block above), so the SOLE-card
+  // fencepost sweep below measures against the chip's REAL worst case, not
+  // whatever the live Open-Meteo fetch happens to return today.
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ data, views, counts, total }) => {
+      const MAX_AGE_MS = 30 * 60 * 1000
+      const now = Date.now()
+      const hourly = Array.from({ length: 12 }, (_, i) => {
+        const t = new Date(now + i * 3_600_000)
+        const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+        return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler', views } },
+        connectorSnapshots: { gitlab: { fetchedAt: now, data } },
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { data: FULL_FIXTURE, views: ALL_ON_VIEWS, counts: GITLAB_CONTRIB_COUNTS, total: GITLAB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(gitlabSel, { timeout: 5000 }).catch(() => {})
+
+  // Probe: the graph renders from cache with full fidelity — the SAME
+  // render-is-the-spec checks GitHub's own Probe 2b runs (112 filled cells,
+  // >=3 month ticks, the verbatim stat line, the accent ramp's level-4 alpha
+  // sampled off a real cell), plus compose order (graph above the MR rows)
+  // and cursor discipline (heatmap cells NOT pointer, rows ARE).
+  const graph = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const img = sec.querySelector('[role="img"]')
+    if (!img) return { imgFound: false }
+    const cells = [...img.children]
+    const filled = cells.filter((c) => {
+      const bg = getComputedStyle(c).backgroundColor
+      return bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent'
+    })
+    const ticksRow = img.nextElementSibling
+    const tickCount = ticksRow ? ticksRow.querySelectorAll('span').length : 0
+    const statText = (sec.querySelector('p')?.textContent ?? '').replace(/\s+/g, ' ').trim()
+    let level4Bg = null
+    let level4Count = null
+    for (const c of filled) {
+      const n = parseInt(c.getAttribute('title') || '', 10)
+      if (Number.isFinite(n) && n >= 8) {
+        level4Bg = getComputedStyle(c).backgroundColor
+        level4Count = n
+        break
+      }
+    }
+    const firstRow = sec.querySelector('a')
+    const imgTop = +img.getBoundingClientRect().top.toFixed(1)
+    const rowTop = firstRow ? +firstRow.getBoundingClientRect().top.toFixed(1) : null
+    const cellCursor = filled[0] ? getComputedStyle(filled[0]).cursor : null
+    const rowCursor = firstRow ? getComputedStyle(firstRow).cursor : null
+    return { imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText, level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor }
+  }, gitlabSel)
+
+  const parseRgb = (str) => {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(str || '')
+    return m ? [+m[1], +m[2], +m[3]] : null
+  }
+  const ACCENT_RGB = [125, 211, 252]
+  const gridOk =
+    graph !== null &&
+    graph.imgFound === true &&
+    graph.filled === 112 &&
+    graph.tickCount >= 3 &&
+    graph.statText.includes(`${GITLAB_CONTRIB_TOTAL} contributions`) &&
+    graph.statText.includes(`${GITLAB_CONTRIB_STREAK} day streak`)
+  console.log(
+    gridOk
+      ? `PASS: gitlab's activity graph renders from cache — ${graph.filled} filled day cells (of ${graph.totalCells} incl. week padding), ${graph.tickCount} month ticks, stat line "${graph.statText}" (${GITLAB_CONTRIB_TOTAL} contributions · ${GITLAB_CONTRIB_STREAK} day streak, verbatim)`
+      : `FAIL: gitlab's activity graph renders from cache (${JSON.stringify(graph)})`,
+  )
+  const l4 = parseRgb(graph?.level4Bg)
+  const pixelOk = !!l4 && l4.every((v, i) => Math.abs(v - ACCENT_RGB[i]) <= 4)
+  console.log(
+    pixelOk
+      ? `PASS: a level-4 heatmap cell (count ${graph.level4Count}) computes to the accent at full alpha — rgb(${l4.join(', ')}) within tolerance of rgb(${ACCENT_RGB.join(', ')})`
+      : `FAIL: a level-4 heatmap cell's accent is within tolerance of rgb(${ACCENT_RGB.join(', ')}) (got ${graph?.level4Bg}, count ${graph?.level4Count})`,
+  )
+  const composeOk = graph !== null && graph.rowTop !== null && graph.imgTop < graph.rowTop
+  console.log(
+    composeOk
+      ? `PASS: the composed gitlab card puts the graph ABOVE the MR rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
+      : `FAIL: the composed gitlab card puts the graph ABOVE the MR rows (${JSON.stringify({ imgTop: graph?.imgTop, rowTop: graph?.rowTop })})`,
+  )
+  const cursorOk = graph !== null && graph.cellCursor !== 'pointer' && graph.rowCursor === 'pointer'
+  console.log(
+    cursorOk
+      ? `PASS: no false affordance on gitlab's graph — heatmap cells are not clickable (cursor ${graph.cellCursor}); MR rows are (cursor ${graph.rowCursor})`
+      : `FAIL: no false affordance on gitlab's graph (cell ${graph?.cellCursor}, row ${graph?.rowCursor})`,
+  )
+
+  // Probe: review-asks rows are real links below the "Review asks" eyebrow —
+  // distinct titles from the assigned MRs prove the two lists aren't mixed up.
+  const review = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const eyebrow = [...sec.querySelectorAll('p')].find((p) => p.textContent.trim() === 'Review asks')
+    const link = [...sec.querySelectorAll('a')].find((a) => a.textContent.includes('Review: rework the ingest queue backoff'))
+    return {
+      eyebrowFound: !!eyebrow,
+      eyebrowBelowGraph: eyebrow ? eyebrow.getBoundingClientRect().top > sec.querySelector('[role="img"]').getBoundingClientRect().top : false,
+      linkFound: !!link,
+      href: link ? link.getAttribute('href') : null,
+      target: link ? link.getAttribute('target') : null,
+      rel: link ? link.getAttribute('rel') : null,
+      cursor: link ? getComputedStyle(link).cursor : null,
+    }
+  }, gitlabSel)
+  const reviewRel = (review?.rel ?? '').split(/\s+/)
+  const reviewOk =
+    review !== null &&
+    review.eyebrowFound &&
+    review.eyebrowBelowGraph &&
+    review.linkFound &&
+    review.target === '_blank' &&
+    reviewRel.includes('noopener') &&
+    reviewRel.includes('noreferrer') &&
+    review.href === 'https://gitlab.com/acme/platform/-/merge_requests/301' &&
+    review.cursor === 'pointer'
+  console.log(
+    reviewOk
+      ? `PASS: review-asks rows are real external links below the "Review asks" eyebrow (href ${review.href}, target=_blank, rel=noopener noreferrer, cursor pointer)`
+      : `FAIL: review-asks rows are real links below the eyebrow (${JSON.stringify(review)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-gitlab-composed.png` })
+  console.log('captured connectors-gitlab-composed.png')
+
+  // Step 3(a) fencepost sweep — the SOLE-card reveal boundary, mirroring
+  // GitHub's own graph-yield fencepost block: heights spanning well above and
+  // through the dense floor (gitlab has NO short/xshort survival — the whole
+  // card hides at <=864 unconditionally, App.tsx's `dense:hidden`, so there is
+  // no separate short-floor case to sweep the way github's does). Proves:
+  //   (1) the graph reveals MONOTONICALLY at 890 — UNCHANGED by Task 77 (the
+  //       sole-card case never needed re-derivation; only the STACKED `grand`
+  //       tier did, see the next block);
+  //   (2) at every height gitlab is shown, it clears the Tasks pill by >=16px;
+  //   (3) the forced 3-line weather chip clears gitlab's own top (rail-top-
+  //       right 180) by >=16px.
+  const heights = [900, 890, 889, 865, 864]
+  const measureAt = () =>
+    page.evaluate(
+      ({ gSel, wSel }) => {
+        const box = (el) => {
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gl = document.querySelector(gSel)
+        const img = gl ? gl.querySelector('[role="img"]') : null
+        const w = document.querySelector(wSel)
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gl: box(gl),
+          graphShown: !!img && img.getBoundingClientRect().height > 0,
+          chip: box(w),
+          pillTop: pill ? +pill.getBoundingClientRect().top.toFixed(1) : null,
+        }
+      },
+      { gSel: gitlabSel, wSel: weatherSel },
+    )
+  const fpRows = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    fpRows.push({ h, ...(await measureAt()) })
+  }
+  const graphVisOk = fpRows.every((r) => r.graphShown === (r.h >= 890))
+  let graphMono = true
+  for (let i = 1; i < fpRows.length; i++) if (fpRows[i].graphShown && !fpRows[i - 1].graphShown) graphMono = false
+  console.log(
+    graphVisOk && graphMono
+      ? `PASS: the SOLE-card gitlab activity graph yields MONOTONICALLY at 890 (unchanged by Task 77) — shown at >=890h (${fpRows.filter((r) => r.graphShown).map((r) => r.h).join(', ')}), hidden below (${fpRows.filter((r) => !r.graphShown).map((r) => r.h).join(', ')})`
+      : `FAIL: the SOLE-card gitlab graph yields monotonically at 890 (${JSON.stringify(fpRows.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+  )
+  const FP_FLOOR = 16
+  const pillRows = fpRows.filter((r) => r.gl && r.pillTop !== null)
+  const pillClears = pillRows.map((r) => ({ h: r.h, gap: +(r.pillTop - r.gl.bottom).toFixed(1) }))
+  const pillOk = pillClears.every((c) => c.gap >= FP_FLOOR)
+  console.log(
+    pillOk
+      ? `PASS: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px at every fencepost it is shown — ${pillClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
+      : `FAIL: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px (${JSON.stringify(pillClears)})`,
+  )
+  const chipRows = fpRows.filter((r) => r.gl && r.chip)
+  const chipClears = chipRows.map((r) => ({ h: r.h, gap: +(r.gl.top - r.chip.bottom).toFixed(1) }))
+  const chipOk = chipClears.every((c) => c.gap >= FP_FLOOR)
+  console.log(
+    chipOk
+      ? `PASS: the forced 3-line weather chip clears the SOLE-card gitlab's own top (rail-top-right 180) by >=${FP_FLOOR}px at every fencepost — ${chipClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
+      : `FAIL: the forced 3-line chip clears gitlab's top by >=${FP_FLOOR}px (${JSON.stringify(chipClears)})`,
+  )
+
+  // Restore endpoint + viewport for the chips probe below.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.setViewportSize({ width: 1600, height: 900 })
+
+  // Task 77 — gitlab's "Show on your board" chips (Task 76), proven through
+  // the REAL drawer against the LIVE card, mirroring GitHub's own Task 70
+  // chips probe exactly. Re-seed gitlab with views ABSENT (the default path)
+  // but the SAME full-display-max data still in the snapshot — proving the
+  // resolve is a SETTINGS gate, never a DATA gate (the reviewMrs/contributions
+  // are present in cache the whole time; only the resolved views decide what
+  // renders).
+  await page.evaluate(
+    async ({ data }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' } },
+        connectorSnapshots: { gitlab: { fetchedAt: Date.now(), data } },
+      })
+    },
+    { data: FULL_FIXTURE },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  const readGitlabChips = () =>
+    page.evaluate(() => {
+      const sec = document.querySelector('section[aria-label="Connectors"]')
+      const chips = {}
+      for (const b of sec.querySelectorAll('button[aria-pressed]')) {
+        const label = b.textContent.replace(/[✓+]/g, '').trim()
+        chips[label] = b.getAttribute('aria-pressed')
+      }
+      const cardEl = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
+      return {
+        chips,
+        hasGraph: cardEl ? !!cardEl.querySelector('[role="img"]') : null,
+        hasReviewRow: cardEl ? cardEl.textContent.includes('Review: rework the ingest queue backoff') : null,
+        hasMrRow: cardEl ? cardEl.textContent.includes('Add rate limiting to the ingest API') : null,
+      }
+    })
+  const gitlabChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
+
+  const glBefore = await readGitlabChips()
+  const glDefaultOk =
+    glBefore.chips['Merge requests'] === 'true' &&
+    glBefore.chips['Review asks'] === 'false' &&
+    glBefore.chips['To-dos'] === 'true' &&
+    glBefore.chips['Activity graph'] === 'false' &&
+    glBefore.hasMrRow === true &&
+    glBefore.hasGraph === false &&
+    glBefore.hasReviewRow === false
+  console.log(
+    glDefaultOk
+      ? 'PASS: gitlab\'s four chips render the wave default pattern (Merge requests true, Review asks false, To-dos true, Activity graph false) — absent views resolve to DEFAULT_GITLAB_VIEWS, and the live card matches (MRs shown, no graph, no review rows)'
+      : `FAIL: gitlab's default chip pattern (${JSON.stringify(glBefore)})`,
+  )
+
+  // Toggle a NEW section (Review asks) ON → the live card gains it, no reload.
+  await page.click(gitlabChipBtn('Review asks'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
+      return c && c.textContent.includes('Review: rework the ingest queue backoff')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const glAfterReview = await readGitlabChips()
+  const glReviewOnOk = glAfterReview.chips['Review asks'] === 'true' && glAfterReview.hasReviewRow === true && glAfterReview.hasMrRow === true
+  console.log(
+    glReviewOnOk
+      ? 'PASS: toggling "Review asks" on adds the live card\'s review rows without reload, chip aria-pressed="true"'
+      : `FAIL: toggling "Review asks" on adds the review rows live (${JSON.stringify(glAfterReview)})`,
+  )
+
+  // Toggle an EXISTING section (Merge requests) OFF → it leaves.
+  await page.click(gitlabChipBtn('Merge requests'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
+      return c && !c.textContent.includes('Add rate limiting to the ingest API')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const glAfterMrs = await readGitlabChips()
+  const glMrsOffOk = glAfterMrs.chips['Merge requests'] === 'false' && glAfterMrs.hasMrRow === false && glAfterMrs.hasReviewRow === true
+  console.log(
+    glMrsOffOk
+      ? 'PASS: toggling "Merge requests" off drops the live card\'s MR rows without reload (review rows remain), chip aria-pressed="false"'
+      : `FAIL: toggling "Merge requests" off drops the MR rows live (${JSON.stringify(glAfterMrs)})`,
+  )
+
+  // Restore both to defaults.
+  await page.click(gitlabChipBtn('Review asks'))
+  await page.click(gitlabChipBtn('Merge requests'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
+      return c && c.textContent.includes('Add rate limiting to the ingest API') && !c.textContent.includes('Review: rework')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const glRestored = await readGitlabChips()
+  const glRestoreOk = glRestored.chips['Merge requests'] === 'true' && glRestored.chips['Review asks'] === 'false' && glRestored.hasMrRow === true && glRestored.hasReviewRow === false
+  console.log(
+    glRestoreOk
+      ? 'PASS: restoring "Merge requests" on and "Review asks" off returns the card to its default composition, no reload'
+      : `FAIL: restoring gitlab's chips to default (${JSON.stringify(glRestored)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable gitlab and clear its cache, then reload — same restore
+  // discipline as every connector block above.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, gitlab: { ...connectors.gitlab, enabled: false } },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// GitLab STACKED fencepost (Task 77, Step 3b) — gitlab shares the right rail
+// with github (rows-only, its OWN graph OFF) and jira (rows-only, default),
+// gitlab's own activity graph ON, all four gitlab sections at display max
+// (mrs+reviewAsks+todos+graph, the SAME FULL_FIXTURE/ALL_ON_VIEWS shape the
+// sole-card block above uses). soleForgeCard is FALSE here (both siblings
+// enabled), so GitlabWidget.tsx picks `grand:block` for its own graph — the
+// SAME re-derived 1171h tier (index.css) github's own graph uses in the
+// mirror composition, because the arithmetic is IDENTICAL regardless of which
+// card carries the +176px (index.css's `grand` comment proves the two totals
+// equal: 235+479.5 = 411+303.5 = 714.5). This block RE-CONFIRMS that measured
+// fact with gitlab as the graph-bearing card instead of github. Runs after
+// the composed-card block above (gitlab left disabled by its own restore),
+// proves:
+//   (1) gitlab's own graph reveals MONOTONICALLY at 1171 (shown >=1171, hidden
+//       <=1170, one transition, never re-shows);
+//   (2) at every height ZERO pairwise overlap among the three cards + the
+//       pill, and the LOWEST card (jira) clears the pill by >=16px.
+// Restores all three connectors off + weatherCache null + viewport before
+// handing control to the block below.
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const heights = [1200, 1171, 1170, 1100, 900]
+  const FULL_FIXTURE = {
+    mrs: [
+      { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+      { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+      { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
+    ],
+    reviewMrs: [
+      { title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+      { title: 'Review: add integration tests for the webhook relay', url: 'https://gitlab.com/acme/platform/-/merge_requests/305', project: 'acme/platform' },
+    ],
+    todos: 6,
+    contributions: gitlabContributionsFixture(),
+  }
+  await page.route('**/api.open-meteo.com/**', (route) => route.abort())
+  await page.evaluate(
+    async ({ data }) => {
+      const MAX_AGE_MS = 30 * 60 * 1000
+      const now = Date.now()
+      const hourly = Array.from({ length: 12 }, (_, i) => {
+        const t = new Date(now + i * 3_600_000)
+        const iso = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}T${String(t.getHours()).padStart(2, '0')}:00`
+        return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: false, pulls: true, issues: true, notifications: true } },
+          gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true } },
+          jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' },
+        },
+        connectorSnapshots: {
+          github: {
+            fetchedAt: now,
+            data: {
+              prs: [
+                { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+                { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+              ],
+              issues: [
+                { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+                { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+              ],
+              notifications: 3,
+              contributions: null,
+              etags: {},
+            },
+          },
+          gitlab: { fetchedAt: now, data },
+          jira: {
+            fetchedAt: now,
+            data: {
+              issues: [
+                { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+                { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+                { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+              ],
+              counts: { 'In Progress': 2, 'To Do': 1 },
+              dueSoon: [],
+            },
+          },
+        },
+        weatherCache: {
+          current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+          hourly,
+          fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
+          locationLabel: 'New York',
+        },
+      })
+    },
+    { data: FULL_FIXTURE },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measure3 = () =>
+    page.evaluate(
+      ({ ghSel, glSel, jrSel }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gl = document.querySelector(glSel)
+        const img = gl ? gl.querySelector('[role="img"]') : null
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gh: box(ghSel),
+          gl: box(glSel),
+          jr: box(jrSel),
+          graphShown: !!img && img.getBoundingClientRect().height > 0,
+          pill: pill ? { top: +pill.getBoundingClientRect().top.toFixed(1) } : null,
+        }
+      },
+      { ghSel: githubSel, glSel: gitlabSel, jrSel: jiraSel },
+    )
+
+  const fp = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    fp.push({ h, ...(await measure3()) })
+  }
+
+  const visOk = fp.every((r) => r.graphShown === (r.h >= 1171))
+  let mono = true
+  for (let i = 1; i < fp.length; i++) if (fp[i].graphShown && !fp[i - 1].graphShown) mono = false
+  console.log(
+    visOk && mono
+      ? `PASS: gitlab's OWN graph (stacked with github's graph OFF) yields to the RE-DERIVED grand (>=1171h, Task 77) — shown at ${fp.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single transition that never re-shows — confirms the 235+479.5 = 411+303.5 arithmetic holds with gitlab as the graph-bearing card`
+      : `FAIL: gitlab's own graph yields monotonically at 1171 when stacked (${JSON.stringify(fp.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+  )
+
+  const FLOOR = 16
+  const stack = fp.map((r) => {
+    const cards = [r.gh, r.gl, r.jr].filter(Boolean)
+    const lowest = cards.reduce((lo, c) => (c.bottom > lo.bottom ? c : lo), cards[0])
+    const overlapPill = r.pill ? cards.some((c) => c.bottom > r.pill.top) : false
+    let overlapPairwise = false
+    for (let i = 0; i < cards.length; i++)
+      for (let j = i + 1; j < cards.length; j++)
+        if (!(cards[i].bottom <= cards[j].top || cards[i].top >= cards[j].bottom)) overlapPairwise = true
+    return { h: r.h, graph: r.graphShown, gap: r.pill ? +(r.pill.top - lowest.bottom).toFixed(1) : null, overlapPill, overlapPairwise }
+  })
+  const stackOk = stack.every((s) => !s.overlapPill && !s.overlapPairwise && s.gap >= FLOOR)
+  console.log(
+    stackOk
+      ? `PASS: the three-forge-card stack (gitlab carrying the graph) clears the Tasks pill by >=${FLOOR}px at every height, zero pairwise overlap — ${stack.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (1171 is the interior worst case)`
+      : `FAIL: the three-forge-card stack clears the pill with zero overlap (${JSON.stringify(stack)})`,
+  )
+
+  // Restore: unblock the endpoint, disable all three, clear cache + weather,
+  // viewport back to launch.
+  await page.unroute('**/api.open-meteo.com/**')
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+      },
+      connectorSnapshots: {},
+      weatherCache: null,
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// BOTH new sections on, NO graph (Task 77) — the `roomier` fencepost's own
+// live sweep. gitlab's reviewAsks AND jira's dueSoon are BOTH enabled at
+// once (no activity graph anywhere), the composition `roomier` (1124h, index.css)
+// exists specifically for — proves the real DOM, not just the unit-pinned
+// class selection, reveals both sections monotonically at the measured 1124
+// and clears the Tasks pill by >=16px once shown. Runs standalone (github
+// disabled — only gitlab+jira share the rail), restores before Step 3c below.
+{
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const heights = [1125, 1124, 1123, 900]
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false } },
+        jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler', views: { assigned: true, statusChips: true, dueSoon: true } },
+      },
+      connectorSnapshots: {
+        gitlab: {
+          fetchedAt: Date.now(),
+          data: {
+            mrs: [{ title: 'a', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }, { title: 'b', url: 'https://gitlab.com/o/r/-/merge_requests/2', project: 'o/r' }, { title: 'c', url: 'https://gitlab.com/o/r/-/merge_requests/3', project: 'o/r' }],
+            reviewMrs: [{ title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/o/r/-/merge_requests/4', project: 'o/r' }, { title: 'Review: add integration tests', url: 'https://gitlab.com/o/r/-/merge_requests/5', project: 'o/r' }],
+            todos: 6,
+            contributions: null,
+          },
+        },
+        jira: {
+          fetchedAt: Date.now(),
+          data: {
+            issues: [
+              { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+              { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+              { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+            ],
+            counts: { 'In Progress': 2, 'To Do': 1 },
+            dueSoon: [
+              { key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' },
+              { key: 'AUR-111', summary: 'Renew the staging TLS certificate', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-111', due: '2026-08-14' },
+            ],
+          },
+        },
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measureRoomier = () =>
+    page.evaluate(
+      ({ gSel, jSel }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gl = document.querySelector(gSel)
+        const jr = document.querySelector(jSel)
+        const reviewVisible = gl ? Array.from(gl.querySelectorAll('a')).some((a) => a.textContent.includes('Review: rework the ingest queue backoff') && a.getBoundingClientRect().height > 0) : false
+        const dueVisible = jr ? Array.from(jr.querySelectorAll('a')).some((a) => a.textContent.includes('Ship the connector views wave') && a.getBoundingClientRect().height > 0) : false
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return { gl: box(gSel), jr: box(jSel), reviewVisible, dueVisible, pillTop: pill ? +pill.getBoundingClientRect().top.toFixed(1) : null }
+      },
+      { gSel: gitlabSel, jSel: jiraSel },
+    )
+  const rows = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    rows.push({ h, ...(await measureRoomier()) })
+  }
+  const visOk = rows.every((r) => r.reviewVisible === (r.h >= 1124) && r.dueVisible === (r.h >= 1124))
+  let mono = true
+  for (let i = 1; i < rows.length; i++) if ((rows[i].reviewVisible && !rows[i - 1].reviewVisible) || (rows[i].dueVisible && !rows[i - 1].dueVisible)) mono = false
+  console.log(
+    visOk && mono
+      ? `PASS: with BOTH gitlab's reviewAsks AND jira's dueSoon on (no graph), both reveal MONOTONICALLY at the measured \`roomier\` (1124h) — shown at ${rows.filter((r) => r.reviewVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below (${rows.filter((r) => !r.reviewVisible).map((r) => r.h).join(', ')})`
+      : `FAIL: both new sections reveal monotonically at 1124 (${JSON.stringify(rows.map((r) => ({ h: r.h, review: r.reviewVisible, due: r.dueVisible })))})`,
+  )
+  const FLOOR = 16
+  const shownRows = rows.filter((r) => r.dueVisible && r.jr && r.pillTop !== null)
+  const floorOk = shownRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+  console.log(
+    floorOk
+      ? `PASS: once revealed at 1124, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
+      : `FAIL: jira clears the pill by >=${FLOOR}px once both sections reveal at 1124 (${JSON.stringify(shownRows)})`,
+  )
+
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, gitlab: { ...connectors.gitlab, enabled: false }, jira: { ...connectors.jira, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// BOTH new sections on, WITH a graph (Task 77) — the `roomiest` fencepost's
+// own live sweep, the full three-way worst case: github's commit graph +
+// gitlab's reviewAsks + jira's dueSoon all enabled at once (gitlab's OWN
+// activity graph stays off — the cross-card rule already withholds it
+// whenever github's is on, so seeding both would just re-test Step 3c below,
+// not this tier). Proves the real DOM reveals all three MONOTONICALLY at the
+// measured 1300 and clears the Tasks pill by >=16px once shown. Restores
+// before Step 3c.
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const heights = [1301, 1300, 1299, 900]
+  await page.evaluate(
+    async ({ counts, total }) => {
+      const today = new Date()
+      const days = counts.map((count, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (counts.length - 1 - i))
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return { date: iso, count }
+      })
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: true, pulls: true, issues: true, notifications: true } },
+          gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false } },
+          jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler', views: { assigned: true, statusChips: true, dueSoon: true } },
+        },
+        connectorSnapshots: {
+          github: {
+            fetchedAt: Date.now(),
+            data: {
+              prs: [{ title: 'a', url: 'https://github.com/o/r/pull/1', repo: 'o/r' }, { title: 'b', url: 'https://github.com/o/r/pull/2', repo: 'o/r' }],
+              issues: [{ title: 'c', url: 'https://github.com/o/r/issues/1', repo: 'o/r' }, { title: 'd', url: 'https://github.com/o/r/issues/2', repo: 'o/r' }],
+              notifications: 3,
+              contributions: { days, total },
+              etags: {},
+            },
+          },
+          gitlab: {
+            fetchedAt: Date.now(),
+            data: {
+              mrs: [{ title: 'e', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }, { title: 'f', url: 'https://gitlab.com/o/r/-/merge_requests/2', project: 'o/r' }, { title: 'g', url: 'https://gitlab.com/o/r/-/merge_requests/3', project: 'o/r' }],
+              reviewMrs: [{ title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/o/r/-/merge_requests/4', project: 'o/r' }, { title: 'Review: add integration tests', url: 'https://gitlab.com/o/r/-/merge_requests/5', project: 'o/r' }],
+              todos: 6,
+              contributions: null,
+            },
+          },
+          jira: {
+            fetchedAt: Date.now(),
+            data: {
+              issues: [
+                { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+                { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+                { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+              ],
+              counts: { 'In Progress': 2, 'To Do': 1 },
+              dueSoon: [
+                { key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' },
+                { key: 'AUR-111', summary: 'Renew the staging TLS certificate', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-111', due: '2026-08-14' },
+              ],
+            },
+          },
+        },
+      })
+    },
+    { counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const measureRoomiest = () =>
+    page.evaluate(
+      ({ ghSel, glSel, jSel }) => {
+        const box = (s) => {
+          const el = document.querySelector(s)
+          if (!el) return null
+          const b = el.getBoundingClientRect()
+          if (b.width === 0 && b.height === 0) return null
+          return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+        }
+        const gh = document.querySelector(ghSel)
+        const ghImg = gh ? gh.querySelector('[role="img"]') : null
+        const gl = document.querySelector(glSel)
+        const jr = document.querySelector(jSel)
+        const reviewVisible = gl ? Array.from(gl.querySelectorAll('a')).some((a) => a.textContent.includes('Review: rework the ingest queue backoff') && a.getBoundingClientRect().height > 0) : false
+        const dueVisible = jr ? Array.from(jr.querySelectorAll('a')).some((a) => a.textContent.includes('Ship the connector views wave') && a.getBoundingClientRect().height > 0) : false
+        const pill = document.querySelector('[data-block-id="tasks"] button')
+        return {
+          gh: box(ghSel),
+          jr: box(jSel),
+          githubGraphVisible: !!ghImg && ghImg.getBoundingClientRect().height > 0,
+          reviewVisible,
+          dueVisible,
+          pillTop: pill ? +pill.getBoundingClientRect().top.toFixed(1) : null,
+        }
+      },
+      { ghSel: githubSel, glSel: gitlabSel, jSel: jiraSel },
+    )
+  const rows = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    rows.push({ h, ...(await measureRoomiest()) })
+  }
+  const allThree = (r) => r.githubGraphVisible && r.reviewVisible && r.dueVisible
+  const visOk = rows.every((r) => allThree(r) === (r.h >= 1300))
+  let mono = true
+  for (let i = 1; i < rows.length; i++) if (allThree(rows[i]) && !allThree(rows[i - 1])) mono = false
+  console.log(
+    visOk && mono
+      ? `PASS: the full three-way worst case (github's graph + gitlab's reviewAsks + jira's dueSoon) reveals MONOTONICALLY at the measured \`roomiest\` (1300h) — all three shown at ${rows.filter(allThree).map((r) => r.h).join(', ') || '(none)'}, at least one hidden below (${rows.filter((r) => !allThree(r)).map((r) => r.h).join(', ')})`
+      : `FAIL: the three-way worst case reveals monotonically at 1300 (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphVisible, review: r.reviewVisible, due: r.dueVisible })))})`,
+  )
+  const FLOOR = 16
+  const shownRows = rows.filter((r) => allThree(r) && r.jr && r.pillTop !== null)
+  const floorOk = shownRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+  console.log(
+    floorOk
+      ? `PASS: once all three reveal at 1300, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
+      : `FAIL: jira clears the pill by >=${FLOOR}px once the three-way worst case reveals (${JSON.stringify(shownRows)})`,
+  )
+
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
+// BOTH graphs enabled, stacked (Task 77, Step 3c) — the cross-card rule's own
+// falsifier. When github's commit graph AND gitlab's activity graph are BOTH
+// enabled, with jira also present, GitlabWidget.tsx's `renderGraph = graph !==
+// null && !githubGraphEnabled` withholds gitlab's graph UNCONDITIONALLY —
+// never height-gated, never revealed at any window size — while github's own
+// graph is the hero and keeps following its own `grand` (1171h) tier
+// normally. This is a DELIBERATE design choice (the Global Constraints'
+// "gitlab's yields (data-yield marker, no reveal) when both enabled and
+// stacked" rule), not a height boundary Task 77 needed to derive — but the
+// brief asks whether an honest very-tall boundary exists where BOTH graphs
+// COULD fit, so this block derives that number too, for the record, without
+// pinning a variant for it: if the never-renders rule were instead relaxed to
+// let gitlab's graph ALSO show once the stack is tall enough, the arithmetic
+// is github+graph(411) + gitlab+graph+reviewAsks(479.5) + jira(174) = jira
+// bottom 180+411+16+479.5+16+174 = 1276.5, clearing the pill only at
+// h>=1276.5+70=1346.5 — a THIRD tier taller than `roomiest` (1300) for a
+// composition that already reads perfectly well with ONE hero graph. Given
+// that and the ratified rule, the never-renders rule is what ships — see
+// GitlabWidget.tsx's own cross-card-rule comment and this block's own sweep,
+// which proves it holds all the way to 1300h (past `roomiest`, the tallest
+// tier this task pins) with zero exceptions. Runs after the stacked-fencepost
+// block above (all three left disabled by its own restore).
+{
+  const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+  const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+  const heights = [1300, 1200, 1171, 1170, 1100, 1041, 1040, 900]
+  const FULL_FIXTURE = {
+    mrs: [
+      { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
+      { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
+      { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
+    ],
+    reviewMrs: [
+      { title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+    ],
+    todos: 6,
+    contributions: gitlabContributionsFixture(),
+  }
+  await page.evaluate(
+    async ({ data, counts, total }) => {
+      const today = new Date()
+      const days = counts.map((count, i) => {
+        const d = new Date(today)
+        d.setDate(today.getDate() - (counts.length - 1 - i))
+        const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        return { date: iso, count }
+      })
+      const now = Date.now()
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: true, pulls: true, issues: true, notifications: true } },
+          gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true } },
+          jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' },
+        },
+        connectorSnapshots: {
+          github: {
+            fetchedAt: now,
+            data: {
+              prs: [
+                { title: 'Fix the flaky auth test on CI', url: 'https://github.com/acme/app/pull/128', repo: 'acme/app' },
+                { title: 'Extract the shared connector http helper', url: 'https://github.com/acme/app/pull/131', repo: 'acme/app' },
+              ],
+              issues: [
+                { title: 'Cold-start crash when storage is empty', url: 'https://github.com/acme/web/issues/44', repo: 'acme/web' },
+                { title: 'Weather chip overlaps the bar at 800px wide', url: 'https://github.com/acme/web/issues/47', repo: 'acme/web' },
+              ],
+              notifications: 3,
+              contributions: { days, total },
+              etags: {},
+            },
+          },
+          gitlab: { fetchedAt: now, data },
+          jira: {
+            fetchedAt: now,
+            data: {
+              issues: [
+                { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+                { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+                { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+              ],
+              counts: { 'In Progress': 2, 'To Do': 1 },
+              dueSoon: [],
+            },
+          },
+        },
+      })
+    },
+    { data: FULL_FIXTURE, counts: GITHUB_CONTRIB_COUNTS, total: GITHUB_CONTRIB_TOTAL },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  const rows = []
+  for (const h of heights) {
+    await page.setViewportSize({ width: 1600, height: h })
+    await page.waitForTimeout(300)
+    const d = await page.evaluate(
+      ({ ghSel, glSel }) => {
+        const gh = document.querySelector(ghSel)
+        const gl = document.querySelector(glSel)
+        const ghImg = gh ? gh.querySelector('[role="img"]') : null
+        const glImg = gl ? gl.querySelector('[role="img"]') : null
+        return {
+          githubGraphShown: !!ghImg && ghImg.getBoundingClientRect().height > 0,
+          gitlabGraphShown: !!glImg && glImg.getBoundingClientRect().height > 0,
+          gitlabYield: gl ? gl.getAttribute('data-yield') : null,
+          gitlabFound: !!gl,
+        }
+      },
+      { ghSel: githubSel, glSel: gitlabSel },
+    )
+    rows.push({ h, ...d })
+  }
+
+  const gitlabNeverRenders = rows.every((r) => r.gitlabGraphShown === false)
+  const yieldMarked = rows.every((r) => !r.gitlabFound || r.gitlabYield === 'github')
+  console.log(
+    gitlabNeverRenders && yieldMarked
+      ? `PASS: gitlab's graph NEVER renders while github's graph is enabled, at every swept height 900-1300h (${rows.map((r) => `${r.h}h`).join(', ')}) — the cross-card rule holds unconditionally, data-yield="github" present throughout`
+      : `FAIL: gitlab's graph never-renders + data-yield rule (${JSON.stringify(rows)})`,
+  )
+
+  const githubVisOk = rows.every((r) => r.githubGraphShown === (r.h >= 1171))
+  let githubMono = true
+  for (let i = 1; i < rows.length; i++) if (rows[i].githubGraphShown && !rows[i - 1].githubGraphShown) githubMono = false
+  console.log(
+    githubVisOk && githubMono
+      ? `PASS: github's OWN graph (the hero) still follows its own re-derived grand (>=1171h) tier unaffected by gitlab's withheld graph — shown at ${rows.filter((r) => r.githubGraphShown).map((r) => r.h).join(', ')}, hidden below (${rows.filter((r) => !r.githubGraphShown).map((r) => r.h).join(', ')})`
+      : `FAIL: github's own graph follows its own grand tier while gitlab's yields (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphShown })))})`,
+  )
+
+  // Restore: disable all three, clear cache, viewport back to launch.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, enabled: false },
+        gitlab: { ...connectors.gitlab, enabled: false },
+        jira: { ...connectors.jira, enabled: false },
+      },
+      connectorSnapshots: {},
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+}
+
+// ---------------------------------------------------------------------------
 // Jira connector (Task 50) — the third full token connector, and the FIRST
 // with a THREE-field card body (site, email, API token — Jira Cloud auth is
 // email + token, not a bare token). NO live network: seed an enabled +
@@ -3529,6 +4578,366 @@ function githubContributionsFixture() {
       ? 'Jira connector disabled; page restored to idle'
       : 'WARNING: Jira widget still present after disabling the connector',
   )
+}
+
+// ---------------------------------------------------------------------------
+// Jira composed card (Task 77) — jira SOLE (no gitlab), all three sections at
+// display max (3 assigned issues + 2 due-soon rows + status chips): due rows
+// show the `{due} · {key}` prefix, are real links, cursor discipline. Sole is
+// the RIGHT scenario for the widget-fidelity probes below — dueSoonTier only
+// gates when gitlab ALSO shares the rail (JiraWidget.tsx), so jira-alone
+// renders due-soon unconditionally and the card is genuinely its full,
+// uncropped display max for the capture. Runs after the Jira connector block
+// (jira left disabled by its own restore), captures
+// connectors-jira-composed.png, then Task 77's own jira chips probes through
+// the REAL drawer, before restoring jira off.
+{
+  const jiraSel = '[data-block-id="jira"] section[aria-label="Jira"]'
+  const FULL_FIXTURE = {
+    issues: [
+      { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
+      { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-102' },
+      { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
+    ],
+    counts: { 'In Progress': 2, 'To Do': 1 },
+    // Due-soon display max (MAX_DUE_SOON=2, JiraWidget.tsx) — distinct
+    // summaries from the assigned issues above, real due dates.
+    dueSoon: [
+      { key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' },
+      { key: 'AUR-111', summary: 'Renew the staging TLS certificate', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-111', due: '2026-08-14' },
+    ],
+  }
+  const ALL_ON_VIEWS = { assigned: true, statusChips: true, dueSoon: true }
+
+  await page.evaluate(
+    async ({ data, views }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, jira: { enabled: true, email: 'jon@acme.com', apiToken: 'atlassian_preview', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler', views } },
+        connectorSnapshots: { jira: { fetchedAt: Date.now(), data } },
+      })
+    },
+    { data: FULL_FIXTURE, views: ALL_ON_VIEWS },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(jiraSel, { timeout: 5000 }).catch(() => {})
+
+  // Probe: due-soon rows carry the `{due} · {key}` prefix, are real external
+  // links below the "Due soon" eyebrow, and are pointer-cursor (row) not
+  // false-affordance (the prefix/summary text itself carries no separate
+  // interactive surface — the whole row is the one link, same shape as every
+  // other connector's ItemRow).
+  const due = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const eyebrow = [...sec.querySelectorAll('p')].find((p) => p.textContent.trim() === 'Due soon')
+    const link = [...sec.querySelectorAll('a')].find((a) => a.textContent.includes('Ship the connector views wave'))
+    const prefix = link ? link.querySelector('span')?.textContent.trim() : null
+    return {
+      eyebrowFound: !!eyebrow,
+      linkFound: !!link,
+      prefix,
+      href: link ? link.getAttribute('href') : null,
+      target: link ? link.getAttribute('target') : null,
+      rel: link ? link.getAttribute('rel') : null,
+      cursor: link ? getComputedStyle(link).cursor : null,
+    }
+  }, jiraSel)
+  const dueRel = (due?.rel ?? '').split(/\s+/)
+  const dueOk =
+    due !== null &&
+    due.eyebrowFound &&
+    due.linkFound &&
+    due.prefix === '2026-08-11 · AUR-110' &&
+    due.target === '_blank' &&
+    dueRel.includes('noopener') &&
+    dueRel.includes('noreferrer') &&
+    due.href === 'https://yoursite.atlassian.net/browse/AUR-110' &&
+    due.cursor === 'pointer'
+  console.log(
+    dueOk
+      ? `PASS: due-soon rows show the "{due} · {key}" prefix ("${due.prefix}") as a real external link below the "Due soon" eyebrow (target=_blank, rel=noopener noreferrer, cursor pointer)`
+      : `FAIL: due-soon rows show the due prefix as a real link below the eyebrow (${JSON.stringify(due)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-jira-composed.png` })
+  console.log('captured connectors-jira-composed.png')
+
+  // Step 3(d) — re-derive (or reconfirm) the dense hide edge (864/865) with
+  // dueSoon in the mix. Seeds github(rows, graph off) + gitlab(DEFAULT — no
+  // reviewAsks) + jira(dueSoon ON, this block's own FULL_FIXTURE) — the
+  // composition the brief describes ("jira with dueSoon on"). Because
+  // dueSoonTier gates due-soon SEPARATELY from the whole-card `dense` hide
+  // (Task 77's fix — see index.css's `roomy` comment for why bumping the
+  // SHARED `dense` variant itself was rejected), the 864/865 edge governs
+  // exactly what it always did: the ASSIGNED-rows-only base card, unaffected
+  // by whether dueSoon happens to be enabled. Proves:
+  //   (1) 864 -> gitlab+jira BOTH fully hidden (dense), UNCHANGED from before
+  //       this task;
+  //   (2) 865 -> both shown; jira's base card (no due-soon rows — 995 > 865)
+  //       clears the pill by the ORIGINAL 16px this tier was built for;
+  //   (3) at Jon's own canonical 1600x900, the due-soon section is CSS-hidden
+  //       (900 < 995) and the card is byte-identical to its no-dueSoon shape —
+  //       the overlap this task found (jira.bottom 924.5 vs pillTop 846) is
+  //       DEAD.
+  {
+    const githubSel = '[data-block-id="github"] section[aria-label="GitHub"]'
+    const gitlabSel = '[data-block-id="gitlab"] section[aria-label="GitLab"]'
+    await page.evaluate(
+      async ({ data }) => {
+        const { connectors } = await chrome.storage.local.get('connectors')
+        await chrome.storage.local.set({
+          connectors: {
+            ...connectors,
+            github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: false, pulls: true, issues: true, notifications: true } },
+            gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
+            jira: { enabled: true, email: 'jon@acme.com', apiToken: 'jr', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler', views: { assigned: true, statusChips: true, dueSoon: true } },
+          },
+          connectorSnapshots: {
+            github: { fetchedAt: Date.now(), data: { prs: [{ title: 'a', url: 'https://github.com/o/r/pull/1', repo: 'o/r' }, { title: 'b', url: 'https://github.com/o/r/pull/2', repo: 'o/r' }], issues: [{ title: 'c', url: 'https://github.com/o/r/issues/1', repo: 'o/r' }, { title: 'd', url: 'https://github.com/o/r/issues/2', repo: 'o/r' }], notifications: 3, contributions: null, etags: {} } },
+            gitlab: { fetchedAt: Date.now(), data: { mrs: [{ title: 'e', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }, { title: 'f', url: 'https://gitlab.com/o/r/-/merge_requests/2', project: 'o/r' }, { title: 'g', url: 'https://gitlab.com/o/r/-/merge_requests/3', project: 'o/r' }], reviewMrs: [], todos: 6, contributions: null } },
+            jira: { fetchedAt: Date.now(), data },
+          },
+        })
+      },
+      { data: FULL_FIXTURE },
+    )
+    await page.reload()
+    await page.waitForSelector('time')
+    await page.waitForTimeout(800) // photo fade-in
+
+    const measureDense = () =>
+      page.evaluate(
+        ({ gSel, jSel }) => {
+          const box = (s) => {
+            const el = document.querySelector(s)
+            if (!el) return null
+            const b = el.getBoundingClientRect()
+            if (b.width === 0 && b.height === 0) return null
+            return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+          }
+          const jr = document.querySelector(jSel)
+          const hasDueRow = jr ? jr.textContent.includes('Ship the connector views wave') : false
+          const dueVisible = jr
+            ? Array.from(jr.querySelectorAll('a')).some((a) => a.textContent.includes('Ship the connector views wave') && a.getBoundingClientRect().height > 0)
+            : false
+          const pill = document.querySelector('[data-block-id="tasks"] button')
+          return {
+            gl: box(gSel),
+            jr: box(jSel),
+            hasDueRow,
+            dueVisible,
+            pillTop: pill ? +pill.getBoundingClientRect().top.toFixed(1) : null,
+          }
+        },
+        { gSel: gitlabSel, jSel: jiraSel },
+      )
+
+    const d864 = await (async () => {
+      await page.setViewportSize({ width: 1600, height: 864 })
+      await page.waitForTimeout(300)
+      return measureDense()
+    })()
+    const d865 = await (async () => {
+      await page.setViewportSize({ width: 1600, height: 865 })
+      await page.waitForTimeout(300)
+      return measureDense()
+    })()
+    const d900 = await (async () => {
+      await page.setViewportSize({ width: 1600, height: 900 })
+      await page.waitForTimeout(300)
+      return measureDense()
+    })()
+
+    const denseUnchangedOk = d864.gl === null && d864.jr === null && d865.gl !== null && d865.jr !== null
+    console.log(
+      denseUnchangedOk
+        ? 'PASS: the dense hide edge (864 hidden / 865 shown) is UNCHANGED by dueSoon — gitlab+jira both hidden at 864, both shown at 865, exactly as before Task 77'
+        : `FAIL: the dense hide edge is unchanged by dueSoon (864=${JSON.stringify(d864)}, 865=${JSON.stringify(d865)})`,
+    )
+    const FLOOR = 16
+    const gap865 = d865.jr && d865.pillTop !== null ? +(d865.pillTop - d865.jr.bottom).toFixed(1) : null
+    const floor865Ok = d865.dueVisible === false && gap865 !== null && gap865 >= FLOOR
+    console.log(
+      floor865Ok
+        ? `PASS: at the 865 floor, due-soon is still CSS-hidden (995 > 865) so jira's base card clears the pill by the ORIGINAL ${FLOOR}px floor this tier was built for (gap ${gap865}px)`
+        : `FAIL: at 865 due-soon should stay hidden with the original floor intact (dueVisible=${d865.dueVisible}, gap=${gap865})`,
+    )
+    const gap900 = d900.jr && d900.pillTop !== null ? +(d900.pillTop - d900.jr.bottom).toFixed(1) : null
+    const overlapDeadOk = d900.hasDueRow === true && d900.dueVisible === false && gap900 !== null && gap900 >= FLOOR
+    console.log(
+      overlapDeadOk
+        ? `PASS: at Jon's own canonical 1600x900, the overlap this task found is DEAD — due-soon data is present but CSS-hidden (900 < roomy's 995), jira clears the pill by ${gap900}px (was -78.5px before this fix)`
+        : `FAIL: the 1600x900 overlap is dead (hasDueRow=${d900.hasDueRow}, dueVisible=${d900.dueVisible}, gap=${gap900})`,
+    )
+
+    // Step 3(d) continued — sweep dueSoon's OWN `roomy` fencepost (995/994)
+    // with gitlab present (the precondition for the gate at all), confirming
+    // it reveals monotonically and clears the pill by >=16px once shown.
+    const heights = [996, 995, 994]
+    const roomyRows = []
+    for (const h of heights) {
+      await page.setViewportSize({ width: 1600, height: h })
+      await page.waitForTimeout(300)
+      roomyRows.push({ h, ...(await measureDense()) })
+    }
+    const roomyVisOk = roomyRows.every((r) => r.dueVisible === (r.h >= 995))
+    let roomyMono = true
+    for (let i = 1; i < roomyRows.length; i++) if (roomyRows[i].dueVisible && !roomyRows[i - 1].dueVisible) roomyMono = false
+    console.log(
+      roomyVisOk && roomyMono
+        ? `PASS: jira's due-soon section reveals MONOTONICALLY at the measured 995 (\`roomy\`) — shown at ${roomyRows.filter((r) => r.dueVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below (${roomyRows.filter((r) => !r.dueVisible).map((r) => r.h).join(', ')})`
+        : `FAIL: due-soon reveals monotonically at 995 (${JSON.stringify(roomyRows.map((r) => ({ h: r.h, dueVisible: r.dueVisible })))})`,
+    )
+    const roomyFloorRows = roomyRows.filter((r) => r.dueVisible && r.jr && r.pillTop !== null)
+    const roomyFloorOk = roomyFloorRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+    console.log(
+      roomyFloorOk
+        ? `PASS: once revealed at 995, jira clears the Tasks pill by >=${FLOOR}px — ${roomyFloorRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
+        : `FAIL: jira clears the pill by >=${FLOOR}px once due-soon reveals (${JSON.stringify(roomyFloorRows)})`,
+    )
+
+    // Restore: disable all three, clear cache, viewport back to launch.
+    await page.evaluate(async () => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          github: { ...connectors.github, enabled: false },
+          gitlab: { ...connectors.gitlab, enabled: false },
+          jira: { ...connectors.jira, enabled: false },
+        },
+        connectorSnapshots: {},
+      })
+    })
+    await page.setViewportSize({ width: 1600, height: 900 })
+    await page.reload()
+    await page.waitForSelector('time')
+    await page.waitForTimeout(800) // photo fade-in
+  }
+
+  // Task 77 — jira's "Show on your board" chips (Task 76), proven through the
+  // REAL drawer against the LIVE card, mirroring gitlab's own chips probe.
+  // Re-seed jira SOLE with views ABSENT (default path) but the SAME
+  // full-display-max data still in the snapshot — a settings gate, never a
+  // data gate.
+  await page.evaluate(
+    async ({ data }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, jira: { enabled: true, email: 'jon@acme.com', apiToken: 'atlassian_preview', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' } },
+        connectorSnapshots: { jira: { fetchedAt: Date.now(), data } },
+      })
+    },
+    { data: FULL_FIXTURE },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  const readJiraChips = () =>
+    page.evaluate(() => {
+      const sec = document.querySelector('section[aria-label="Connectors"]')
+      const chips = {}
+      for (const b of sec.querySelectorAll('button[aria-pressed]')) {
+        const label = b.textContent.replace(/[✓+]/g, '').trim()
+        chips[label] = b.getAttribute('aria-pressed')
+      }
+      const cardEl = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
+      return {
+        chips,
+        hasDueRow: cardEl ? cardEl.textContent.includes('Ship the connector views wave') : null,
+        hasAssignedRow: cardEl ? cardEl.textContent.includes('Fix the flaky auth test on CI') : null,
+      }
+    })
+  const jiraChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
+
+  const jrBefore = await readJiraChips()
+  const jrDefaultOk =
+    jrBefore.chips['Assigned issues'] === 'true' &&
+    jrBefore.chips['Status chips'] === 'true' &&
+    jrBefore.chips['Due soon'] === 'false' &&
+    jrBefore.hasAssignedRow === true &&
+    jrBefore.hasDueRow === false
+  console.log(
+    jrDefaultOk
+      ? 'PASS: jira\'s three chips render the wave default pattern (Assigned issues true, Status chips true, Due soon false) — absent views resolve to DEFAULT_JIRA_VIEWS, and the live card matches'
+      : `FAIL: jira's default chip pattern (${JSON.stringify(jrBefore)})`,
+  )
+
+  // Toggle a NEW section (Due soon) ON → the live card gains it, no reload.
+  await page.click(jiraChipBtn('Due soon'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
+      return c && c.textContent.includes('Ship the connector views wave')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const jrAfterDue = await readJiraChips()
+  const jrDueOnOk = jrAfterDue.chips['Due soon'] === 'true' && jrAfterDue.hasDueRow === true && jrAfterDue.hasAssignedRow === true
+  console.log(
+    jrDueOnOk
+      ? 'PASS: toggling "Due soon" on adds the live card\'s due rows without reload, chip aria-pressed="true"'
+      : `FAIL: toggling "Due soon" on adds the due rows live (${JSON.stringify(jrAfterDue)})`,
+  )
+
+  // Toggle an EXISTING section (Assigned issues) OFF → it leaves.
+  await page.click(jiraChipBtn('Assigned issues'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
+      return c && !c.textContent.includes('Fix the flaky auth test on CI')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const jrAfterAssigned = await readJiraChips()
+  const jrAssignedOffOk = jrAfterAssigned.chips['Assigned issues'] === 'false' && jrAfterAssigned.hasAssignedRow === false && jrAfterAssigned.hasDueRow === true
+  console.log(
+    jrAssignedOffOk
+      ? 'PASS: toggling "Assigned issues" off drops the live card\'s assigned rows without reload (due rows remain), chip aria-pressed="false"'
+      : `FAIL: toggling "Assigned issues" off drops the assigned rows live (${JSON.stringify(jrAfterAssigned)})`,
+  )
+
+  // Restore both to defaults.
+  await page.click(jiraChipBtn('Due soon'))
+  await page.click(jiraChipBtn('Assigned issues'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
+      return c && c.textContent.includes('Fix the flaky auth test on CI') && !c.textContent.includes('Ship the connector views wave')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const jrRestored = await readJiraChips()
+  const jrRestoreOk = jrRestored.chips['Assigned issues'] === 'true' && jrRestored.chips['Due soon'] === 'false' && jrRestored.hasAssignedRow === true && jrRestored.hasDueRow === false
+  console.log(
+    jrRestoreOk
+      ? 'PASS: restoring "Assigned issues" on and "Due soon" off returns the card to its default composition, no reload'
+      : `FAIL: restoring jira's chips to default (${JSON.stringify(jrRestored)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable jira and clear its cache, then reload.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, jira: { ...connectors.jira, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
 }
 
 // ---------------------------------------------------------------------------
@@ -3988,6 +5397,271 @@ function githubContributionsFixture() {
       ? 'Vercel connector disabled; page restored to idle'
       : 'WARNING: Vercel widget still present after disabling the connector',
   )
+}
+
+// ---------------------------------------------------------------------------
+// Vercel composed card (Task 77) — vercel ALONE, both sections on
+// (deployments + statusSummary). Unlike gitlab/jira, vercel has no
+// enabled-composition height gate to derive: it lives in the LEFT rail (not
+// the right rail's Tasks-pill budget), its statusSummary is a single
+// mb-2/dense:mb-1 header-adjacent line (not a graph or a second rows list),
+// and it already unconditionally whole-card-hides at `dense` (<=864h,
+// App.tsx) regardless of which views are on — so this is a MEASURE-AND-
+// CONFIRM step (Step 3e), not a re-derivation. Seeds SIX deployments (one
+// more than MAX_DEPLOYMENTS=5) specifically to prove the summary line counts
+// the UNSLICED array while the rows list still caps at 5 — the brief's own
+// "derived from unsliced deployments" contract. Runs after the Vercel
+// connector block (vercel left disabled by its own restore), captures
+// connectors-vercel-composed.png, then Task 77's own vercel chips probes
+// through the REAL drawer, before restoring vercel off.
+{
+  const vercelSel = '[data-block-id="vercel"] section[aria-label="Vercel"]'
+  const now = Date.now()
+  // The five DISPLAYED rows (MAX_DEPLOYMENTS) are the brief's own quoted
+  // shape — 3 READY, 1 ERROR, 1 BUILDING, "3 ready · 1 error · 1 building" —
+  // plus a SIXTH (a CANCELED deployment, a state that doesn't otherwise
+  // appear) that only the summary should count. A canceled 6th, not a second
+  // ERROR: it proves the UNSLICED contract (an extra "1 canceled" segment
+  // appended, trailing STATE_ORDER) WITHOUT altering the brief's own "3 ready
+  // · 1 error · 1 building" prefix — a second ERROR would have changed that
+  // count instead of merely extending it.
+  const FULL_FIXTURE = {
+    deployments: [
+      { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/dep-err', createdAt: now - 6 * 3_600_000 },
+      { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/dep-ready', createdAt: now - 3 * 60_000 },
+      { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/dep-ready', createdAt: now - 10 * 60_000 },
+      { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: now - 20 * 60_000 },
+      { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: now - 60 * 60_000 },
+      { project: 'legacy-marketing', state: 'CANCELED', url: 'https://vercel.com/acme/legacy-marketing/dep-cancel', createdAt: now - 30 * 3_600_000 },
+    ],
+  }
+  const ALL_ON_VIEWS = { deployments: true, statusSummary: true }
+
+  await page.evaluate(
+    async ({ data, views }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler', views } },
+        connectorSnapshots: { vercel: { fetchedAt: Date.now(), data } },
+      })
+    },
+    { data: FULL_FIXTURE, views: ALL_ON_VIEWS },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(vercelSel, { timeout: 5000 }).catch(() => {})
+
+  // Probe: the summary line matches the seeded UNSLICED states, ERROR
+  // carries the danger tone (text-red-400), and the rows list still caps at
+  // 5 (the 6th, oldest CANCELED deployment never renders a row) — the
+  // summary/rows split the brief describes. The "·" separators are SEPARATE
+  // aria-hidden spans styled with `mx-1.5` (a CSS margin, not a text space) —
+  // real textContent therefore concatenates with NO surrounding whitespace
+  // ("3 ready·1 error·1 building·1 canceled"), confirmed against the live
+  // DOM rather than assumed.
+  const summary = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const p = [...sec.querySelectorAll('p')][0] // the summary line, first <p> under the header
+    // The INNER color-bearing span per state (its own textContent is exactly
+    // "N state", no leading dot — the dot lives in an ADJACENT sibling span,
+    // not a parent) — an exact match distinguishes it from the OUTER
+    // per-state wrapper span, whose textContent also carries the dot for
+    // every entry after the first. Reads the CLASS NAME, not computed color:
+    // Tailwind v4 emits OKLCH color values, and getComputedStyle().color can
+    // resolve to either `rgb(...)` or `oklch(...)` depending on the engine —
+    // the class-name check is the SAME robust idiom this file's own
+    // crypto-widget red-400 probe already uses (grep `text-red-400`), so it
+    // never depends on which color-space format the browser happens to
+    // report back.
+    const errorSpan = p ? [...p.querySelectorAll('span')].find((sp) => sp.textContent.trim() === '1 error') : null
+    return {
+      text: p ? p.textContent.trim() : null,
+      errorHasRedClass: errorSpan ? errorSpan.className.includes('text-red-400') : null,
+      rowCount: sec.querySelectorAll('li').length,
+      hasSixthRow: sec.textContent.includes('legacy-marketing'),
+    }
+  }, vercelSel)
+  const summaryTextOk =
+    summary !== null &&
+    summary.text === '3 ready·1 error·1 building·1 canceled' &&
+    summary.text.includes('3 ready·1 error·1 building') // the brief's own quoted shape, verbatim (spaces are CSS margin, not text)
+  console.log(
+    summaryTextOk
+      ? `PASS: the status summary reads "${summary.text}" ("3 ready · 1 error · 1 building" per the brief, the · separators rendered as CSS-margined spans not text spaces), derived from the UNSLICED 6-deployment array — the trailing "1 canceled" proves it counts the 6th/oldest row the display list itself never renders`
+      : `FAIL: the status summary line (${JSON.stringify(summary)})`,
+  )
+  const errorToneOk = summary?.errorHasRedClass === true
+  console.log(
+    errorToneOk
+      ? `PASS: the summary's "1 error" segment carries the danger (text-red-400) tone`
+      : `FAIL: the summary's error segment carries the danger tone (errorHasRedClass=${summary?.errorHasRedClass})`,
+  )
+  const rowsCapOk = summary !== null && summary.rowCount === 5 && summary.hasSixthRow === false
+  console.log(
+    rowsCapOk
+      ? 'PASS: the rows list still caps at MAX_DEPLOYMENTS=5 even though the summary counts all 6 (the 6th/oldest CANCELED deployment never renders a row)'
+      : `FAIL: the rows list caps at 5 while the summary counts 6 (${JSON.stringify(summary)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/connectors-vercel-composed.png` })
+  console.log('captured connectors-vercel-composed.png')
+
+  // Step 3(e) — left-column budget check. vercel's card grows by the summary
+  // line's own height; confirm it stays comfortably clear of the Notes pill
+  // (bottom-left) and the bottom band at Jon's canonical 1600x900, and that
+  // it still unconditionally whole-card-hides at the existing dense floor
+  // (<=864h) — no re-derivation needed (vercel carries no per-view height
+  // gate the way gitlab/jira's new row-sections do; it hides/shows as one
+  // unconditional unit regardless of which views are on).
+  const budget = await page.evaluate((s) => {
+    const box = (sel) => {
+      const el = document.querySelector(sel)
+      if (!el) return null
+      const b = el.getBoundingClientRect()
+      if (b.width === 0 && b.height === 0) return null
+      return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+    }
+    return { vercel: box(s), notes: box('[data-block-id="notes"] button') }
+  }, vercelSel)
+  const FLOOR = 16
+  const notesGap = budget.vercel && budget.notes ? +(budget.notes.top - budget.vercel.bottom).toFixed(1) : null
+  const budgetOk = budget.vercel !== null && budget.notes !== null && notesGap !== null && notesGap >= FLOOR
+  console.log(
+    budgetOk
+      ? `PASS: vercel WITH the summary line (bottom ${budget.vercel.bottom}, +24px over rows-only) clears the Notes pill by ${notesGap}px at Jon's 1600x900 — far past the ${FLOOR}px floor, no re-derivation needed`
+      : `FAIL: vercel clears the Notes pill by >=${FLOOR}px with the summary on (${JSON.stringify(budget)})`,
+  )
+  await page.setViewportSize({ width: 1600, height: 864 })
+  await page.waitForTimeout(300)
+  const hiddenAt864 = (await page.locator(vercelSel).count()) === 0 || (await page.evaluate((s) => { const el = document.querySelector(s); return !el || el.getBoundingClientRect().height === 0 }, vercelSel))
+  console.log(
+    hiddenAt864
+      ? 'PASS: vercel still whole-card-hides at the existing dense floor (<=864h) with the summary on — unconditional, unchanged by Task 77'
+      : 'FAIL: vercel should whole-card-hide at 864h regardless of statusSummary',
+  )
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(300)
+
+  // Task 77 — vercel's "Show on your board" chips (Task 76), proven through
+  // the REAL drawer against the LIVE card, mirroring gitlab's/jira's own
+  // chips probes. Re-seed vercel with views ABSENT (default path) but the
+  // SAME full-display-max data still in the snapshot.
+  await page.evaluate(
+    async ({ data }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' } },
+        connectorSnapshots: { vercel: { fetchedAt: Date.now(), data } },
+      })
+    },
+    { data: FULL_FIXTURE },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  const readVercelChips = () =>
+    page.evaluate(() => {
+      const sec = document.querySelector('section[aria-label="Connectors"]')
+      const chips = {}
+      for (const b of sec.querySelectorAll('button[aria-pressed]')) {
+        const label = b.textContent.replace(/[✓+]/g, '').trim()
+        chips[label] = b.getAttribute('aria-pressed')
+      }
+      const cardEl = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+      return {
+        chips,
+        hasSummary: cardEl ? cardEl.textContent.includes('3 ready') : null,
+        hasRows: cardEl ? cardEl.textContent.includes('marketing-site') : null,
+      }
+    })
+  const vercelChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
+
+  const vcBefore = await readVercelChips()
+  const vcDefaultOk =
+    vcBefore.chips['Deployments'] === 'true' &&
+    vcBefore.chips['Status summary'] === 'false' &&
+    vcBefore.hasRows === true &&
+    vcBefore.hasSummary === false
+  console.log(
+    vcDefaultOk
+      ? 'PASS: vercel\'s two chips render the wave default pattern (Deployments true, Status summary false) — absent views resolve to DEFAULT_VERCEL_VIEWS, and the live card matches (rows shown, no summary)'
+      : `FAIL: vercel's default chip pattern (${JSON.stringify(vcBefore)})`,
+  )
+
+  // Toggle a NEW section (Status summary) ON → the live card gains it, no reload.
+  await page.click(vercelChipBtn('Status summary'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+      return c && c.textContent.includes('3 ready')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const vcAfterSummary = await readVercelChips()
+  const vcSummaryOnOk = vcAfterSummary.chips['Status summary'] === 'true' && vcAfterSummary.hasSummary === true && vcAfterSummary.hasRows === true
+  console.log(
+    vcSummaryOnOk
+      ? 'PASS: toggling "Status summary" on adds the live card\'s summary line without reload, chip aria-pressed="true"'
+      : `FAIL: toggling "Status summary" on adds the summary live (${JSON.stringify(vcAfterSummary)})`,
+  )
+
+  // Toggle an EXISTING section (Deployments) OFF → it leaves.
+  await page.click(vercelChipBtn('Deployments'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+      return c && !c.textContent.includes('marketing-site')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const vcAfterRows = await readVercelChips()
+  const vcRowsOffOk = vcAfterRows.chips['Deployments'] === 'false' && vcAfterRows.hasRows === false && vcAfterRows.hasSummary === true
+  console.log(
+    vcRowsOffOk
+      ? 'PASS: toggling "Deployments" off drops the live card\'s rows without reload (summary remains), chip aria-pressed="false"'
+      : `FAIL: toggling "Deployments" off drops the rows live (${JSON.stringify(vcAfterRows)})`,
+  )
+
+  // Restore both to defaults.
+  await page.click(vercelChipBtn('Status summary'))
+  await page.click(vercelChipBtn('Deployments'))
+  await page.waitForFunction(
+    () => {
+      const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+      return c && c.textContent.includes('marketing-site') && !c.textContent.includes('3 ready')
+    },
+    { timeout: 3000 },
+  ).catch(() => {})
+  const vcRestored = await readVercelChips()
+  const vcRestoreOk = vcRestored.chips['Deployments'] === 'true' && vcRestored.chips['Status summary'] === 'false' && vcRestored.hasRows === true && vcRestored.hasSummary === false
+  console.log(
+    vcRestoreOk
+      ? 'PASS: restoring "Deployments" on and "Status summary" off returns the card to its default composition, no reload'
+      : `FAIL: restoring vercel's chips to default (${JSON.stringify(vcRestored)})`,
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: disable vercel and clear its cache, then reload.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, vercel: { ...connectors.vercel, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
 }
 
 // Crypto ticker (Task 52) — the sixth connector, and the first NO-AUTH one
@@ -5434,25 +7108,46 @@ function githubContributionsFixture() {
     notifications: 3,
     // github's TRUE display max — the graph is present in the data. With gitlab
     // AND jira also on (two forge siblings), the graph reveals only on `grand`
-    // (>=1041h); this gate runs at 1600x900, so the card renders rows-only and
-    // the gate proves the two-sibling YIELD rather than assuming it.
+    // (>=1171h, re-derived Task 77 — was 1041h); this gate runs at 1600x900, so
+    // the card renders rows-only and the gate proves the two-sibling YIELD
+    // rather than assuming it.
     contributions: githubContributionsFixture(),
     etags: {},
   }
+  // Task 77 (Step 1) — GITLAB_FIXTURE gains reviewMrs (display max, 2 rows,
+  // titles distinct from `mrs` above so a probe that mixed the two lists up
+  // would visibly fail) and a contributions literal (gitlabContributionsFixture,
+  // the frozen 112-day generator, total/streak pinned in its own comment).
+  // The connectors.gitlab config THIS GATE seeds (below) carries NO `views`
+  // field — the default path — so DEFAULT_GITLAB_VIEWS resolves reviewAsks
+  // and activityGraph OFF, and neither of these fields ever renders here. That
+  // is the point: the data is present and REAL (never a shorter, convenient
+  // stand-in), proving the wave's gate is a SETTINGS gate (`views`), not a
+  // DATA gate (`reviewMrs.length`/`contributions !== null`) — the "never
+  // data-gate what CSS tier-gates" law, exercised at the fixture level too.
   const GITLAB_FIXTURE = {
     mrs: [
       { title: 'Add rate limiting to the ingest API', url: 'https://gitlab.com/acme/platform/-/merge_requests/204', project: 'acme/platform' },
       { title: 'Bump vite to 6.x', url: 'https://gitlab.com/acme/platform/-/merge_requests/207', project: 'acme/platform' },
       { title: 'Split the connector http helper into its own package', url: 'https://gitlab.com/acme/platform/-/merge_requests/209', project: 'acme/platform' },
     ],
+    reviewMrs: [
+      { title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' },
+      { title: 'Review: add integration tests for the webhook relay', url: 'https://gitlab.com/acme/platform/-/merge_requests/305', project: 'acme/platform' },
+    ],
     todos: 6,
+    contributions: gitlabContributionsFixture(),
   }
   // Already 3 issues — jira's own MAX_ISSUES post-fix-round, so this fixture
   // (unchanged in content from before this fix round) is now genuinely the
   // display max too, not a coincidentally-equal smaller number. This is
   // jira's own worst case: the LOWEST card in the right column, so ITS
   // bottom edge is what has to clear the Tasks pill below — see App.tsx's
-  // jira PositionedBlock comment for the measured writeup.
+  // jira PositionedBlock comment for the measured writeup. Task 77 (Step 1)
+  // adds dueSoon (display max, 2 rows with due dates) for the SAME
+  // settings-gate-not-data-gate reason GITLAB_FIXTURE's reviewMrs is above —
+  // this gate's own jira config carries no `views`, so DEFAULT_JIRA_VIEWS
+  // resolves dueSoon OFF and this data never renders here either.
   const JIRA_FIXTURE = {
     issues: [
       { key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' },
@@ -5460,6 +7155,10 @@ function githubContributionsFixture() {
       { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-103' },
     ],
     counts: { 'In Progress': 2, 'To Do': 1 },
+    dueSoon: [
+      { key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' },
+      { key: 'AUR-111', summary: 'Renew the staging TLS certificate', status: 'To Do', url: 'https://yoursite.atlassian.net/browse/AUR-111', due: '2026-08-14' },
+    ],
   }
   // Five deployments — MAX_DEPLOYMENTS, vercel's own worst-case row count,
   // same fixture its own block above uses. This is vercel's default AND its
@@ -5788,6 +7487,176 @@ function githubContributionsFixture() {
       ? `PASS: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (github->gitlab ${rcGaps.githubToGitlab}px, gitlab->jira ${rcGaps.gitlabToJira}px, jira->Tasks-pill ${rcGaps.jiraToTasks}px)`
       : `FAIL: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (${JSON.stringify(rcGaps)}, rects: github=${JSON.stringify(rc.github)}, gitlab=${JSON.stringify(rc.gitlab)}, jira=${JSON.stringify(rc.jira)}, tasks=${JSON.stringify(rc.tasks)})`,
   )
+
+  // Task 77 (Step 2) — the DEFAULT-PATH REGRESSION probe: the wave's own core
+  // promise is that with views ABSENT (this gate's own connectors.gitlab/jira
+  // seed above carries no `views` field), every card's rect is BYTE-IDENTICAL
+  // to its pre-wave geometry — the upgrade changes NOTHING visually. Asserts
+  // EXACT rects (not just clearance), reusing `rc` from the SAME render the
+  // gap floor above already captured. The three numbers are App.tsx's own
+  // right-rail arithmetic comment, verbatim: rail-top-right 180, github
+  // rows-only 235 (graph hidden below `grand`'s 1171h — this gate runs at
+  // 1600x900), gitlab rows-only 174 (reviewAsks/activityGraph both resolve
+  // OFF from the absent `views`, so the reviewMrs/contributions this gate's
+  // own GITLAB_FIXTURE now carries — Step 1 — never render), jira rows-only
+  // 174 (dueSoon resolves OFF the same way) — github[180-415] gitlab[431-605]
+  // jira[621-795], gap-4 (16px) between each.
+  const EXACT = {
+    github: { top: 180, bottom: 415 },
+    gitlab: { top: 431, bottom: 605 },
+    jira: { top: 621, bottom: 795 },
+  }
+  const exactMatch = (name) =>
+    rc[name] !== null && rc[name].top === EXACT[name].top && rc[name].bottom === EXACT[name].bottom
+  const defaultPathOk = ['github', 'gitlab', 'jira'].every(exactMatch)
+  console.log(
+    defaultPathOk
+      ? `PASS: with views ABSENT (the default path), every right-rail card's rect is BYTE-IDENTICAL to its pre-wave geometry — github[${rc.github.top}-${rc.github.bottom}] gitlab[${rc.gitlab.top}-${rc.gitlab.bottom}] jira[${rc.jira.top}-${rc.jira.bottom}] (data-bearing reviewMrs/contributions/dueSoon present in cache the whole time, per Step 1 — none of it rendered, proving the settings gate, not a data gate)`
+      : `FAIL: default-path card geometry is byte-identical to pre-wave (expected ${JSON.stringify(EXACT)}, got github=${JSON.stringify(rc.github)} gitlab=${JSON.stringify(rc.gitlab)} jira=${JSON.stringify(rc.jira)})`,
+  )
+
+  // Task 77 (Step 2) — the settings chips show the wave's defaults (new
+  // sections unpressed) with all four connectors connected at once. Opens the
+  // REAL drawer, reads every "Show on your board" chip across all four cards
+  // in one pass, then closes again — self-contained (open/read/close) so it
+  // can't disturb the viewport-matrix/arrange-mode steps that follow this gate.
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+  const allChips = await page.evaluate(() => {
+    const sec = document.querySelector('section[aria-label="Connectors"]')
+    const chips = {}
+    for (const b of sec.querySelectorAll('button[aria-pressed]')) {
+      const label = b.textContent.replace(/[✓+]/g, '').trim()
+      chips[label] = b.getAttribute('aria-pressed')
+    }
+    return chips
+  })
+  // Re-shoot the settings capture here too — Step 6's own deliverable, all
+  // FOUR connectors' chip rows in ONE image. The drawer is a real
+  // `overflow-y-auto` scroll container (Drawer.tsx) far taller than the
+  // viewport with all four connected (1802px measured, Task 77's own
+  // scroll-discipline probe below) — a plain viewport screenshot only ever
+  // shows the first ~900px (github + gitlab, jira/vercel scrolled out), which
+  // is NOT "all four chip rows". Temporarily lifts the scroll clamp
+  // (position:static so it flows in-document instead of viewport-pinned,
+  // height:auto/overflow:visible/max-height:none) so the element's natural
+  // full-content box renders, screenshots THAT single element (Playwright
+  // captures its full laid-out box, not just the viewport-visible slice），
+  // then restores the inline overrides — the live drawer is functionally
+  // untouched for every probe that runs after this capture.
+  // FIRST ATTEMPT (self-caught, not shipped): switching to `position:static`
+  // seemed simplest, but App.tsx's `<main>` is `h-screen overflow-hidden` —
+  // taking the dialog OUT of `fixed` drops it into NORMAL FLOW, after ~900px
+  // of preceding centred-column content, which `overflow-hidden` then clips
+  // outright (unreachable — there is no scroll mechanism on `main` to bring
+  // it back into view). The resulting capture was mostly black with only a
+  // sliver of real content, caught by eye against the five captures, not by
+  // any PASS/FAIL line. Fix: STAY `position:fixed` (which escapes ancestor
+  // overflow clipping entirely — `main` carries no transform/filter/contain,
+  // so it never becomes a containing block for fixed descendants) and only
+  // clear the `bottom:0` half of Tailwind's `inset-y-0` (which is what forces
+  // a fixed, top:0-bottom:0 box to exactly viewport height regardless of its
+  // own `height` value) — `top:0` stays, so the box still pins to the
+  // viewport's top-right corner, but can now grow taller than the viewport.
+  const dialogHandle = page.locator('[role="dialog"][aria-label="Settings"]')
+  await page.evaluate(() => {
+    const el = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    el.dataset.prevStyle = el.getAttribute('style') || ''
+    el.style.bottom = 'auto'
+    el.style.height = 'auto'
+    el.style.maxHeight = 'none'
+    el.style.overflow = 'visible'
+    // The panel's own background token is translucent BY DESIGN (it blurs the
+    // page photo behind it) — a flat opaque backdrop (the app's own dark
+    // base, matching index.css's `select > option` background token) is
+    // purely COSMETIC for this one diagnostic capture, so the photo doesn't
+    // show through the now-taller-than-viewport panel — restored immediately
+    // after.
+    el.style.backgroundColor = '#17171c'
+    el.style.backdropFilter = 'none'
+  })
+  await dialogHandle.screenshot({ path: `${outDir}/drawer-connectors-all-chips.png` })
+  await page.evaluate(() => {
+    const el = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    el.setAttribute('style', el.dataset.prevStyle)
+    delete el.dataset.prevStyle
+  })
+  console.log('captured drawer-connectors-all-chips.png')
+  const chipsDefaultOk =
+    allChips['Commit graph'] === 'true' &&
+    allChips['Pull requests'] === 'true' &&
+    allChips['Issues'] === 'true' &&
+    allChips['Notifications'] === 'true' &&
+    allChips['Merge requests'] === 'true' &&
+    allChips['Review asks'] === 'false' &&
+    allChips['To-dos'] === 'true' &&
+    allChips['Activity graph'] === 'false' &&
+    allChips['Assigned issues'] === 'true' &&
+    allChips['Status chips'] === 'true' &&
+    allChips['Due soon'] === 'false' &&
+    allChips['Deployments'] === 'true' &&
+    allChips['Status summary'] === 'false'
+  console.log(
+    chipsDefaultOk
+      ? `PASS: all four connectors' chips read the wave's default pattern at once — github all-on (pre-existing default), gitlab/jira/vercel's NEW wave-2 sections (Review asks, Activity graph, Due soon, Status summary) all unpressed (${JSON.stringify(allChips)})`
+      : `FAIL: the four connectors' chips read the wave's default pattern (${JSON.stringify(allChips)})`,
+  )
+
+  // Task 77 (Step 5) — the drawer's own scroll/focus discipline STILL holds
+  // with all four connectors' composed card bodies stacked in the Connectors
+  // tab (github+gitlab+jira+vercel, every one CONNECTED — the tallest this
+  // panel ever gets). Two checks: the drawer is a real scroll container (its
+  // content overflows and the scrollTop actually moves), and Tab-cycling
+  // never escapes the dialog (the SAME focus-trap contract every drawer in
+  // this app holds, re-confirmed here specifically against the tallest
+  // Connectors-tab body wave 2 can produce). The scroll container is the
+  // DIALOG element itself (Drawer.tsx's own `overflow-y-auto`, on the same
+  // node as `role="dialog"`), NOT the inner `[role="tabpanel"]` — that panel
+  // is unconstrained (height:auto, grows to fit its content), which is
+  // exactly why an earlier version of this probe measured scrollHeight ===
+  // clientHeight on the WRONG element and reported a false failure.
+  const scroll = await page.evaluate(() => {
+    const panel = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    if (!panel) return null
+    const before = panel.scrollTop
+    panel.scrollTop = panel.scrollHeight
+    const after = panel.scrollTop
+    panel.scrollTop = 0 // restore
+    return { scrollHeight: panel.scrollHeight, clientHeight: panel.clientHeight, before, after }
+  })
+  const scrollOk = scroll !== null && scroll.scrollHeight > scroll.clientHeight && scroll.after > scroll.before
+  console.log(
+    scrollOk
+      ? `PASS: the Settings drawer scrolls with all four connected cards' full-height bodies in its Connectors tab (scrollHeight ${scroll.scrollHeight} > clientHeight ${scroll.clientHeight}, scrollTop moved ${scroll.before} -> ${scroll.after})`
+      : `FAIL: the Settings drawer scrolls with four tall card bodies (${JSON.stringify(scroll)})`,
+  )
+  const focusTrap = await page.evaluate(async () => {
+    const dialog = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    const focusables = [...dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')].filter(
+      (el) => el.offsetParent !== null,
+    )
+    return { count: focusables.length }
+  })
+  // Tab forward past the LAST focusable — a real focus trap keeps it inside
+  // the dialog (never lands on <body> or something outside), same contract
+  // every other dialog in this file (Dev bookmarks, Tasks, Notes) already
+  // holds; this just re-proves it holds with the Connectors tab's now-tallest
+  // possible content.
+  for (let i = 0; i < focusTrap.count + 1; i++) await page.keyboard.press('Tab')
+  const stillInside = await page.evaluate(() => {
+    const dialog = document.querySelector('[role="dialog"][aria-label="Settings"]')
+    return !!dialog && dialog.contains(document.activeElement)
+  })
+  console.log(
+    stillInside
+      ? `PASS: Tab-cycling past the last of ${focusTrap.count} focusable elements keeps focus INSIDE the drawer, even with all four connectors' tallest composed bodies in the Connectors tab`
+      : 'FAIL: Tab-cycling escaped the drawer with all four connectors\' tall bodies present',
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
 
   // Quantified mid-left column gap floor (Task 59) — same discipline as the
   // right-column gap floor just above: the pairwise check only proves NO
@@ -6165,9 +8034,10 @@ function githubContributionsFixture() {
       ],
       notifications: 3,
       // github's TRUE display max (graph in the data). Every swept size runs
-      // below `grand` (1041h) with gitlab + jira also on, so the two-sibling gate
-      // keeps the graph hidden and the sweep ASSERTS that yield — it now FAILS
-      // (jira laps the Tasks pill) if anyone later loosens the gate.
+      // below `grand` (1171h, re-derived Task 77 — was 1041h) with gitlab + jira
+      // also on, so the two-sibling gate keeps the graph hidden and the sweep
+      // ASSERTS that yield — it now FAILS (jira laps the Tasks pill) if anyone
+      // later loosens the gate.
       contributions: githubContributionsFixture(),
       etags: {},
     },
