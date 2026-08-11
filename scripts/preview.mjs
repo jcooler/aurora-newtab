@@ -8038,6 +8038,11 @@ function gitlabContributionsFixture() {
     el.style.backgroundColor = '#17171c'
     el.style.backdropFilter = 'none'
   })
+  // Task 81 (W3-SP1): re-shot as-is, same filename, no code change needed
+  // here — Connectors.tsx's own Task 80 rework already put the sticky
+  // search block + "On your board" pinned group ahead of the per-connector
+  // cards on this exact tab, so this capture picks up the new shape for
+  // free the moment it re-runs.
   await dialogHandle.screenshot({ path: `${outDir}/drawer-connectors-all-chips.png` })
   await page.evaluate(() => {
     const el = document.querySelector('[role="dialog"][aria-label="Settings"]')
@@ -8118,6 +8123,256 @@ function gitlabContributionsFixture() {
 
   await page.keyboard.press('Escape')
   await page.waitForTimeout(400) // slide-out
+
+  // Task 81 (W3-SP1) — the catalog proves its own new shape: the pinned "On
+  // your board" group, live search (REAL keystrokes), and the sticky search
+  // block staying put — and clickable — while the list scrolls under it. A
+  // fresh, self-contained open/read/close cycle, same idiom and the same
+  // reason as the chips block just above: isolated from the mid-left column
+  // gap floor and everything else that follows this gate. The fixture is
+  // UNCHANGED from above — all seven connectors are still enabled from this
+  // gate's own seed — so every card pins under "On your board" and every
+  // category empties out; that's exactly the shape Probe 1 below asserts.
+  {
+    await page.click('button[aria-label="Open settings"]')
+    await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+    await page.waitForTimeout(400) // slide-in
+    await openSettingsTab('Connectors')
+
+    // Every eyebrow string the catalog can possibly render — the same list
+    // SettingsPanel.test.tsx's own EYEBROW_NAMES const holds, used the same
+    // way: telling an eyebrow <h4> (a group heading) apart from a CARD's own
+    // <h4> title (e.g. "GitHub") living in the very same subtree.
+    const EYEBROW_NAMES = ['On your board', 'Development', 'Calendar & tasks', 'Home', 'News & markets', 'Fun']
+    // Registry order (registry.ts's own CONNECTORS array): rss, github,
+    // gitlab, jira, vercel, crypto, ics — their display labels, in that
+    // order, is exactly what "On your board" pins when every connector is
+    // enabled (this gate's own seed).
+    const REGISTRY_LABELS = ['RSS', 'GitHub', 'GitLab', 'Jira', 'Vercel', 'Crypto', 'Calendar']
+
+    // Probe 1 — default presentation: every connector enabled -> "On your
+    // board" pins all seven in registry order and EVERY category empties out
+    // (each one's sole members all just got pinned away) -> the eyebrow list
+    // is EXACTLY ['On your board'], nothing else — no Development/Calendar &
+    // tasks/News & markets (any of those would show if its category still
+    // had an unpinned member) and definitely no Home/Fun (zero members
+    // regardless of pinning — types.ts's own doc comment on those two).
+    const defaultShape = await page.evaluate((eyebrowNames) => {
+      const scroll = document.querySelector('[data-testid="connector-scroll"]')
+      const headings = scroll ? [...scroll.querySelectorAll('h4')] : []
+      const eyebrows = headings.map((h) => h.textContent?.trim()).filter((t) => t && eyebrowNames.includes(t))
+      const pinnedHeading = headings.find((h) => h.textContent?.trim() === 'On your board')
+      const pinnedCards = pinnedHeading
+        ? [...pinnedHeading.parentElement.querySelectorAll('h4')]
+            .map((h) => h.textContent?.trim())
+            .filter((t) => t && t !== 'On your board')
+        : []
+      return { eyebrows, pinnedCards }
+    }, EYEBROW_NAMES)
+    const defaultShapeOk =
+      JSON.stringify(defaultShape.eyebrows) === JSON.stringify(['On your board']) &&
+      JSON.stringify(defaultShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS)
+    console.log(
+      defaultShapeOk
+        ? `PASS: default presentation — all seven connectors enabled pins every one under "On your board", FIRST and ONLY eyebrow, registry order, no Development/Calendar & tasks/News & markets/Home/Fun eyebrows (${JSON.stringify(defaultShape)})`
+        : `FAIL: default presentation (expected eyebrows=["On your board"], pinnedCards=${JSON.stringify(REGISTRY_LABELS)}; got ${JSON.stringify(defaultShape)})`,
+    )
+
+    // Probe (cursor discipline, widget quality bar) — same "no false
+    // affordance" idiom as every other cursor probe in this file (search
+    // "correct cursors in the location-setup state" above): the new search
+    // input reads text-editable (Chromium's own UA stylesheet gives
+    // type="search" `cursor: text` by default — verified directly against
+    // this build, not assumed; nothing in this app sets it), and nothing
+    // static — the pinned eyebrow, every card's own title — picked up an
+    // accidental pointer affordance from the restructure.
+    const cursors = await page.evaluate(() => {
+      const cursorOf = (el) => getComputedStyle(el).cursor
+      const scroll = document.querySelector('[data-testid="connector-scroll"]')
+      const search = document.getElementById('connector-search')
+      const headers = scroll ? [...scroll.querySelectorAll('h4')] : []
+      return {
+        search: search ? cursorOf(search) : null,
+        headerCount: headers.length,
+        headerCursors: [...new Set(headers.map(cursorOf))],
+      }
+    })
+    const cursorsOk =
+      cursors.search === 'text' && cursors.headerCount > 0 && !cursors.headerCursors.includes('pointer')
+    console.log(
+      cursorsOk
+        ? `PASS: cursor discipline on the catalog — #connector-search reads text-editable (${cursors.search}), all ${cursors.headerCount} eyebrow/card headers carry no pointer affordance (${cursors.headerCursors.join('/')})`
+        : `FAIL: cursor discipline on the catalog (${JSON.stringify(cursors)})`,
+    )
+
+    // Probe 2 — search live-filter: REAL keystrokes (page.keyboard.type, NOT
+    // page.fill or a synthetic fireEvent) into #connector-search — the one
+    // probe jsdom structurally cannot do honestly (SettingsPanel.test.tsx's
+    // own "search filters" case drives the identical query through
+    // fireEvent.change, a synthetic DOM event with no real key dispatch
+    // behind it; Connectors.tsx's own doc comment names this exact gap as
+    // Task 81's to close). 'git' is a subsequence match (fuzzyScore,
+    // lib/fuzzy.ts) against every connector's `${label} ${blurb}`: GitHub
+    // and GitLab both score 11 (a word-start 'g' hit plus two consecutive-
+    // run hits) — a tie the sort breaks by registry index, github before
+    // gitlab — and every OTHER connector's combined text has no 'g' in it at
+    // all, so nothing else can possibly match. Query non-empty REPLACES
+    // grouping outright (Connectors.tsx's own doc comment) — zero eyebrows
+    // expected, not a filtered pinned group.
+    await page.click('#connector-search')
+    await page.keyboard.type('git')
+    await page.waitForTimeout(150)
+    const searchState = await page.evaluate((eyebrowNames) => {
+      const scroll = document.querySelector('[data-testid="connector-scroll"]')
+      const titles = scroll ? [...scroll.querySelectorAll('h4')].map((h) => h.textContent?.trim()) : []
+      return {
+        eyebrows: titles.filter((t) => t && eyebrowNames.includes(t)),
+        cards: titles.filter((t) => t && !eyebrowNames.includes(t)),
+      }
+    }, EYEBROW_NAMES)
+    const searchOk =
+      searchState.eyebrows.length === 0 && JSON.stringify(searchState.cards) === JSON.stringify(['GitHub', 'GitLab'])
+    console.log(
+      searchOk
+        ? `PASS: typing "git" via REAL keystrokes narrows the card list to exactly 2 (GitHub, GitLab), no eyebrows — query replaces grouping (${JSON.stringify(searchState)})`
+        : `FAIL: search live-filter on real keystrokes "git" (${JSON.stringify(searchState)})`,
+    )
+
+    // Capture mid-query — the controller's own deliverable, alongside the
+    // re-shot drawer-connectors-all-chips.png above. A plain viewport
+    // screenshot (same idiom as the very first drawer-connectors.png) is
+    // enough: two cards never come close to overflowing the panel, so there
+    // is nothing here for the all-chips capture's overflow-unclamp trick to
+    // earn its keep on.
+    await page.screenshot({ path: `${outDir}/drawer-connectors-search.png` })
+    console.log('captured drawer-connectors-search.png')
+
+    // NOT Escape: a plain type="search" input clears itself natively on
+    // Escape, but this app's OWN Drawer.tsx registers useDialogEscape
+    // (lib/dialogStack.ts) — a single document-level keydown listener that
+    // calls preventDefault() and closes the TOPMOST dialog on every Escape
+    // press, everywhere, regardless of what has focus. That listener runs
+    // (and calls preventDefault) before the browser ever gets to its native
+    // clear-on-Escape default action for the input, so Escape here closes
+    // the whole Settings drawer instead of clearing the search box — caught
+    // by this probe's first draft (all three of this block's remaining
+    // probes cascaded to FAIL, the sticky one included, because the drawer
+    // was mid slide-out when they ran). Real keystrokes that actually clear
+    // the field without touching Escape: select-all then Backspace — a
+    // genuine two-key round trip through the same controlled `onChange` the
+    // typing above went through, just not the one key this app has already
+    // claimed for something else.
+    await page.keyboard.press('Control+a')
+    await page.keyboard.press('Backspace')
+    await page.waitForTimeout(150)
+    const restoredValue = await page.locator('#connector-search').inputValue()
+    const restoredShape = await page.evaluate((eyebrowNames) => {
+      const scroll = document.querySelector('[data-testid="connector-scroll"]')
+      const headings = scroll ? [...scroll.querySelectorAll('h4')] : []
+      const eyebrows = headings.map((h) => h.textContent?.trim()).filter((t) => t && eyebrowNames.includes(t))
+      const pinnedHeading = headings.find((h) => h.textContent?.trim() === 'On your board')
+      const pinnedCards = pinnedHeading
+        ? [...pinnedHeading.parentElement.querySelectorAll('h4')]
+            .map((h) => h.textContent?.trim())
+            .filter((t) => t && t !== 'On your board')
+        : []
+      return { eyebrows, pinnedCards }
+    }, EYEBROW_NAMES)
+    const restoreOk =
+      restoredValue === '' &&
+      JSON.stringify(restoredShape.eyebrows) === JSON.stringify(['On your board']) &&
+      JSON.stringify(restoredShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS)
+    console.log(
+      restoreOk
+        ? `PASS: real select-all+Backspace clears the search input and restores the pinned/grouped default shape exactly (${JSON.stringify(restoredShape)})`
+        : `FAIL: clearing the search input restores grouping (value="${restoredValue}", ${JSON.stringify(restoredShape)})`,
+    )
+
+    // Probe 3 — sticky/pinned search: the one behavior jsdom structurally
+    // cannot verify (it never lays out `position: sticky`; Connectors.tsx's
+    // own doc comment names this exact probe as the real, designated
+    // arbiter). FIRST DRAFT (self-caught, not shipped): compared the
+    // post-scroll rect against the PRE-scroll (scrollTop=0) rect and asserted
+    // byte-identical — that's the wrong baseline for a real CSS `sticky`
+    // element with content ABOVE it in the same scroll flow (the drawer
+    // header/tabs/"Connectors" eyebrow, all inside the ONE scroll container
+    // Connectors.tsx's own doc comment names): sticky positioning moves
+    // NORMALLY with scroll until the element would cross its `top: -1.5rem`
+    // offset, then LOCKS for the rest of the scroll range — measured directly
+    // (y: 162.5 at scrollTop=0 -> 28.5 once scrolled), and 28.5 checks out
+    // exactly against the CSS (dialog `p-6` cancelled by `-top-6`, so once
+    // stuck the block sits flush at the dialog's own top edge, plus the
+    // "Connectors" h3 eyebrow's own rendered height above the input inside
+    // that SAME sticky div). The behavioral, falsifiable claim sticky
+    // actually makes is that it LOCKS, not that it never moves at all: two
+    // DIFFERENT scroll positions, both past the lock threshold, must read the
+    // exact same rect. midScrollRect (halfway down — already well past the
+    // ~134px threshold the numbers above imply) and bottomScrollRect (the
+    // drawer's own scrollHeight, i.e. "scrolled to the bottom card" per the
+    // plan) are compared to each other for that; naturalRect (scrollTop=0) is
+    // kept only as a sanity check that the block is genuinely CSS `sticky`
+    // (moves at least once) rather than `position:fixed` the whole time.
+    const searchInput = page.locator('#connector-search')
+    const naturalRect = await searchInput.boundingBox()
+    const scrollMax = await page.evaluate(
+      () => document.querySelector('[role="dialog"][aria-label="Settings"]').scrollHeight,
+    )
+    await page.evaluate((y) => {
+      document.querySelector('[role="dialog"][aria-label="Settings"]').scrollTop = y
+    }, Math.round(scrollMax / 2))
+    await page.waitForTimeout(150)
+    const midScrollRect = await searchInput.boundingBox()
+    await page.evaluate(() => {
+      const panel = document.querySelector('[role="dialog"][aria-label="Settings"]')
+      panel.scrollTop = panel.scrollHeight // "scrolled to the bottom card" per the plan
+    })
+    await page.waitForTimeout(150)
+    const bottomScrollRect = await searchInput.boundingBox()
+    const sameRect = (a, b) => !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+    const lockedOnce = sameRect(midScrollRect, bottomScrollRect)
+    const genuinelySticky = naturalRect !== null && midScrollRect !== null && naturalRect.y !== midScrollRect.y
+    const stickyHeld = lockedOnce && genuinelySticky
+    console.log(
+      stickyHeld
+        ? `PASS: sticky search block is LOCKED — identical boundingClientRect at mid-scroll and at the bottom card (${JSON.stringify(midScrollRect)}), having genuinely moved off its natural pre-scroll position first (natural.y=${naturalRect.y} -> stuck.y=${midScrollRect.y}, real CSS sticky, not always-fixed)`
+        : `FAIL: sticky search block does not lock in place across scroll positions (natural=${JSON.stringify(naturalRect)}, mid=${JSON.stringify(midScrollRect)}, bottom=${JSON.stringify(bottomScrollRect)})`,
+    )
+
+    // Geometry alone doesn't prove the box is actually CLICKABLE — the
+    // controller's own deferred concern from the Task 80 review: the sticky
+    // block's z-10/bg-panel means a scrolled card must never visibly bleed
+    // through/over the search block. Real hit-testing, at the SAME "scrolled
+    // to the bottom card" state the plan names: click the input's OWN
+    // measured center point (not an ARIA-role/selector click, which would
+    // succeed even if something else were actually painted on top of it) and
+    // confirm the INPUT — not whatever scrolled underneath it — receives
+    // focus.
+    if (bottomScrollRect) {
+      await page.mouse.click(
+        bottomScrollRect.x + bottomScrollRect.width / 2,
+        bottomScrollRect.y + bottomScrollRect.height / 2,
+      )
+    }
+    const hitTest = await page.evaluate(() => {
+      const el = document.activeElement
+      return { id: el?.id ?? null, tag: el?.tagName ?? null }
+    })
+    const hitTestOk = hitTest.id === 'connector-search'
+    console.log(
+      hitTestOk
+        ? 'PASS: clicking the sticky search block\'s measured position — scrolled to the bottom card — focuses the real #connector-search input — nothing scrolled is painted over it'
+        : `FAIL: clicking the sticky search block's measured position (scrolled to the bottom card) did not focus it (activeElement=${hitTest.tag}${hitTest.id ? '#' + hitTest.id : ''})`,
+    )
+
+    // Restore scroll position before this cycle closes.
+    await page.evaluate(() => {
+      const panel = document.querySelector('[role="dialog"][aria-label="Settings"]')
+      if (panel) panel.scrollTop = 0
+    })
+
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(400) // slide-out
+  }
 
   // Quantified mid-left column gap floor (Task 59) — same discipline as the
   // right-column gap floor just above: the pairwise check only proves NO
