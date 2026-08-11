@@ -37,6 +37,13 @@ export interface IcsEvent {
   summary: string
   start: number // epoch ms — an expanded occurrence's start instant
   end: number // epoch ms
+  // First matched video-conferencing provider link found in LOCATION/
+  // DESCRIPTION (Task 88) — see extractMeetUrl. ABSENT (the key itself, not
+  // an undefined-valued one — expand() uses a conditional spread) when
+  // neither field carries a recognized provider URL, so a stored/exported
+  // event's JSON shape stays clean rather than growing a `meetUrl: undefined`
+  // on every event without a link.
+  meetUrl?: string
   cal: number // index into the calendars array — drives dot color and the per-calendar view; parseIcs emits events WITHOUT it, fetchIcs tags per feed
 }
 
@@ -88,6 +95,8 @@ interface ParsedEvent {
   duration: number | null // ms, from a DURATION property (used only when end is null)
   rrule: RRule | null
   exdates: DateSpec[]
+  location: string // unescaped LOCATION text, '' when absent — scanned for a meeting link (Task 88)
+  description: string // unescaped DESCRIPTION text, '' when absent — scanned for a meeting link (Task 88)
 }
 
 /** RFC 5545 line unfolding: a physical line beginning with a space or tab is a
@@ -156,6 +165,70 @@ function parseContentLine(line: string): ContentLine {
  *  \, → comma, \; → semicolon, \\ → backslash. */
 function unescapeText(s: string): string {
   return s.replace(/\\([\\;,nN])/g, (_, ch: string) => (ch === 'n' || ch === 'N' ? '\n' : ch))
+}
+
+// ---------------------------------------------------------------------------
+// MEETING LINKS (Task 88): LOCATION/DESCRIPTION are scanned for a first-party
+// video-conferencing URL so the widget can render a one-click join button.
+// https-ONLY: every supported provider serves its join links over https, and
+// treating a bare http:// candidate as trustworthy would accept a spoofed or
+// protocol-downgraded link. The candidate regex casts a wide net — everything
+// up to the next whitespace/angle-bracket/quote — and `new URL()` is the real
+// validator; a candidate that fails to parse (e.g. a truncated
+// "https://[..." left by upstream text mangling) is skipped rather than
+// aborting the whole scan, so one bad candidate never hides a good one
+// appearing later in the same field.
+// ---------------------------------------------------------------------------
+
+const HTTPS_CANDIDATE_RE = /https:\/\/[^\s<>"]+/g
+
+/** True if `url` points at a supported video-conferencing provider. Every
+ *  host check is SUFFIX-safe — `endsWith('.host')` or an exact `===`, never
+ *  `includes` — because a substring check lets a lookalike attacker domain
+ *  such as `evilzoom.us.attacker.com` (which CONTAINS "zoom.us" but is
+ *  neither the zoom.us host nor one of its subdomains) pass as a real Zoom
+ *  link. meet.google.com and the Teams host are matched EXACTLY (neither has
+ *  a legitimate subdomain variant for meeting links); zoom.us/webex.com/
+ *  whereby.com accept any subdomain, since real deployments serve meetings
+ *  from per-region or per-org subdomains (us02web.zoom.us,
+ *  mycompany.webex.com, ...). Teams carries an extra constraint beyond the
+ *  host: teams.microsoft.com hosts plenty of non-meeting pages, so the path
+ *  must also contain the meetup-join segment to count as a join link.
+ */
+function isMeetingUrl(url: URL): boolean {
+  if (url.protocol !== 'https:') return false
+  const host = url.hostname.toLowerCase()
+  if (host === 'zoom.us' || host.endsWith('.zoom.us')) return true
+  if (host === 'meet.google.com') return true
+  if (host === 'teams.microsoft.com' && url.pathname.includes('/l/meetup-join')) return true
+  if (host === 'webex.com' || host.endsWith('.webex.com')) return true
+  if (host === 'whereby.com' || host.endsWith('.whereby.com')) return true
+  return false
+}
+
+/** Scans one field's text for the first https URL that resolves to a
+ *  supported provider (isMeetingUrl above), or undefined if none does. */
+function firstMeetingUrlIn(text: string): string | undefined {
+  for (const candidate of text.match(HTTPS_CANDIDATE_RE) ?? []) {
+    try {
+      if (isMeetingUrl(new URL(candidate))) return candidate
+    } catch {
+      // Unparseable candidate — skip it, keep scanning the rest of the field.
+    }
+  }
+  return undefined
+}
+
+/** Finds the meeting URL for one event: LOCATION is scanned before
+ *  DESCRIPTION (an explicit LOCATION is the more deliberate signal — a
+ *  DESCRIPTION's free-form body often quotes several URLs, including stale
+ *  links left over from a rescheduled meeting or unrelated doc links), first
+ *  match wins within each field. PURE — exported for direct testing, and
+ *  because the caller (expand, below) must compute this ONCE per event and
+ *  stamp the SAME value onto every expanded occurrence rather than
+ *  recomputing it per occurrence. */
+export function extractMeetUrl(location: string, description: string): string | undefined {
+  return firstMeetingUrlIn(location) ?? firstMeetingUrlIn(description)
 }
 
 /** Parses a DATE or DATE-TIME property value + its params into wall components
@@ -303,6 +376,10 @@ function buildEvent(props: Map<string, ContentLine[]>): ParsedEvent | null {
   const rruleLine = props.get('RRULE')?.[0]
   const rrule = rruleLine ? parseRRule(rruleLine.value) : null
   const summary = unescapeText(props.get('SUMMARY')?.[0]?.value ?? '')
+  // First instance only, same discipline as SUMMARY above — a well-formed
+  // VEVENT carries at most one of each anyway.
+  const location = unescapeText(props.get('LOCATION')?.[0]?.value ?? '')
+  const description = unescapeText(props.get('DESCRIPTION')?.[0]?.value ?? '')
 
   const exdates: DateSpec[] = []
   for (const line of props.get('EXDATE') ?? []) {
@@ -312,7 +389,7 @@ function buildEvent(props: Map<string, ContentLine[]>): ParsedEvent | null {
     }
   }
 
-  return { summary, start, end, duration, rrule, exdates }
+  return { summary, start, end, duration, rrule, exdates, location, description }
 }
 
 // ===================== EXPANDER (counts toward the STOP budget) ==============
@@ -419,6 +496,10 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<
   const durationMs =
     endEpoch !== null ? Math.max(0, endEpoch - startEpoch) : pe.duration ?? (pe.start.allDay ? DAY_MS : 0)
   const exSet = new Set(pe.exdates.map((x) => toEpoch(x.wall, x.zone)))
+  // Computed ONCE per event (not per occurrence) — LOCATION/DESCRIPTION don't
+  // vary across an RRULE's expanded instances, so every occurrence below
+  // shares this same value via the conditional spread.
+  const meetUrl = extractMeetUrl(pe.location, pe.description)
 
   const out: Omit<IcsEvent, 'cal'>[] = []
   const push = (start: number): void => {
@@ -426,7 +507,11 @@ function expand(pe: ParsedEvent, windowStart: number, windowDays: number): Omit<
     const end = start + durationMs
     // Include when [start,end) intersects the window — an event that began
     // before windowStart but ends inside it still counts (controller ruling).
-    if (start < winEnd && end > windowStart) out.push({ summary: pe.summary, start, end })
+    // meetUrl is spread in conditionally so a no-match event gets NO key at
+    // all (never a `meetUrl: undefined` property) — keeps the JSON shape of
+    // an unlinked event identical to before Task 88.
+    if (start < winEnd && end > windowStart)
+      out.push({ summary: pe.summary, start, end, ...(meetUrl ? { meetUrl } : {}) })
   }
 
   const rr = pe.rrule

@@ -10,7 +10,16 @@
 // EDT -4) — the delta between consecutive weekly occurrences is one hour
 // SHORTER than a bare 7-day span. Both absolute epochs are pinned below.
 import { describe, expect, it, vi } from 'vitest'
-import { parseIcs, fetchIcs, icsDescriptor, icsCalendarsOf, icsViewOf, MAX_CALENDARS, type IcsData } from './ics'
+import {
+  parseIcs,
+  fetchIcs,
+  extractMeetUrl,
+  icsDescriptor,
+  icsCalendarsOf,
+  icsViewOf,
+  MAX_CALENDARS,
+  type IcsData,
+} from './ics'
 
 /** Wraps a VEVENT (or several) in a realistic VCALENDAR envelope. */
 function cal(body: string): string {
@@ -654,6 +663,149 @@ describe('parseIcs — robustness / realistic exports', () => {
   })
 })
 
+describe('extractMeetUrl — provider matching (LOCATION/DESCRIPTION → a join link)', () => {
+  it('matches a Zoom link on any subdomain', () => {
+    expect(extractMeetUrl('https://us02web.zoom.us/j/1234567890', '')).toBe('https://us02web.zoom.us/j/1234567890')
+  })
+
+  it('matches a bare zoom.us host (no subdomain)', () => {
+    expect(extractMeetUrl('https://zoom.us/j/1234567890', '')).toBe('https://zoom.us/j/1234567890')
+  })
+
+  it('matches meet.google.com', () => {
+    expect(extractMeetUrl('https://meet.google.com/abc-defg-hij', '')).toBe('https://meet.google.com/abc-defg-hij')
+  })
+
+  it('does NOT match a meet.google.com subdomain (exact-host rule, no subdomain variant)', () => {
+    expect(extractMeetUrl('https://sub.meet.google.com/abc-defg-hij', '')).toBeUndefined()
+  })
+
+  it('matches a Teams link that carries the /l/meetup-join path', () => {
+    const url = 'https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc%40thread.v2/0'
+    expect(extractMeetUrl(url, '')).toBe(url)
+  })
+
+  it('does NOT match teams.microsoft.com WITHOUT the /l/meetup-join path', () => {
+    expect(extractMeetUrl('https://teams.microsoft.com/some-other-page', '')).toBeUndefined()
+  })
+
+  it('matches a Webex link on any subdomain', () => {
+    expect(extractMeetUrl('https://mycompany.webex.com/meet/jdoe', '')).toBe('https://mycompany.webex.com/meet/jdoe')
+  })
+
+  it('matches a Whereby link', () => {
+    expect(extractMeetUrl('https://whereby.com/team-standup', '')).toBe('https://whereby.com/team-standup')
+  })
+
+  it('rejects a lookalike host that merely CONTAINS "zoom.us" as a substring (suffix-safety)', () => {
+    // evilzoom.us.attacker.com is NOT zoom.us and does NOT end with .zoom.us —
+    // an `includes('zoom.us')` check would wrongly match this; endsWith must not.
+    expect(extractMeetUrl('https://evilzoom.us.attacker.com/j/123', '')).toBeUndefined()
+  })
+
+  it('rejects an http:// (non-https) link even to a real provider host', () => {
+    expect(extractMeetUrl('http://zoom.us/j/123', '')).toBeUndefined()
+  })
+
+  it('rejects a non-provider https URL', () => {
+    expect(extractMeetUrl('https://example.com/meeting-room', '')).toBeUndefined()
+  })
+
+  it('LOCATION wins over DESCRIPTION when both carry a provider link', () => {
+    const location = 'https://us02web.zoom.us/j/111'
+    const description = 'Backup link: https://meet.google.com/abc-defg-hij'
+    expect(extractMeetUrl(location, description)).toBe('https://us02web.zoom.us/j/111')
+  })
+
+  it('falls back to DESCRIPTION when LOCATION carries no provider link', () => {
+    const description = 'Join via https://whereby.com/team-standup for the call'
+    expect(extractMeetUrl('Conference Room 4B', description)).toBe('https://whereby.com/team-standup')
+  })
+
+  it('tolerates surrounding prose — the URL is extracted cleanly, not the sentence around it', () => {
+    const description = 'Join here: https://us02web.zoom.us/j/555 — agenda attached, dial in 10 min early'
+    expect(extractMeetUrl('', description)).toBe('https://us02web.zoom.us/j/555')
+  })
+
+  it('returns undefined when neither field has any candidate URL', () => {
+    expect(extractMeetUrl('Conference Room 4B', 'Bring your laptop')).toBeUndefined()
+  })
+
+  it('skips a candidate that fails URL parsing and keeps scanning for a later valid one', () => {
+    // "https://[bad" is an unparseable candidate (unterminated IPv6 literal);
+    // the scan must not abort there — it keeps going and finds the real link.
+    const description = 'https://[bad then the real link https://meet.google.com/xyz-abcd-efg'
+    expect(extractMeetUrl('', description)).toBe('https://meet.google.com/xyz-abcd-efg')
+  })
+
+  it('skips a non-provider candidate that appears before the real provider link', () => {
+    const description = 'Doc: https://example.com/notes — call: https://meet.google.com/xyz-abcd-efg'
+    expect(extractMeetUrl('', description)).toBe('https://meet.google.com/xyz-abcd-efg')
+  })
+})
+
+describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)', () => {
+  it('stamps meetUrl onto every occurrence of a recurring event whose LOCATION carries a provider link', () => {
+    const text = cal(
+      vevent([
+        'UID:meet1@test',
+        'SUMMARY:Daily sync',
+        'DTSTART:20260601T140000Z',
+        'DTEND:20260601T141500Z',
+        'LOCATION:https://us02web.zoom.us/j/998877',
+        'RRULE:FREQ=DAILY;COUNT=3',
+      ]),
+    )
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    expect(events).toHaveLength(3)
+    for (const event of events) {
+      expect(event.meetUrl).toBe('https://us02web.zoom.us/j/998877')
+    }
+  })
+
+  it('an event with no recognizable meeting link in LOCATION has NO meetUrl key at all (absent, not undefined-valued)', () => {
+    const text = cal(
+      vevent([
+        'UID:meet2@test',
+        'SUMMARY:In-person review',
+        'DTSTART:20260610T120000Z',
+        'DTEND:20260610T130000Z',
+        'LOCATION:Conference Room 4B',
+      ]),
+    )
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    expect('meetUrl' in event!).toBe(false)
+  })
+
+  it('an event with neither LOCATION nor DESCRIPTION at all also has no meetUrl key', () => {
+    const text = cal(
+      vevent(['UID:meet3@test', 'SUMMARY:No fields', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']),
+    )
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    expect('meetUrl' in event!).toBe(false)
+  })
+
+  it('falls back to DESCRIPTION when LOCATION is a plain room name, and unescapes DESCRIPTION before scanning it', () => {
+    // The escaped comma and escaped newline sit right next to the URL —
+    // decoding must happen BEFORE the scan, or the raw backslash-n / backslash-
+    // comma text would still get swept into the URL candidate (via WHATWG's
+    // backslash-as-slash normalization for special schemes), corrupting the
+    // extracted string.
+    const text = cal(
+      vevent([
+        'UID:meet4@test',
+        'SUMMARY:Escaped description',
+        'DTSTART:20260610T120000Z',
+        'DTEND:20260610T130000Z',
+        'LOCATION:Conference Room 4B',
+        'DESCRIPTION:Notes\\, then the link https://us02web.zoom.us/j/998877\\nEnd of description',
+      ]),
+    )
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    expect(event!.meetUrl).toBe('https://us02web.zoom.us/j/998877')
+  })
+})
+
 // ---------------------------------------------------------------------------
 // fetchIcs — the impure boundary (response .text(), 8s abort, quiet failure)
 // ---------------------------------------------------------------------------
@@ -755,6 +907,27 @@ describe('fetchIcs', () => {
     expect(summaries).toContain('Fresh A')
     expect(summaries).toContain('Kept B')
     expect(summaries).not.toContain('Stale A')
+  })
+
+  it('passes meetUrl through untouched alongside cal tagging', async () => {
+    const body = cal(
+      vevent([
+        'UID:fetchmeet@test',
+        'SUMMARY:Fetched with link',
+        'DTSTART:20260610T120000Z',
+        'DTEND:20260610T130000Z',
+        'LOCATION:https://whereby.com/team-standup',
+      ]),
+    )
+    const two = [
+      { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
+      { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
+    ]
+    const fetchFn = vi.fn(async (u: string) => fakeResponse({ status: 200, text: u.includes('feed-b') ? body : cal('') }))
+    const data = await fetchIcs(two, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    expect(data.events).toHaveLength(1)
+    expect(data.events[0]!.meetUrl).toBe('https://whereby.com/team-standup')
+    expect(data.events[0]!.cal).toBe(1)
   })
 
   it('an empty calendar list returns prev (or empty) without fetching', async () => {
