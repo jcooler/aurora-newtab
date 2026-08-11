@@ -38,23 +38,29 @@ function expectCloseMinutes(actual: Date, expectedMs: number, toleranceMin = 2):
   expect(diffMin).toBeLessThanOrEqual(toleranceMin)
 }
 
-describe('sunTimes — New York (local Date assertions; this machine runs America/New_York)', () => {
+describe('sunTimes — New York (UTC epoch assertions; timezone-independent — the fixture wall times are EDT/EST, encoded as their UTC instants exactly like the Sydney/London block below)', () => {
   it('2026-06-21 rise/set/golden hour match the NOAA fixture within ±2 minutes', () => {
     const result = sunTimes(new Date(2026, 5, 21), 40.7128, -74.006)
     expect(result).not.toBeNull()
-    expectCloseMinutes(result!.sunrise, new Date(2026, 5, 21, 5, 25).getTime())
-    expectCloseMinutes(result!.sunset, new Date(2026, 5, 21, 20, 31).getTime())
+    // 05:25 EDT (UTC-4) == 2026-06-21T09:25:00Z
+    expectCloseMinutes(result!.sunrise, Date.UTC(2026, 5, 21, 9, 25, 0))
+    // 20:31 EDT == 2026-06-22T00:31:00Z (crosses into the next UTC day)
+    expectCloseMinutes(result!.sunset, Date.UTC(2026, 5, 22, 0, 31, 0))
     expect(result!.goldenHour).not.toBeNull()
-    expectCloseMinutes(result!.goldenHour!, new Date(2026, 5, 21, 19, 50).getTime())
+    // 19:50 EDT == 2026-06-21T23:50:00Z
+    expectCloseMinutes(result!.goldenHour!, Date.UTC(2026, 5, 21, 23, 50, 0))
   })
 
   it('2026-12-21 rise/set/golden hour match the NOAA fixture within ±2 minutes', () => {
     const result = sunTimes(new Date(2026, 11, 21), 40.7128, -74.006)
     expect(result).not.toBeNull()
-    expectCloseMinutes(result!.sunrise, new Date(2026, 11, 21, 7, 17).getTime())
-    expectCloseMinutes(result!.sunset, new Date(2026, 11, 21, 16, 32).getTime())
+    // 07:17 EST (UTC-5) == 2026-12-21T12:17:00Z
+    expectCloseMinutes(result!.sunrise, Date.UTC(2026, 11, 21, 12, 17, 0))
+    // 16:32 EST == 2026-12-21T21:32:00Z
+    expectCloseMinutes(result!.sunset, Date.UTC(2026, 11, 21, 21, 32, 0))
     expect(result!.goldenHour).not.toBeNull()
-    expectCloseMinutes(result!.goldenHour!, new Date(2026, 11, 21, 15, 49).getTime())
+    // 15:49 EST == 2026-12-21T20:49:00Z
+    expectCloseMinutes(result!.goldenHour!, Date.UTC(2026, 11, 21, 20, 49, 0))
   })
 
   it('golden hour precedes sunset by a plausible margin (30-80 minutes)', () => {
@@ -66,10 +72,13 @@ describe('sunTimes — New York (local Date assertions; this machine runs Americ
     }
   })
 
-  it('sunrise lands in the morning local hours (longitude sign sanity)', () => {
+  it('sunrise lands at the fixture UTC instant, not shifted ~10h by a sign-flipped longitude (longitude sign sanity)', () => {
     const result = sunTimes(new Date(2026, 5, 21), 40.7128, -74.006)!
-    expect(result.sunrise.getHours()).toBeGreaterThanOrEqual(4)
-    expect(result.sunrise.getHours()).toBeLessThan(8)
+    // A sign-flipped longitude (+74.006 instead of -74.006) shifts solar noon
+    // by ~2*74.006/15*60 ≈ 592 minutes (~9.9h) — a generous ±30 minute window
+    // around the known-correct UTC instant (09:25Z) easily rejects that while
+    // still tolerating ordinary NOAA-formula precision.
+    expectCloseMinutes(result.sunrise, Date.UTC(2026, 5, 21, 9, 25, 0), 30)
   })
 })
 
