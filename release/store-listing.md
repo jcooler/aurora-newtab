@@ -826,3 +826,83 @@ with:
       yourself — that stays green and silent until something's actually
       down. Find connectors by name or purpose — the catalog is
       searchable, and anything on your board stays pinned on top.
+
+---
+
+### v1.13.0 addendum — delights from the sky (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.13.0 adds three small delights, none of them a new purpose: two
+local-only widgets and one opt-in background source.
+
+**Sun times** and **Moon phase** are two new widgets, off by default,
+gated on the same saved location the Weather widget already uses. Both are
+pure math — `src/lib/sun.ts` (NOAA's solar-position formulas) and
+`src/lib/moon.ts` (a synodic-cycle calculation) — with zero network calls
+of any kind. Same as the v1.5.0 addendum's habit streaks/month calendar
+above: no new permission, no new network call, nothing reaching outside
+the device, so neither needs its own permission justification or Data
+Usage disclosure update.
+
+**NASA's Astronomy Picture of the Day** is a fourth, opt-in option in the
+existing Background source picker (Settings → General → Background,
+alongside the daily rotation, your own uploads, and the flat gradient).
+Choosing it requests two fixed NASA hosts together, in that one click, via
+Chrome's existing per-site permission prompt — the exact same
+`optional_host_permissions` grant the v1.3.0 addendum above already
+justifies for Connectors, just requesting a specific, product-chosen pair
+of origins (`api.nasa.gov`, `apod.nasa.gov`) instead of a user-typed one.
+Declining leaves the background unchanged. Switching away from this source
+releases both origins automatically, the same revoke-on-last-use rule
+Connectors already follow (unless a Connector you've separately configured
+happens to still need the same host, in which case only the no-longer-
+needed portion is released). The fetch itself sends nothing but NASA's own
+shared, keyless `DEMO_KEY` query parameter — no account, no location, no
+other user data — and happens at most once per calendar day; a day where
+it fails is simply retried the next day, not on a timer. No new Data Usage
+disclosure entry: nothing in the existing table's categories changes,
+because no user data (per Google's definition — see the flag on that table
+above) is ever sent to NASA, only the fixed demo key. Full detail in
+PRIVACY.md's "Network calls" and "Permissions" sections.
+
+#### Detailed description delta
+
+Add to the FEATURES list, after the Month calendar bullet (added by the
+v1.5.0 addendum above):
+
+    - Sun times: today's sunrise, sunset, and (when the sun climbs high
+      enough that day) evening golden hour, computed locally from your
+      saved location, with no network call. Off by default.
+    - Moon phase: today's moon phase name and glyph, computed locally
+      with no network call — the glyph mirrors for a southern-hemisphere
+      location. Off by default.
+
+REPLACE the Background photos bullet (as it stands in the LIVE listing
+above, under FEATURES):
+
+    - Background photos: a bundled, hand-curated set of landscape and
+      aurora photos that rotates daily, your own uploaded photo gallery,
+      or a flat gradient.
+
+with:
+
+    - Background photos: a bundled, hand-curated set of landscape and
+      aurora photos that rotates daily, your own uploaded photo gallery,
+      a flat gradient, or — opt-in — NASA's Astronomy Picture of the Day,
+      a new photo once a day from NASA's free, keyless API.
+
+Add to the PRIVACY, THE ACTUAL DIFFERENTIATOR list, after the Connectors
+bullet (added by the v1.3.0 addendum above):
+
+    - NASA's Astronomy Picture of the Day is fully opt-in: choosing it
+      asks Chrome for access to exactly NASA's two hosts, in the same
+      click, the same per-site permission model Connectors use — never
+      at install, and released automatically the moment you switch to a
+      different background. It sends nothing but a shared, keyless API
+      parameter: no account, no location, no other data of yours.

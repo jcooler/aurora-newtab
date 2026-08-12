@@ -38,8 +38,12 @@ anywhere except as explicitly described under "Network calls" below:
 - Focus timer configuration and session state
 - Today's focus text
 - Background photo preferences (which mode — bundled rotation, your own
-  upload, or a flat gradient — and, in rotation mode, which photo)
+  upload, a flat gradient, or NASA's photo of the day — and, in rotation
+  mode, which photo)
 - Weather cache (the last forecast fetched)
+- NASA photo-of-the-day cache (the single photo fetched for the current
+  local day, if you've chosen that background source — see "Network calls"
+  below), so it isn't refetched on every new tab
 - Your saved location (latitude/longitude rounded to two decimal places,
   i.e. roughly 1 km precision, plus a display label)
 - Notes (the scratchpad text)
@@ -64,10 +68,14 @@ never uploaded anywhere, never included in the JSON backup described below,
 and never leaves your machine.
 
 **Backup export/import.** Settings → Data lets you export everything above
-— except uploaded photos (per the previous paragraph) and connector cache
-data (e.g. cached RSS headlines, which is disposable and rebuilt
-automatically, not something you entered) — to a JSON file you choose to
-save, and re-import it later. Connector configuration itself (e.g. your RSS
+— except uploaded photos (per the previous paragraph), connector cache
+data (e.g. cached RSS headlines), and the NASA photo-of-the-day cache,
+all of which are disposable and rebuilt automatically rather than
+something you entered — to a JSON file you choose to
+save, and re-import it later. Importing a backup also resets the NASA
+photo-of-the-day cache to empty, the same "rebuilds on next use" treatment
+every other excluded cache gets, rather than carrying an old day's photo
+forward. Connector configuration itself (e.g. your RSS
 feed list) IS included in the export, minus any field that connector
 declares as secret — every GitHub/GitLab/Jira/Vercel token, and every
 calendar address you've added to the Calendar connector, is stripped from
@@ -87,9 +95,10 @@ pass through.
 Aurora makes network requests to exactly three **fixed** endpoints, all
 operated by third-party services (Aurora itself has no server), all
 read-only, all keyless (no account, sign-in, or API key involved), and all
-sent no more data than described below — plus, if and only if you've
-configured a Connector, requests to the site(s) you configured (item 4
-below):
+sent no more data than described below — plus two **opt-in** sources: a
+Connector, if and only if you've configured one (the site(s) you configured,
+item 4 below), and NASA's Astronomy Picture of the Day, if and only if
+you've chosen it as your background (item 5 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
@@ -117,10 +126,32 @@ below):
    a widget with a stale cache. See "Connectors" below for the full,
    per-connector disclosure, including the permission model that gates
    which sites Aurora is even allowed to reach.
+5. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
+   lookup) and `apod.nasa.gov` (the separate host that actually serves the
+   image), only once you've chosen "NASA photo of the day" as your
+   background in Settings → General → Background. Sends only NASA's shared,
+   keyless `DEMO_KEY` query parameter — no account, no API key of your own
+   to configure, and no user data of any kind (not your location, not
+   anything else Aurora stores). Fires at most once per local day: the
+   result (photo or a quiet failure) is cached against that day, so it's
+   never refetched again until the calendar date changes, and a day where
+   it fails simply gets tried again the next day rather than retried on a
+   timer. Both hosts' permission is requested together, in the same click
+   that selects this source (see "Permissions" below), and is released
+   automatically the moment you switch to a different background source —
+   unless a Connector you've separately configured happens to still need
+   that same host, in which case only your no-longer-needed portion is
+   released and the Connector's own access is left untouched.
 
 Aurora makes no other network calls. In particular: no analytics, no
 telemetry, no crash reporting, no ad networks, no remote fonts or scripts,
-and no "phone home" of any kind. The extension's own UI (HTML/CSS/JS,
+and no "phone home" of any kind.
+
+The **Sun times** and **Moon phase** widgets make no network call of any
+kind — both compute entirely on your device from your saved location using
+local astronomical math (`src/lib/sun.ts`, `src/lib/moon.ts`), the same
+location item 1's forecast call already reads; nothing about either
+computation is ever sent anywhere. The extension's own UI (HTML/CSS/JS,
 bundled fonts if any, and the bundled background photos) ships inside the
 extension package and loads from your local install, not from the network.
 
@@ -185,17 +216,24 @@ Aurora requests the following Chrome permissions:
 - **Per-origin host access** (`https://*/*` declared as
   `optional_host_permissions` — optional, requested at runtime, one origin
   at a time, never at install). This is what lets the Connectors framework
-  reach a site you point it at. Declaring the wildcard makes every
+  reach a site you point it at, and also what the Background source picker
+  uses for NASA's photo of the day. Declaring the wildcard makes every
   `https://` origin *eligible* to be requested; it grants none of them, and
   none is held until you act. Adding a feed, or clicking "Connect" on a
   token-based connector, in Settings → Connectors requests exactly that
   connector's origin (e.g. `https://example.com/*`, or `https://
   api.github.com/*`) via Chrome's own native per-site permission prompt —
   the same kind of prompt `bookmarks` above uses, just scoped to one site
-  instead of one API. Declining leaves the connector un-added. Removing the
-  last feed/connection pointed at a given origin revokes that origin's
-  permission automatically (`chrome.permissions.remove`); other origins
-  you've granted are unaffected. See "Connectors" below for the full model.
+  instead of one API. Choosing "NASA photo of the day" in Settings →
+  General → Background requests both `api.nasa.gov` and `apod.nasa.gov`
+  together, in that same click (see "Network calls" above). Declining
+  leaves the connector un-added, or the background unchanged. Removing the
+  last feed/connection pointed at a given origin, or switching the
+  background away from NASA's photo of the day, revokes that origin's
+  permission automatically (`chrome.permissions.remove`) — unless another
+  still-enabled Connector independently needs the same origin, in which
+  case its grant is left in place; other origins you've granted are
+  unaffected either way. See "Connectors" below for the full model.
 
 ## Connectors
 

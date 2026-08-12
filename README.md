@@ -19,7 +19,11 @@ no backend — everything lives on your machine.
 - **Background photos** — a bundled, hand-curated set of landscape photos
   that rotates daily, or upload your own as a gallery (add several at once,
   remove any one from a thumbnail strip, rotates through the rest), or use
-  a flat gradient.
+  a flat gradient. A fourth, opt-in source — NASA's Astronomy Picture of the
+  Day — fetches one new photo a day from NASA's public API once you switch
+  to it in Settings → General → Background, and asks Chrome for permission
+  to reach NASA's two hosts the moment you do; see
+  [Privacy](#privacy) for what that call sends.
 - **Bookmarks bar** — your browser's actual bookmarks bar, rendered as a row
   of folder and favicon chips; click a folder to drill into it (with a
   breadcrumb back button for nested subfolders). Off by default; reads your
@@ -30,6 +34,13 @@ no backend — everything lives on your machine.
 - **Month calendar** — a glance-sized month grid for "what date is the 3rd
   Friday" questions, with today ringed and a dot on any date you've added a
   countdown for. Off by default.
+- **Sun times** — today's sunrise, sunset, and (when the sun climbs high
+  enough that day) evening golden hour, computed locally from your saved
+  location with no network call at all. Off by default; needs a location set
+  in Weather first.
+- **Moon phase** — today's moon phase name and glyph, computed locally with
+  no network call at all; the glyph mirrors for a southern-hemisphere
+  location. Off by default; needs a location set in Weather first.
 - **Connectors** — an extensible framework for pulling outside data into the
   dashboard, one card per source under Settings → Connectors, each asking
   Chrome for access to exactly the site you add and nothing more. Eight
@@ -293,9 +304,19 @@ back to `null`, restoring the default surface.
 2. Add a `<key>: boolean` to `WidgetToggles` in
    `src/lib/storage/schema.ts`, and a default value in that file's
    `defaults()`.
-3. Add a label to `WIDGET_LABELS` in `src/settings/SettingsPanel.tsx` so it
-   shows up in the Settings → Widgets list.
-4. Mount it in `src/newtab/App.tsx`, wrapped in
+3. In the SAME change as step 2: bump `CURRENT_VERSION` in
+   `src/lib/storage/schema.ts` and add a matching step to
+   `src/lib/storage/migrations.ts`, keyed to the version upgraded FROM, that
+   backfills the new key (see schema.ts's own STANDING RULE comment above
+   `WidgetToggles`). `defaults()`'s merge only backfills missing top-level
+   keys, never a new field nested inside an already-present
+   `settings.widgets` object, so skipping this leaves existing users'
+   stored settings without the new key — and `backup.ts`'s strict
+   `isWidgetToggles` validator then rejects any pre-existing backup file
+   wholesale on import, not partially.
+4. Add a label to `WIDGET_LABELS` in `src/settings/sections/Widgets.tsx` so
+   it shows up in the Settings → Widgets list.
+5. Mount it in `src/newtab/App.tsx`, wrapped in
    `<WidgetBoundary name="...">` — a widget that throws must never take the
    rest of the page down with it.
 
