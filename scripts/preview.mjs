@@ -7402,6 +7402,10 @@ function gitlabContributionsFixture() {
       : `FAIL: picked-summary line (${JSON.stringify(connectedPicked)})`,
   )
 
+  // The plan's own owed drawer capture (status precedent :6942).
+  await page.screenshot({ path: `${outDir}/drawer-ha-card.png` })
+  console.log('captured drawer-ha-card.png')
+
   // Probe 4 — the "Choose entities" gesture, driven for REAL: fetch-first,
   // open-on-arrival (Connectors.tsx's own HomeAssistantBody doc comment). The
   // seeded instanceUrl above was never granted through a real permission
