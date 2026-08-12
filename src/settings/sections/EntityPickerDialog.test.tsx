@@ -224,3 +224,56 @@ describe('EntityPickerDialog, seeding from already-picked props', () => {
     )
   })
 })
+
+// Review fix (round 1): handleSave used to hardcode `domain: 'switch'` for
+// any picked action id it couldn't resolve through either `states` or the
+// seeded `actions` prop. That gap is reachable: `states` (and `actions`) can
+// change value while the SAME dialog instance stays open (a live re-poll
+// landing mid-session), so a freshly-toggled scene/script action can vanish
+// from `states` before Save fires, with no seeded entry to fall back to
+// either. Hardcoding 'switch' there would later fire `switch.toggle`
+// against a scene/script entity — simply wrong. Both cases below simulate
+// that live prop change with `rerender` on the SAME element (not a fresh
+// `render`), so local pick state survives across it exactly as it would
+// against a real re-poll.
+describe('EntityPickerDialog, Save-time fallback domain when a fresh pick vanishes mid-session (review fix)', () => {
+  it('a freshly-picked scene action whose entity vanishes from states before Save is still saved with domain "scene", never fabricated as switch', () => {
+    const onSave = vi.fn()
+    const initialStates: HaState[] = [
+      ...STATES,
+      { id: 'scene.bedtime', state: 'scening', unit: null, friendlyName: 'Bedtime', domain: 'scene' },
+    ]
+    const { rerender } = render(
+      <EntityPickerDialog open states={initialStates} entities={[]} actions={[]} onCancel={() => {}} onSave={onSave} />,
+    )
+    fireEvent.click(screen.getByRole('checkbox', { name: /action bedtime/i }))
+
+    // The parent re-polls mid-session: scene.bedtime has dropped out of the
+    // live states array before Save fires.
+    rerender(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={onSave} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith([], [{ id: 'scene.bedtime', name: 'scene.bedtime', domain: 'scene' }])
+  })
+
+  it('an id whose own prefix is not an eligible action domain, present in neither the live states nor the live actions prop, is dropped rather than fabricated', () => {
+    const onSave = vi.fn()
+    // A hand-edited/malformed stored config could seed an action whose
+    // claimed `domain` disagrees with its own id prefix ('light' here, not
+    // an ACTION_DOMAINS member) — this is how such an id enters
+    // pickedActionIds at all, since the UI itself only ever wires the
+    // Action checkbox onto rows already known to have an eligible domain.
+    const seededActions: HaAction[] = [{ id: 'light.desk', name: 'Desk lamp', domain: 'switch' }]
+    const { rerender } = render(
+      <EntityPickerDialog open states={STATES} entities={[]} actions={seededActions} onCancel={() => {}} onSave={onSave} />,
+    )
+
+    // The parent's stored config changes mid-session too: by the time Save
+    // fires, light.desk is gone from the live actions prop as well as from
+    // states — exactly the "resolvable through neither" gap.
+    rerender(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={onSave} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(onSave).toHaveBeenCalledWith([], [])
+  })
+})

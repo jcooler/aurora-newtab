@@ -60,7 +60,23 @@ const ACTION_DOMAIN_SET: ReadonlySet<string> = new Set(ACTION_DOMAINS)
  *  of the current `states` poll (deleted/renamed/instance unreachable) falls
  *  back to whatever ref/action was already in the incoming props, so a
  *  transient empty/partial poll while re-opening the dialog to edit an
- *  existing pick can never silently erase it. */
+ *  existing pick can never silently erase it.
+ *
+ *  `states` (and, symmetrically, `actions`) can change PROP VALUE while the
+ *  dialog stays open — a live re-poll landing mid-session, same instance,
+ *  `open` never toggling — so a freshly-toggled action's entity can vanish
+ *  from `states` before Save fires, with no seeded prop entry to fall back
+ *  to either (review fix, round 1: this used to hardcode `domain: 'switch'`
+ *  in that gap, which is simply WRONG for a vanished scene/script — it would
+ *  later fire `switch.toggle` against a scene/script entity). HA entity ids
+ *  are always `domain.object_id` (the same derivation homeassistant.ts's
+ *  unexported `domainOf` uses), so the id itself still names its true domain
+ *  even once the row is gone — that prefix is the fallback now, VALIDATED
+ *  against ACTION_DOMAINS before use. An id whose own prefix isn't an
+ *  eligible action domain has no honest domain left to save it under, so
+ *  it's DROPPED from `outActions` rather than fabricated — the same
+ *  skip-don't-crash floor `haActionsOf` (homeassistant.ts) applies to a
+ *  malformed stored entry. */
 export default function EntityPickerDialog({
   open,
   states,
@@ -144,12 +160,21 @@ export default function EntityPickerDialog({
       if (s) return { id, name: s.friendlyName }
       return entities.find((e) => e.id === id) ?? { id, name: id }
     })
-    const outActions: HaAction[] = Array.from(pickedActionIds).map((id) => {
+    const outActions: HaAction[] = Array.from(pickedActionIds).flatMap((id): HaAction[] => {
       const s = byId.get(id)
       if (s && ACTION_DOMAIN_SET.has(s.domain)) {
-        return { id, name: s.friendlyName, domain: s.domain as HaAction['domain'] }
+        return [{ id, name: s.friendlyName, domain: s.domain as HaAction['domain'] }]
       }
-      return actions.find((a) => a.id === id) ?? { id, name: id, domain: 'switch' }
+      const seeded = actions.find((a) => a.id === id)
+      if (seeded) return [seeded]
+      // Neither in the live poll nor in the original seed — derive the
+      // domain from the id's own prefix rather than guessing (see this
+      // file's header comment). Only trust that derived prefix when it's
+      // itself an eligible action domain; otherwise there's nothing honest
+      // left to save, so the pick is dropped.
+      const domain = id.split('.')[0] ?? id
+      if (!ACTION_DOMAIN_SET.has(domain)) return []
+      return [{ id, name: id, domain: domain as HaAction['domain'] }]
     })
     onSave(outEntities, outActions)
   }
