@@ -17,6 +17,7 @@ import { vercelDescriptor } from './vercel'
 import { cryptoDescriptor } from './crypto'
 import { icsDescriptor } from './ics'
 import { statusDescriptor } from './status'
+import { homeassistantDescriptor } from './homeassistant'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -46,6 +47,11 @@ import { statusDescriptor } from './status'
 // origin like gitlab's/jira's. Task 83 (W3-SP2) adds status as #8 — back to
 // `auth: 'none'` with nothing secret (crypto's shape, not ics's): a
 // status.json url grants no access to anything, so secretFields stays [].
+// Task 101 (W3-SP5) adds homeassistant as #9 — the descriptor itself shipped
+// unregistered in Task 99 (its own header comment names this exact task as
+// the one that flips it live); it's the first descriptor to set
+// identityPhrase: 'to' (every entry above defaults to 'as' via the shell's
+// `?? 'as'` fallback — see Connectors.tsx's card-shell identity line).
 export const CONNECTORS: ConnectorDescriptor[] = [
   rssDescriptor as ConnectorDescriptor,
   githubDescriptor as ConnectorDescriptor,
@@ -55,6 +61,7 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   cryptoDescriptor as ConnectorDescriptor,
   icsDescriptor as ConnectorDescriptor,
   statusDescriptor as ConnectorDescriptor,
+  homeassistantDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

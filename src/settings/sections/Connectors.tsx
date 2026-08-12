@@ -11,12 +11,23 @@ import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/ve
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
 import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
+import {
+  whoamiHomeAssistant,
+  fetchAllStates,
+  haEntitiesOf,
+  haActionsOf,
+  type HaAction,
+  type HaEntityRef,
+  type HaState,
+  type HomeAssistantConfig,
+} from '../../services/connectors/homeassistant'
 import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
 import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
+import EntityPickerDialog from './EntityPickerDialog'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
-import { control, eyebrow, label, row, select, submitBtn } from './shared'
+import { btnQuiet, control, eyebrow, label, row, select, submitBtn } from './shared'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -186,6 +197,7 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   crypto: CryptoBody,
   ics: IcsBody,
   status: StatusBody,
+  homeassistant: HomeAssistantBody,
 }
 
 function ConnectorCard({
@@ -213,7 +225,9 @@ function ConnectorCard({
               authState implements). Quiet-chip idiom, same as the On/Off
               span below — text-xs, tinted by state, no pill/border. */}
           {descriptor.auth === 'token' && state === 'connected' && (
-            <p className="text-xs text-emerald-400">Connected as {String(identity)}</p>
+            <p className="text-xs text-emerald-400">
+              Connected {descriptor.identityPhrase ?? 'as'} {String(identity)}
+            </p>
           )}
           {descriptor.auth === 'token' && state === 'reconnect' && (
             <p className="text-xs text-fg-muted">Reconnect needed</p>
@@ -1721,5 +1735,217 @@ function StatusBody({ config, storage }: BodyProps) {
         )}
       </form>
     </div>
+  )
+}
+
+// The Home Assistant connector's card body — Task 101 (W3-SP5), the ninth
+// connector and the first with an entity-picker dialog mounted inside a
+// card. TokenConnectForm wiring follows GitlabBody's skeleton (:566-691)
+// verbatim: narrowing cast + defensive reads, originsFor deriving the
+// instance's https origin from the FIELD VALUE (its throw — a non-https URL
+// — IS the https-only enforcement surface, same as GitlabBody's own), and
+// onConnected persisting the four token-connector fields while PRESERVING
+// any already-picked entities/actions across a reconnect (the same
+// views-preservation idiom GitlabBody's own onConnected documents at
+// :629/:637 — a reconnect, even as a different HA user, must never reset a
+// composed card).
+//
+// connectedExtras adds a second surface beyond TokenConnectForm's own
+// Disconnect row: a picked-summary line, a "Choose entities" button, and the
+// EntityPickerDialog (Task 100) itself — mounted here, not inside the
+// dialog's own module, since the dialog is pure-presentational and this
+// card owns fetching states and persisting the pick.
+//
+// Choose-entities gesture (plan-pinned ruling): the button FETCHES FIRST and
+// opens only on arrival — no placeholder "Loading entities…" dialog state,
+// just a real disabled + "Loading…" state on the button itself while the
+// fetch is in flight. A null result (fetchAllStates' own never-throw
+// failure signal) flips an inline role="alert" and leaves the dialog
+// closed; a real result seeds the dialog's states and opens it.
+//
+// THE PACT: saving a pick persists entities+actions AND clears
+// connectorSnapshots.homeassistant — two adjacent storage.update calls,
+// mirroring StatusBody's clearStatusSnapshot (:1526-1531) exactly, so the
+// widget's next mount finds no stale cached snapshot and fetches the newly
+// picked entities immediately rather than serving up to ttlMs-stale data.
+function HomeAssistantBody({ config, storage }: BodyProps) {
+  // Same narrowing rationale as every other body above: BodyProps.config is
+  // the generic union (the body map is shared across ids), and this
+  // component is registered only under 'homeassistant' — one documented
+  // cast. Defensive reads (a backup can restore { enabled: true } with none
+  // of the token fields) keep the connected/reconnect decision honest.
+  const ha = config as HomeAssistantConfig | undefined
+  const instanceUrl = typeof ha?.instanceUrl === 'string' ? ha.instanceUrl : ''
+  const token = typeof ha?.token === 'string' ? ha.token : ''
+  const locationName = typeof ha?.locationName === 'string' ? ha.locationName : ''
+  // Same rule as every other token connector: Disconnect only once BOTH
+  // identity and secret are present; identity-present + secret-empty
+  // (backup restored locationName but not the stripped token) falls through
+  // to the form so the user can re-enter a token — the card shell's
+  // "Reconnect needed" chip already flags that state.
+  const connectedAs = locationName && token ? locationName : null
+  // Read-time normalization boundary (homeassistant.ts) — every caller,
+  // including this card, goes through it rather than reading config.entities
+  // / config.actions directly.
+  const entities = haEntitiesOf(ha)
+  const actions = haActionsOf(ha)
+
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerStates, setPickerStates] = useState<HaState[]>([])
+  const [pickerLoading, setPickerLoading] = useState(false)
+  const [pickerError, setPickerError] = useState<string | null>(null)
+
+  // THE PACT's settings-side write (this function's doc comment has the full
+  // rationale): rebuilds the config from prev's OWN current entry — never
+  // the render-time `ha` above — same double-submit discipline StatusBody's
+  // updateStatus documents (:1516), then clears the cached snapshot as a
+  // second, adjacent write.
+  async function handleSaveEntities(nextEntities: HaEntityRef[], nextActions: HaAction[]) {
+    await storage.update('connectors', (prev) => {
+      const current = prev.homeassistant as HomeAssistantConfig | undefined
+      return {
+        ...prev,
+        homeassistant: {
+          enabled: true,
+          instanceUrl: current?.instanceUrl,
+          token: current?.token,
+          locationName: current?.locationName,
+          entities: nextEntities,
+          actions: nextActions,
+        },
+      }
+    })
+    await storage.update('connectorSnapshots', (prev) => {
+      const next = { ...prev }
+      delete next.homeassistant
+      return next
+    })
+  }
+
+  // Fetch-first, open-on-arrival (see this function's doc comment for the
+  // pinned ruling this implements). setPickerError(null) up front so a retry
+  // after a failure clears the prior alert even before the new fetch settles.
+  async function handleChooseEntities() {
+    setPickerError(null)
+    setPickerLoading(true)
+    try {
+      const result = await fetchAllStates(instanceUrl, token)
+      if (result === null) {
+        setPickerError("Couldn't reach your instance. Check the URL and token, then try again.")
+        return
+      }
+      setPickerStates(result)
+      setPickerOpen(true)
+    } finally {
+      setPickerLoading(false)
+    }
+  }
+
+  return (
+    <>
+      {/* Above the form only — once connected, the Disconnect row replaces
+          the form and the https requirement is no longer actionable
+          information. */}
+      {connectedAs === null && (
+        <p className={`${label} mt-3`}>
+          Requires https. Nabu Casa cloud URLs and reverse-proxied instances work; plain
+          http://homeassistant.local:8123 cannot be granted.
+        </p>
+      )}
+      <TokenConnectForm
+        fields={[
+          {
+            id: 'instanceUrl',
+            label: 'Instance URL',
+            type: 'text',
+            placeholder: 'https://your-home.ui.nabu.casa',
+          },
+          {
+            id: 'token',
+            label: 'Long-lived access token',
+            type: 'password',
+            placeholder: 'eyJ…',
+          },
+        ]}
+        // Synchronous by contract (TokenConnectForm awaits ensureOrigin
+        // FIRST, in the gesture): derived from the instance-url FIELD
+        // VALUE. originPattern itself validates https (and that the value
+        // parses as a URL at all) and throws a clear message on anything
+        // else — the form's own catch turns that into its generic inline
+        // alert, which IS the https-only enforcement surface (no separate
+        // validation step needed here).
+        originsFor={(values) => [originPattern(values.instanceUrl)]}
+        // Runs AFTER the grant. GET {base}/api/config resolves the location
+        // name the config is persisted under; a bad token/instance funnels
+        // its status-bearing message to the form's inline alert with
+        // nothing stored.
+        validate={(values) => whoamiHomeAssistant(values.instanceUrl, values.token)}
+        onConnected={async (values, identity) => {
+          await storage.update('connectors', (prev) => {
+            const prevHa = prev.homeassistant as HomeAssistantConfig | undefined
+            return {
+              ...prev,
+              homeassistant: {
+                enabled: true,
+                instanceUrl: values.instanceUrl,
+                token: values.token,
+                locationName: identity,
+                ...(prevHa?.entities ? { entities: prevHa.entities } : {}),
+                ...(prevHa?.actions ? { actions: prevHa.actions } : {}),
+              },
+            }
+          })
+        }}
+        connectedAs={connectedAs}
+        connectedExtras={
+          <div>
+            <p className="text-xs text-fg-muted">
+              {entities.length === 0 && actions.length === 0
+                ? 'No entities picked yet'
+                : `${entities.length} chips · ${actions.length} actions`}
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleChooseEntities()}
+              disabled={pickerLoading}
+              className={`${btnQuiet} mt-2`}
+            >
+              {pickerLoading ? 'Loading…' : 'Choose entities'}
+            </button>
+            {pickerError && (
+              <p role="alert" className="mt-2 text-xs text-fg-muted">
+                {pickerError}
+              </p>
+            )}
+            <EntityPickerDialog
+              open={pickerOpen}
+              states={pickerStates}
+              entities={entities}
+              actions={actions}
+              onCancel={() => setPickerOpen(false)}
+              onSave={(nextEntities, nextActions) => {
+                setPickerOpen(false)
+                void handleSaveEntities(nextEntities, nextActions)
+              }}
+            />
+          </div>
+        }
+        onDisconnect={async () => {
+          // Compute what's safe to revoke BEFORE clearing the config
+          // (releasableOrigins needs homeassistant's own config present to
+          // derive its origin), then drop the entry and revoke each
+          // released origin — same ordering as GitlabBody's own
+          // onDisconnect (:675-691).
+          const current = await storage.get('connectors')
+          const releasable = releasableOrigins('homeassistant', current)
+          await storage.update('connectors', (prev) => {
+            const next = { ...prev }
+            delete next.homeassistant
+            return next
+          })
+          await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+        }}
+      />
+    </>
   )
 }

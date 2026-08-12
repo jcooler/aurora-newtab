@@ -8,6 +8,7 @@ import { parseBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
 import { CURATED_STATUS } from '../services/connectors/status'
+import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
@@ -89,6 +90,17 @@ vi.mock('../services/connectors/vercel', async (importActual) => {
   return { ...actual, whoamiVercel: vi.fn() }
 })
 import { whoamiVercel } from '../services/connectors/vercel'
+
+// Same treatment for Home Assistant (Task 99/101) — mock ONLY
+// whoamiHomeAssistant (the connect-flow probe) and fetchAllStates (the
+// entity picker's bulk fetch), keep homeassistantDescriptor/haEntitiesOf/
+// haActionsOf real so the registry still registers homeassistant and
+// releasableOrigins (used by onDisconnect below) runs its real path.
+vi.mock('../services/connectors/homeassistant', async (importActual) => {
+  const actual = await importActual<typeof import('../services/connectors/homeassistant')>()
+  return { ...actual, whoamiHomeAssistant: vi.fn(), fetchAllStates: vi.fn() }
+})
+import { whoamiHomeAssistant, fetchAllStates } from '../services/connectors/homeassistant'
 
 // No jest-dom matchers are registered in this project (see vitest.config.ts),
 // so attribute checks go through getAttribute() + toBe() like the rest of the
@@ -1499,10 +1511,10 @@ describe('Connectors tab — search and categories', () => {
     await renderConnectors()
     const region = connectorsRegion()
 
-    // No connector enabled -> no pinned group; Home/Fun have no members yet
-    // -> no eyebrow for either. Exactly the three non-empty categories, IN
-    // CATEGORY_ORDER.
-    expect(eyebrowsIn(region)).toEqual(['Development', 'Calendar & tasks', 'News & markets'])
+    // No connector enabled -> no pinned group; Fun has no members yet -> no
+    // eyebrow for it. Home now has one member (homeassistant, Task 101), so
+    // it joins the other three non-empty categories, IN CATEGORY_ORDER.
+    expect(eyebrowsIn(region)).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
 
     expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
       'GitHub',
@@ -1512,6 +1524,7 @@ describe('Connectors tab — search and categories', () => {
       'Status',
     ])
     expect(cardsUnder(within(region).getByRole('heading', { name: 'Calendar & tasks' }))).toEqual(['Calendar'])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'Home' }))).toEqual(['Home Assistant'])
     expect(cardsUnder(within(region).getByRole('heading', { name: 'News & markets' }))).toEqual(['RSS', 'Crypto'])
   })
 
@@ -1523,7 +1536,7 @@ describe('Connectors tab — search and categories', () => {
     const region = connectorsRegion()
 
     // 'On your board' FIRST, registry order (github before ics).
-    expect(eyebrowsIn(region)).toEqual(['On your board', 'Development', 'News & markets'])
+    expect(eyebrowsIn(region)).toEqual(['On your board', 'Development', 'Home', 'News & markets'])
     expect(cardsUnder(within(region).getByRole('heading', { name: 'On your board' }))).toEqual([
       'GitHub',
       'Calendar',
@@ -1591,7 +1604,7 @@ describe('Connectors tab — search and categories', () => {
     expect(screen.queryByRole('heading', { name: 'Development' })).toBeNull()
 
     fireEvent.change(input, { target: { value: '' } })
-    expect(eyebrowsIn(connectorsRegion())).toEqual(['Development', 'Calendar & tasks', 'News & markets'])
+    expect(eyebrowsIn(connectorsRegion())).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
   })
 
   // Behavior preservation: the exact "connect happy path" assertions from
@@ -3511,6 +3524,329 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'status' } })
     expect(within(connectorsRegion()).getByRole('heading', { name: 'Status' })).toBeTruthy()
   })
+})
+
+// Task 101 (W3-SP5): the card SHELL's identity line now reads
+// `Connected {identityPhrase ?? 'as'} {identity}` instead of a hardcoded
+// "Connected as" — homeassistantDescriptor is the first (and, today, only)
+// descriptor to set identityPhrase: 'to'. These two tests prove the plumbing
+// both ways: HA gets "Connected to", and an unrelated existing card (gitlab)
+// is completely unaffected by the shell change.
+describe('SettingsPanel Connectors section (shell — "Connected to" identityPhrase plumbing, Task 101)', () => {
+  it('renders "Connected to Grand Rapids house" for the Home Assistant card when configured', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      homeassistant: {
+        enabled: true,
+        instanceUrl: 'https://home.example.com',
+        token: 'ha_tok',
+        locationName: 'Grand Rapids house',
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    expect(screen.getAllByText('Connected to Grand Rapids house')).toHaveLength(1)
+  })
+
+  it('gitlab still renders "Connected as jon" (identityPhrase defaults to \'as\')', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      gitlab: { enabled: true, token: 'glpat_x', instanceUrl: 'https://gitlab.com', username: 'jon' },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    expect(screen.getAllByText('Connected as jon')).toHaveLength(1)
+  })
+})
+
+describe('SettingsPanel Connectors section (Home Assistant card — Task 101, connect + entity picker + THE PACT)', () => {
+  beforeEach(() => {
+    vi.mocked(ensureOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(whoamiHomeAssistant).mockReset()
+    vi.mocked(fetchAllStates).mockReset()
+  })
+
+  async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false) {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    if (ha) await storage.set('connectors', { homeassistant: ha })
+    if (seedSnapshot) {
+      await storage.set('connectorSnapshots', {
+        homeassistant: { fetchedAt: Date.now(), data: { entities: [] } },
+      })
+    }
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+    return storage
+  }
+
+  async function readHa(storage: AuroraStorage): Promise<HomeAssistantConfig | undefined> {
+    return (await storage.get('connectors')).homeassistant as HomeAssistantConfig | undefined
+  }
+
+  const KITCHEN_LIGHT: HaState = {
+    id: 'light.kitchen',
+    state: 'on',
+    unit: null,
+    friendlyName: 'Kitchen Light',
+    domain: 'light',
+  }
+  const MOVIE_SCENE: HaState = {
+    id: 'scene.movie_night',
+    state: 'scening',
+    unit: null,
+    friendlyName: 'Movie Night',
+    domain: 'scene',
+  }
+  const OFFICE_SWITCH: HaState = {
+    id: 'switch.office_fan',
+    state: 'on',
+    unit: null,
+    friendlyName: 'Office Fan',
+    domain: 'switch',
+  }
+
+  const CONNECTED_HA: HomeAssistantConfig = {
+    enabled: true,
+    instanceUrl: 'https://home.example.com',
+    token: 'eyJ_tok',
+    locationName: 'Grand Rapids house',
+  }
+
+  it('the card shell renders the Home Assistant descriptor (label, blurb, enable toggle); no chip/form until enabled', async () => {
+    await renderWithHa()
+    expect(screen.getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
+    expect(screen.getByText('Your home, at a glance — and three buttons that do things')).toBeTruthy()
+    expect(screen.getByLabelText('Enable Home Assistant')).toBeTruthy()
+    expect(screen.queryByText(/Connected (to|as)/)).toBeNull()
+    expect(screen.queryByLabelText('Instance URL')).toBeNull()
+  })
+
+  it('the connect form shows both fields and the verbatim https helper text', async () => {
+    await renderWithHa({ enabled: true })
+    expect(screen.getByLabelText('Instance URL')).toBeTruthy()
+    expect(screen.getByLabelText('Long-lived access token')).toBeTruthy()
+    expect(
+      screen.getByText(
+        'Requires https. Nabu Casa cloud URLs and reverse-proxied instances work; plain http://homeassistant.local:8123 cannot be granted.',
+      ),
+    ).toBeTruthy()
+  })
+
+  it('connect happy path: ensureOrigin (derived from the instance URL) -> whoami -> persists { enabled, instanceUrl, token, locationName }', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
+    const storage = await renderWithHa({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), { target: { value: 'https://home.example.com' } })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), { target: { value: 'eyJ_tok' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).toHaveBeenCalledWith('https://home.example.com/*')
+    expect(whoamiHomeAssistant).toHaveBeenCalledWith('https://home.example.com', 'eyJ_tok')
+    expect(await readHa(storage)).toEqual({
+      enabled: true,
+      instanceUrl: 'https://home.example.com',
+      token: 'eyJ_tok',
+      locationName: 'Grand Rapids house',
+    })
+  })
+
+  it('a non-https instance URL blocks the connect with an inline alert: no permission requested, nothing stored', async () => {
+    const storage = await renderWithHa({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'http://homeassistant.local:8123' },
+      })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), { target: { value: 'eyJ_tok' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect(whoamiHomeAssistant).not.toHaveBeenCalled()
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBeTruthy()
+    expect((await readHa(storage))?.token).toBeUndefined()
+  })
+
+  it('reconnecting preserves pre-existing entities/actions', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
+    const seededEntities: HaEntityRef[] = [{ id: 'light.kitchen', name: 'Kitchen Light' }]
+    const seededActions: HaAction[] = [{ id: 'scene.movie_night', name: 'Movie Night', domain: 'scene' }]
+    const storage = await renderWithHa({
+      enabled: true,
+      instanceUrl: 'https://home.example.com',
+      token: '',
+      locationName: 'Grand Rapids house',
+      entities: seededEntities,
+      actions: seededActions,
+    })
+    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), { target: { value: 'eyJ_new' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    const stored = await readHa(storage)
+    expect(stored?.entities).toEqual(seededEntities)
+    expect(stored?.actions).toEqual(seededActions)
+  })
+
+  it('connected state renders "Connected to {location}" + "No entities picked yet" + a Choose entities button', async () => {
+    await renderWithHa(CONNECTED_HA)
+    expect(screen.getAllByText('Connected to Grand Rapids house')).toHaveLength(1)
+    expect(screen.getByText('No entities picked yet')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
+  })
+
+  it('an already-picked config shows the "N chips · M actions" summary line, not the empty-state copy', async () => {
+    await renderWithHa({
+      ...CONNECTED_HA,
+      entities: [{ id: 'light.kitchen', name: 'Kitchen Light' }],
+      actions: [],
+    })
+    expect(screen.getByText('1 chips · 0 actions')).toBeTruthy()
+  })
+
+  it('Choose entities fetches first: the button reads "Loading…" and is disabled while the fetch is in flight; the dialog opens only on arrival', async () => {
+    let resolveFetch!: (v: HaState[] | null) => void
+    vi.mocked(fetchAllStates).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    await renderWithHa(CONNECTED_HA)
+
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: 'Choose entities' }))
+    })
+
+    const loadingBtn = screen.getByRole('button', { name: 'Loading…' }) as HTMLButtonElement
+    expect(loadingBtn.disabled).toBe(true)
+    expect(screen.queryByRole('dialog', { name: 'Pick entities' })).toBeNull()
+
+    await act(async () => {
+      resolveFetch([KITCHEN_LIGHT])
+    })
+
+    expect(fetchAllStates).toHaveBeenCalledWith('https://home.example.com', 'eyJ_tok')
+    expect(screen.getByRole('dialog', { name: 'Pick entities' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
+  })
+
+  it('a failed fetch (null) shows the inline alert verbatim and does NOT open the dialog', async () => {
+    vi.mocked(fetchAllStates).mockResolvedValue(null)
+    await renderWithHa(CONNECTED_HA)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Choose entities' }))
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe("Couldn't reach your instance. Check the URL and token, then try again.")
+    expect(screen.queryByRole('dialog', { name: 'Pick entities' })).toBeNull()
+  })
+
+  it('THE PACT: picking entities in the dialog persists entities+actions AND clears connectorSnapshots.homeassistant, and the summary line updates', async () => {
+    vi.mocked(fetchAllStates).mockResolvedValue([KITCHEN_LIGHT, MOVIE_SCENE, OFFICE_SWITCH])
+    const storage = await renderWithHa(CONNECTED_HA, true)
+    expect((await storage.get('connectorSnapshots')).homeassistant).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Choose entities' }))
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Kitchen Light' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Movie Night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Office Fan' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Movie Night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Office Fan' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    const stored = await readHa(storage)
+    expect(stored?.entities).toEqual([
+      { id: 'light.kitchen', name: 'Kitchen Light' },
+      { id: 'scene.movie_night', name: 'Movie Night' },
+      { id: 'switch.office_fan', name: 'Office Fan' },
+    ])
+    expect(stored?.actions).toEqual([
+      { id: 'scene.movie_night', name: 'Movie Night', domain: 'scene' },
+      { id: 'switch.office_fan', name: 'Office Fan', domain: 'switch' },
+    ])
+    expect((await storage.get('connectorSnapshots')).homeassistant).toBeUndefined()
+    expect(screen.getByText('3 chips · 2 actions')).toBeTruthy()
+  })
+
+  it('disconnecting revokes the instance origin (no other connector sharing it) and drops the config', async () => {
+    const storage = await renderWithHa(CONNECTED_HA)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(removeOrigin).toHaveBeenCalledWith('https://home.example.com/*')
+    expect(await readHa(storage)).toBeUndefined()
+  })
+
+  it('disconnecting does NOT revoke the instance origin when another enabled connector still shares it', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      homeassistant: CONNECTED_HA,
+      status: { enabled: true, services: [{ name: 'Home', url: 'https://home.example.com/status.json' }] },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await storage.get('connectors')).homeassistant).toBeUndefined()
+  })
+
+  it('sits in the Home category in the drawer', async () => {
+    await renderWithHa()
+    const region = connectorsRegion()
+    const homeHeading = within(region).getByRole('heading', { name: 'Home' })
+    expect(within(homeHeading.parentElement as HTMLElement).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
+  })
+
+  function connectorsRegion() {
+    return screen.getByRole('region', { name: 'Connectors' })
+  }
 })
 
 // Pure unit tests of the extracted auth-state helper — exported from
