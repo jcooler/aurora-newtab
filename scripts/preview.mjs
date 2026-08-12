@@ -6989,6 +6989,485 @@ function gitlabContributionsFixture() {
   )
 }
 
+// Home Assistant widget (homeassistant connector) — Task 103's own
+// browser-real proof of Tasks 99-102: the chip row's exact copy, the
+// three-button service-call tint (including its per-button isolation and its
+// auto-clear), and the anti-staleness null-entities gate. Modeled on the
+// crypto/status blocks' own seed -> assert -> restore shape, not on status's
+// own TWO-block split (widget band, then drawer): homeassistant has no
+// shared "band" of its own (it flows in col1's own stack — App.tsx's own
+// homeassistant PositionedBlock comment — not the bottom band status/crypto
+// share), so this stays ONE block; the drawer probes get their OWN dedicated
+// block right after this one, still modeled on status's Block B idiom.
+//
+// `tallest` (index.css, >=1042h — the SAME tier status's own trouble text
+// already uses, App.tsx's own homeassistant comment) is this card's whole CSS
+// height gate — invisible at Jon's canonical 1600x900 — so this block sizes
+// UP FIRST (crypto's/status's own idiom) to 1600x1100 for every probe below,
+// comfortably clear of 1042, and restores the launch viewport after.
+{
+  const haSel = '[data-block-id="homeassistant"] section[aria-label="Home Assistant"]'
+  const HA_INSTANCE_URL = 'https://ha.example.com'
+  const HA_TOKEN = 'ha_pat_preview'
+  const HA_LOCATION = 'Grand Rapids house'
+  // MAX_CHIP_ENTITIES=6 / MAX_ACTIONS=3 (homeassistant.ts) — this widget's
+  // own true display max, the house's "always seed display max" discipline
+  // every connector fixture in this file follows. 'Kitchen 21.5°C' is the
+  // brief's own pinned exact-copy example (the unit rides the state with NO
+  // space); 'Porch light on'/'Front door off'/'Thermostat heat' prove the
+  // null-unit case in the SAME fixture, and 'Humidity 48%'/'CO2 612ppm' cover
+  // two more no-space units beyond °C.
+  const HA_ENTITY_REFS = [
+    { id: 'sensor.kitchen_temp', name: 'Kitchen' },
+    { id: 'light.porch', name: 'Porch light' },
+    { id: 'binary_sensor.front_door', name: 'Front door' },
+    { id: 'sensor.humidity', name: 'Humidity' },
+    { id: 'climate.thermostat', name: 'Thermostat' },
+    { id: 'sensor.co2', name: 'CO2' },
+  ]
+  const HA_ACTIONS = [
+    { id: 'scene.movie_night', name: 'Movie night', domain: 'scene' },
+    { id: 'script.good_morning', name: 'Good morning', domain: 'script' },
+    { id: 'switch.porch_plug', name: 'Porch plug', domain: 'switch' },
+  ]
+  const HA_STATES = [
+    { id: 'sensor.kitchen_temp', state: '21.5', unit: '°C', friendlyName: 'Kitchen', domain: 'sensor' },
+    { id: 'light.porch', state: 'on', unit: null, friendlyName: 'Porch light', domain: 'light' },
+    { id: 'binary_sensor.front_door', state: 'off', unit: null, friendlyName: 'Front door', domain: 'binary_sensor' },
+    { id: 'sensor.humidity', state: '48', unit: '%', friendlyName: 'Humidity', domain: 'sensor' },
+    { id: 'climate.thermostat', state: 'heat', unit: null, friendlyName: 'Thermostat', domain: 'climate' },
+    { id: 'sensor.co2', state: '612', unit: 'ppm', friendlyName: 'CO2', domain: 'sensor' },
+  ]
+  const EXPECTED_CHIPS = ['Kitchen 21.5°C', 'Porch light on', 'Front door off', 'Humidity 48%', 'Thermostat heat', 'CO2 612ppm']
+
+  await page.setViewportSize({ width: 1600, height: 1100 })
+  await page.evaluate(
+    async ({ instanceUrl, token, locationName, entities, actions, states }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, homeassistant: { enabled: true, instanceUrl, token, locationName, entities, actions } },
+        connectorSnapshots: { homeassistant: { fetchedAt: Date.now(), data: { entities: states } } },
+      })
+    },
+    { instanceUrl: HA_INSTANCE_URL, token: HA_TOKEN, locationName: HA_LOCATION, entities: HA_ENTITY_REFS, actions: HA_ACTIONS, states: HA_STATES },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800) // photo fade-in
+  await page.waitForSelector(haSel, { timeout: 5000 }).catch(() => {})
+
+  // ── chip row: exact copy, w-80, li.text-photo ──────────────────────────
+  const widget = await page.evaluate((s) => {
+    const sec = document.querySelector(s)
+    if (!sec) return null
+    const chips = [...sec.querySelectorAll('li.text-photo')]
+    const buttons = [...sec.querySelectorAll('button')]
+    return {
+      className: sec.className,
+      chipTexts: chips.map((li) => li.textContent),
+      buttonLabels: buttons.map((b) => b.getAttribute('aria-label')),
+      buttonTexts: buttons.map((b) => b.textContent?.trim()),
+      buttonClasses: buttons.map((b) => b.className),
+    }
+  }, haSel)
+
+  const chipsOk =
+    widget !== null && widget.className.includes('w-80') && JSON.stringify(widget.chipTexts) === JSON.stringify(EXPECTED_CHIPS)
+  console.log(
+    chipsOk
+      ? `PASS: the Home Assistant widget renders its own w-80 section with EXACT chip copy — ${JSON.stringify(widget.chipTexts)} (unit rides the state with no space; 'Porch light on'/'Front door off'/'Thermostat heat' prove the null-unit case)`
+      : `FAIL: Home Assistant chip row (${JSON.stringify(widget)})`,
+  )
+
+  const EXPECTED_BUTTON_LABELS = ['Run Movie night', 'Run Good morning', 'Run Porch plug']
+  const EXPECTED_BUTTON_TEXTS = ['Movie night', 'Good morning', 'Porch plug']
+  const buttonsOk =
+    widget !== null &&
+    JSON.stringify(widget.buttonLabels) === JSON.stringify(EXPECTED_BUTTON_LABELS) &&
+    JSON.stringify(widget.buttonTexts) === JSON.stringify(EXPECTED_BUTTON_TEXTS) &&
+    widget.buttonClasses.every((c) => c.includes('hover:brightness-110') && c.includes('text-fg') && !c.includes('text-red-400'))
+  console.log(
+    buttonsOk
+      ? `PASS: the three action buttons render aria-label="Run {name}" with visible text {name} (${JSON.stringify(widget.buttonLabels)}), every one idle-tinted (text-fg, hover:brightness-110 — BTN_TINT.idle, HomeAssistantWidget.tsx)`
+      : `FAIL: Home Assistant action buttons (labels=${JSON.stringify(widget?.buttonLabels)}, texts=${JSON.stringify(widget?.buttonTexts)}, classes=${JSON.stringify(widget?.buttonClasses)})`,
+  )
+
+  await page.screenshot({ path: `${outDir}/ha-card.png` })
+  console.log('captured ha-card.png (1600x1100 — the honest boundary for a `tallest`-gated card, same idiom as status-strip-dots-900.png\'s own note)')
+
+  // ── REAL click: per-button error tint, then auto-clear ─────────────────
+  // 'Porch plug' (switch domain -> switch.toggle) is the target; 'Movie
+  // night'/'Good morning' are the SIBLINGS this probe proves stay untouched —
+  // per-button state, not a shared one (Task 102 review-verified property,
+  // brief-pinned as worth its own assertion). The POST fails naturally
+  // headless: HA_INSTANCE_URL was seeded directly (THE FIXTURE LAW), never
+  // granted through a real chrome.permissions gesture, so callHaService's own
+  // try/catch (homeassistant.ts) resolves false — no live instance, no
+  // network stub, nothing faked. Polls rather than guessing a fixed wait: the
+  // failure's own timing is honestly unpredictable (a fast CORS/permission
+  // block, or the full 8s FETCH_TIMEOUT_MS abort — http.ts), and each poll
+  // snapshots the TWO siblings' tint at the SAME instant the target actually
+  // shows error, so the isolation claim below is checked at the moment that
+  // matters, not some other one.
+  const runBtnSel = (name) => `${haSel} button[aria-label="Run ${name}"]`
+  const isError = (c) => !!c && c.includes('text-red-400') && !c.includes('hover:brightness-110')
+  const isIdle = (c) => !!c && c.includes('text-fg') && c.includes('hover:brightness-110') && !c.includes('text-red-400')
+  const classesOf = async () =>
+    page.evaluate(
+      (sels) => sels.map((s) => document.querySelector(s)?.className ?? null),
+      [runBtnSel('Porch plug'), runBtnSel('Movie night'), runBtnSel('Good morning')],
+    )
+
+  await page.click(runBtnSel('Porch plug'))
+  let errorSeenAt = null
+  let siblingsAtError = null
+  for (let i = 0; i < 40; i++) { // up to ~10s (40 * 250ms) — comfortably past the 8s abort
+    const [target, sib1, sib2] = await classesOf()
+    if (isError(target)) {
+      errorSeenAt = Date.now()
+      siblingsAtError = [sib1, sib2]
+      break
+    }
+    await page.waitForTimeout(250)
+  }
+  const errorFoundOk = errorSeenAt !== null
+  console.log(
+    errorFoundOk
+      ? 'PASS: a REAL click on "Run Porch plug" against the ungranted/unreachable seeded instance turns its OWN tint to error (BTN_TINT.error — text-red-400, no hover:brightness-110)'
+      : 'FAIL: "Run Porch plug" never showed the error tint within the ~10s poll window',
+  )
+  const siblingsIdleOk = errorFoundOk && isIdle(siblingsAtError[0]) && isIdle(siblingsAtError[1])
+  console.log(
+    siblingsIdleOk
+      ? 'PASS: per-button isolation — Movie night/Good morning stayed idle-tinted (BTN_TINT.idle) at the exact instant Porch plug showed error, proving the tint is per-button state, not shared'
+      : `FAIL: per-button isolation at the error instant (siblings=${JSON.stringify(siblingsAtError)})`,
+  )
+
+  // Auto-clear: ERROR_TINT_MS=1200 (HomeAssistantWidget.tsx) — polled from the
+  // moment error was OBSERVED (not the click), a bounded window with real
+  // margin over the pinned 1200ms.
+  let clearedAt = null
+  if (errorFoundOk) {
+    for (let i = 0; i < 12; i++) { // up to ~3s
+      const [target] = await classesOf()
+      if (isIdle(target)) {
+        clearedAt = Date.now()
+        break
+      }
+      await page.waitForTimeout(250)
+    }
+  }
+  const autoClearOk = errorFoundOk && clearedAt !== null
+  console.log(
+    autoClearOk
+      ? `PASS: the error tint auto-clears back to idle ${clearedAt - errorSeenAt}ms after it was observed — within the pinned 1200ms window plus real polling margin`
+      : `FAIL: error tint auto-clear (errorSeenAt=${errorSeenAt}, clearedAt=${clearedAt})`,
+  )
+
+  // ── anti-staleness, all-or-nothing: entities:null hides the WHOLE section ─
+  // Plan-pinned ruling 2 (homeassistant.ts's own header comment): a failed
+  // poll must never leave the action buttons rendered while only the chips
+  // vanish (a dead instance turning every press into a guaranteed error
+  // tint) — both hide together. Config stays connected+picked (the SAME
+  // fixture as above); only the SNAPSHOT flips, live (no reload — the
+  // storage.subscribe path every connector widget in this file already
+  // relies on for a live snapshot change, e.g. the ics "Meeting links"
+  // toggle probe).
+  await page.evaluate(async () => {
+    const { connectorSnapshots } = await chrome.storage.local.get('connectorSnapshots')
+    await chrome.storage.local.set({
+      connectorSnapshots: { ...connectorSnapshots, homeassistant: { fetchedAt: Date.now(), data: { entities: null } } },
+    })
+  })
+  await page.waitForTimeout(300)
+  const staleGone = (await page.locator(haSel).count()) === 0
+  console.log(
+    staleGone
+      ? 'PASS: entities:null (a failed poll) hides the WHOLE section — chips AND buttons together, anti-staleness all-or-nothing (plan-pinned ruling 2)'
+      : 'FAIL: entities:null should hide the whole Home Assistant section (chips AND buttons together)',
+  )
+
+  // Restore: FULLY cleared (not just disabled) — status's own restore idiom
+  // ("Fully cleared, not just disabled — the settings block right after this
+  // one wants a genuinely EMPTY status connector"): the drawer block right
+  // after this one re-toggles the connector back ON to test the DISCONNECTED
+  // form, and a mere `enabled: false` would leave instanceUrl/token/
+  // locationName/entities/actions all still present — re-enabling would land
+  // straight back in the CONNECTED branch instead of the disconnected form
+  // this block's own probes never needed to reach.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, homeassistant: { enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  const haGone = (await page.locator(haSel).count()) === 0
+  console.log(
+    haGone
+      ? 'Home Assistant connector disabled; page restored to idle'
+      : 'WARNING: Home Assistant widget still present after disabling the connector',
+  )
+}
+
+// Home Assistant settings probes — Task 103's own drawer-real proof, modeled
+// on status's own Block B (search "Status settings probes" above): catalog
+// search finds it by fuzzy fragment, the connect gesture is ceilinged like
+// every token connector (seeded directly, THE FIXTURE LAW, never driven
+// through a real chrome.permissions prompt this harness structurally cannot
+// click through — see status's own GESTURE QUESTION block for the platform
+// ceiling this reuses without re-proving it), and the connected card's own
+// DOM contract (Connected to {location}, the picked-summary line, Choose
+// entities) is asserted for real, including a REAL click through the
+// button's own natural failure path. A fresh, self-contained open/read/close
+// cycle, isolated from the widget block above and everything below.
+//
+// RULING (plan-pinned): the entity picker's own browser-real behaviors
+// (search, caps, grouping) are unit-tested (Task 100, EntityPickerDialog.test.tsx)
+// — this harness cannot fetch REAL /api/states headless without stubbing the
+// page's own network, which THE FIXTURE LAW forbids (no precedent anywhere in
+// this file). So this block asserts existence/enabled/summary only, and logs
+// ONE SKIP naming the headed spot-check owed: opening the real picker against
+// a live instance.
+{
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400) // slide-in
+  await openSettingsTab('Connectors')
+
+  // Probe 1 — catalog fuzzy search: 'hoas' is a case-insensitive SUBSEQUENCE
+  // of "Home Assistant" (h-o...a-s, contiguous inside its OWN label — the
+  // fuzzyScore run this file's own script confirmed scores 14, well above
+  // any other connector's own label+blurb — RSS and GitHub both score a
+  // weaker 6 off their blurb text alone). The claim here is therefore
+  // "ranked first", not "the only result" (unlike the 'git' probe further
+  // down, which happens to be exclusive to GitHub/GitLab).
+  await page.click('#connector-search')
+  await page.keyboard.type('hoas')
+  await page.waitForTimeout(150)
+  const haSearch = await page.evaluate(() => {
+    const scroll = document.querySelector('[data-testid="connector-scroll"]')
+    return scroll ? [...scroll.querySelectorAll('h4')].map((h) => h.textContent?.trim()) : []
+  })
+  const haSearchOk = haSearch[0] === 'Home Assistant'
+  console.log(
+    haSearchOk
+      ? `PASS: typing "hoas" via real keystrokes ranks Home Assistant first (${JSON.stringify(haSearch)})`
+      : `FAIL: catalog search "hoas" (${JSON.stringify(haSearch)})`,
+  )
+  await page.keyboard.press('Control+a')
+  await page.keyboard.press('Backspace')
+  await page.waitForTimeout(150)
+
+  // Enable the connector — a plain toggle, no permission gesture rides on it
+  // (Connectors.tsx's own doc comment on the Switch) — renders the
+  // DISCONNECTED form.
+  await page.click('#connector-homeassistant-enabled')
+  await page.waitForTimeout(150)
+  const haCardSel = '.rounded-xl:has(#connector-homeassistant-enabled)'
+  await page.waitForSelector(haCardSel)
+
+  // Probe 2 — the DISCONNECTED form's own DOM contract (Task 101-102's
+  // pinned copy, verbatim): the https-only helper text (disconnected only —
+  // Connectors.tsx's own comment says it's dropped once connected), and the
+  // two sr-only-labelled fields TokenConnectForm renders (a `useId()`-
+  // prefixed id, so found by <label> text + placeholder, not a static id).
+  const HELPER_TEXT =
+    'Requires https. Nabu Casa cloud URLs and reverse-proxied instances work; plain http://homeassistant.local:8123 cannot be granted.'
+  const disconnectedForm = await page.evaluate((sel) => {
+    const card = document.querySelector(sel)
+    if (!card) return null
+    const labels = [...card.querySelectorAll('label')].map((l) => l.textContent?.trim())
+    const helper = [...card.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Requires https.'))
+    const urlInput = card.querySelector('input[placeholder="https://your-home.ui.nabu.casa"]')
+    const tokenInput = card.querySelector('input[placeholder="eyJ…"]')
+    return {
+      hasInstanceUrlLabel: labels.includes('Instance URL'),
+      hasTokenLabel: labels.includes('Long-lived access token'),
+      helperText: helper?.textContent ?? null,
+      urlInputType: urlInput?.getAttribute('type') ?? null,
+      tokenInputType: tokenInput?.getAttribute('type') ?? null,
+    }
+  }, haCardSel)
+  const disconnectedOk =
+    disconnectedForm?.hasInstanceUrlLabel === true &&
+    disconnectedForm?.hasTokenLabel === true &&
+    disconnectedForm?.helperText === HELPER_TEXT &&
+    disconnectedForm?.urlInputType === 'text' &&
+    disconnectedForm?.tokenInputType === 'password'
+  console.log(
+    disconnectedOk
+      ? 'PASS: the disconnected card renders the https helper text verbatim, plus both labelled fields (Instance URL / Long-lived access token) with the pinned placeholders'
+      : `FAIL: disconnected card DOM contract (${JSON.stringify(disconnectedForm)})`,
+  )
+
+  // Probe 3 — the connect gesture is CEILINGED like every token connector
+  // (this file's own bookmarks/status precedent: a native chrome.permissions
+  // prompt is a browser-chrome surface no automation here can click through)
+  // — THE FIXTURE LAW (:6276-6283) says seed the post-grant state directly
+  // rather than drive the real form. TWO stages on the SAME seeded config:
+  // connected with NOTHING picked (the 'No entities picked yet' summary
+  // variant), then connected WITH a full display-max pick (6 chips/3
+  // actions — the SAME fixture the widget block above renders, reused in
+  // content, not imported) — proving BOTH summary-line variants for real.
+  const HA_INSTANCE_URL = 'https://home.example.com'
+  const HA_TOKEN = 'ha_pat_preview'
+  const HA_LOCATION = 'Grand Rapids house'
+  const HA_ENTITIES = [
+    { id: 'sensor.kitchen_temp', name: 'Kitchen' },
+    { id: 'light.porch', name: 'Porch light' },
+    { id: 'binary_sensor.front_door', name: 'Front door' },
+    { id: 'sensor.humidity', name: 'Humidity' },
+    { id: 'climate.thermostat', name: 'Thermostat' },
+    { id: 'sensor.co2', name: 'CO2' },
+  ]
+  const HA_ACTIONS = [
+    { id: 'scene.movie_night', name: 'Movie night', domain: 'scene' },
+    { id: 'script.good_morning', name: 'Good morning', domain: 'script' },
+    { id: 'switch.porch_plug', name: 'Porch plug', domain: 'switch' },
+  ]
+
+  await page.evaluate(
+    async ({ instanceUrl, token, locationName }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, homeassistant: { enabled: true, instanceUrl, token, locationName, entities: [], actions: [] } },
+      })
+    },
+    { instanceUrl: HA_INSTANCE_URL, token: HA_TOKEN, locationName: HA_LOCATION },
+  )
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  await page.click('button[aria-label="Open settings"]')
+  await page.waitForSelector('[role="dialog"][aria-label="Settings"]')
+  await page.waitForTimeout(400)
+  await openSettingsTab('Connectors')
+  await page.waitForSelector(haCardSel)
+
+  const readCard = () =>
+    page.evaluate((sel) => {
+      const card = document.querySelector(sel)
+      if (!card) return null
+      const connectedLine = [...card.querySelectorAll('p')].find((p) => p.textContent?.startsWith('Connected to'))
+      const summary = [...card.querySelectorAll('p')].find(
+        (p) => p.textContent === 'No entities picked yet' || p.textContent?.includes('chips'),
+      )
+      const btn = [...card.querySelectorAll('button')].find(
+        (b) => b.textContent?.trim() === 'Choose entities' || b.textContent?.trim() === 'Loading…',
+      )
+      return {
+        connectedText: connectedLine?.textContent ?? null,
+        summaryText: summary?.textContent ?? null,
+        btnText: btn?.textContent?.trim() ?? null,
+        btnDisabled: btn?.disabled ?? null,
+      }
+    }, haCardSel)
+
+  const connectedEmpty = await readCard()
+  const connectedEmptyOk =
+    connectedEmpty?.connectedText === `Connected to ${HA_LOCATION}` &&
+    connectedEmpty?.summaryText === 'No entities picked yet' &&
+    connectedEmpty?.btnText === 'Choose entities' &&
+    connectedEmpty?.btnDisabled === false
+  console.log(
+    connectedEmptyOk
+      ? `PASS: seeded connected (nothing picked) renders "Connected to ${HA_LOCATION}" (the card shell's identityPhrase:'to' line), "No entities picked yet", and an enabled "Choose entities" button`
+      : `FAIL: connected-empty card DOM contract (${JSON.stringify(connectedEmpty)})`,
+  )
+
+  await page.evaluate(
+    async ({ entities, actions }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await chrome.storage.local.set({
+        connectors: { ...connectors, homeassistant: { ...connectors.homeassistant, entities, actions } },
+      })
+    },
+    { entities: HA_ENTITIES, actions: HA_ACTIONS },
+  )
+  await page.waitForTimeout(250) // storage.onChanged -> re-render, no reload (THE PACT idiom)
+
+  const connectedPicked = await readCard()
+  const connectedPickedOk =
+    connectedPicked?.summaryText === '6 chips · 3 actions' &&
+    connectedPicked?.btnText === 'Choose entities' &&
+    connectedPicked?.btnDisabled === false
+  console.log(
+    connectedPickedOk
+      ? `PASS: the picked-summary line matches the seeded refs exactly ("${connectedPicked?.summaryText}"), Choose entities stays enabled`
+      : `FAIL: picked-summary line (${JSON.stringify(connectedPicked)})`,
+  )
+
+  // Probe 4 — the "Choose entities" gesture, driven for REAL: fetch-first,
+  // open-on-arrival (Connectors.tsx's own HomeAssistantBody doc comment). The
+  // seeded instanceUrl above was never granted through a real permission
+  // gesture (seeded directly, same reasoning as Probe 3), so fetchAllStates's
+  // own GET fails naturally headless — the SAME "ungranted origin" reasoning
+  // the widget block above leans on for its action-button click. Proves the
+  // failure alert's exact copy AND that the button settles back to enabled
+  // (never stuck on "Loading…"), without needing a live HA instance or
+  // stubbing the page's own network.
+  await page.click(`${haCardSel} button:has-text("Choose entities")`)
+  await page.waitForSelector(`${haCardSel} [role="alert"]`, { timeout: 12_000 }).catch(() => {})
+  const afterClick = await page.evaluate((sel) => {
+    const card = document.querySelector(sel)
+    if (!card) return null
+    const alert = card.querySelector('[role="alert"]')
+    const btn = [...card.querySelectorAll('button')].find(
+      (b) => b.textContent?.trim() === 'Choose entities' || b.textContent?.trim() === 'Loading…',
+    )
+    const dialog = document.querySelector('[role="dialog"][aria-label="Pick entities"]')
+    return {
+      alertText: alert?.textContent ?? null,
+      btnText: btn?.textContent?.trim() ?? null,
+      btnDisabled: btn?.disabled ?? null,
+      dialogOpened: !!dialog,
+    }
+  }, haCardSel)
+  const FAIL_TEXT = "Couldn't reach your instance. Check the URL and token, then try again."
+  const failureOk =
+    afterClick?.alertText === FAIL_TEXT &&
+    afterClick?.btnText === 'Choose entities' &&
+    afterClick?.btnDisabled === false &&
+    afterClick?.dialogOpened === false
+  console.log(
+    failureOk
+      ? `PASS: a REAL click on "Choose entities" against the seeded (ungranted-origin) instance fails naturally — the exact failure alert renders ("${FAIL_TEXT}"), the button settles back to enabled "Choose entities" (never stuck on "Loading…"), and the entity picker dialog never opens`
+      : `FAIL: real "Choose entities" click against an ungranted origin (${JSON.stringify(afterClick)})`,
+  )
+
+  console.log(
+    'SKIP: opening the real entity picker (search / caps / grouping) against a LIVE Home Assistant instance — those browser-real behaviors are already unit-tested (Task 100, EntityPickerDialog.test.tsx); this harness cannot fetch real /api/states headless without stubbing the page\'s own network, which THE FIXTURE LAW forbids — a headed spot-check against a real instance is owed.',
+  )
+
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(400) // slide-out
+
+  // Restore: FULLY cleared (not just disabled) — same status precedent this
+  // block's own widget-block sibling above now follows, so nothing leaks
+  // stale instanceUrl/token/entities/actions into whatever runs next.
+  await page.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, homeassistant: { enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+  const haWidgetGone = (await page.locator('[data-block-id="homeassistant"] section[aria-label="Home Assistant"]').count()) === 0
+  console.log(
+    haWidgetGone
+      ? 'Home Assistant connector disabled; page restored to idle'
+      : 'WARNING: Home Assistant widget still present after disabling the connector',
+  )
+}
+
 // Calendar widget (ics connector) — Task 5's own fixture-law sweep
 // (ics-multi-calendar wave). The widget grew from Task 54's single feed
 // (1 next-line + 2 agenda-row cap) into up to MAX_CALENDARS (5, Connectors.tsx)
@@ -8285,8 +8764,119 @@ function gitlabContributionsFixture() {
       : `FAIL: vercel clears the Notes pill by >=${FLOOR}px once revealed at the left column's true combined worst case (${JSON.stringify(rows)})`,
   )
 
-  // Restore: disable all three, clear the seeded snapshots, viewport back to
-  // launch — same restore discipline as every block above.
+  // TASK 103 EXTENSION — homeassistant joins THIS SAME seeded scope (never
+  // reset since the block's own seed above) as col1's newest, FOURTH member
+  // (App.tsx's own order: ics -> rss -> vercel -> homeassistant). It needs
+  // `tallest` (index.css, >=1042h) to render at all — well past every height
+  // already swept above (900/865/995 — 995 < 1042, so it stayed hidden
+  // there too) — so this measures the REAL joint worst case separately, at
+  // 1600x1100 (comfortably clear of 1042, the same "size up first" margin
+  // every other taller/tallest probe in this file uses), seeded at its own
+  // true display max (MAX_CHIP_ENTITIES=6/MAX_ACTIONS=3 — the SAME fixture
+  // content the dedicated homeassistant widget block above renders, reused
+  // in content, not imported — page.evaluate runs in the browser, not this
+  // Node process).
+  //
+  // This is a JOINTLY WORSE composition than App.tsx's own homeassistant
+  // PositionedBlock comment assumed when it picked `tallest` as
+  // homeassistant's own reveal tier: that comment's col1 arithmetic
+  // deliberately used vercel's DEFAULT views (deployments only, no
+  // statusSummary), reasoning that statusSummary's own `roomy` gate (995h)
+  // keeps it out of Jon's canonical 1600x900 composition — but 995 <= 1042,
+  // so at a genuinely tall viewport (this probe's own 1100h) BOTH reveal at
+  // once, a combination never measured until now. Probed here, deliberately
+  // NOT at the pre-existing 865h dense fencepost above (chip
+  // task_5451d1e5: a known, OUT-OF-SCOPE 1px vercel/Notes overlap there — a
+  // DIFFERENT scenario, vercel's DEFAULT views, not this block's own
+  // statusSummary-on seed — this probe simply never goes near 865h).
+  const HA_ENTITY_REFS = [
+    { id: 'sensor.kitchen_temp', name: 'Kitchen' },
+    { id: 'light.porch', name: 'Porch light' },
+    { id: 'binary_sensor.front_door', name: 'Front door' },
+    { id: 'sensor.humidity', name: 'Humidity' },
+    { id: 'climate.thermostat', name: 'Thermostat' },
+    { id: 'sensor.co2', name: 'CO2' },
+  ]
+  const HA_ACTIONS = [
+    { id: 'scene.movie_night', name: 'Movie night', domain: 'scene' },
+    { id: 'script.good_morning', name: 'Good morning', domain: 'script' },
+    { id: 'switch.porch_plug', name: 'Porch plug', domain: 'switch' },
+  ]
+  const HA_STATES = [
+    { id: 'sensor.kitchen_temp', state: '21.5', unit: '°C', friendlyName: 'Kitchen', domain: 'sensor' },
+    { id: 'light.porch', state: 'on', unit: null, friendlyName: 'Porch light', domain: 'light' },
+    { id: 'binary_sensor.front_door', state: 'off', unit: null, friendlyName: 'Front door', domain: 'binary_sensor' },
+    { id: 'sensor.humidity', state: '48', unit: '%', friendlyName: 'Humidity', domain: 'sensor' },
+    { id: 'climate.thermostat', state: 'heat', unit: null, friendlyName: 'Thermostat', domain: 'climate' },
+    { id: 'sensor.co2', state: '612', unit: 'ppm', friendlyName: 'CO2', domain: 'sensor' },
+  ]
+  await page.evaluate(
+    async ({ entities, actions, states }) => {
+      const { connectors, connectorSnapshots } = await chrome.storage.local.get(['connectors', 'connectorSnapshots'])
+      await chrome.storage.local.set({
+        connectors: {
+          ...connectors,
+          homeassistant: {
+            enabled: true,
+            instanceUrl: 'https://leftcol.example.com',
+            token: 'ha_pat_preview',
+            locationName: 'Left column house',
+            entities,
+            actions,
+          },
+        },
+        connectorSnapshots: {
+          ...connectorSnapshots,
+          homeassistant: { fetchedAt: Date.now(), data: { entities: states } },
+        },
+      })
+    },
+    { entities: HA_ENTITY_REFS, actions: HA_ACTIONS, states: HA_STATES },
+  )
+  await page.setViewportSize({ width: 1600, height: 1100 })
+  await page.waitForTimeout(400)
+  const haSel = '[data-block-id="homeassistant"] section[aria-label="Home Assistant"]'
+  const m1100 = await page.evaluate(
+    ({ icsSelector, rssSelector, vercelSelector, haSelector }) => {
+      const box = (s) => {
+        const el = document.querySelector(s)
+        if (!el) return null
+        const b = el.getBoundingClientRect()
+        if (b.width === 0 && b.height === 0) return null
+        return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1) }
+      }
+      const notes = document.querySelector('[data-block-id="notes"] button')
+      return {
+        ics: box(icsSelector),
+        rss: box(rssSelector),
+        vercel: box(vercelSelector),
+        homeassistant: box(haSelector),
+        notes: notes ? { top: +notes.getBoundingClientRect().top.toFixed(1) } : null,
+      }
+    },
+    { icsSelector: icsSel, rssSelector: rssSel, vercelSelector: vercelSel, haSelector: haSel },
+  )
+  const vercelHaGap = m1100.vercel && m1100.homeassistant ? +(m1100.homeassistant.top - m1100.vercel.bottom).toFixed(1) : null
+  const haNotesGap = m1100.homeassistant && m1100.notes ? +(m1100.notes.top - m1100.homeassistant.bottom).toFixed(1) : null
+  const fourCardOk =
+    m1100.ics !== null &&
+    m1100.rss !== null &&
+    m1100.vercel !== null &&
+    m1100.homeassistant !== null &&
+    vercelHaGap === COL1_FLOW_GAP &&
+    haNotesGap !== null &&
+    haNotesGap >= FLOOR
+  console.log(
+    fourCardOk
+      ? `PASS: col1's REAL four-card worst case (ics -> rss -> vercel[+statusSummary] -> homeassistant, all at their own true display max) at 1600x1100 — homeassistant sits the exact ${COL1_FLOW_GAP}px flex gap below vercel and clears the Notes pill by ${haNotesGap}px (>=${FLOOR}px) — the joint composition App.tsx's own homeassistant comment never measured (it assumed vercel's DEFAULT views, no statusSummary) holds`
+      : `FAIL: col1's four-card worst case at 1600x1100 (vercelHaGap=${vercelHaGap}, haNotesGap=${haNotesGap}, rects=${JSON.stringify(m1100)})`,
+  )
+
+  // Restore: disable all four, clear the seeded snapshots, viewport back to
+  // launch — same restore discipline as every block above. homeassistant is
+  // FULLY cleared (not just disabled), status's own precedent: whatever
+  // homeassistant-related block runs later in this file must never inherit
+  // this probe's own instanceUrl/token/entities/actions.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await chrome.storage.local.set({
@@ -8295,6 +8885,7 @@ function gitlabContributionsFixture() {
         ics: { ...connectors.ics, enabled: false },
         rss: { ...connectors.rss, enabled: false },
         vercel: { ...connectors.vercel, enabled: false },
+        homeassistant: { enabled: false },
       },
       connectorSnapshots: {},
     })
@@ -8859,7 +9450,15 @@ function gitlabContributionsFixture() {
 // a false PASS by omission. Repeats the CAPTURE ONLY (plus a console-error
 // check — no re-assertion of the 231 pairs; `setViewportSize` reflows the
 // identical seeded DOM into a different layout of the SAME scenario, not a
-// different one) at 1280x800 and 2560x1440. Back at
+// different one) at 1280x800 and 2560x1440.
+//
+// TASK 103 (homeassistant, W3-SP5) did NOT grow this set to 23/C(23,2)=253 —
+// see CONNECTOR_SELS' own comment below (search "TASK 103 CONSIDERED") for
+// the full reasoning: homeassistant needs `tallest` (>=1042h) to render, this
+// gate's own canonical scenario is 1600x900, and status (the ONLY other
+// `tallest`-gated connector) already stays out of this exact set for the
+// identical reason — the numbers above (20->22, 231 pairs) stay accurate and
+// unchanged. Back at
 // 1600x900, expands the weather panel: anchored `right-4` at a measured
 // ~352px wide there, it sits squarely over github's (and, since github
 // moved up in fix round 1 (and again in fix round 2), now also gitlab's)
@@ -9024,6 +9623,39 @@ function gitlabContributionsFixture() {
     crypto: cryptoSel,
     ics: icsSel,
   }
+  // TASK 103 (homeassistant, W3-SP5) CONSIDERED joining this map (and, via
+  // the spread below, PAGE_ELEMENTS) and decided NOT to — the SAME reason
+  // `statusSel` above already stays out of it. This gate's own canonical
+  // scenario runs at 1600x900, and homeassistant needs `tallest` (index.css,
+  // >=1042h) to render at all, same tier status's own trouble text uses
+  // (Task 86). Two ways to add it, both rejected:
+  //   (a) leave it disabled (this gate's own seed below never enables it,
+  //       matching status) — its inner `section[aria-label="Home Assistant"]`
+  //       never mounts, `document.querySelector` returns null, `found` reads
+  //       false, and `allFound` breaks outright — the EXACT reason status
+  //       stays out today.
+  //   (b) seed it connected anyway — the section DOES mount, but sits under a
+  //       CSS `display:none` ancestor at 900h. The pairwise probe's own
+  //       `rect()` helper below is a BARE `el.getBoundingClientRect()` with NO
+  //       zero-size normalization (unlike this file's `box()` idiom
+  //       elsewhere — the rails sweep's `measureSweep`, the LEFT-COLUMN
+  //       block's `measureCol1`, both of which explicitly null out a
+  //       width===0&&height===0 rect) — so `found` would read true off an
+  //       all-zero rect that trivially collides with nothing. That "PASS"
+  //       would prove nothing about a card nobody can see: a vacuous
+  //       membership, not an honest one.
+  // Status's own precedent — plain exclusion — is what this file already
+  // does for exactly this situation, so homeassistant follows it:
+  // CONNECTOR_SELS stays at 7 entries, PAGE_ELEMENTS stays at 22
+  // (C(22,2)=231, both unchanged by this task). The REAL, non-vacuous
+  // joint-worst-case proof for homeassistant lives in the LEFT-COLUMN
+  // combined worst case block above (search "TASK 103 EXTENSION"), which
+  // runs at 1600x1100 — tall enough for the card to actually be there to
+  // check — and in the rails sweep further below (search "RAIL_IDS"), whose
+  // own comment records why it needs no change either: every swept height is
+  // <=900, and 900 < 1042, so homeassistant can never be visible at ANY
+  // sweep step regardless of whether it were added.
+  //
   // Task 59: the mid-left column's own two widgets join the all-on scenario
   // at their own worst cases too — same selectors the Task 57/58 isolated
   // blocks below use.
@@ -9544,11 +10176,22 @@ function gitlabContributionsFixture() {
     // your board" pins all seven in registry order and every ONE OF THEIR
     // categories empties out; status is the eighth connector (Task 86),
     // NOT part of this gate's own seed, category 'development' — so
-    // "Development" now carries exactly ['Status'], unpinned, and the
-    // eyebrow list is EXACTLY ['On your board', 'Development'] — still no
-    // Calendar & tasks/News & markets (every OTHER category member is
-    // pinned away) and definitely no Home/Fun (zero members regardless of
-    // pinning — types.ts's own doc comment on those two).
+    // "Development" now carries exactly ['Status'], unpinned, and (pre-Task
+    // 103) the eyebrow list was EXACTLY ['On your board', 'Development'] —
+    // no Calendar & tasks/News & markets (every OTHER category member is
+    // pinned away) and no Home/Fun (zero members regardless of pinning —
+    // types.ts's own doc comment on those two, TRUE at the time that comment
+    // was written).
+    //
+    // TASK 103 (homeassistant, W3-SP5): 'home' gets its FIRST occupant.
+    // homeassistant is registered (registry.ts, Task 101) but this gate's own
+    // seed above never enables it — same "own dedicated block's concern,
+    // left disabled here" treatment status already gets (the comment just
+    // above) — so it renders unpinned under its OWN "Home" eyebrow, not
+    // folded into "On your board". The eyebrow list therefore grows to
+    // ['On your board', 'Development', 'Home'] (CATEGORY_ORDER's own order —
+    // 'development' sorts before 'home'), and homeCards below is the new
+    // assertion proving it.
     const defaultShape = await page.evaluate((eyebrowNames) => {
       const scroll = document.querySelector('[data-testid="connector-scroll"]')
       const headings = scroll ? [...scroll.querySelectorAll('h4')] : []
@@ -9559,16 +10202,22 @@ function gitlabContributionsFixture() {
           ? [...h.parentElement.querySelectorAll('h4')].map((x) => x.textContent?.trim()).filter((t) => t && t !== name)
           : []
       }
-      return { eyebrows, pinnedCards: cardsUnder('On your board'), devCards: cardsUnder('Development') }
+      return {
+        eyebrows,
+        pinnedCards: cardsUnder('On your board'),
+        devCards: cardsUnder('Development'),
+        homeCards: cardsUnder('Home'),
+      }
     }, EYEBROW_NAMES)
     const defaultShapeOk =
-      JSON.stringify(defaultShape.eyebrows) === JSON.stringify(['On your board', 'Development']) &&
+      JSON.stringify(defaultShape.eyebrows) === JSON.stringify(['On your board', 'Development', 'Home']) &&
       JSON.stringify(defaultShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS) &&
-      JSON.stringify(defaultShape.devCards) === JSON.stringify(['Status'])
+      JSON.stringify(defaultShape.devCards) === JSON.stringify(['Status']) &&
+      JSON.stringify(defaultShape.homeCards) === JSON.stringify(['Home Assistant'])
     console.log(
       defaultShapeOk
-        ? `PASS: default presentation — all seven legacy connectors enabled pin under "On your board" in registry order; status (Task 86's eighth connector, disabled here) surfaces its own "Development" eyebrow with exactly ['Status'] — no Calendar & tasks/News & markets/Home/Fun eyebrows (${JSON.stringify(defaultShape)})`
-        : `FAIL: default presentation (expected eyebrows=["On your board","Development"], pinnedCards=${JSON.stringify(REGISTRY_LABELS)}, devCards=["Status"]; got ${JSON.stringify(defaultShape)})`,
+        ? `PASS: default presentation — all seven legacy connectors enabled pin under "On your board" in registry order; status surfaces its own "Development" eyebrow with exactly ['Status'], and homeassistant (Task 103, 'home' category's first occupant) surfaces its own "Home" eyebrow with exactly ['Home Assistant'] — no Calendar & tasks/News & markets/Fun eyebrows (${JSON.stringify(defaultShape)})`
+        : `FAIL: default presentation (expected eyebrows=["On your board","Development","Home"], pinnedCards=${JSON.stringify(REGISTRY_LABELS)}, devCards=["Status"], homeCards=["Home Assistant"]; got ${JSON.stringify(defaultShape)})`,
     )
 
     // Probe (cursor discipline, widget quality bar) — same "no false
@@ -9669,15 +10318,22 @@ function gitlabContributionsFixture() {
           ? [...h.parentElement.querySelectorAll('h4')].map((x) => x.textContent?.trim()).filter((t) => t && t !== name)
           : []
       }
-      return { eyebrows, pinnedCards: cardsUnder('On your board'), devCards: cardsUnder('Development') }
+      return {
+        eyebrows,
+        pinnedCards: cardsUnder('On your board'),
+        devCards: cardsUnder('Development'),
+        homeCards: cardsUnder('Home'),
+      }
     }, EYEBROW_NAMES)
-    // Same Task 86 update as Probe 1 above (status, the eighth connector,
-    // surfaces its own "Development" eyebrow while disabled/unpinned here).
+    // Same Task 86 update as Probe 1 above (status surfaces its own
+    // "Development" eyebrow while disabled/unpinned here), plus Task 103's
+    // own "Home" eyebrow addition (homeassistant, same treatment).
     const restoreOk =
       restoredValue === '' &&
-      JSON.stringify(restoredShape.eyebrows) === JSON.stringify(['On your board', 'Development']) &&
+      JSON.stringify(restoredShape.eyebrows) === JSON.stringify(['On your board', 'Development', 'Home']) &&
       JSON.stringify(restoredShape.pinnedCards) === JSON.stringify(REGISTRY_LABELS) &&
-      JSON.stringify(restoredShape.devCards) === JSON.stringify(['Status'])
+      JSON.stringify(restoredShape.devCards) === JSON.stringify(['Status']) &&
+      JSON.stringify(restoredShape.homeCards) === JSON.stringify(['Home Assistant'])
     console.log(
       restoreOk
         ? `PASS: real select-all+Backspace clears the search input and restores the pinned/grouped default shape exactly (${JSON.stringify(restoredShape)})`
@@ -10359,6 +11015,19 @@ function gitlabContributionsFixture() {
   // (A2's mid-tier fenceposts, A3's width fence, A4's col2 fencepost, B/C/D)
   // keeps running with sun/moon OFF, unmodified from before this task, so
   // none of their own monthCal/habits-only floor math silently goes stale.
+  // TASK 103 (homeassistant, W3-SP5) CHECKED whether this sweep needs
+  // homeassistant added and found it does NOT: RAIL_IDS/the SWEEP array's own
+  // `vis` lists below only ever matter for a widget the sweep can ACTUALLY
+  // show at some step, and homeassistant needs `tallest` (index.css,
+  // >=1042h) — every SWEEP step's own height tops out at 900h (the
+  // 1600x900 default/return steps), well below 1042, so homeassistant would
+  // read hidden at EVERY step regardless of whether it were seeded/added
+  // here. Unlike monthCal/habits/sun/moon (col2, real membership changes
+  // across steps) or ics/rss/vercel/github/gitlab/jira (col1/right-rail,
+  // same story), homeassistant would add a member whose `vis` list is simply
+  // `[]` at all nine steps — a no-op addition, not a meaningful one — so
+  // this sweep's own RAIL_IDS/RAIL_SEL/SWEEP stay exactly as Task 97 left
+  // them.
   const RAIL_IDS = ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'sun', 'moon', 'github', 'gitlab', 'jira']
   const RAIL_SEL = {
     ics: '[data-block-id="ics"] section',
