@@ -7887,10 +7887,21 @@ function gitlabContributionsFixture() {
 //       file's own "gesture question" status-connector probe (search
 //       "THE GESTURE QUESTION") already measured directly for a different
 //       origin: chrome.permissions.request() does not merely resolve
-//       false quickly, it never SETTLES at all under this harness (verified
-//       here too, by direct measurement, before writing this probe: a bounded
-//       wait up to 15s left the promise still pending, matching that
-//       precedent's own "bothCeilinged" finding). That has one honest
+//       false quickly, it never SETTLES at all under this harness — pinned by
+//       direct instrumentation (fix-round evidence, review finding on this
+//       exact probe): chrome.permissions.request was wrapped in the page
+//       BEFORE triggering the real page.selectOption('#set-bg-mode', 'apod')
+//       gesture below, so the wrapper observes the SAME call
+//       handleSourceChange makes, unmodified. One call was recorded (origins
+//       api.nasa.gov + apod.nasa.gov, matching APOD_ORIGINS exactly), then
+//       polled every 2s for 26s total — 10x this probe's own DENY_WAIT below
+//       and past the gesture-question precedent's 2500ms GESTURE_WAIT: the
+//       wrapped promise was still `settled: false` at EVERY poll through
+//       t=26000ms, never resolving and never rejecting. Over that same
+//       window `#bg-apod-error` never appeared and the live <select>'s DOM
+//       value never left "auto" — both independently consistent with the
+//       promise never settling, matching that precedent's own
+//       "bothCeilinged" finding for a different origin. That has one honest
 //       consequence this probe's assertions respect: handleSourceChange's
 //       `if (!granted) { setApodError(...) }` branch is gated on that same
 //       promise SETTLING, so `#bg-apod-error` never renders either — not
@@ -7949,7 +7960,7 @@ function gitlabContributionsFixture() {
       : `FAIL: the apod settings deny path (prior=${priorMode}, ${JSON.stringify(denyState)})`,
   )
   console.log(
-    `SKIP: the #bg-apod-error alert text ("Permission to reach NASA was denied, so the background is unchanged.") — Background.tsx (settings section)'s own deny branch only runs once ensureOrigins() SETTLES to false, and it never settles under headless automation (measured up to 15s pending, matching the gesture-question probe's own finding for a different origin); observed alert state this run: ${JSON.stringify(denyState.alertText)}. A headed spot-check owed by the controller: confirm the copy renders when a real "Block" click resolves the prompt.`,
+    `SKIP: the #bg-apod-error alert text ("Permission to reach NASA was denied, so the background is unchanged.") — Background.tsx (settings section)'s own deny branch only runs once ensureOrigins() SETTLES to false, and it never settles under headless automation (directly instrumented: chrome.permissions.request wrapped before the real select gesture, one call recorded, polled every 2s for 26s, still \`settled: false\` at every poll through t=26000ms — see this block's own header comment for the full readout); observed alert state this run: ${JSON.stringify(denyState.alertText)}. A headed spot-check owed by the controller: confirm the copy renders when a real "Block" click resolves the prompt.`,
   )
   console.log(
     'SKIP: the successful-grant render path (a real "Allow" click through the NASA host-permission prompt cannot be driven under headless automation, same ceiling as the deny path above). A headed spot-check owed by the controller: confirm mode flips to "apod" and the fetch/cache/render path runs once the origins are actually granted.',
