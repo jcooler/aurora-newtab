@@ -579,7 +579,20 @@
    (re-verified by direct measurement post-split, not just carried over
    unchanged on faith). At Jon's canonical 1600x900 the trouble text is
    therefore HIDDEN (900 < 1042) — see `ampler` above for the dot row's own,
-   separate verdict at that same height. */
+   separate verdict at that same height.
+
+   SECOND CALL SITE (Task 102, W3-SP5): homeassistant's own PositionedBlock
+   (App.tsx, left rail col1) reuses this SAME tier for its whole-card reveal
+   — its own measured true floor is only 1000px (col1's combined worst case
+   — ics/rss/vercel each at display max, homeassistant's own 6-chip/
+   3-button card — clears the Notes pill by exactly the house 16px floor at
+   1000h, fails by 1px at 999h), and 1042 already covers that with 58px of
+   honest margin, so no dedicated tier was minted for it — same "reuse a
+   tier that's already proven safe rather than add a near-duplicate" call
+   `grand`'s own comment documents for ITS two call sites. A future retune
+   of `tallest`'s own px value must therefore account for BOTH sites listed
+   here, not just the status trouble text — see App.tsx's own homeassistant
+   PositionedBlock comment for the full col1 arithmetic. */
 @custom-variant tallest (@media (min-height: 1042px));
 /* GitHub/GitLab commit-graph reveal tier for the TWO-SIBLING right rail (Task 70;
    RE-DERIVED Task 77 — see the 1041->1171 note below). The graph is

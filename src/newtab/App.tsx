@@ -34,6 +34,7 @@ import HabitsWidget from './widgets/habits/HabitsWidget'
 import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
 import SunWidget from './widgets/sun/SunWidget'
 import MoonWidget from './widgets/moon/MoonWidget'
+import HomeAssistantWidget from './widgets/homeassistant/HomeAssistantWidget'
 import ArrangeController from './arrange/ArrangeController'
 import { DraftLayoutContext } from './arrange/draftLayout'
 
@@ -501,6 +502,65 @@ export default function App() {
                 <WidgetBoundary name="vercel">
                   <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                     <VercelWidget />
+                  </PositionedBlock>
+                </WidgetBoundary>
+                {/* TASK 102 (W3-SP5) — homeassistant joins col1 as its FOURTH
+                    and newest card, below vercel. MEASURED (a standalone
+                    Playwright pass against `npm run build:preview`'s dist/,
+                    the same chrome://newtab/ + --load-extension technique
+                    scripts/preview.mjs itself uses, since Task 103 owns that
+                    file's own probe suite, NOT run here): with col1's OWN
+                    already-established combined worst case (ics at
+                    MAX_CALENDARS=5 'per-calendar' 132px, rss at shownCount=8
+                    336px, vercel at its DEFAULT views — deployments only,
+                    NOT statusSummary, since that field is what's actually
+                    stacked alongside homeassistant at Jon's canonical 900h;
+                    statusSummary's own `roomy` gate keeps IT out of this
+                    composition — 192px) PLUS homeassistant at its own true
+                    display max (MAX_CHIP_ENTITIES=6 wrapped chips +
+                    MAX_ACTIONS=3 buttons, a measured 102px), the FOUR-card
+                    stack's bottom is a CONSTANT 930px (top-anchored from
+                    rail-top-left=120, every card's own height is
+                    content-driven, not viewport-driven) while the
+                    bottom-anchored Notes pill's top RISES as the window
+                    shrinks (viewportH − 54) — so the >=16px floor
+                    (pillTop − 930 >= 16) solves to viewportH >= 1000
+                    exactly (measured directly, not just algebra: 999h ->
+                    15px [FAIL], 1000h -> 16px [the true boundary]). REAL
+                    overlap confirmed at both `dense`'s own 865px floor
+                    (vercel's own threshold: −119px) and at Jon's canonical
+                    1600x900 (−84px) before this fix — reusing vercel's
+                    `dense:hidden` verbatim, the first-pass guess, was
+                    WRONG; measurement corrected it.
+                    `tallest` (index.css, >=1042h — already shipped for the
+                    status trouble text, Task 86) is the SMALLEST EXISTING
+                    tier that safely covers the true 1000px floor (58px of
+                    honest margin at its own 1042 boundary — `roomy`, 995h,
+                    is 5px SHORT and genuinely unsafe here; `roomier`,
+                    1124h, would waste 124px versus tallest's 42px) — reused
+                    rather than minting a dedicated new one, the same
+                    "reuse an existing tier that's already proven safe"
+                    discipline the fix-wave's own Finding C1 established for
+                    `roomy` on the right rail (see index.css's own `tallest`
+                    comment for this file's SECOND call site note). At Jon's
+                    own 1600x900 (900 < 1042) homeassistant is therefore
+                    HIDDEN under this crowded composition — the newest
+                    member yields first, the sun/moon precedent, and the
+                    SAME trade-off every other lower-priority connector card
+                    already accepts (gitlab/jira hide below 865h, vercel's
+                    statusSummary line below 995h, the status trouble text
+                    below 1042h) — a static CSS tier can't see today's
+                    actual composition, so it holds for the worst one; a
+                    less-crowded col1 (fewer/no other connectors) clears far
+                    lower, just not provably so from CSS alone. No new
+                    index.css tier was needed. */}
+                <WidgetBoundary name="homeassistant">
+                  <PositionedBlock
+                    id="homeassistant"
+                    pos={layout?.homeassistant}
+                    className="rail-primary tier-fade hidden opacity-0 tallest:block tallest:opacity-100"
+                  >
+                    <HomeAssistantWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
               </div>

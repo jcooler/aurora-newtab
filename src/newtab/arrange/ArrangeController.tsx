@@ -43,6 +43,7 @@ const BLOCK_LABELS: Record<BlockId, string> = {
   monthCal: 'Month',
   sun: 'Sun times',
   moon: 'Moon phase',
+  homeassistant: 'Home Assistant',
 }
 
 interface DragState {
