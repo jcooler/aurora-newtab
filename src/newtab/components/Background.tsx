@@ -329,15 +329,50 @@ export default function Background({
           </svg>
         </button>
       )}
-      {/* NASA APOD credit caption (Task 96) — the same bottom-left spot the
-          refresh button occupies in auto/upload mode. The two never
-          co-render: showRefresh is derived from effectiveMode === 'auto' |
-          'upload', apodPhoto only from effectiveMode === 'apod', and
-          effectiveMode is never more than one of those at once. No title
-          attribute/hover affordance the way the refresh button has one —
-          this is static attribution text, not a control. */}
+      {/* NASA APOD credit caption (Task 96; repositioned in the final-review
+          fix wave, Finding 1). Anchors the same `left-4` corner the refresh
+          button occupies in auto/upload mode — those two still never
+          co-render (showRefresh derives from effectiveMode === 'auto' |
+          'upload', apodPhoto only from 'apod', and effectiveMode is never
+          more than one of those at once) — but no longer shares the refresh
+          button's `bottom-4` ROW. That row is ALSO the Notes pill's row
+          (App.tsx's `fixed bottom-4 left-16`, `widgets.notes` defaulting
+          true): the caption used to sit at `bottom-4 left-4` with no width
+          cap, so on a real (non-trivial) title+copyright it grew into a
+          single line wide enough to run straight under the pill at x64-128,
+          which — being an opaque `bg-panel-solid` button — painted over the
+          middle of the text. Confirmed live (screenshots/apod-background.png,
+          the old capture): "Pillars of..." then a jump straight to
+          "NASA, ESA, CSA · NASA APOD".
+
+          Fix: `bottom-16` instead of `bottom-4` moves the caption to the ROW
+          ABOVE the pill rather than squeezing it into the ~48px sliver to
+          the pill's left (unreadable at any real caption length) or the
+          pill itself (arrange-mode territory, not this component's to
+          move). Because both the pill and this caption are anchored to
+          the viewport's BOTTOM edge (`fixed`/`absolute` with `bottom-*`,
+          not `top-*`), the pill's top sits a CONSTANT 54px above the
+          viewport bottom (16px pill-bottom-offset + 38px pill height) at
+          every window height — so the caption's own bottom edge at 64px
+          (bottom-16) clears it by a fixed 10px at every height in the
+          harness's range, not just 1600x900. `max-w-80` (320px) caps the
+          line length so it wraps instead of running arbitrarily wide: the
+          harness's own real fixture ("Pillars of Creation © NASA, ESA, CSA
+          · NASA APOD", ~270px) still sits on one line, and even a long
+          title+copyright wraps to 2-3 lines that grow UPWARD (an
+          absolutely/fixed-positioned box with `bottom` set and no `top`
+          sizes to content and extends away from its anchored edge) — so
+          more text never closes the 10px pill gap, it only rises further
+          from it. The cap also keeps even a stress-length caption's right
+          edge (measured ~875px unwrapped) short of the bottom-center quote
+          block, which starts at roughly viewport-center minus 288px at the
+          narrowest width this got checked against (1300px) — 320px of
+          caption plus its 16px left inset lands at 336px, comfortably
+          inside that. No change to the caption's text content (harness-
+          asserted verbatim) or to the mutual exclusion with the refresh
+          button — only the box's own position and width. */}
       {apodPhoto && (
-        <p className="absolute bottom-4 left-4 text-photo text-xs text-canvas-fg-muted">
+        <p className="absolute bottom-16 left-4 max-w-80 text-photo text-xs text-canvas-fg-muted">
           {apodPhoto.copyright
             ? `${apodPhoto.title} © ${apodPhoto.copyright} · NASA APOD`
             : `${apodPhoto.title} · NASA APOD`}

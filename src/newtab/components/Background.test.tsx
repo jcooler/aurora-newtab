@@ -389,8 +389,13 @@ describe('Background', () => {
       expect(caption.className).toContain('text-photo')
       expect(caption.className).toContain('text-xs')
       expect(caption.className).toContain('text-canvas-fg-muted')
-      // Same bottom-left spot the refresh button occupies in auto/upload mode.
-      expect(caption.className).toContain('bottom-4')
+      // Same bottom-left CORNER the refresh button occupies in auto/upload
+      // mode (left-4), but its own row above the Notes pill's bottom-4 row
+      // (final-review fix wave, Finding 1) — bottom-16, not bottom-4, is
+      // what keeps the caption clear of the Notes pill's default position;
+      // see Background.tsx's own comment on this element for the full
+      // geometry reasoning.
+      expect(caption.className).toContain('bottom-16')
       expect(caption.className).toContain('left-4')
 
       expect(fetchApod).not.toHaveBeenCalled() // today's cache is already fresh

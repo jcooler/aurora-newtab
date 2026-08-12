@@ -8023,6 +8023,45 @@ function gitlabContributionsFixture() {
       : `FAIL: the apod render path (${JSON.stringify(renderState)}, seeded url ${bundledUrlSeeded})`,
   )
 
+  // Caption-vs-Notes-pill non-intersection (final-review fix wave, Finding
+  // 1) — the caption used to sit at `bottom-4 left-4`, the Notes pill's own
+  // `bottom-4 left-16` row (App.tsx), and widgets.notes defaults to true
+  // (schema.ts) — untouched by this script's own global seed at the top of
+  // the file, so the pill is showing here exactly as it would for a fresh
+  // install (DEFAULT config, both visible). A real (non-trivial) caption
+  // used to run its single unwrapped line straight under the pill, which —
+  // being opaque (`bg-panel-solid`) — painted over the middle of the text.
+  // The fix moved the caption to `bottom-16` (its own row above the pill)
+  // and capped it at `max-w-80` (Background.tsx has the full geometry
+  // writeup). Same rect-intersection idiom as the RSS-vs-Notes-pill
+  // collision probe above (search "rect-intersection idiom"), reading the
+  // pill through its PositionedBlock wrapper's `data-block-id` the way
+  // every other collision probe in this file does, not the caption's own
+  // seeded text search alone.
+  const captionVsNotesPill = await page.evaluate(() => {
+    const hits = (a, b) =>
+      !!a && !!b && !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+    const caption = [...document.querySelectorAll('p')].find((p) => p.textContent?.includes('NASA APOD')) ?? null
+    const notesEl = document.querySelector('[data-block-id="notes"]')
+    const captionRect = caption ? caption.getBoundingClientRect() : null
+    const notesRect = notesEl ? notesEl.getBoundingClientRect() : null
+    const round = (r) => (r ? { top: +r.top.toFixed(1), bottom: +r.bottom.toFixed(1), left: +r.left.toFixed(1), right: +r.right.toFixed(1) } : null)
+    return {
+      captionFound: !!captionRect,
+      notesFound: !!notesRect,
+      overlap: hits(captionRect, notesRect),
+      caption: round(captionRect),
+      notes: round(notesRect),
+    }
+  })
+  const captionVsNotesPillOk =
+    captionVsNotesPill.captionFound && captionVsNotesPill.notesFound && captionVsNotesPill.overlap === false
+  console.log(
+    captionVsNotesPillOk
+      ? `PASS: the apod credit caption's bounding box does not intersect the default-visible Notes pill's bounding box (caption ${JSON.stringify(captionVsNotesPill.caption)}, notes ${JSON.stringify(captionVsNotesPill.notes)})`
+      : `FAIL: the apod credit caption overlaps the Notes pill at its default position (${JSON.stringify(captionVsNotesPill)})`,
+  )
+
   await page.screenshot({ path: `${outDir}/apod-background.png` })
   console.log('captured apod-background.png')
 
