@@ -368,11 +368,12 @@ covers its one write path, the only one in this whole list):
   fetch when you click "Choose entities," and the widget's own poll,
   filtered down to just the entities you picked). Polled at most once
   every 60 seconds, and only while a tab with the widget open is
-  on-screen — there's no background timer of its own. The friendly name
-  shown on each chip is captured once, at the moment you pick that entity
-  in the picker, not re-fetched live, so renaming it inside Home
-  Assistant afterward won't relabel an already-picked chip until you
-  re-pick it. **The one write path:** up to 3 of your picked entities can
+  on-screen — there's no background timer of its own. A chip's text
+  (the name and the value both) comes from that live poll, so renaming or
+  changing an entity inside Home Assistant is reflected the next time it
+  refreshes; only an action button's label is fixed at the moment you
+  pick it, since an action is never re-fetched — it's static config, not
+  polled state. **The one write path:** up to 3 of your picked entities can
   be one-tap actions (a scene, script, or switch); clicking that action's
   button on the board sends a single command —
   `/api/services/scene/turn_on`, `/api/services/script/turn_on`, or
