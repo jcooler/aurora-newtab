@@ -16,12 +16,16 @@ Aurora makes on its own, with no action from you beyond turning a widget
 on, are three read-only, keyless weather/location lookups described in full
 below. Beyond those, Aurora's **Connectors** framework lets you point it at
 outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto,
-Calendar, and Status today — and every such request goes directly from
-your browser to the site you configured, never through any server Aurora
-operates (it has none). Four of those eight (GitHub, GitLab, Jira, Vercel)
-need a credential — a personal access token, or for Jira, an email + API
-token — which is stored locally like everything else and sent only to the
-one service it authenticates to; the other four (RSS, Crypto, Calendar,
+Calendar, Status, and Home Assistant today — and every such request goes
+directly from your browser to the site you configured, never through any
+server Aurora operates (it has none). Eight of those nine only ever read;
+Home Assistant is the one exception — its action buttons also send a
+command to **your own instance**, and only in the instant you click one
+(see "Connectors" below for the full write-path disclosure). Five of
+those nine (GitHub, GitLab, Jira, Vercel, Home Assistant) need a
+credential — a personal access token, or for Jira, an email + API token —
+which is stored locally like everything else and sent only to the one
+service it authenticates to; the other four (RSS, Crypto, Calendar,
 Status) need no credential at all. See "Connectors" below for the complete
 disclosure.
 
@@ -56,7 +60,10 @@ anywhere except as explicitly described under "Network calls" below:
   GitHub/GitLab/Jira/Vercel: the token or email+token you connected with;
   for Calendar: the calendar addresses you added, up to 5; for Crypto: the
   coins you chose; for Status: the services you've added — curated picks
-  or custom status page URLs — up to 8)
+  or custom status page URLs — up to 8; for Home Assistant: the instance
+  URL and long-lived access token you connected with, plus up to 6
+  entities and 3 actions you picked from your instance, each one's
+  display name cached at the moment you picked it)
   and a local cache of what each connector last fetched, so a widget
   doesn't need to refetch every time you open a new tab. See "Connectors"
   below.
@@ -77,9 +84,10 @@ photo-of-the-day cache to empty, the same "rebuilds on next use" treatment
 every other excluded cache gets, rather than carrying an old day's photo
 forward. Connector configuration itself (e.g. your RSS
 feed list) IS included in the export, minus any field that connector
-declares as secret — every GitHub/GitLab/Jira/Vercel token, and every
-calendar address you've added to the Calendar connector, is stripped from
-the exported file automatically, before it's ever written to disk (see "Connectors" below for
+declares as secret — every GitHub/GitLab/Jira/Vercel/Home Assistant
+token, and every calendar address you've added to the Calendar connector,
+is stripped from the exported file automatically, before it's ever
+written to disk (see "Connectors" below for
 the full per-connector list and the mechanism that enforces it). This file
 is created and read entirely on your device — Aurora never
 uploads it anywhere on its own. Where that file goes afterward (cloud
@@ -116,16 +124,20 @@ you've chosen it as your background (item 5 below):
    call happens once per click of that button, never on a schedule.
 4. **Connector fetches** — only to the connector(s) you've actually
    configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,
-   Vercel, Crypto, Calendar, Status); there are none until you add or
-   connect one. Each fetch is a single HTTP request sent directly from your
-   browser to that connector's own host — nothing is sent but the request
-   itself (plus a token/credential for the four that need one), and no
-   Aurora server sees or relays it, because Aurora has none. Refreshed on a
-   per-connector interval (5 minutes for GitHub/GitLab/Vercel/Crypto/
-   Status, 10 for Jira, 15 for Calendar, 30 for RSS), or sooner if you open
-   a widget with a stale cache. See "Connectors" below for the full,
-   per-connector disclosure, including the permission model that gates
-   which sites Aurora is even allowed to reach.
+   Vercel, Crypto, Calendar, Status, Home Assistant); there are none until
+   you add or connect one. Each fetch is a single HTTP request sent
+   directly from your browser to that connector's own host — nothing is
+   sent but the request itself (plus a token/credential for the five that
+   need one), and no Aurora server sees or relays it, because Aurora has
+   none. Refreshed on a per-connector interval (5 minutes for GitHub/
+   GitLab/Vercel/Crypto/Status, 10 for Jira, 15 for Calendar, 30 for RSS,
+   60 seconds for Home Assistant — the shortest in the fleet, because home
+   state goes stale far faster than a PR list or a coin price), or sooner
+   if you open a widget with a stale cache. Home Assistant is also the
+   only connector that ever writes, not just reads: see "Connectors"
+   below for the full disclosure of that write path. See "Connectors"
+   below for the full, per-connector disclosure, including the permission
+   model that gates which sites Aurora is even allowed to reach.
 5. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
    lookup) and `apod.nasa.gov` (the separate host that actually serves the
    image), only once you've chosen "NASA photo of the day" as your
@@ -237,13 +249,24 @@ Aurora requests the following Chrome permissions:
 
 ## Connectors
 
-Connectors are Aurora's framework for fetching data from a source you
-configure yourself, rather than a fixed built-in service. The pattern is
-always **direct client → provider**: every connector request goes straight
-from your browser to the site you configured, never through any server
-Aurora operates (it has none) and never past any other third party. Nothing
-about the request — not its contents, not the fact that it happened — is
-visible to Aurora's developer or anyone else.
+Connectors are Aurora's framework for reaching a source you configure
+yourself, rather than a fixed built-in service. Eight of the nine
+connectors only ever read. **Home Assistant is the one exception, and this
+is disclosed plainly:** clicking one of its action buttons sends a single
+command — `scene.turn_on`, `script.turn_on`, or `switch.toggle`, whichever
+matches the action you picked — to **your own Home Assistant instance**,
+the same one you typed the URL for when you connected it. That command
+fires only in the instant you click the button: never on a timer, never at
+the same time as the widget's own state poll, never anywhere else in the
+app. Nothing else is ever written to any connector, Home Assistant
+included — every other request any connector makes, and Home Assistant's
+own `/api/states` poll, is a plain read. Apart from that one write path,
+the pattern holds exactly as it always has — **direct client → provider**:
+every connector request, read or write, goes straight from your browser to
+the site you configured, never through any server Aurora operates (it has
+none) and never past any other third party. Nothing about the request —
+not its contents, not the fact that it happened — is visible to Aurora's
+developer or anyone else.
 
 **Per-origin grants, on your action only.** A connector gets no network
 access to anything until you explicitly configure it to reach a specific
@@ -256,24 +279,26 @@ automatically.
 
 **Token connectors.** RSS, Crypto, Calendar, and Status need no credential
 (`auth: 'none'`) — there's nothing to keep secret beyond, for Calendar,
-each calendar address itself (see below). GitHub, GitLab, Jira, and Vercel do
-require a credential to read your own data, and each one stores it only in
-`chrome.storage.local`, on your device, exactly like everything else
-Aurora stores — never sent anywhere except to the one provider it
-authenticates to. This is enforced mechanically, not just promised: every
-connector declares, in Aurora's connector registry, which of its config
-fields (if any) are secret; the backup exporter reads that declaration and
-strips every field so listed before a backup file is ever written, for
-every connector, automatically — there is no separate list to remember to
-update. GitHub/GitLab/Vercel each declare their token secret; Jira declares
-its API token secret (the email address travels with the rest of the
-config, unstripped — it identifies you to Jira, the same way a username
-would, and isn't itself a bearer credential); Calendar declares its whole
-`calendars` list (every entry's own address) secret, since each address
-alone is what grants read access to that calendar — up to 5 per the
-connector's own cap; RSS, Crypto, and Status declare no secret fields,
-because they have none — a status page URL, curated or custom, grants no
-access to anything and identifies no one.
+each calendar address itself (see below). GitHub, GitLab, Jira, Vercel, and
+Home Assistant do require a credential — to read your own data, and for
+Home Assistant alone, to also send it a command — and each one stores that
+credential only in `chrome.storage.local`, on your device, exactly like
+everything else Aurora stores — never sent anywhere except to the one
+provider it authenticates to. This is enforced mechanically, not just
+promised: every connector declares, in Aurora's connector registry, which
+of its config fields (if any) are secret; the backup exporter reads that
+declaration and strips every field so listed before a backup file is ever
+written, for every connector, automatically — there is no separate list to
+remember to update. GitHub/GitLab/Vercel/Home Assistant each declare their
+token secret; Jira declares its API token secret (the email address
+travels with the rest of the config, unstripped — it identifies you to
+Jira, the same way a username would, and isn't itself a bearer
+credential); Calendar declares its whole `calendars` list (every entry's
+own address) secret, since each address alone is what grants read access
+to that calendar — up to 5 per the connector's own cap; RSS, Crypto, and
+Status declare no secret fields, because they have none — a status page
+URL, curated or custom, grants no access to anything and identifies no
+one.
 
 **RSS, concretely.** Aurora fetches only the feed URLs you've added in
 Settings → Connectors — nothing else — at most about once every 30 minutes
@@ -286,10 +311,11 @@ doesn't need to refetch on every new tab; that cache is excluded from
 backup exports entirely, same as uploaded photos, because it's disposable
 and rebuilds itself rather than being data you entered.
 
-**The other seven, concretely** — each fetch is a single HTTP request sent
+**The other eight, concretely** — each fetch is a single HTTP request sent
 directly from your browser to the named host, cached locally the same way
 RSS is (and excluded from backup exports the same way), and refreshed on
-its own interval or sooner on demand:
+its own interval or sooner on demand (Home Assistant's bullet below also
+covers its one write path, the only one in this whole list):
 
 - **GitHub** — talks only to api.github.com; sends only your token (as the
   Authorization header) and the queries for your own PRs, issues,
@@ -328,6 +354,33 @@ its own interval or sooner on demand:
   rather than papered over, since a status widget that could show a stale
   green during a real outage would be actively misleading. Refreshed
   roughly every 5 minutes.
+- **Home Assistant** — talks only to **your own Home Assistant instance**,
+  at the `https://` URL you typed in when connecting; plain
+  `http://homeassistant.local:8123` cannot be granted, because Chrome's
+  host-permission request itself is https-only for every connector, and
+  Home Assistant is no exception (Nabu Casa cloud URLs and
+  reverse-proxied instances work fine). Sends your long-lived access
+  token as the Authorization header, stored locally and stripped from
+  backup exports exactly like the four other credentialed connectors
+  above. Reads two endpoints on that instance: `/api/config` (a one-time
+  check, at the moment you connect, that resolves the location name your
+  card is labeled with) and `/api/states` (the entity picker's one bulk
+  fetch when you click "Choose entities," and the widget's own poll,
+  filtered down to just the entities you picked). Polled at most once
+  every 60 seconds, and only while a tab with the widget open is
+  on-screen — there's no background timer of its own. The friendly name
+  shown on each chip is captured once, at the moment you pick that entity
+  in the picker, not re-fetched live, so renaming it inside Home
+  Assistant afterward won't relabel an already-picked chip until you
+  re-pick it. **The one write path:** up to 3 of your picked entities can
+  be one-tap actions (a scene, script, or switch); clicking that action's
+  button on the board sends a single command —
+  `/api/services/scene/turn_on`, `/api/services/script/turn_on`, or
+  `/api/services/switch/toggle`, matching what you picked — carrying
+  nothing but that one entity's id, to that same instance, only in the
+  instant you click, never on a schedule and never bundled with the poll
+  above. This is the only place in Aurora that ever sends a command
+  rather than a request for data.
 
 ## Data collection, sale, and sharing
 

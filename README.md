@@ -41,14 +41,17 @@ no backend — everything lives on your machine.
 - **Moon phase** — today's moon phase name and glyph, computed locally with
   no network call at all; the glyph mirrors for a southern-hemisphere
   location. Off by default; needs a location set in Weather first.
-- **Connectors** — an extensible framework for pulling outside data into the
-  dashboard, one card per source under Settings → Connectors, each asking
-  Chrome for access to exactly the site you add and nothing more. Eight
-  connectors ship today: **RSS**, **GitHub**, **GitLab**, **Jira**,
-  **Vercel**, **Crypto**, **Calendar** (any ICS/iCal feed), and **Status**
-  (a quiet dot row for services you depend on). See
-  [Connectors](#connectors) below for what each one shows, what it reads,
-  and how the permission model works.
+- **Connectors** — an extensible framework for reaching outside sources
+  from the dashboard, one card per source under Settings → Connectors,
+  each asking Chrome for access to exactly the site you add and nothing
+  more. Nine connectors ship today: **RSS**, **GitHub**, **GitLab**,
+  **Jira**, **Vercel**, **Crypto**, **Calendar** (any ICS/iCal feed),
+  **Status** (a quiet dot row for services you depend on), and
+  **Home Assistant** (state chips and one-tap action buttons for your own
+  smart home — the one connector that can also send a command, not just
+  read). See [Connectors](#connectors) below for what each one shows,
+  what it reads (and, for Home Assistant, sends), and how the permission
+  model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
 - **Focus timer** — a Pomodoro-style work/break timer with a chime.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
@@ -159,7 +162,10 @@ fetched, asking Chrome for permission to reach a site, and keeping anything
 sensitive out of backup exports) is written once and shared. **RSS** was the
 first connector; the framework was built so adding another source meant
 writing that connector's own card/widget/service, not re-solving caching,
-permissions, or backups again — the other seven below are exactly that.
+permissions, or backups again — the other eight below are exactly that.
+Every connector reads; one, Home Assistant, can also send a command back
+to the source you connected — see its own entry below for exactly what
+that means.
 
 Find connectors by name or purpose — the catalog is searchable, and
 anything on your board stays pinned on top.
@@ -171,9 +177,9 @@ the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
 once every 30 minutes, or sooner if you refresh).
 
-The other seven, briefly — what you see, and what Aurora reads to show it.
-Every connector card is composable — choose what each shows in
-Settings → Connectors:
+The other eight, briefly — what you see, and what Aurora reads (and, for
+one connector, writes) to show it. Every connector card is composable —
+choose what each shows in Settings → Connectors:
 
 - **GitHub** — your open PRs waiting on your review, issues assigned to
   you, an unread-notifications count, and a 16-week commit-activity graph;
@@ -218,6 +224,18 @@ a single request that keeps firing as long as either section is on.
   status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Discord) or add
   any statuspage.io-style URL yourself. No account, no token — reads only
   the public status endpoint each entry points to.
+- **Home Assistant** — up to 6 state chips (`Kitchen 21.5°C`, `Porch light
+  on`, …) and up to 3 one-tap action buttons (a scene, script, or switch),
+  picked from your own instance in a searchable entity picker. Connect
+  with your instance URL and a long-lived access token; **https only** —
+  a plain `http://homeassistant.local:8123` URL cannot be granted, only a
+  Nabu Casa cloud URL or a reverse-proxied `https://` one. This is the one
+  connector that writes as well as reads: pressing an action button sends
+  that one command to your own instance, only on that click, never on a
+  schedule — every other connector on this page, Home Assistant's own
+  state poll included, only ever reads. Polled at most once a minute,
+  Aurora's shortest interval, since home state goes stale faster than
+  anything else here.
 
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
@@ -331,8 +349,9 @@ as a single JSON file:
   today's focus text, background preferences, weather cache, location,
   notes, world clocks, countdowns, and connector configuration (e.g. your
   RSS feed list) — with any field a connector marks as secret (a GitHub/
-  GitLab/Jira/Vercel token, or the Calendar connector's saved calendar
-  addresses) stripped out first (see [Connectors](#connectors)).
+  GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
+  saved calendar addresses) stripped out first (see
+  [Connectors](#connectors)).
 - **Background photo uploads are not included**, and neither is connectors'
   cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
   blob and connector caches are disposable, re-fetched automatically —
@@ -380,12 +399,16 @@ with a real place name. That lookup happens once, only for device location,
 and sends the same ~1 km-rounded coordinates the forecast call already
 uses. Beyond those fixed calls, the **Connectors** framework lets you point
 Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
-Crypto, Calendar, and Status today: every connector fetch goes directly
-from your browser to that connector's own host, with no Aurora server in
-between, only for connectors you've actually configured. GitHub/GitLab/
-Jira/Vercel send only the token (or, for Jira, email + token) you
-connected with; Crypto, Calendar, and Status need no account at all. There
-is no analytics, no telemetry, and no tracking of any kind.
+Crypto, Calendar, Status, and Home Assistant today: every connector fetch
+goes directly from your browser to that connector's own host, with no
+Aurora server in between, only for connectors you've actually configured.
+GitHub/GitLab/Jira/Vercel/Home Assistant send only the token (or, for
+Jira, email + token) you connected with; Crypto, Calendar, and Status need
+no account at all. Home Assistant is the one connector that also writes:
+its action buttons send a single command to your own instance, only when
+you click one, never on a schedule (see [Connectors](#connectors) and
+[`PRIVACY.md`](PRIVACY.md) for the full disclosure). There is no
+analytics, no telemetry, and no tracking of any kind.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.

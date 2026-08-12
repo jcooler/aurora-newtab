@@ -906,3 +906,159 @@ bullet (added by the v1.3.0 addendum above):
       at install, and released automatically the moment you switch to a
       different background. It sends nothing but a shared, keyless API
       parameter: no account, no location, no other data of yours.
+
+---
+
+### v1.14.0 addendum — your home on your new tab (STILL staged; v1.2.1 verdict still gates ALL of this)
+
+Everything in this addendum is prepared ahead of time the same way the rest
+of this STAGED section is — **do not paste any of it into the CWS Developer
+Dashboard.** It doesn't change which review this section waits behind: the
+v1.2.1 verdict above is still the gate for all store motion, every earlier
+staged addendum included. If a verdict has landed since this was written,
+stop and consult Jon per `HANDOFF.md` before acting on anything below.
+
+v1.14.0 adds a ninth connector, Home Assistant — the framework's first
+that writes as well as reads. Connect with your instance's own `https://`
+URL and a long-lived access token (Nabu Casa cloud URLs and
+reverse-proxied instances work; a plain `http://homeassistant.local:8123`
+address cannot be granted — every connector's host permission has always
+been https-only, and Home Assistant is no exception), then pick up to 6
+entities to show as state chips and up to 3 eligible entities (a scene,
+script, or switch) as one-tap action buttons, in a searchable picker. The
+chips poll `/api/states` at most once a minute — the framework's shortest
+interval, because home state goes stale faster than a PR list or a coin
+price — and only while a tab showing the widget is open; there's no
+background timer of its own. **The one new kind of request:** pressing an
+action button sends a single command (`scene.turn_on`, `script.turn_on`,
+or `switch.toggle`, matching what was picked) to that same instance,
+carrying nothing but the one entity's id, and only in the instant of that
+click — never queued, never repeated, never fired for any other reason.
+Every other request any connector makes, Home Assistant's own state poll
+included, stays a plain read; this is the only place in Aurora that ever
+sends a command instead of a request for data.
+
+**No new permission justification.** Home Assistant reaches its instance
+through the exact same mechanism every other connector already uses: a
+user-typed `https://` origin, requested through the existing
+`optional_host_permissions` grant this section's v1.3.0 addendum above
+already justifies (see "New permission justification:
+`optional_host_permissions`," above) — one origin, requested the instant
+you click "Connect," nothing pre-granted, nothing granted in the
+background. There is nothing new to add to the manifest or to the
+Permissions justification fields.
+
+**Data Usage disclosure: no new row — reasoned fresh, not a reuse of the
+NASA/`DEMO_KEY` reasoning above.** That precedent rested on nothing
+user-identifying being sent at all (a shared demo key, no account, no
+location); this is a different shape — real user-configured data really
+does leave the device on a button press — so it earns its own answer
+rather than inheriting either precedent silently:
+
+- *The access token* (sent on connect, and on every read) is the same
+  shape the v1.4.0 addendum's "Authentication information" row above
+  already covers for GitHub/GitLab/Vercel's tokens and Jira's
+  email+token — a bearer credential, stored only in
+  `chrome.storage.local`, sent only to the one service it authenticates
+  to. It needs no new row, only, optionally, one more name in that row's
+  existing connector list. **[Jon: cosmetic only — the row's answer
+  doesn't change either way; skip this if you'd rather not touch a row
+  that's already accurate without it.]**
+- *The command body*, sent on a button press, is the part that's
+  genuinely new — not just one more connector, but Aurora's first
+  outbound write — so here's the honest reasoning rather than a
+  shortcut: what it contains is one entity id you picked yourself (e.g.
+  `switch.porch_plug`) — not a name, not an account identifier, and not
+  something any of Google's nine Data Usage categories (personal
+  identifiers, health, financial, authentication, personal
+  communications, location, web history, user activity, website
+  content) actually describes. Where it goes is the same `https://`
+  instance you typed in and already hold a granted permission for —
+  your own server, not a third party you didn't already choose. Why
+  it's sent is a single click, once, for that one press — the same
+  "leaves the device only on your action, carrying only what you
+  configured" shape every other connector's read request already has in
+  the table above, just running in the opposite direction for this one
+  connector. None of that lands in a category the existing table
+  doesn't already answer "No" to for the read-path case, so the honest
+  conclusion is: a command to a server you own, carrying only an id you
+  configured, sent because you clicked — once — isn't a new category of
+  collection. No new Data Usage row.
+
+#### Detailed description delta
+
+REPLACE the Connectors bullet (as it stands after the v1.12.0 addendum
+above, under FEATURES):
+
+    - Connectors: an extensible framework for pulling in outside data,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Eight ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, and
+      Status — covering your feeds, your PRs/issues/MRs/tickets/
+      deployments, coin prices, your calendar events, and the health of
+      the services you depend on, each reading only what its own card
+      describes. Every connector card is composable — choose what each
+      shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view, and a one-click **Join**
+      link that appears next to the headline event starting 15 minutes
+      before a Zoom, Meet, Teams, Webex, or Whereby meeting (a toggle
+      turns it off). Status shows a quiet dot row for up to 8 services —
+      six curated status pages, or any statuspage.io-style URL you add
+      yourself — that stays green and silent until something's actually
+      down. Find connectors by name or purpose — the catalog is
+      searchable, and anything on your board stays pinned on top.
+
+with:
+
+    - Connectors: an extensible framework for reaching outside sources,
+      one card per source in Settings → Connectors, each one asking
+      permission for exactly the site you add, nothing more. Nine ship
+      today — RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar,
+      Status, and Home Assistant — covering your feeds, your
+      PRs/issues/MRs/tickets/deployments, coin prices, your calendar
+      events, the health of the services you depend on, and now your own
+      smart home. Eight of the nine only ever read; Home Assistant is
+      the one exception — its up-to-3 one-tap action buttons send a
+      single command (turning on a scene or script, or toggling a
+      switch) to your own instance, only when you press one, never on a
+      schedule. Every connector card is composable — choose what each
+      shows in Settings → Connectors: GitHub (commit graph, pull
+      requests, issues, notifications), GitLab (merge requests, review
+      asks, to-dos, activity graph), Jira (assigned issues, status chips,
+      due soon), and Vercel (deployments, status summary — sharing one
+      request, so turning either off alone doesn't stop it). Turning a
+      section off can only reduce what a card fetches, never add to it.
+      Calendar now holds up to 5 named calendars in one card — paste any
+      ICS/iCal feed, including Apple Calendar's webcal links — with a
+      Today, Upcoming, or One-per-calendar view, and a one-click **Join**
+      link that appears next to the headline event starting 15 minutes
+      before a Zoom, Meet, Teams, Webex, or Whereby meeting (a toggle
+      turns it off). Status shows a quiet dot row for up to 8 services —
+      six curated status pages, or any statuspage.io-style URL you add
+      yourself — that stays green and silent until something's actually
+      down. Home Assistant shows up to 6 state chips and up to 3 action
+      buttons, picked from your instance in a searchable entity picker —
+      **https only**: Nabu Casa cloud URLs and reverse-proxied instances
+      work, a plain http://homeassistant.local:8123 address cannot be
+      granted. Find connectors by name or purpose — the catalog is
+      searchable, and anything on your board stays pinned on top.
+
+Add to the PRIVACY, THE ACTUAL DIFFERENTIATOR list, after the NASA's
+Astronomy Picture of the Day bullet (added by the v1.13.0 addendum
+above):
+
+    - Home Assistant is the one connector that writes, not just reads —
+      and it's disclosed exactly that plainly: its action buttons send a
+      single command to your own Home Assistant instance, carrying
+      nothing but the entity id you already picked, and only in the
+      instant you click — never on a timer, never bundled with a poll,
+      never sent anywhere but the instance you connected. Every other
+      request any connector makes, Home Assistant's own state poll
+      included, is a plain read.
