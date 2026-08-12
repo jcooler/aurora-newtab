@@ -960,10 +960,21 @@ rather than inheriting either precedent silently:
   already covers for GitHub/GitLab/Vercel's tokens and Jira's
   email+token — a bearer credential, stored only in
   `chrome.storage.local`, sent only to the one service it authenticates
-  to. It needs no new row, only, optionally, one more name in that row's
-  existing connector list. **[Jon: cosmetic only — the row's answer
-  doesn't change either way; skip this if you'd rather not touch a row
-  that's already accurate without it.]**
+  to. It needs no new row (the category's answer is already "Yes" and
+  doesn't change), but following the same pattern that row followed the
+  first time — v1.4.0's own addendum above supplied the literal updated
+  row text when GitHub/GitLab/Jira/Vercel first populated it, rather
+  than describing the edit — Home Assistant gets named in it here too.
+  The existing "Authentication information" row (as it reads after the
+  v1.4.0 addendum above, line ~346) updates to:
+
+  | Category | Collected? | Notes |
+  |---|---|---|
+  | **Authentication information** | **Yes — stored locally, never transmitted except to the service it belongs to.** | A personal access token (GitHub, GitLab, Vercel, Home Assistant) or an email + API token (Jira), entered by the user through each connector's own "Connect" form. Stored only in `chrome.storage.local`, stripped from backup exports automatically (see PRIVACY.md's "Connectors" section), and sent only as an Authorization header (Bearer, or Basic for Jira) on requests to that one service — never to Aurora's developer, and there is no Aurora server for it to pass through. Crypto and Calendar need no such credential (Calendar's ICS URL is itself treated as a secret, disclosed separately in PRIVACY.md, but it authenticates nothing — it's a capability URL, not a sign-in). |
+
+  **[Jon: paste this row over the existing one when this ships — same
+  submission-readiness flag as the Location/Web history/v1.4.0 rows
+  above.]**
 - *The command body*, sent on a button press, is the part that's
   genuinely new — not just one more connector, but Aurora's first
   outbound write — so here's the honest reasoning rather than a

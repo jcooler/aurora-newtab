@@ -256,8 +256,8 @@ is disclosed plainly:** clicking one of its action buttons sends a single
 command — `scene.turn_on`, `script.turn_on`, or `switch.toggle`, whichever
 matches the action you picked — to **your own Home Assistant instance**,
 the same one you typed the URL for when you connected it. That command
-fires only in the instant you click the button: never on a timer, never at
-the same time as the widget's own state poll, never anywhere else in the
+fires only in the instant you click the button: never on a timer, never
+bundled with the widget's own state poll, never anywhere else in the
 app. Nothing else is ever written to any connector, Home Assistant
 included — every other request any connector makes, and Home Assistant's
 own `/api/states` poll, is a plain read. Apart from that one write path,
