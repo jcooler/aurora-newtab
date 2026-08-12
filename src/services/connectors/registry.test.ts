@@ -85,6 +85,7 @@ describe('descriptor categories', () => {
       ics: 'calendar-tasks',
       rss: 'news-markets',
       crypto: 'news-markets',
+      homeassistant: 'home',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])

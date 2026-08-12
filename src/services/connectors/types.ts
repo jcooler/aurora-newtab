@@ -4,8 +4,17 @@
 // six token connectors it adapts the framework for, and ConnectorConfig
 // becomes a real (multi-member) union to match — see the variance note below
 // on ConnectorDescriptor for what that costs at the registration site.
+//
+// W3-SP5 (Home Assistant connector, Task 99): HomeAssistantConfig is the one
+// member of the ConnectorConfig union DEFINED elsewhere — in homeassistant.ts,
+// alongside the entity/action shapes it's built from (HaEntityRef, HaAction)
+// — and imported here (type-only) just for the union member below. That
+// doesn't create a real (runtime) cycle with homeassistant.ts's own `import
+// type { ConnectorDescriptor } from './types'`: both sides erase at compile
+// time, so nothing survives to a load-order cycle at runtime.
+import type { HomeAssistantConfig } from './homeassistant'
 
-export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status'] as const
+export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant'] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
 // Task 79 (W3-SP1): the drawer (Task 80) groups connector cards by purpose
@@ -174,6 +183,7 @@ export type ConnectorConfig =
   | CryptoConfig
   | IcsConfig
   | StatusConfig
+  | HomeAssistantConfig
 
 export interface ConnectorSnapshot {
   fetchedAt: number // epoch ms
@@ -213,4 +223,9 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
    *  auth-state: secret present + identity present → connected; identity
    *  present + secret MISSING (backup-restored) → needs-reconnect. */
   identityField?: keyof C & string
+  /**
+   * Preposition for the card shell's connected line: "Connected as jon" vs
+   * "Connected to Grand Rapids house". Defaults to 'as' when absent.
+   */
+  identityPhrase?: 'as' | 'to'
 }
