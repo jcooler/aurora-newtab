@@ -4,7 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Active packet:** `W1-P1` — Connector snapshot identity and freshness, ready for a fresh task
+**Last verified packet:** `W1-P1` — Connector snapshot identity and freshness<br>
+**Next packet:** `W1-P2` — Cross-context storage authority; plan not yet created
 
 ## Packet envelope
 
@@ -17,9 +18,18 @@
 
 - `eb1354b6a5b041fb6d494655c3dae1862572bc51` — audited V1.14.0 base (`test(ha): the drawer sits for its portrait`).
 - `0ae676905fd54d3acf3aaf2cdcb79d13e4b47f7e` — reviewed master specification and executable W1-P1 plan (`docs: establish Aurora 2 observatory program`).
+- `87a8aa93dfd5544322daf855d10e780f64d1e882` — isolated Wave 0 ledger checkpoint (`docs: checkpoint A2-W0`).
+- `b2256f2a13f00e0e987593fdd9b83b839f401394` — scoped connector snapshot identity (`feat(connectors): scope snapshot identity`).
+- `0e93944116281cf95fe6b444398f7aa30730353d` — generation-safe lifecycle, nine call sites, and reconnect epochs (`fix(connectors): refresh scoped snapshots safely`).
+- `cd511f06c3758ce9b237f6a493087376e34886f8` — bounded-review fix for queued stale-owner writes (`fix(connectors): guard queued snapshot writes`).
 
 ## Latest verification
 
+- W1-P1 exact targeted suite — exit 0; 12 files / 409 tests passed.
+- `npx tsc --noEmit` after the review fix — exit 0.
+- `npx vitest run` after the review fix — exit 0; 97 files / 1,531 tests passed.
+- `npm run build` after the review fix — exit 0; TypeScript and Vite production build passed, 164 modules transformed.
+- Independent W1-P1 review — one Important queued-update stale-write race confirmed; red/green regression added and fixed in `cd511f0`; no other actionable findings and none left open.
 - `npm ci` — exit 0; 199 packages installed; 200 audited.
 - `npm test` — exit 0; photo manifest 23 entries / 46 tier files; Vitest 96 files / 1,515 tests passed.
 - `npm run build` — exit 0; TypeScript and Vite production build passed, 163 modules transformed.
@@ -57,25 +67,25 @@
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
-- Current connector snapshot architecture remains account/config unsafe until `W1-P1` is implemented.
+- Cross-context read/modify/write remains last-write-wins until W1-P2 establishes and verifies one mutation authority; W1-P1 intentionally did not enter that subsystem.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint A2-W0`. If `git status --short` is non-empty at continuation, stop and reconcile before W1-P1.
+- None expected after `docs: checkpoint W1-P1`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P2.
 
 ## Single next packet
 
-- **Packet:** `W1-P1` — Connector snapshot identity and freshness
-- **Plan:** `docs/superpowers/plans/2026-08-13-w1-p1-connector-snapshot-identity-freshness.md`
-- **State:** In progress; implementation has not started and must begin in a fresh task by reading the spec, this status, and the active plan.
+- **Packet:** `W1-P2` — Cross-context storage authority
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P1 evidence, A2-D009, and the current storage implementation.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P2 plan before any W1-P2 implementation; this W1-P1 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Active plan: docs/superpowers/plans/2026-08-13-w1-p1-connector-snapshot-identity-freshness.md
-Packet ID: W1-P1
-Verified implementation SHA: 0ae676905fd54d3acf3aaf2cdcb79d13e4b47f7e
-Expected checkpoint commit subject: docs: checkpoint A2-W0
+Next plan: create just-in-time W1-P2 cross-context storage authority plan
+Packet ID: W1-P2
+Verified W1-P1 implementation SHA: cd511f06c3758ce9b237f6a493087376e34886f8
+Expected next checkpoint subject: docs: checkpoint W1-P2
 ```

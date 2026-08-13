@@ -25,18 +25,19 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P1 — Connector snapshot identity and freshness
 
-- **State:** In progress
+- **State:** Verified
 - **Depends on:** A2-W0
 - **Plan:** [`2026-08-13-w1-p1-connector-snapshot-identity-freshness.md`](../plans/2026-08-13-w1-p1-connector-snapshot-identity-freshness.md)
 - **Acceptance:** Connector snapshots are scoped to connector plus a fixed-length fingerprint of fetch-relevant config/account state; raw secrets never appear in keys/logs/exports; different-account reconnect and mounted config mutation cannot show the prior cache; stale completions cannot write over the current scope; TTL expires in an open tab; visible/focus restoration rechecks without overlapping polls; rejected hook refreshes retain only matching stale data and recover cleanly, while connector-specific anti-staleness sentinels remain authoritative.
 - **Required evidence:** Red/green tests for different-account reconnect, mounted mutation, TTL, visibility/focus, concurrent consumers, Home Assistant pending reconfiguration, and stale completion ordering; full unit suite; production build. No visual change is expected.
-- **Finishing commit:** —
+- **Verified evidence:** Scoped identity plus all nine consumers; reconnect epochs; same-render suppression; generation/queued-write guards; TTL, focus, visibility, retry, and cleanup coverage; 12 targeted files / 409 tests; 97 total files / 1,531 tests; TypeScript and production build clean; bounded review's one Important finding fixed and no findings left open.
+- **Finishing commit:** `cd511f0` plus checkpoint subject `docs: checkpoint W1-P1`
 
 ### W1-P2 — Cross-context storage authority
 
 - **State:** Not started
 - **Depends on:** W1-P1
-- **Plan gate:** Create when W1-P1 is Verified.
+- **Plan gate:** Ready to create just in time from verified W1-P1 implementation `cd511f0`; no W1-P2 implementation has started.
 - **Acceptance:** One proven cross-context mutation authority prevents lost updates between separate new-tab/settings contexts; schema validation and change propagation remain intact; conflicts/retries or authority failures are explicit; storage rejection leaves prior state intact; simulated independent contexts and a real extension-page harness prove no lost update.
 - **Expected subsystem:** `src/lib/storage/*`, storage consumers only where the authority API requires adaptation, storage tests, browser harness.
 - **Finishing commit:** —

@@ -65,6 +65,7 @@ ADR-lite entries record settled implementation direction without replaying conve
 - **Reason:** Config/account identity must change cache usability immediately and safely, including RSS/ICS URLs whose full values can be credentials.
 - **Rejected:** Connector ID alone; raw config in cache keys; username-only identity; manual invalidation at a growing list of settings call sites.
 - **Consequence:** The first Wave 1 packet updates the shared hook and all connector call sites, adds commit-time generation invalidation plus generation/TTL/visibility behavior, preserves the epoch through ordinary Home Assistant config edits, and tests stale completion order. A rejected hook refresh may keep only matching stale data; existing Status/Home Assistant anti-staleness sentinels remain authoritative.
+- **Verification:** Implemented through `cd511f06c3758ce9b237f6a493087376e34886f8`. The bounded review found one queued-update race; W1-P1 added an updater-time generation guard and a red/green blocked-queue regression. Final evidence is 12 targeted files / 409 tests, 97 total files / 1,531 tests, clean TypeScript, and a clean production build, with no review findings left open.
 
 ## A2-D009 — Prefer a global Web Lock as the cross-context write authority
 
