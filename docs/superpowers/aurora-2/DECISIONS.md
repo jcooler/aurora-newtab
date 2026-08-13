@@ -1,0 +1,91 @@
+# Aurora 2 Decision Log
+
+ADR-lite entries record settled implementation direction without replaying conversation history. A later decision may supersede an entry, but must name it and explain migration/release consequences.
+
+## A2-D001 — Isolate Aurora 2 from the approved V1 checkout
+
+- **Date:** 2026-08-13
+- **Decision:** Develop on `feat/aurora-2-observatory` in `D:\DEV\Chrome plugin-aurora-2`, linked from the `eb1354b` base. Keep `D:\DEV\Chrome plugin` on clean `main` and preserve its local V1 packages.
+- **Reason:** Aurora 2 is a major multi-packet release; isolation protects approved V1 source/artifacts and any future user work.
+- **Rejected:** Working directly on `main`; creating an unignored project-local `.worktrees/` directory; replacing the staged V1 ZIP.
+- **Consequence:** Every handoff names the literal worktree/branch. No push to `main`, Store change, or V1 artifact replacement is implied.
+
+## A2-D002 — Use semantic profiles and zones, never canvas scaling
+
+- **Date:** 2026-08-13
+- **Decision:** Implement Compact, Standard, Display, and Ultrawide profiles over Day, Now, Work Pulse, and Signal Dock zones, selected from CSS viewport width/height/aspect ratio. Density is a bounded token/variant choice, separate from profile selection.
+- **Reason:** The current percentage-position/fixed-pixel-size model spreads content without increasing hierarchy or detail.
+- **Rejected:** Root transform/zoom; one canonical bitmap canvas; more exact height tiers; freeform percentages as the V2 source of truth.
+- **Consequence:** Legacy x/y data is migrated and preserved, while new UI uses semantic grid placements and container queries.
+
+## A2-D003 — Store overrides over versioned product defaults
+
+- **Date:** 2026-08-13
+- **Decision:** Keep profile defaults in source and persist only user overrides plus a legacy copy. Do not freeze every release default into every user's storage.
+- **Reason:** Product defaults can improve across releases without erasing user intent.
+- **Rejected:** Full per-user copies of all defaults; destructive one-time replacement of legacy layout.
+- **Consequence:** Migration, backup, reset-one-profile, and copy-profile behavior must distinguish defaults, overrides, drafts, and legacy data.
+
+## A2-D004 — Every enabled connector has one active representation
+
+- **Date:** 2026-08-13
+- **Decision:** An enabled connector is either placed on the board or represented in the Signal Dock in every active profile. Automatic items reduce variant before docking; Dock priority is explicit; Pinned items remain in their zone after deterministic collision resolution.
+- **Reason:** Height-based disappearance is a correctness failure, not a density feature.
+- **Rejected:** Silent whole-widget hiding; “newest connector loses”; scroll-only off-canvas placement.
+- **Consequence:** Profile and QA tests count configured connectors against board-plus-Dock representations.
+
+## A2-D005 — Utility Tray changes modality with available space
+
+- **Date:** 2026-08-13
+- **Decision:** Desktop Tray is modeless/anchored and does not trap focus; narrow Tray may become a true modal bottom sheet with backdrop, inert background, focus trap, Escape, and restoration.
+- **Reason:** Desktop tools should remain glanceable beside the dashboard, while narrow screens need one safe focused surface.
+- **Rejected:** Always-modal desktop drawer; always-modeless narrow overflow; multiple expanded tools.
+- **Consequence:** Responsive mode is behaviorally tested, not just styled. Running timer state remains visible when details close.
+
+## A2-D006 — Aurora Briefing is deterministic and local
+
+- **Date:** 2026-08-13
+- **Decision:** Build the Briefing from data Aurora already holds using deterministic priority, freshness, and truncation rules.
+- **Reason:** A three-second glance line is the signature product element; an LLM would add privacy, latency, cost, availability, and disclosure burdens without necessity.
+- **Rejected:** Remote LLM, new Aurora backend, generated prose from raw external payloads.
+- **Consequence:** Briefing has pure-function tests, makes no network request, and suppresses stale/unsafe claims.
+
+## A2-D007 — Keep local plaintext credentials with explicit risk disclosure
+
+- **Date:** 2026-08-13
+- **Decision:** Aurora 2 retains connector credentials in `chrome.storage.local` for convenience and describes them as local plaintext protected by the Chrome/OS profile—not encrypted or vault-grade. Capability URLs are secrets. Shared/untrusted profile guidance is mandatory.
+- **Reason:** A shipped extension cannot safely hide an embedded encryption key; session/passphrase modes require a separate usability, recovery, and threat-model design.
+- **Rejected:** Claiming encryption; cosmetic obfuscation; silently expanding 2.0 with an unplanned passphrase system.
+- **Consequence:** Privacy, Settings, backup/export, logs, Store copy, and support guidance use the same honest posture. Session-only/passphrase behavior is outside 2.0 unless separately approved.
+
+## A2-D008 — Scope snapshots with a cryptographic config/account fingerprint
+
+- **Date:** 2026-08-13
+- **Decision:** A connector snapshot stores connector ID plus a SHA-256 fingerprint of stable canonical fetch-relevant configuration. Successful token connections also stamp a new non-secret lifecycle epoch so an identical reconnect has a new scope. Raw tokens and capability URLs never appear in the stored scope string. Legacy unscoped snapshots are ignored as cache and need no schema migration.
+- **Reason:** Config/account identity must change cache usability immediately and safely, including RSS/ICS URLs whose full values can be credentials.
+- **Rejected:** Connector ID alone; raw config in cache keys; username-only identity; manual invalidation at a growing list of settings call sites.
+- **Consequence:** The first Wave 1 packet updates the shared hook and all connector call sites, adds commit-time generation invalidation plus generation/TTL/visibility behavior, preserves the epoch through ordinary Home Assistant config edits, and tests stale completion order. A rejected hook refresh may keep only matching stale data; existing Status/Home Assistant anti-staleness sentinels remain authoritative.
+
+## A2-D009 — Prefer a global Web Lock as the cross-context write authority
+
+- **Date:** 2026-08-13
+- **Decision:** The storage-integrity packet first verifies and uses a global Web Lock around Aurora storage mutations and restore transactions. If MV3 extension-page verification fails, stop and checkpoint before adopting a background service-worker authority.
+- **Reason:** Current per-context promise chains cannot prevent lost updates. A global lock preserves the existing updater API and allows multi-key restore coordination without inventing fake compare-and-set semantics over `chrome.storage.local`.
+- **Rejected:** Context-local queues; unproven revision retries without atomic CAS; granular keys alone; silently falling back to last-write-wins.
+- **Consequence:** The packet includes two simulated contexts and real extension-page evidence. Platform failure materially changes architecture and therefore triggers a decision checkpoint.
+
+## A2-D010 — Correct behavior before final Store prose
+
+- **Date:** 2026-08-13
+- **Decision:** Wave 1 creates a code-backed data classification and fixes misleading source copy, but Wave 6 performs current official-policy verification, live dashboard reconciliation, final listing/Data Usage copy, screenshots, and submission checklist.
+- **Reason:** Disclosures must describe the final network, storage, permission, and backup behavior; the repository cannot reveal the live Store version or dashboard answers.
+- **Rejected:** Guessing the live version; relying on remembered policy text; changing the live listing during development.
+- **Consequence:** Live Store version stays “user/dashboard verification required,” V1 stays live, and external mutations remain explicit approval gates.
+
+## A2-D011 — Treat the repeatable permission harness failure as open baseline evidence
+
+- **Date:** 2026-08-13
+- **Decision:** Record both 408 PASS / 1 FAIL / 3 SKIP runs and route `remove revokes live` to W1-P3 instead of patching it inside Wave 0.
+- **Reason:** The failure repeated identically, but Wave 0 is documentation/isolation/baseline only and the defect belongs to the accepted permission-lifecycle subsystem.
+- **Rejected:** Calling the run green because the probe was historically flaky; expanding Wave 0 into permission implementation.
+- **Consequence:** W1-P3 cannot be Verified until the real-browser probe passes or the user approves an evidence-backed disposition.
