@@ -137,6 +137,7 @@ export default function GitlabWidget() {
 
   return (
     <GitlabInner
+      gitlab={gitlab}
       token={gitlab.token}
       instanceUrl={gitlab.instanceUrl}
       username={gitlab.username}
@@ -150,6 +151,7 @@ export default function GitlabWidget() {
 }
 
 function GitlabInner({
+  gitlab,
   token,
   instanceUrl,
   username,
@@ -159,6 +161,7 @@ function GitlabInner({
   jiraEnabled,
   jiraDueSoonEnabled,
 }: {
+  gitlab: GitlabConfig
   token: string
   instanceUrl: string
   username: string
@@ -174,7 +177,7 @@ function GitlabInner({
   // comment — but still carries `prev` forward for the quiet-failure path).
   // The user's resolved views gate the fetch (a section turned off never issues
   // a request — see fetchGitlab) AND this render (below).
-  const { data } = useConnectorSnapshot<GitlabData>('gitlab', (prev) =>
+  const { data } = useConnectorSnapshot<GitlabData>('gitlab', gitlab, (prev) =>
     fetchGitlab(instanceUrl, token, username, views, prev),
   )
   // No cached data yet (first-ever load in flight, or a total failure) renders

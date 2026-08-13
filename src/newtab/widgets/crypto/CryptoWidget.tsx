@@ -22,17 +22,20 @@ export default function CryptoWidget() {
   const [connectors] = useStoredKey('connectors')
   const crypto = connectors?.crypto as CryptoConfig | undefined
   if (!crypto?.enabled || !Array.isArray(crypto.coins) || crypto.coins.length === 0) return null
-  return <CryptoInner coins={crypto.coins} />
+  return <CryptoInner crypto={crypto} />
 }
 
-function CryptoInner({ coins }: { coins: string[] }) {
+function CryptoInner({ crypto }: { crypto: CryptoConfig }) {
+  const { coins } = crypto
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchCrypto's
   // quiet-failure path keeps it (no ETag round-trip here — see crypto.ts's
   // own doc comment). No cached data yet (first-ever load still in flight,
   // or a total failure) renders nothing rather than an empty shell — same
   // as every other connector widget.
-  const { data } = useConnectorSnapshot<CryptoData>('crypto', (prev) => fetchCrypto(coins, prev))
+  const { data } = useConnectorSnapshot<CryptoData>('crypto', crypto, (prev) =>
+    fetchCrypto(coins, prev),
+  )
   if (!data) return null
 
   // fetchCrypto already reorders its rows to the CONFIGURED id order (see

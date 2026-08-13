@@ -23,7 +23,7 @@ export default function RssWidget() {
   // legally restore { rss: { enabled: true } } with no feeds array at all.
   // The type says feeds: string[]; storage doesn't promise it.
   if (!rss?.enabled || !Array.isArray(rss.feeds) || rss.feeds.length === 0) return null
-  return <RssInner feeds={rss.feeds} shownCount={rss.shownCount} />
+  return <RssInner rss={rss} />
 }
 
 // Short-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
@@ -56,14 +56,17 @@ const RSS_SHORT_ROWS = 4
 // only one row cap ever applies at a time.
 const RSS_MID_ROWS = 8
 
-function RssInner({ feeds, shownCount }: { feeds: RssConfig['feeds']; shownCount: RssConfig['shownCount'] }) {
+function RssInner({ rss }: { rss: RssConfig }) {
+  const { feeds, shownCount } = rss
   // Stale-while-refreshing by construction: the hook returns the cached
   // snapshot immediately and refreshes in the background once per mount. A
   // failed refresh keeps the cached rows (lastError is intentionally ignored
   // here — the dashboard stays quiet; the connector card in Settings is where
   // refresh state would surface). No cached data at all (first ever load still
   // in flight, or a total failure) renders nothing rather than an empty shell.
-  const { data } = useConnectorSnapshot<Headline[]>('rss', () => fetchHeadlines(feeds, shownCount))
+  const { data } = useConnectorSnapshot<Headline[]>('rss', rss, () =>
+    fetchHeadlines(feeds, shownCount),
+  )
   // Cap at shownCount here too, not just in the service: a snapshot written
   // under a larger shownCount that the user later lowered must honor the
   // current setting without waiting for the next refresh.

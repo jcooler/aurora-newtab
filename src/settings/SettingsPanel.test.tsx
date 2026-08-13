@@ -1881,7 +1881,12 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://api.github.com/*')
     expect(whoamiGithub).toHaveBeenCalledWith('github_pat_123')
-    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_123', username: 'octocat' })
+    expect(await readGithub(storage)).toEqual({
+      enabled: true,
+      token: 'github_pat_123',
+      username: 'octocat',
+      snapshotEpoch: expect.any(String),
+    })
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -2072,6 +2077,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
       token: 'glpat_123',
       instanceUrl: 'https://gitlab.com',
       username: 'jcooler',
+      snapshotEpoch: expect.any(String),
     })
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -2339,6 +2345,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       apiToken: 'tok_123',
       site: 'yoursite.atlassian.net',
       displayName: 'Jon Cooler',
+      snapshotEpoch: expect.any(String),
     })
     expect(screen.queryByRole('alert')).toBeNull()
   })
@@ -2567,7 +2574,12 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://api.vercel.com/*')
     expect(whoamiVercel).toHaveBeenCalledWith('vc_123')
-    expect(await readVercel(storage)).toEqual({ enabled: true, token: 'vc_123', username: 'jon' })
+    expect(await readVercel(storage)).toEqual({
+      enabled: true,
+      token: 'vc_123',
+      username: 'jon',
+      snapshotEpoch: expect.any(String),
+    })
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
@@ -3579,6 +3591,8 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     vi.mocked(fetchAllStates).mockReset()
   })
 
+  afterEach(() => vi.restoreAllMocks())
+
   async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false) {
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -3629,6 +3643,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     instanceUrl: 'https://home.example.com',
     token: 'eyJ_tok',
     locationName: 'Grand Rapids house',
+    snapshotEpoch: '00000000-0000-4000-8000-000000000100',
   }
 
   it('the card shell renders the Home Assistant descriptor (label, blurb, enable toggle); no chip/form until enabled', async () => {
@@ -3669,7 +3684,52 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       instanceUrl: 'https://home.example.com',
       token: 'eyJ_tok',
       locationName: 'Grand Rapids house',
+      snapshotEpoch: expect.any(String),
     })
+  })
+
+  it('disconnecting and reconnecting the identical account rotates the snapshot epoch', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000201')
+      .mockReturnValueOnce('00000000-0000-4000-8000-000000000202')
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
+    const storage = await renderWithHa({ enabled: true })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), {
+        target: { value: 'eyJ_tok' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+    expect((await readHa(storage))?.snapshotEpoch).toBe(
+      '00000000-0000-4000-8000-000000000201',
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+    expect(await readHa(storage)).toBeUndefined()
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Enable Home Assistant'))
+    })
+    await screen.findByLabelText('Instance URL')
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
+      fireEvent.change(screen.getByLabelText('Long-lived access token'), {
+        target: { value: 'eyJ_tok' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+    expect((await readHa(storage))?.snapshotEpoch).toBe(
+      '00000000-0000-4000-8000-000000000202',
+    )
   })
 
   it('a non-https instance URL blocks the connect with an inline alert: no permission requested, nothing stored', async () => {
@@ -3691,6 +3751,9 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   })
 
   it('reconnecting preserves pre-existing entities/actions', async () => {
+    vi.spyOn(globalThis.crypto, 'randomUUID').mockReturnValue(
+      '00000000-0000-4000-8000-000000000301',
+    )
     vi.mocked(ensureOrigin).mockResolvedValue(true)
     vi.mocked(whoamiHomeAssistant).mockResolvedValue({ ok: true, identity: 'Grand Rapids house' })
     const seededEntities: HaEntityRef[] = [{ id: 'light.kitchen', name: 'Kitchen Light' }]
@@ -3700,12 +3763,16 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       instanceUrl: 'https://home.example.com',
       token: '',
       locationName: 'Grand Rapids house',
+      snapshotEpoch: '00000000-0000-4000-8000-000000000300',
       entities: seededEntities,
       actions: seededActions,
     })
     expect(screen.getByText('Reconnect needed')).toBeTruthy()
 
     await act(async () => {
+      fireEvent.change(screen.getByLabelText('Instance URL'), {
+        target: { value: 'https://home.example.com' },
+      })
       fireEvent.change(screen.getByLabelText('Long-lived access token'), { target: { value: 'eyJ_new' } })
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     })
@@ -3713,6 +3780,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     const stored = await readHa(storage)
     expect(stored?.entities).toEqual(seededEntities)
     expect(stored?.actions).toEqual(seededActions)
+    expect(stored?.snapshotEpoch).toBe('00000000-0000-4000-8000-000000000301')
   })
 
   it('connected state renders "Connected to {location}" + "No entities picked yet" + a Choose entities button', async () => {
@@ -3799,6 +3867,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       { id: 'scene.movie_night', name: 'Movie Night', domain: 'scene' },
       { id: 'switch.office_fan', name: 'Office Fan', domain: 'switch' },
     ])
+    expect(stored?.snapshotEpoch).toBe('00000000-0000-4000-8000-000000000100')
     expect((await storage.get('connectorSnapshots')).homeassistant).toBeUndefined()
     expect(screen.getByText('3 chips · 2 actions')).toBeTruthy()
   })

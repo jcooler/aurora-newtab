@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { JiraData } from '../../../services/connectors/jira'
 import type { JiraConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import JiraWidget from './JiraWidget'
 
@@ -51,7 +52,11 @@ async function seededStorage(config: JiraConfig, data: JiraData | null = DATA): 
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { jira: config })
-  if (data) await storage.set('connectorSnapshots', { jira: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      jira: { scope: await connectorSnapshotScope('jira', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -319,7 +324,11 @@ async function seededMulti(jira: JiraConfig, data: JiraData | null, siblings: Re
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { jira, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { jira: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      jira: { scope: await connectorSnapshotScope('jira', jira), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 

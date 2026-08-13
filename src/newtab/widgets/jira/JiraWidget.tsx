@@ -111,6 +111,7 @@ export default function JiraWidget() {
 
   return (
     <JiraInner
+      jira={jira}
       site={jira.site}
       email={jira.email}
       apiToken={jira.apiToken}
@@ -123,6 +124,7 @@ export default function JiraWidget() {
 }
 
 function JiraInner({
+  jira,
   site,
   email,
   apiToken,
@@ -131,6 +133,7 @@ function JiraInner({
   gitlabReviewAsksEnabled,
   anyGraphEnabled,
 }: {
+  jira: JiraConfig
   site: string
   email: string
   apiToken: string
@@ -147,7 +150,7 @@ function JiraInner({
   // rather than an empty shell — same as GithubInner/GitlabInner. The user's
   // resolved views gate the fetch (a section turned off never issues a
   // request — see fetchJira) AND this render (below).
-  const { data } = useConnectorSnapshot<JiraData>('jira', (prev) =>
+  const { data } = useConnectorSnapshot<JiraData>('jira', jira, (prev) =>
     fetchJira(site, email, apiToken, views, prev),
   )
   if (!data) return null

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -20,15 +20,42 @@ import type {
 // snapshot plumbing exercise their real read-time boundaries.
 vi.mock('../../../services/connectors/homeassistant', async (importActual) => {
   const actual = await importActual<typeof import('../../../services/connectors/homeassistant')>()
-  return { ...actual, callHaService: vi.fn() }
+  return {
+    ...actual,
+    callHaService: vi.fn(),
+    fetchHomeAssistant: vi.fn(actual.fetchHomeAssistant),
+  }
 })
-import { callHaService } from '../../../services/connectors/homeassistant'
+import { callHaService, fetchHomeAssistant } from '../../../services/connectors/homeassistant'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import HomeAssistantWidget, { chipCopy, remountKey } from './HomeAssistantWidget'
+
+beforeAll(() => {
+  const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
+    const bytes =
+      source instanceof ArrayBuffer
+        ? new Uint8Array(source)
+        : new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+    const output = new Uint8Array(32)
+    bytes.forEach((byte, index) => {
+      const slot = index % output.length
+      output[slot] = ((output[slot] ?? 0) * 33 + byte + index) & 0xff
+    })
+    return output.buffer
+  })
+  Object.defineProperty(globalThis.crypto, 'subtle', {
+    configurable: true,
+    value: { digest },
+  })
+})
 
 // The snapshot hook's in-flight dedupe map is module-level and survives
 // across cases — same discipline as every other connector widget test
 // (StatusWidget.test.tsx's own idiom).
-beforeEach(() => __resetInFlight())
+beforeEach(() => {
+  __resetInFlight()
+  vi.mocked(fetchHomeAssistant).mockReset()
+})
 afterEach(() => __resetInFlight())
 
 // Kitchen/Porch — the SAME fixtures homeassistant.test.ts's own parseStates
@@ -66,7 +93,15 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { homeassistant: config })
-  if (data) await storage.set('connectorSnapshots', { homeassistant: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      homeassistant: {
+        scope: await connectorSnapshotScope('homeassistant', config),
+        fetchedAt: Date.now(),
+        data,
+      },
+    })
+  }
   return storage
 }
 
@@ -163,6 +198,47 @@ describe('HomeAssistantWidget — chip copy', () => {
 })
 
 describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ruling 2)', () => {
+  it('selection B wins when pending selection A resolves after B', async () => {
+    const selectedA: HomeAssistantConfig = {
+      ...CONNECTED,
+      entities: [PICKED[0]],
+      actions: [],
+    }
+    const selectedB: HomeAssistantConfig = {
+      ...CONNECTED,
+      entities: [PICKED[1]],
+      actions: [],
+    }
+    let resolveA!: (value: HomeAssistantData) => void
+    let resolveB!: (value: HomeAssistantData) => void
+    vi.mocked(fetchHomeAssistant)
+      .mockReturnValueOnce(new Promise((resolve) => (resolveA = resolve)))
+      .mockReturnValueOnce(new Promise((resolve) => (resolveB = resolve)))
+    const storage = await seededStorage(selectedA, null)
+    mount(storage)
+    await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      await storage.set('connectors', { homeassistant: selectedB })
+    })
+    await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(2))
+
+    await act(async () => {
+      resolveB({ entities: [PORCH] })
+      await Promise.resolve()
+      await Promise.resolve()
+      resolveA({ entities: [KITCHEN] })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByText('Kitchen 21.5°C')).toBeNull()
+    expect(screen.getByText('Porch light on')).toBeTruthy()
+    const stored = (await storage.get('connectorSnapshots')).homeassistant
+    expect(stored?.scope).toBe(await connectorSnapshotScope('homeassistant', selectedB))
+    expect(stored?.data).toEqual({ entities: [PORCH] })
+  })
+
   it('a failed poll (entities: null) renders NOTHING — chips AND buttons both hide', async () => {
     const storage = await seededStorage(CONNECTED, { entities: null })
     const { container } = mount(storage)
@@ -232,15 +308,14 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
   // findBy/screen queries unaffected. Every assertion below reads the DOM
   // synchronously right after an awaited `act` + `advanceTimersByTimeAsync`.
   describe('with fake timers', () => {
-    beforeEach(() => vi.useFakeTimers())
     afterEach(() => vi.useRealTimers())
 
     it('a failed press applies the error tint, which auto-clears back to idle after exactly 1200ms', async () => {
       vi.mocked(callHaService).mockResolvedValue(false)
       const storage = await seededStorage(CONNECTED)
       mount(storage)
-      await act(async () => {}) // flush useConnectorSnapshot's initial storage.get()
-      const button = screen.getByRole('button', { name: 'Run Movie night' })
+      const button = await screen.findByRole('button', { name: 'Run Movie night' })
+      vi.useFakeTimers()
 
       await act(async () => {
         fireEvent.click(button)
@@ -264,8 +339,8 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
       vi.mocked(callHaService).mockResolvedValue(false)
       const storage = await seededStorage(CONNECTED)
       const { unmount } = mount(storage)
-      await act(async () => {})
-      const button = screen.getByRole('button', { name: 'Run Movie night' })
+      const button = await screen.findByRole('button', { name: 'Run Movie night' })
+      vi.useFakeTimers()
 
       await act(async () => {
         fireEvent.click(button)

@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { Contributions, GithubData } from '../../../services/connectors/github'
 import type { GithubConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import GithubWidget from './GithubWidget'
 
@@ -57,7 +58,11 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { github: config })
-  if (data) await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      github: { scope: await connectorSnapshotScope('github', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -244,7 +249,9 @@ describe('GithubWidget', () => {
       ...(gitlab ? { gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'x' } } : {}),
       ...(jira ? { jira: { enabled: true, email: 'a@b.co', apiToken: 'jr', site: 's.atlassian.net', displayName: 'X' } } : {}),
     })
-    await storage.set('connectorSnapshots', { github: { fetchedAt: Date.now(), data } })
+    await storage.set('connectorSnapshots', {
+      github: { scope: await connectorSnapshotScope('github', github), fetchedAt: Date.now(), data },
+    })
     return storage
   }
   const graphWrapper = () => screen.getByRole('img').closest('section')!

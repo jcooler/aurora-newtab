@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { StatusData } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import StatusWidget from './StatusWidget'
 
@@ -42,7 +43,11 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { status: config })
-  if (data) await storage.set('connectorSnapshots', { status: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      status: { scope: await connectorSnapshotScope('status', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 

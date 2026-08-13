@@ -77,6 +77,7 @@ export default function VercelWidget() {
   const leftColumnCrowded = connectors?.ics?.enabled === true && connectors?.rss?.enabled === true
   return (
     <VercelInner
+      vercel={vercel}
       token={vercel.token}
       views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
       leftColumnCrowded={leftColumnCrowded}
@@ -84,7 +85,17 @@ export default function VercelWidget() {
   )
 }
 
-function VercelInner({ token, views, leftColumnCrowded }: { token: string; views: VercelViews; leftColumnCrowded: boolean }) {
+function VercelInner({
+  vercel,
+  token,
+  views,
+  leftColumnCrowded,
+}: {
+  vercel: VercelConfig
+  token: string
+  views: VercelViews
+  leftColumnCrowded: boolean
+}) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
   // quiet-failure path keeps it (no ETag round-trip here — see vercel.ts's
@@ -93,7 +104,9 @@ function VercelInner({ token, views, leftColumnCrowded }: { token: string; views
   // every other connector widget. The user's resolved views gate the fetch
   // (fetchVercel skips the request when BOTH sections are off — see its own
   // doc comment) AND this render (below).
-  const { data } = useConnectorSnapshot<VercelData>('vercel', (prev) => fetchVercel(token, views, prev))
+  const { data } = useConnectorSnapshot<VercelData>('vercel', vercel, (prev) =>
+    fetchVercel(token, views, prev),
+  )
   if (!data) return null
 
   // UNSLICED — the status summary below counts EVERY deployment the

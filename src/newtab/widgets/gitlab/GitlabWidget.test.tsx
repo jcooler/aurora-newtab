@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { GitlabData, Contributions } from '../../../services/connectors/gitlab'
 import type { GitlabConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import GitlabWidget from './GitlabWidget'
 
@@ -52,7 +53,11 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { gitlab: config })
-  if (data) await storage.set('connectorSnapshots', { gitlab: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      gitlab: { scope: await connectorSnapshotScope('gitlab', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -238,7 +243,11 @@ async function seededMulti(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { gitlab, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { gitlab: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      gitlab: { scope: await connectorSnapshotScope('gitlab', gitlab), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 

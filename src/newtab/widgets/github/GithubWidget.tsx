@@ -89,7 +89,9 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // a request — see fetchGithub) AND this render (below).
   const token = github.token
   const views = resolveGithubViews(github)
-  const { data } = useConnectorSnapshot<GithubData>('github', (prev) => fetchGithub(token, prev, views))
+  const { data } = useConnectorSnapshot<GithubData>('github', github, (prev) =>
+    fetchGithub(token, prev, views),
+  )
 
   // All four sections off: the user asked for nothing to show, so render no
   // empty shell — the settings copy owns that explanation.

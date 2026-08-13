@@ -8,6 +8,7 @@ import { whoamiGithub, resolveGithubViews } from '../../services/connectors/gith
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
+import { newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
 import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
@@ -501,6 +502,7 @@ function GithubBody({ config, storage }: BodyProps) {
               enabled: true,
               token: values.token,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
@@ -648,6 +650,7 @@ function GitlabBody({ config, storage }: BodyProps) {
               token: values.token,
               instanceUrl: values.instanceUrl,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
@@ -808,6 +811,7 @@ function JiraBody({ config, storage }: BodyProps) {
               apiToken: values.apiToken,
               site: normalizeJiraSite(values.site),
               displayName: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
@@ -929,6 +933,7 @@ function VercelBody({ config, storage }: BodyProps) {
               enabled: true,
               token: values.token,
               username: identity,
+              snapshotEpoch: newSnapshotEpoch(),
               ...(prevViews ? { views: prevViews } : {}),
             },
           }
@@ -1810,6 +1815,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
           instanceUrl: current?.instanceUrl,
           token: current?.token,
           locationName: current?.locationName,
+          snapshotEpoch: current?.snapshotEpoch,
           entities: nextEntities,
           actions: nextActions,
         },
@@ -1890,6 +1896,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
                 instanceUrl: values.instanceUrl,
                 token: values.token,
                 locationName: identity,
+                snapshotEpoch: newSnapshotEpoch(),
                 ...(prevHa?.entities ? { entities: prevHa.entities } : {}),
                 ...(prevHa?.actions ? { actions: prevHa.actions } : {}),
               },

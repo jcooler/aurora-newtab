@@ -112,6 +112,7 @@ export default function HomeAssistantWidget() {
   return (
     <HomeAssistantInner
       key={remountKey(picked, actions)}
+      config={ha}
       instanceUrl={ha.instanceUrl}
       token={ha.token}
       picked={picked}
@@ -121,11 +122,13 @@ export default function HomeAssistantWidget() {
 }
 
 function HomeAssistantInner({
+  config,
   instanceUrl,
   token,
   picked,
   actions,
 }: {
+  config: HomeAssistantConfig
   instanceUrl: string
   token: string
   picked: HaEntityRef[]
@@ -137,8 +140,10 @@ function HomeAssistantInner({
   // accepts one (useConnectorSnapshot's own signature requires it) but
   // deliberately ignores it rather than threading it anywhere, so a
   // reviewer scanning call sites never mistakes this for a carry-forward.
-  const { data } = useConnectorSnapshot<HomeAssistantData>('homeassistant', (_prev) =>
-    fetchHomeAssistant(instanceUrl, token, picked),
+  const { data } = useConnectorSnapshot<HomeAssistantData>(
+    'homeassistant',
+    config,
+    (_prev) => fetchHomeAssistant(instanceUrl, token, picked),
   )
   // Anti-staleness, all-or-nothing (plan-pinned ruling 2): a failed poll
   // (`data === null`, never fetched yet) OR an outright failed one

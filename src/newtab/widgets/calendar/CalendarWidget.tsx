@@ -79,6 +79,7 @@ export default function CalendarWidget() {
   // unnecessary fetch.
   return (
     <CalendarInner
+      config={ics}
       key={[view, upcomingCount, ...calendars.map((c) => c.url)].join('\n')}
       calendars={calendars}
       view={view}
@@ -89,11 +90,13 @@ export default function CalendarWidget() {
 }
 
 function CalendarInner({
+  config,
   calendars,
   view,
   upcomingCount,
   meetLinks,
 }: {
+  config: IcsConfig
   calendars: IcsCalendar[]
   view: 'today' | 'upcoming' | 'per-calendar'
   upcomingCount: number
@@ -123,7 +126,9 @@ function CalendarInner({
   // to parseIcs as `windowStart`, and parseIcs itself never calls
   // Date.now() (see ics.ts's own doc comment). `prev` carries the
   // last-known events forward through fetchIcs's own quiet-failure path.
-  const { data } = useConnectorSnapshot<IcsData>('ics', (prev) => fetchIcs(calendars, Date.now(), prev))
+  const { data } = useConnectorSnapshot<IcsData>('ics', config, (prev) =>
+    fetchIcs(calendars, Date.now(), prev),
+  )
   if (!data) return null
 
   const nowMs = now.getTime()

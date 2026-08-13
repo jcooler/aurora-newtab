@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { VercelData } from '../../../services/connectors/vercel'
 import type { VercelConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import VercelWidget from './VercelWidget'
 
@@ -53,7 +54,11 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { vercel: config })
-  if (data) await storage.set('connectorSnapshots', { vercel: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      vercel: { scope: await connectorSnapshotScope('vercel', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
@@ -289,7 +294,11 @@ async function seededMulti(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { vercel, ...siblings })
-  if (data) await storage.set('connectorSnapshots', { vercel: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      vercel: { scope: await connectorSnapshotScope('vercel', vercel), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 

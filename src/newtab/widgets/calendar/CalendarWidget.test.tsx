@@ -1,13 +1,33 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { IcsData, IcsEvent } from '../../../services/connectors/ics'
 import type { IcsConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import CalendarWidget, { relNext } from './CalendarWidget'
+
+beforeAll(() => {
+  const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
+    const bytes =
+      source instanceof ArrayBuffer
+        ? new Uint8Array(source)
+        : new Uint8Array(source.buffer, source.byteOffset, source.byteLength)
+    const output = new Uint8Array(32)
+    bytes.forEach((byte, index) => {
+      const slot = index % output.length
+      output[slot] = ((output[slot] ?? 0) * 33 + byte + index) & 0xff
+    })
+    return output.buffer
+  })
+  Object.defineProperty(globalThis.crypto, 'subtle', {
+    configurable: true,
+    value: { digest },
+  })
+})
 
 // The snapshot hook's in-flight dedupe map is module-level and survives
 // across cases; reset it so one test's refresh can't dedupe the next — same
@@ -77,7 +97,11 @@ async function seededStorage(config: IcsConfig, data: IcsData | null): Promise<A
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { ics: config })
-  if (data) await storage.set('connectorSnapshots', { ics: { fetchedAt: NOW, data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      ics: { scope: await connectorSnapshotScope('ics', config), fetchedAt: NOW, data },
+    })
+  }
   return storage
 }
 

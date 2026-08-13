@@ -54,10 +54,22 @@ export default function StatusWidget() {
   // clears the snapshot; a config change that doesn't touch the list does
   // not) — the remounted widget then finds no snapshot at all and fetches
   // right away.
-  return <StatusInner key={services.map((s) => s.url).join('\n')} services={services} />
+  return (
+    <StatusInner
+      key={services.map((service) => service.url).join('\n')}
+      config={status}
+      services={services}
+    />
+  )
 }
 
-function StatusInner({ services }: { services: { name: string; url: string }[] }) {
+function StatusInner({
+  config,
+  services,
+}: {
+  config: StatusConfig
+  services: { name: string; url: string }[]
+}) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` forward (though fetchStatus
   // deliberately ignores it — see status.ts's own doc comment: a failed
@@ -65,7 +77,9 @@ function StatusInner({ services }: { services: { name: string; url: string }[] }
   // yet (first-ever load still in flight, or a total failure) renders
   // nothing rather than an empty shell — same as every other connector
   // widget.
-  const { data } = useConnectorSnapshot<StatusData>('status', (prev) => fetchStatus(services, prev))
+  const { data } = useConnectorSnapshot<StatusData>('status', config, (prev) =>
+    fetchStatus(services, prev),
+  )
   if (!data) return null
 
   // fetchStatus returns one entry per configured service, INDEX-ALIGNED with

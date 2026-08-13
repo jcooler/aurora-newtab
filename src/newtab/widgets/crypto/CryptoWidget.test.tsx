@@ -6,6 +6,7 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { CryptoData } from '../../../services/connectors/crypto'
 import type { CryptoConfig } from '../../../services/connectors/types'
+import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import CryptoWidget, { formatPrice } from './CryptoWidget'
 
@@ -39,7 +40,11 @@ async function seededStorage(
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { crypto: config })
-  if (data) await storage.set('connectorSnapshots', { crypto: { fetchedAt: Date.now(), data } })
+  if (data) {
+    await storage.set('connectorSnapshots', {
+      crypto: { scope: await connectorSnapshotScope('crypto', config), fetchedAt: Date.now(), data },
+    })
+  }
   return storage
 }
 
