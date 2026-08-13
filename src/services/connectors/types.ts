@@ -47,7 +47,12 @@ export const CATEGORY_ORDER: readonly ConnectorCategory[] = [
   'fun',
 ]
 
-export interface RssConfig {
+export interface ConnectorCacheIdentity {
+  /** Non-secret lifecycle nonce. New token connections replace it. */
+  snapshotEpoch?: string
+}
+
+export interface RssConfig extends ConnectorCacheIdentity {
   enabled: boolean
   feeds: string[] // https URLs, max 5
   shownCount: number // 3-8, default 5
@@ -80,7 +85,7 @@ export interface Contributions {
   total: number
 }
 
-export interface GithubConfig {
+export interface GithubConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   username: string
@@ -98,7 +103,7 @@ export type GitlabViews = {
   activityGraph: boolean
 }
 
-export interface GitlabConfig {
+export interface GitlabConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   instanceUrl: string
@@ -118,7 +123,7 @@ export type JiraViews = {
   dueSoon: boolean
 }
 
-export interface JiraConfig {
+export interface JiraConfig extends ConnectorCacheIdentity {
   enabled: boolean
   email: string
   apiToken: string
@@ -135,7 +140,7 @@ export type VercelViews = {
   statusSummary: boolean
 }
 
-export interface VercelConfig {
+export interface VercelConfig extends ConnectorCacheIdentity {
   enabled: boolean
   token: string
   username: string
@@ -144,7 +149,7 @@ export interface VercelConfig {
   // the full rule). See DEFAULT_VERCEL_VIEWS (Task 74).
   views?: VercelViews
 }
-export interface CryptoConfig {
+export interface CryptoConfig extends ConnectorCacheIdentity {
   enabled: boolean
   coins: string[] // 2-5 CoinGecko ids
 }
@@ -152,7 +157,7 @@ export interface IcsCalendar {
   name: string // display name, e.g. "Personal" — shown in settings; dots key by list position
   url: string // https-only at rest (webcal:// is converted before persist); the WHOLE url is the secret
 }
-export interface IcsConfig {
+export interface IcsConfig extends ConnectorCacheIdentity {
   enabled: boolean
   url?: string // LEGACY pre-multi-calendar shape; read by icsCalendarsOf, never written by new saves
   calendars?: IcsCalendar[] // max 5 (MAX_CALENDARS in Connectors.tsx)
@@ -169,7 +174,7 @@ export interface StatusService {
   name: string
   url: string
 }
-export interface StatusConfig {
+export interface StatusConfig extends ConnectorCacheIdentity {
   enabled: boolean
   services?: StatusService[] // up to MAX_SERVICES (status.ts); absent/malformed → [] (statusServicesOf)
 }
@@ -186,6 +191,8 @@ export type ConnectorConfig =
   | HomeAssistantConfig
 
 export interface ConnectorSnapshot {
+  /** Missing only on legacy v1 caches; the hook treats those as absent. */
+  scope?: string
   fetchedAt: number // epoch ms
   data: unknown // per-connector shape, typed at the service boundary
 }

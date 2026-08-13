@@ -25,7 +25,7 @@
 // res.json() call (http.ts:93) is UNCONDITIONAL and can reject on a
 // malformed body, so every postJson/getJson call here is wrapped in its own
 // try/catch (status.ts:103's fetchOneStatus precedent), not left to bubble.
-import type { ConnectorDescriptor } from './types'
+import type { ConnectorCacheIdentity, ConnectorDescriptor } from './types'
 import { getJson, postJson } from './http'
 import { originPattern } from '../permissions'
 
@@ -47,7 +47,7 @@ export interface HaAction {
   domain: 'scene' | 'script' | 'switch'
 }
 
-export interface HomeAssistantConfig {
+export interface HomeAssistantConfig extends ConnectorCacheIdentity {
   enabled: boolean
   instanceUrl?: string
   token?: string
