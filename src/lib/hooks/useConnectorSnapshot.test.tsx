@@ -311,6 +311,63 @@ describe('useConnectorSnapshot', () => {
     })
   })
 
+  it('a queued scope A write rechecks ownership after scope B commits', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+
+    const queueEntered = deferred<void>()
+    const releaseQueue = deferred<void>()
+    const read = driver.read.bind(driver)
+    let blockNextSnapshotRead = true
+    driver.read = async (keys) => {
+      if (blockNextSnapshotRead && keys?.includes('connectorSnapshots')) {
+        blockNextSnapshotRead = false
+        queueEntered.resolve()
+        await releaseQueue.promise
+      }
+      return read(keys)
+    }
+
+    const priorUpdate = storage.update('connectorSnapshots', (snapshots) => snapshots)
+    await queueEntered.promise
+
+    const requestB = deferred<string>()
+    const refresh = vi
+      .fn<(_: string | null) => Promise<string>>()
+      .mockResolvedValueOnce('account-a')
+      .mockReturnValueOnce(requestB.promise)
+    const update = vi.spyOn(storage, 'update')
+    const view = mount(storage, refresh, 60_000, configA)
+    await act(async () => {
+      await tick()
+    })
+    expect(update).toHaveBeenCalledTimes(1)
+    const queuedAWrite = update.mock.results[0]?.value as Promise<unknown>
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <Probe config={configB} refresh={refresh} ttl={60_000} />
+      </StorageProvider>,
+    )
+    await act(async () => {
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledTimes(2)
+
+    releaseQueue.resolve()
+    await priorUpdate
+    await queuedAWrite
+
+    const storedAfterA = (await storage.get('connectorSnapshots')).rss
+    expect(storedAfterA?.data).not.toBe('account-a')
+
+    await act(async () => {
+      requestB.resolve('account-b')
+      await tick()
+    })
+  })
+
   it('scope B wins when pending scope A resolves after B', async () => {
     const storage = await freshStorage()
     const requestA = deferred<string>()

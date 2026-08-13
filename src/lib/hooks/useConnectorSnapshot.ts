@@ -130,10 +130,14 @@ export function useConnectorSnapshot<T>(
               fetchedAt: Date.now(),
               data: result,
             }
-            await storage.update('connectorSnapshots', (snapshots) => ({
-              ...snapshots,
-              [id]: snapshot,
-            }))
+            await storage.update('connectorSnapshots', (snapshots) =>
+              isCurrent()
+                ? {
+                    ...snapshots,
+                    [id]: snapshot,
+                  }
+                : snapshots,
+            )
           }
           setCurrentState((current) => ({ ...current, lastError: null }))
         } catch (error) {
