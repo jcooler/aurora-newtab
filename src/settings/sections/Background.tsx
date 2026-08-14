@@ -4,33 +4,44 @@ import type { Upload } from '../../lib/hooks/useUploads'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { APOD_ORIGINS } from '../../services/apod'
-import { ensureOrigins, originPattern, removeOrigin } from '../../services/permissions'
-import { heldOrigins } from '../../services/connectors/registry'
+import {
+  releaseUnownedOrigins,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
 import Section from '../Section'
 import { row, label, select } from './shared'
 
-/** Background photo source (daily/upload/gradient/apod) + the upload
- *  gallery. `photoPrefs`/`savePhotoPrefs` and the loaded `uploads`/`thumbUrls`
- *  stay owned by SettingsPanel (their async resolution timing —
- *  useStoredKey, useUploads, and the object-URL effect derived from it — must
- *  not shift relative to today) and flow down as props; `galleryError`, the
- *  APOD permission-denied alert, and every handler below are section-local
- *  and live entirely here. */
+function reportTransactionCleanup<T>(
+  transaction: OriginTransactionResult<T>,
+  reportPendingCleanup: (patterns: readonly string[]) => void,
+) {
+  if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+    reportPendingCleanup(transaction.pendingCleanup)
+  }
+}
+
+function apodTransactionError(transaction: OriginTransactionResult<void>): string | null {
+  if (transaction.status === 'committed') return null
+  if (transaction.status === 'denied' || transaction.status === 'access-lost') {
+    return 'Permission to reach NASA was denied, so the background is unchanged.'
+  }
+  if (transaction.status === 'aborted') return transaction.message
+  return "Couldn't save the NASA background. Please try again."
+}
+
 export default function Background({
   storage,
-  reportPendingCleanup: _reportPendingCleanup,
+  reportPendingCleanup,
   photoPrefs,
-  savePhotoPrefs,
   uploads,
   thumbUrls,
   galleryError,
   setGalleryError,
 }: {
   storage: AuroraStorage
-  /** SettingsPanel owns this durable recovery state; APOD wires into it in Task 4. */
   reportPendingCleanup(patterns: readonly string[]): void
   photoPrefs: PhotoPrefs | undefined
-  savePhotoPrefs: (next: PhotoPrefs) => void
   uploads: Upload[]
   thumbUrls: Record<string, string>
   galleryError: string | null
@@ -42,57 +53,45 @@ export default function Background({
   // (any of the four), not just a later apod attempt.
   const [apodError, setApodError] = useState<string | null>(null)
 
-  // Selecting 'apod': ensureOrigins(APOD_ORIGINS) must be the FIRST await in
-  // this whole chain, with ZERO awaits ahead of it — same gesture-chain
-  // discipline as every other permission-gated control in Settings
-  // (Switch.tsx's own doc comment, Widgets.tsx's bookmarks toggle, every
-  // TokenConnectForm/RssBody/IcsBody/CryptoBody handler in Connectors.tsx).
-  // The <select>'s onChange itself runs synchronously up to here; nothing
-  // above this call awaits anything.
   async function handleSourceChange(newMode: PhotoPrefs['mode']) {
     if (!photoPrefs) return
     const prevMode = photoPrefs.mode
 
     if (newMode === 'apod') {
-      // ensureOrigins can REJECT, not just resolve false (e.g. the gesture
-      // context was somehow already lost) — without a catch here, that's an
-      // unhandled rejection with no alert shown at all, same reasoning as
-      // Widgets.tsx's ensureBookmarksPermission catch.
-      let granted: boolean
-      try {
-        granted = await ensureOrigins(APOD_ORIGINS)
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        // Denied/rejected: prefs stay UNWRITTEN — the select falls back to
-        // rendering the prior mode (its `value` prop is still `photoPrefs.mode`,
-        // untouched) — and the alert explains why.
-        setApodError('Permission to reach NASA was denied, so the background is unchanged.')
-        return
-      }
-      setApodError(null)
-      savePhotoPrefs({ ...photoPrefs, mode: 'apod' })
+      const transaction = await runOriginTransaction(storage, APOD_ORIGINS, async () => {
+        await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+      reportTransactionCleanup(transaction, reportPendingCleanup)
+      setApodError(apodTransactionError(transaction))
       return
     }
 
-    // Every other source change clears any stale apod alert, per the pinned
-    // "cleared on the next successful source change" rule — including a
-    // switch between two non-apod modes, not just a switch AWAY from apod.
+    try {
+      await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: newMode }))
+    } catch {
+      setApodError("Couldn't save the background. Please try again.")
+      return
+    }
     setApodError(null)
-    savePhotoPrefs({ ...photoPrefs, mode: newMode })
 
     if (prevMode === 'apod') {
-      // Switching AWAY from apod: clear the cache (a fresh 'apod' pick later
-      // starts clean, never shows yesterday's photo for a beat) and release
-      // whatever APOD origins no still-enabled connector independently holds
-      // — read fresh from storage (non-gesture context now, so awaiting here
-      // is fine; this is well after the click that started the chain).
-      await storage.update('apodCache', () => null)
-      const connectors = await storage.get('connectors')
-      const held = new Set(heldOrigins(connectors))
-      for (const url of APOD_ORIGINS) {
-        if (!held.has(originPattern(url))) await removeOrigin(url)
+      let cacheClearFailed = false
+      try {
+        await storage.update('apodCache', () => null)
+      } catch {
+        cacheClearFailed = true
+      }
+
+      try {
+        const cleanup = await releaseUnownedOrigins(storage, APOD_ORIGINS)
+        if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+      } catch {
+        reportPendingCleanup(APOD_ORIGINS)
+      }
+
+      if (cacheClearFailed) {
+        setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
       }
     }
   }

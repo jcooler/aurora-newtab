@@ -55,7 +55,7 @@ export default function SettingsPanel({
   // this state is never torn down between opens.
   const [tab, setTab] = useState<TabId>('general')
   const [settings, save] = useStoredKey('settings')
-  const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
+  const [photoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')
   const [worldClocks] = useStoredKey('worldClocks')
   const [countdowns] = useStoredKey('countdowns')
@@ -120,7 +120,6 @@ export default function SettingsPanel({
             storage={storage}
             reportPendingCleanup={cleanup.reportPendingCleanup}
             photoPrefs={photoPrefs}
-            savePhotoPrefs={savePhotoPrefs}
             uploads={uploads}
             thumbUrls={thumbUrls}
             galleryError={galleryError}

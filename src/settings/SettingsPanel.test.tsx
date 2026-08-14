@@ -12,6 +12,7 @@ import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../ser
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
+import { releaseUnownedOrigins } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
 import { authState } from './sections/Connectors'
 // Imported (not hardcoded) so the About footer's version assertion below
@@ -844,7 +845,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
   })
 })
 
-describe('SettingsPanel Background section (APOD source — Task 96)', () => {
+describe('SettingsPanel Background section (APOD source — Task 4)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigins).mockReset()
     vi.mocked(removeOrigin).mockReset().mockResolvedValue(false)
@@ -854,6 +855,15 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     return screen.getByLabelText('Source') as HTMLSelectElement
   }
 
+  const apodPatterns = APOD_ORIGINS.map(originPattern)
+
+  function grantRequestedOrigins() {
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach(holdOrigin)
+      return true
+    })
+  }
+
   it('lists "NASA photo of the day" after Gradient', async () => {
     await renderPanel()
     const options = Array.from(sourceSelect().options).map((o) => o.value)
@@ -861,28 +871,52 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(sourceSelect().options[3]!.textContent).toBe('NASA photo of the day')
   })
 
-  it('selecting apod calls ensureOrigins(APOD_ORIGINS) synchronously, before any await settles', async () => {
-    vi.mocked(ensureOrigins).mockResolvedValue(true)
-    await renderPanel()
-    const select = sourceSelect()
-
-    // Deliberately NOT wrapped in `act(async () => {})`: if the handler
-    // awaited anything BEFORE ensureOrigins, this synchronous assertion
-    // would fail, because the mock call wouldn't have landed yet. This is
-    // the gesture-chain discipline Switch.tsx's own doc comment describes
-    // ("do not make this handler async" in spirit — here the handler IS
-    // async, but ensureOrigins must still be the first await in it).
-    act(() => {
-      fireEvent.change(select, { target: { value: 'apod' } })
+  it('queues the lifecycle lock then requests both APOD origins in the initiating change before the lock callback starts', async () => {
+    const order: string[] = []
+    let openLock!: () => void
+    const lockGate = new Promise<void>((resolve) => { openLock = resolve })
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: unknown, work: () => Promise<unknown>) => {
+          order.push('lock-queued')
+          return lockGate.then(async () => {
+            order.push('lock-callback')
+            return work()
+          })
+        },
+      },
     })
-    expect(ensureOrigins).toHaveBeenCalledWith(APOD_ORIGINS)
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      order.push('request')
+      origins.forEach(holdOrigin)
+      return true
+    })
 
-    // Flush the pending resolution + save so nothing leaks into the next test.
-    await act(async () => {})
+    try {
+      const storage = await renderPanel()
+      act(() => {
+        fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+      })
+
+      expect(order).toEqual(['lock-queued', 'request'])
+      expect(ensureOrigins).toHaveBeenCalledWith(apodPatterns)
+
+      await act(async () => {
+        openLock()
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('apod')
+      expect(cleanupHeld).toEqual(new Set(apodPatterns))
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
   })
 
   it('granting the permission saves apod mode and shows no alert', async () => {
-    vi.mocked(ensureOrigins).mockResolvedValue(true)
+    grantRequestedOrigins()
     const storage = await renderPanel()
     const select = sourceSelect()
 
@@ -895,9 +929,16 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('denying the permission leaves the mode unwritten, the select reverted, and shows the pinned alert', async () => {
+  it('denial leaves the prior mode and APOD cache untouched, with the controlled-select alert', async () => {
     vi.mocked(ensureOrigins).mockResolvedValue(false)
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const cache = {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    }
+    await storage.set('apodCache', cache)
+    await renderPanel(() => {}, storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -906,6 +947,7 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
 
     expect(select.value).toBe('auto')
     expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(await storage.get('apodCache')).toEqual(cache)
     const error = await screen.findByRole('alert')
     expect(error.id).toBe('bg-apod-error')
     expect(error.textContent).toBe(
@@ -916,9 +958,16 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(select.getAttribute('aria-describedby')).toBe('bg-apod-error')
   })
 
-  it('a rejected ensureOrigins (not just an explicit false) is caught and routed to the same alert', async () => {
+  it('a rejected APOD request leaves the mode and cache untouched', async () => {
     vi.mocked(ensureOrigins).mockRejectedValue(new Error('gesture context lost'))
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const cache = {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    }
+    await storage.set('apodCache', cache)
+    await renderPanel(() => {}, storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -926,7 +975,63 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     })
 
     expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(await storage.get('apodCache')).toEqual(cache)
     expect(await screen.findByRole('alert')).toBeTruthy()
+  })
+
+  it('rolls back both newly acquired APOD origins when authoritative photo preference persistence rejects', async () => {
+    const driver = memoryDriver()
+    let rejectPhotoPrefs = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectPhotoPrefs && 'photoPrefs' in patch) throw new Error('photo prefs write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    rejectPhotoPrefs = true
+    grantRequestedOrigins()
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+  })
+
+  it('keeps the pre-existing APOD API permission while rolling back only the newly acquired image origin after persistence rejects', async () => {
+    const driver = memoryDriver()
+    let rejectPhotoPrefs = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectPhotoPrefs && 'photoPrefs' in patch) throw new Error('photo prefs write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    holdOrigin(apodPatterns[0]!)
+    rejectPhotoPrefs = true
+    grantRequestedOrigins()
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+    })
+
+    expect(ensureOrigins).toHaveBeenCalledWith([apodPatterns[1]!])
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).not.toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
   })
 
   it('a later successful source change clears the apod alert', async () => {
@@ -945,7 +1050,7 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('switching away from apod clears the cache and releases both origins when nothing else holds them', async () => {
+  it('switching away from APOD clears its cache and releases both unowned origins', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
@@ -968,31 +1073,100 @@ describe('SettingsPanel Background section (APOD source — Task 96)', () => {
 
     expect((await storage.get('photoPrefs')).mode).toBe('gradient')
     expect(await storage.get('apodCache')).toBeNull()
-    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
-    expect(removeOrigin).toHaveBeenCalledWith('https://apod.nasa.gov/')
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
   })
 
-  it('switching away from apod keeps an origin a still-enabled connector holds', async () => {
+  it('leaving APOD preserves an API origin claimed by a disabled configured connector, then releases it after that final owner disappears', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
     await storage.set('connectors', {
-      rss: { enabled: true, feeds: ['https://apod.nasa.gov/rss.xml'], shownCount: 5 },
+      rss: { enabled: false, feeds: ['https://api.nasa.gov/planetary/apod'], shownCount: 5 },
     })
-    render(
-      <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
-      </StorageProvider>,
-    )
-    await screen.findByLabelText('Your name')
-    const select = sourceSelect()
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, storage)
 
     await act(async () => {
-      fireEvent.change(select, { target: { value: 'gradient' } })
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
     })
 
-    expect(removeOrigin).toHaveBeenCalledWith('https://api.nasa.gov/')
-    expect(removeOrigin).not.toHaveBeenCalledWith('https://apod.nasa.gov/')
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(removeOrigin).not.toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+
+    await act(async () => {
+      await storage.update('connectors', () => ({}))
+    })
+    await expect(releaseUnownedOrigins(storage, [APOD_ORIGINS[0]])).resolves.toEqual({
+      released: [apodPatterns[0]],
+      pending: [],
+    })
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+  })
+
+  it('commits the selected non-APOD mode when revoke rejects, retains Settings-level retry, and clears it after retry succeeds', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin)
+      .mockRejectedValueOnce(new Error('remove failed'))
+      .mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('still releases APOD origins when the ancillary cache clear fails', async () => {
+    const driver = memoryDriver()
+    let rejectCache = false
+    const storage = createStorage({
+      ...driver,
+      write: async (patch) => {
+        if (rejectCache && 'apodCache' in patch) throw new Error('cache write failed')
+        await driver.write(patch)
+      },
+    })
+    await storage.init()
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    await storage.set('apodCache', {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    })
+    rejectCache = true
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, storage)
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('gradient')
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(await storage.get('apodCache')).not.toBeNull()
   })
 
   it('switching between two non-apod modes never touches ensureOrigins/removeOrigin', async () => {
