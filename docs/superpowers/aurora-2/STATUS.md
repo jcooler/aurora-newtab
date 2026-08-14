@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P6` - Weather identity and request races<br>
-**Next packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover; plan not yet created
+**Last verified packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover<br>
+**Next packet:** `W1-P8` - Notes persistence integrity; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Weather cache identity is the normalized four-decimal coordinate pair plus the complete immutable Open-Meteo request contract; legacy or mismatched snapshots never render; same-label locations remain distinct; every network owner carries an abort signal and generation; stale fulfillment, rejection, unmount, clear, reconfiguration, and updater-time ownership races cannot overwrite current state; exact 30-minute TTL and visibility refreshes dedupe deterministically.
-- **Expected files:** Weather identity/provider/hook/location/Settings code and tests, the shared storage multi-key updater and Weather backup validation, and preview-only built-extension evidence. W1-P2 storage authority and W1-P5 contracts are preserved. Local-day/DST rollover, Notes, privacy/Store copy, layout/CSS redesign, dependencies, packaging, and release actions remain outside this packet.
-- **Test scope:** Identity normalization and full query contract, coordinate validation, legacy/same-label cache suppression, hydration ordering, generation and abort ownership, late fulfillment/rejection, updater-time stored ownership, atomic location/cache mutation, TTL fenceposts, visibility convergence/dedupe, Strict Mode/unmount, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, built-extension request routing, and teardown quiescence.
-- **Visual scope:** No redesign. Existing Weather rendering and location/error/retry UI remain unchanged; W1-P6 is a correctness packet. Headless Chromium does not provide a real hidden/visible transition between targets, so the built harness models only `document.visibilityState` and the standard event through the real production listener; fake-time unit coverage is the authoritative native-listener/fencepost proof.
+- **Acceptance:** IANA-zone local days use calendar-constructed first-valid boundaries across ordinary, DST, skipped-midnight, and skipped-day transitions; one generation-owned local-day schedule converges after midnight, visibility/focus/pageshow, sleep/wake, backwards clock movement, and timezone change. Background, Focus, Countdown, Quote, calendar, Greeting, clocks, sun/moon, habits, and Timer update in an open tab. APOD and ICS preserve W1-P1/W1-P2 ownership, all-day semantics are explicit, and ICS snapshot identity is timezone-scoped.
+- **Expected files:** Shared date and restoration-aware clock hooks, date-driven surfaces, APOD/ICS/Calendar/Timer logic and tests, Settings/backup validation for the explicit ICS event contract, and preview-only built-extension evidence. W1-P1 through W1-P6 contracts are preserved. Notes, privacy/Store copy, layout/CSS redesign, dependencies, packaging, and release actions remain outside this packet.
+- **Test scope:** New York/Berlin DST, Havana/Santiago/Azores midnight gaps, Apia skipped day, overlap/gap inversion, calendar distance, scheduler generation/cleanup, Strict Mode/unmount, visibility/focus/pageshow, sleep/wake/backwards clock/timezone probes, all named surfaces, APOD stale ownership, explicit all-day/timed-midnight/recurrence semantics, Calendar tokens/Join windows, ICS v2 scope/payload ownership, Timer exactly-once wake completion, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, built-extension fake-time rollover, and teardown clock restoration.
+- **Visual scope:** No redesign. W1-P7 is a correctness packet. The built harness deterministically advances a disposable extension page's clock and restores the shared browser context; genuine operating-system timezone changes and real machine sleep/wake remain manual ceilings backed by exact unit/component restoration-event coverage.
 
 ## Last completed commits
 
@@ -50,9 +50,24 @@
 - `ce74954777d961ecb31db9eafd385280de06a74a` - six-line built-extension Weather identity/race/visibility harness proof.
 - `e29aa53cb346773753028a716a85423a33fe5129` - bounded review fixes for truthful modeled visibility evidence, updater-time ownership, fresh mismatch, rejection, and complete teardown.
 - `f4ed9335dcbb74aa35b685eb0149667daaefd31e` - red/green remount hydration-race fix; verified W1-P6 implementation head.
+- `ba12f028ba920c912439fdd27338e850e576f252` - independently reviewed executable W1-P7 plan (`docs: plan W1-P7 local-day rollover`).
+- `578c8e483ba0ce1aee74f60127d3b9131b9d45ed` - IANA-zone day boundaries and generation-safe local-day/restoration clocks.
+- `a537fa9ef598f6aa36a0a5d34c278d711c258f2c` - open-tab rollover across the named date-driven surfaces and APOD ownership.
+- `f66c9345e1aef89f1eb0914fbc7d6a3a0019c74a` - explicit all-day Calendar/ICS semantics and timezone-scoped snapshots.
+- `32ffb8bbc703ea498ad1de6ab13f1d31ebfd2def` - deterministic built-extension rollover, Timer wake, and Calendar semantics proof.
+- `2fcb4438b0857500db1e5fb0785e1da45e9eacd8` - bounded-review fix for skipped-midnight/skipped-day inverse conversion and expired-boundary rescheduling; verified W1-P7 implementation head.
 
 ## Latest verification
 
+- W1-P7 exact targeted suite at `2fcb443` - exit 0; 23 files / 563 tests passed.
+- `npx tsc --noEmit` at `2fcb443` - exit 0.
+- `npm test` at `2fcb443` - exit 0; photo manifest 23 entries / 46 tier files; 110 files / 1,831 tests passed.
+- `npm run build` and `npm run build:preview` at `2fcb443` - exit 0; both transformed 173 modules.
+- Production search for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `node scripts/preview.mjs` final W1-P7 run at `2fcb443` - harness process exit 0; exactly 447 PASS / 0 FAIL / 3 SKIP. All four W1-P7 lines passed: Focus/Countdown/Quote/Background crossed midnight in an already-open extension page; Timer completed exactly once after wake; explicit all-day, timed-midnight, and Join semantics remained distinct; request dedupe, exact storage, and an advancing restored main-page clock proved deterministic teardown.
+- Unit/component evidence covers New York and Berlin 23-hour/25-hour days; Havana, Santiago, and Azores skipped-midnight first-valid boundaries; Apia's skipped civil day; earlier overlap and least-after gap resolution; calendar distances; no expired-boundary one-millisecond loop; stale generations; Strict Mode/unmount; restoration signals; every named surface; APOD stale resolve/reject/finally ownership; ICS v2 timezone scope and exact payload validation; Calendar tokens/windows; and Timer exactly-once wake completion.
+- The independent implementation review found one Critical midnight-transition inverse defect that could stamp the previous civil day and drive a one-millisecond resample loop. Red tests reproduced all cited zones before `2fcb443`; the scoped rereview found no remaining Critical, Important, or packet-local correctness finding.
+- Final harness SKIPs remain the unchanged manual ceilings: real Home Assistant picker/action behavior against the user's instance, native NASA Block, and native NASA Allow. W1-P7 added no SKIP. Genuine operating-system timezone changes and real sleep/wake remain additional manual environment gates rather than skipped automated assertions.
 - W1-P6 exact targeted suite at `f4ed933` - exit 0; 17 files / 532 tests passed.
 - `npx tsc --noEmit` at `f4ed933` - exit 0.
 - `npm test` at `f4ed933` - exit 0; photo manifest 23 entries / 46 tier files; 106 files / 1,751 tests passed.
@@ -144,24 +159,25 @@
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
 - A native hidden-to-visible browser transition is unavailable in the current headless harness; W1-P6 records modeled built-extension convergence plus exact fake-time listener coverage without overstating that boundary.
+- Genuine operating-system timezone changes and machine sleep/wake cannot be induced by the deterministic extension harness; W1-P7 proves their production event paths and clock discontinuities with exact unit/component coverage and retains the real-environment checks as manual gates.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P6`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P7.
+- None expected after `docs: checkpoint W1-P7`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P8.
 
 ## Single next packet
 
-- **Packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P6 evidence, and the current date-driven Background, Focus, Countdown, Quote, calendar, visibility, timer, storage, and timezone contracts.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P7 plan before any W1-P7 implementation; this W1-P6 task stops at the packet boundary.
+- **Packet:** `W1-P8` - Notes persistence integrity
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P7 evidence, and the current Notes panel, storage authority, close/navigation, error, retry, and accessibility contracts.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P8 plan before any W1-P8 implementation; this W1-P7 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P7 local-day/DST/rollover plan
-Packet ID: W1-P7
-Verified W1-P6 implementation SHA: f4ed9335dcbb74aa35b685eb0149667daaefd31e
-Expected next checkpoint subject: docs: checkpoint W1-P7
+Next plan: create just-in-time W1-P8 Notes persistence-integrity plan
+Packet ID: W1-P8
+Verified W1-P7 implementation SHA: 2fcb4438b0857500db1e5fb0785e1da45e9eacd8
+Expected next checkpoint subject: docs: checkpoint W1-P8
 ```

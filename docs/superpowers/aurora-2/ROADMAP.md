@@ -83,11 +83,12 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P7 — Local-day, DST, midnight, sleep/wake, and timezone rollover
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P2
-- **Plan gate:** Create just in time now that W1-P6 is Verified; no W1-P7 plan exists yet.
+- **Plan:** [`2026-08-14-w1-p7-local-day-dst-rollover.md`](../plans/2026-08-14-w1-p7-local-day-dst-rollover.md)
 - **Acceptance:** Next midnight is calendar-constructed; spring-forward/fall-back ranges are correct in America/New_York and a second timezone; all-day semantics are explicit; Background, Focus, Countdown, Quote, calendar, and other date-driven surfaces roll in an open tab and reschedule after visibility, sleep/wake, or timezone change; stale timers are generation-safe.
-- **Finishing commit:** —
+- **Verified evidence:** Shared IANA-zone boundaries handle New York/Berlin 23-hour/25-hour days plus Havana/Santiago/Azores skipped midnights and Apia's skipped day without expired-boundary loops. One generation-owned local-day schedule and restoration-aware clocks update every named surface, while APOD, Calendar, Timer, and ICS preserve stale-owner and exactly-once rules. ICS events carry explicit `allDay`, timed midnight remains timed, and v2 snapshot identity includes the runtime timezone. Final verification passed 23 targeted files / 563 tests, 110 total files / 1,831 tests, TypeScript, 173-module production/preview builds, production preview-symbol isolation, and a 447 PASS / 0 FAIL / 3 SKIP built-extension run. The bounded review's Critical midnight-transition inverse defect was fixed in `2fcb443`; the focused rereview found no remaining Critical, Important, or packet-local correctness finding.
+- **Finishing commit:** `2fcb443` plus checkpoint subject `docs: checkpoint W1-P7`
 
 ### W1-P8 — Notes persistence integrity
 
