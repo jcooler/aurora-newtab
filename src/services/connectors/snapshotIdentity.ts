@@ -35,7 +35,8 @@ export async function connectorSnapshotScope(
   const hex = [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('')
-  return `${id}:v1:${hex}`
+  const version = id === 'homeassistant' ? 'v2' : 'v1'
+  return `${id}:${version}:${hex}`
 }
 
 export function newSnapshotEpoch(): string {

@@ -28,7 +28,10 @@ vi.mock('../../../services/connectors/homeassistant', async (importActual) => {
   }
 })
 import { callHaService, fetchHomeAssistant } from '../../../services/connectors/homeassistant'
-import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
+import {
+  canonicalConnectorConfig,
+  connectorSnapshotScope,
+} from '../../../services/connectors/snapshotIdentity'
 import HomeAssistantWidget, { ActionButton, chipCopy, remountKey } from './HomeAssistantWidget'
 
 beforeAll(() => {
@@ -115,6 +118,16 @@ async function seededStorage(
   return storage
 }
 
+async function legacyV1Scope(config: HomeAssistantConfig): Promise<string> {
+  const canonical = canonicalConnectorConfig(config)
+  const bytes = new TextEncoder().encode(`homeassistant\n${canonical}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const hex = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+  return `homeassistant:v1:${hex}`
+}
+
 function mount(storage: AuroraStorage) {
   return render(
     <StorageProvider storage={storage}>
@@ -189,6 +202,34 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
 
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
     expect(container.firstChild).toBeNull()
+
+    await act(async () => {
+      health.resolve({ entities: [] })
+    })
+
+    expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
+  })
+
+  it('rejects a fresh legacy-v1 action-only snapshot until authenticated health succeeds', async () => {
+    const health = deferred<HomeAssistantData>()
+    vi.mocked(fetchHomeAssistant).mockReturnValue(health.promise)
+    const config = { ...CONNECTED, entities: [] }
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { homeassistant: config })
+    await storage.set('connectorSnapshots', {
+      homeassistant: {
+        scope: await legacyV1Scope(config),
+        fetchedAt: Date.now(),
+        data: { entities: [] },
+      },
+    })
+
+    const { container } = mount(storage)
+
+    await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
+    expect(container.firstChild).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
 
     await act(async () => {
       health.resolve({ entities: [] })

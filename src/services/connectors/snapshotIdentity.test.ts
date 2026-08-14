@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import type { HomeAssistantConfig } from './homeassistant'
 import type { GithubConfig, RssConfig } from './types'
 import {
   canonicalConnectorConfig,
@@ -58,6 +59,26 @@ describe('connector snapshot identity', () => {
     })
     expect(feedScope).not.toBe(rssScope)
     expect(rssScope).not.toContain(capabilityUrl)
+  })
+
+  it('versions Home Assistant polling-contract scopes separately without exposing its config', async () => {
+    const token = 'HA_FAKE_SCOPE_SECRET'
+    const instanceUrl = 'https://ha.example.test'
+    const config: HomeAssistantConfig = {
+      enabled: true,
+      instanceUrl,
+      token,
+      entities: [],
+      actions: [{ id: 'scene.movie', name: 'Movie night', domain: 'scene' }],
+    }
+
+    const scope = await connectorSnapshotScope('homeassistant', config)
+
+    expect(scope).toMatch(/^homeassistant:v2:[0-9a-f]{64}$/)
+    expect(scope).not.toContain(token)
+    expect(scope).not.toContain(instanceUrl)
+    expect(scope).not.toContain('scene.movie')
+    expect(scope).not.toContain('Movie night')
   })
 
   it('creates a fresh non-secret epoch for an identical reconnect', () => {
