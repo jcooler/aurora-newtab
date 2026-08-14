@@ -104,6 +104,18 @@ describe('BookmarksBar', () => {
     expect(screen.getByRole('link', { name: 'Docs' })).toBeTruthy()
   })
 
+  it('keeps loose and folder bookmarks in the current tab', async () => {
+    await renderBar(nestedModel)
+    const loose = await screen.findByRole('link', { name: 'Docs' })
+    expect(loose.getAttribute('href')).toBe('https://docs.example')
+    expect(loose.getAttribute('target')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Work' }))
+    const nested = await screen.findByRole('link', { name: 'Dashboard' })
+    expect(nested.getAttribute('href')).toBe('https://dash.example')
+    expect(nested.getAttribute('target')).toBeNull()
+  })
+
   // Top-band pass: the bar owns the top row alone (the timer pill and
   // weather chip default BELOW it now — see App.tsx and index.css's
   // `--top-band`), so its width is bounded by the VIEWPORT rather than by

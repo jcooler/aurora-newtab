@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
+import type { NotesPanelHandle } from './NotesPanel'
 
 const NotesPanel = lazy(() => import('./NotesPanel'))
 
@@ -22,22 +23,25 @@ export const NOTES_CORNER_HUG_PX = 48
 export default function NotesWidget({
   onOpenChange,
 }: { onOpenChange?: (open: boolean) => void } = {}) {
-  // Gate BEFORE the panel's open/close state exists, same shape as
-  // TimerWidget: a disabled widget (settings.widgets.notes starts true, but
-  // can be turned off) mounts nothing past the settings read — which is also
-  // what makes the onOpenChange cleanup below (in NotesInner) fire reliably
-  // on a mid-session disable: NotesInner actually UNMOUNTS rather than one
-  // instance persisting across the toggle. See WeatherWidget's own
-  // onExpandedChange comment for the full writeup of why that matters.
+  // Keep NotesInner mounted across a settings disable so an open dirty panel
+  // can finish (or recover) its authority-backed close before disappearing.
+  // Once it is disabled and closed, NotesInner renders nothing.
   const [settings] = useStoredKey('settings')
-  if (!settings?.widgets.notes) return null
-  return <NotesInner onOpenChange={onOpenChange} />
+  if (!settings) return null
+  return <NotesInner enabled={settings.widgets.notes} onOpenChange={onOpenChange} />
 }
 
-function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+function NotesInner({
+  enabled,
+  onOpenChange,
+}: {
+  enabled: boolean
+  onOpenChange?: (open: boolean) => void
+}) {
   const [open, setOpen] = useState(false)
   const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<NotesPanelHandle>(null)
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -63,11 +67,25 @@ function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }
   // The panel follows the pill: measured on open (not live-tracked — the
   // pill can't move while the panel is open today, since arrange mode closes
   // panels).
+  const requestPanelClose = useCallback(() => {
+    const panel = panelRef.current
+    if (!panel) {
+      setOpen(false)
+      return Promise.resolve(true)
+    }
+    return panel.requestClose()
+  }, [])
+
+  useEffect(() => {
+    if (!enabled && open) void requestPanelClose()
+  }, [enabled, open, requestPanelClose])
+
   const togglePanel = () => {
     if (open) {
-      setOpen(false)
+      void requestPanelClose()
       return
     }
+    if (!enabled) return
     if (pillRef.current) {
       const rect = pillRef.current.getBoundingClientRect()
       const hugged = hugHorizontal(rect, NOTES_CORNER_HUG_PX, window.innerWidth)
@@ -78,20 +96,24 @@ function NotesInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }
     setOpen(true)
   }
 
+  if (!enabled && !open) return null
+
   return (
     <>
-      <button
-        ref={pillRef}
-        type="button"
-        aria-expanded={open}
-        onClick={togglePanel}
-        className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
-      >
-        Notes
-      </button>
+      {enabled && (
+        <button
+          ref={pillRef}
+          type="button"
+          aria-expanded={open}
+          onClick={togglePanel}
+          className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+        >
+          Notes
+        </button>
+      )}
       {open && anchor && (
         <Suspense fallback={null}>
-          <NotesPanel anchor={anchor} onClose={() => setOpen(false)} />
+          <NotesPanel ref={panelRef} anchor={anchor} onClose={() => setOpen(false)} />
         </Suspense>
       )}
     </>

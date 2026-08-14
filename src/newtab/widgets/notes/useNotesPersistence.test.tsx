@@ -130,6 +130,7 @@ describe('useNotesPersistence', () => {
     expect((await control.storage.get('notes')).text).toBe('Old')
 
     act(() => result.current.edit('Newest retry'))
+    expect(result.current.status).toBe('error')
     let ok = false
     await act(async () => { ok = await result.current.retry() })
     expect(ok).toBe(true)

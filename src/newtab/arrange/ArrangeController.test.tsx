@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
-import { memoryDriver } from '../../lib/storage/driver'
+import { memoryDriver, type StorageDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import type { Layout } from '../../lib/layout/types'
 import { snapPosition } from '../../lib/layout/snap'
@@ -887,9 +887,9 @@ function AppLikeFixture({ onDraftChange }: { onDraftChange: (d: Layout) => void 
   )
 }
 
-async function renderAppLike() {
-  const storage = createStorage(memoryDriver())
-  await storage.init()
+async function renderAppLike(suppliedStorage?: ReturnType<typeof createStorage>) {
+  const storage = suppliedStorage ?? createStorage(memoryDriver())
+  if (!suppliedStorage) await storage.init()
   const onDraftChange = vi.fn()
   render(
     <StorageProvider storage={storage}>
@@ -950,8 +950,52 @@ describe('ArrangeController — inertness + panel closing (review fix)', () => {
     expect(await screen.findByRole('dialog', { name: 'Notes' })).toBeTruthy()
 
     vi.useFakeTimers()
-    engageClock()
+    await act(async () => {
+      engageClock()
+      await Promise.resolve()
+    })
 
     expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+  })
+
+  it('does not enter arrange or inert the page until a dirty Notes close fulfills', async () => {
+    const base = memoryDriver()
+    let deferNotes = false
+    let release = () => {}
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      onChanged: (cb) => base.onChanged(cb),
+      write: async (patch) => {
+        if (!deferNotes || !Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          await base.write(patch)
+          return
+        }
+        deferNotes = false
+        await new Promise<void>((resolve) => {
+          release = async () => { await base.write(patch); resolve() }
+        })
+      },
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    await renderAppLike(storage)
+    const wrapper = screen.getByTestId('widget-wrapper')
+
+    vi.useRealTimers()
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }))
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Persist before arrange' } })
+    deferNotes = true
+    vi.useFakeTimers()
+    engageClock()
+    await act(async () => { await Promise.resolve() })
+
+    expect(wrapper.getAttribute('inert')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Notes' })).toBeTruthy()
+
+    await act(async () => { release(); await Promise.resolve() })
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+    expect(wrapper.getAttribute('inert')).toBe('')
+    expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
   })
 })

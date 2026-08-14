@@ -34,6 +34,7 @@ export function useNotesPersistence(): NotesPersistence {
   const textRef = useRef('')
   const revisionRef = useRef(0)
   const dirtyRef = useRef(false)
+  const errorRef = useRef(false)
   const focusedRef = useRef(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -60,6 +61,7 @@ export function useNotesPersistence(): NotesPersistence {
 
   const showSaved = useCallback(() => {
     if (!mountedRef.current) return
+    errorRef.current = false
     if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current)
     setStatus('saved')
     const revision = revisionRef.current
@@ -76,7 +78,7 @@ export function useNotesPersistence(): NotesPersistence {
     const payload: Notes = { text: textRef.current, updatedAt: Date.now() }
     inFlightPayloadRef.current = payload
     saveRevisionRef.current = revision
-    if (mountedRef.current) setStatus('saving')
+    if (mountedRef.current && !errorRef.current) setStatus('saving')
 
     const operation = storage.set('notes', payload).then(
       () => {
@@ -89,7 +91,10 @@ export function useNotesPersistence(): NotesPersistence {
         return true
       },
       () => {
-        if (revisionRef.current === revision && mountedRef.current) setStatus('error')
+        if (revisionRef.current === revision) {
+          errorRef.current = true
+          if (mountedRef.current) setStatus('error')
+        }
         return false
       },
     ).finally(() => {
@@ -183,7 +188,7 @@ export function useNotesPersistence(): NotesPersistence {
     dirtyRef.current = true
     setText(value)
     setDirty(true)
-    setStatus('saving')
+    setStatus(errorRef.current ? 'error' : 'saving')
     if (savedTimerRef.current !== null) {
       clearTimeout(savedTimerRef.current)
       savedTimerRef.current = null

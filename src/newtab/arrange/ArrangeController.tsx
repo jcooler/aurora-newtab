@@ -4,7 +4,7 @@ import { clampCenterPct, type Size } from '../../lib/layout/clamp'
 import { snapPosition, type Guide, type OtherRect } from '../../lib/layout/snap'
 import { choosePillAnchor, pillAnchorRect, type PillAnchor } from '../../lib/layout/pillPlacement'
 import { isPremium } from '../../lib/premium'
-import { closeAllDialogs, useDialogEscape } from '../../lib/dialogStack'
+import { closeAllDialogs, hasOpenDialogs, useDialogEscape } from '../../lib/dialogStack'
 import { useStorage } from '../../lib/storage/context'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
@@ -127,6 +127,9 @@ export default function ArrangeController({
   // the self-healing effect below.
   const [layout] = useStoredKey('layout')
   const [mode, setMode] = useState<'off' | 'on'>('off')
+  const modeRef = useRef<'off' | 'on'>('off')
+  const mountedRef = useRef(true)
+  const entryPromiseRef = useRef<Promise<void> | null>(null)
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
   const [drag, setDrag] = useState<DragState | null>(null)
   // Committed keyboard-nudge positions this session, keyed by block —
@@ -150,6 +153,12 @@ export default function ArrangeController({
   // Declared here (not down by the JSX that uses it) so `exit`, below, and
   // `handleOutlineKeyDown` further down can both read it.
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
+
+  modeRef.current = mode
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   // Pill placement (Jon: "reset layout and done buttons are right on top of
   // a widget") — `pillRef` measures the pill's own rendered size (content-
@@ -180,6 +189,7 @@ export default function ArrangeController({
   }, [])
 
   const exit = useCallback(() => {
+    modeRef.current = 'off'
     setMode('off')
     setDrag(null)
     setNudged({})
@@ -301,6 +311,29 @@ export default function ArrangeController({
     }
   }
 
+  const enterAfterClosing = useCallback((enter: () => void) => {
+    if (modeRef.current === 'on') {
+      enter()
+      return
+    }
+    if (!hasOpenDialogs()) {
+      modeRef.current = 'on'
+      enter()
+      return
+    }
+    if (entryPromiseRef.current) return
+
+    const operation = (async () => {
+      const closed = await closeAllDialogs()
+      if (!closed || !mountedRef.current || !isPremium() || modeRef.current !== 'off') return
+      modeRef.current = 'on'
+      enter()
+    })().finally(() => {
+      entryPromiseRef.current = null
+    })
+    entryPromiseRef.current = operation
+  }, [])
+
   const beginDrag = useCallback(
     (blockId: BlockId, pointerId: number) => {
       if (!isPremium()) return // defense in depth — useLongPress's own gate is the primary one
@@ -327,13 +360,14 @@ export default function ArrangeController({
       // gated to the actual off->on transition: once already arranging, the
       // rest of the page is inert, so nothing could have reopened a panel in
       // the meantime and the stack is already empty.
-      if (mode === 'off') closeAllDialogs()
-      pendingFocusRef.current = blockId // focus THIS block's own Move button once it renders
-      setMode('on')
-      setDrag({ blockId, pos, guides: [], size, pointerId })
-      onDraftChange({ [blockId]: pos })
+      enterAfterClosing(() => {
+        pendingFocusRef.current = blockId // focus THIS block's own Move button once it renders
+        setMode('on')
+        setDrag({ blockId, pos, guides: [], size, pointerId })
+        onDraftChange({ [blockId]: pos })
+      })
     },
-    [measureAll, onDraftChange, mode, nudged],
+    [enterAfterClosing, measureAll, onDraftChange, nudged],
   )
 
   // The long-press entry point: engaging on ANY block immediately begins
@@ -349,10 +383,11 @@ export default function ArrangeController({
   const enterViaSettings = useCallback(() => {
     if (!isPremium()) return // defense in depth — the real gate is the Settings button being hidden entirely when false
     measureAll()
-    if (mode === 'off') closeAllDialogs()
-    pendingFocusRef.current = 'first'
-    setMode('on')
-  }, [measureAll, mode])
+    enterAfterClosing(() => {
+      pendingFocusRef.current = 'first'
+      setMode('on')
+    })
+  }, [enterAfterClosing, measureAll])
 
   // `openSignal` is a nonce: any CHANGE from its previous value (not merely
   // being defined) enters the mode. Comparing against a ref (rather than,

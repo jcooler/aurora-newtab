@@ -2,16 +2,17 @@
 import { describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
-import { memoryDriver } from '../../../lib/storage/driver'
+import { memoryDriver, type StorageDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import NotesWidget, { NOTES_CORNER_HUG_PX, NOTES_PANEL_SIZE } from './NotesWidget'
 
 async function renderWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
-  const storage = createStorage(memoryDriver())
-  await storage.init()
+  storage: suppliedStorage,
+}: { onOpenChange?: (open: boolean) => void; storage?: ReturnType<typeof createStorage> } = {}) {
+  const storage = suppliedStorage ?? createStorage(memoryDriver())
+  if (!suppliedStorage) await storage.init()
   const view = render(
     <StorageProvider storage={storage}>
       <NotesWidget onOpenChange={onOpenChange} />
@@ -22,6 +23,138 @@ async function renderWidget({
 }
 
 describe('NotesWidget', () => {
+  it('keeps a dirty panel open until a pill-close flush fulfills', async () => {
+    const base = memoryDriver()
+    let defer = false
+    let release = () => {}
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      onChanged: (cb) => base.onChanged(cb),
+      write: async (patch) => {
+        if (!defer || !Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          await base.write(patch)
+          return
+        }
+        defer = false
+        await new Promise<void>((resolve) => {
+          release = async () => {
+            await base.write(patch)
+            resolve()
+          }
+        })
+      },
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    defer = true
+    await renderWidget({ storage })
+
+    const pill = screen.getByRole('button', { name: 'Notes' })
+    await act(async () => { fireEvent.click(pill) })
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Close only after save' } })
+    await act(async () => {
+      fireEvent.click(pill)
+      await Promise.resolve()
+    })
+
+    expect(pill.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('dialog', { name: 'Notes' })).toBeTruthy()
+    expect(screen.getByRole('status').textContent).toBe('Saving…')
+
+    await act(async () => {
+      release()
+      await Promise.resolve()
+    })
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+    expect((await storage.get('notes')).text).toBe('Close only after save')
+  })
+
+  it('keeps a rejected pill close recoverable and retries the latest edit', async () => {
+    const base = memoryDriver()
+    let rejectNextNotes = false
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      onChanged: (cb) => base.onChanged(cb),
+      write: async (patch) => {
+        if (rejectNextNotes && Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          rejectNextNotes = false
+          throw new Error('configured failure')
+        }
+        await base.write(patch)
+      },
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    await renderWidget({ storage })
+
+    const pill = screen.getByRole('button', { name: 'Notes' })
+    fireEvent.click(pill)
+    const textarea = await screen.findByRole('textbox') as HTMLTextAreaElement
+    fireEvent.change(textarea, { target: { value: 'Rejected draft' } })
+    rejectNextNotes = true
+    await act(async () => { fireEvent.click(pill); await Promise.resolve() })
+
+    expect(pill.getAttribute('aria-expanded')).toBe('true')
+    expect(screen.getByRole('alert').textContent).toContain('Your note is still here')
+    expect(textarea.value).toBe('Rejected draft')
+
+    fireEvent.change(textarea, { target: { value: 'Latest retry' } })
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry save' })) })
+    expect((await storage.get('notes')).text).toBe('Latest retry')
+    await act(async () => { fireEvent.click(pill) })
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+  })
+
+  it('hides a disabled dirty pill but keeps its panel until persistence succeeds, then re-enables cleanly', async () => {
+    const base = memoryDriver()
+    let deferNotes = false
+    let release = () => {}
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      onChanged: (cb) => base.onChanged(cb),
+      write: async (patch) => {
+        if (!deferNotes || !Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          await base.write(patch)
+          return
+        }
+        deferNotes = false
+        await new Promise<void>((resolve) => {
+          release = async () => { await base.write(patch); resolve() }
+        })
+      },
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    await renderWidget({ storage })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }))
+    fireEvent.change(await screen.findByRole('textbox'), { target: { value: 'Survive disable' } })
+    deferNotes = true
+    const settings = await storage.get('settings')
+    await act(async () => {
+      await storage.set('settings', {
+        ...settings,
+        widgets: { ...settings.widgets, notes: false },
+      })
+      await Promise.resolve()
+    })
+
+    expect(screen.queryByRole('button', { name: 'Notes' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Notes' })).toBeTruthy()
+    await act(async () => { release(); await Promise.resolve() })
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
+
+    await act(async () => {
+      await storage.set('settings', {
+        ...settings,
+        widgets: { ...settings.widgets, notes: true },
+      })
+    })
+    expect(screen.getByRole('button', { name: 'Notes' }).getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Notes' }))
+    expect((await screen.findByRole('textbox') as HTMLTextAreaElement).value).toBe('Survive disable')
+  })
+
   it('renders the pill with no fixed-position class of its own (placement now lives on the App-level PositionedBlock wrapper)', async () => {
     await renderWidget()
     const pill = screen.getByRole('button', { name: 'Notes' })
