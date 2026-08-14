@@ -1921,7 +1921,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect((await readRss(storage))?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
-  it('keeps final-owner RSS cleanup recoverable after the row is removed and retries it from Settings', async () => {
+  it('rechecks RSS cleanup ownership before Retry and retains an origin a newly configured Status owner claims', async () => {
     const url = 'https://recoverable-rss.example.com/feed.xml'
     const origin = 'https://recoverable-rss.example.com/*'
     holdOrigin(origin)
@@ -1937,14 +1937,26 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
     expect(cleanupHeld.has(origin)).toBe(true)
 
+    // A config changed after the failed revoke must be read freshly by Retry,
+    // not inferred from the old row-removal transaction. Disabled connectors
+    // still own their descriptor origins.
+    await act(async () => {
+      await storage.update('connectors', (prev) => ({
+        ...prev,
+        status: {
+          enabled: false,
+          services: [{ name: 'Shared', url: 'https://recoverable-rss.example.com/api/v2/status.json' }],
+        },
+      }))
+    })
+
     openTab('Data')
-    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
     })
 
-    expect(removeOrigin).toHaveBeenLastCalledWith(origin)
-    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(removeOrigin).toHaveBeenCalledTimes(1)
+    expect(cleanupHeld.has(origin)).toBe(true)
     expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
   })
 
