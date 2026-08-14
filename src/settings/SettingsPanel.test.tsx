@@ -2,7 +2,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { AtomicRestoreRollbackError, createStorage, type AuroraStorage } from '../lib/storage/index'
-import { memoryDriver } from '../lib/storage/driver'
+import { memoryDriver, type StorageDriver } from '../lib/storage/driver'
+import { createInProcessStorageAuthority } from '../lib/storage/authority'
 import { StorageProvider } from '../lib/storage/context'
 import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
@@ -905,6 +906,92 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(vi.mocked(removeOrigin)).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
     expect(cleanupHeld.has(origin)).toBe(true)
+  })
+
+  it.each([
+    ['failed', 'That backup could not be restored'],
+    ['access-lost', 'Chrome site access changed'],
+  ] as const)('keeps %s restore cleanup in the stable Settings alert and Retry rechecks fresh ownership', async (failureMode, expectedCopy) => {
+    const origin = 'https://failed-settings-cleanup.example.com/*'
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigin).mockReset().mockResolvedValue(true)
+    vi.mocked(removeOrigin).mockReset().mockRejectedValue(new Error('private failure-side revoke error'))
+
+    const previous: AuroraData = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Before failed restore' },
+    }
+    let storage: AuroraStorage
+    if (failureMode === 'failed') {
+      const base = memoryDriver({ ...previous })
+      let fullWriteCalls = 0
+      const knownKeys = Object.keys(defaults())
+      const driver: StorageDriver = {
+        read: (keys) => base.read(keys),
+        write: async (patch) => {
+          if (knownKeys.every((key) => key in patch) && ++fullWriteCalls === 1) {
+            throw new Error('injected target write failure')
+          }
+          await base.write(patch)
+        },
+        onChanged: (listener) => base.onChanged(listener),
+      }
+      storage = createStorage(driver, createInProcessStorageAuthority())
+    } else {
+      storage = createStorage(memoryDriver({ ...previous }))
+      vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+        origins.forEach((pattern) => holdOrigin(pattern))
+        origins.forEach((pattern) => cleanupHeld.delete(pattern))
+        cleanupRemovedListeners.forEach((listener) => listener({ origins: [...origins] }))
+        return true
+      })
+    }
+
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Must not commit' },
+      connectors: {
+        status: {
+          enabled: false,
+          services: [{ name: 'Failed restore', url: 'https://failed-settings-cleanup.example.com/status.json' }],
+        },
+      },
+    })], `${failureMode}.json`, { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    expect((await storage.get('settings')).name).toBe('Before failed restore')
+    expect(vi.mocked(removeOrigin)).toHaveBeenCalledWith(origin)
+    expect(screen.getAllByRole('alert').some((alert) => alert.textContent?.includes(expectedCopy))).toBe(true)
+    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('General')
+    const cleanupAlert = screen.getByRole('alert')
+    expect(cleanupAlert.textContent).toBe('A site permission could not be removed yet. Aurora will keep it only until cleanup succeeds.Retry permission cleanup')
+    await act(async () => {
+      await storage.set('connectors', {
+        status: {
+          enabled: false,
+          services: [{ name: 'Fresh owner', url: 'https://failed-settings-cleanup.example.com/status.json' }],
+        },
+      })
+    })
+    vi.mocked(removeOrigin).mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(vi.mocked(removeOrigin)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
   })
 
   it('backup export failure creates no download and renders one safe inline alert', async () => {
