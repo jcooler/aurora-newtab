@@ -7929,8 +7929,29 @@ function gitlabContributionsFixture() {
 // native chrome.permissions boundary again. All waits in this block are
 // conditions; the unsupported-adapter RED guard exits before any request.
 {
-  const matrixKeys = ['connectors', 'connectorSnapshots', 'photoPrefs', 'apodCache']
-  const original = await page.evaluate((keys) => chrome.storage.local.get(keys), matrixKeys)
+  // The outer fallback owns every raw AuroraData key, not just the four keys
+  // the W1-P3 matrix happened to mutate. W1-P4 deliberately exercises a full
+  // replace, so an inner teardown failure must still have a complete snapshot
+  // available before any downstream harness block can run.
+  const allDataKeys = [
+    'settings',
+    'focus',
+    'todoLists',
+    'links',
+    'timerConfig',
+    'photoPrefs',
+    'location',
+    'weatherCache',
+    'notes',
+    'worldClocks',
+    'countdowns',
+    'layout',
+    'connectors',
+    'connectorSnapshots',
+    'habits',
+    'apodCache',
+  ]
+  const originalAllData = await page.evaluate((keys) => chrome.storage.local.get(keys), allDataKeys)
   const HA_URL = 'https://127.0.0.1:9'
   const HA_PATTERN = 'https://127.0.0.1:9/*'
   const SHARED_PATTERN = 'https://shared-owner.example.com/*'
@@ -8305,24 +8326,7 @@ function gitlabContributionsFixture() {
       // sentence below treats its held patterns as native Chrome grants or as
       // permissions restored by the imported file.
       {
-        const dataKeys = [
-          'settings',
-          'focus',
-          'todoLists',
-          'links',
-          'timerConfig',
-          'photoPrefs',
-          'location',
-          'weatherCache',
-          'notes',
-          'worldClocks',
-          'countdowns',
-          'layout',
-          'connectors',
-          'connectorSnapshots',
-          'habits',
-          'apodCache',
-        ]
+        const dataKeys = allDataKeys
         const launchSize = { width: 1600, height: 900 }
         const originalData = await page.evaluate((keys) => chrome.storage.local.get(keys), dataKeys)
         const originalHeld = (await controlSnapshot()).held
@@ -8351,6 +8355,14 @@ function gitlabContributionsFixture() {
         const CRYPTO_PATTERN = 'https://api.coingecko.com/*'
         const EXPECTED_MISSING = [NASA_IMAGE_PATTERN, RESTORED_STATUS_PATTERN, CRYPTO_PATTERN].sort()
         const EXPECTED_REENTRY_COPY = 'Re-enter connection details after restore: GitHub, Home Assistant.'
+        const EXPECTED_COMMITTED_STATUS = `Backup restored. ${EXPECTED_REENTRY_COPY}`
+        const EXPECTED_RESTORED_HELD = [
+          NASA_API_PATTERN,
+          NASA_IMAGE_PATTERN,
+          RESTORED_STATUS_PATTERN,
+          CRYPTO_PATTERN,
+        ].sort()
+        const EXPECTED_FAILED_REVOKE_HELD = [...EXPECTED_RESTORED_HELD, OLD_ONLY_PATTERN].sort()
         const restoreToday = await page.evaluate(() => {
           const now = new Date()
           return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -8539,7 +8551,12 @@ function gitlabContributionsFixture() {
             buffer: Buffer.from(JSON.stringify(literalBackup)),
           })
           await page.getByRole('button', { name: 'Confirm restore', exact: true }).waitFor({ state: 'visible' })
-          const confirmationCopy = await page.locator('section[aria-label="Data"]').innerText()
+          const confirmationReminder = page
+            .locator('section[aria-label="Data"] p')
+            .filter({ hasText: EXPECTED_REENTRY_COPY })
+          await confirmationReminder.first().waitFor({ state: 'visible' })
+          const confirmationReminderTexts = (await confirmationReminder.allTextContents())
+            .map((text) => text.trim())
           await page.evaluate(
             (pattern) => globalThis.__auroraPermissionsHarnessControl.failOneRemove(pattern),
             OLD_ONLY_PATTERN,
@@ -8556,7 +8573,7 @@ function gitlabContributionsFixture() {
           const committed = await page.evaluate(async (keys) => ({
             values: await chrome.storage.local.get(keys),
             permission: globalThis.__auroraPermissionsHarnessControl.snapshot(),
-            dataText: document.querySelector('section[aria-label="Data"]')?.textContent ?? '',
+            statusText: document.querySelector('section[aria-label="Data"] [role="status"]')?.textContent?.trim() ?? '',
           }), dataKeys)
           const requestEntries = committed.permission.log.filter((entry) => entry.op === 'request')
           const requestedPatterns = [...new Set(requestEntries.flatMap((entry) => entry.origins))].sort()
@@ -8578,17 +8595,17 @@ function gitlabContributionsFixture() {
               : `FAIL: W1-P4 exact restored data/cache reset (${JSON.stringify(committed.values)})`,
           )
 
+          const preRetryRemoveEntries = committed.permission.log.filter((entry) => entry.op === 'remove')
           const sharedReconciled =
-            committed.permission.held.includes(NASA_API_PATTERN) &&
-            !committed.permission.log.some((entry) =>
-              entry.op === 'remove' && entry.origins.includes(NASA_API_PATTERN)
-            ) &&
+            exact([...committed.permission.held].sort(), EXPECTED_FAILED_REVOKE_HELD) &&
+            preRetryRemoveEntries.length === 1 &&
+            exact(preRetryRemoveEntries[0]?.origins, [OLD_ONLY_PATTERN]) &&
             committed.permission.log.some((entry) =>
-              entry.op === 'remove-rejected' && entry.origins.includes(OLD_ONLY_PATTERN)
+              entry.op === 'remove-rejected' && exact(entry.origins, [OLD_ONLY_PATTERN])
             )
           console.log(
             sharedReconciled
-              ? 'PASS: W1-P4 the restored owner registry retained the adapter-held RSS/APOD shared api.nasa.gov pattern for restored APOD and attempted the old-only revoke once'
+              ? 'PASS: W1-P4 the restored owner registry retained the exact APOD/Status/Crypto adapter-held set plus the failed old-only pattern, and the sole cleanup remove attempted only old-only once'
               : `FAIL: W1-P4 restored-owner reconciliation (${JSON.stringify(committed.permission)})`,
           )
 
@@ -8605,23 +8622,24 @@ function gitlabContributionsFixture() {
             statusText: document.querySelector('section[aria-label="Data"] [role="status"]')?.textContent?.trim() ?? '',
           }), dataKeys)
           const failedRevokeDurable =
-            exact(afterRoundTrip.values, RESTORED_DATA) && afterRoundTrip.retryVisible &&
-            committed.dataText.includes('Backup restored.')
+            exact(afterRoundTrip.values, RESTORED_DATA) && afterRoundTrip.retryVisible
           console.log(
             failedRevokeDurable
               ? 'PASS: W1-P4 the failed adapter revoke left the imported state committed and Retry permission cleanup durable across a Data/General/Data round trip'
               : `FAIL: W1-P4 failed-revoke committed/durable state (${JSON.stringify(afterRoundTrip)})`,
           )
 
-          const reentryCopy = committed.dataText.includes(EXPECTED_REENTRY_COPY)
-            ? EXPECTED_REENTRY_COPY
-            : confirmationCopy.includes(EXPECTED_REENTRY_COPY) ? EXPECTED_REENTRY_COPY : ''
-          const reentryOk = reentryCopy === EXPECTED_REENTRY_COPY &&
-            sensitiveSeedValues.every((value) => !confirmationCopy.includes(value) && !committed.dataText.includes(value))
+          const confirmationReminderExact = exact(confirmationReminderTexts, [EXPECTED_REENTRY_COPY])
+          const committedStatusExact = committed.statusText === EXPECTED_COMMITTED_STATUS
+          const reentryOk = confirmationReminderExact && committedStatusExact &&
+            sensitiveSeedValues.every((value) =>
+              !confirmationReminderTexts.some((text) => text.includes(value)) &&
+              !committed.statusText.includes(value)
+            )
           console.log(
             reentryOk
-              ? 'PASS: W1-P4 re-entry copy names only trusted GitHub/Home Assistant labels and contains none of the seeded URL/token strings'
-              : `FAIL: W1-P4 trusted re-entry copy (${JSON.stringify({ confirmationCopy, dataText: committed.dataText })})`,
+              ? 'PASS: W1-P4 the exact confirmation reminder and exact committed status name only trusted GitHub/Home Assistant labels and contain none of the seeded URL/token strings'
+              : `FAIL: W1-P4 trusted re-entry copy (${JSON.stringify({ confirmationReminderTexts, committedStatus: committed.statusText })})`,
           )
 
           await page.getByRole('button', { name: 'Retry permission cleanup', exact: true }).click()
@@ -8632,65 +8650,108 @@ function gitlabContributionsFixture() {
             return !held.includes(pattern) && !retry
           }, OLD_ONLY_PATTERN, { timeout: 12_000 })
           const retryCleanup = await controlSnapshot()
-          const oldRemoveAttempts = retryCleanup.log.filter((entry) =>
-            entry.op === 'remove' && entry.origins.includes(OLD_ONLY_PATTERN)
-          ).length
+          const retryRemoveEntries = retryCleanup.log.filter((entry) => entry.op === 'remove')
+          const retryHeldExact = exact([...retryCleanup.held].sort(), EXPECTED_RESTORED_HELD)
+          const retryRemovesExact = retryRemoveEntries.length === 2 && retryRemoveEntries.every((entry) =>
+            exact(entry.origins, [OLD_ONLY_PATTERN])
+          )
           console.log(
-            !retryCleanup.held.includes(OLD_ONLY_PATTERN) && oldRemoveAttempts === 2
-              ? 'PASS: W1-P4 real Retry permission cleanup removed the now-unowned old-only adapter pattern and cleared the durable alert'
+            retryHeldExact && retryRemovesExact
+              ? 'PASS: W1-P4 real Retry removed only the now-unowned old-only adapter pattern in exactly two attempts, preserved the exact restored-owned held set, and cleared the durable alert'
               : `FAIL: W1-P4 Retry permission cleanup (${JSON.stringify(retryCleanup)})`,
           )
         } catch (error) {
           console.log(`FAIL: W1-P4 real-extension backup/restore acceptance threw (${error instanceof Error ? error.stack ?? error.message : String(error)})`)
         } finally {
-          const settingsDialog = page.locator('[role="dialog"][aria-label="Settings"]')
-          if (await settingsDialog.count()) {
-            const closeSettings = page.getByRole('button', { name: 'Close settings', exact: true })
-            if (await closeSettings.isVisible()) await closeSettings.click()
-            await page.waitForFunction(() =>
-              document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
-            undefined, { timeout: 10_000 })
+          const cleanupFailures = []
+          let restored = null
+
+          // Restore adapter state, every raw Data key, and the session flag
+          // before touching fallible UI. The nested browser-side finally blocks
+          // make storage/flag recovery independent even if adapter access fails.
+          try {
+            try {
+              adapterRestoredBeforeReload = await page.evaluate(async ({ keys, snapshot, held, flagKey }) => {
+                let heldRestored = false
+                try {
+                  const control = globalThis.__auroraPermissionsHarnessControl
+                  if (!control) throw new Error('preview permission adapter unavailable during W1-P4 cleanup')
+                  control.setHeld(held)
+                  heldRestored = JSON.stringify([...control.snapshot().held].sort()) ===
+                    JSON.stringify([...held].sort())
+                } finally {
+                  try {
+                    const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+                    if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
+                    if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+                  } finally {
+                    sessionStorage.removeItem(flagKey)
+                  }
+                }
+                return heldRestored
+              }, {
+                keys: dataKeys,
+                snapshot: originalData,
+                held: originalHeld,
+                flagKey: PERMISSIONS_HARNESS_FLAG,
+              })
+            } catch (error) {
+              cleanupFailures.push(`state=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+            }
+          } finally {
+            // Drawer failure cannot suppress viewport restoration, and neither
+            // UI operation can suppress the state/flag recovery above.
+            try {
+              try {
+                const settingsDialog = page.locator('[role="dialog"][aria-label="Settings"]')
+                if (await settingsDialog.count()) {
+                  const closeSettings = page.getByRole('button', { name: 'Close settings', exact: true })
+                  if (await closeSettings.isVisible()) await closeSettings.click()
+                  await page.waitForFunction(() =>
+                    document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
+                  undefined, { timeout: 10_000 })
+                }
+              } catch (error) {
+                cleanupFailures.push(`drawer=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+              }
+            } finally {
+              try {
+                await page.setViewportSize(launchSize)
+              } catch (error) {
+                cleanupFailures.push(`viewport=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+              }
+            }
           }
-          await page.setViewportSize(launchSize)
-          adapterRestoredBeforeReload = await page.evaluate(async ({ keys, snapshot, held, flagKey }) => {
-            const control = globalThis.__auroraPermissionsHarnessControl
-            control.setHeld(held)
-            const restoredHeld = control.snapshot().held
-            const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
-            if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
-            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
-            sessionStorage.removeItem(flagKey)
-            return JSON.stringify([...restoredHeld].sort()) === JSON.stringify([...held].sort())
-          }, {
-            keys: dataKeys,
-            snapshot: originalData,
-            held: originalHeld,
-            flagKey: PERMISSIONS_HARNESS_FLAG,
-          })
-          await page.reload()
-          await page.waitForSelector('time')
-          await page.waitForFunction((flagKey) =>
-            sessionStorage.getItem(flagKey) === null &&
-            globalThis.__auroraPermissionsHarnessApi === undefined &&
-            globalThis.__auroraPermissionsHarnessControl === undefined &&
-            typeof chrome.permissions?.getAll === 'function',
-          PERMISSIONS_HARNESS_FLAG, { timeout: 10_000 })
-          const restored = await page.evaluate(async (keys) => ({
-            values: await chrome.storage.local.get(keys),
-            drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
-            viewport: { width: innerWidth, height: innerHeight },
-            nativeBoundary:
+
+          try {
+            await page.reload()
+            await page.waitForSelector('time')
+            await page.waitForFunction((flagKey) =>
+              sessionStorage.getItem(flagKey) === null &&
               globalThis.__auroraPermissionsHarnessApi === undefined &&
               globalThis.__auroraPermissionsHarnessControl === undefined &&
               typeof chrome.permissions?.getAll === 'function',
-          }), dataKeys)
+            PERMISSIONS_HARNESS_FLAG, { timeout: 10_000 })
+            restored = await page.evaluate(async (keys) => ({
+              values: await chrome.storage.local.get(keys),
+              drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
+              viewport: { width: innerWidth, height: innerHeight },
+              nativeBoundary:
+                globalThis.__auroraPermissionsHarnessApi === undefined &&
+                globalThis.__auroraPermissionsHarnessControl === undefined &&
+                typeof chrome.permissions?.getAll === 'function',
+            }), dataKeys)
+          } catch (error) {
+            cleanupFailures.push(`reload=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+          }
           const teardownOk =
-            adapterRestoredBeforeReload && exact(restored.values, originalData) && restored.drawerClosed &&
-            exact(restored.viewport, launchSize) && restored.nativeBoundary
+            cleanupFailures.length === 0 && adapterRestoredBeforeReload &&
+            exact(restored?.values, originalData) && restored?.drawerClosed &&
+            exact(restored?.viewport, launchSize) && restored?.nativeBoundary
           console.log(
             teardownOk
               ? 'PASS: W1-P4 finally restored every Data key and adapter-held set, closed Settings, restored the launch viewport, removed the session flag, reloaded, and proved the native Chrome permission boundary'
-              : `FAIL: W1-P4 full teardown/native-boundary restoration (${JSON.stringify({ adapterRestoredBeforeReload, originalData, restored })})`,
+              : `FAIL: W1-P4 full teardown/native-boundary restoration (${JSON.stringify({ cleanupFailures, adapterRestoredBeforeReload, originalData, restored })})`,
           )
         }
       }
@@ -8698,14 +8759,33 @@ function gitlabContributionsFixture() {
   } catch (error) {
     console.log(`FAIL: deterministic permission transaction matrix threw (${error instanceof Error ? error.stack ?? error.message : String(error)})`)
   } finally {
-    await page.setViewportSize({ width: 1600, height: 900 })
-    await page.evaluate(async ({ keys, snapshot, flagKey }) => {
-      sessionStorage.removeItem(flagKey)
-      delete globalThis.__auroraPermissionsHarnessApi
-      delete globalThis.__auroraPermissionsHarnessControl
-      await chrome.storage.local.remove(keys)
-      if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
-    }, { keys: matrixKeys, snapshot: original, flagKey: PERMISSIONS_HARNESS_FLAG })
+    const outerCleanupFailures = []
+    // Outermost safety net: restore the pre-matrix snapshot for every raw Data
+    // key and remove the flag before fallible viewport/reload work. This still
+    // runs if any W1-P4 nested cleanup operation throws.
+    try {
+      try {
+        await page.evaluate(async ({ keys, snapshot, flagKey }) => {
+          try {
+            const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+            if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
+            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+          } finally {
+            sessionStorage.removeItem(flagKey)
+            delete globalThis.__auroraPermissionsHarnessApi
+            delete globalThis.__auroraPermissionsHarnessControl
+          }
+        }, { keys: allDataKeys, snapshot: originalAllData, flagKey: PERMISSIONS_HARNESS_FLAG })
+      } catch (error) {
+        outerCleanupFailures.push(`state=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+      }
+    } finally {
+      try {
+        await page.setViewportSize({ width: 1600, height: 900 })
+      } catch (error) {
+        outerCleanupFailures.push(`viewport=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+      }
+    }
     await page.reload()
     await page.waitForSelector('time')
     await page.waitForFunction(
@@ -8719,12 +8799,12 @@ function gitlabContributionsFixture() {
     const restored = await page.evaluate(async (keys) => ({
       values: await chrome.storage.local.get(keys),
       drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.getAttribute('inert') !== null,
-    }), matrixKeys)
-    const stateRestored = JSON.stringify(restored.values) === JSON.stringify(original)
+    }), allDataKeys)
+    const stateRestored = JSON.stringify(restored.values) === JSON.stringify(originalAllData)
     console.log(
-      stateRestored && restored.drawerClosed
-        ? 'PASS: permission matrix restored all named storage, the closed/default drawer state, default viewport, and the native Chrome permission boundary for downstream checks'
-        : `FAIL: permission matrix teardown/restoration (original=${JSON.stringify(original)}, restored=${JSON.stringify(restored)})`,
+      outerCleanupFailures.length === 0 && stateRestored && restored.drawerClosed
+        ? 'PASS: permission matrix outer fallback restored every Data key, the closed/default drawer state, default viewport, and the native Chrome permission boundary for downstream checks'
+        : `FAIL: permission matrix teardown/restoration (failures=${JSON.stringify(outerCleanupFailures)}, original=${JSON.stringify(originalAllData)}, restored=${JSON.stringify(restored)})`,
     )
   }
 }
