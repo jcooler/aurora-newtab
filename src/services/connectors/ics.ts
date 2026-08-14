@@ -18,9 +18,8 @@
 // to an epoch we use the JS runtime's own IANA zone database via Intl, NOT the
 // VTIMEZONE block in the file. VTIMEZONE bodies are SKIPPED entirely (their
 // DTSTART/RRULE lines describe the zone's own transitions, not events). The
-// conversion is the well-known two-pass offset trick (see wallToEpochInZone):
-// format a UTC guess in the target zone to read its offset, correct by that
-// offset, then re-read once to settle DST transitions to the minute. If the
+// conversion uses dates.ts's bounded, round-trip-validated IANA wall-time
+// inverse, including skipped/duplicated midnight transitions. If the
 // runtime doesn't know the zone id, the event is treated as floating in the
 // explicitly supplied runtime zone and,
 // for an RRULE, only its base occurrence is rendered (we can't safely expand a
@@ -33,6 +32,7 @@
 // occurrence ONLY. Malformed input → [].
 import type { ConnectorDescriptor, IcsCalendar, IcsConfig } from './types'
 import { originPattern } from '../permissions'
+import { zonedWallTimeToEpoch } from '../../lib/dates'
 
 export interface IcsEvent {
   summary: string
@@ -484,47 +484,18 @@ function isKnownZone(tz: string): boolean {
   }
 }
 
-/** The wall-clock components `t` (epoch ms) displays in `tz`. */
-function zonePartsAt(t: number, tz: string): Wall {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: tz,
-    hour12: false,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-  const p: Record<string, string> = {}
-  for (const part of fmt.formatToParts(new Date(t))) p[part.type] = part.value
-  let h = +p.hour!
-  if (h === 24) h = 0 // some engines render midnight as '24' under hour12:false
-  return {
-    y: +p.year!,
-    mo: +p.month!,
-    d: +p.day!,
-    h,
-    mi: +p.minute!,
-    s: +p.second!,
-  }
-}
-
-/** `tz`'s UTC offset (ms east of UTC) at instant `t`. */
-function offsetAt(t: number, tz: string): number {
-  const p = zonePartsAt(t, tz)
-  return Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, p.s) - t
-}
-
-/** The two-pass inverse: the epoch at which `wall` is the local time in `tz`.
- *  Guess the instant as if the wall time were UTC, correct by the offset there,
- *  then re-read the offset once at the corrected instant to settle DST
- *  transitions (the offset can differ across the shift). Correct to the minute
- *  for spring-forward/fall-back boundaries. */
 function wallToEpochInZone(wall: Wall, tz: string): number {
-  const guess = Date.UTC(wall.y, wall.mo - 1, wall.d, wall.h, wall.mi, wall.s)
-  const t1 = guess - offsetAt(guess, tz)
-  return guess - offsetAt(t1, tz)
+  return zonedWallTimeToEpoch(
+    {
+      year: wall.y,
+      month: wall.mo,
+      day: wall.d,
+      hour: wall.h,
+      minute: wall.mi,
+      second: wall.s,
+    },
+    tz,
+  )
 }
 
 /** A wall time + its zone → an absolute epoch instant. A zoned event whose id

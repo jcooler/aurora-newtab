@@ -29,7 +29,7 @@
 - ICS connector snapshots advance to `ics:v2` and include a non-secret runtime scope `{ timeZone }`; legacy `ics:v1`, another timezone’s snapshot, and events without the explicit current schema do not render. Other connector identities remain byte-for-byte compatible, including Home Assistant `v2`.
 - W1-P1 remains the connector freshness/generation/queued-write authority. The shared hook may accept an optional non-secret runtime scope and optional payload predicate, but it must include runtime scope in synchronous current-owner identity, opaque persisted scope, in-flight dedupe, effect cleanup, and updater-time current checks without changing callers that omit it. A current-scope payload that fails its connector predicate is treated as absent, never shown/retained as previous data, and refreshed from `null`.
 - Tests exercise real zoned primitives, real hooks/listeners/timers, real ICS parsing/expansion, real connector snapshot ownership, real components under `StorageProvider`, and real reducer/UI behavior. Mocks stop at wall clock/timezone, fetch, and storage-driver boundaries. Every production behavior starts with a witnessed failing test for the expected missing/broken contract.
-- Preview automation adds no production bridge. It uses a dedicated disposable extension page for Playwright’s fixed clock, temporarily parks the main page away from the extension so only the modeled clock owns date-driven effects, and closes the disposable page before restoring/reloading the main page. It must state that fixed-time/visibility signals model sleep/wake and do not prove an operating-system timezone change. Unit tests are authoritative for exact zone/DST boundaries and runtime-zone detection.
+- Preview automation adds no production bridge. It invokes Playwright’s context-wide fixed clock through a dedicated disposable extension page, temporarily parks the main page away from extension effects, then restores system time and resumes the context clock before closing the disposable page and restoring/reloading the main page. It must state that fixed-time/visibility signals model sleep/wake and do not prove an operating-system timezone change. Unit tests are authoritative for exact zone/DST boundaries and runtime-zone detection.
 - Final closeout runs the exact targeted suite, both named timezone-focused checks, `npx tsc --noEmit`, full Vitest, production and preview builds, production preview-symbol searches, the full real-extension harness, bounded whole-packet review/fix/rereview, a dedicated `docs: checkpoint W1-P7` commit, push, clean-state proof, and then stops before W1-P8.
 
 ---
@@ -102,7 +102,8 @@ Record the literal SHA as `W1_P7_PLAN_BASE`.
 
 - `resolvedLocalTimeZone(): string` returns the runtime IANA zone and throws a stable `Local timezone is unavailable` error only if the runtime supplies no non-empty zone.
 - `zonedDateKey(nowMs: number, timeZone: string): string` returns the zone’s literal `YYYY-MM-DD` calendar key.
-- `zonedLocalDayRange(nowMs: number, timeZone: string): { key: string; start: number; end: number }` resolves the current date’s midnight and the next calendar date’s midnight. `end` may be 23, 24, or 25 hours after `start`.
+- `zonedWallTimeToEpoch(wall, timeZone): number` resolves an IANA wall time with bounded offset candidates validated by formatting back through `Intl`: overlaps choose the earlier exact instant and gaps choose the earliest candidate after the missing wall time.
+- `zonedLocalDayRange(nowMs: number, timeZone: string): { key: string; start: number; end: number }` resolves the first representable instant of the current date and next calendar date. A midnight DST jump may make that first instant 01:00 local; `end` may be 23, 24, or 25 hours after `start`.
 - `calendarDayDifference(fromMs: number, toMs: number, timeZone: string): number` compares calendar ordinals derived from zoned date parts and ignores elapsed DST hours.
 - `useLocalDay(): { key: string; timeZone: string; now: Date }` publishes one coherent sample. Its timer wakes at the earlier of the next constructed midnight or 60-second timezone probe; visible/focus/pageshow calls resample immediately and replace the pending schedule.
 - `useNow(intervalMs?)` retains its return type and interval behavior but also samples immediately on visible/focus/pageshow restoration.
@@ -113,9 +114,10 @@ Add literal table tests proving:
 
 1. New York 2026-03-08 is `[2026-03-08T05:00:00Z, 2026-03-09T04:00:00Z)` (23h) and 2026-11-01 is `[2026-11-01T04:00:00Z, 2026-11-02T05:00:00Z)` (25h).
 2. Berlin 2026-03-29 is `[2026-03-28T23:00:00Z, 2026-03-29T22:00:00Z)` (23h) and 2026-10-25 is `[2026-10-24T22:00:00Z, 2026-10-25T23:00:00Z)` (25h).
-3. Month/year/leap rollover constructs the next date (`2026-12-31` -> `2027-01-01`, `2028-02-29` -> `2028-03-01`).
-4. `calendarDayDifference` returns 1 across each 23h/25h transition and exact 6/7-day results across a transition.
-5. Invalid/unknown timezone input fails explicitly rather than silently using the host zone.
+3. Havana 2026-03-08, Santiago 2026-09-06, and Azores 2026-03-29 skip midnight; each range starts at the literal first representable 01:00 local instant rather than oscillating onto the previous civil day.
+4. Month/year/leap rollover constructs the next date (`2026-12-31` -> `2027-01-01`, `2028-02-29` -> `2028-03-01`).
+5. `calendarDayDifference` returns 1 across each 23h/25h transition and exact 6/7-day results across a transition.
+6. Invalid/unknown timezone input fails explicitly rather than silently using the host zone.
 
 - [ ] **Step 2: Run date tests and verify RED**
 
@@ -127,18 +129,19 @@ Expected: FAIL because the zoned range/difference/timezone interfaces do not exi
 
 - [ ] **Step 3: Implement minimal zoned primitives and verify GREEN**
 
-Use cached `Intl.DateTimeFormat(...).formatToParts` instances, calendar-tuple normalization through UTC date arithmetic, and a bounded offset-settling conversion for midnight. Derive expected values nowhere in tests through these helpers.
+Use cached `Intl.DateTimeFormat(...).formatToParts` instances, calendar-tuple normalization through UTC date arithmetic, and bounded offset candidates that are round-trip validated for exact, overlapping, and missing wall times. Derive expected values nowhere in tests through these helpers.
 
 - [ ] **Step 4: Write failing lifecycle-hook and restoration-clock tests**
 
 With fake timers and controlled `Intl.DateTimeFormat().resolvedOptions().timeZone`, prove:
 
 1. Mount at 23:59:59.900 schedules the constructed midnight and emits the new key exactly at the boundary, including 23h/25h days.
-2. A 60-second probe detects New York -> Berlin even when both zones currently share the same date key; it updates `timeZone` and replaces the midnight schedule.
-3. Hidden time jump past midnight followed by visible, a focus event, and pageshow each resample immediately; repeated restoration signals still leave one current timeout.
-4. A backwards clock jump reschedules the future boundary rather than retaining the old shorter delay.
-5. Capture an old callback, reschedule, then invoke the old callback: it cannot publish or replace the current timer. Unmount and Strict Mode cleanup likewise reject late generations and remove every listener/timer.
-6. `useNow(500)` updates immediately on visible/focus/pageshow after a two-minute wall-clock jump while retaining exactly one 500ms interval and cleaning it on unmount.
+2. At 23:30 before Havana’s skipped-midnight transition, the next boundary remains in the future and the hook retains one 60-second probe rather than entering a one-millisecond resample loop.
+3. A 60-second probe detects New York -> Berlin even when both zones currently share the same date key; it updates `timeZone` and replaces the midnight schedule.
+4. Hidden time jump past midnight followed by visible, a focus event, and pageshow each resample immediately; repeated restoration signals still leave one current timeout.
+5. A backwards clock jump reschedules the future boundary rather than retaining the old shorter delay.
+6. Capture an old callback, reschedule, then invoke the old callback: it cannot publish or replace the current timer. Unmount and Strict Mode cleanup likewise reject late generations and remove every listener/timer.
+7. `useNow(500)` updates immediately on visible/focus/pageshow after a two-minute wall-clock jump while retaining exactly one 500ms interval and cleaning it on unmount.
 
 - [ ] **Step 5: Run hook tests and verify RED**
 
@@ -292,10 +295,11 @@ Add literal tests proving:
 
 1. `DTSTART;VALUE=DATE:20260308` with no end in New York emits `allDay:true`, 05:00Z -> 04:00Z next day (23h); `20261101` emits 04:00Z -> 05:00Z (25h).
 2. The equivalent Berlin spring/fall fixtures emit the literal 23h/25h UTC boundaries.
-3. An explicit multi-day DATE `DTEND` remains exclusive and spans the correct count across DST; a recurring all-day event preserves that count for every occurrence.
-4. A timed local-midnight event with a 23h, 24h, or 25h duration emits `allDay:false`.
-5. UTC, floating, TZID, EXDATE, recurrence bounds, meeting links, sorting, and per-feed fallback retain existing behavior and carry the boolean.
-6. The same floating wall time parsed with New York versus Berlin runtime zones produces the two literal expected instants, while an explicit TZID event produces the same instant under both runtime-zone arguments.
+3. Havana, Santiago, and Azores skipped-midnight DATE fixtures start at their literal first valid 01:00 local instant and end at the next date boundary.
+4. An explicit multi-day DATE `DTEND` remains exclusive and spans the correct count across DST; a recurring all-day event preserves that count for every occurrence.
+5. A timed local-midnight event with a 23h, 24h, or 25h duration emits `allDay:false`.
+6. UTC, floating, TZID, EXDATE, recurrence bounds, meeting links, sorting, and per-feed fallback retain existing behavior and carry the boolean.
+7. The same floating wall time parsed with New York versus Berlin runtime zones produces the two literal expected instants, while an explicit TZID event produces the same instant under both runtime-zone arguments.
 
 - [ ] **Step 2: Run ICS tests and verify RED**
 
@@ -424,7 +428,7 @@ git status --short
 Requirements:
 
 - targeted/full Vitest, TypeScript, production build, and preview build have zero failures;
-- literal New York/Berlin spring/fall unit evidence proves 23h/25h constructed ranges and calendar distances;
+- literal New York/Berlin spring/fall plus Havana/Santiago/Azores skipped-midnight unit evidence proves 23h/25h constructed ranges, first-valid date boundaries, calendar distances, and no one-millisecond scheduler loop;
 - the production bridge search exits 1 with no match;
 - the full harness process exits 0 and proves exactly 447 PASS / 0 FAIL / 3 SKIP;
 - W1-P7 evidence covers exact midnight, timezone probe with same/different key, visibility/focus/pageshow, sleep/wake, backwards clock change, stale timer generation, Strict Mode/unmount, all named local-day surfaces, timer wake, APOD ownership, explicit all-day semantics, timed-midnight distinction, calendar DST windows/tokens, and timezone-scoped ICS cache generations;

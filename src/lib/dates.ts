@@ -14,6 +14,15 @@ interface ZonedParts {
   second: number
 }
 
+export interface ZonedWallTime {
+  year: number
+  month: number
+  day: number
+  hour: number
+  minute: number
+  second: number
+}
+
 const zonedFormatters = new Map<string, Intl.DateTimeFormat>()
 
 function zonedFormatter(timeZone: string): Intl.DateTimeFormat {
@@ -58,27 +67,52 @@ function zonedParts(nowMs: number, timeZone: string): ZonedParts {
 function zoneOffsetAt(nowMs: number, timeZone: string): number {
   const wholeSecond = Math.trunc(nowMs / 1000) * 1000
   const parts = zonedParts(wholeSecond, timeZone)
-  return Date.UTC(
-    parts.year,
-    parts.month - 1,
-    parts.day,
-    parts.hour,
-    parts.minute,
-    parts.second,
-  ) - wholeSecond
+  return wallAsUtc(parts) - wholeSecond
+}
+
+function wallAsUtc(wall: ZonedWallTime): number {
+  return Date.UTC(wall.year, wall.month - 1, wall.day, wall.hour, wall.minute, wall.second)
+}
+
+function sameWall(left: ZonedParts, right: ZonedWallTime): boolean {
+  return (
+    left.year === right.year &&
+    left.month === right.month &&
+    left.day === right.day &&
+    left.hour === right.hour &&
+    left.minute === right.minute &&
+    left.second === right.second
+  )
+}
+
+/** Inverts an IANA-zone wall time with Temporal-compatible disambiguation:
+ *  the earlier instant for an overlap, and the first same-offset candidate
+ *  after a gap. Sampling two civil days around the target captures both sides
+ *  of modern DST changes and even whole-day date-line jumps; every candidate
+ *  is then validated by formatting it back through Intl. */
+export function zonedWallTimeToEpoch(wall: ZonedWallTime, timeZone: string): number {
+  zonedFormatter(timeZone)
+  const target = wallAsUtc(wall)
+  const offsets = new Set<number>()
+  for (const delta of [-2 * 86_400_000, 0, 2 * 86_400_000]) {
+    offsets.add(zoneOffsetAt(target + delta, timeZone))
+  }
+
+  const candidates = [...offsets].map((offset) => target - offset)
+  const exact = candidates.filter((instant) => sameWall(zonedParts(instant, timeZone), wall))
+  if (exact.length > 0) return Math.min(...exact)
+
+  const afterGap = candidates
+    .map((instant) => ({ instant, displayedWall: wallAsUtc(zonedParts(instant, timeZone)) }))
+    .filter(({ displayedWall }) => displayedWall > target)
+    .sort((a, b) => a.displayedWall - b.displayedWall || a.instant - b.instant)[0]
+  if (afterGap) return afterGap.instant
+
+  throw new Error(`Unable to resolve local time in ${timeZone}`)
 }
 
 function midnightFor(year: number, month: number, day: number, timeZone: string): number {
-  const wallAsUtc = Date.UTC(year, month - 1, day)
-  let instant = wallAsUtc
-  // Offset settling handles the case where the first UTC guess and the local
-  // midnight live on opposite sides of a DST transition.
-  for (let i = 0; i < 4; i++) {
-    const next = wallAsUtc - zoneOffsetAt(instant, timeZone)
-    if (next === instant) break
-    instant = next
-  }
-  return instant
+  return zonedWallTimeToEpoch({ year, month, day, hour: 0, minute: 0, second: 0 }, timeZone)
 }
 
 function dateOrdinal(parts: Pick<ZonedParts, 'year' | 'month' | 'day'>): number {

@@ -5,6 +5,7 @@ import {
   todayKey,
   zonedDateKey,
   zonedLocalDayRange,
+  zonedWallTimeToEpoch,
 } from './dates'
 
 describe('todayKey', () => {
@@ -27,6 +28,27 @@ describe('dayHash', () => {
 })
 
 describe('zoned local calendar days', () => {
+  it('uses compatible disambiguation for ordinary gaps and overlaps', () => {
+    expect(
+      zonedWallTimeToEpoch(
+        { year: 2026, month: 3, day: 8, hour: 2, minute: 30, second: 0 },
+        'America/New_York',
+      ),
+    ).toBe(Date.UTC(2026, 2, 8, 7, 30))
+    expect(
+      zonedWallTimeToEpoch(
+        { year: 2026, month: 11, day: 1, hour: 1, minute: 30, second: 0 },
+        'America/New_York',
+      ),
+    ).toBe(Date.UTC(2026, 10, 1, 5, 30))
+    expect(
+      zonedWallTimeToEpoch(
+        { year: 2011, month: 12, day: 30, hour: 0, minute: 0, second: 0 },
+        'Pacific/Apia',
+      ),
+    ).toBe(Date.UTC(2011, 11, 30, 10))
+  })
+
   it.each([
     {
       label: 'New York spring-forward',
@@ -63,6 +85,33 @@ describe('zoned local calendar days', () => {
       start: Date.UTC(2026, 9, 24, 22),
       end: Date.UTC(2026, 9, 25, 23),
       hours: 25,
+    },
+    {
+      label: 'Havana midnight spring-forward',
+      zone: 'America/Havana',
+      inside: Date.UTC(2026, 2, 8, 12),
+      key: '2026-03-08',
+      start: Date.UTC(2026, 2, 8, 5),
+      end: Date.UTC(2026, 2, 9, 4),
+      hours: 23,
+    },
+    {
+      label: 'Santiago midnight spring-forward',
+      zone: 'America/Santiago',
+      inside: Date.UTC(2026, 8, 6, 12),
+      key: '2026-09-06',
+      start: Date.UTC(2026, 8, 6, 4),
+      end: Date.UTC(2026, 8, 7, 3),
+      hours: 23,
+    },
+    {
+      label: 'Azores midnight spring-forward',
+      zone: 'Atlantic/Azores',
+      inside: Date.UTC(2026, 2, 29, 12),
+      key: '2026-03-29',
+      start: Date.UTC(2026, 2, 29, 1),
+      end: Date.UTC(2026, 2, 30, 0),
+      hours: 23,
     },
   ])('constructs the literal $label boundaries', ({ zone, inside, key, start, end, hours }) => {
     expect(zonedLocalDayRange(inside, zone)).toEqual({ key, start, end })

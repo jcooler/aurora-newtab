@@ -39,6 +39,17 @@ describe('useLocalDay', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('does not enter a one-millisecond loop before a midnight DST jump', () => {
+    runtime.zone = 'America/Havana'
+    vi.setSystemTime(Date.UTC(2026, 2, 8, 4, 30))
+    const setTimeoutSpy = vi.spyOn(window, 'setTimeout')
+    const { result } = renderHook(() => useLocalDay())
+
+    expect(result.current.key).toBe('2026-03-07')
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 60_000)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
   it('detects a timezone change even when the local date key is unchanged', () => {
     vi.setSystemTime(Date.UTC(2026, 5, 1, 12))
     const { result } = renderHook(() => useLocalDay())

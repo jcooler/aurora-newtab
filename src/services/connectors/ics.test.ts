@@ -49,6 +49,9 @@ describe('W1-P7 explicit all-day and runtime-timezone semantics', () => {
     ['America/New_York', '20261101', '2026-11-01T04:00:00.000Z', '2026-11-02T05:00:00.000Z'],
     ['Europe/Berlin', '20260329', '2026-03-28T23:00:00.000Z', '2026-03-29T22:00:00.000Z'],
     ['Europe/Berlin', '20261025', '2026-10-24T22:00:00.000Z', '2026-10-25T23:00:00.000Z'],
+    ['America/Havana', '20260308', '2026-03-08T05:00:00.000Z', '2026-03-09T04:00:00.000Z'],
+    ['America/Santiago', '20260906', '2026-09-06T04:00:00.000Z', '2026-09-07T03:00:00.000Z'],
+    ['Atlantic/Azores', '20260329', '2026-03-29T01:00:00.000Z', '2026-03-30T00:00:00.000Z'],
   ])('constructs the next calendar midnight for %s on %s', (timeZone, date, startIso, endIso) => {
     const [event] = parseIcs(
       cal(vevent(['SUMMARY:All day', `DTSTART;VALUE=DATE:${date}`])),
