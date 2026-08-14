@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P5` - Home Assistant data minimization, health, and action safety<br>
-**Next packet:** `W1-P6` - Weather identity and request races; plan not yet created
+**Last verified packet:** `W1-P6` - Weather identity and request races<br>
+**Next packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Normal polling requests only deduped selected Home Assistant entities; bulk state fetch stays picker-only and disclosed; action-only visibility requires authenticated narrow health; legacy action-only snapshots cannot bypass that health check; per-action guards exclude duplicate activation; committed configuration generations reject stale action completions; persistent visible and announced pending/success/error states remain retryable.
-- **Expected files:** Home Assistant service/widget/Settings tests and production code, shared opaque snapshot identity only for the Home Assistant polling-contract version, and the preview-only real-extension harness. W1-P3 permission ownership and W1-P4 restore/finalizer contracts are preserved. Weather, day rollover, Notes, privacy/Store copy, layout/CSS redesign, manifests, dependencies, packaging, and release actions remain outside this packet.
-- **Test scope:** Selected endpoint ordering/dedupe/encoding, 404 omission and poll-wide fail-closed behavior, picker-only bulk access, authenticated action-only health, legacy-snapshot invalidation, same-turn duplicate activation, sibling independence, snapshot-epoch action generation, Strict Mode/unmount, storage-backed stale polls, exact disclosure, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, keyboard/error/retry/quiescence, Chromium AX tree, and full MV3 teardown.
-- **Visual scope:** No redesign. The existing action controls gain visible persistent status/alert copy and pending/busy/disabled semantics. `screenshots/ha-action-error.png` was inspected at 1600x1100 with a real pending sibling, focused retry, complete error text, and no clipping or color-only meaning.
+- **Acceptance:** Weather cache identity is the normalized four-decimal coordinate pair plus the complete immutable Open-Meteo request contract; legacy or mismatched snapshots never render; same-label locations remain distinct; every network owner carries an abort signal and generation; stale fulfillment, rejection, unmount, clear, reconfiguration, and updater-time ownership races cannot overwrite current state; exact 30-minute TTL and visibility refreshes dedupe deterministically.
+- **Expected files:** Weather identity/provider/hook/location/Settings code and tests, the shared storage multi-key updater and Weather backup validation, and preview-only built-extension evidence. W1-P2 storage authority and W1-P5 contracts are preserved. Local-day/DST rollover, Notes, privacy/Store copy, layout/CSS redesign, dependencies, packaging, and release actions remain outside this packet.
+- **Test scope:** Identity normalization and full query contract, coordinate validation, legacy/same-label cache suppression, hydration ordering, generation and abort ownership, late fulfillment/rejection, updater-time stored ownership, atomic location/cache mutation, TTL fenceposts, visibility convergence/dedupe, Strict Mode/unmount, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, built-extension request routing, and teardown quiescence.
+- **Visual scope:** No redesign. Existing Weather rendering and location/error/retry UI remain unchanged; W1-P6 is a correctness packet. Headless Chromium does not provide a real hidden/visible transition between targets, so the built harness models only `document.visibilityState` and the standard event through the real production listener; fake-time unit coverage is the authoritative native-listener/fencepost proof.
 
 ## Last completed commits
 
@@ -44,9 +44,25 @@
 - `3d4ef14a759c331b494120d0f73429a9a6e96c21` and `6f17fefd4396dae8117604a26e2abf7e5844cc42` - real-extension action/AX proof and reviewed screenshot/manual-ceiling strengthening.
 - `2ab1139730d4677f4b015002f3a1f9adcd2e0d0d` - bounded whole-packet review fix that versions Home Assistant opaque snapshot identity and rejects fresh legacy action-only snapshots.
 - `74d4e27a6fa1262416ac8aa0149020a0ef02918e` - preview fixture scope alignment; verified W1-P5 implementation head.
+- `6a7e949adba78a5ef7266fea88d0e6577bea74cb` - independently reviewed executable W1-P6 plan (`docs: plan W1-P6 Weather races`).
+- `e4b32030e95432adcebac0545c62f527dd035437` - normalized Weather request identity, provider signal forwarding, cache schema/backup validation, and multi-key storage updater.
+- `7459124a6ff125900dab25a0a5c25822a6895723` - generation-safe Weather hook plus atomic location/cache mutation and retry handling.
+- `ce74954777d961ecb31db9eafd385280de06a74a` - six-line built-extension Weather identity/race/visibility harness proof.
+- `e29aa53cb346773753028a716a85423a33fe5129` - bounded review fixes for truthful modeled visibility evidence, updater-time ownership, fresh mismatch, rejection, and complete teardown.
+- `f4ed9335dcbb74aa35b685eb0149667daaefd31e` - red/green remount hydration-race fix; verified W1-P6 implementation head.
 
 ## Latest verification
 
+- W1-P6 exact targeted suite at `f4ed933` - exit 0; 17 files / 532 tests passed.
+- `npx tsc --noEmit` at `f4ed933` - exit 0.
+- `npm test` at `f4ed933` - exit 0; photo manifest 23 entries / 46 tier files; 106 files / 1,751 tests passed.
+- `npm run build` and `npm run build:preview` at `f4ed933` - exit 0; both transformed 172 modules.
+- Production search for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `node scripts/preview.mjs` final controller-owned run at `f4ed933` - harness process exit 0; exactly 443 PASS / 0 FAIL / 3 SKIP. All six W1-P6 assertions passed: fresh same-label/different-coordinate mismatch suppression; complete normalized B request while A is held; B render/persist identity; late A fulfillment rejection; fresh-cache no-fetch plus exact-boundary modeled visibility refresh; repeated modeled visibility dedupe and quiescent exact-state teardown.
+- The first fresh full harness run after review was an intentional red record at 441 PASS / 2 FAIL / 3 SKIP: independent storage hydration let `location` resolve before `weatherCache` on reload and started a needless request. A delayed-read regression reproduced it before `f4ed933`; the final full rerun above is green.
+- Independent W1-P6 plan review fixed seven Important and two Minor gaps. The bounded implementation review fixed two Important and two Minor evidence/test gaps in `e29aa53`; controller verification then exposed the hydration race fixed in `f4ed933`. Final scoped rereviews found no Critical, Important, or packet-local Minor issue open.
+- Headless visibility evidence is deliberately limited: production-listener convergence is exercised with a modeled `visibilityState` signal and standard event, while fake-time unit tests prove the exact `MAX_AGE_MS - 1` to boundary transition and listener semantics. No native headless tab-visibility transition is claimed.
+- Final harness SKIPs remain the unchanged manual ceilings: real Home Assistant picker/action behavior against the user's instance, native NASA Block, and native NASA Allow. W1-P6 added no SKIP.
 - W1-P5 expanded exact targeted suite at `74d4e27` - exit 0; 10 files / 378 tests passed.
 - `npx tsc --noEmit` at `74d4e27` - exit 0.
 - `npm test` at `74d4e27` - exit 0; photo manifest 23 entries / 46 tier files; 104 files / 1,709 tests passed.
@@ -127,25 +143,25 @@
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
-- W1-P6 weather cache identity and request-race behavior remain unstarted; W1-P5 made no weather change.
+- A native hidden-to-visible browser transition is unavailable in the current headless harness; W1-P6 records modeled built-extension convergence plus exact fake-time listener coverage without overstating that boundary.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P5`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P6.
+- None expected after `docs: checkpoint W1-P6`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P7.
 
 ## Single next packet
 
-- **Packet:** `W1-P6` - Weather identity and request races
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P5 evidence, and the current weather cache identity, geocode/forecast request, visibility refresh, storage, and race contracts.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P6 plan before any W1-P6 implementation; this W1-P5 task stops at the packet boundary.
+- **Packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P6 evidence, and the current date-driven Background, Focus, Countdown, Quote, calendar, visibility, timer, storage, and timezone contracts.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P7 plan before any W1-P7 implementation; this W1-P6 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P6 Weather identity and request races plan
-Packet ID: W1-P6
-Verified W1-P5 implementation SHA: 74d4e27a6fa1262416ac8aa0149020a0ef02918e
-Expected next checkpoint subject: docs: checkpoint W1-P6
+Next plan: create just-in-time W1-P7 local-day/DST/rollover plan
+Packet ID: W1-P7
+Verified W1-P6 implementation SHA: f4ed9335dcbb74aa35b685eb0149667daaefd31e
+Expected next checkpoint subject: docs: checkpoint W1-P7
 ```

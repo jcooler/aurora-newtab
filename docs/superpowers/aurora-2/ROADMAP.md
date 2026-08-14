@@ -74,17 +74,18 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P6 — Weather identity and request races
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P2
-- **Plan gate:** Create just in time now that W1-P5 is Verified; no W1-P6 plan exists yet.
+- **Plan:** [`2026-08-14-w1-p6-weather-identity-request-races.md`](../plans/2026-08-14-w1-p6-weather-identity-request-races.md)
 - **Acceptance:** Weather cache identity uses normalized coordinates plus units/provider inputs; same-name locations do not collide; a late/aborted older request cannot overwrite a newer selection; visibility refresh and cache boundaries are deterministic.
-- **Finishing commit:** —
+- **Verified evidence:** Weather snapshots carry a normalized four-decimal coordinate identity plus the complete immutable Open-Meteo request contract; providers forward abort signals; legacy and mismatched snapshots are suppressed. Generation, abort, updater-time stored ownership, unmount/clear/reconfiguration, late fulfillment/rejection, and initial location/cache hydration are race-safe. Location/cache mutations are atomic; TTL uses the exact 30-minute boundary and same-identity refreshes dedupe. Final verification passed 17 targeted files / 532 tests, 106 total files / 1,751 tests, TypeScript, 172-module production/preview builds, production preview-symbol isolation, and a controller-owned 443 PASS / 0 FAIL / 3 SKIP real-extension run. The browser harness truthfully models the visibility signal because headless Chromium does not expose a native target visibility transition; exact fake-time unit coverage proves the native listener fencepost. Plan and implementation rereviews found no Critical, Important, or packet-local Minor issue open after fixes `e29aa53` and `f4ed933`.
+- **Finishing commit:** `f4ed933` plus checkpoint subject `docs: checkpoint W1-P6`
 
 ### W1-P7 — Local-day, DST, midnight, sleep/wake, and timezone rollover
 
 - **State:** Not started
 - **Depends on:** W1-P2
-- **Plan gate:** Create when W1-P6 is Verified.
+- **Plan gate:** Create just in time now that W1-P6 is Verified; no W1-P7 plan exists yet.
 - **Acceptance:** Next midnight is calendar-constructed; spring-forward/fall-back ranges are correct in America/New_York and a second timezone; all-day semantics are explicit; Background, Focus, Countdown, Quote, calendar, and other date-driven surfaces roll in an open tab and reschedule after visibility, sleep/wake, or timezone change; stale timers are generation-safe.
 - **Finishing commit:** —
 
