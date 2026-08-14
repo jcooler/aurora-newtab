@@ -318,4 +318,18 @@ export const jiraDescriptor: ConnectorDescriptor<JiraConfig> = {
       return []
     }
   },
+  ownsOrigins: (config) => {
+    if (
+      typeof config.email !== 'string' || config.email.length === 0 ||
+      typeof config.apiToken !== 'string' || config.apiToken.length === 0 ||
+      typeof config.displayName !== 'string' || config.displayName.length === 0 ||
+      typeof config.site !== 'string' || config.site.length === 0
+    ) return false
+    try {
+      normalizeJiraSite(config.site)
+      return true
+    } catch {
+      return false
+    }
+  },
 }

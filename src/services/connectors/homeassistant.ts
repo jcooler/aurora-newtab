@@ -335,4 +335,17 @@ export const homeassistantDescriptor: ConnectorDescriptor<HomeAssistantConfig> =
       return []
     }
   },
+  ownsOrigins: (config) => {
+    if (
+      typeof config.instanceUrl !== 'string' || config.instanceUrl.length === 0 ||
+      typeof config.token !== 'string' || config.token.length === 0 ||
+      typeof config.locationName !== 'string' || config.locationName.length === 0
+    ) return false
+    try {
+      originPattern(config.instanceUrl)
+      return true
+    } catch {
+      return false
+    }
+  },
 }

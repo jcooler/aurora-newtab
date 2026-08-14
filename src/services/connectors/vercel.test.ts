@@ -306,4 +306,10 @@ describe('vercelDescriptor', () => {
       'https://api.vercel.com/*',
     ])
   })
+
+  it('owns its constant origin only after both token and identity are configured, independent of enabled', () => {
+    expect(vercelDescriptor.ownsOrigins({ enabled: false, token: 't', username: 'jon' })).toBe(true)
+    expect(vercelDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
+    expect(vercelDescriptor.ownsOrigins({ enabled: true, token: 't', username: '' })).toBe(false)
+  })
 })

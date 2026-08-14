@@ -60,6 +60,7 @@ describe('connector config / snapshot handling (Task 39)', () => {
       ttlMs: 1_000,
       secretFields: ['apiKey'],
       origins: () => [],
+      ownsOrigins: () => false,
     }
     const stored = { enabled: true, feeds: [], shownCount: 5, apiKey: 'super-secret' }
     const connectors = { rss: stored } as AuroraData['connectors']

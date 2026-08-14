@@ -755,4 +755,13 @@ export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
         }),
       ),
     ],
+  ownsOrigins: (config) =>
+    icsCalendarsOf(config).some((calendar) => {
+      try {
+        originPattern(calendar.url)
+        return true
+      } catch {
+        return false
+      }
+    }),
 }

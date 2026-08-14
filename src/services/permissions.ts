@@ -89,11 +89,23 @@ export function originPattern(url: string): string {
   return `https://${parsed.host}/*`
 }
 
+/** Canonicalizes a batch before any Chrome call. First-seen order is stable
+ *  so callers can preserve exact acquisition records, while multiple URLs on
+ *  one host collapse to the single match pattern Chrome grants. */
+export function canonicalOriginPatterns(urls: readonly string[]): string[] {
+  return [...new Set(urls.map(originPattern))]
+}
+
 /** True if the extension currently holds host access to the given URL's
  *  origin — either granted previously via ensureOrigin below, or carried
  *  forward by Chrome across an update, same as hasPermission above. */
 export async function hasOrigin(url: string): Promise<boolean> {
   return chrome.permissions.contains({ origins: [originPattern(url)] })
+}
+
+/** Batched access check used after a transaction enters the lifecycle lock. */
+export async function hasOrigins(urls: readonly string[]): Promise<boolean> {
+  return chrome.permissions.contains({ origins: canonicalOriginPatterns(urls) })
 }
 
 /** Requests host access to the given URL's origin. Same gesture-chain
@@ -142,20 +154,9 @@ export async function ensureOrigins(urls: readonly string[]): Promise<boolean> {
   return chrome.permissions.request({ origins })
 }
 
-/** Revokes host access to the given URL's origin, e.g. when a connector
- *  pointed at that site is deleted. Safe no-op if the origin was never
- *  granted — chrome.permissions.remove resolves false rather than throwing
- *  in that case, same as any other permission it doesn't hold. Also
- *  tolerates the call rejecting outright: callers invoke this from
- *  non-gesture contexts (e.g. deleting a connector from Settings well after
- *  the click that created it), where there's no prompt to fail and nothing
- *  useful a caller could do differently on error, so this swallows it rather
- *  than making every call site handle a revoke failure it can't act on. */
-export async function removeOrigin(url: string): Promise<void> {
-  try {
-    await chrome.permissions.remove({ origins: [originPattern(url)] })
-  } catch {
-    // Already absent, or Chrome failed to revoke — either way, nothing left
-    // to grant back, so there's nothing for a caller to react to.
-  }
+/** Revokes host access to a URL or canonical origin pattern. Chrome's boolean
+ *  and any rejection are preserved so ownership-aware callers can distinguish
+ *  a confirmed removal from an unverifiable failure and offer retry. */
+export async function removeOrigin(patternOrUrl: string): Promise<boolean> {
+  return chrome.permissions.remove({ origins: [originPattern(patternOrUrl)] })
 }

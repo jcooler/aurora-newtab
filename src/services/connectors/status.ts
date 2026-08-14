@@ -157,4 +157,13 @@ export const statusDescriptor: ConnectorDescriptor<StatusConfig> = {
         return []
       }
     }),
+  ownsOrigins: (config) =>
+    statusServicesOf(config).some((service) => {
+      try {
+        originPattern(service.url)
+        return true
+      } catch {
+        return false
+      }
+    }),
 }

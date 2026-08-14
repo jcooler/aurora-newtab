@@ -212,4 +212,15 @@ export const rssDescriptor: ConnectorDescriptor<RssConfig> = {
         return []
       }
     }),
+  ownsOrigins: (config) => {
+    if (!Array.isArray(config.feeds)) return false
+    return config.feeds.some((feed) => {
+      try {
+        originPattern(feed)
+        return true
+      } catch {
+        return false
+      }
+    })
+  },
 }

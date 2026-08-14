@@ -7,6 +7,7 @@ import {
   ensureOrigin,
   removeOrigin,
   ensureOrigins,
+  canonicalOriginPatterns,
 } from './permissions'
 
 describe('hasPermission / ensurePermission (chrome.permissions wrappers)', () => {
@@ -78,6 +79,20 @@ describe('originPattern (URL -> chrome.permissions origin match pattern)', () =>
   it('throws on a garbage/invalid URL', () => {
     expect(() => originPattern('not a url')).toThrow()
   })
+
+  it('canonicalOriginPatterns preserves first-seen order while collapsing duplicate urls and patterns', () => {
+    expect(
+      canonicalOriginPatterns([
+        'https://b.example.com/path',
+        'https://a.example.com/*',
+        'https://b.example.com/other',
+      ]),
+    ).toEqual(['https://b.example.com/*', 'https://a.example.com/*'])
+  })
+
+  it('canonicalOriginPatterns throws for a malformed member before any Chrome boundary is needed', () => {
+    expect(() => canonicalOriginPatterns(['https://ok.example.com/', 'http://bad.example.com/'])).toThrow()
+  })
 })
 
 describe('hasOrigin / ensureOrigin / removeOrigin (chrome.permissions origin wrappers)', () => {
@@ -117,26 +132,26 @@ describe('hasOrigin / ensureOrigin / removeOrigin (chrome.permissions origin wra
     await expect(ensureOrigin('https://example.com/')).resolves.toBe(false)
   })
 
-  it('removeOrigin forwards the URL\'s origin pattern to chrome.permissions.remove', async () => {
+  it('removeOrigin returns true and forwards the URL\'s origin pattern to chrome.permissions.remove', async () => {
     const remove = vi.fn().mockResolvedValue(true)
     vi.stubGlobal('chrome', { permissions: { remove } })
 
-    await removeOrigin('https://news.ycombinator.com/item?id=1')
+    await expect(removeOrigin('https://news.ycombinator.com/item?id=1')).resolves.toBe(true)
     expect(remove).toHaveBeenCalledWith({ origins: ['https://news.ycombinator.com/*'] })
   })
 
-  it('removeOrigin tolerates a rejecting remove — resolves rather than throwing', async () => {
+  it('removeOrigin propagates a rejecting remove so revoke failure remains retryable', async () => {
     const remove = vi.fn().mockRejectedValue(new Error('nope'))
     vi.stubGlobal('chrome', { permissions: { remove } })
 
-    await expect(removeOrigin('https://example.com/')).resolves.toBeUndefined()
+    await expect(removeOrigin('https://example.com/')).rejects.toThrow('nope')
   })
 
-  it('removeOrigin is a safe no-op when the origin was never granted (remove resolves false)', async () => {
+  it('removeOrigin returns false when Chrome reports that the origin was not removed', async () => {
     const remove = vi.fn().mockResolvedValue(false)
     vi.stubGlobal('chrome', { permissions: { remove } })
 
-    await expect(removeOrigin('https://example.com/')).resolves.toBeUndefined()
+    await expect(removeOrigin('https://example.com/*')).resolves.toBe(false)
   })
 })
 

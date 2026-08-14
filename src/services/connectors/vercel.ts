@@ -200,4 +200,7 @@ export const vercelDescriptor: ConnectorDescriptor<VercelConfig> = {
   // derivation, unlike gitlab's instanceUrl or jira's site), so this never
   // throws and needs no defensive wrapper — same shape as githubDescriptor's.
   origins: () => ['https://api.vercel.com/*'],
+  ownsOrigins: (config) =>
+    typeof config.token === 'string' && config.token.length > 0 &&
+    typeof config.username === 'string' && config.username.length > 0,
 }

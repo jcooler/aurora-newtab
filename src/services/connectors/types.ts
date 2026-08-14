@@ -225,6 +225,10 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
   ttlMs: number
   secretFields: (keyof C & string)[]
   origins(config: C): string[] // every URL the service will fetch, for grant/revoke bookkeeping
+  /** True only once this connector's persisted config is complete enough to
+   *  own its derived origins. Deliberately independent from `enabled`: a
+   *  disabled configured connector can be re-enabled without a new prompt. */
+  ownsOrigins(config: C): boolean
   /** Config field holding the human identity shown as "Connected as X" on the
    *  card shell (token connectors). Absent for auth 'none'. The shell derives
    *  auth-state: secret present + identity present → connected; identity

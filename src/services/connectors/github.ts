@@ -308,4 +308,7 @@ export const githubDescriptor: ConnectorDescriptor<GithubConfig> = {
   // The single origin every request above targets. Constant (no per-config
   // derivation), so this never throws and needs no defensive wrapper.
   origins: () => ['https://api.github.com/*'],
+  ownsOrigins: (config) =>
+    typeof config.token === 'string' && config.token.length > 0 &&
+    typeof config.username === 'string' && config.username.length > 0,
 }

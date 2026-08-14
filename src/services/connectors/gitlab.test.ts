@@ -598,4 +598,17 @@ describe('gitlabDescriptor', () => {
       }),
     ).toEqual([])
   })
+
+  it('owns origins only for a complete validated connection, independent of enabled', () => {
+    expect(
+      gitlabDescriptor.ownsOrigins({
+        enabled: false,
+        token: 't',
+        instanceUrl: 'https://gitlab.example.com',
+        username: 'jon',
+      }),
+    ).toBe(true)
+    expect(gitlabDescriptor.ownsOrigins({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jon' })).toBe(false)
+    expect(gitlabDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
+  })
 })

@@ -1005,6 +1005,12 @@ describe('icsDescriptor', () => {
       'https://calendar.example.com/*',
     ])
   })
+
+  it('owns origins only when a valid calendar is configured, including disabled and legacy rows', () => {
+    expect(icsDescriptor.ownsOrigins({ enabled: false, url: 'https://calendar.example.com/x.ics' })).toBe(true)
+    expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [] })).toBe(false)
+    expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [{ name: 'Bad', url: 'not a url' }] })).toBe(false)
+  })
 })
 
 describe('icsCalendarsOf — read-time config normalization', () => {

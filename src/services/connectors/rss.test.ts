@@ -444,4 +444,10 @@ describe('rssDescriptor', () => {
     })
     expect(origins).toEqual(['https://ok.example.com/*'])
   })
+
+  it('ownsOrigins uses configured valid feeds rather than enabled, so disabled owners persist and generic toggles do not own', () => {
+    expect(rssDescriptor.ownsOrigins({ enabled: false, feeds: ['https://ok.example.com/feed'], shownCount: 5 })).toBe(true)
+    expect(rssDescriptor.ownsOrigins({ enabled: true, feeds: [], shownCount: 5 })).toBe(false)
+    expect(rssDescriptor.ownsOrigins({ enabled: true, feeds: ['not a url'], shownCount: 5 })).toBe(false)
+  })
 })

@@ -344,4 +344,24 @@ describe('descriptor', () => {
     expect(homeassistantDescriptor.identityField).toBe('locationName')
     expect(homeassistantDescriptor.identityPhrase).toBe('to')
   })
+
+  it('owns its origin only after url, token, and location identity are configured, independent of enabled', () => {
+    expect(
+      homeassistantDescriptor.ownsOrigins({
+        enabled: false,
+        instanceUrl: 'https://ha.example.com',
+        token: 't',
+        locationName: 'House',
+      }),
+    ).toBe(true)
+    expect(homeassistantDescriptor.ownsOrigins({ enabled: true, instanceUrl: 'https://ha.example.com' })).toBe(false)
+    expect(
+      homeassistantDescriptor.ownsOrigins({
+        enabled: true,
+        instanceUrl: 'http://ha.local',
+        token: 't',
+        locationName: 'House',
+      }),
+    ).toBe(false)
+  })
 })

@@ -463,4 +463,10 @@ describe('githubDescriptor', () => {
       'https://api.github.com/*',
     ])
   })
+
+  it('owns its constant origin only after both token and identity are configured, independent of enabled', () => {
+    expect(githubDescriptor.ownsOrigins({ enabled: false, token: 't', username: 'jon' })).toBe(true)
+    expect(githubDescriptor.ownsOrigins({ enabled: true } as never)).toBe(false)
+    expect(githubDescriptor.ownsOrigins({ enabled: true, token: '', username: 'jon' })).toBe(false)
+  })
 })

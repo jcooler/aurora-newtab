@@ -120,4 +120,6 @@ export const cryptoDescriptor: ConnectorDescriptor<CryptoConfig> = {
   // defensive wrapper. No `identityField`: auth 'none' connectors have no
   // identity to show a "Connected as X" chip for (authState's own rule).
   origins: () => ['https://api.coingecko.com/*'],
+  ownsOrigins: (config) =>
+    Array.isArray(config.coins) && config.coins.some((coin) => typeof coin === 'string' && coin.length > 0),
 }

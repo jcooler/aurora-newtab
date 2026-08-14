@@ -768,7 +768,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
 describe('SettingsPanel Background section (APOD source — Task 96)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigins).mockReset()
-    vi.mocked(removeOrigin).mockReset().mockResolvedValue(undefined)
+    vi.mocked(removeOrigin).mockReset().mockResolvedValue(false)
   })
 
   function sourceSelect() {
@@ -3955,6 +3955,7 @@ describe('authState (Connectors.tsx card auth-state helper)', () => {
     secretFields: ['token'],
     identityField: 'username',
     origins: () => [],
+    ownsOrigins: () => false,
   }
 
   it('identity + secret both present -> connected', () => {
