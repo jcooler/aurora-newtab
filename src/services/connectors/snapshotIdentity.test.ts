@@ -1,11 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeAssistantConfig } from './homeassistant'
 import type { GithubConfig, RssConfig } from './types'
-import {
-  canonicalConnectorConfig,
-  connectorSnapshotScope,
-  newSnapshotEpoch,
-} from './snapshotIdentity'
+import { canonicalConnectorConfig, connectorSnapshotScope, newSnapshotEpoch } from './snapshotIdentity'
 
 describe('connector snapshot identity', () => {
   it('canonicalizes object key order but preserves array order', () => {
@@ -21,23 +17,29 @@ describe('connector snapshot identity', () => {
     } as RssConfig
 
     expect(canonicalConnectorConfig(a)).toBe(canonicalConnectorConfig(b))
-    expect(canonicalConnectorConfig({ ...a, feeds: [...a.feeds].reverse() })).not.toBe(
-      canonicalConnectorConfig(a),
-    )
+    expect(canonicalConnectorConfig({ ...a, feeds: [...a.feeds].reverse() })).not.toBe(canonicalConnectorConfig(a))
   })
 
   it('changes scope for isolated account, secret, view, and feed mutations without embedding their values', async () => {
     const token = 'github_pat_FAKE_SCOPE_SECRET'
     const base: GithubConfig = { enabled: true, token, username: 'alice' }
     const baseScope = await connectorSnapshotScope('github', base)
-    const accountScope = await connectorSnapshotScope('github', { ...base, username: 'bob' })
+    const accountScope = await connectorSnapshotScope('github', {
+      ...base,
+      username: 'bob',
+    })
     const tokenScope = await connectorSnapshotScope('github', {
       ...base,
       token: 'github_pat_OTHER_FAKE',
     })
     const viewScope = await connectorSnapshotScope('github', {
       ...base,
-      views: { commitGraph: false, pulls: true, issues: true, notifications: true },
+      views: {
+        commitGraph: false,
+        pulls: true,
+        issues: true,
+        notifications: true,
+      },
     })
 
     expect(baseScope).toMatch(/^github:v1:[0-9a-f]{64}$/)
@@ -79,6 +81,35 @@ describe('connector snapshot identity', () => {
     expect(scope).not.toContain(instanceUrl)
     expect(scope).not.toContain('scene.movie')
     expect(scope).not.toContain('Movie night')
+  })
+
+  it('versions ICS as v2 and includes an opaque optional runtime scope', async () => {
+    const config = {
+      enabled: true,
+      calendars: [{ name: 'Work', url: 'https://calendar.example/private' }],
+    } as const
+    const omitted = await connectorSnapshotScope('ics', config)
+    const ny = await connectorSnapshotScope('ics', config, {
+      timeZone: 'America/New_York',
+    })
+    const berlin = await connectorSnapshotScope('ics', config, {
+      timeZone: 'Europe/Berlin',
+    })
+
+    expect(omitted).toMatch(/^ics:v2:[0-9a-f]{64}$/)
+    expect(ny).toMatch(/^ics:v2:[0-9a-f]{64}$/)
+    expect(berlin).not.toBe(ny)
+    expect(ny).not.toContain('America/New_York')
+    expect(berlin).not.toContain('Europe/Berlin')
+  })
+
+  it('keeps omitted runtime scope byte-compatible for existing v1 connectors', async () => {
+    const config: RssConfig = {
+      enabled: true,
+      feeds: ['https://one.example/a'],
+      shownCount: 5,
+    }
+    expect(await connectorSnapshotScope('rss', config)).toBe(await connectorSnapshotScope('rss', config, undefined))
   })
 
   it('creates a fresh non-secret epoch for an identical reconnect', () => {

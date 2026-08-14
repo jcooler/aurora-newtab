@@ -1,10 +1,13 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useNow } from '../../../lib/hooks/useNow'
+import { calendarDayDifference, resolvedLocalTimeZone, zonedLocalDayRange } from '../../../lib/dates'
 import {
   CALENDAR_DOT_CLASSES,
   fetchIcs,
   icsCalendarsOf,
+  isIcsData,
   icsViewOf,
   type IcsData,
   type IcsEvent,
@@ -36,8 +39,6 @@ import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 // ics PositionedBlock for the measured numbers). Arrange mode still lets a
 // user drag this anywhere they prefer.
 const MAX_AGENDA_ROWS = 2
-
-const DAY_MS = 86_400_000
 
 export default function CalendarWidget() {
   // Zero-hooks-in-the-gate split, same as every other connector widget
@@ -109,6 +110,7 @@ function CalendarInner({
   // connectors subscription), no remount required.
   meetLinks: boolean
 }) {
+  const localDay = useLocalDay()
   // Re-render cadence: reuses the app's existing minute-scale time source
   // (useNow, exported by Clock.tsx's own module and already parameterized
   // by interval) rather than rolling a second bespoke setInterval — Clock
@@ -126,13 +128,18 @@ function CalendarInner({
   // to parseIcs as `windowStart`, and parseIcs itself never calls
   // Date.now() (see ics.ts's own doc comment). `prev` carries the
   // last-known events forward through fetchIcs's own quiet-failure path.
-  const { data } = useConnectorSnapshot<IcsData>('ics', config, (prev) =>
-    fetchIcs(calendars, Date.now(), prev),
+  const { data } = useConnectorSnapshot<IcsData>(
+    'ics',
+    config,
+    (prev) => fetchIcs(calendars, Date.now(), prev, localDay.timeZone),
+    undefined,
+    { timeZone: localDay.timeZone },
+    isIcsData,
   )
   if (!data) return null
 
   const nowMs = now.getTime()
-  const { next, rows } = selectAgenda(data.events, nowMs, view, upcomingCount, calendars.length)
+  const { next, rows } = selectAgenda(data.events, nowMs, view, upcomingCount, calendars.length, localDay.timeZone)
 
   // Single-calendar rule (spec): with exactly one configured calendar, no
   // dots render anywhere — the color-coding only earns its keep once there's
@@ -158,7 +165,7 @@ function CalendarInner({
     )
   }
 
-  const relative = isAllDay(next) ? 'All day' : relNext(nowMs, next.start)
+  const relative = isAllDay(next) ? 'All day' : relNext(nowMs, next.start, localDay.timeZone)
 
   // Task 89 — Join visibility, the HEADLINE event only (never an agenda row —
   // rows render through formatAgendaRow below, which never touches meetUrl):
@@ -175,7 +182,8 @@ function CalendarInner({
   // continuously for days. Join is a real-time meeting affordance; an
   // all-day block is not a meeting you join at a moment. `relative` above
   // already computes isAllDay(next) — reused here, not recomputed.
-  const showJoin = !isAllDay(next) && meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
+  const showJoin =
+    !isAllDay(next) && meetLinks && !!next.meetUrl && next.start - nowMs <= 15 * 60_000 && nowMs < next.end
 
   return (
     <section
@@ -215,7 +223,7 @@ function CalendarInner({
               className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
             >
               {multi && dot(ev.cal)}
-              <span className="block truncate">{formatAgendaRow(ev, nowMs)}</span>
+              <span className="block truncate">{formatAgendaRow(ev, nowMs, localDay.timeZone)}</span>
             </li>
           ))}
         </ul>
@@ -224,58 +232,34 @@ function CalendarInner({
   )
 }
 
-/** The [start, start+1day) local-calendar-day window `t` falls in, as epoch
- *  ms bounds. Built from LOCAL date components (not `t - (t % DAY_MS)`), so
- *  it's correct across DST — the runtime's own local Date arithmetic
- *  resolves "midnight" for whatever offset that calendar day actually has,
- *  including a 23h or 25h one. */
-function localDayRange(t: number): { start: number; end: number } {
-  const d = new Date(t)
-  const start = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
-  return { start, end: start + DAY_MS }
+/** The active IANA zone's calendar-day bounds. The shared helper constructs
+ *  the next calendar date, so DST days may be 23h or 25h. */
+function localDayRange(t: number, timeZone: string): { start: number; end: number } {
+  return zonedLocalDayRange(t, timeZone)
 }
 
-/** ics.ts's own IcsEvent carries no explicit all-day flag (its expander only
- *  ever emits start/end epochs — see that file's own IcsEvent doc comment),
- *  so this infers it from the shape an all-day occurrence always has: a
- *  start at exact local midnight, spanning a whole number of 24h days. A
- *  timed event that happens to start at exactly local midnight for a whole
- *  number of days is indistinguishable from a real all-day one by this
- *  heuristic — an accepted, vanishingly rare edge case, not a silently
- *  swallowed one. */
+/** Explicit parser semantics: timed-midnight events never masquerade as DATE. */
 function isAllDay(ev: IcsEvent): boolean {
-  const start = new Date(ev.start)
-  const midnight =
-    start.getHours() === 0 &&
-    start.getMinutes() === 0 &&
-    start.getSeconds() === 0 &&
-    start.getMilliseconds() === 0
-  const span = ev.end - ev.start
-  return midnight && span > 0 && span % DAY_MS === 0
+  return ev.allDay
 }
-
-function pad2(n: number): string {
-  return String(n).padStart(2, '0')
-}
-
-// Short weekday names, Sunday-first (Date#getDay() indexing) — hoisted to
-// module scope (was local to relNext) so dayToken can share the one array
-// rather than each function carrying its own copy.
-const WEEKDAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /** Day prefix for a row that isn't today: weekday short for the next 6
  *  days, 'Mon DD' beyond. null (no token) for anything starting today OR
  *  earlier — an in-progress multi-day event renders with the today idiom,
  *  never a past date. */
-function dayToken(start: number, now: number): string | null {
-  const nowDay = localDayRange(now)
-  const startDay = localDayRange(start)
-  const dayDiff = Math.round((startDay.start - nowDay.start) / DAY_MS)
+export function calendarDayToken(start: number, now: number, timeZone: string): string | null {
+  const dayDiff = calendarDayDifference(now, start, timeZone)
   if (dayDiff <= 0) return null
-  const d = new Date(start)
-  if (dayDiff <= 6) return WEEKDAY_SHORT[d.getDay()]!
-  return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}`
+  if (dayDiff <= 6)
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+    }).format(new Date(start))
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: 'short',
+    day: 'numeric',
+  }).format(new Date(start))
 }
 
 /** `{token} · {summary}` (or bare `All day · {summary}` for today) for an
@@ -288,11 +272,15 @@ function dayToken(start: number, now: number): string | null {
  *  (CryptoWidget/VercelWidget format independently of them too), and every
  *  one of the brief's literal examples is already in that exact zero-padded
  *  24h shape. */
-function formatAgendaRow(ev: IcsEvent, now: number): string {
-  const token = dayToken(ev.start, now)
+function formatAgendaRow(ev: IcsEvent, now: number, timeZone: string): string {
+  const token = calendarDayToken(ev.start, now, timeZone)
   if (isAllDay(ev)) return token ? `${token} · ${ev.summary}` : `All day · ${ev.summary}`
-  const start = new Date(ev.start)
-  const hm = `${pad2(start.getHours())}:${pad2(start.getMinutes())}`
+  const hm = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(ev.start))
   return token ? `${token} ${hm} ${ev.summary}` : `${hm} ${ev.summary}`
 }
 
@@ -328,6 +316,7 @@ function selectAgenda(
   view: 'today' | 'upcoming' | 'per-calendar',
   upcomingCount: number,
   calendarCount: number,
+  timeZone: string,
 ): { next: IcsEvent | null; rows: IcsEvent[] } {
   const upcoming = events.filter((ev) => ev.end > now)
   const timed = upcoming.filter((ev) => !isAllDay(ev))
@@ -344,8 +333,14 @@ function selectAgenda(
     }
     return { next, rows }
   }
-  const { end: todayEnd } = localDayRange(now)
-  return { next, rows: others.filter((ev) => ev.start < todayEnd).slice(0, MAX_AGENDA_ROWS) }
+  return {
+    next,
+    rows: others.filter((ev) => eventStartsBeforeLocalDayEnd(ev.start, now, timeZone)).slice(0, MAX_AGENDA_ROWS),
+  }
+}
+
+export function eventStartsBeforeLocalDayEnd(start: number, now: number, timeZone: string): boolean {
+  return start < localDayRange(now, timeZone).end
 }
 
 /** now/start both epoch ms, both read in the LOCAL runtime timezone —
@@ -365,24 +360,28 @@ function selectAgenda(
  *   - two or more local calendar days out: '{Weekday} HH:MM' — the same
  *     idiom one step further, rather than open-ended day counting.
  *
- *  Calendar-day math goes through local MIDNIGHT instants (localDayRange),
- *  not `Math.floor(diffMs / DAY_MS)`: a raw ms-per-day division misdates a
- *  DST-transition day (23h/25h long) by up to a day; comparing local
- *  midnights and rounding the result absorbs that (a 23h or 25h "day" still
- *  rounds to exactly 1). PURE — the widget's own render supplies `now`. */
-export function relNext(now: number, start: number): string {
+ *  Calendar-day math uses calendar ordinals in the active IANA zone, never
+ *  elapsed 24-hour division, so DST transitions keep exact day labels. */
+export function relNext(now: number, start: number, timeZone: string = resolvedLocalTimeZone()): string {
   const diffMs = start - now
   if (diffMs < 60_000) return 'now'
   const diffMin = Math.floor(diffMs / 60_000)
   if (diffMin < 60) return `in ${diffMin} min`
 
-  const nowDay = localDayRange(now)
+  const nowDay = localDayRange(now, timeZone)
   if (start < nowDay.end) return `in ${Math.floor(diffMs / 3_600_000)} h`
 
-  const startDay = localDayRange(start)
-  const dayDiff = Math.round((startDay.start - nowDay.start) / DAY_MS)
-  const hh = pad2(new Date(start).getHours())
-  const mm = pad2(new Date(start).getMinutes())
-  if (dayDiff === 1) return `tomorrow ${hh}:${mm}`
-  return `${WEEKDAY_SHORT[new Date(start).getDay()]} ${hh}:${mm}`
+  const dayDiff = calendarDayDifference(now, start, timeZone)
+  const hm = new Intl.DateTimeFormat('en-GB', {
+    timeZone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(start))
+  if (dayDiff === 1) return `tomorrow ${hm}`
+  const weekday = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+  }).format(new Date(start))
+  return `${weekday} ${hm}`
 }

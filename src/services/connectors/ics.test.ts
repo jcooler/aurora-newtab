@@ -13,6 +13,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   parseIcs,
   fetchIcs,
+  isIcsData,
   extractMeetUrl,
   icsDescriptor,
   icsCalendarsOf,
@@ -40,6 +41,109 @@ function vevent(lines: string[]): string {
 }
 
 const DAY = 86_400_000
+const TEST_ZONE = 'America/New_York'
+
+describe('W1-P7 explicit all-day and runtime-timezone semantics', () => {
+  it.each([
+    ['America/New_York', '20260308', '2026-03-08T05:00:00.000Z', '2026-03-09T04:00:00.000Z'],
+    ['America/New_York', '20261101', '2026-11-01T04:00:00.000Z', '2026-11-02T05:00:00.000Z'],
+    ['Europe/Berlin', '20260329', '2026-03-28T23:00:00.000Z', '2026-03-29T22:00:00.000Z'],
+    ['Europe/Berlin', '20261025', '2026-10-24T22:00:00.000Z', '2026-10-25T23:00:00.000Z'],
+  ])('constructs the next calendar midnight for %s on %s', (timeZone, date, startIso, endIso) => {
+    const [event] = parseIcs(
+      cal(vevent(['SUMMARY:All day', `DTSTART;VALUE=DATE:${date}`])),
+      Date.parse(startIso) - DAY,
+      4,
+      timeZone,
+    )
+    expect(event).toMatchObject({ allDay: true })
+    expect(new Date(event!.start).toISOString()).toBe(startIso)
+    expect(new Date(event!.end).toISOString()).toBe(endIso)
+  })
+
+  it('preserves an exclusive multi-day DATE span for every recurrence across DST', () => {
+    const events = parseIcs(
+      cal(
+        vevent([
+          'SUMMARY:Retreat',
+          'DTSTART;VALUE=DATE:20260307',
+          'DTEND;VALUE=DATE:20260310',
+          'RRULE:FREQ=DAILY;COUNT=2',
+        ]),
+      ),
+      Date.parse('2026-03-06T00:00:00Z'),
+      10,
+      'America/New_York',
+    )
+    expect(
+      events.map((event) => ({
+        allDay: event.allDay,
+        start: new Date(event.start).toISOString(),
+        end: new Date(event.end).toISOString(),
+      })),
+    ).toEqual([
+      {
+        allDay: true,
+        start: '2026-03-07T05:00:00.000Z',
+        end: '2026-03-10T04:00:00.000Z',
+      },
+      {
+        allDay: true,
+        start: '2026-03-08T05:00:00.000Z',
+        end: '2026-03-11T04:00:00.000Z',
+      },
+    ])
+  })
+
+  it.each(['PT23H', 'P1D', 'PT25H'])('keeps a timed midnight %s event explicitly timed', (duration) => {
+    const [event] = parseIcs(
+      cal(vevent(['SUMMARY:Timed midnight', 'DTSTART:20260308T000000', `DURATION:${duration}`])),
+      Date.parse('2026-03-07T00:00:00Z'),
+      4,
+      'America/New_York',
+    )
+    expect(event?.allDay).toBe(false)
+  })
+
+  it('interprets floating wall time in the required runtime zone but leaves TZID independent', () => {
+    const floating = cal(vevent(['SUMMARY:Floating', 'DTSTART:20260308T090000', 'DURATION:PT1H']))
+    const nyFloating = parseIcs(floating, Date.parse('2026-03-07T00:00:00Z'), 4, 'America/New_York')[0]!
+    const berlinFloating = parseIcs(floating, Date.parse('2026-03-07T00:00:00Z'), 4, 'Europe/Berlin')[0]!
+    expect(new Date(nyFloating.start).toISOString()).toBe('2026-03-08T13:00:00.000Z')
+    expect(new Date(berlinFloating.start).toISOString()).toBe('2026-03-08T08:00:00.000Z')
+
+    const zoned = cal(vevent(['SUMMARY:Zoned', 'DTSTART;TZID=America/New_York:20260308T090000', 'DURATION:PT1H']))
+    const ny = parseIcs(zoned, Date.parse('2026-03-07T00:00:00Z'), 4, 'America/New_York')[0]!
+    const berlin = parseIcs(zoned, Date.parse('2026-03-07T00:00:00Z'), 4, 'Europe/Berlin')[0]!
+    expect(ny.start).toBe(berlin.start)
+  })
+})
+
+describe('isIcsData', () => {
+  const event = { summary: 'Standup', start: 1, end: 2, cal: 0, allDay: false }
+
+  it('accepts only the explicit current event shape', () => {
+    expect(
+      isIcsData({
+        events: [event, { ...event, allDay: true, meetUrl: 'https://meet.google.com/a' }],
+      }),
+    ).toBe(true)
+  })
+
+  it.each([
+    null,
+    {},
+    { events: 'nope' },
+    { events: [{ ...event, allDay: undefined }] },
+    { events: [{ ...event, allDay: 'false' }] },
+    { events: [{ ...event, start: Number.NaN }] },
+    { events: [{ ...event, end: Number.POSITIVE_INFINITY }] },
+    { events: [{ ...event, cal: 0.5 }] },
+    { events: [{ ...event, meetUrl: 42 }] },
+  ])('rejects malformed payload %#', (value) => {
+    expect(isIcsData(value)).toBe(false)
+  })
+})
 
 // A wide window covering all of June 2026 (most fixtures live here).
 const JUNE_START = Date.UTC(2026, 5, 1, 0, 0, 0)
@@ -57,7 +161,7 @@ describe('parseIcs — line unfolding & basic parsing', () => {
         '  line of iCalendar text',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(1)
     expect(events[0]!.summary).toBe(
       'This is a very long event title that the exporter folded across multiple physical lines because it exceeded seventy-five octets in one line of iCalendar text',
@@ -68,7 +172,7 @@ describe('parseIcs — line unfolding & basic parsing', () => {
     const text = cal(
       vevent(['UID:2@test', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z', 'SUMMARY:Split by', '\ta tab char']),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events[0]!.summary).toBe('Split bya tab char')
   })
 
@@ -81,13 +185,13 @@ describe('parseIcs — line unfolding & basic parsing', () => {
         'SUMMARY:Line one\\nafter newline\\, comma\\; semicolon\\\\ backslash',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events[0]!.summary).toBe('Line one\nafter newline, comma; semicolon\\ backslash')
   })
 
   it('gives an untitled event an empty summary rather than dropping it', () => {
     const text = cal(vevent(['UID:4@test', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']))
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(1)
     expect(events[0]!.summary).toBe('')
   })
@@ -95,17 +199,15 @@ describe('parseIcs — line unfolding & basic parsing', () => {
 
 describe('parseIcs — date/time forms', () => {
   it('parses a UTC (Z) DTSTART/DTEND to the exact epoch instant', () => {
-    const text = cal(
-      vevent(['UID:u1@test', 'SUMMARY:UTC event', 'DTSTART:20260610T120000Z', 'DTEND:20260610T133000Z']),
-    )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const text = cal(vevent(['UID:u1@test', 'SUMMARY:UTC event', 'DTSTART:20260610T120000Z', 'DTEND:20260610T133000Z']))
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.start).toBe(Date.UTC(2026, 5, 10, 12, 0, 0))
     expect(event!.end).toBe(Date.UTC(2026, 5, 10, 13, 30, 0))
   })
 
   it('all-day VALUE=DATE with no DTEND renders a full-day (local midnight -> midnight) span', () => {
     const text = cal(vevent(['UID:a1@test', 'SUMMARY:All day', 'DTSTART;VALUE=DATE:20260610']))
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     // Floating local midnight — computed the same way the impl does, so the
     // assertion holds regardless of the machine's timezone.
     const expectedStart = new Date(2026, 5, 10, 0, 0, 0).getTime()
@@ -114,19 +216,15 @@ describe('parseIcs — date/time forms', () => {
   })
 
   it('floating (no Z, no TZID) DTSTART is interpreted in local time', () => {
-    const text = cal(
-      vevent(['UID:f1@test', 'SUMMARY:Floating', 'DTSTART:20260610T090000', 'DTEND:20260610T100000']),
-    )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const text = cal(vevent(['UID:f1@test', 'SUMMARY:Floating', 'DTSTART:20260610T090000', 'DTEND:20260610T100000']))
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.start).toBe(new Date(2026, 5, 10, 9, 0, 0).getTime())
     expect(event!.end).toBe(new Date(2026, 5, 10, 10, 0, 0).getTime())
   })
 
   it('DURATION fills in the end when DTEND is absent (PT1H30M)', () => {
-    const text = cal(
-      vevent(['UID:d1@test', 'SUMMARY:With duration', 'DTSTART:20260610T120000Z', 'DURATION:PT1H30M']),
-    )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const text = cal(vevent(['UID:d1@test', 'SUMMARY:With duration', 'DTSTART:20260610T120000Z', 'DURATION:PT1H30M']))
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.start).toBe(Date.UTC(2026, 5, 10, 12, 0, 0))
     expect(event!.end).toBe(Date.UTC(2026, 5, 10, 13, 30, 0))
   })
@@ -135,7 +233,7 @@ describe('parseIcs — date/time forms', () => {
     const text = cal(
       vevent(['UID:d2@test', 'SUMMARY:Multiday duration', 'DTSTART:20260610T120000Z', 'DURATION:P1DT2H']),
     )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.end - event!.start).toBe(DAY + 2 * 3_600_000)
   })
 })
@@ -151,7 +249,7 @@ describe('parseIcs — RRULE DAILY', () => {
         'RRULE:FREQ=DAILY;COUNT=5',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(5)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 14, 0, 0),
@@ -172,7 +270,7 @@ describe('parseIcs — RRULE DAILY', () => {
         'RRULE:FREQ=DAILY;UNTIL=20260604T120000Z',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     // Jun 1,2,3,4 — the Jun-4 instant equals UNTIL exactly and is INCLUDED.
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 12, 0, 0),
@@ -192,7 +290,7 @@ describe('parseIcs — RRULE DAILY', () => {
         'RRULE:FREQ=DAILY;INTERVAL=3;COUNT=3',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 12, 0, 0),
       Date.UTC(2026, 5, 4, 12, 0, 0),
@@ -229,8 +327,8 @@ describe('parseIcs — RRULE DAILY', () => {
         'RRULE:FREQ=DAILY',
       ]),
     )
-    const malformedEvents = parseIcs(malformed, JUNE_START, 5)
-    const noCountEvents = parseIcs(noCount, JUNE_START, 5)
+    const malformedEvents = parseIcs(malformed, JUNE_START, 5, TEST_ZONE)
+    const noCountEvents = parseIcs(noCount, JUNE_START, 5, TEST_ZONE)
     expect(malformedEvents.map((e) => e.start)).toEqual(noCountEvents.map((e) => e.start))
     expect(malformedEvents.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 12, 0, 0),
@@ -253,7 +351,7 @@ describe('parseIcs — RRULE WEEKLY', () => {
         'RRULE:FREQ=WEEKLY;INTERVAL=2;COUNT=3',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 12, 0, 0),
       Date.UTC(2026, 5, 15, 12, 0, 0),
@@ -272,7 +370,7 @@ describe('parseIcs — RRULE WEEKLY', () => {
         'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=4',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 1, 12, 0, 0),
       Date.UTC(2026, 5, 3, 12, 0, 0),
@@ -293,7 +391,7 @@ describe('parseIcs — RRULE WEEKLY', () => {
         'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 3, 12, 0, 0), // Wed
       Date.UTC(2026, 5, 5, 12, 0, 0), // Fri
@@ -313,7 +411,7 @@ describe('parseIcs — RRULE MONTHLY', () => {
         'RRULE:FREQ=MONTHLY;COUNT=3',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 30)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 30, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 10, 15, 0, 0),
       Date.UTC(2026, 6, 10, 15, 0, 0),
@@ -331,11 +429,8 @@ describe('parseIcs — RRULE MONTHLY', () => {
         'RRULE:FREQ=MONTHLY;BYMONTHDAY=15;COUNT=2',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 30)
-    expect(events.map((e) => e.start)).toEqual([
-      Date.UTC(2026, 5, 15, 9, 0, 0),
-      Date.UTC(2026, 6, 15, 9, 0, 0),
-    ])
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 30, TEST_ZONE)
+    expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 15, 9, 0, 0), Date.UTC(2026, 6, 15, 9, 0, 0)])
   })
 
   it('skips months where the day-of-month does not exist (Jan 31 -> no Feb 31)', () => {
@@ -349,11 +444,8 @@ describe('parseIcs — RRULE MONTHLY', () => {
       ]),
     )
     // Window spanning Jan..Apr 2026. Feb has no 31st (skipped), Mar does.
-    const events = parseIcs(text, Date.UTC(2026, 0, 1), 120)
-    expect(events.map((e) => e.start)).toEqual([
-      Date.UTC(2026, 0, 31, 12, 0, 0),
-      Date.UTC(2026, 2, 31, 12, 0, 0),
-    ])
+    const events = parseIcs(text, Date.UTC(2026, 0, 1), 120, TEST_ZONE)
+    expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 0, 31, 12, 0, 0), Date.UTC(2026, 2, 31, 12, 0, 0)])
   })
 })
 
@@ -369,11 +461,8 @@ describe('parseIcs — EXDATE', () => {
         'EXDATE:20260602T120000Z',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
-    expect(events.map((e) => e.start)).toEqual([
-      Date.UTC(2026, 5, 1, 12, 0, 0),
-      Date.UTC(2026, 5, 3, 12, 0, 0),
-    ])
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
+    expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 1, 12, 0, 0), Date.UTC(2026, 5, 3, 12, 0, 0)])
   })
 
   it('honors multiple EXDATE properties AND comma-separated lists', () => {
@@ -388,11 +477,8 @@ describe('parseIcs — EXDATE', () => {
         'EXDATE:20260605T120000Z',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
-    expect(events.map((e) => e.start)).toEqual([
-      Date.UTC(2026, 5, 1, 12, 0, 0),
-      Date.UTC(2026, 5, 4, 12, 0, 0),
-    ])
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
+    expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 1, 12, 0, 0), Date.UTC(2026, 5, 4, 12, 0, 0)])
   })
 
   it('an EXDATE still consumes a COUNT slot (COUNT counts the full set, then excludes)', () => {
@@ -407,7 +493,7 @@ describe('parseIcs — EXDATE', () => {
         'EXDATE:20260602T120000Z',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(2)
   })
 })
@@ -423,7 +509,7 @@ describe('parseIcs — DST / TZID (the mandatory spring-forward case)', () => {
         'RRULE:FREQ=WEEKLY;COUNT=2',
       ]),
     )
-    const events = parseIcs(text, Date.UTC(2026, 2, 1), 30)
+    const events = parseIcs(text, Date.UTC(2026, 2, 1), 30, TEST_ZONE)
     expect(events).toHaveLength(2)
     // Mar 4 is EST (UTC-5): 09:00 wall == 14:00Z. Mar 11 is EDT (UTC-4):
     // 09:00 wall == 13:00Z. Wall time held at 09:00 across the transition.
@@ -444,7 +530,7 @@ describe('parseIcs — DST / TZID (the mandatory spring-forward case)', () => {
         'DTEND;TZID=America/Los_Angeles:20260610T130000',
       ]),
     )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.start).toBe(Date.UTC(2026, 5, 10, 19, 0, 0))
     expect(event!.end).toBe(Date.UTC(2026, 5, 10, 20, 0, 0))
   })
@@ -461,7 +547,7 @@ describe('parseIcs — bounded promise: unsupported parts render the base occurr
         'RRULE:FREQ=YEARLY;COUNT=5',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 10, 12, 0, 0)])
   })
 
@@ -475,7 +561,7 @@ describe('parseIcs — bounded promise: unsupported parts render the base occurr
         'RRULE:FREQ=MONTHLY;BYDAY=2MO;COUNT=4',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 60)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 60, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 8, 12, 0, 0)])
   })
 
@@ -489,7 +575,7 @@ describe('parseIcs — bounded promise: unsupported parts render the base occurr
         'RRULE:FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1;COUNT=6',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 60)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS + 60, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([Date.UTC(2026, 5, 30, 12, 0, 0)])
   })
 
@@ -503,7 +589,7 @@ describe('parseIcs — bounded promise: unsupported parts render the base occurr
         'RRULE:FREQ=WEEKLY;COUNT=4',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     // Floating local fallback for the base instant; no expansion.
     expect(events).toHaveLength(1)
     expect(events[0]!.start).toBe(new Date(2026, 5, 10, 9, 0, 0).getTime())
@@ -523,7 +609,7 @@ describe('parseIcs — window bounds', () => {
     )
     // Window: Jun 10 (00:00Z) for 5 days -> occurrences Jun 10..14 only.
     const windowStart = Date.UTC(2026, 5, 10, 0, 0, 0)
-    const events = parseIcs(text, windowStart, 5)
+    const events = parseIcs(text, windowStart, 5, TEST_ZONE)
     expect(events.map((e) => e.start)).toEqual([
       Date.UTC(2026, 5, 10, 12, 0, 0),
       Date.UTC(2026, 5, 11, 12, 0, 0),
@@ -535,44 +621,29 @@ describe('parseIcs — window bounds', () => {
 
   it('includes an event that STARTED before windowStart but ENDS inside the window ([start,end) intersects)', () => {
     const text = cal(
-      vevent([
-        'UID:win2@test',
-        'SUMMARY:Straddles the boundary',
-        'DTSTART:20260601T080000Z',
-        'DTEND:20260601T110000Z',
-      ]),
+      vevent(['UID:win2@test', 'SUMMARY:Straddles the boundary', 'DTSTART:20260601T080000Z', 'DTEND:20260601T110000Z']),
     )
     // Window opens at 09:00Z — after the 08:00 start but before the 11:00 end.
     const windowStart = Date.UTC(2026, 5, 1, 9, 0, 0)
-    const events = parseIcs(text, windowStart, 30)
+    const events = parseIcs(text, windowStart, 30, TEST_ZONE)
     expect(events).toHaveLength(1)
     expect(events[0]!.start).toBe(Date.UTC(2026, 5, 1, 8, 0, 0))
   })
 
   it('excludes an event that ended before windowStart', () => {
     const text = cal(
-      vevent([
-        'UID:win3@test',
-        'SUMMARY:Fully in the past',
-        'DTSTART:20260601T080000Z',
-        'DTEND:20260601T083000Z',
-      ]),
+      vevent(['UID:win3@test', 'SUMMARY:Fully in the past', 'DTSTART:20260601T080000Z', 'DTEND:20260601T083000Z']),
     )
     const windowStart = Date.UTC(2026, 5, 1, 9, 0, 0)
-    expect(parseIcs(text, windowStart, 30)).toHaveLength(0)
+    expect(parseIcs(text, windowStart, 30, TEST_ZONE)).toHaveLength(0)
   })
 
   it('excludes an event that starts at/after windowStart+windowDays', () => {
     const text = cal(
-      vevent([
-        'UID:win4@test',
-        'SUMMARY:Beyond the window',
-        'DTSTART:20260701T120000Z',
-        'DTEND:20260701T130000Z',
-      ]),
+      vevent(['UID:win4@test', 'SUMMARY:Beyond the window', 'DTSTART:20260701T120000Z', 'DTEND:20260701T130000Z']),
     )
     // 30-day window from Jun 1 ends Jul 1 00:00Z — the Jul 1 12:00 event is out.
-    expect(parseIcs(text, JUNE_START, 30)).toHaveLength(0)
+    expect(parseIcs(text, JUNE_START, 30, TEST_ZONE)).toHaveLength(0)
   })
 })
 
@@ -608,7 +679,7 @@ describe('parseIcs — robustness / realistic exports', () => {
       'END:VEVENT',
       'END:VCALENDAR',
     ].join('\r\n')
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(1)
     expect(events[0]!.summary).toBe('The only real event')
   })
@@ -626,7 +697,7 @@ describe('parseIcs — robustness / realistic exports', () => {
         'SEQUENCE:0',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(1)
     expect(events[0]!.summary).toBe('Event with vendor extensions')
   })
@@ -639,16 +710,16 @@ describe('parseIcs — robustness / realistic exports', () => {
         vevent(['UID:s3@test', 'SUMMARY:Second', 'DTSTART:20260611T120000Z', 'DTEND:20260611T130000Z']),
       ].join('\r\n'),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.summary)).toEqual(['First', 'Second', 'Third'])
   })
 
   it('returns [] for malformed input (not a calendar at all)', () => {
-    expect(parseIcs('this is not a calendar, just some text', JUNE_START, JUNE_DAYS)).toEqual([])
+    expect(parseIcs('this is not a calendar, just some text', JUNE_START, JUNE_DAYS, TEST_ZONE)).toEqual([])
   })
 
   it('returns [] for an empty string', () => {
-    expect(parseIcs('', JUNE_START, JUNE_DAYS)).toEqual([])
+    expect(parseIcs('', JUNE_START, JUNE_DAYS, TEST_ZONE)).toEqual([])
   })
 
   it('drops an event with no DTSTART but keeps the well-formed sibling', () => {
@@ -658,7 +729,7 @@ describe('parseIcs — robustness / realistic exports', () => {
         vevent(['UID:ok1@test', 'SUMMARY:Fine', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']),
       ].join('\r\n'),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events.map((e) => e.summary)).toEqual(['Fine'])
   })
 })
@@ -768,9 +839,7 @@ describe('extractMeetUrl — trailing punctuation from calendar-invite prose doe
   it('does NOT trim legitimate path/query content — only the actual trailing punctuation run comes off', () => {
     // The query string ?pwd=abc is part of the real link; only the sentence-
     // ending period after it is prose, not URL content.
-    expect(extractMeetUrl('https://us02web.zoom.us/j/123?pwd=abc.', '')).toBe(
-      'https://us02web.zoom.us/j/123?pwd=abc',
-    )
+    expect(extractMeetUrl('https://us02web.zoom.us/j/123?pwd=abc.', '')).toBe('https://us02web.zoom.us/j/123?pwd=abc')
   })
 })
 
@@ -786,7 +855,7 @@ describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)
         'RRULE:FREQ=DAILY;COUNT=3',
       ]),
     )
-    const events = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const events = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(events).toHaveLength(3)
     for (const event of events) {
       expect(event.meetUrl).toBe('https://us02web.zoom.us/j/998877')
@@ -803,7 +872,7 @@ describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)
         'LOCATION:Conference Room 4B',
       ]),
     )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect('meetUrl' in event!).toBe(false)
   })
 
@@ -811,7 +880,7 @@ describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)
     const text = cal(
       vevent(['UID:meet3@test', 'SUMMARY:No fields', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']),
     )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect('meetUrl' in event!).toBe(false)
   })
 
@@ -831,7 +900,7 @@ describe('parseIcs — meeting links (LOCATION/DESCRIPTION → IcsEvent.meetUrl)
         'DESCRIPTION:Notes\\, then the link https://us02web.zoom.us/j/998877\\nEnd of description',
       ]),
     )
-    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS)
+    const [event] = parseIcs(text, JUNE_START, JUNE_DAYS, TEST_ZONE)
     expect(event!.meetUrl).toBe('https://us02web.zoom.us/j/998877')
   })
 })
@@ -858,37 +927,41 @@ describe('fetchIcs', () => {
       vevent(['UID:fetch1@test', 'SUMMARY:Fetched', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']),
     )
     const fetchFn = vi.fn(async () => fakeResponse({ status: 200, text: body }))
-    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data.events).toHaveLength(1)
     expect(data.events[0]!.summary).toBe('Fetched')
   })
 
   it('carries an AbortSignal (shared 8s-abort discipline)', async () => {
     const fetchFn = vi.fn(async (_url: string, _init?: RequestInit) => fakeResponse({ status: 200, text: cal('') }))
-    await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    await fetchIcs(CALS, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     const [, init] = fetchFn.mock.calls[0]!
     expect(init?.signal).toBeInstanceOf(AbortSignal)
   })
 
   it('a non-OK status returns prev unchanged', async () => {
-    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2, cal: 0 }] }
+    const prev: IcsData = {
+      events: [{ summary: 'Old', start: 1, end: 2, cal: 0, allDay: false }],
+    }
     const fetchFn = vi.fn(async () => fakeResponse({ ok: false, status: 404 }))
-    const data = await fetchIcs(CALS, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, prev, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
   })
 
   it('a non-OK status with no prev falls back to an empty events list', async () => {
     const fetchFn = vi.fn(async () => fakeResponse({ ok: false, status: 500 }))
-    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data).toEqual({ events: [] })
   })
 
   it('a network/abort rejection keeps prev verbatim', async () => {
-    const prev: IcsData = { events: [{ summary: 'Old', start: 1, end: 2, cal: 0 }] }
+    const prev: IcsData = {
+      events: [{ summary: 'Old', start: 1, end: 2, cal: 0, allDay: false }],
+    }
     const fetchFn = vi.fn(async () => {
       throw new Error('network down')
     })
-    const data = await fetchIcs(CALS, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, prev, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data).toEqual(prev)
   })
 
@@ -896,19 +969,21 @@ describe('fetchIcs', () => {
     const fetchFn = vi.fn(async () => {
       throw new Error('boom')
     })
-    const data = await fetchIcs(CALS, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(CALS, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data).toEqual({ events: [] })
   })
 
   it('fetches every calendar in parallel and tags events with their calendar index', async () => {
     const bodyA = cal(vevent(['UID:a@test', 'SUMMARY:From A', 'DTSTART:20260610T120000Z', 'DTEND:20260610T130000Z']))
     const bodyB = cal(vevent(['UID:b@test', 'SUMMARY:From B', 'DTSTART:20260610T090000Z', 'DTEND:20260610T100000Z']))
-    const fetchFn = vi.fn(async (u: string) => fakeResponse({ status: 200, text: u.includes('feed-a') ? bodyA : bodyB }))
+    const fetchFn = vi.fn(async (u: string) =>
+      fakeResponse({ status: 200, text: u.includes('feed-a') ? bodyA : bodyB }),
+    )
     const two = [
       { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
       { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
     ]
-    const data = await fetchIcs(two, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(two, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(fetchFn).toHaveBeenCalledTimes(2)
     // Merged AND sorted ascending across feeds — B's 09:00 sorts before A's 12:00.
     expect(data.events.map((e) => [e.summary, e.cal])).toEqual([
@@ -924,15 +999,15 @@ describe('fetchIcs', () => {
     )
     const prev: IcsData = {
       events: [
-        { summary: 'Stale A', start: 1, end: 2, cal: 0 },
-        { summary: 'Kept B', start: 3, end: 4, cal: 1 },
+        { summary: 'Stale A', start: 1, end: 2, cal: 0, allDay: false },
+        { summary: 'Kept B', start: 3, end: 4, cal: 1, allDay: false },
       ],
     }
     const two = [
       { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
       { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
     ]
-    const data = await fetchIcs(two, JUNE_START, prev, fetchFn as unknown as typeof fetch)
+    const data = await fetchIcs(two, JUNE_START, prev, TEST_ZONE, fetchFn as unknown as typeof fetch)
     const summaries = data.events.map((e) => e.summary)
     expect(summaries).toContain('Fresh A')
     expect(summaries).toContain('Kept B')
@@ -953,8 +1028,13 @@ describe('fetchIcs', () => {
       { name: 'A', url: 'https://calendar.example.com/feed-a.ics' },
       { name: 'B', url: 'https://calendar.example.com/feed-b.ics' },
     ]
-    const fetchFn = vi.fn(async (u: string) => fakeResponse({ status: 200, text: u.includes('feed-b') ? body : cal('') }))
-    const data = await fetchIcs(two, JUNE_START, null, fetchFn as unknown as typeof fetch)
+    const fetchFn = vi.fn(async (u: string) =>
+      fakeResponse({
+        status: 200,
+        text: u.includes('feed-b') ? body : cal(''),
+      }),
+    )
+    const data = await fetchIcs(two, JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)
     expect(data.events).toHaveLength(1)
     expect(data.events[0]!.meetUrl).toBe('https://whereby.com/team-standup')
     expect(data.events[0]!.cal).toBe(1)
@@ -962,7 +1042,7 @@ describe('fetchIcs', () => {
 
   it('an empty calendar list returns prev (or empty) without fetching', async () => {
     const fetchFn = vi.fn()
-    expect(await fetchIcs([], JUNE_START, null, fetchFn as unknown as typeof fetch)).toEqual({ events: [] })
+    expect(await fetchIcs([], JUNE_START, null, TEST_ZONE, fetchFn as unknown as typeof fetch)).toEqual({ events: [] })
     expect(fetchFn).not.toHaveBeenCalled()
   })
 })
@@ -983,9 +1063,12 @@ describe('icsDescriptor', () => {
   })
 
   it('derives the https origin from the config url', () => {
-    expect(icsDescriptor.origins({ enabled: true, url: 'https://calendar.example.com/x/basic.ics' })).toEqual([
-      'https://calendar.example.com/*',
-    ])
+    expect(
+      icsDescriptor.origins({
+        enabled: true,
+        url: 'https://calendar.example.com/x/basic.ics',
+      }),
+    ).toEqual(['https://calendar.example.com/*'])
   })
 
   it('derives one https origin per calendar, degrading per-entry on bad urls', () => {
@@ -1001,25 +1084,49 @@ describe('icsDescriptor', () => {
     ).toEqual(['https://calendar.example.com/*', 'https://p57-caldav.icloud.com/*'])
   })
   it('still derives the origin from a legacy single-url config', () => {
-    expect(icsDescriptor.origins({ enabled: true, url: 'https://calendar.example.com/x/basic.ics' })).toEqual([
-      'https://calendar.example.com/*',
-    ])
+    expect(
+      icsDescriptor.origins({
+        enabled: true,
+        url: 'https://calendar.example.com/x/basic.ics',
+      }),
+    ).toEqual(['https://calendar.example.com/*'])
   })
 
   it('owns origins only when a valid calendar is configured, including disabled and legacy rows', () => {
-    expect(icsDescriptor.ownsOrigins({ enabled: false, url: 'https://calendar.example.com/x.ics' })).toBe(true)
+    expect(
+      icsDescriptor.ownsOrigins({
+        enabled: false,
+        url: 'https://calendar.example.com/x.ics',
+      }),
+    ).toBe(true)
     expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [] })).toBe(false)
-    expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [{ name: 'Bad', url: 'not a url' }] })).toBe(false)
+    expect(
+      icsDescriptor.ownsOrigins({
+        enabled: true,
+        calendars: [{ name: 'Bad', url: 'not a url' }],
+      }),
+    ).toBe(false)
   })
 
   it('redacts capability URLs into a valid empty calendar list and uses effective calendar completeness for backups', () => {
     const stored = {
       enabled: true,
-      calendars: [{ name: 'Family', url: 'https://calendar.example.test/private.ics?token=calendar-capability' }],
+      calendars: [
+        {
+          name: 'Family',
+          url: 'https://calendar.example.test/private.ics?token=calendar-capability',
+        },
+      ],
       view: 'upcoming' as const,
       upcomingCount: 4,
     }
-    expect(icsDescriptor.redactForBackup?.({ enabled: true, view: 'upcoming', upcomingCount: 4 })).toEqual({
+    expect(
+      icsDescriptor.redactForBackup?.({
+        enabled: true,
+        view: 'upcoming',
+        upcomingCount: 4,
+      }),
+    ).toEqual({
       enabled: true,
       calendars: [],
       view: 'upcoming',
@@ -1027,7 +1134,12 @@ describe('icsDescriptor', () => {
     })
     expect(icsDescriptor.backupReentryRequired?.({ enabled: true, calendars: [] })).toBe(true)
     expect(icsDescriptor.backupReentryRequired?.({ enabled: false, calendars: [] })).toBe(false)
-    expect(icsDescriptor.backupReentryRequired?.({ enabled: true, url: 'https://calendar.example.test/legacy.ics' })).toBe(false)
+    expect(
+      icsDescriptor.backupReentryRequired?.({
+        enabled: true,
+        url: 'https://calendar.example.test/legacy.ics',
+      }),
+    ).toBe(false)
     expect(stored.calendars[0]?.url).toContain('calendar-capability')
   })
 })
@@ -1049,7 +1161,13 @@ describe('icsCalendarsOf — read-time config normalization', () => {
   })
   it('calendars array wins over a lingering legacy url', () => {
     const cals = [{ name: 'New', url: 'https://new.example.com/n.ics' }]
-    expect(icsCalendarsOf({ enabled: true, url: 'https://old.example.com/o.ics', calendars: cals })).toEqual(cals)
+    expect(
+      icsCalendarsOf({
+        enabled: true,
+        url: 'https://old.example.com/o.ics',
+        calendars: cals,
+      }),
+    ).toEqual(cals)
   })
   it('empty-string legacy url, missing both fields, and undefined config all yield []', () => {
     expect(icsCalendarsOf({ enabled: true, url: '' })).toEqual([])
@@ -1074,7 +1192,11 @@ describe('icsCalendarsOf — read-time config normalization', () => {
 
 describe('icsViewOf — view defaults', () => {
   it('defaults to today/3 for missing or invalid values', () => {
-    expect(icsViewOf(undefined)).toEqual({ view: 'today', upcomingCount: 3, meetLinks: true })
+    expect(icsViewOf(undefined)).toEqual({
+      view: 'today',
+      upcomingCount: 3,
+      meetLinks: true,
+    })
     expect(icsViewOf({ enabled: true, view: 'bogus' as never, upcomingCount: 99 })).toEqual({
       view: 'today',
       upcomingCount: 3,

@@ -1,13 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useStorage } from '../storage/context'
-import type {
-  ConnectorConfig,
-  ConnectorId,
-  ConnectorSnapshot,
-} from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 import { getConnector } from '../../services/connectors/registry'
 import {
   canonicalConnectorConfig,
+  canonicalConnectorRuntimeScope,
   connectorSnapshotScope,
 } from '../../services/connectors/snapshotIdentity'
 
@@ -45,13 +42,23 @@ export function useConnectorSnapshot<T>(
   config: ConnectorConfig,
   refresh: (prev: T | null) => Promise<T>,
   ttlMs: number = getConnector(id)?.ttlMs ?? 0,
-): { data: T | null; fetchedAt: number | null; refreshing: boolean; lastError: string | null } {
+  runtimeScope?: unknown,
+  isData?: (value: unknown) => value is T,
+): {
+  data: T | null
+  fetchedAt: number | null
+  refreshing: boolean
+  lastError: string | null
+} {
   const storage = useStorage()
-  const configKey = canonicalConnectorConfig(config)
+  const runtimeKey = runtimeScope === undefined ? '' : canonicalConnectorRuntimeScope(runtimeScope)
+  const configKey = `${canonicalConnectorConfig(config)}\n${runtimeKey}`
   const [state, setState] = useState<SnapshotState<T>>(EMPTY_STATE)
 
   const refreshRef = useRef(refresh)
   refreshRef.current = refresh
+  const isDataRef = useRef(isData)
+  isDataRef.current = isData
 
   useLayoutEffect(() => {
     latestConfigKeys.set(id, configKey)
@@ -75,16 +82,13 @@ export function useConnectorSnapshot<T>(
     const setCurrentState = (update: (current: SnapshotState<T>) => SnapshotState<T>) => {
       if (!live || !isCurrent()) return
       setState((previous) => {
-        const current =
-          previous.configKey === configKey
-            ? previous
-            : { ...EMPTY_STATE, configKey }
+        const current = previous.configKey === configKey ? previous : { ...EMPTY_STATE, configKey }
         return update(current)
       })
     }
 
     void (async () => {
-      const scope = await connectorSnapshotScope(id, config)
+      const scope = await connectorSnapshotScope(id, config, runtimeScope)
       if (!live || !isCurrent()) return
 
       const scheduleCheck = (delayMs: number, checkFreshness: () => Promise<void>) => {
@@ -92,12 +96,14 @@ export function useConnectorSnapshot<T>(
         expiryTimer = window.setTimeout(() => void checkFreshness(), delayMs)
       }
 
-      const showSnapshot = (snapshot: ConnectorSnapshot) => {
+      const showSnapshot = (snapshot: ConnectorSnapshot): boolean => {
+        if (isDataRef.current && !isDataRef.current(snapshot.data)) return false
         setCurrentState((current) => ({
           ...current,
           data: snapshot.data as T,
           fetchedAt: snapshot.fetchedAt,
         }))
+        return true
       }
 
       let checkFreshness: () => Promise<void>
@@ -124,6 +130,9 @@ export function useConnectorSnapshot<T>(
         setCurrentState((current) => ({ ...current, refreshing: true }))
         try {
           const result = await pending
+          if (isDataRef.current && !isDataRef.current(result)) {
+            throw new Error(`Invalid ${id} snapshot payload`)
+          }
           if (owner && isCurrent()) {
             const snapshot: ConnectorSnapshot = {
               scope,
@@ -164,7 +173,11 @@ export function useConnectorSnapshot<T>(
           return
         }
 
-        showSnapshot(snapshot)
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          await runRefresh(null)
+          return
+        }
         if (Date.now() - snapshot.fetchedAt >= ttlMs) {
           await runRefresh(snapshot.data as T)
         } else {
@@ -180,7 +193,11 @@ export function useConnectorSnapshot<T>(
           void runRefresh(null)
           return
         }
-        showSnapshot(snapshot)
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          void runRefresh(null)
+          return
+        }
         scheduleSnapshot(snapshot)
       })
 
@@ -202,7 +219,11 @@ export function useConnectorSnapshot<T>(
         setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
         await runRefresh(null)
       } else {
-        showSnapshot(snapshot)
+        if (!showSnapshot(snapshot)) {
+          setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
+          await runRefresh(null)
+          return
+        }
         if (Date.now() - snapshot.fetchedAt >= ttlMs) {
           await runRefresh(snapshot.data as T)
         } else {

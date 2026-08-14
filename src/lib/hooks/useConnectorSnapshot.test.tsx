@@ -69,16 +69,22 @@ function Probe({
   config,
   refresh,
   ttl,
+  runtimeScope,
+  isData,
 }: {
   config: RssConfig
   refresh: (prev: string | null) => Promise<string>
   ttl?: number
+  runtimeScope?: unknown
+  isData?: (value: unknown) => value is string
 }) {
   const { data, fetchedAt, refreshing, lastError } = useConnectorSnapshot(
     'rss',
     config,
     refresh,
     ttl,
+    runtimeScope,
+    isData,
   )
   return (
     <ul>
@@ -109,10 +115,12 @@ function mount(
   refresh: (prev: string | null) => Promise<string>,
   ttl?: number,
   config: RssConfig = configA,
+  runtimeScope?: unknown,
+  isData?: (value: unknown) => value is string,
 ) {
   return render(
     <StorageProvider storage={storage}>
-      <Probe config={config} refresh={refresh} ttl={ttl} />
+      <Probe config={config} refresh={refresh} ttl={ttl} runtimeScope={runtimeScope} isData={isData} />
     </StorageProvider>,
   )
 }
@@ -184,7 +192,10 @@ describe('useConnectorSnapshot', () => {
   })
 
   it('fresh-enough snapshot: no refresh', async () => {
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'cached' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'cached',
+    })
     const refresh = vi.fn(() => Promise.resolve('should-not-run'))
 
     mount(storage, refresh, 60_000)
@@ -243,7 +254,10 @@ describe('useConnectorSnapshot', () => {
   })
 
   it('different-account reconnect never renders the previous fresh cache', async () => {
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'account-a' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'account-a',
+    })
     const pending = deferred<string>()
     const refresh = vi.fn(() => pending.promise)
 
@@ -258,7 +272,10 @@ describe('useConnectorSnapshot', () => {
   })
 
   it('mounted config mutation suppresses old data before the new request settles', async () => {
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'account-a' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'account-a',
+    })
     const pending = deferred<string>()
     const refresh = vi.fn(() => pending.promise)
     const view = mount(storage, refresh, 60_000, configA)
@@ -401,6 +418,64 @@ describe('useConnectorSnapshot', () => {
     expect(stored?.data).toBe('account-b')
   })
 
+  it('runtime scope B wins when pending scope A resolves after B under the same config', async () => {
+    const storage = await freshStorage()
+    const requestA = deferred<string>()
+    const requestB = deferred<string>()
+    const refresh = vi
+      .fn<(_: string | null) => Promise<string>>()
+      .mockReturnValueOnce(requestA.promise)
+      .mockReturnValueOnce(requestB.promise)
+    const scopeA = { timeZone: 'America/New_York' }
+    const scopeB = { timeZone: 'Europe/Berlin' }
+    const view = mount(storage, refresh, 60_000, configA, scopeA)
+    await act(async () => {
+      await tick()
+    })
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <Probe config={configA} refresh={refresh} ttl={60_000} runtimeScope={scopeB} />
+      </StorageProvider>,
+    )
+    await act(async () => {
+      await tick()
+      requestB.resolve('berlin')
+      await tick()
+      requestA.resolve('new-york')
+      await tick()
+    })
+
+    expect(screen.queryByText('data:new-york')).toBeNull()
+    expect(screen.getByText('data:berlin')).toBeTruthy()
+    const stored = (await storage.get('connectorSnapshots')).rss
+    expect(stored?.scope).toBe(await connectorSnapshotScope('rss', configA, scopeB))
+    expect(stored?.data).toBe('berlin')
+  })
+
+  it('treats a matching-scope malformed payload as absent and refreshes from null', async () => {
+    const runtimeScope = { timeZone: 'America/New_York' }
+    const storage = await freshStorage()
+    await storage.set('connectorSnapshots', {
+      rss: {
+        scope: await connectorSnapshotScope('rss', configA, runtimeScope),
+        fetchedAt: Date.now(),
+        data: { malformed: true },
+      },
+    })
+    const refresh = vi.fn((_prev: string | null) => Promise.resolve('valid'))
+    const isData = (value: unknown): value is string => typeof value === 'string'
+
+    mount(storage, refresh, 60_000, configA, runtimeScope, isData)
+    await act(async () => {
+      await tick()
+    })
+
+    expect(screen.queryByText(/malformed/)).toBeNull()
+    expect(refresh).toHaveBeenCalledWith(null)
+    expect(screen.getByText('data:valid')).toBeTruthy()
+  })
+
   it('legacy unscoped cache is ignored and replaced', async () => {
     const storage = await freshStorage()
     await storage.set('connectorSnapshots', {
@@ -422,7 +497,10 @@ describe('useConnectorSnapshot', () => {
   it('TTL expiry refreshes an open visible tab exactly once', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-13T12:00:00Z'))
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'cached' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'cached',
+    })
     const refresh = vi.fn(() => Promise.resolve('fresh'))
 
     mount(storage, refresh, 5_000)
@@ -442,7 +520,10 @@ describe('useConnectorSnapshot', () => {
   it('visibility and focus recheck staleness without overlapping the timer request', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-13T12:00:00Z'))
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'cached' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'cached',
+    })
     const pending = deferred<string>()
     const refresh = vi.fn(() => pending.promise)
 
@@ -491,7 +572,10 @@ describe('useConnectorSnapshot', () => {
   it('failed TTL refresh schedules one bounded retry and unmount cancels it', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-13T12:00:00Z'))
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'cached' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'cached',
+    })
     const refresh = vi.fn(() => Promise.reject(new Error('offline')))
     const view = mount(storage, refresh, 10)
     await act(async () => {
@@ -519,7 +603,10 @@ describe('useConnectorSnapshot', () => {
   })
 
   it('post-unmount focus and visibility events cannot read or refresh', async () => {
-    const storage = await freshStorage(configA, { fetchedAt: Date.now(), data: 'cached' })
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'cached',
+    })
     const get = vi.spyOn(storage, 'get')
     const refresh = vi.fn(() => Promise.resolve('fresh'))
     const view = mount(storage, refresh, 60_000)

@@ -8,7 +8,7 @@ import type { IcsData, IcsEvent } from '../../../services/connectors/ics'
 import type { IcsConfig } from '../../../services/connectors/types'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
-import CalendarWidget, { relNext } from './CalendarWidget'
+import CalendarWidget, { calendarDayToken, eventStartsBeforeLocalDayEnd, relNext } from './CalendarWidget'
 
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
@@ -37,13 +37,19 @@ beforeEach(() => __resetInFlight())
 afterEach(() => __resetInFlight())
 
 const DAY_MS = 86_400_000
+const TIME_ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone
 // Pinned "now" — a Friday, well clear of any DST transition — so every
 // relative-time/agenda-membership assertion below is deterministic
 // regardless of the wall-clock date the suite happens to run on.
 const NOW = new Date(2026, 7, 7, 9, 0, 0).getTime() // 2026-08-07 09:00 local
 const CONNECTED: IcsConfig = {
   enabled: true,
-  calendars: [{ name: 'Personal', url: 'https://calendar.example.com/private-abc/basic.ics' }],
+  calendars: [
+    {
+      name: 'Personal',
+      url: 'https://calendar.example.com/private-abc/basic.ics',
+    },
+  ],
 }
 const CONNECTED_TWO: IcsConfig = {
   enabled: true,
@@ -57,8 +63,8 @@ const CONNECTED_TWO: IcsConfig = {
 // it; every pre-existing fixture call omits it and gets the same
 // no-meetUrl-key shape ics.ts's own expand() produces for a no-match event
 // (conditional spread, never a `meetUrl: undefined` property).
-function ev(summary: string, start: number, end: number, cal = 0, meetUrl?: string): IcsEvent {
-  return { summary, start, end, cal, ...(meetUrl ? { meetUrl } : {}) }
+function ev(summary: string, start: number, end: number, cal = 0, meetUrl?: string, allDay = false): IcsEvent {
+  return { summary, start, end, cal, allDay, ...(meetUrl ? { meetUrl } : {}) }
 }
 
 // A realistic provider link (Task 88's own extractMeetUrl fixtures use the
@@ -74,6 +80,9 @@ const EVENT_ALL_DAY = ev(
   'Company Holiday',
   new Date(2026, 7, 7, 0, 0, 0).getTime(), // local midnight
   new Date(2026, 7, 7, 0, 0, 0).getTime() + DAY_MS, // exactly one whole day later
+  0,
+  undefined,
+  true,
 )
 // cal 1 fixtures for the multi-calendar view-mode cases below.
 const EVENT_MON = ev(
@@ -99,7 +108,13 @@ async function seededStorage(config: IcsConfig, data: IcsData | null): Promise<A
   await storage.set('connectors', { ics: config })
   if (data) {
     await storage.set('connectorSnapshots', {
-      ics: { scope: await connectorSnapshotScope('ics', config), fetchedAt: NOW, data },
+      ics: {
+        scope: await connectorSnapshotScope('ics', config, {
+          timeZone: TIME_ZONE,
+        }),
+        fetchedAt: NOW,
+        data,
+      },
     })
   }
   return storage
@@ -119,10 +134,11 @@ describe('CalendarWidget', () => {
     vi.setSystemTime(NOW)
   })
   afterEach(() => {
+    vi.unstubAllGlobals()
     vi.useRealTimers()
   })
 
-  it('renders the next-line + up to 2 agenda rows (today\'s remaining events, excluding next and tomorrow)', async () => {
+  it("renders the next-line + up to 2 agenda rows (today's remaining events, excluding next and tomorrow)", async () => {
     const storage = await seededStorage(CONNECTED, {
       events: [EVENT_NEXT, EVENT_B, EVENT_C, EVENT_TOMORROW],
     })
@@ -149,12 +165,41 @@ describe('CalendarWidget', () => {
 
     // The headline stays the next REAL appointment, not the all-day entry.
     expect(screen.getByText('Next: Standup · in 2 h')).toBeTruthy()
-    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map(
-      (li) => li.textContent,
-    )
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     // Capped at 2: the all-day row (earliest start of the day) plus the next
     // timed row after it — 1:1 with Sam is bumped off by the cap.
     expect(rows).toEqual(['All day · Company Holiday', '14:00 Design review'])
+  })
+
+  it('renders a timed local-midnight 24-hour event as timed, never as all-day', async () => {
+    const midnight = ev(
+      'Midnight maintenance',
+      new Date(2026, 7, 8, 0, 0, 0).getTime(),
+      new Date(2026, 7, 9, 0, 0, 0).getTime(),
+    )
+    const storage = await seededStorage(CONNECTED, { events: [midnight] })
+    mount(storage)
+    await act(async () => {})
+
+    expect(screen.getByText(/Next: Midnight maintenance/).textContent).toContain('tomorrow 00:00')
+    expect(screen.queryByText(/All day/)).toBeNull()
+  })
+
+  it('rejects a matching-scope snapshot that omits allDay instead of inferring a timed fallback', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => undefined)),
+    )
+    const malformed = {
+      events: [{ summary: 'Legacy', start: NOW + 60_000, end: NOW + 120_000, cal: 0 }],
+    }
+    const storage = await seededStorage(CONNECTED, malformed as unknown as IcsData)
+    const { container } = mount(storage)
+    await act(async () => {})
+
+    expect(container.querySelector('section[aria-label="Calendar"]')).toBeNull()
+    expect(screen.queryByText(/Legacy/)).toBeNull()
+    vi.unstubAllGlobals()
   })
 
   it('shows the empty-connected copy exactly when connected but nothing is left upcoming', async () => {
@@ -203,7 +248,10 @@ describe('CalendarWidget', () => {
 
   it('a legacy single-url config still renders — icsCalendarsOf wraps it as one calendar, proving read-time migration end-to-end through the widget gate', async () => {
     const storage = await seededStorage(
-      { enabled: true, url: 'https://calendar.example.com/private-abc/basic.ics' },
+      {
+        enabled: true,
+        url: 'https://calendar.example.com/private-abc/basic.ics',
+      },
       { events: [EVENT_NEXT] },
     )
     mount(storage)
@@ -239,7 +287,10 @@ describe('CalendarWidget', () => {
   })
 
   it('with 2+ calendars every row and the headline carry that calendar’s dot; with 1 calendar no dots render', async () => {
-    const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 }, { events: [EVENT_NEXT, EVENT_MON] })
+    const storage = await seededStorage(
+      { ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 },
+      { events: [EVENT_NEXT, EVENT_MON] },
+    )
     const { unmount } = mount(storage)
     await act(async () => {})
     const section = document.querySelector('section[aria-label="Calendar"]')!
@@ -247,7 +298,9 @@ describe('CalendarWidget', () => {
     expect(section.querySelectorAll('.bg-accent').length).toBe(1)
     expect(section.querySelectorAll('.bg-sky-400').length).toBe(1)
     unmount()
-    const single = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    const single = await seededStorage(CONNECTED, {
+      events: [EVENT_NEXT, EVENT_B],
+    })
     mount(single)
     await act(async () => {})
     expect(document.querySelector('section[aria-label="Calendar"] .bg-accent')).toBeNull()
@@ -267,18 +320,8 @@ describe('CalendarWidget', () => {
   // the two rows is undefined. The fix folds `ev.cal` into the key.
   it('two events sharing summary/start/end on different calendars both render, with no React duplicate-key warning', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const dupCal0 = ev(
-      'Standup',
-      new Date(2026, 7, 8, 9, 0, 0).getTime(),
-      new Date(2026, 7, 8, 9, 30, 0).getTime(),
-      0,
-    )
-    const dupCal1 = ev(
-      'Standup',
-      new Date(2026, 7, 8, 9, 0, 0).getTime(),
-      new Date(2026, 7, 8, 9, 30, 0).getTime(),
-      1,
-    )
+    const dupCal0 = ev('Standup', new Date(2026, 7, 8, 9, 0, 0).getTime(), new Date(2026, 7, 8, 9, 30, 0).getTime(), 0)
+    const dupCal1 = ev('Standup', new Date(2026, 7, 8, 9, 0, 0).getTime(), new Date(2026, 7, 8, 9, 30, 0).getTime(), 1)
     const storage = await seededStorage(
       { ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 },
       { events: [EVENT_NEXT, dupCal0, dupCal1] },
@@ -286,15 +329,11 @@ describe('CalendarWidget', () => {
     mount(storage)
     await act(async () => {})
 
-    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map(
-      (li) => li.textContent,
-    )
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     expect(rows).toEqual(['Sat 09:00 Standup', 'Sat 09:00 Standup'])
 
     const keyWarning = consoleError.mock.calls.some((args) =>
-      args.some(
-        (a) => typeof a === 'string' && (a.includes('same key') || a.includes('unique "key"')),
-      ),
+      args.some((a) => typeof a === 'string' && (a.includes('same key') || a.includes('unique "key"'))),
     )
     expect(keyWarning).toBe(false)
     consoleError.mockRestore()
@@ -322,15 +361,23 @@ describe('CalendarWidget', () => {
     mount(storage)
     await act(async () => {})
 
-    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map(
-      (li) => li.textContent,
-    )
+    const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     expect(rows).toEqual(['Thu 10:00 Six out', 'Aug 14 10:00 Seven out'])
   })
 
   it('a multi-day all-day event already in progress renders with the today idiom, not a past date token', async () => {
-    const started = ev('Vacation', new Date(2026, 7, 6, 0, 0, 0).getTime(), new Date(2026, 7, 9, 0, 0, 0).getTime()) // Thu–Sun, spans NOW
-    const storage = await seededStorage({ ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 }, { events: [started, EVENT_NEXT] })
+    const started = ev(
+      'Vacation',
+      new Date(2026, 7, 6, 0, 0, 0).getTime(),
+      new Date(2026, 7, 9, 0, 0, 0).getTime(),
+      0,
+      undefined,
+      true,
+    ) // Thu–Sun, spans NOW
+    const storage = await seededStorage(
+      { ...CONNECTED_TWO, view: 'upcoming', upcomingCount: 2 },
+      { events: [started, EVENT_NEXT] },
+    )
     mount(storage)
     await act(async () => {})
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
@@ -347,7 +394,9 @@ describe('CalendarWidget', () => {
       mount(storage)
       await act(async () => {})
 
-      const link = screen.getByRole('link', { name: 'Join' }) as HTMLAnchorElement
+      const link = screen.getByRole('link', {
+        name: 'Join',
+      }) as HTMLAnchorElement
       expect(link.getAttribute('href')).toBe(MEET_URL)
       expect(link.getAttribute('target')).toBe('_blank')
       expect(link.getAttribute('rel')).toContain('noopener')
@@ -356,7 +405,9 @@ describe('CalendarWidget', () => {
     it('is absent when the headline is more than 15 minutes out; an already-ended event with a meetUrl never becomes headline (and so never leaks a Join) either', async () => {
       const ended = ev('Old standup', NOW - 60 * 60_000, NOW - 30 * 60_000, 0, MEET_URL) // ended 30 min ago
       const farOut = ev('Design review', NOW + 30 * 60_000, NOW + 60 * 60_000, 0, MEET_URL) // 30 min out
-      const storage = await seededStorage(CONNECTED, { events: [ended, farOut] })
+      const storage = await seededStorage(CONNECTED, {
+        events: [ended, farOut],
+      })
       mount(storage)
       await act(async () => {})
 
@@ -382,7 +433,9 @@ describe('CalendarWidget', () => {
     it('never renders on an agenda row, even when that row event carries a meetUrl and would itself qualify time-wise', async () => {
       const headline = ev('Standup', NOW + 2 * 60_000, NOW + 20 * 60_000) // 2 min out, no meetUrl — claims the headline slot
       const row = ev('Design review', NOW + 10 * 60_000, NOW + 40 * 60_000, 0, MEET_URL) // 10 min out — inside the 15-min window, but this is a ROW
-      const storage = await seededStorage(CONNECTED, { events: [headline, row] })
+      const storage = await seededStorage(CONNECTED, {
+        events: [headline, row],
+      })
       mount(storage)
       await act(async () => {})
 
@@ -414,6 +467,7 @@ describe('CalendarWidget', () => {
         new Date(2026, 7, 9, 0, 0, 0).getTime(), // Sun, local midnight — spans NOW
         0,
         MEET_URL,
+        true,
       )
       const storage = await seededStorage(CONNECTED, { events: [offsite] })
       mount(storage)
@@ -422,6 +476,28 @@ describe('CalendarWidget', () => {
       expect(screen.getByText('Next: Company Offsite · All day')).toBeTruthy()
       expect(screen.queryByRole('link', { name: 'Join' })).toBeNull()
     })
+  })
+})
+
+describe('Calendar timezone day boundaries', () => {
+  it.each([
+    ['America/New_York', '2026-03-05T17:00:00Z', '2026-03-11T16:00:00Z', 'Wed', '2026-03-12T16:00:00Z', 'Mar 12'],
+    ['America/New_York', '2026-10-29T16:00:00Z', '2026-11-04T17:00:00Z', 'Wed', '2026-11-05T17:00:00Z', 'Nov 5'],
+    ['Europe/Berlin', '2026-03-26T11:00:00Z', '2026-04-01T10:00:00Z', 'Wed', '2026-04-02T10:00:00Z', 'Apr 2'],
+    ['Europe/Berlin', '2026-10-22T10:00:00Z', '2026-10-28T11:00:00Z', 'Wed', '2026-10-29T11:00:00Z', 'Oct 29'],
+  ])('keeps the 6/7-day token fence exact in %s', (timeZone, now, six, sixToken, seven, sevenToken) => {
+    expect(calendarDayToken(Date.parse(six), Date.parse(now), timeZone)).toBe(sixToken)
+    expect(calendarDayToken(Date.parse(seven), Date.parse(now), timeZone)).toBe(sevenToken)
+  })
+
+  it.each([
+    ['America/New_York', '2026-03-08T06:00:00Z', '2026-03-09T04:00:00Z'],
+    ['America/New_York', '2026-11-01T06:00:00Z', '2026-11-02T05:00:00Z'],
+    ['Europe/Berlin', '2026-03-29T01:30:00Z', '2026-03-29T22:00:00Z'],
+    ['Europe/Berlin', '2026-10-25T01:30:00Z', '2026-10-25T23:00:00Z'],
+  ])('includes the instant before and excludes the exact local-day end in %s', (timeZone, now, end) => {
+    expect(eventStartsBeforeLocalDayEnd(Date.parse(end) - 1, Date.parse(now), timeZone)).toBe(true)
+    expect(eventStartsBeforeLocalDayEnd(Date.parse(end), Date.parse(now), timeZone)).toBe(false)
   })
 })
 
