@@ -442,6 +442,118 @@ describe('createStorage', () => {
     ])
   })
 
+  it('updates named keys through one authority-held read and one patch write', async () => {
+    const events: string[] = []
+    const { driver, writes } = controllableDriver({
+      'aurora:version': CURRENT_VERSION,
+      location: { lat: 32.7767, lon: -96.797, label: 'Dallas', manual: true },
+      weatherCache: null,
+    }, {
+      read: async (keys, _call, proceed) => {
+        events.push(`read:${keys?.join(',')}`)
+        return proceed()
+      },
+      write: async (patch, _call, apply) => {
+        events.push(`write:${Object.keys(patch).join(',')}`)
+        await apply()
+      },
+    })
+    const storage = createStorage(driver, recordingAuthority(events))
+
+    const result = await storage.updateMany(['location', 'weatherCache'], ({ location }) => ({
+      weatherCache: {
+        current: { tempC: 21, feelsLikeC: 20, code: 0, windKmh: 5, humidity: 50 },
+        hourly: [],
+        fetchedAt: 123,
+        locationLabel: location?.label ?? '',
+        requestIdentity: 'open-meteo:v1:dallas',
+      },
+    }))
+
+    expect(events).toEqual([
+      'lock:enter',
+      'read:location,weatherCache',
+      'write:weatherCache',
+      'lock:exit',
+    ])
+    expect(writes).toHaveLength(1)
+    expect(result.weatherCache?.requestIdentity).toBe('open-meteo:v1:dallas')
+  })
+
+  it('lets a conditional cache commit observe a newer cross-context location inside the lock', async () => {
+    const base = memoryDriver({
+      'aurora:version': CURRENT_VERSION,
+      location: { lat: 32.7767, lon: -96.797, label: 'Springfield', manual: true },
+      weatherCache: null,
+    })
+    const authority = createInProcessStorageAuthority()
+    const first = createStorage(base, authority)
+    const second = createStorage(base, authority)
+
+    await second.setMany({
+      location: { lat: 34.0232, lon: -84.3616, label: 'Springfield', manual: true },
+      weatherCache: null,
+    })
+    const updater = vi.fn(({ location }: Pick<AuroraData, 'location' | 'weatherCache'>) => (
+      location?.lat === 32.7767
+        ? {
+            weatherCache: {
+              current: { tempC: 21, feelsLikeC: 20, code: 0, windKmh: 5, humidity: 50 },
+              hourly: [],
+              fetchedAt: 123,
+              locationLabel: 'Springfield',
+              requestIdentity: 'open-meteo:v1:old',
+            },
+          }
+        : {}
+    ))
+    const result = await first.updateMany(['location', 'weatherCache'], updater)
+
+    expect(updater).toHaveBeenCalledWith({
+      location: { lat: 34.0232, lon: -84.3616, label: 'Springfield', manual: true },
+      weatherCache: null,
+    })
+    expect(result).toEqual({})
+    expect(await first.get('weatherCache')).toBeNull()
+  })
+
+  it('updateMany recovers after authority/updater failure and skips empty patches', async () => {
+    const base = memoryDriver({
+      'aurora:version': CURRENT_VERSION,
+      location: null,
+      weatherCache: null,
+    })
+    const read = vi.fn(base.read)
+    const write = vi.fn(base.write)
+    let rejectAuthority = true
+    const inner = createInProcessStorageAuthority()
+    const authority: StorageAuthority = {
+      runExclusive: (work) => {
+        if (rejectAuthority) {
+          rejectAuthority = false
+          return Promise.reject(new Error('authority failed'))
+        }
+        return inner.runExclusive(work)
+      },
+    }
+    const storage = createStorage({ read, write, onChanged: base.onChanged }, authority)
+    const updater = vi.fn(() => ({}))
+
+    await expect(storage.updateMany(['location', 'weatherCache'], updater)).rejects.toThrow('authority failed')
+    expect(read).not.toHaveBeenCalled()
+    expect(updater).not.toHaveBeenCalled()
+    expect(write).not.toHaveBeenCalled()
+
+    await expect(storage.updateMany(['location', 'weatherCache'], () => {
+      throw new Error('updater failed')
+    })).rejects.toThrow('updater failed')
+    expect(write).not.toHaveBeenCalled()
+
+    await expect(storage.updateMany(['location', 'weatherCache'], updater)).resolves.toEqual({})
+    expect(updater).toHaveBeenCalledTimes(1)
+    expect(write).not.toHaveBeenCalled()
+  })
+
   it('authority failure performs no read, updater callback, or write', async () => {
     const read = vi.fn(async () => ({ links: [] }))
     const write = vi.fn(async () => {})

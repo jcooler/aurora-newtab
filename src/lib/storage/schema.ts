@@ -138,6 +138,9 @@ export interface WeatherSnapshot {
   hourly: HourlyPoint[] // next ~12h
   fetchedAt: number // epoch ms
   locationLabel: string
+  /** Versioned normalized provider request identity. Legacy caches omit this
+   *  and remain parseable, but are never reusable by the Weather hook. */
+  requestIdentity?: string
   sunriseISO?: string
   sunsetISO?: string
 }

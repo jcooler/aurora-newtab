@@ -27,6 +27,10 @@ export interface AuroraStorage {
   snapshot(): Promise<AuroraData>
   set<K extends DataKey>(key: K, value: AuroraData[K]): Promise<void>
   setMany(patch: Partial<AuroraData>): Promise<void>
+  updateMany<K extends DataKey>(
+    keys: readonly K[],
+    fn: (values: Pick<AuroraData, K>) => Partial<Pick<AuroraData, K>>,
+  ): Promise<Partial<Pick<AuroraData, K>>>
   /**
    * `finalize` runs inside the already-held storage critical section. It may
    * not call an AuroraStorage mutation because that would reacquire authority.
@@ -105,6 +109,25 @@ export function createStorage(
     await setMany({ [key]: value } as Pick<AuroraData, K>)
   }
 
+  async function updateMany<K extends DataKey>(
+    keys: readonly K[],
+    fn: (values: Pick<AuroraData, K>) => Partial<Pick<AuroraData, K>>,
+  ): Promise<Partial<Pick<AuroraData, K>>> {
+    return authority.runExclusive(async () => {
+      const found = await driver.read([...keys])
+      const fallback = defaults()
+      const values = Object.fromEntries(keys.map((key) => [
+        key,
+        key in found ? found[key] : fallback[key],
+      ])) as Pick<AuroraData, K>
+      const patch = fn(values)
+      if (Object.keys(patch).length > 0) {
+        await writePatch(patch as Partial<AuroraData>)
+      }
+      return patch
+    })
+  }
+
   async function replaceAllWithRollback<T>(
     next: AuroraData,
     finalize: (previous: AuroraData) => Promise<T>,
@@ -175,6 +198,7 @@ export function createStorage(
     snapshot: () => authority.runExclusive(readSnapshot),
     set,
     setMany,
+    updateMany,
     replaceAllWithRollback,
     update,
     subscribe(key, cb) {

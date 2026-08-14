@@ -1,18 +1,12 @@
 import type { WeatherSnapshot } from '../../lib/storage/schema'
 import type { WeatherProvider } from './types'
-
-const BASE = 'https://api.open-meteo.com/v1/forecast'
-const PARAMS =
-  'current=temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day' +
-  '&hourly=temperature_2m,precipitation_probability,weather_code,is_day' +
-  '&forecast_hours=12&timezone=auto' +
-  '&daily=sunrise,sunset&forecast_days=1'
+import { weatherRequestIdentity, weatherRequestUrl } from './identity'
 
 export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvider {
   return {
-    async fetchSnapshot(lat, lon, label): Promise<WeatherSnapshot> {
-      const url = `${BASE}?latitude=${lat}&longitude=${lon}&${PARAMS}`
-      const res = await fetchFn(url)
+    async fetchSnapshot(lat, lon, label, options): Promise<WeatherSnapshot> {
+      const url = weatherRequestUrl(lat, lon)
+      const res = await fetchFn(url, options?.signal ? { signal: options.signal } : undefined)
       if (!res.ok) throw new Error(`Open-Meteo request failed: HTTP ${res.status}`)
       const data = await res.json()
       return {
@@ -33,6 +27,7 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
         })),
         fetchedAt: Date.now(),
         locationLabel: label,
+        requestIdentity: weatherRequestIdentity(lat, lon),
         sunriseISO: data.daily?.sunrise?.[0],
         sunsetISO: data.daily?.sunset?.[0],
       }

@@ -300,7 +300,17 @@ function isPhotoPrefs(v: unknown): boolean {
 
 function isLocation(v: unknown): boolean {
   if (v === null) return true
-  return isPlainObject(v) && isNumber(v.lat) && isNumber(v.lon) && isString(v.label) && isBoolean(v.manual)
+  return (
+    isPlainObject(v) &&
+    isNumber(v.lat) &&
+    v.lat >= -90 &&
+    v.lat <= 90 &&
+    isNumber(v.lon) &&
+    v.lon >= -180 &&
+    v.lon <= 180 &&
+    isString(v.label) &&
+    isBoolean(v.manual)
+  )
 }
 
 function isCurrentWeather(v: unknown): boolean {
@@ -335,6 +345,7 @@ function isWeatherCache(v: unknown): boolean {
     v.hourly.every(isHourlyPoint) &&
     isNumber(v.fetchedAt) &&
     isString(v.locationLabel) &&
+    isOptional(v.requestIdentity, isString) &&
     isOptional(v.sunriseISO, isString) &&
     isOptional(v.sunsetISO, isString)
   )

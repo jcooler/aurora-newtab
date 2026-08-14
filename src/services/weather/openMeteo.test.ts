@@ -25,16 +25,27 @@ const payload = {
 
 describe('openMeteoProvider', () => {
   it('maps the Open-Meteo response to a WeatherSnapshot', async () => {
+    const controller = new AbortController()
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => payload,
     })
     const snap = await openMeteoProvider(fetchFn as unknown as typeof fetch).fetchSnapshot(
-      52.52,
-      13.4,
+      52.52004,
+      13.40004,
       'Berlin',
+      { signal: controller.signal },
     )
-    expect(fetchFn.mock.calls[0][0]).toContain('latitude=52.52')
+    const [url, init] = fetchFn.mock.calls[0]
+    expect(url).toContain('latitude=52.52')
+    expect(url).toContain('longitude=13.4')
+    expect(url).toContain('temperature_unit=celsius')
+    expect(url).toContain('wind_speed_unit=kmh')
+    expect(url).toContain('forecast_hours=12')
+    expect(url).toContain('forecast_days=1')
+    expect(url).toContain('timezone=auto')
+    expect(url).toContain('timeformat=iso8601')
+    expect(init).toEqual({ signal: controller.signal })
     expect(snap.current).toEqual({
       tempC: 21.4,
       feelsLikeC: 22.1,
@@ -48,9 +59,11 @@ describe('openMeteoProvider', () => {
       { time: '2026-07-26T14:00', tempC: 22.5, precipProb: 55, code: 61, isDay: false },
     ])
     expect(fetchFn.mock.calls[0][0]).toContain('is_day')
-    expect(fetchFn.mock.calls[0][0]).toContain('daily=sunrise,sunset')
+    expect(fetchFn.mock.calls[0][0]).toContain('daily=sunrise%2Csunset')
     expect(fetchFn.mock.calls[0][0]).toContain('forecast_days=1')
     expect(snap.locationLabel).toBe('Berlin')
+    expect(snap.requestIdentity).toContain('latitude=52.52')
+    expect(snap.requestIdentity).toContain('longitude=13.4')
     expect(snap.fetchedAt).toBeTypeOf('number')
     expect(snap.sunriseISO).toBe('2026-07-26T05:42')
     expect(snap.sunsetISO).toBe('2026-07-26T20:31')
@@ -76,5 +89,19 @@ describe('openMeteoProvider', () => {
     await expect(
       openMeteoProvider(fetchFn as unknown as typeof fetch).fetchSnapshot(0, 0, 'x'),
     ).rejects.toThrow(/429/)
+  })
+
+  it('forwards abort rejection without converting it into a cache result', async () => {
+    const abort = new DOMException('Aborted', 'AbortError')
+    const fetchFn = vi.fn().mockRejectedValue(abort)
+    const controller = new AbortController()
+    await expect(
+      openMeteoProvider(fetchFn as unknown as typeof fetch).fetchSnapshot(
+        1,
+        2,
+        'Anywhere',
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(abort)
   })
 })

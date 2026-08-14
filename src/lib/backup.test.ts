@@ -644,6 +644,38 @@ describe('parseBackup accepts older/current versions (migration is the caller\'s
 })
 
 describe('validateBackupShape rejections (per-key structural check)', () => {
+  it('accepts legacy/current weather identities but rejects malformed identity values', () => {
+    const baseWeather = {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: 123,
+      locationLabel: 'Springfield',
+    }
+    expect(validateBackupShape({ ...defaults(), weatherCache: baseWeather } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, requestIdentity: 'open-meteo:v1:public-contract' },
+    } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, requestIdentity: { label: 'secretly wrong' } },
+    } as never)).toEqual({ ok: false, reason: 'That backup\'s "weatherCache" data is invalid.' })
+  })
+
+  it.each([
+    { lat: 91, lon: 0 },
+    { lat: -91, lon: 0 },
+    { lat: 0, lon: 181 },
+    { lat: 0, lon: -181 },
+    { lat: Number.NaN, lon: 0 },
+  ])('rejects invalid stored location coordinates: $lat, $lon', ({ lat, lon }) => {
+    const result = validateBackupShape({
+      ...defaults(),
+      location: { lat, lon, label: 'Invalid', manual: true },
+    } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "location" data is invalid.' })
+  })
+
   it('rejects settings as a string', () => {
     const result = validateBackupShape({ ...defaults(), settings: 'oops' } as never)
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
