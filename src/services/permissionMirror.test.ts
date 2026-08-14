@@ -102,4 +102,42 @@ describe('permission mirror', () => {
       absent: [],
     })
   })
+
+  it('records unavailable and settles when the Chrome permissions boundary is missing, so startup can still render', async () => {
+    vi.stubGlobal('chrome', undefined)
+    const { initializePermissionMirror, permissionMirror } = await import('./permissionMirror')
+
+    await expect(initializePermissionMirror()).resolves.toBeUndefined()
+    expect(permissionMirror.snapshot(['https://a.example.com/*'])).toEqual({
+      status: 'unavailable',
+      preExisting: [],
+      absent: [],
+    })
+  })
+
+  it.each(['onAdded', 'onRemoved'] as const)(
+    'records unavailable and settles when %s listener registration throws before getAll',
+    async (failingEvent) => {
+      const onAdded = permissionEvent()
+      const onRemoved = permissionEvent()
+      const throwing = { addListener: vi.fn(() => { throw new Error(`${failingEvent} unavailable`) }) }
+      const getAll = vi.fn().mockResolvedValue({ origins: [] })
+      vi.stubGlobal('chrome', {
+        permissions: {
+          getAll,
+          onAdded: failingEvent === 'onAdded' ? throwing : onAdded,
+          onRemoved: failingEvent === 'onRemoved' ? throwing : onRemoved,
+        },
+      })
+      const { initializePermissionMirror, permissionMirror } = await import('./permissionMirror')
+
+      await expect(initializePermissionMirror()).resolves.toBeUndefined()
+      expect(permissionMirror.snapshot(['https://a.example.com/*'])).toEqual({
+        status: 'unavailable',
+        preExisting: [],
+        absent: [],
+      })
+      expect(getAll).not.toHaveBeenCalled()
+    },
+  )
 })

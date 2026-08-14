@@ -201,6 +201,45 @@ describe('runOriginTransaction', () => {
     expect(updateCalls).toEqual([])
   })
 
+  it('handles request rejection immediately while the lifecycle lock is deferred, avoiding an unhandledrejection window', async () => {
+    const { permissions, transactions } = await loadCore()
+    const allowLock = deferred()
+    const authority = {
+      async runExclusive<T>(work: () => Promise<T>): Promise<T> {
+        await allowLock.promise
+        return work()
+      },
+    }
+    const rejection = new Error('gesture lost behind lock')
+    permissions.request.mockRejectedValue(rejection)
+    const unhandled: unknown[] = []
+    const onUnhandled = (reason: unknown) => { unhandled.push(reason) }
+    const rejectionEvents = (globalThis as typeof globalThis & {
+      process: {
+        on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+        off(event: 'unhandledRejection', listener: (reason: unknown) => void): void
+      }
+    }).process
+    rejectionEvents.on('unhandledRejection', onUnhandled)
+
+    try {
+      const result = transactions.runOriginTransaction(
+        createTestStorage().storage,
+        ['https://rejected-behind-lock.example.com/'],
+        async () => ({ ok: true, value: 'saved', ownerCommitted: true }),
+        authority,
+      )
+
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).toEqual([])
+      allowLock.resolve()
+      await expect(result).resolves.toEqual({ status: 'denied' })
+    } finally {
+      allowLock.resolve()
+      rejectionEvents.off('unhandledRejection', onUnhandled)
+    }
+  })
+
   it('validation abort rolls back only the newly acquired pattern and preserves the click-time pre-existing grant', async () => {
     const preExisting = 'https://existing.example.com/*'
     const acquired = 'https://new.example.com/*'

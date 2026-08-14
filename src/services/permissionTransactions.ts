@@ -164,19 +164,14 @@ export function runOriginTransaction<T>(
   const resolvedAuthority = authority ?? productionAuthority()
   if (!resolvedAuthority) return Promise.resolve({ status: 'permission-unavailable' })
 
-  let requestPromise: Promise<boolean> | undefined
+  let requestOutcome: Promise<boolean> | undefined
   const begun = beginOriginTransaction(resolvedAuthority, async (): Promise<OriginTransactionResult<T>> => {
-    if (requestPromise) {
-      let granted: boolean
-      try {
-        granted = await requestPromise
-      } catch {
-        return { status: 'denied' }
-      }
+    if (requestOutcome) {
+      const granted = await requestOutcome
       if (!granted) return { status: 'denied' }
     }
 
-    const acquired = requestPromise ? [...snapshot.absent] : []
+    const acquired = requestOutcome ? [...snapshot.absent] : []
     try {
       if (!(await hasOrigins(requested))) {
         const cleanup = await rollbackAcquired(storage, acquired)
@@ -233,22 +228,21 @@ export function runOriginTransaction<T>(
 
   if (snapshot.absent.length > 0) {
     try {
-      requestPromise = ensureOrigins(snapshot.absent)
-    } catch (error) {
-      requestPromise = Promise.reject(error)
+      requestOutcome = ensureOrigins(snapshot.absent).then(
+        (granted) => granted,
+        () => false,
+      )
+    } catch {
+      requestOutcome = Promise.resolve(false)
     }
   }
   begun.openStartGate()
 
   return begun.result.catch(async (error): Promise<OriginTransactionResult<T>> => {
     let acquired: string[] = []
-    if (requestPromise) {
-      try {
-        if (await requestPromise) acquired = [...snapshot.absent]
-        else return { status: 'denied' }
-      } catch {
-        return { status: 'denied' }
-      }
+    if (requestOutcome) {
+      if (await requestOutcome) acquired = [...snapshot.absent]
+      else return { status: 'denied' }
     }
     return {
       status: 'failed',

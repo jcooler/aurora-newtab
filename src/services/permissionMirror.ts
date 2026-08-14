@@ -47,12 +47,11 @@ export const permissionMirror = {
 export function initializePermissionMirror(): Promise<void> {
   if (initialization) return initialization
   state = 'initializing'
-  const permissions = chrome.permissions
-  permissions.onAdded.addListener((change) => applyChange(change, true))
-  permissions.onRemoved.addListener((change) => applyChange(change, false))
-
   initialization = (async () => {
     try {
+      const permissions = chrome.permissions
+      permissions.onAdded.addListener((change) => applyChange(change, true))
+      permissions.onRemoved.addListener((change) => applyChange(change, false))
       const seed = await permissions.getAll()
       held.clear()
       for (const pattern of patternsOf(seed)) held.add(pattern)
