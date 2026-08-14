@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import * as storageModule from './index'
 import { createStorage } from './index'
 import { memoryDriver, type StorageDriver } from './driver'
-import { CURRENT_VERSION, defaults } from './schema'
+import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './schema'
 import {
   createInProcessStorageAuthority,
   type StorageAuthority,
@@ -19,6 +20,96 @@ function recordingAuthority(events: string[] = []): StorageAuthority {
       }
     }),
   }
+}
+
+const KNOWN_KEYS = [
+  'settings',
+  'focus',
+  'todoLists',
+  'links',
+  'timerConfig',
+  'photoPrefs',
+  'location',
+  'weatherCache',
+  'notes',
+  'worldClocks',
+  'countdowns',
+  'layout',
+  'connectors',
+  'connectorSnapshots',
+  'habits',
+  'apodCache',
+] as const satisfies readonly DataKey[]
+
+const PREVIOUS: AuroraData = {
+  ...defaults(),
+  settings: { ...defaults().settings, name: 'Before restore' },
+  focus: { text: 'Keep this focus', date: '2026-08-14', done: false },
+  links: [{ id: 'before', title: 'Before', url: 'https://before.example' }],
+  notes: { text: 'Pre-image note', updatedAt: 100 },
+}
+
+const TARGET: AuroraData = {
+  ...defaults(),
+  settings: { ...defaults().settings, name: 'After restore', use24Hour: true },
+  focus: { text: 'Imported focus', date: '2026-08-15', done: true },
+  links: [{ id: 'after', title: 'After', url: 'https://after.example' }],
+  notes: { text: 'Imported note', updatedAt: 200 },
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+interface AtomicStorage {
+  snapshot(): Promise<AuroraData>
+  replaceAllWithRollback<T>(
+    next: AuroraData,
+    finalize: (previous: AuroraData) => Promise<T>,
+  ): Promise<{ previous: AuroraData; value: T }>
+}
+
+function atomicStorage(
+  driver: StorageDriver,
+  authority: StorageAuthority,
+): ReturnType<typeof createStorage> & AtomicStorage {
+  return createStorage(driver, authority) as ReturnType<typeof createStorage> & AtomicStorage
+}
+
+interface DriverControls {
+  read?: (
+    keys: string[] | null,
+    call: number,
+    proceed: () => Promise<Record<string, unknown>>,
+  ) => Promise<Record<string, unknown>>
+  write?: (
+    patch: Record<string, unknown>,
+    call: number,
+    apply: () => Promise<void>,
+  ) => Promise<void>
+}
+
+function controllableDriver(
+  seed: object,
+  controls: DriverControls = {},
+) {
+  const base = memoryDriver(clone(seed) as Record<string, unknown>)
+  const reads: Array<string[] | null> = []
+  const writes: Array<Record<string, unknown>> = []
+  const driver: StorageDriver = {
+    read(keys) {
+      reads.push(keys === null ? null : [...keys])
+      const proceed = () => base.read(keys)
+      return controls.read ? controls.read(keys, reads.length, proceed) : proceed()
+    },
+    write(patch) {
+      writes.push(clone(patch))
+      const apply = () => base.write(patch)
+      return controls.write ? controls.write(patch, writes.length, apply) : apply()
+    },
+    onChanged: (cb) => base.onChanged(cb),
+  }
+  return { base, driver, reads, writes }
 }
 
 describe('createStorage', () => {
@@ -406,5 +497,354 @@ describe('createStorage', () => {
     const { update, get } = storage
     await update('focus', () => ({ text: 'x', date: '2026-07-26', done: false }))
     expect((await get('focus'))?.text).toBe('x')
+  })
+
+  it('snapshot holds one authority acquisition around one all-known-key read', async () => {
+    const events: string[] = []
+    let releaseRead = () => {}
+    let readEntered = () => {}
+    const readGate = new Promise<void>((resolve) => { releaseRead = resolve })
+    const readStarted = new Promise<void>((resolve) => { readEntered = resolve })
+    const controlled = controllableDriver({
+      ...PREVIOUS,
+      'aurora:version': CURRENT_VERSION,
+      unknown: 'not backup state',
+    }, {
+      async read(_keys, call, proceed) {
+        events.push(`read:${call}`)
+        const value = await proceed()
+        if (call === 1) {
+          readEntered()
+          await readGate
+        }
+        return value
+      },
+      async write(_patch, call, apply) {
+        events.push(`write:${call}`)
+        await apply()
+      },
+    })
+    const authority = recordingAuthority(events)
+    const first = atomicStorage(controlled.driver, authority)
+    const second = createStorage(controlled.driver, authority)
+
+    const snapshot = first.snapshot()
+    await readStarted
+    const mutation = second.setMany({
+      focus: { text: 'Concurrent focus', date: '2026-08-16', done: false },
+      links: [{ id: 'concurrent', title: 'Concurrent', url: 'https://concurrent.example' }],
+    })
+
+    await Promise.resolve()
+    expect(controlled.writes).toEqual([])
+    releaseRead()
+
+    await expect(snapshot).resolves.toEqual(PREVIOUS)
+    await mutation
+    expect(controlled.reads).toEqual([KNOWN_KEYS])
+    expect(events).toEqual([
+      'lock:enter', 'read:1', 'lock:exit',
+      'lock:enter', 'write:1', 'lock:exit',
+    ])
+  })
+
+  it('snapshot defaults missing known keys and excludes unknown and version keys', async () => {
+    const focus = { text: 'Only stored key', date: '2026-08-14', done: false }
+    const controlled = controllableDriver({
+      focus,
+      'aurora:version': CURRENT_VERSION,
+      unknown: { private: 'driver-only' },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+
+    const snapshot = await storage.snapshot()
+
+    expect(snapshot).toEqual({ ...defaults(), focus })
+    expect(Object.keys(snapshot)).toEqual(KNOWN_KEYS)
+    expect(snapshot).not.toHaveProperty('aurora:version')
+    expect(snapshot).not.toHaveProperty('unknown')
+    expect(controlled.reads).toEqual([KNOWN_KEYS])
+  })
+
+  it('replace writes and verifies one all-key patch, finalizes the literal pre-image, and notifies subscribers', async () => {
+    const events: string[] = []
+    const controlled = controllableDriver({
+      ...PREVIOUS,
+      'aurora:version': CURRENT_VERSION,
+      unknown: 'preserved outside backup state',
+    }, {
+      async read(_keys, call, proceed) {
+        events.push(`read:${call}`)
+        return proceed()
+      },
+      async write(_patch, call, apply) {
+        events.push(`write:${call}`)
+        await apply()
+      },
+    })
+    const storage = atomicStorage(controlled.driver, recordingAuthority(events))
+    const focusChanged = vi.fn()
+    storage.subscribe('focus', focusChanged)
+    const finalize = vi.fn(async (previous: AuroraData) => {
+      events.push('finalize')
+      expect(previous).toEqual(PREVIOUS)
+      return 'permissions reconciled'
+    })
+
+    await expect(storage.replaceAllWithRollback(TARGET, finalize)).resolves.toEqual({
+      previous: PREVIOUS,
+      value: 'permissions reconciled',
+    })
+
+    expect(controlled.reads).toEqual([KNOWN_KEYS, KNOWN_KEYS])
+    expect(controlled.writes).toEqual([TARGET])
+    expect(Object.keys(controlled.writes[0])).toEqual(KNOWN_KEYS)
+    expect(focusChanged).toHaveBeenCalledWith(TARGET.focus)
+    expect(finalize).toHaveBeenCalledTimes(1)
+    expect(events).toEqual([
+      'lock:enter', 'read:1', 'write:1', 'read:2', 'finalize', 'lock:exit',
+    ])
+    expect(controlled.base.dump().unknown).toBe('preserved outside backup state')
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
+  })
+
+  it('replace accepts structurally equal readback with different object key insertion order', async () => {
+    const controlled = controllableDriver(PREVIOUS, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call !== 2) return found
+        const settings = found.settings as Record<string, unknown>
+        return {
+          ...found,
+          settings: Object.fromEntries(Object.entries(settings).reverse()),
+        }
+      },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+
+    await expect(storage.replaceAllWithRollback(TARGET, async () => 'done')).resolves.toEqual({
+      previous: PREVIOUS,
+      value: 'done',
+    })
+  })
+
+  it('authority rejection runs no storage or finalizer work and a later replace can retry', async () => {
+    const controlled = controllableDriver(PREVIOUS)
+    const denied = new Error('authority unavailable')
+    let attempts = 0
+    const authority: StorageAuthority = {
+      async runExclusive(work) {
+        attempts += 1
+        if (attempts === 1) throw denied
+        return work()
+      },
+    }
+    const storage = atomicStorage(controlled.driver, authority)
+    const finalize = vi.fn(async () => 'done')
+
+    await expect(storage.replaceAllWithRollback(TARGET, finalize)).rejects.toBe(denied)
+    expect(controlled.reads).toEqual([])
+    expect(controlled.writes).toEqual([])
+    expect(finalize).not.toHaveBeenCalled()
+
+    await expect(storage.replaceAllWithRollback(TARGET, finalize)).resolves.toEqual({
+      previous: PREVIOUS,
+      value: 'done',
+    })
+    expect(attempts).toBe(2)
+  })
+
+  it.each([
+    ['rejects before applying', false],
+    ['applies then rejects', true],
+  ])('rolls back the exact pre-image when the target write %s', async (_label, applyFirst) => {
+    const primary = new Error(applyFirst ? 'target applied then rejected' : 'target rejected')
+    const controlled = controllableDriver(PREVIOUS, {
+      async write(_patch, call, apply) {
+        if (call === 1) {
+          if (applyFirst) await apply()
+          throw primary
+        }
+        await apply()
+      },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+    const finalize = vi.fn(async () => 'not reached')
+
+    await expect(storage.replaceAllWithRollback(TARGET, finalize)).rejects.toBe(primary)
+
+    expect(finalize).not.toHaveBeenCalled()
+    expect(controlled.writes).toEqual([TARGET, PREVIOUS])
+    expect(Object.keys(controlled.writes[1])).toEqual(KNOWN_KEYS)
+    expect(await controlled.base.read([...KNOWN_KEYS])).toEqual(PREVIOUS)
+    expect(controlled.reads).toEqual([KNOWN_KEYS, KNOWN_KEYS])
+  })
+
+  it.each([
+    ['returns a wrong key', 'mismatch'],
+    ['rejects', 'reject'],
+  ])('rolls back and skips finalize when target readback %s', async (_label, mode) => {
+    const primary = new Error(`target readback ${mode}`)
+    const controlled = controllableDriver(PREVIOUS, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call !== 2) return found
+        if (mode === 'reject') throw primary
+        return {
+          ...found,
+          focus: { text: 'Wrong readback', date: '2026-08-17', done: false },
+        }
+      },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+    const finalize = vi.fn(async () => 'not reached')
+
+    const error = await storage.replaceAllWithRollback(TARGET, finalize).catch((caught) => caught)
+
+    if (mode === 'reject') expect(error).toBe(primary)
+    else expect(error).toBeInstanceOf(Error)
+    expect(finalize).not.toHaveBeenCalled()
+    expect(controlled.writes).toEqual([TARGET, PREVIOUS])
+    expect(await controlled.base.read([...KNOWN_KEYS])).toEqual(PREVIOUS)
+    expect(controlled.reads).toEqual([KNOWN_KEYS, KNOWN_KEYS, KNOWN_KEYS])
+  })
+
+  it('rolls back the exact pre-image when finalize rejects after verified target write', async () => {
+    const primary = new Error('permission cleanup failed')
+    const controlled = controllableDriver(PREVIOUS)
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+
+    await expect(storage.replaceAllWithRollback(TARGET, async (previous) => {
+      expect(previous).toEqual(PREVIOUS)
+      throw primary
+    })).rejects.toBe(primary)
+
+    expect(controlled.writes).toEqual([TARGET, PREVIOUS])
+    expect(await controlled.base.read([...KNOWN_KEYS])).toEqual(PREVIOUS)
+    expect(controlled.reads).toEqual([KNOWN_KEYS, KNOWN_KEYS, KNOWN_KEYS])
+  })
+
+  it.each([
+    ['rollback write rejection', 'write'],
+    ['rollback read rejection', 'read'],
+    ['rollback readback mismatch', 'mismatch'],
+  ])('reports a fatal rollback error for %s', async (_label, mode) => {
+    const primary = new Error('primary failure with private state')
+    const rollback = new Error(`injected ${mode} failure`)
+    const controlled = controllableDriver(PREVIOUS, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call === 3 && mode === 'read') throw rollback
+        if (call === 3 && mode === 'mismatch') {
+          return {
+            ...found,
+            links: [{ id: 'wrong', title: 'Wrong', url: 'https://wrong.example' }],
+          }
+        }
+        return found
+      },
+      async write(_patch, call, apply) {
+        if (call === 2 && mode === 'write') throw rollback
+        await apply()
+      },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+
+    const error = await storage.replaceAllWithRollback(TARGET, async () => {
+      throw primary
+    }).catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.AtomicRestoreRollbackError)
+    expect(error.primaryError).toBe(primary)
+    if (mode === 'write' || mode === 'read') expect(error.rollbackError).toBe(rollback)
+    else expect(error.rollbackError).toBeInstanceOf(Error)
+    expect(error.message).toBe('Aurora storage rollback failed')
+    expect(error.message).not.toContain('private state')
+    expect(error.message).not.toContain('https://')
+  })
+
+  it('blocks a second storage instance until target verification and finalize commit', async () => {
+    let finalizeEntered = () => {}
+    let releaseFinalize = () => {}
+    const inFinalize = new Promise<void>((resolve) => { finalizeEntered = resolve })
+    const finalizeGate = new Promise<void>((resolve) => { releaseFinalize = resolve })
+    const controlled = controllableDriver(PREVIOUS)
+    const authority = createInProcessStorageAuthority()
+    const first = atomicStorage(controlled.driver, authority)
+    const second = createStorage(controlled.driver, authority)
+
+    const replace = first.replaceAllWithRollback(TARGET, async () => {
+      finalizeEntered()
+      await finalizeGate
+      return 'committed'
+    })
+    await inFinalize
+    const updater = vi.fn((links: AuroraData['links']) => [
+      ...links,
+      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
+    ])
+    const queuedMutation = second.update('links', updater)
+
+    await Promise.resolve()
+    expect(updater).not.toHaveBeenCalled()
+    expect(await controlled.base.read(['focus', 'links'])).toEqual({
+      focus: TARGET.focus,
+      links: TARGET.links,
+    })
+    releaseFinalize()
+    await expect(replace).resolves.toEqual({ previous: PREVIOUS, value: 'committed' })
+    await queuedMutation
+
+    expect((await controlled.base.read(['links'])).links).toEqual([
+      ...TARGET.links,
+      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
+    ])
+  })
+
+  it('blocks a second storage instance until a failed replace fully rolls back', async () => {
+    let finalizeEntered = () => {}
+    let rejectFinalize: (error: unknown) => void = () => {}
+    const inFinalize = new Promise<void>((resolve) => { finalizeEntered = resolve })
+    const finalizeGate = new Promise<void>((_resolve, reject) => { rejectFinalize = reject })
+    const primary = new Error('finalize failed')
+    const controlled = controllableDriver(PREVIOUS)
+    const authority = createInProcessStorageAuthority()
+    const first = atomicStorage(controlled.driver, authority)
+    const second = createStorage(controlled.driver, authority)
+
+    const replace = first.replaceAllWithRollback(TARGET, async () => {
+      finalizeEntered()
+      return finalizeGate
+    })
+    await inFinalize
+    const updater = vi.fn((links: AuroraData['links']) => [
+      ...links,
+      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
+    ])
+    const queuedMutation = second.update('links', updater)
+
+    await Promise.resolve()
+    expect(updater).not.toHaveBeenCalled()
+    rejectFinalize(primary)
+    await expect(replace).rejects.toBe(primary)
+    await queuedMutation
+
+    expect(await controlled.base.read(['focus', 'links'])).toEqual({
+      focus: PREVIOUS.focus,
+      links: [
+        ...PREVIOUS.links,
+        { id: 'queued', title: 'Queued', url: 'https://queued.example' },
+      ],
+    })
+    expect(controlled.writes).toEqual([
+      TARGET,
+      PREVIOUS,
+      {
+        links: [
+          ...PREVIOUS.links,
+          { id: 'queued', title: 'Queued', url: 'https://queued.example' },
+        ],
+      },
+    ])
   })
 })

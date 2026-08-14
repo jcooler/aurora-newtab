@@ -9,12 +9,32 @@ import type { MemoryStorageDriver, StorageDriver } from './driver'
 import type { StorageAuthority } from './authority'
 
 const VERSION_KEY = 'aurora:version'
+const DATA_KEYS = Object.keys(defaults()) as DataKey[]
+
+export class AtomicRestoreRollbackError extends Error {
+  constructor(
+    public readonly primaryError: unknown,
+    public readonly rollbackError: unknown,
+  ) {
+    super('Aurora storage rollback failed')
+    this.name = 'AtomicRestoreRollbackError'
+  }
+}
 
 export interface AuroraStorage {
   init(): Promise<void>
   get<K extends DataKey>(key: K): Promise<AuroraData[K]>
+  snapshot(): Promise<AuroraData>
   set<K extends DataKey>(key: K, value: AuroraData[K]): Promise<void>
   setMany(patch: Partial<AuroraData>): Promise<void>
+  /**
+   * `finalize` runs inside the already-held storage critical section. It may
+   * not call an AuroraStorage mutation because that would reacquire authority.
+   */
+  replaceAllWithRollback<T>(
+    next: AuroraData,
+    finalize: (previous: AuroraData) => Promise<T>,
+  ): Promise<{ previous: AuroraData; value: T }>
   update<K extends DataKey>(
     key: K,
     fn: (value: AuroraData[K]) => AuroraData[K],
@@ -33,6 +53,41 @@ export function createStorage(
   const authority: StorageAuthority = resolvedAuthority
   const chains = new Map<string, Promise<unknown>>()
 
+  async function readSnapshot(): Promise<AuroraData> {
+    const found = await driver.read(DATA_KEYS)
+    const fallback = defaults()
+    return Object.fromEntries(DATA_KEYS.map((key) => [
+      key,
+      key in found ? found[key] : fallback[key],
+    ])) as unknown as AuroraData
+  }
+
+  function allKeyPatch(data: AuroraData): AuroraData {
+    return Object.fromEntries(DATA_KEYS.map((key) => [key, data[key]])) as unknown as AuroraData
+  }
+
+  function structurallyEqual(left: unknown, right: unknown): boolean {
+    if (Object.is(left, right)) return true
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (!Array.isArray(left) || !Array.isArray(right) || left.length !== right.length) {
+        return false
+      }
+      return left.every((value, index) => structurallyEqual(value, right[index]))
+    }
+    if (left === null || right === null || typeof left !== 'object' || typeof right !== 'object') {
+      return false
+    }
+    const leftRecord = left as Record<string, unknown>
+    const rightRecord = right as Record<string, unknown>
+    const leftKeys = Object.keys(leftRecord)
+    const rightKeys = Object.keys(rightRecord)
+    if (leftKeys.length !== rightKeys.length) return false
+    return leftKeys.every((key) => (
+      Object.prototype.hasOwnProperty.call(rightRecord, key)
+      && structurallyEqual(leftRecord[key], rightRecord[key])
+    ))
+  }
+
   async function readValue<K extends DataKey>(key: K): Promise<AuroraData[K]> {
     const found = await driver.read([key])
     return (key in found ? found[key] : defaults()[key]) as AuroraData[K]
@@ -48,6 +103,36 @@ export function createStorage(
 
   async function set<K extends DataKey>(key: K, value: AuroraData[K]): Promise<void> {
     await setMany({ [key]: value } as Pick<AuroraData, K>)
+  }
+
+  async function replaceAllWithRollback<T>(
+    next: AuroraData,
+    finalize: (previous: AuroraData) => Promise<T>,
+  ): Promise<{ previous: AuroraData; value: T }> {
+    return authority.runExclusive(async () => {
+      const previous = await readSnapshot()
+      const target = allKeyPatch(next)
+      try {
+        await writePatch(target)
+        const verified = await readSnapshot()
+        if (!structurallyEqual(verified, target)) {
+          throw new Error('Aurora storage target verification failed')
+        }
+        const value = await finalize(previous)
+        return { previous, value }
+      } catch (primaryError) {
+        try {
+          await writePatch(allKeyPatch(previous))
+          const rolledBack = await readSnapshot()
+          if (!structurallyEqual(rolledBack, previous)) {
+            throw new Error('Aurora storage rollback verification failed')
+          }
+        } catch (rollbackError) {
+          throw new AtomicRestoreRollbackError(primaryError, rollbackError)
+        }
+        throw primaryError
+      }
+    })
   }
 
   function update<K extends DataKey>(
@@ -87,8 +172,10 @@ export function createStorage(
       })
     },
     get: readValue,
+    snapshot: () => authority.runExclusive(readSnapshot),
     set,
     setMany,
+    replaceAllWithRollback,
     update,
     subscribe(key, cb) {
       return driver.onChanged((changes) => {
