@@ -8296,6 +8296,404 @@ function gitlabContributionsFixture() {
           ? 'PASS: preview-adapter held-pattern state independently proves final-owner removal after Retry (adapter state only)'
           : `FAIL: preview-adapter final-owner held-pattern state (failed=${JSON.stringify(heldAfterFailure.held)}, final=${JSON.stringify(retryFinal.held)})`,
       )
+
+      // W1-P4 real-extension backup/restore acceptance. This stays inside the
+      // adapter lifetime established above, but every product edge remains
+      // real: Settings/Data controls, the downloaded file, the production
+      // backup/restore coordinator, lifecycle locks, and chrome.storage.local.
+      // The adapter makes permission outcomes observable and deterministic; no
+      // sentence below treats its held patterns as native Chrome grants or as
+      // permissions restored by the imported file.
+      {
+        const dataKeys = [
+          'settings',
+          'focus',
+          'todoLists',
+          'links',
+          'timerConfig',
+          'photoPrefs',
+          'location',
+          'weatherCache',
+          'notes',
+          'worldClocks',
+          'countdowns',
+          'layout',
+          'connectors',
+          'connectorSnapshots',
+          'habits',
+          'apodCache',
+        ]
+        const launchSize = { width: 1600, height: 900 }
+        const originalData = await page.evaluate((keys) => chrome.storage.local.get(keys), dataKeys)
+        const originalHeld = (await controlSnapshot()).held
+        const canonicalize = (value) => {
+          if (Array.isArray(value)) return value.map(canonicalize)
+          if (value && typeof value === 'object') {
+            return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
+          }
+          return value
+        }
+        const exact = (actual, expected) =>
+          JSON.stringify(canonicalize(actual)) === JSON.stringify(canonicalize(expected))
+
+        const GITHUB_TOKEN = 'w1-p4-export-github-token-8f11f0b6'
+        const HOME_ASSISTANT_TOKEN = 'w1-p4-export-home-token-84d85e20'
+        const RSS_CAPABILITY_URL = 'https://w1-p4-rss-capability.example.com/private/feed?token=31859a2c'
+        const ICS_CAPABILITY_URL = 'https://w1-p4-calendar-capability.example.com/private.ics?token=c0292d18'
+        const BACKUP_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.'
+        const EXPECTED_EXPORT_REENTRY = ['rss', 'github', 'ics', 'homeassistant']
+
+        const PREIMPORT_SHARED_RSS = 'https://api.nasa.gov/planetary/apod?api_key=W1P4_PREIMPORT'
+        const OLD_ONLY_PATTERN = 'https://w1-p4-old-only.example.com/*'
+        const OLD_ONLY_STATUS = 'https://w1-p4-old-only.example.com/api/v2/status.json'
+        const RESTORED_STATUS_PATTERN = 'https://w1-p4-restored-status.example.com/*'
+        const RESTORED_STATUS_URL = 'https://w1-p4-restored-status.example.com/api/v2/status.json'
+        const CRYPTO_PATTERN = 'https://api.coingecko.com/*'
+        const EXPECTED_MISSING = [NASA_IMAGE_PATTERN, RESTORED_STATUS_PATTERN, CRYPTO_PATTERN].sort()
+        const EXPECTED_REENTRY_COPY = 'Re-enter connection details after restore: GitHub, Home Assistant.'
+        const restoreToday = await page.evaluate(() => {
+          const now = new Date()
+          return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        })
+
+        const RESTORED_DATA = {
+          settings: {
+            name: 'W1-P4 restored',
+            use24Hour: true,
+            panelColor: null,
+            units: 'metric',
+            muted: false,
+            widgets: {
+              search: true,
+              weather: true,
+              links: true,
+              todo: true,
+              timer: false,
+              quote: true,
+              bookmarks: false,
+              notes: true,
+              clocks: false,
+              countdown: false,
+              habits: false,
+              monthCal: false,
+              sun: false,
+              moon: false,
+            },
+          },
+          focus: null,
+          todoLists: [],
+          links: [],
+          timerConfig: { workMinutes: 25, breakMinutes: 5 },
+          // Match Background's real once-per-day rotation contract. A stale
+          // lastRotated would correctly cause a post-restore product write,
+          // obscuring whether the coordinator itself committed this literal.
+          photoPrefs: { mode: 'apod', index: 0, lastRotated: restoreToday },
+          location: null,
+          weatherCache: null,
+          notes: { text: 'restored through the real coordinator', updatedAt: 1770000000000 },
+          worldClocks: [],
+          countdowns: [],
+          layout: {},
+          connectors: {
+            rss: { enabled: false, feeds: [], shownCount: 5 },
+            github: { enabled: true, username: 'w1-p4-restored-octocat' },
+            crypto: { enabled: true, coins: ['bitcoin', 'ethereum'] },
+            status: {
+              enabled: true,
+              services: [{ name: 'Restored status', url: RESTORED_STATUS_URL }],
+            },
+            homeassistant: {
+              enabled: true,
+              instanceUrl: 'https://w1-p4-restored-home.example.com',
+              locationName: 'Restored Home',
+            },
+          },
+          connectorSnapshots: {},
+          habits: [],
+          apodCache: null,
+        }
+        const literalBackup = {
+          app: 'aurora',
+          version: 9,
+          exportedAt: '2026-08-14T12:00:00.000Z',
+          redactions: {
+            reentryRequired: ['github', 'homeassistant'],
+            notice: BACKUP_NOTICE,
+          },
+          data: Object.fromEntries(
+            Object.entries(RESTORED_DATA).filter(([key]) => key !== 'connectorSnapshots' && key !== 'apodCache'),
+          ),
+        }
+        const sensitiveSeedValues = [
+          GITHUB_TOKEN,
+          HOME_ASSISTANT_TOKEN,
+          RSS_CAPABILITY_URL,
+          ICS_CAPABILITY_URL,
+          PREIMPORT_SHARED_RSS,
+          OLD_ONLY_STATUS,
+          RESTORED_STATUS_URL,
+          RESTORED_DATA.connectors.homeassistant.instanceUrl,
+        ]
+
+        let adapterRestoredBeforeReload = false
+        try {
+          // Export through the real Data button and inspect the browser's
+          // downloaded bytes, not a harness call into serializeBackup.
+          await page.evaluate(async (seed) => {
+            await chrome.storage.local.set(seed)
+          }, {
+            connectors: {
+              rss: { enabled: true, feeds: [RSS_CAPABILITY_URL], shownCount: 5 },
+              github: { enabled: true, token: GITHUB_TOKEN, username: 'w1-p4-export-octocat' },
+              ics: { enabled: true, calendars: [{ name: 'Private calendar', url: ICS_CAPABILITY_URL }] },
+              homeassistant: {
+                enabled: true,
+                instanceUrl: 'https://w1-p4-export-home.example.com',
+                token: HOME_ASSISTANT_TOKEN,
+                locationName: 'Export Home',
+              },
+            },
+            connectorSnapshots: {
+              github: { fetchedAt: 1770000000000, data: { marker: 'w1-p4-export-cache' } },
+            },
+            apodCache: {
+              date: '2026-08-14',
+              photo: { url: 'https://apod.nasa.gov/apod/image/w1-p4-cache.jpg', title: 'W1-P4 cache' },
+            },
+          })
+          await reloadWithAdapter()
+          await openMatrixTab('Data', '#set-import')
+          const [download] = await Promise.all([
+            page.waitForEvent('download', { timeout: 10_000 }),
+            page.getByRole('button', { name: 'Export', exact: true }).click(),
+          ])
+          const downloadStream = await download.createReadStream()
+          const downloadChunks = []
+          for await (const chunk of downloadStream) downloadChunks.push(chunk)
+          const exportedText = Buffer.concat(downloadChunks).toString('utf8')
+          let exportedEnvelope = null
+          try {
+            exportedEnvelope = JSON.parse(exportedText)
+          } catch {
+            exportedEnvelope = null
+          }
+          let exportedAtValid = false
+          try {
+            exportedAtValid = new Date(exportedEnvelope?.exportedAt).toISOString() === exportedEnvelope?.exportedAt
+          } catch {
+            exportedAtValid = false
+          }
+          const exportedDataKeys = Object.keys(exportedEnvelope?.data ?? {}).sort()
+          const expectedExportDataKeys = dataKeys
+            .filter((key) => key !== 'connectorSnapshots' && key !== 'apodCache')
+            .sort()
+          const exportOk =
+            download.suggestedFilename().startsWith('aurora-backup-') &&
+            exportedEnvelope?.app === 'aurora' && exportedEnvelope?.version === 9 && exportedAtValid &&
+            exact(exportedDataKeys, expectedExportDataKeys) &&
+            exportedEnvelope?.redactions?.notice === BACKUP_NOTICE &&
+            exact(exportedEnvelope?.redactions?.reentryRequired, EXPECTED_EXPORT_REENTRY) &&
+            exact(exportedEnvelope?.data?.connectors?.rss?.feeds, []) &&
+            exact(exportedEnvelope?.data?.connectors?.ics?.calendars, []) &&
+            !Object.prototype.hasOwnProperty.call(exportedEnvelope?.data ?? {}, 'connectorSnapshots') &&
+            !Object.prototype.hasOwnProperty.call(exportedEnvelope?.data ?? {}, 'apodCache') &&
+            ![GITHUB_TOKEN, HOME_ASSISTANT_TOKEN, RSS_CAPABILITY_URL, ICS_CAPABILITY_URL]
+              .some((sensitive) => exportedText.includes(sensitive))
+          console.log(
+            exportOk
+              ? 'PASS: W1-P4 real Data Export downloaded a valid Aurora envelope with exact recognized re-entry IDs/notice, feeds: [], all unique tokens/capability URLs redacted, and both caches excluded'
+              : `FAIL: W1-P4 real Data Export redaction/envelope (${JSON.stringify({ filename: download.suggestedFilename(), exportedEnvelope })})`,
+          )
+
+          // Pre-import RSS and APOD share api.nasa.gov; Status owns one
+          // deliberately old-only pattern. The restored registry keeps APOD,
+          // drops RSS/old Status, and adds Status/Crypto. Only adapter-missing
+          // target patterns may be requested by the real confirmation click.
+          await setHeld([NASA_API_PATTERN, OLD_ONLY_PATTERN])
+          await page.evaluate(async (seed) => {
+            await chrome.storage.local.set(seed)
+          }, {
+            settings: { ...RESTORED_DATA.settings, name: 'W1-P4 before import', use24Hour: false },
+            photoPrefs: { mode: 'apod', index: 2, lastRotated: '2026-08-13' },
+            connectors: {
+              rss: { enabled: true, feeds: [PREIMPORT_SHARED_RSS], shownCount: 5 },
+              status: {
+                enabled: true,
+                services: [{ name: 'Old-only status', url: OLD_ONLY_STATUS }],
+              },
+            },
+            connectorSnapshots: {
+              rss: { fetchedAt: 1760000000000, data: { marker: 'w1-p4-preimport-cache' } },
+            },
+            apodCache: {
+              date: '2026-08-13',
+              photo: { url: 'https://apod.nasa.gov/apod/image/preimport.jpg', title: 'Pre-import cache' },
+            },
+          })
+          await reloadWithAdapter()
+          await openMatrixTab('Data', '#set-import')
+          await clearPermissionLog()
+          await page.locator('#set-import').setInputFiles({
+            name: 'w1-p4-literal-backup.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from(JSON.stringify(literalBackup)),
+          })
+          await page.getByRole('button', { name: 'Confirm restore', exact: true }).waitFor({ state: 'visible' })
+          const confirmationCopy = await page.locator('section[aria-label="Data"]').innerText()
+          await page.evaluate(
+            (pattern) => globalThis.__auroraPermissionsHarnessControl.failOneRemove(pattern),
+            OLD_ONLY_PATTERN,
+          )
+          await page.getByRole('button', { name: 'Confirm restore', exact: true }).click()
+          await page.waitForFunction(({ keys, oldPattern, expectedName }) => {
+            const retry = [...document.querySelectorAll('button')]
+              .some((button) => button.textContent?.trim() === 'Retry permission cleanup')
+            const held = globalThis.__auroraPermissionsHarnessControl.snapshot().held
+            return retry && held.includes(oldPattern) && chrome.storage.local.get(keys)
+              .then((values) => values.settings?.name === expectedName)
+          }, { keys: dataKeys, oldPattern: OLD_ONLY_PATTERN, expectedName: RESTORED_DATA.settings.name }, { timeout: 12_000 })
+
+          const committed = await page.evaluate(async (keys) => ({
+            values: await chrome.storage.local.get(keys),
+            permission: globalThis.__auroraPermissionsHarnessControl.snapshot(),
+            dataText: document.querySelector('section[aria-label="Data"]')?.textContent ?? '',
+          }), dataKeys)
+          const requestEntries = committed.permission.log.filter((entry) => entry.op === 'request')
+          const requestedPatterns = [...new Set(requestEntries.flatMap((entry) => entry.origins))].sort()
+          const gestureRequestOk =
+            exact(requestedPatterns, EXPECTED_MISSING) && requestEntries.length > 0 &&
+            requestEntries.every((entry) =>
+              entry.initiatingEvent?.trusted === true && entry.initiatingEvent?.type === 'click'
+            )
+          console.log(
+            gestureRequestOk
+              ? 'PASS: W1-P4 the real confirmation gesture requested only adapter-missing APOD/Status/Crypto patterns; this proves adapter transaction ordering, not native grants restored from the file'
+              : `FAIL: W1-P4 confirmation gesture adapter requests (${JSON.stringify({ requestedPatterns, requestEntries })})`,
+          )
+
+          const exactCommitted = exact(committed.values, RESTORED_DATA)
+          console.log(
+            exactCommitted && exact(committed.values.connectorSnapshots, {}) && committed.values.apodCache === null
+              ? 'PASS: W1-P4 the production restore coordinator atomically committed the exact cleaned target through real storage and reset connectorSnapshots/apodCache'
+              : `FAIL: W1-P4 exact restored data/cache reset (${JSON.stringify(committed.values)})`,
+          )
+
+          const sharedReconciled =
+            committed.permission.held.includes(NASA_API_PATTERN) &&
+            !committed.permission.log.some((entry) =>
+              entry.op === 'remove' && entry.origins.includes(NASA_API_PATTERN)
+            ) &&
+            committed.permission.log.some((entry) =>
+              entry.op === 'remove-rejected' && entry.origins.includes(OLD_ONLY_PATTERN)
+            )
+          console.log(
+            sharedReconciled
+              ? 'PASS: W1-P4 the restored owner registry retained the adapter-held RSS/APOD shared api.nasa.gov pattern for restored APOD and attempted the old-only revoke once'
+              : `FAIL: W1-P4 restored-owner reconciliation (${JSON.stringify(committed.permission)})`,
+          )
+
+          await page.getByRole('tab', { name: 'General', exact: true }).click()
+          await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("General")')
+          await page.getByRole('button', { name: 'Retry permission cleanup', exact: true }).waitFor({ state: 'visible' })
+          await page.getByRole('tab', { name: 'Data', exact: true }).click()
+          await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("Data")')
+          await page.getByRole('button', { name: 'Retry permission cleanup', exact: true }).waitFor({ state: 'visible' })
+          const afterRoundTrip = await page.evaluate(async (keys) => ({
+            values: await chrome.storage.local.get(keys),
+            retryVisible: [...document.querySelectorAll('button')]
+              .some((button) => button.textContent?.trim() === 'Retry permission cleanup'),
+            statusText: document.querySelector('section[aria-label="Data"] [role="status"]')?.textContent?.trim() ?? '',
+          }), dataKeys)
+          const failedRevokeDurable =
+            exact(afterRoundTrip.values, RESTORED_DATA) && afterRoundTrip.retryVisible &&
+            committed.dataText.includes('Backup restored.')
+          console.log(
+            failedRevokeDurable
+              ? 'PASS: W1-P4 the failed adapter revoke left the imported state committed and Retry permission cleanup durable across a Data/General/Data round trip'
+              : `FAIL: W1-P4 failed-revoke committed/durable state (${JSON.stringify(afterRoundTrip)})`,
+          )
+
+          const reentryCopy = committed.dataText.includes(EXPECTED_REENTRY_COPY)
+            ? EXPECTED_REENTRY_COPY
+            : confirmationCopy.includes(EXPECTED_REENTRY_COPY) ? EXPECTED_REENTRY_COPY : ''
+          const reentryOk = reentryCopy === EXPECTED_REENTRY_COPY &&
+            sensitiveSeedValues.every((value) => !confirmationCopy.includes(value) && !committed.dataText.includes(value))
+          console.log(
+            reentryOk
+              ? 'PASS: W1-P4 re-entry copy names only trusted GitHub/Home Assistant labels and contains none of the seeded URL/token strings'
+              : `FAIL: W1-P4 trusted re-entry copy (${JSON.stringify({ confirmationCopy, dataText: committed.dataText })})`,
+          )
+
+          await page.getByRole('button', { name: 'Retry permission cleanup', exact: true }).click()
+          await page.waitForFunction((pattern) => {
+            const held = globalThis.__auroraPermissionsHarnessControl.snapshot().held
+            const retry = [...document.querySelectorAll('button')]
+              .some((button) => button.textContent?.trim() === 'Retry permission cleanup')
+            return !held.includes(pattern) && !retry
+          }, OLD_ONLY_PATTERN, { timeout: 12_000 })
+          const retryCleanup = await controlSnapshot()
+          const oldRemoveAttempts = retryCleanup.log.filter((entry) =>
+            entry.op === 'remove' && entry.origins.includes(OLD_ONLY_PATTERN)
+          ).length
+          console.log(
+            !retryCleanup.held.includes(OLD_ONLY_PATTERN) && oldRemoveAttempts === 2
+              ? 'PASS: W1-P4 real Retry permission cleanup removed the now-unowned old-only adapter pattern and cleared the durable alert'
+              : `FAIL: W1-P4 Retry permission cleanup (${JSON.stringify(retryCleanup)})`,
+          )
+        } catch (error) {
+          console.log(`FAIL: W1-P4 real-extension backup/restore acceptance threw (${error instanceof Error ? error.stack ?? error.message : String(error)})`)
+        } finally {
+          const settingsDialog = page.locator('[role="dialog"][aria-label="Settings"]')
+          if (await settingsDialog.count()) {
+            const closeSettings = page.getByRole('button', { name: 'Close settings', exact: true })
+            if (await closeSettings.isVisible()) await closeSettings.click()
+            await page.waitForFunction(() =>
+              document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
+            undefined, { timeout: 10_000 })
+          }
+          await page.setViewportSize(launchSize)
+          adapterRestoredBeforeReload = await page.evaluate(async ({ keys, snapshot, held, flagKey }) => {
+            const control = globalThis.__auroraPermissionsHarnessControl
+            control.setHeld(held)
+            const restoredHeld = control.snapshot().held
+            const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+            if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
+            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+            sessionStorage.removeItem(flagKey)
+            return JSON.stringify([...restoredHeld].sort()) === JSON.stringify([...held].sort())
+          }, {
+            keys: dataKeys,
+            snapshot: originalData,
+            held: originalHeld,
+            flagKey: PERMISSIONS_HARNESS_FLAG,
+          })
+          await page.reload()
+          await page.waitForSelector('time')
+          await page.waitForFunction((flagKey) =>
+            sessionStorage.getItem(flagKey) === null &&
+            globalThis.__auroraPermissionsHarnessApi === undefined &&
+            globalThis.__auroraPermissionsHarnessControl === undefined &&
+            typeof chrome.permissions?.getAll === 'function',
+          PERMISSIONS_HARNESS_FLAG, { timeout: 10_000 })
+          const restored = await page.evaluate(async (keys) => ({
+            values: await chrome.storage.local.get(keys),
+            drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
+            viewport: { width: innerWidth, height: innerHeight },
+            nativeBoundary:
+              globalThis.__auroraPermissionsHarnessApi === undefined &&
+              globalThis.__auroraPermissionsHarnessControl === undefined &&
+              typeof chrome.permissions?.getAll === 'function',
+          }), dataKeys)
+          const teardownOk =
+            adapterRestoredBeforeReload && exact(restored.values, originalData) && restored.drawerClosed &&
+            exact(restored.viewport, launchSize) && restored.nativeBoundary
+          console.log(
+            teardownOk
+              ? 'PASS: W1-P4 finally restored every Data key and adapter-held set, closed Settings, restored the launch viewport, removed the session flag, reloaded, and proved the native Chrome permission boundary'
+              : `FAIL: W1-P4 full teardown/native-boundary restoration (${JSON.stringify({ adapterRestoredBeforeReload, originalData, restored })})`,
+          )
+        }
+      }
     }
   } catch (error) {
     console.log(`FAIL: deterministic permission transaction matrix threw (${error instanceof Error ? error.stack ?? error.message : String(error)})`)
