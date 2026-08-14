@@ -45,12 +45,13 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P3 — Optional-permission transactions and shared-origin ownership
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P2
-- **Plan gate:** Create when W1-P2 is Verified.
+- **Plan:** [`2026-08-13-w1-p3-optional-permission-transactions.md`](../plans/2026-08-13-w1-p3-optional-permission-transactions.md)
 - **Acceptance:** Token/RSS/Status/ICS/Home Assistant/APOD permission acquisition, validation, and persistence are recoverable transactions; only newly acquired grants roll back after failure; pre-existing grants remain; origin release considers every configured owner; revoke failure is explicit/retryable; the baseline `remove revokes live` browser failure is fixed or dispositioned with evidence.
 - **Required evidence:** Validation failure, storage failure, pre-existing permission, shared origin across connector types/features, final-owner removal, revoke failure/retry, user-gesture order, full harness with the baseline failure cleared.
-- **Finishing commit:** —
+- **Verified evidence:** A startup permission mirror supports gesture-turn requests for only absent origins; one lifecycle Web Lock covers owner-changing writes, validation/persistence, rollback, fresh global ownership reads, release, and retry without a production fallback or nested lock. All configured connector descriptors plus APOD participate in shared ownership, including configured disabled owners and excluding incomplete configs. Revoke failures remain in a Settings-level accessible Retry surface. Final verification passed 18 targeted files / 631 tests, 103 total files / 1,631 tests, TypeScript, 170-module production/preview builds, and the production adapter-leak gate. The real-extension harness passed 424 / 0 / 3 with acquisition rollback, pre-existing preservation, shared/final ownership, revoke retry, trusted event-turn ordering, exact restoration, and truthful native ceilings. The bounded whole-packet review's three Important findings were fixed in `a8d6236`; scoped rereview found no Critical, Important, or packet-local correctness issue open.
+- **Finishing commit:** `a8d6236` plus checkpoint subject `docs: checkpoint W1-P3`
 
 ### W1-P4 — Atomic backup/restore and permission reconciliation
 
