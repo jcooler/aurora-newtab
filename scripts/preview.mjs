@@ -123,12 +123,18 @@ await context.addInitScript(() => {
     throw new TypeError('Harness connector config contains an unsupported value')
   }
   const scopeFor = async (id, config) => {
-    const bytes = new TextEncoder().encode(`${id}\n${canonical(config)}`)
+    const runtimeScope = id === 'ics'
+      ? { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+      : undefined
+    const identity = runtimeScope === undefined
+      ? `${id}\n${canonical(config)}`
+      : `${id}\n${canonical(config)}\n${canonical(runtimeScope)}`
+    const bytes = new TextEncoder().encode(identity)
     const digest = await crypto.subtle.digest('SHA-256', bytes)
     const hex = [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')
-    const version = id === 'homeassistant' ? 'v2' : 'v1'
+    const version = id === 'homeassistant' || id === 'ics' ? 'v2' : 'v1'
     return `${id}:${version}:${hex}`
   }
   const nativeSet = chrome.storage.local['set'].bind(chrome.storage.local)
@@ -656,6 +662,186 @@ console.log('captured newtab.png')
       .catch(() => {})
     await authorityPageB.close()
   }
+}
+
+// W1-P7: one open extension tab survives local midnight without a reload.
+// Run before the legacy harness first overrides `page`'s clock, leaving that
+// page as a real-clock control while a disposable tab owns fixed time.
+{
+  const storageKeys = ['settings', 'focus', 'countdowns', 'photoPrefs', 'apodCache', 'timerConfig', 'connectors', 'connectorSnapshots']
+  const original = await page.evaluate(async (keys) => chrome.storage.local.get(keys), storageKeys)
+  const errorsBefore = errors.length
+  const APOD_URL = 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY'
+  const ICS_URL = 'https://calendar.example.com/w1-p7.ics'
+  const TIMED_MEET_URL = 'https://meet.example.com/w1-p7-overnight'
+  let apodRequests = 0
+  let icsRequests = 0
+
+  await page.goto('about:blank')
+  const rolloverPage = await context.newPage()
+  const rolloverSession = await context.newCDPSession(rolloverPage)
+  rolloverPage.on('console', (msg) => { if (msg.type() === 'error') errors.push(msg.text()) })
+  rolloverPage.on('pageerror', (e) => errors.push(String(e)))
+  await rolloverPage.route(APOD_URL, async (route) => {
+    apodRequests++
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      // A video is a valid quiet APOD fallback, proving one request/cache
+      // generation without introducing a second media-host request.
+      body: JSON.stringify({ media_type: 'video', title: 'W1-P7 fallback' }),
+    })
+  })
+  await rolloverPage.route(ICS_URL, async (route) => {
+    icsRequests++
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/calendar',
+      body: ['BEGIN:VCALENDAR', 'VERSION:2.0', 'BEGIN:VEVENT', 'UID:w1-p7-unexpected-fetch', 'DTSTART:20260116T120000', 'DTEND:20260116T123000', 'SUMMARY:Unexpected refresh', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n'),
+    })
+  })
+
+  const preMidnight = await rolloverPage.evaluate(() => new Date(2026, 0, 15, 23, 59, 30, 0).getTime())
+  const postWake = await rolloverPage.evaluate(() => new Date(2026, 0, 16, 0, 1, 10, 0).getTime())
+  await rolloverPage.clock.setFixedTime(preMidnight)
+  await rolloverPage.goto('chrome://newtab/')
+  await rolloverPage.waitForSelector('time')
+  await rolloverPage.evaluate(async ({ icsUrl, timedMeetUrl, fixedNow }) => {
+    const { settings, connectors = {} } = await chrome.storage.local.get(['settings', 'connectors'])
+    const disabled = Object.fromEntries(Object.entries(connectors).map(([id, config]) => [id, { ...config, enabled: false }]))
+    const midnight = new Date(2026, 0, 16, 0, 0, 0, 0).getTime()
+    const events = [
+      { summary: 'Overnight focus', start: new Date(2026, 0, 15, 23, 59, 45, 0).getTime(), end: new Date(2026, 0, 16, 0, 15, 0, 0).getTime(), cal: 0, allDay: false, meetUrl: timedMeetUrl },
+      { summary: 'Company day', start: midnight, end: new Date(2026, 0, 17, 0, 0, 0, 0).getTime(), cal: 0, allDay: true, meetUrl: 'https://meet.example.com/w1-p7-all-day-must-not-render' },
+      { summary: 'Midnight handoff', start: midnight, end: midnight + 30 * 60_000, cal: 0, allDay: false, meetUrl: 'https://meet.example.com/w1-p7-row-must-not-render' },
+    ]
+    await globalThis.__auroraSetHarnessStorage({
+      settings: { ...settings, muted: true, widgets: { ...settings.widgets, quote: true, countdown: true, timer: true } },
+      focus: { text: 'Close W1-P7', date: '2026-01-15', done: false },
+      countdowns: [{ id: 'w1-p7', name: 'Launch', date: '2026-01-16' }],
+      photoPrefs: { mode: 'apod', index: 0, lastRotated: '2026-01-15' },
+      apodCache: { date: '2026-01-15', photo: null },
+      timerConfig: { workMinutes: 1, breakMinutes: 1 },
+      connectors: {
+        ...disabled,
+        ics: { enabled: true, calendars: [{ name: 'W1-P7', url: icsUrl }], view: 'today', upcomingCount: 4, meetLinks: true },
+      },
+      connectorSnapshots: { ics: { fetchedAt: fixedNow, data: { events } } },
+    })
+  }, { icsUrl: ICS_URL, timedMeetUrl: TIMED_MEET_URL, fixedNow: preMidnight })
+  await rolloverPage.reload()
+  await rolloverPage.waitForSelector('time')
+  await rolloverPage.waitForSelector('text=Close W1-P7')
+  await rolloverPage.waitForSelector('text=1 day to Launch.')
+  await rolloverPage.waitForSelector('section[aria-label="Calendar"]')
+  await rolloverPage.waitForTimeout(250)
+  apodRequests = 0
+  icsRequests = 0
+
+  const quoteBefore = await rolloverPage.locator('[data-block-id="quote"] blockquote').textContent()
+  const timerPill = rolloverPage.locator('button[aria-label^="Focus timer:"]')
+  await timerPill.click()
+  const timerDialog = rolloverPage.getByRole('dialog', { name: 'Focus timer' })
+  await timerDialog.getByRole('button', { name: 'Start' }).click()
+  await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('work session, running'))
+
+  // Hide, cross local midnight, and restore. Production restoration listeners
+  // perform every update; no reload or unrelated storage write occurs here.
+  await rolloverSession.send('Page.setWebLifecycleState', { state: 'frozen' })
+  await rolloverPage.clock.setFixedTime(postWake)
+  await rolloverSession.send('Page.setWebLifecycleState', { state: 'active' })
+  await rolloverPage.waitForFunction(() => document.visibilityState === 'visible')
+  await rolloverPage.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+    window.dispatchEvent(new Event('focus'))
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+  })
+  await rolloverPage.waitForSelector('#focus-input')
+  await rolloverPage.waitForSelector('text=Launch is today.')
+  await rolloverPage.waitForFunction(() => chrome.storage.local.get(['photoPrefs', 'apodCache']).then(({ photoPrefs, apodCache }) => photoPrefs?.lastRotated === '2026-01-16' && apodCache?.date === '2026-01-16' && apodCache?.photo === null))
+  await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('break session, running'))
+  await rolloverPage.waitForFunction(() => document.querySelector('[data-block-id="quote"] blockquote')?.textContent?.includes('The way to get started'))
+  await rolloverPage.waitForTimeout(150)
+
+  const rolloverState = await rolloverPage.evaluate(() => ({
+    focusPrompt: document.querySelector('#focus-input') !== null,
+    countdown: document.querySelector('[data-block-id="countdown"]')?.textContent ?? '',
+    quote: document.querySelector('[data-block-id="quote"] blockquote')?.textContent ?? '',
+    timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
+    timerPanel: document.querySelector('[role="dialog"][aria-label="Focus timer"]')?.textContent ?? '',
+    calendar: document.querySelector('section[aria-label="Calendar"]')?.textContent ?? '',
+    joinHrefs: [...document.querySelectorAll('section[aria-label="Calendar"] a')].map((a) => a.href),
+  }))
+  const backgroundRotated = await rolloverPage.evaluate(() => chrome.storage.local.get('photoPrefs').then(({ photoPrefs }) => photoPrefs?.lastRotated === '2026-01-16'))
+  const dailySurfacesOk = rolloverState.focusPrompt && rolloverState.countdown.includes('Launch is today.') && !!quoteBefore && rolloverState.quote !== quoteBefore && backgroundRotated
+  console.log(dailySurfacesOk
+    ? 'PASS: W1-P7 a restored open tab rolls Focus, countdown, quote identity, and Background lastRotated across local midnight without reload or an unrelated write'
+    : `FAIL: W1-P7 daily surfaces roll across local midnight (${JSON.stringify({ quoteBefore, rolloverState })})`)
+
+  const timerOk = rolloverState.timerLabel.includes('break session, running') && rolloverState.timerPanel.includes('1 focus session completed')
+  console.log(timerOk
+    ? 'PASS: W1-P7 a sleeping one-minute Focus timer wakes in the break phase exactly once with one completed work cycle'
+    : `FAIL: W1-P7 Focus timer wake transition (${JSON.stringify(rolloverState)})`)
+
+  const calendarOk = rolloverState.calendar.includes('All day') && rolloverState.calendar.includes('Company day') && rolloverState.calendar.includes('00:00 Midnight handoff') && rolloverState.joinHrefs.length === 1 && rolloverState.joinHrefs[0] === TIMED_MEET_URL
+  console.log(calendarOk
+    ? 'PASS: W1-P7 Calendar preserves explicit all-day and timed-midnight rows while Join belongs only to the timed running headline'
+    : `FAIL: W1-P7 Calendar all-day/timed-midnight/Join semantics (${JSON.stringify(rolloverState)})`)
+
+  const initialWorkCounts = { apod: apodRequests, ics: icsRequests }
+  await rolloverPage.evaluate(() => {
+    for (let i = 0; i < 3; i++) {
+      document.dispatchEvent(new Event('visibilitychange'))
+      window.dispatchEvent(new Event('focus'))
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+    }
+  })
+  await rolloverPage.waitForTimeout(300)
+  const repeatedState = await rolloverPage.evaluate(() => ({
+    timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
+    timerPanel: document.querySelector('[role="dialog"][aria-label="Focus timer"]')?.textContent ?? '',
+  }))
+  const workCountsStable = initialWorkCounts.apod === 1 && initialWorkCounts.ics <= 1 && apodRequests === initialWorkCounts.apod && icsRequests === initialWorkCounts.ics && repeatedState.timerLabel.includes('break session, running') && repeatedState.timerPanel.includes('1 focus session completed')
+
+  // Stop in-memory work, restore the exact captured keys atomically, reload
+  // once near real wall time, and prove the restored state stays quiescent.
+  await timerDialog.getByRole('button', { name: 'Reset' }).click()
+  await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('work session, paused'))
+  await rolloverPage.clock.setSystemTime(Date.now())
+  await rolloverPage.clock.resume()
+  await rolloverPage.evaluate(async (snapshot) => chrome.storage.local.set(snapshot), original)
+  await rolloverPage.reload()
+  await rolloverPage.waitForSelector('time')
+  const exactStorage = async () => rolloverPage.evaluate(async ({ keys, expected }) => {
+    const canonical = (value) => {
+      if (Array.isArray(value)) return value.map(canonical)
+      if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
+      return value
+    }
+    return JSON.stringify(canonical(await chrome.storage.local.get(keys))) === JSON.stringify(canonical(expected))
+  }, { keys: storageKeys, expected: original })
+  await rolloverPage.waitForFunction(({ keys, expected }) => {
+    const canonical = (value) => {
+      if (Array.isArray(value)) return value.map(canonical)
+      if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonical(value[key])]))
+      return value
+    }
+    return chrome.storage.local.get(keys).then((actual) => JSON.stringify(canonical(actual)) === JSON.stringify(canonical(expected)))
+  }, { keys: storageKeys, expected: original })
+  await rolloverPage.waitForTimeout(400)
+  const exactAfterQuiesce = await exactStorage()
+  await rolloverPage.close()
+
+  await page.bringToFront()
+  await page.goto('chrome://newtab/')
+  await page.waitForSelector('time')
+  const realClockA = await page.evaluate(() => Date.now())
+  await page.waitForTimeout(75)
+  const realClockB = await page.evaluate(() => Date.now())
+  const teardownOk = workCountsStable && exactAfterQuiesce && realClockB - realClockA >= 50 && errors.length === errorsBefore
+  console.log(teardownOk
+    ? `PASS: W1-P7 repeated restoration dedupes APOD/ICS work and teardown restores exact storage plus an advancing real clock (APOD=${apodRequests}, ICS=${icsRequests}, delta=${realClockB - realClockA}ms)`
+    : `FAIL: W1-P7 restoration/teardown discipline (${JSON.stringify({ initialWorkCounts, apodRequests, icsRequests, repeatedState, exactAfterQuiesce, clockDelta: realClockB - realClockA, newErrors: errors.slice(errorsBefore) })})`)
 }
 
 // W1-P6: Weather request identity and request-generation ownership through the
@@ -9503,24 +9689,25 @@ function gitlabContributionsFixture() {
       // calendar's soonest event EXCLUDING whichever one became `next` —
       // cal 0 only contributes a row when it has a second one, which is
       // exactly what makes 5 calendars able to reach 5 rows at all.
-      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0 },
-      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0 },
+      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0, allDay: false },
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0, allDay: false },
       // cal 1 (Family) — exactly one day out: dayToken's WEEKDAY branch
       // (dayDiff<=6) — the brief's own "one tomorrow event" literal.
-      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1 },
+      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1, allDay: false },
       // cal 2/3/4 (Work/School/Travel) — all 9+ days out: dayToken's DATE
       // branch ("Mon DD") — the brief's own "one 10+ days out" literal (cal
       // 3, Parent-teacher). Spaced so the 'upcoming' view's 4-row cap below
       // keeps the first two (Work, School) on screen and drops the third
       // (Travel) — proving the cap trims chronologically, not by calendar.
-      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2 },
+      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2, allDay: false },
       {
         summary: 'Parent-teacher conference',
         start: todayEnd + 10 * DAY_MS + 15 * H + 30 * 60_000,
         end: todayEnd + 10 * DAY_MS + 16 * H,
         cal: 3,
+        allDay: false,
       },
-      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4 },
+      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4, allDay: false },
     ]
     // rss seeded too (Task 65's own rationale, unchanged): under the rails
     // ics and rss are the top two cards of the left zone's col1 flex column,
@@ -10002,6 +10189,7 @@ function gitlabContributionsFixture() {
           start: now + headlineMin * 60_000,
           end: now + headlineMin * 60_000 + 30 * 60_000,
           cal: 0,
+          allDay: false,
           meetUrl: zoomUrl,
         },
         // A same-day ROW event that ALSO carries a meetUrl and ALSO starts
@@ -10014,6 +10202,7 @@ function gitlabContributionsFixture() {
           start: now + rowMin * 60_000,
           end: now + rowMin * 60_000 + 30 * 60_000,
           cal: 0,
+          allDay: false,
           meetUrl: rowZoomUrl,
         },
       ]
@@ -10180,7 +10369,7 @@ function gitlabContributionsFixture() {
         connectorSnapshots: {
           ics: {
             fetchedAt: now,
-            data: { events: [{ summary: 'Design review', start: now + 30 * 60_000, end: now + 60 * 60_000, cal: 0, meetUrl: zoomUrl }] },
+            data: { events: [{ summary: 'Design review', start: now + 30 * 60_000, end: now + 60 * 60_000, cal: 0, allDay: false, meetUrl: zoomUrl }] },
           },
         },
       })
@@ -10639,17 +10828,18 @@ function gitlabContributionsFixture() {
     const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
     const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 2))
     const events = [
-      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0 },
-      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0 },
-      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1 },
-      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2 },
+      { summary: 'Standup', start: now + step, end: now + step + 1_800_000, cal: 0, allDay: false },
+      { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 1_800_000, cal: 0, allDay: false },
+      { summary: 'Family lunch', start: todayEnd + 12 * H, end: todayEnd + 12 * H + H, cal: 1, allDay: false },
+      { summary: 'Sprint planning', start: todayEnd + 8 * DAY_MS + 10 * H, end: todayEnd + 8 * DAY_MS + 11 * H, cal: 2, allDay: false },
       {
         summary: 'Parent-teacher conference',
         start: todayEnd + 10 * DAY_MS + 15 * H + 30 * 60_000,
         end: todayEnd + 10 * DAY_MS + 16 * H,
         cal: 3,
+        allDay: false,
       },
-      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4 },
+      { summary: 'Flight to Denver', start: todayEnd + 12 * DAY_MS + 8 * H, end: todayEnd + 12 * DAY_MS + 13 * H, cal: 4, allDay: false },
     ]
     const RSS_HEADLINES = Array.from({ length: 8 }, (_, i) => ({
       source: i % 2 === 0 ? 'Hacker News' : 'The Verge',
@@ -11674,10 +11864,10 @@ function gitlabContributionsFixture() {
       const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
       const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
       const icsEvents = [
-        { summary: 'Standup', start: now + step, end: now + step + 30_000 },
-        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
-        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
-        { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000 },
+        { summary: 'Standup', start: now + step, end: now + step + 30_000, cal: 0, allDay: false },
+        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000, cal: 0, allDay: false },
+        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000, cal: 0, allDay: false },
+        { summary: 'Kickoff', start: todayEnd + 9 * H, end: todayEnd + 9 * H + 30 * 60_000, cal: 0, allDay: false },
       ]
       // Habits + monthCal (Task 59) join the all-on scenario at their own
       // worst cases too — the SAME 6-item MAX_HABIT_CHIPS fixture and inline
@@ -12886,10 +13076,10 @@ function gitlabContributionsFixture() {
     // MAX_AGENDA_ROWS today-rows) at any hour the harness runs — the +tomorrow
     // event stays off-agenda. selectAgenda renders against the same forced now.
     icsEvents: [
-      { summary: 'Standup', start: forcedMs + H, end: forcedMs + H + 30 * 60_000 },
-      { summary: 'Design review', start: forcedMs + 2 * H, end: forcedMs + 2 * H + 30 * 60_000 },
-      { summary: '1:1 with Sam', start: forcedMs + 3 * H, end: forcedMs + 3 * H + 30 * 60_000 },
-      { summary: 'Kickoff', start: forcedTodayEnd + 9 * H, end: forcedTodayEnd + 9 * H + 30 * 60_000 },
+      { summary: 'Standup', start: forcedMs + H, end: forcedMs + H + 30 * 60_000, cal: 0, allDay: false },
+      { summary: 'Design review', start: forcedMs + 2 * H, end: forcedMs + 2 * H + 30 * 60_000, cal: 0, allDay: false },
+      { summary: '1:1 with Sam', start: forcedMs + 3 * H, end: forcedMs + 3 * H + 30 * 60_000, cal: 0, allDay: false },
+      { summary: 'Kickoff', start: forcedTodayEnd + 9 * H, end: forcedTodayEnd + 9 * H + 30 * 60_000, cal: 0, allDay: false },
     ],
     // Seeded FRESH (fetchedAt: forcedMs, the forced-now) so useWeather never
     // treats the cache as stale and never fires a live Open-Meteo fetch — the
@@ -13990,7 +14180,7 @@ function gitlabContributionsFixture() {
         jira: { fetchedAt: now, data: { issues: [{ key: 'AUR-101', summary: 'Fix the flaky auth test on CI', status: 'In Progress', url: 'h' }, { key: 'AUR-102', summary: 'Draft the Q3 planning doc', status: 'In Progress', url: 'i' }, { key: 'AUR-103', summary: 'Rotate the staging API keys', status: 'To Do', url: 'j' }], counts: { 'In Progress': 2, 'To Do': 1 } } },
         vercel: { fetchedAt: now, data: { deployments: [{ project: 'marketing-site', state: 'ERROR', url: 'k', createdAt: fx.fMs - 6 * fx.H }, { project: 'app-web', state: 'READY', url: 'l', createdAt: fx.fMs - 180000 }, { project: 'admin', state: 'READY', url: 'm', createdAt: fx.fMs - 600000 }, { project: 'landing', state: 'READY', url: 'n', createdAt: fx.fMs - 1200000 }, { project: 'docs', state: 'BUILDING', url: 'o', createdAt: fx.fMs - fx.H }] } },
         crypto: { fetchedAt: now, data: { coins: [{ id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 }, { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 }, { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 }, { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 }, { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 }] } },
-        ics: { fetchedAt: now, data: { events: [{ summary: 'Standup', start: fx.fMs + fx.H, end: fx.fMs + fx.H + 1800000 }, { summary: 'Design review', start: fx.fMs + 2 * fx.H, end: fx.fMs + 2 * fx.H + 1800000 }, { summary: '1:1 with Sam', start: fx.fMs + 3 * fx.H, end: fx.fMs + 3 * fx.H + 1800000 }, { summary: 'Kickoff', start: fx.fTodayEnd + 9 * fx.H, end: fx.fTodayEnd + 9 * fx.H + 1800000 }] } },
+        ics: { fetchedAt: now, data: { events: [{ summary: 'Standup', start: fx.fMs + fx.H, end: fx.fMs + fx.H + 1800000, cal: 0, allDay: false }, { summary: 'Design review', start: fx.fMs + 2 * fx.H, end: fx.fMs + 2 * fx.H + 1800000, cal: 0, allDay: false }, { summary: '1:1 with Sam', start: fx.fMs + 3 * fx.H, end: fx.fMs + 3 * fx.H + 1800000, cal: 0, allDay: false }, { summary: 'Kickoff', start: fx.fTodayEnd + 9 * fx.H, end: fx.fTodayEnd + 9 * fx.H + 1800000, cal: 0, allDay: false }] } },
       },
     })
   }, { fMs, H, fTodayEnd })
@@ -14076,9 +14266,9 @@ function gitlabContributionsFixture() {
       const todayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1).getTime()
       const step = Math.max(1000, Math.floor((todayEnd - now - 1000) / 3))
       const icsEvents = [
-        { summary: 'Standup', start: now + step, end: now + step + 30_000 },
-        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000 },
-        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
+        { summary: 'Standup', start: now + step, end: now + step + 30_000, cal: 0, allDay: false },
+        { summary: 'Design review', start: now + step * 2, end: now + step * 2 + 30_000, cal: 0, allDay: false },
+        { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000, cal: 0, allDay: false },
       ]
       const { connectors } = await chrome.storage.local.get('connectors')
       await globalThis.__auroraSetHarnessStorage({
