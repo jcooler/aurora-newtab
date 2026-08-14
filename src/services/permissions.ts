@@ -33,12 +33,43 @@
  *  rather than chrome.permissions itself. `search` is install-time (not
  *  requested through this module) — see src/manifest.ts's comment for why. */
 
+type PermissionBoundary = Pick<
+  typeof chrome.permissions,
+  'getAll' | 'contains' | 'request' | 'remove' | 'onAdded' | 'onRemoved'
+>
+
+let initializedBoundary: PermissionBoundary | null = null
+
+/** Resolves the page-lifetime permission boundary exactly once, when the
+ * mirror initializes before React mounts. Preview builds may consume the
+ * harness-installed adapter that was already present at document start.
+ * Product code never installs an adapter, and non-preview builds constant-fold
+ * this branch away so every call below stays on chrome.permissions. */
+export function initializePermissionBoundary(): PermissionBoundary {
+  if (initializedBoundary) return initializedBoundary
+  if (import.meta.env.MODE === 'preview') {
+    const harness = (globalThis as typeof globalThis & {
+      __auroraPermissionsHarnessApi?: PermissionBoundary
+    }).__auroraPermissionsHarnessApi
+    if (harness) {
+      initializedBoundary = harness
+      return initializedBoundary
+    }
+  }
+  initializedBoundary = chrome.permissions
+  return initializedBoundary
+}
+
+function permissionsBoundary(): PermissionBoundary {
+  return initializedBoundary ?? chrome.permissions
+}
+
 /** True if the extension currently holds the named optional permission —
  *  either because a caller previously granted it via ensurePermission
  *  below, or because Chrome carries a previously-granted permission forward
  *  across an update. */
 export async function hasPermission(name: chrome.runtime.ManifestPermission): Promise<boolean> {
-  return chrome.permissions.contains({ permissions: [name] })
+  return permissionsBoundary().contains({ permissions: [name] })
 }
 
 /** Requests the named optional permission. MUST be called directly from
@@ -56,7 +87,7 @@ export async function hasPermission(name: chrome.runtime.ManifestPermission): Pr
  *  false) — e.g. if the gesture context was somehow already lost — and
  *  handle that the same way as an explicit denial. */
 export async function ensurePermission(name: chrome.runtime.ManifestPermission): Promise<boolean> {
-  return chrome.permissions.request({ permissions: [name] })
+  return permissionsBoundary().request({ permissions: [name] })
 }
 
 /** Per-origin counterpart to the named-permission trio above, for connectors:
@@ -100,12 +131,12 @@ export function canonicalOriginPatterns(urls: readonly string[]): string[] {
  *  origin — either granted previously via ensureOrigin below, or carried
  *  forward by Chrome across an update, same as hasPermission above. */
 export async function hasOrigin(url: string): Promise<boolean> {
-  return chrome.permissions.contains({ origins: [originPattern(url)] })
+  return permissionsBoundary().contains({ origins: [originPattern(url)] })
 }
 
 /** Batched access check used after a transaction enters the lifecycle lock. */
 export async function hasOrigins(urls: readonly string[]): Promise<boolean> {
-  return chrome.permissions.contains({ origins: canonicalOriginPatterns(urls) })
+  return permissionsBoundary().contains({ origins: canonicalOriginPatterns(urls) })
 }
 
 /** Requests host access to the given URL's origin. Same gesture-chain
@@ -118,7 +149,7 @@ export async function hasOrigins(urls: readonly string[]): Promise<boolean> {
  *  origin is held once this settles; also expect this to reject and treat
  *  that the same as a denial. */
 export async function ensureOrigin(url: string): Promise<boolean> {
-  return chrome.permissions.request({ origins: [originPattern(url)] })
+  return permissionsBoundary().request({ origins: [originPattern(url)] })
 }
 
 /** Plural counterpart to ensureOrigin above, for a caller that needs MULTIPLE
@@ -151,12 +182,12 @@ export async function ensureOrigins(urls: readonly string[]): Promise<boolean> {
   } catch {
     return false
   }
-  return chrome.permissions.request({ origins })
+  return permissionsBoundary().request({ origins })
 }
 
 /** Revokes host access to a URL or canonical origin pattern. Chrome's boolean
  *  and any rejection are preserved so ownership-aware callers can distinguish
  *  a confirmed removal from an unverifiable failure and offer retry. */
 export async function removeOrigin(patternOrUrl: string): Promise<boolean> {
-  return chrome.permissions.remove({ origins: [originPattern(patternOrUrl)] })
+  return permissionsBoundary().remove({ origins: [originPattern(patternOrUrl)] })
 }

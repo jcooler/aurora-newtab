@@ -93,6 +93,153 @@ await context.addInitScript(() => {
   }
 })
 
+// W1-P3's permission transaction matrix needs deterministic host-permission
+// outcomes while still running the real built extension, Settings controls,
+// storage driver, lifecycle lock, and production transaction code. Register
+// one persistent init script up front, but install its page-local fake only
+// when the SAME tab's sessionStorage flag is present. The matrix sets that
+// flag and reloads below, so the permission mirror sees this boundary during
+// startup rather than having it swapped underneath an already-seeded mirror.
+// Teardown clears the flag and reloads; this same script then deliberately
+// does nothing, returning the page to chrome.permissions for downstream
+// native-boundary probes.
+const PERMISSIONS_HARNESS_FLAG = 'aurora:preview-permissions-harness:v1'
+await context.addInitScript(({ flagKey }) => {
+  if (!globalThis.chrome?.permissions) return
+
+  const raw = sessionStorage.getItem(flagKey)
+  if (raw === null) return
+
+  let initial = []
+  try {
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed?.held)) initial = parsed.held.filter((value) => typeof value === 'string')
+  } catch {
+    initial = []
+  }
+
+  const held = new Set(initial)
+  const log = []
+  const addedListeners = new Set()
+  const removedListeners = new Set()
+  const failNextRemove = new Set()
+  const deferredLifecycle = []
+  let deferNextLifecycle = false
+
+  const originsOf = (details) => Array.isArray(details?.origins) ? [...details.origins] : []
+  const record = (op, origins = []) => log.push({ sequence: log.length, op, origins: [...origins] })
+  const persist = () => sessionStorage.setItem(flagKey, JSON.stringify({ held: [...held] }))
+  const emit = (listeners, op, origins) => {
+    if (origins.length === 0) return
+    record(op, origins)
+    for (const listener of listeners) listener({ origins: [...origins] })
+  }
+  const eventSurface = (listeners) => ({
+    addListener(listener) { listeners.add(listener) },
+    removeListener(listener) { listeners.delete(listener) },
+    hasListener(listener) { return listeners.has(listener) },
+  })
+
+  const api = Object.freeze({
+    async getAll() {
+      record('getAll', [...held])
+      return { origins: [...held] }
+    },
+    async contains(details) {
+      const origins = originsOf(details)
+      record('contains', origins)
+      return origins.every((origin) => held.has(origin))
+    },
+    async request(details) {
+      const origins = originsOf(details)
+      record('request', origins)
+      const added = origins.filter((origin) => !held.has(origin))
+      for (const origin of added) held.add(origin)
+      persist()
+      emit(addedListeners, 'onAdded', added)
+      return true
+    },
+    async remove(details) {
+      const origins = originsOf(details)
+      record('remove', origins)
+      const rejected = origins.find((origin) => failNextRemove.delete(origin))
+      if (rejected) {
+        record('remove-rejected', [rejected])
+        throw new Error(`Configured one-shot remove failure for ${rejected}`)
+      }
+      const removed = origins.filter((origin) => held.delete(origin))
+      persist()
+      emit(removedListeners, 'onRemoved', removed)
+      return removed.length > 0
+    },
+    onAdded: eventSurface(addedListeners),
+    onRemoved: eventSurface(removedListeners),
+  })
+
+  const lockManager = navigator.locks
+  const nativeLockRequest = lockManager?.request?.bind(lockManager)
+  if (nativeLockRequest) {
+    Object.defineProperty(lockManager, 'request', {
+      configurable: true,
+      value(name, optionsOrCallback, maybeCallback) {
+        if (name !== 'aurora:origin-permission-lifecycle:v1') {
+          return maybeCallback === undefined
+            ? nativeLockRequest(name, optionsOrCallback)
+            : nativeLockRequest(name, optionsOrCallback, maybeCallback)
+        }
+
+        const options = maybeCallback === undefined ? undefined : optionsOrCallback
+        const callback = maybeCallback === undefined ? optionsOrCallback : maybeCallback
+        record('lifecycle-lock-queued')
+        const launch = () => {
+          const wrapped = (lock) => {
+            record('lifecycle-lock-callback')
+            return callback(lock)
+          }
+          return options === undefined
+            ? nativeLockRequest(name, wrapped)
+            : nativeLockRequest(name, options, wrapped)
+        }
+
+        if (!deferNextLifecycle) return launch()
+        deferNextLifecycle = false
+        return new Promise((resolve, reject) => {
+          deferredLifecycle.push(() => Promise.resolve(launch()).then(resolve, reject))
+        })
+      },
+    })
+  }
+
+  globalThis.__auroraPermissionsHarnessApi = api
+  globalThis.__auroraPermissionsHarnessControl = Object.freeze({
+    snapshot() {
+      return {
+        held: [...held],
+        log: log.map((entry) => ({ ...entry, origins: [...entry.origins] })),
+        listeners: { added: addedListeners.size, removed: removedListeners.size },
+        pendingLifecycle: deferredLifecycle.length,
+      }
+    },
+    clearLog() { log.length = 0 },
+    setHeld(patterns) {
+      const next = new Set(patterns)
+      const removed = [...held].filter((origin) => !next.has(origin))
+      const added = [...next].filter((origin) => !held.has(origin))
+      held.clear()
+      for (const origin of next) held.add(origin)
+      persist()
+      emit(removedListeners, 'onRemoved', removed)
+      emit(addedListeners, 'onAdded', added)
+    },
+    failOneRemove(pattern) { failNextRemove.add(pattern) },
+    deferOneLifecycle() { deferNextLifecycle = true },
+    releaseLifecycle() {
+      const release = deferredLifecycle.shift()
+      if (release) release()
+    },
+  })
+}, { flagKey: PERMISSIONS_HARNESS_FLAG })
+
 const page = await context.newPage()
 const errors = []
 const setHarnessConnectorViews = (id, views) => page.evaluate(
@@ -7151,9 +7298,10 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/drawer-status-card.png` })
   console.log('captured drawer-status-card.png')
 
-  // Remove revokes — a REAL click, no seeding: chrome.permissions.remove()
-  // needs no user gesture (permissions.ts's own doc comment), so this is the
-  // one leg of the whole grant/revoke pair that IS fully real end to end.
+  // This row never seeded or verified a held native permission. Keep its
+  // useful real-click coverage, but name the evidence truthfully: production
+  // storage mutation and live UI propagation only. The adapter-driven matrix
+  // below separately proves held-pattern final-owner removal semantics.
   const removeBtn = await page.evaluate(() => {
     const toggle = document.getElementById('connector-status-enabled')
     const card = toggle?.closest('.rounded-xl')
@@ -7171,8 +7319,8 @@ function gitlabContributionsFixture() {
   const removeOk = removeBtn && afterRemoveDots === 1 && cardAfterRemove?.length === 1
   console.log(
     removeOk
-      ? `PASS: removing a service is a real click end to end (updateStatus filter, THE PACT snapshot clear, originOf/releasableOrigins/removeOrigin — no seeding on this leg) — the drawer list drops to ${cardAfterRemove?.length} row and the LIVE widget's dot count drops ${afterAddDots} -> ${afterRemoveDots}, no reload`
-      : `FAIL: remove revokes live (removeBtnFound=${removeBtn}, afterRemoveDots=${afterRemoveDots}, cardAfterRemove=${JSON.stringify(cardAfterRemove)})`,
+      ? `PASS: removing a seeded Status service updates live storage/UI state — the drawer list drops to ${cardAfterRemove?.length} row and the LIVE widget's dot count drops ${afterAddDots} -> ${afterRemoveDots}, no reload (this row does not assert a held native permission)`
+      : `FAIL: seeded Status service live storage/UI removal (removeBtnFound=${removeBtn}, afterRemoveDots=${afterRemoveDots}, cardAfterRemove=${JSON.stringify(cardAfterRemove)})`,
   )
 
   await page.keyboard.press('Escape')
@@ -7679,6 +7827,392 @@ function gitlabContributionsFixture() {
       ? 'Home Assistant connector disabled; page restored to idle'
       : 'WARNING: Home Assistant widget still present after disabling the connector',
   )
+}
+
+// W1-P3 deterministic permission transaction matrix. This is deliberately a
+// single isolated block: it snapshots every named storage authority, enables
+// the preview fake in this tab, reloads so startup resolves against it, drives
+// only real Settings controls and production transactions, then restores
+// storage and reloads without the flag so every downstream probe sees the
+// native chrome.permissions boundary again. All waits in this block are
+// conditions; the unsupported-adapter RED guard exits before any request.
+{
+  const matrixKeys = ['connectors', 'connectorSnapshots', 'photoPrefs', 'apodCache']
+  const original = await page.evaluate((keys) => chrome.storage.local.get(keys), matrixKeys)
+  const HA_URL = 'https://127.0.0.1:9'
+  const HA_PATTERN = 'https://127.0.0.1:9/*'
+  const SHARED_PATTERN = 'https://shared-owner.example.com/*'
+  const SHARED_RSS = 'https://shared-owner.example.com/feed.xml'
+  const SHARED_STATUS = 'https://shared-owner.example.com/api/v2/status.json'
+  const NASA_API_PATTERN = 'https://api.nasa.gov/*'
+  const NASA_IMAGE_PATTERN = 'https://apod.nasa.gov/*'
+  const NASA_RSS = 'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY'
+  const RETRY_PATTERN = 'https://retry-cleanup.example.com/*'
+  const RETRY_STATUS = 'https://retry-cleanup.example.com/api/v2/status.json'
+
+  const controlSnapshot = () => page.evaluate(() => globalThis.__auroraPermissionsHarnessControl?.snapshot())
+  const setHeld = (patterns) => page.evaluate(
+    (next) => globalThis.__auroraPermissionsHarnessControl.setHeld(next),
+    patterns,
+  )
+  const clearPermissionLog = () => page.evaluate(() => globalThis.__auroraPermissionsHarnessControl.clearLog())
+  const seedMatrix = (next) => page.evaluate(async (patch) => {
+    const { connectors = {} } = await chrome.storage.local.get('connectors')
+    await chrome.storage.local.set({
+      connectors: { ...connectors, ...patch.connectors },
+      connectorSnapshots: patch.connectorSnapshots ?? {},
+      ...(patch.photoPrefs ? { photoPrefs: patch.photoPrefs } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, 'apodCache') ? { apodCache: patch.apodCache } : {}),
+    })
+  }, next)
+  const waitForAdapter = (timeout = 2_000) => page.waitForFunction(() => {
+    const control = globalThis.__auroraPermissionsHarnessControl
+    const api = globalThis.__auroraPermissionsHarnessApi
+    if (!control || !api) return false
+    const { listeners } = control.snapshot()
+    return listeners.added === 1 && listeners.removed === 1
+  }, undefined, { timeout }).then(() => true, () => false)
+  const reloadWithAdapter = async () => {
+    await page.reload()
+    await page.waitForSelector('time')
+    if (!(await waitForAdapter())) throw new Error('preview permission adapter detached after reload')
+  }
+  const openMatrixTab = async (name, readySelector) => {
+    await page.click('button[aria-label="Open settings"]')
+    await page.locator('[role="dialog"][aria-label="Settings"]').waitFor({ state: 'visible' })
+    await page.click(`[role="tab"]:has-text("${name}")`)
+    await page.waitForSelector(`[role="tab"][aria-selected="true"]:has-text("${name}")`)
+    if (readySelector) await page.locator(readySelector).waitFor({ state: 'visible' })
+  }
+  try {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    await page.evaluate((flagKey) => {
+      sessionStorage.setItem(flagKey, JSON.stringify({ held: [] }))
+    }, PERMISSIONS_HARNESS_FLAG)
+    await page.reload()
+    await page.waitForSelector('time')
+
+    if (!(await waitForAdapter())) {
+      const redState = await controlSnapshot()
+      console.log(
+        `FAIL: preview permission adapter unsupported: the fake installed before reload but the production mirror did not subscribe within the bounded guard (listeners=${JSON.stringify(redState?.listeners ?? null)}); no permission request was driven`,
+      )
+    } else {
+      console.log('PASS: preview permission adapter installed before reload and the production mirror subscribed to both event surfaces')
+
+      // HA: one absent-pattern request proves gesture ordering, then the real
+      // validation failure rolls back only that newly acquired pattern.
+      await setHeld([])
+      await seedMatrix({
+        connectors: {
+          homeassistant: { enabled: true },
+          rss: { enabled: false, feeds: [], shownCount: 5 },
+          status: { enabled: false, services: [] },
+        },
+        connectorSnapshots: {},
+        photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
+        apodCache: null,
+      })
+      await reloadWithAdapter()
+      await openMatrixTab('Connectors', '#connector-homeassistant-enabled')
+      const haCard = '.rounded-xl:has(#connector-homeassistant-enabled)'
+      await page.fill(`${haCard} input[placeholder="https://your-home.ui.nabu.casa"]`, HA_URL)
+      await page.fill(`${haCard} input[type="password"]`, 'preview-invalid-token')
+      await clearPermissionLog()
+      await page.evaluate(() => globalThis.__auroraPermissionsHarnessControl.deferOneLifecycle())
+      await page.click(`${haCard} button[type="submit"]`)
+      await page.waitForFunction((pattern) => {
+        const state = globalThis.__auroraPermissionsHarnessControl.snapshot()
+        return state.log.some((entry) => entry.op === 'request' && entry.origins.includes(pattern))
+      }, HA_PATTERN, { timeout: 2_000 })
+      const beforeRelease = await controlSnapshot()
+      const queuedAt = beforeRelease.log.findIndex((entry) => entry.op === 'lifecycle-lock-queued')
+      const requestAt = beforeRelease.log.findIndex((entry) => entry.op === 'request')
+      const callbackAt = beforeRelease.log.findIndex((entry) => entry.op === 'lifecycle-lock-callback')
+      const requestOrderingOk =
+        queuedAt >= 0 && requestAt > queuedAt && callbackAt === -1 && beforeRelease.pendingLifecycle === 1
+      console.log(
+        requestOrderingOk
+          ? 'PASS: the initiating Connect control queued lifecycle authority, invoked the permission request in the same event, and did not start transaction work before the deferred lock callback'
+          : `FAIL: permission request/lifecycle ordering (${JSON.stringify(beforeRelease)})`,
+      )
+      await page.evaluate(() => globalThis.__auroraPermissionsHarnessControl.releaseLifecycle())
+      await page.waitForFunction((pattern) => {
+        const held = globalThis.__auroraPermissionsHarnessControl.snapshot().held
+        const alert = document.querySelector('.rounded-xl:has(#connector-homeassistant-enabled) [role="alert"]')
+        return !!alert && !held.includes(pattern)
+      }, HA_PATTERN, { timeout: 12_000 })
+      const newHa = await page.evaluate(async () => ({
+        config: (await chrome.storage.local.get('connectors')).connectors?.homeassistant,
+        state: globalThis.__auroraPermissionsHarnessControl.snapshot(),
+      }))
+      const rollbackOps = newHa.state.log
+        .filter((entry) => entry.origins.includes(HA_PATTERN))
+        .map((entry) => entry.op)
+      const newlyRolledBack =
+        newHa.config?.enabled === true && !newHa.config.instanceUrl && !newHa.config.token &&
+        !newHa.config.locationName && !newHa.state.held.includes(HA_PATTERN) &&
+        rollbackOps.includes('request') && rollbackOps.includes('remove')
+      console.log(
+        newlyRolledBack
+          ? 'PASS: a newly acquired Home Assistant pattern rolls back after the real validation failure, with no connection fields persisted'
+          : `FAIL: newly acquired Home Assistant rollback (${JSON.stringify(newHa)})`,
+      )
+
+      // Feed exact adapter events into the initialized mirror. onAdded makes
+      // this pattern pre-existing, then onRemoved makes the next click request
+      // it again. Both clicks still use the real HA form and validation.
+      await setHeld([HA_PATTERN])
+      const addedEvent = await controlSnapshot()
+      await clearPermissionLog()
+      await page.click(`${haCard} button[type="submit"]`)
+      await page.waitForFunction((pattern) => {
+        const state = globalThis.__auroraPermissionsHarnessControl.snapshot()
+        return state.log.some((entry) => entry.op === 'contains' && entry.origins.includes(pattern)) &&
+          !state.log.some((entry) => entry.op === 'request')
+      }, HA_PATTERN, { timeout: 12_000 })
+      const preExistingHa = await controlSnapshot()
+      console.log(
+        addedEvent.log.some((entry) =>
+          entry.op === 'onAdded' && entry.origins.length === 1 && entry.origins[0] === HA_PATTERN
+        ) && preExistingHa.held.includes(HA_PATTERN) &&
+          !preExistingHa.log.some((entry) => entry.op === 'request')
+          ? 'PASS: the same Home Assistant validation failure preserves a pre-existing adapter-held pattern and sends no redundant request'
+          : `FAIL: pre-existing Home Assistant preservation (added=${JSON.stringify(addedEvent)}, after=${JSON.stringify(preExistingHa)})`,
+      )
+      await setHeld([])
+      const removedEvent = await controlSnapshot()
+      await clearPermissionLog()
+      await page.click(`${haCard} button[type="submit"]`)
+      await page.waitForFunction((pattern) => {
+        const state = globalThis.__auroraPermissionsHarnessControl.snapshot()
+        return state.log.some((entry) => entry.op === 'request' && entry.origins.includes(pattern))
+      }, HA_PATTERN, { timeout: 2_000 })
+      await page.waitForFunction(
+        (pattern) => !globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+        HA_PATTERN,
+        { timeout: 12_000 },
+      )
+      const afterRemovedEvent = await controlSnapshot()
+      console.log(
+        removedEvent.log.some((entry) =>
+          entry.op === 'onRemoved' && entry.origins.length === 1 && entry.origins[0] === HA_PATTERN
+        ) && afterRemovedEvent.log.some((entry) =>
+          entry.op === 'request' && entry.origins.length === 1 && entry.origins[0] === HA_PATTERN
+        )
+          ? 'PASS: the initialized permission mirror reflects exact adapter onAdded/onRemoved patterns (added suppresses a request; removed requires one)'
+          : `FAIL: adapter event-to-mirror synchronization (removed=${JSON.stringify(removedEvent)}, after=${JSON.stringify(afterRemovedEvent)})`,
+      )
+
+      // RSS + Status share one host. Both adds and both removes go through
+      // their real forms and row buttons; ownership decides whether remove runs.
+      await setHeld([])
+      await seedMatrix({
+        connectors: {
+          homeassistant: { enabled: false },
+          rss: { enabled: true, feeds: [], shownCount: 5 },
+          status: { enabled: true, services: [] },
+        },
+        connectorSnapshots: {},
+      })
+      await reloadWithAdapter()
+      await openMatrixTab('Connectors', '#connector-rss-add')
+      await clearPermissionLog()
+      await page.fill('#connector-rss-add', SHARED_RSS)
+      await page.click('.rounded-xl:has(#connector-rss-enabled) form button[type="submit"]')
+      await page.waitForFunction(({ label, pattern }) =>
+        [...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: `Remove ${SHARED_RSS}`, pattern: SHARED_PATTERN }, { timeout: 12_000 })
+      await page.fill('#connector-status-name', 'Shared owner')
+      await page.fill('#connector-status-url', SHARED_STATUS)
+      await page.click('.rounded-xl:has(#connector-status-enabled) form button[type="submit"]')
+      await page.waitForFunction((label) =>
+        [...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label),
+      'Remove Shared owner', { timeout: 12_000 })
+      await page.click(`button[aria-label="Remove ${SHARED_RSS}"]`)
+      await page.waitForFunction(({ label, pattern }) =>
+        ![...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: `Remove ${SHARED_RSS}`, pattern: SHARED_PATTERN }, { timeout: 12_000 })
+      const sharedAfterFirst = await controlSnapshot()
+      console.log(
+        sharedAfterFirst.held.includes(SHARED_PATTERN) &&
+          !sharedAfterFirst.log.some((entry) => entry.op === 'remove' && entry.origins.includes(SHARED_PATTERN))
+          ? 'PASS: RSS + Status shared ownership keeps the adapter-held pattern when the RSS row is removed'
+          : `FAIL: RSS + Status partial release (${JSON.stringify(sharedAfterFirst)})`,
+      )
+      await page.click('button[aria-label="Remove Shared owner"]')
+      await page.waitForFunction(({ label, pattern }) =>
+        ![...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        !globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: 'Remove Shared owner', pattern: SHARED_PATTERN }, { timeout: 12_000 })
+      const sharedFinal = await controlSnapshot()
+      console.log(
+        sharedFinal.log.some((entry) =>
+          entry.op === 'remove' && entry.origins.length === 1 && entry.origins[0] === SHARED_PATTERN
+        )
+          ? 'PASS: RSS + Status final ownership removal releases the shared adapter-held pattern'
+          : `FAIL: RSS + Status final release (${JSON.stringify(sharedFinal)})`,
+      )
+
+      // APOD + RSS share api.nasa.gov. Selecting and leaving APOD uses the
+      // real General source control; RSS uses its real add/remove controls.
+      await setHeld([])
+      await seedMatrix({
+        connectors: {
+          rss: { enabled: true, feeds: [], shownCount: 5 },
+          status: { enabled: false, services: [] },
+          homeassistant: { enabled: false },
+        },
+        connectorSnapshots: {},
+        photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
+        apodCache: null,
+      })
+      await reloadWithAdapter()
+      await openMatrixTab('Connectors', '#connector-rss-add')
+      await clearPermissionLog()
+      await page.fill('#connector-rss-add', NASA_RSS)
+      await page.click('.rounded-xl:has(#connector-rss-enabled) form button[type="submit"]')
+      await page.waitForFunction(({ label, pattern }) =>
+        [...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: `Remove ${NASA_RSS}`, pattern: NASA_API_PATTERN }, { timeout: 12_000 })
+      await page.click('[role="tab"]:has-text("General")')
+      await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("General")')
+      await page.locator('#set-bg-mode').waitFor({ state: 'visible' })
+      await page.selectOption('#set-bg-mode', 'apod')
+      await page.waitForFunction(({ api, image }) => {
+        const held = globalThis.__auroraPermissionsHarnessControl.snapshot().held
+        return document.getElementById('set-bg-mode')?.value === 'apod' &&
+          held.includes(api) && held.includes(image)
+      }, { api: NASA_API_PATTERN, image: NASA_IMAGE_PATTERN })
+      await page.selectOption('#set-bg-mode', 'gradient')
+      await page.waitForFunction(({ api, image }) => {
+        const held = globalThis.__auroraPermissionsHarnessControl.snapshot().held
+        return document.getElementById('set-bg-mode')?.value === 'gradient' &&
+          held.includes(api) && !held.includes(image)
+      }, { api: NASA_API_PATTERN, image: NASA_IMAGE_PATTERN })
+      const apodPartial = await controlSnapshot()
+      console.log(
+        apodPartial.held.includes(NASA_API_PATTERN) && !apodPartial.held.includes(NASA_IMAGE_PATTERN) &&
+          apodPartial.log.some((entry) => entry.op === 'remove' && entry.origins.includes(NASA_IMAGE_PATTERN)) &&
+          !apodPartial.log.some((entry) => entry.op === 'remove' && entry.origins.includes(NASA_API_PATTERN))
+          ? 'PASS: leaving APOD removes only its image-host pattern while RSS preserves the shared api.nasa.gov pattern'
+          : `FAIL: APOD + RSS partial release (${JSON.stringify(apodPartial)})`,
+      )
+      await page.click('[role="tab"]:has-text("Connectors")')
+      await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("Connectors")')
+      await page.locator(`button[aria-label="Remove ${NASA_RSS}"]`).waitFor({ state: 'visible' })
+      await page.click(`button[aria-label="Remove ${NASA_RSS}"]`)
+      await page.waitForFunction(({ label, pattern }) =>
+        ![...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        !globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: `Remove ${NASA_RSS}`, pattern: NASA_API_PATTERN }, { timeout: 12_000 })
+      const apodFinal = await controlSnapshot()
+      console.log(
+        apodFinal.log.some((entry) => entry.op === 'remove' && entry.origins.includes(NASA_API_PATTERN))
+          ? 'PASS: removing the final RSS owner releases the remaining api.nasa.gov adapter-held pattern'
+          : `FAIL: APOD + RSS final release (${JSON.stringify(apodFinal)})`,
+      )
+
+      // One-shot remove rejection: the owner row disappears, the Settings
+      // cleanup alert survives a tab round trip, and Retry removes the pattern.
+      await setHeld([])
+      await seedMatrix({
+        connectors: {
+          rss: { enabled: false, feeds: [], shownCount: 5 },
+          status: { enabled: true, services: [] },
+          homeassistant: { enabled: false },
+        },
+        connectorSnapshots: {},
+      })
+      await reloadWithAdapter()
+      await openMatrixTab('Connectors', '#connector-status-url')
+      await clearPermissionLog()
+      await page.fill('#connector-status-name', 'Retry target')
+      await page.fill('#connector-status-url', RETRY_STATUS)
+      await page.click('.rounded-xl:has(#connector-status-enabled) form button[type="submit"]')
+      await page.waitForFunction(({ label, pattern }) =>
+        [...document.querySelectorAll('button')].some((button) => button.getAttribute('aria-label') === label) &&
+        globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern),
+      { label: 'Remove Retry target', pattern: RETRY_PATTERN }, { timeout: 12_000 })
+      await page.evaluate(
+        (pattern) => globalThis.__auroraPermissionsHarnessControl.failOneRemove(pattern),
+        RETRY_PATTERN,
+      )
+      await page.click('button[aria-label="Remove Retry target"]')
+      await page.waitForFunction(({ label, pattern }) => {
+        const ownerGone = ![...document.querySelectorAll('button')]
+          .some((button) => button.getAttribute('aria-label') === label)
+        const retry = [...document.querySelectorAll('button')]
+          .some((candidate) => candidate.textContent?.trim() === 'Retry permission cleanup')
+        return ownerGone && retry &&
+          globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern)
+      }, { label: 'Remove Retry target', pattern: RETRY_PATTERN }, { timeout: 12_000 })
+      const heldAfterFailure = await controlSnapshot()
+      await page.click('[role="tab"]:has-text("General")')
+      await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("General")')
+      await page.locator('button:has-text("Retry permission cleanup")').waitFor({ state: 'visible' })
+      await page.click('[role="tab"]:has-text("Connectors")')
+      await page.waitForSelector('[role="tab"][aria-selected="true"]:has-text("Connectors")')
+      await page.locator('button:has-text("Retry permission cleanup")').waitFor({ state: 'visible' })
+      await page.click('button:has-text("Retry permission cleanup")')
+      await page.waitForFunction((pattern) => {
+        const heldNow = globalThis.__auroraPermissionsHarnessControl.snapshot().held.includes(pattern)
+        const retry = [...document.querySelectorAll('button')]
+          .some((candidate) => candidate.textContent?.trim() === 'Retry permission cleanup')
+        return !heldNow && !retry
+      }, RETRY_PATTERN, { timeout: 12_000 })
+      const retryFinal = await controlSnapshot()
+      const rejectedOnce = heldAfterFailure.log.some((entry) =>
+        entry.op === 'remove-rejected' && entry.origins.includes(RETRY_PATTERN)
+      )
+      const successfulRetry = retryFinal.log
+        .filter((entry) => entry.op === 'remove' && entry.origins.includes(RETRY_PATTERN)).length === 2
+      console.log(
+        rejectedOnce && successfulRetry
+          ? 'PASS: one-shot revoke rejection renders durable Retry permission cleanup across a Settings tab round trip, and Retry clears the alert'
+          : `FAIL: durable permission cleanup Retry (failed=${JSON.stringify(heldAfterFailure)}, final=${JSON.stringify(retryFinal)})`,
+      )
+      console.log(
+        heldAfterFailure.held.includes(RETRY_PATTERN) && !retryFinal.held.includes(RETRY_PATTERN)
+          ? 'PASS: preview-adapter held-pattern state independently proves final-owner removal after Retry (adapter state only)'
+          : `FAIL: preview-adapter final-owner held-pattern state (failed=${JSON.stringify(heldAfterFailure.held)}, final=${JSON.stringify(retryFinal.held)})`,
+      )
+    }
+  } catch (error) {
+    console.log(`FAIL: deterministic permission transaction matrix threw (${error instanceof Error ? error.stack ?? error.message : String(error)})`)
+  } finally {
+    await page.setViewportSize({ width: 1600, height: 900 })
+    await page.evaluate(async ({ keys, snapshot, flagKey }) => {
+      sessionStorage.removeItem(flagKey)
+      delete globalThis.__auroraPermissionsHarnessApi
+      delete globalThis.__auroraPermissionsHarnessControl
+      await chrome.storage.local.remove(keys)
+      if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+    }, { keys: matrixKeys, snapshot: original, flagKey: PERMISSIONS_HARNESS_FLAG })
+    await page.reload()
+    await page.waitForSelector('time')
+    await page.waitForFunction(
+      (flagKey) =>
+        sessionStorage.getItem(flagKey) === null &&
+        globalThis.__auroraPermissionsHarnessApi === undefined &&
+        typeof chrome.permissions?.getAll === 'function',
+      PERMISSIONS_HARNESS_FLAG,
+      { timeout: 10_000 },
+    )
+    const restored = await page.evaluate(async (keys) => ({
+      values: await chrome.storage.local.get(keys),
+      drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.getAttribute('inert') !== null,
+    }), matrixKeys)
+    const stateRestored = JSON.stringify(restored.values) === JSON.stringify(original)
+    console.log(
+      stateRestored && restored.drawerClosed
+        ? 'PASS: permission matrix restored all named storage, the closed/default drawer state, default viewport, and the native Chrome permission boundary for downstream checks'
+        : `FAIL: permission matrix teardown/restoration (original=${JSON.stringify(original)}, restored=${JSON.stringify(restored)})`,
+    )
+  }
 }
 
 // Calendar widget (ics connector) — Task 5's own fixture-law sweep

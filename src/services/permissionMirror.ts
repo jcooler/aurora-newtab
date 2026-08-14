@@ -1,4 +1,4 @@
-import { canonicalOriginPatterns } from './permissions'
+import { canonicalOriginPatterns, initializePermissionBoundary } from './permissions'
 
 export type PermissionMirrorSnapshot =
   | { status: 'ready'; preExisting: string[]; absent: string[] }
@@ -49,7 +49,7 @@ export function initializePermissionMirror(): Promise<void> {
   state = 'initializing'
   initialization = (async () => {
     try {
-      const permissions = chrome.permissions
+      const permissions = initializePermissionBoundary()
       permissions.onAdded.addListener((change) => applyChange(change, true))
       permissions.onRemoved.addListener((change) => applyChange(change, false))
       const seed = await permissions.getAll()
