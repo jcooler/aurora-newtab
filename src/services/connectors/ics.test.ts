@@ -1011,6 +1011,24 @@ describe('icsDescriptor', () => {
     expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [] })).toBe(false)
     expect(icsDescriptor.ownsOrigins({ enabled: true, calendars: [{ name: 'Bad', url: 'not a url' }] })).toBe(false)
   })
+
+  it('redacts capability URLs into a valid empty calendar list and identifies enabled incomplete backups', () => {
+    const stored = {
+      enabled: true,
+      calendars: [{ name: 'Family', url: 'https://calendar.example.test/private.ics?token=calendar-capability' }],
+      view: 'upcoming' as const,
+      upcomingCount: 4,
+    }
+    expect(icsDescriptor.redactForBackup?.({ enabled: true, view: 'upcoming', upcomingCount: 4 })).toEqual({
+      enabled: true,
+      calendars: [],
+      view: 'upcoming',
+      upcomingCount: 4,
+    })
+    expect(icsDescriptor.backupReentryRequired?.({ enabled: true, calendars: [] })).toBe(true)
+    expect(icsDescriptor.backupReentryRequired?.({ enabled: false, calendars: [] })).toBe(false)
+    expect(stored.calendars[0]?.url).toContain('calendar-capability')
+  })
 })
 
 describe('icsCalendarsOf — read-time config normalization', () => {

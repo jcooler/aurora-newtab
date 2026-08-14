@@ -1,8 +1,192 @@
 import { describe, expect, it } from 'vitest'
-import { serializeBackup, parseBackup, validateBackupShape, stripSecrets } from './backup'
+import {
+  BACKUP_REDACTION_NOTICE,
+  prepareBackup,
+  serializeBackup,
+  parseBackup,
+  redactBackupData,
+  validateBackupShape,
+  stripSecrets,
+} from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
-import { migrate } from './storage/migrations'
+import { migrate, migrations } from './storage/migrations'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
+
+describe('secret-safe redaction and prepared import (W1-P4)', () => {
+  it('removes every RSS capability URL without mutating the stored config', () => {
+    const feeds = [
+      'https://feeds.example.com/private.xml?token=rss-capability-one',
+      'https://other.example.com/secret.xml?token=rss-capability-two',
+    ]
+    const input = { ...defaults(), connectors: { rss: { enabled: true, feeds, shownCount: 7 } } }
+
+    const result = redactBackupData(input)
+    const serialized = JSON.stringify(result)
+
+    expect(result.data.connectors.rss).toEqual({ enabled: true, feeds: [], shownCount: 7 })
+    expect(serialized).not.toContain(feeds[0])
+    expect(serialized).not.toContain(feeds[1])
+    expect(serialized).not.toContain('rss-capability-one')
+    expect(serialized).not.toContain('rss-capability-two')
+    expect(input.connectors.rss?.feeds).toEqual(feeds)
+  })
+
+  it('redacts token and calendar capabilities while retaining reconnect identities and view settings', () => {
+    const input = {
+      ...defaults(),
+      connectors: {
+        github: { enabled: true, token: 'github-bearer', username: 'octocat' },
+        gitlab: { enabled: true, token: 'gitlab-bearer', instanceUrl: 'https://gitlab.example.test', username: 'jon' },
+        jira: { enabled: true, apiToken: 'jira-api-token', email: 'jon@example.test', site: 'acme.atlassian.net', displayName: 'Jon' },
+        vercel: { enabled: true, token: 'vercel-bearer', username: 'shipper' },
+        homeassistant: { enabled: true, token: 'ha-bearer', instanceUrl: 'https://home.example.test', locationName: 'Home' },
+        ics: {
+          enabled: true,
+          url: 'https://calendar.example.test/legacy.ics?token=legacy-capability',
+          calendars: [{ name: 'Family', url: 'https://calendar.example.test/multi.ics?token=multi-capability' }],
+          view: 'upcoming',
+          upcomingCount: 4,
+          meetLinks: false,
+        },
+      },
+    } as AuroraData
+
+    const { data } = redactBackupData(input)
+    const serialized = JSON.stringify(data)
+
+    for (const secret of ['github-bearer', 'gitlab-bearer', 'jira-api-token', 'vercel-bearer', 'ha-bearer', 'legacy-capability', 'multi-capability']) {
+      expect(serialized).not.toContain(secret)
+    }
+    expect(data.connectors.github).toMatchObject({ username: 'octocat' })
+    expect(data.connectors.gitlab).toMatchObject({ instanceUrl: 'https://gitlab.example.test', username: 'jon' })
+    expect(data.connectors.jira).toMatchObject({ email: 'jon@example.test', site: 'acme.atlassian.net', displayName: 'Jon' })
+    expect(data.connectors.homeassistant).toMatchObject({ instanceUrl: 'https://home.example.test', locationName: 'Home' })
+    expect(data.connectors.ics).toEqual({ enabled: true, calendars: [], view: 'upcoming', upcomingCount: 4, meetLinks: false })
+  })
+
+  it('excludes forged cache values and declares stable re-entry ids only for recoverable incomplete configs', () => {
+    const input = {
+      ...defaults(),
+      connectorSnapshots: { github: { fetchedAt: 1, data: { private: 'forged' } } },
+      apodCache: { date: '2026-08-14', photo: { url: 'https://private.example.test/photo', title: 'forged' } },
+      connectors: {
+        github: { enabled: true, token: 'token', username: 'octocat' },
+        rss: { enabled: true, feeds: ['https://feed.example.test/private'], shownCount: 5 },
+        ics: { enabled: true, calendars: [], view: 'today' },
+        crypto: { enabled: true, coins: [] },
+      },
+    } as AuroraData
+
+    const envelope = JSON.parse(serializeBackup(input))
+    expect(envelope.data).not.toHaveProperty('connectorSnapshots')
+    expect(envelope.data).not.toHaveProperty('apodCache')
+    expect(envelope.redactions).toEqual({
+      reentryRequired: ['rss', 'github', 'ics'],
+      notice: BACKUP_REDACTION_NOTICE,
+    })
+  })
+
+  it('prepares legacy token and ambiguous ICS envelopes without inventing a Calendar label', () => {
+    const legacy = {
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: {
+        ...defaults(),
+        connectors: {
+          github: { enabled: true, username: 'octocat' },
+          ics: { enabled: true },
+        },
+      },
+    }
+
+    const result = prepareBackup(JSON.stringify(legacy))
+    expect(result).toMatchObject({ ok: true })
+    if (result.ok) {
+      expect(result.redactions.reentryRequired).toEqual(['github'])
+      expect(result.legacyReentryMayBeRequired).toBe(true)
+    }
+  })
+
+  it.each([
+    ['malformed metadata', { reentryRequired: ['github'], notice: 7 }],
+    ['unknown id', { reentryRequired: ['bogus'], notice: BACKUP_REDACTION_NOTICE }],
+    ['duplicate id', { reentryRequired: ['github', 'github'], notice: BACKUP_REDACTION_NOTICE }],
+    ['inconsistent id', { reentryRequired: ['ics'], notice: BACKUP_REDACTION_NOTICE }],
+    ['wrong notice', { reentryRequired: [], notice: 'unsafe label' }],
+  ])('rejects a present %s before preparation', (_name, redactions) => {
+    const data = {
+      ...defaults(),
+      connectors: redactions === null ? {} : { github: { enabled: true, username: 'octocat' } },
+    }
+    const raw = JSON.stringify({ app: 'aurora', version: CURRENT_VERSION, exportedAt: '2026-08-14T12:00:00.000Z', redactions, data })
+    expect(prepareBackup(raw).ok).toBe(false)
+  })
+
+  it('rejects non-canonical exportedAt before a consumer can confirm', () => {
+    const raw = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-08-14T12:00:00Z',
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: defaults(),
+    })
+    expect(prepareBackup(raw).ok).toBe(false)
+  })
+
+  it('migrates legacy data and derives only real restored origins', () => {
+    const v1 = { app: 'aurora', version: 1, data: { settings: defaults().settings } }
+    expect(prepareBackup(JSON.stringify(v1)).ok).toBe(true)
+
+    const prepared = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: {
+        ...defaults(),
+        photoPrefs: { mode: 'apod', index: 0, lastRotated: '' },
+        connectors: {
+          status: { enabled: true, services: [{ name: 'Status', url: 'https://status.example.test/api/v2/status.json' }] },
+          crypto: { enabled: true, coins: ['bitcoin'] },
+          github: { enabled: true, username: 'octocat' },
+          rss: { enabled: true, feeds: [], shownCount: 5 },
+          ics: { enabled: true, calendars: [] },
+        },
+      },
+    }))
+    expect(prepared).toMatchObject({ ok: true })
+    if (prepared.ok) {
+      expect(prepared.requiredOrigins.sort()).toEqual([
+        'https://api.coingecko.com/*',
+        'https://api.nasa.gov/*',
+        'https://apod.nasa.gov/*',
+        'https://status.example.test/*',
+      ])
+    }
+  })
+
+  it('turns a missing migration step into the preparation rejection without returning data', () => {
+    const original = migrations[1]
+    delete migrations[1]
+    try {
+      expect(prepareBackup(JSON.stringify({ app: 'aurora', version: 1, data: { settings: defaults().settings } }))).toEqual({
+        ok: false,
+        reason: 'That backup cannot be migrated by this Aurora version.',
+      })
+    } finally {
+      migrations[1] = original
+    }
+  })
+
+  it('never prepares a malformed data shape even when envelope metadata is valid', () => {
+    const raw = JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+      data: { ...defaults(), settings: 'malformed' },
+    })
+    expect(prepareBackup(raw)).toEqual({ ok: false, reason: 'That backup\'s "settings" data is invalid.' })
+  })
+})
 
 describe('serializeBackup / parseBackup round-trip', () => {
   it('round-trips: serialize -> parse -> data deep-equals the input, except connectorSnapshots and apodCache (both excluded from export)', () => {
@@ -196,9 +380,9 @@ describe('connector config / snapshot handling (Task 39)', () => {
     const input = { ...defaults(), connectors: { ics: stored } as AuroraData['connectors'] }
 
     const envelope = JSON.parse(serializeBackup(input))
-    expect(envelope.data.connectors.ics).toEqual({ enabled: true, view: 'upcoming', upcomingCount: 3 })
+    expect(envelope.data.connectors.ics).toEqual({ enabled: true, calendars: [], view: 'upcoming', upcomingCount: 3 })
     expect('url' in envelope.data.connectors.ics).toBe(false)
-    expect('calendars' in envelope.data.connectors.ics).toBe(false)
+    expect(envelope.data.connectors.ics.calendars).toEqual([])
     // The object handed in (what's actually in storage) survives untouched.
     expect(stored.url).toBe('https://calendar.example.com/private-abc123/basic.ics')
     expect(stored.calendars).toEqual([{ name: 'P', url: 'https://calendar.example.com/private-def456/personal.ics' }])
@@ -413,12 +597,26 @@ describe('parseBackup rejections', () => {
 describe('parseBackup accepts older/current versions (migration is the caller\'s job)', () => {
   it('accepts version === CURRENT_VERSION', () => {
     const result = parseBackup(JSON.stringify({ app: 'aurora', version: CURRENT_VERSION, data: { a: 1 } }))
-    expect(result).toEqual({ ok: true, data: { a: 1 }, version: CURRENT_VERSION })
+    expect(result).toEqual({
+      ok: true,
+      data: { a: 1 },
+      version: CURRENT_VERSION,
+      exportedAt: undefined,
+      redactionsPresent: false,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+    })
   })
 
   it('accepts version 1 without migrating it', () => {
     const result = parseBackup(JSON.stringify({ app: 'aurora', version: 1, data: { a: 1 } }))
-    expect(result).toEqual({ ok: true, data: { a: 1 }, version: 1 })
+    expect(result).toEqual({
+      ok: true,
+      data: { a: 1 },
+      version: 1,
+      exportedAt: undefined,
+      redactionsPresent: false,
+      redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE },
+    })
   })
 })
 

@@ -39,6 +39,13 @@ describe('connector registry invariants', () => {
     for (const descriptor of CONNECTORS) expect(descriptor.ownsOrigins).toBeTypeOf('function')
   })
 
+  it('has descriptor-owned backup redaction and re-entry policy for capability-bearing connectors', () => {
+    expect(getConnector('rss')?.redactForBackup).toBeTypeOf('function')
+    expect(getConnector('rss')?.backupReentryRequired).toBeTypeOf('function')
+    expect(getConnector('ics')?.redactForBackup).toBeTypeOf('function')
+    expect(getConnector('ics')?.backupReentryRequired).toBeTypeOf('function')
+  })
+
   // Completeness direction, written conditionally so it becomes meaningful
   // once the catalog is believed complete. Originally triggered on ANY
   // registration (CONNECTORS.length === 0), which held while RSS was the

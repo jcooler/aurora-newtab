@@ -10,13 +10,22 @@ import { isPanelColor } from './color'
 import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
+import { ownedOriginPatterns } from '../services/originOwnership'
+import { migrate } from './storage/migrations'
 
 const APP_ID = 'aurora'
+export const BACKUP_REDACTION_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.' as const
+
+export interface BackupRedactions {
+  reentryRequired: ConnectorId[]
+  notice: typeof BACKUP_REDACTION_NOTICE
+}
 
 export interface BackupEnvelope {
   app: typeof APP_ID
   version: number
   exportedAt: string
+  redactions: BackupRedactions
   // connectorSnapshots and apodCache are both cache, not user data —
   // deliberately excluded from every export (smaller files, and one less
   // validator surface on import: see validateBackupShape's matching
@@ -27,7 +36,25 @@ export interface BackupEnvelope {
 }
 
 export type ParseBackupResult =
-  | { ok: true; data: Record<string, unknown>; version: number }
+  | {
+      ok: true
+      data: Record<string, unknown>
+      version: number
+      exportedAt?: string
+      redactionsPresent: boolean
+      redactions: BackupRedactions
+    }
+  | { ok: false; reason: string }
+
+export type PrepareBackupResult =
+  | {
+      ok: true
+      data: AuroraData
+      exportedAt?: string
+      redactions: BackupRedactions
+      legacyReentryMayBeRequired: boolean
+      requiredOrigins: string[]
+    }
   | { ok: false; reason: string }
 
 /** Returns a new connectors map with every field a connector's descriptor
@@ -64,13 +91,45 @@ export function stripSecrets(
   return result
 }
 
-export function serializeBackup(data: AuroraData): string {
+function descriptorFor(id: ConnectorId, descriptors: readonly ConnectorDescriptor[] = CONNECTORS): ConnectorDescriptor | undefined {
+  return descriptors.find((descriptor) => descriptor.id === id)
+}
+
+function redactConnectorConfig(config: ConnectorConfig, descriptor: ConnectorDescriptor | undefined): ConnectorConfig {
+  const clone: Partial<ConnectorConfig> = { ...config }
+  for (const field of descriptor?.secretFields ?? []) delete clone[field]
+  const redacted = descriptor?.redactForBackup?.(clone as ConnectorConfig) ?? clone
+  return { ...redacted } as ConnectorConfig
+}
+
+/** Produces a new exportable data object and trusted reconnect metadata.
+ *  Neither the stored configs nor their nested config values are mutated. */
+export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data']; redactions: BackupRedactions } {
+  const connectors: AuroraData['connectors'] = {}
+  for (const id of Object.keys(data.connectors) as ConnectorId[]) {
+    const config = data.connectors[id]
+    if (!config) continue
+    connectors[id] = redactConnectorConfig(config, descriptorFor(id))
+  }
   const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...rest } = data
+  const redactedData = { ...rest, connectors }
+  return {
+    data: redactedData,
+    redactions: {
+      reentryRequired: requiredReentryConnectorIds(connectors, undefined, true),
+      notice: BACKUP_REDACTION_NOTICE,
+    },
+  }
+}
+
+export function serializeBackup(data: AuroraData): string {
+  const redacted = redactBackupData(data)
   const envelope: BackupEnvelope = {
     app: APP_ID,
     version: CURRENT_VERSION,
     exportedAt: new Date().toISOString(),
-    data: { ...rest, connectors: stripSecrets(data.connectors) },
+    redactions: redacted.redactions,
+    data: redacted.data,
   }
   return JSON.stringify(envelope, null, 2)
 }
@@ -105,7 +164,33 @@ export function parseBackup(raw: string): ParseBackupResult {
     return { ok: false, reason: 'That backup has no data to restore.' }
   }
 
-  return { ok: true, data: envelope.data, version }
+  const exportedAt = envelope.exportedAt
+  if (exportedAt !== undefined) {
+    if (typeof exportedAt !== 'string') return { ok: false, reason: "That backup's export date is invalid." }
+    try {
+      if (new Date(exportedAt).toISOString() !== exportedAt) return { ok: false, reason: "That backup's export date is invalid." }
+    } catch {
+      return { ok: false, reason: "That backup's export date is invalid." }
+    }
+  }
+
+  const redactionsPresent = Object.prototype.hasOwnProperty.call(envelope, 'redactions')
+  if (!redactionsPresent) {
+    return { ok: true, data: envelope.data, version, exportedAt, redactionsPresent: false, redactions: { reentryRequired: [], notice: BACKUP_REDACTION_NOTICE } }
+  }
+  const redactions = envelope.redactions
+  if (!isValidBackupRedactions(redactions)) return { ok: false, reason: "That backup's redaction metadata is invalid." }
+  return { ok: true, data: envelope.data, version, exportedAt, redactionsPresent: true, redactions }
+}
+
+function isValidBackupRedactions(value: unknown): value is BackupRedactions {
+  if (!isPlainObject(value) || Object.keys(value).length !== 2 || value.notice !== BACKUP_REDACTION_NOTICE || !Array.isArray(value.reentryRequired)) return false
+  const seen = new Set<string>()
+  for (const id of value.reentryRequired) {
+    if (typeof id !== 'string' || !CONNECTOR_IDS.includes(id as ConnectorId) || seen.has(id)) return false
+    seen.add(id)
+  }
+  return true
 }
 
 // --- validateBackupShape -----------------------------------------------
@@ -424,4 +509,89 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
             : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
+}
+
+function hasNonEmptyString(config: ConnectorConfig, field: string): boolean {
+  const value = Reflect.get(config, field)
+  return typeof value === 'string' && value !== ''
+}
+
+function reentryIsRequired(descriptor: ConnectorDescriptor, config: ConnectorConfig): boolean {
+  try {
+    if (descriptor.backupReentryRequired) return descriptor.backupReentryRequired(config) === true
+    if (!descriptor.identityField || descriptor.secretFields.length === 0) return false
+    return hasNonEmptyString(config, descriptor.identityField) && descriptor.secretFields.some((field) => !hasNonEmptyString(config, field))
+  } catch {
+    return false
+  }
+}
+
+function isAmbiguousLegacyReentry(descriptor: ConnectorDescriptor, config: ConnectorConfig): boolean {
+  return !descriptor.identityField && descriptor.secretFields.length > 0 && reentryIsRequired(descriptor, config)
+}
+
+/** Derives only registry-trusted reconnect ids. Legacy envelopes without
+ * metadata may identify the unambiguous identity-plus-missing-token shape,
+ * but never name a no-identity capability connector from an ambiguous shell. */
+export function requiredReentryConnectorIds(
+  connectors: AuroraData['connectors'],
+  declaredIds?: readonly ConnectorId[],
+  metadataPresent = false,
+): ConnectorId[] {
+  const detected: ConnectorId[] = []
+  for (const descriptor of CONNECTORS) {
+    const config = connectors[descriptor.id]
+    if (!config) continue
+    const required = metadataPresent
+      ? reentryIsRequired(descriptor, config)
+      : Boolean(descriptor.identityField) && reentryIsRequired(descriptor, config)
+    if (required) detected.push(descriptor.id)
+  }
+
+  if (metadataPresent && declaredIds) {
+    for (const id of declaredIds) {
+      if (!detected.includes(id)) throw new Error('inconsistent redaction metadata')
+    }
+  }
+  return detected
+}
+
+export function prepareBackup(raw: string): PrepareBackupResult {
+  const parsed = parseBackup(raw)
+  if (!parsed.ok) return parsed
+
+  let migrated: AuroraData
+  try {
+    migrated = migrate(parsed.data, parsed.version)
+  } catch {
+    return { ok: false, reason: 'That backup cannot be migrated by this Aurora version.' }
+  }
+
+  const shape = validateBackupShape(migrated)
+  if (!shape.ok) return shape
+
+  let requiredIds: ConnectorId[]
+  try {
+    requiredIds = requiredReentryConnectorIds(
+      shape.data.connectors,
+      parsed.redactionsPresent ? parsed.redactions.reentryRequired : undefined,
+      parsed.redactionsPresent,
+    )
+  } catch {
+    return { ok: false, reason: "That backup's redaction metadata is invalid." }
+  }
+
+  const legacyReentryMayBeRequired = !parsed.redactionsPresent && CONNECTORS.some((descriptor) => {
+    const config = shape.data.connectors[descriptor.id]
+    return config ? isAmbiguousLegacyReentry(descriptor, config) : false
+  })
+
+  return {
+    ok: true,
+    data: shape.data,
+    exportedAt: parsed.exportedAt,
+    redactions: { reentryRequired: requiredIds, notice: BACKUP_REDACTION_NOTICE },
+    legacyReentryMayBeRequired,
+    requiredOrigins: ownedOriginPatterns({ connectors: shape.data.connectors, photoPrefs: shape.data.photoPrefs }),
+  }
 }

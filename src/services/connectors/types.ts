@@ -224,6 +224,12 @@ export interface ConnectorDescriptor<C extends ConnectorConfig = ConnectorConfig
   auth: 'none' | 'token' | 'oauth'
   ttlMs: number
   secretFields: (keyof C & string)[]
+  /** Optional pure second-stage backup redaction for nested or conservative
+   *  config values after generic descriptor-declared secret fields are gone. */
+  redactForBackup?(config: C): Partial<C>
+  /** Optional pure policy for whether a cleaned/redacted config needs user
+   *  re-entry after restore. */
+  backupReentryRequired?(config: C): boolean
   origins(config: C): string[] // every URL the service will fetch, for grant/revoke bookkeeping
   /** True only once this connector's persisted config is complete enough to
    *  own its derived origins. Deliberately independent from `enabled`: a
