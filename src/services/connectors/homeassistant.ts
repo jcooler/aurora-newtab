@@ -194,6 +194,45 @@ export async function fetchAllStates(
   }
 }
 
+/** Authenticated availability probe used when no entities are selected. */
+export async function checkHomeAssistantHealth(
+  instanceUrl: string,
+  token: string,
+  fetchFn: typeof fetch = fetch,
+): Promise<boolean> {
+  try {
+    const result = await getJson<unknown>(`${apiBase(instanceUrl)}/api/`, authHeaders(token), fetchFn)
+    if (!result.ok || typeof result.body !== 'object' || result.body === null || Array.isArray(result.body)) return false
+    const { message } = result.body as { message?: unknown }
+    return typeof message === 'string' && message.length > 0
+  } catch {
+    return false
+  }
+}
+
+type SelectedStateResult = { kind: 'found'; state: HaState } | { kind: 'missing' } | { kind: 'failed' }
+
+async function fetchSelectedState(
+  instanceUrl: string,
+  token: string,
+  entityId: string,
+  fetchFn: typeof fetch,
+): Promise<SelectedStateResult> {
+  try {
+    const result = await getJson<unknown>(
+      `${apiBase(instanceUrl)}/api/states/${encodeURIComponent(entityId)}`,
+      authHeaders(token),
+      fetchFn,
+    )
+    if (!result.ok) return result.status === 404 ? { kind: 'missing' } : { kind: 'failed' }
+    if (typeof result.body !== 'object' || result.body === null || Array.isArray(result.body)) return { kind: 'failed' }
+    const [state] = parseStates([result.body])
+    return state && state.id === entityId ? { kind: 'found', state } : { kind: 'failed' }
+  } catch {
+    return { kind: 'failed' }
+  }
+}
+
 /** The widget's fetch: fetchAllStates, filtered down to the picked entity
  *  ids. NEVER throws (every failure inside fetchAllStates already resolves
  *  null, and there's no further step here that can reject) and NEVER carries
@@ -212,11 +251,13 @@ export async function fetchHomeAssistant(
   picked: HaEntityRef[],
   fetchFn: typeof fetch = fetch,
 ): Promise<HomeAssistantData> {
-  if (picked.length === 0) return { entities: [] }
-  const all = await fetchAllStates(instanceUrl, token, fetchFn)
-  if (all === null) return { entities: null }
-  const pickedIds = new Set(picked.map((p) => p.id))
-  return { entities: all.filter((state) => pickedIds.has(state.id)) }
+  const pickedIds = [...new Set(picked.map((p) => p.id))]
+  if (pickedIds.length === 0) {
+    return (await checkHomeAssistantHealth(instanceUrl, token, fetchFn)) ? { entities: [] } : { entities: null }
+  }
+  const results = await Promise.all(pickedIds.map((id) => fetchSelectedState(instanceUrl, token, id, fetchFn)))
+  if (results.some((result) => result.kind === 'failed')) return { entities: null }
+  return { entities: results.flatMap((result) => result.kind === 'found' ? [result.state] : []) }
 }
 
 /** Maps an action's domain to the HA service it calls: scene/script both
