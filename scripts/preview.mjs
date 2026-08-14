@@ -2404,6 +2404,216 @@ console.log(
 await page.keyboard.press('Escape')
 await page.waitForTimeout(150)
 
+// W1-P8: Notes persistence truth, recoverable failure, awaited close/arrange,
+// and the current-tab beforeunload boundary. Run in a disposable extension
+// page and restore shared storage through the production preview authority.
+const notesProofPage = await context.newPage()
+const notesProofErrors = []
+notesProofPage.on('console', (msg) => {
+  if (msg.type() === 'error') notesProofErrors.push(msg.text())
+})
+notesProofPage.on('pageerror', (error) => notesProofErrors.push(String(error)))
+const primaryUrlBeforeNotesProof = page.url()
+const primaryClockBeforeNotesProof = Date.now()
+const notesProofPreimage = await page.evaluate(() => chrome.storage.local.get(['notes', 'settings', 'links']))
+let notesPendingOk = false
+let notesRecoveryOk = false
+let notesCloseArrangeOk = false
+let notesNavigationOk = false
+
+try {
+  await notesProofPage.goto('chrome://newtab/')
+  await notesProofPage.waitForSelector('time', { timeout: 10_000 })
+  await notesProofPage.setViewportSize({ width: 1600, height: 900 })
+  const notesHarnessSnapshot = () => notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.snapshot())
+  const waitForHeldNote = () => notesProofPage.waitForFunction(
+    () => globalThis.__auroraStorageHarness.notes.snapshot().pending === 1,
+    undefined,
+    { timeout: 3_000 },
+  )
+  const storedNote = () => notesProofPage.evaluate(() => chrome.storage.local.get('notes').then((value) => value.notes))
+  const openNotes = async () => {
+    await notesProofPage.getByRole('button', { name: 'Notes' }).click()
+    await notesProofPage.getByRole('dialog', { name: 'Notes' }).waitFor()
+  }
+  const retrySave = async () => {
+    await notesProofPage.getByRole('button', { name: 'Retry save' }).click()
+    await notesProofPage.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+  }
+
+  await openNotes()
+  const noteBeforePending = await storedNote()
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 pending draft')
+  await waitForHeldNote()
+  const pendingStored = await storedNote()
+  const pendingStatus = await notesProofPage.getByRole('status').textContent()
+  const savedWhileHeld = pendingStatus?.includes('Saved') ?? false
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
+  await notesProofPage.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+  const pendingSettled = await storedNote()
+  notesPendingOk = pendingStatus?.includes('Saving') === true
+    && !savedWhileHeld
+    && JSON.stringify(pendingStored) === JSON.stringify(noteBeforePending)
+    && pendingSettled.text === 'W1-P8 pending draft'
+    && (await notesHarnessSnapshot()).pending === 0
+
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 failed draft')
+  await notesProofPage.getByRole('alert').waitFor({ timeout: 3_000 })
+  const failedStored = await storedNote()
+  const failedText = await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).inputValue()
+  const alertText = await notesProofPage.getByRole('alert').textContent()
+  const axSnapshot = typeof notesProofPage.locator('body').ariaSnapshot === 'function'
+    ? await notesProofPage.locator('body').ariaSnapshot()
+    : ''
+  await notesProofPage.screenshot({ path: `${outDir}/w1-p8-notes-error.png` })
+  console.log('captured w1-p8-notes-error.png')
+
+  const responsiveChecks = []
+  for (const viewport of [{ width: 800, height: 600 }, { width: 2560, height: 1440 }]) {
+    await notesProofPage.setViewportSize(viewport)
+    const geometry = await notesProofPage.evaluate(() => {
+      const panel = document.querySelector('[role="dialog"][aria-label="Notes"]')
+      const textarea = document.querySelector('#notes-textarea')
+      const retry = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Retry save')
+      if (!panel || !textarea || !retry) return null
+      const p = panel.getBoundingClientRect()
+      const t = textarea.getBoundingClientRect()
+      const r = retry.getBoundingClientRect()
+      return {
+        fixedSize: Math.abs(p.width - 320) <= 1 && Math.abs(p.height - 256) <= 1,
+        reachable: p.left >= 0 && p.top >= 0 && p.right <= innerWidth && p.bottom <= innerHeight
+          && t.width > 0 && t.height > 0 && r.width > 0 && r.height > 0,
+      }
+    })
+    responsiveChecks.push(Boolean(geometry?.fixedSize && geometry?.reachable))
+  }
+  await notesProofPage.setViewportSize({ width: 1600, height: 900 })
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 latest retry')
+  const alertStayedVisible = await notesProofPage.getByRole('alert').isVisible()
+  await retrySave()
+  const retriedNote = await storedNote()
+  notesRecoveryOk = alertText === 'Couldn’t save. Your note is still here.Retry save'
+    && failedText === 'W1-P8 failed draft'
+    && failedStored.text === 'W1-P8 pending draft'
+    && alertStayedVisible
+    && retriedNote.text === 'W1-P8 latest retry'
+    && axSnapshot.includes('alert')
+    && axSnapshot.includes('Retry save')
+    && responsiveChecks.every(Boolean)
+
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 close draft')
+  await waitForHeldNote()
+  await notesProofPage.keyboard.press('Escape')
+  const dialogStayedDuringClose = await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
+  await notesProofPage.getByRole('dialog', { name: 'Notes' }).waitFor({ state: 'detached' })
+  const focusRestored = await notesProofPage.evaluate(() => document.activeElement?.textContent === 'Notes')
+
+  await openNotes()
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 arrange draft')
+  await waitForHeldNote()
+  await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
+  await notesProofPage.getByRole('dialog', { name: 'Settings' }).waitFor()
+  await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
+  await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectPending())
+  await notesProofPage.getByRole('alert').waitFor()
+  const noArrangeOnFailure = (await notesProofPage.getByRole('button', { name: 'Done' }).count()) === 0
+    && await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
+    && await notesProofPage.evaluate(() => !document.querySelector('[data-arrange-overlay]'))
+  await retrySave()
+  await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
+  await notesProofPage.getByRole('dialog', { name: 'Settings' }).waitFor()
+  await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
+  await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
+  await notesProofPage.getByRole('button', { name: 'Done' }).waitFor()
+  const notesGoneBeforeInert = (await notesProofPage.getByRole('dialog', { name: 'Notes' }).count()) === 0
+    && await notesProofPage.evaluate(() => document.querySelector('[data-arrange-overlay]') !== null)
+  await notesProofPage.getByRole('button', { name: 'Done' }).click()
+  notesCloseArrangeOk = dialogStayedDuringClose && focusRestored && noArrangeOnFailure && notesGoneBeforeInert
+
+  const destination = new URL(notesProofPage.url())
+  destination.searchParams.set('w1-p8-destination', '1')
+  await notesProofPage.evaluate(async (url) => {
+    const { links } = await chrome.storage.local.get('links')
+    await globalThis.__auroraStorageHarness.update('links', () => [
+      { id: 'w1-p8-link', title: 'W1-P8 destination', url },
+      ...links.filter((link) => link.id !== 'w1-p8-link'),
+    ])
+  }, destination.href)
+  await notesProofPage.reload()
+  await notesProofPage.waitForSelector('time')
+  await openNotes()
+  let beforeUnloadDialogs = 0
+  let dismissNavigation = true
+  notesProofPage.on('dialog', async (dialog) => {
+    if (dialog.type() !== 'beforeunload') return dialog.dismiss()
+    beforeUnloadDialogs += 1
+    if (dismissNavigation) await dialog.dismiss()
+    else await dialog.accept()
+  })
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
+  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 navigation draft')
+  await notesProofPage.locator(`a[href="${destination.href}"]`).click()
+  await notesProofPage.getByRole('alert').waitFor({ timeout: 3_000 })
+  const dismissedRetained = notesProofPage.url() !== destination.href
+    && await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).inputValue() === 'W1-P8 navigation draft'
+    && await notesProofPage.getByRole('button', { name: 'Retry save' }).isVisible()
+  await retrySave()
+  dismissNavigation = false
+  await notesProofPage.locator(`a[href="${destination.href}"]`).click()
+  await notesProofPage.waitForURL(destination.href)
+  notesNavigationOk = dismissedRetained && beforeUnloadDialogs === 1
+} finally {
+  if (!notesProofPage.isClosed()) {
+    await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.reset()).catch(() => undefined)
+    await notesProofPage.waitForFunction(
+      () => globalThis.__auroraStorageHarness.notes.snapshot().pending === 0,
+      undefined,
+      { timeout: 3_000 },
+    ).catch(() => undefined)
+  }
+  await page.evaluate(async (preimage) => {
+    await globalThis.__auroraStorageHarness.update('notes', () => preimage.notes)
+    await globalThis.__auroraStorageHarness.update('settings', () => preimage.settings)
+    await globalThis.__auroraStorageHarness.update('links', () => preimage.links)
+  }, notesProofPreimage)
+  await page.reload()
+  await page.waitForSelector('time')
+  const restored = await page.evaluate(() => chrome.storage.local.get(['notes', 'settings', 'links']))
+  const primaryClockAfterNotesProof = Date.now()
+  const teardownOk = JSON.stringify(restored) === JSON.stringify(notesProofPreimage)
+    && page.url() === primaryUrlBeforeNotesProof
+    && primaryClockAfterNotesProof > primaryClockBeforeNotesProof
+  notesNavigationOk = notesNavigationOk && teardownOk && notesProofErrors.length === 0
+  await notesProofPage.close()
+}
+
+console.log(
+  notesPendingOk
+    ? 'PASS: W1-P8 Notes reports Saving while the authority write is pending and Saved only after exact persistence'
+    : 'FAIL: W1-P8 pending Notes persistence truth',
+)
+console.log(
+  notesRecoveryOk
+    ? 'PASS: W1-P8 rejected Notes retains the latest draft with accessible Error and keyboard Retry across compact and large viewports'
+    : 'FAIL: W1-P8 rejected Notes recovery or accessibility',
+)
+console.log(
+  notesCloseArrangeOk
+    ? 'PASS: W1-P8 Escape and arrange entry await Notes persistence, retain failure interactivity, and restore focus after success'
+    : 'FAIL: W1-P8 Notes close or arrange persistence boundary',
+)
+console.log(
+  notesNavigationOk
+    ? 'PASS: W1-P8 current-tab Quick Link navigation warns while unsaved, retains a dismissed draft, and unblocks after Retry with exact teardown'
+    : `FAIL: W1-P8 current-tab navigation or teardown (${JSON.stringify({ notesProofErrors })})`,
+)
+
 // ── FocusLine round-check probe (Task 62 review, IMPORTANT 1) ──────────────
 // The completion check on the focus line only renders once a focus entry
 // exists for TODAY (FocusLine reads `focus` = { text, date: local YYYY-MM-DD,
