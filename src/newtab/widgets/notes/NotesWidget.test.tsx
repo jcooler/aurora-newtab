@@ -97,6 +97,7 @@ describe('NotesWidget', () => {
     expect(pill.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByRole('alert').textContent).toContain('Your note is still here')
     expect(textarea.value).toBe('Rejected draft')
+    expect(screen.getByRole('button', { name: 'Retry save' }).classList.contains('min-h-9')).toBe(true)
 
     fireEvent.change(textarea, { target: { value: 'Latest retry' } })
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Retry save' })) })

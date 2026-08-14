@@ -74,13 +74,13 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
       {notes.status === 'error' && (
         <div
           role="alert"
-          className="mx-3.5 mb-1 flex items-center justify-between gap-2 rounded border border-red-400/50 px-2 py-1 text-xs text-fg"
+          className="mx-3.5 mb-1 flex min-h-9 items-center justify-between gap-2 rounded border border-red-400/50 px-2 text-xs text-fg"
         >
           <span>Couldn’t save. Your note is still here.</span>
           <button
             type="button"
             onClick={() => void notes.retry()}
-            className="shrink-0 font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            className="min-h-9 shrink-0 px-2 font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent"
           >
             Retry save
           </button>

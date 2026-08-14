@@ -2576,8 +2576,13 @@ try {
       undefined,
       { timeout: 3_000 },
     ).catch(() => undefined)
+    await notesProofPage.close()
   }
   await page.evaluate(async (preimage) => {
+    // The disposable editor is already gone, so no unmount cleanup can be
+    // scheduled after this barrier. Drain any mutation it queued before
+    // close, then restore through the same authority-backed updater.
+    await navigator.locks.request('aurora:storage:mutation:v1', { mode: 'exclusive' }, () => undefined)
     await globalThis.__auroraStorageHarness.update('notes', () => preimage.notes)
     await globalThis.__auroraStorageHarness.update('settings', () => preimage.settings)
     await globalThis.__auroraStorageHarness.update('links', () => preimage.links)
@@ -2589,8 +2594,8 @@ try {
   const teardownOk = JSON.stringify(restored) === JSON.stringify(notesProofPreimage)
     && page.url() === primaryUrlBeforeNotesProof
     && primaryClockAfterNotesProof > primaryClockBeforeNotesProof
+    && notesProofPage.isClosed()
   notesNavigationOk = notesNavigationOk && teardownOk && notesProofErrors.length === 0
-  await notesProofPage.close()
 }
 
 console.log(
