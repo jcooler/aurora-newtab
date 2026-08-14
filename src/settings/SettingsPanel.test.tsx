@@ -64,7 +64,7 @@ vi.mock('../services/permissions', async (importActual) => {
   })
   return { ...actual, ensureOrigin, removeOrigin: vi.fn(), ensureOrigins }
 })
-import { ensureOrigin, ensureOrigins, removeOrigin } from '../services/permissions'
+import { ensureOrigin, ensureOrigins, originPattern, removeOrigin } from '../services/permissions'
 import { initializePermissionMirror } from '../services/permissionMirror'
 
 // The GitHub connector card's connect flow calls whoamiGithub (a real network
@@ -151,6 +151,11 @@ async function removeHeldOrigin(pattern: string): Promise<boolean> {
   const removed = cleanupHeld.delete(pattern)
   if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins: [pattern] }))
   return removed
+}
+
+function holdOrigin(pattern: string) {
+  cleanupHeld.add(pattern)
+  cleanupAddedListeners.forEach((listener) => listener({ origins: [pattern] }))
 }
 
 beforeAll(async () => {
@@ -1777,7 +1782,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/rss')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://news.ycombinator.com/*')
     expect((await readRss(storage))?.feeds).toEqual(['https://news.ycombinator.com/rss'])
     expect(screen.queryByRole('alert')).toBeNull()
     expect(input.value).toBe('') // form resets on success
@@ -1798,6 +1803,76 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBeTruthy()
     expect((await readRss(storage))?.feeds).toEqual([])
+  })
+
+  it('rolls back a newly acquired RSS origin when persisting the feed rejects', async () => {
+    const url = 'https://rollback-rss.example.com/feed.xml'
+    const origin = 'https://rollback-rss.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect((await readRss(storage))?.feeds).toEqual([])
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing RSS grant when its persistence write rejects', async () => {
+    const url = 'https://preexisting-rss.example.com/feed.xml'
+    const origin = 'https://preexisting-rss.example.com/*'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a concurrently duplicated RSS add without rolling back the now-configured owner', async () => {
+    const url = 'https://concurrent-rss.example.com/feed.xml'
+    const origin = 'https://concurrent-rss.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({ rss: { enabled: true, feeds: [url], shownCount: 5 } } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect((await readRss(storage))?.feeds).toEqual([url])
+    expect((await screen.findByRole('alert')).textContent).toBe('That feed is already in the list.')
   })
 
   it('a non-https URL is rejected with an alert and ensureOrigin is never called (validation is load-bearing)', async () => {
@@ -1842,11 +1917,11 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove https://other.com/feed' }))
     })
-    expect(removeOrigin).toHaveBeenCalledWith('https://other.com/feed')
+    expect(removeOrigin).toHaveBeenCalledWith('https://other.com/*')
     expect((await readRss(storage))?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
-  it('two same-origin removes racing before a re-render still revoke the origin exactly once', async () => {
+  it('two same-origin removes racing before a re-render leave no grant behind, even when the second remove verifies absence', async () => {
     // The leak this covers: `remaining` used to come from the render-time
     // feeds prop, so two removals clicked before React re-rendered each saw
     // the OTHER feed still present and neither revoked — a permanent grant
@@ -1866,8 +1941,55 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     })
 
     expect((await readRss(storage))?.feeds).toEqual([])
-    expect(removeOrigin).toHaveBeenCalledTimes(1)
-    expect(removeOrigin).toHaveBeenCalledWith('https://example.com/feed-b')
+    expect(removeOrigin).toHaveBeenCalledTimes(2)
+    expect(removeOrigin).toHaveBeenCalledWith('https://example.com/*')
+  })
+
+  it('withholds an RSS revoke while a disabled Status config still owns the same origin', async () => {
+    const url = 'https://shared-rss-status.example.com/feed.xml'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      rss: { enabled: true, feeds: [url], shownCount: 5 },
+      status: {
+        enabled: false,
+        services: [{ name: 'Shared', url: 'https://shared-rss-status.example.com/api/v2/status.json' }],
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('withholds the RSS API origin while APOD owns it', async () => {
+    const url = 'https://api.nasa.gov/planetary/apod'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { rss: { enabled: true, feeds: [url], shownCount: 5 } })
+    await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
   })
 
   it('shownCount is a 3–8 select that persists the chosen value', async () => {
@@ -2840,7 +2962,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/api/v3/')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toEqual({
       enabled: true,
       coins: ['bitcoin', 'ethereum', 'dogecoin'],
@@ -2913,6 +3035,54 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect((await readCrypto(storage))?.coins).toEqual([])
   })
 
+  it('rolls back a newly acquired CoinGecko origin when the crypto save rejects', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'bitcoin, ethereum' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: [] })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing CoinGecko grant when the crypto save rejects', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
+        target: { value: 'bitcoin, ethereum' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
   it('when already configured, the input shows the current ids joined', async () => {
     await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
     expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
@@ -2931,6 +3101,58 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     // origin, claimed by no other enabled connector).
     expect(removeOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toBeUndefined()
+  })
+
+  it('withholds Crypto clear revocation while a disabled descriptor config owns CoinGecko', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      crypto: { enabled: true, coins: ['bitcoin', 'ethereum'] },
+      gitlab: {
+        enabled: false,
+        token: 'glpat-live',
+        username: 'octocat',
+        instanceUrl: 'https://api.coingecko.com',
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect((await storage.get('connectors')).crypto).toBeUndefined()
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed Crypto clear release in the Settings-level retry surface after its body unmounts', async () => {
+    const origin = 'https://api.coingecko.com/*'
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect(await readCrypto(storage)).toBeUndefined()
+    expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
   })
 
   it('the Clear button is absent when no coins are configured yet', async () => {
@@ -3031,7 +3253,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith('https://p57-caldav.icloud.com/published/2/abc')
+    expect(ensureOrigin).toHaveBeenCalledWith('https://p57-caldav.icloud.com/*')
     expect(await readIcs(storage)).toEqual({
       enabled: true,
       calendars: [{ name: 'Personal', url: 'https://p57-caldav.icloud.com/published/2/abc' }],
@@ -3136,6 +3358,83 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     expect(await readIcs(storage)).toEqual({ enabled: true })
   })
 
+  it('rolls back a newly acquired calendar origin when the list write rejects', async () => {
+    const origin = 'https://rollback-ics.example.com/*'
+    const url = 'https://rollback-ics.example.com/private.ics'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithIcs({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readIcs(storage)).toEqual({ enabled: true })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing calendar origin when the list write rejects', async () => {
+    const origin = 'https://preexisting-ics.example.com/*'
+    const url = 'https://preexisting-ics.example.com/private.ics'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithIcs({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a calendar add whose authoritative updater finds a concurrent cap, rolls back its grant, and leaves the snapshot intact', async () => {
+    const url = 'https://concurrent-ics.example.com/private.ics'
+    const origin = 'https://concurrent-ics.example.com/*'
+    const full = Array.from({ length: 5 }, (_, i) => ({
+      name: `Concurrent ${i + 1}`,
+      url: `https://calendar-${i}.example.com/private.ics`,
+    }))
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithIcs({ enabled: true }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({ ics: { enabled: true, calendars: full } } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Secret calendar address (ICS URL)'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect((await readIcs(storage))?.calendars).toEqual(full)
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/Up to 5 calendars/i)
+  })
+
   it('a configured list shows each name, host, a dot colored by list position, and a per-row Remove button', async () => {
     await renderWithIcs({
       enabled: true,
@@ -3184,6 +3483,52 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     })
     expect(removeOrigin).toHaveBeenCalledWith('https://calendar.example.com/*')
     expect((await readIcs(storage))?.calendars).toEqual([])
+  })
+
+  it('withholds a Calendar revoke while a disabled Home Assistant config owns the same origin', async () => {
+    const url = 'https://shared-calendar-ha.example.com/private.ics'
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      ics: { enabled: true, calendars: [{ name: 'Shared', url }] },
+      homeassistant: {
+        enabled: false,
+        instanceUrl: 'https://shared-calendar-ha.example.com',
+        token: 'ha-live',
+        locationName: 'House',
+      },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Shared' }))
+    })
+
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('still attempts final-owner release when clearing the removed calendar snapshot rejects', async () => {
+    const url = 'https://snapshot-failure-ics.example.com/private.ics'
+    const storage = await renderWithIcs({ enabled: true, calendars: [{ name: 'Personal', url }] }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectorSnapshots') return Promise.reject(new Error('cache write failed'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([])
+    expect(removeOrigin).toHaveBeenCalledWith('https://snapshot-failure-ics.example.com/*')
+    expect((await screen.findByRole('alert')).textContent).toMatch(/cached events could not be cleared/i)
   })
 
   it('a legacy single-url config (pre-migration) surfaces as one calendar named "Calendar"', async () => {
@@ -3427,7 +3772,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
       fireEvent.change(screen.getByLabelText('Add a service'), { target: { value: GITHUB.url } })
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(GITHUB.url)
+    expect(ensureOrigin).toHaveBeenCalledWith(originPattern(GITHUB.url))
     expect(await readStatus(storage)).toEqual({
       enabled: true,
       services: [{ name: GITHUB.name, url: GITHUB.url }],
@@ -3445,7 +3790,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
       fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
     })
 
-    expect(ensureOrigin).toHaveBeenCalledWith(CUSTOM_URL)
+    expect(ensureOrigin).toHaveBeenCalledWith(originPattern(CUSTOM_URL))
     expect(await readStatus(storage)).toEqual({
       enabled: true,
       services: [{ name: 'My API', url: CUSTOM_URL }],
@@ -3478,6 +3823,131 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toBe('Enter a status page URL that starts with https://')
     expect(await readStatus(storage)).toEqual({ enabled: true })
+  })
+
+  it('rolls back a newly acquired Status origin when the service list write rejects', async () => {
+    const origin = 'https://rollback-status.example.com/*'
+    const url = 'https://rollback-status.example.com/api/v2/status.json'
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(await readStatus(storage)).toEqual({ enabled: true })
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
+  })
+
+  it('preserves a pre-existing Status origin when the service list write rejects', async () => {
+    const origin = 'https://preexisting-status.example.com/*'
+    const url = 'https://preexisting-status.example.com/api/v2/status.json'
+    holdOrigin(origin)
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(removeOrigin).not.toHaveBeenCalled()
+  })
+
+  it('aborts a concurrently duplicated Status add without rolling back the now-configured service', async () => {
+    const url = 'https://concurrent-status.example.com/api/v2/status.json'
+    const origin = 'https://concurrent-status.example.com/*'
+    vi.mocked(ensureOrigin).mockImplementation(async (requested) => {
+      holdOrigin(originPattern(requested))
+      return true
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((_key: unknown, fn: unknown) =>
+      update('connectors', () =>
+        (fn as (value: never) => never)({
+          status: { enabled: true, services: [{ name: 'Concurrent', url }] },
+        } as never),
+      )
+    ) as unknown as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: url } })
+      fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect((await readStatus(storage))?.services).toEqual([{ name: 'Concurrent', url }])
+    expect((await screen.findByRole('alert')).textContent).toBe('That service is already in the list.')
+  })
+
+  it('issues permission requests before the lifecycle owner write for both curated and custom Status gestures', async () => {
+    const phases: string[] = []
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: LockOptions, work: () => Promise<unknown>) => {
+          phases.push('lock queued')
+          return work()
+        },
+      },
+    })
+    const storage = await renderWithStatus({ enabled: true })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') phases.push('owner write')
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    try {
+      let resolveCurated!: (granted: boolean) => void
+      vi.mocked(ensureOrigin).mockImplementation((requested) => {
+        phases.push(`request ${requested}`)
+        return new Promise<boolean>((resolve) => { resolveCurated = resolve })
+      })
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Add a service'), { target: { value: GITHUB.url } })
+      })
+      expect(phases).toEqual(['lock queued', `request ${originPattern(GITHUB.url)}`])
+      await act(async () => {
+        resolveCurated(true)
+      })
+
+      phases.length = 0
+      let resolveCustom!: (granted: boolean) => void
+      vi.mocked(ensureOrigin).mockImplementation((requested) => {
+        phases.push(`request ${requested}`)
+        return new Promise<boolean>((resolve) => { resolveCustom = resolve })
+      })
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Status page URL'), { target: { value: CUSTOM_URL } })
+        fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+      })
+      expect(phases).toEqual(['lock queued', `request ${originPattern(CUSTOM_URL)}`])
+      await act(async () => {
+        resolveCustom(true)
+      })
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
   })
 
   it('a custom url matching an already-configured curated entry is rejected as a duplicate (curated/custom collision on url)', async () => {
@@ -3578,6 +4048,24 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     })
     expect(removeOrigin).toHaveBeenCalledWith('https://status.example.com/*')
     expect((await readStatus(storage))?.services).toEqual([])
+  })
+
+  it('still attempts final-owner release when clearing the removed Status snapshot rejects', async () => {
+    const url = 'https://snapshot-failure-status.example.com/api/v2/status.json'
+    const storage = await renderWithStatus({ enabled: true, services: [{ name: 'Personal', url }] }, true)
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectorSnapshots') return Promise.reject(new Error('cache write failed'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Remove Personal' }))
+    })
+
+    expect((await readStatus(storage))?.services).toEqual([])
+    expect(removeOrigin).toHaveBeenCalledWith('https://snapshot-failure-status.example.com/*')
+    expect((await screen.findByRole('alert')).textContent).toMatch(/cached service statuses could not be cleared/i)
   })
 
   it('adding a service clears the cached status snapshot', async () => {

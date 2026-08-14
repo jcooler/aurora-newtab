@@ -3,7 +3,7 @@ import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
-import { CONNECTORS, getConnector, releasableOrigins } from '../../services/connectors/registry'
+import { CONNECTORS, getConnector } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
@@ -22,8 +22,12 @@ import {
   type HaState,
   type HomeAssistantConfig,
 } from '../../services/connectors/homeassistant'
-import { canonicalOriginPatterns, ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
-import { runOriginTransaction } from '../../services/permissionTransactions'
+import { canonicalOriginPatterns, originPattern } from '../../services/permissions'
+import {
+  releaseUnownedOrigins,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
 import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
 import EntityPickerDialog from './EntityPickerDialog'
@@ -45,7 +49,7 @@ interface BodyProps {
   reportPendingCleanup(patterns: readonly string[]): void
 }
 
-type TokenConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant'
+type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto'
 
 function canonicalCandidates(candidates: readonly string[]): string[] {
   const canonical = new Set<string>()
@@ -60,26 +64,48 @@ function canonicalCandidates(candidates: readonly string[]): string[] {
   return [...canonical]
 }
 
+function descriptorCandidates(id: ConnectorId, config: ConnectorConfig): string[] {
+  const descriptor = getConnector(id)
+  if (!descriptor) return []
+  try {
+    return canonicalCandidates(descriptor.origins(config))
+  } catch {
+    return []
+  }
+}
+
+function reportTransactionCleanup<T>(
+  transaction: OriginTransactionResult<T>,
+  reportPendingCleanup: (patterns: readonly string[]) => void,
+) {
+  if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+    reportPendingCleanup(transaction.pendingCleanup)
+  }
+}
+
+function transactionError<T>(
+  transaction: OriginTransactionResult<T>,
+  deniedMessage: string,
+): string | null {
+  if (transaction.status === 'committed') return null
+  if (transaction.status === 'aborted') return transaction.message
+  if (transaction.status === 'denied' || transaction.status === 'access-lost') return deniedMessage
+  return "Couldn't save that connection. Please try again."
+}
+
 /** Captures origin candidates from the exact config value removed by the
  * authoritative update, never from render-time props or a separate read.
  * The empty-origin transaction is deliberately permission-free: it only puts
  * the owner mutation into the same lifecycle authority used by its subsequent
  * release in TokenConnectForm. */
-async function disconnectTokenConnector(storage: AuroraStorage, id: TokenConnectorId): Promise<string[]> {
+async function disconnectTokenConnector(storage: AuroraStorage, id: DisconnectableConnectorId): Promise<string[]> {
   let candidates: string[] = []
   const transaction = await runOriginTransaction(storage, [], async () => {
     await storage.update('connectors', (prev) => {
       const removed = prev[id]
       const next = { ...prev }
       delete next[id]
-      const descriptor = getConnector(id)
-      if (removed && descriptor) {
-        try {
-          candidates = canonicalCandidates(descriptor.origins(removed))
-        } catch {
-          candidates = []
-        }
-      }
+      if (removed) candidates = descriptorCandidates(id, removed)
       return next
     })
     return { ok: true as const, value: undefined, ownerCommitted: true as const }
@@ -103,20 +129,6 @@ export function authState(
   if (!identity) return 'unconfigured'
   const secretMissing = descriptor.secretFields.every((f) => !config?.[f])
   return secretMissing ? 'reconnect' : 'connected'
-}
-
-/** The origin match pattern for a URL, or null if it can't be derived
- *  (non-https / unparseable). Two call sites: RssBody's remove-feed handler
- *  (deciding whether a REMAINING feed still claims the origin of a feed
- *  being removed) and IcsBody's save handler (deciding whether a save-over-
- *  save actually changed the origin) — in both, a bad entry simply doesn't
- *  count as sharing/matching, so it never throws out of the caller. */
-function originOf(url: string): string | null {
-  try {
-    return originPattern(url)
-  } catch {
-    return null
-  }
 }
 
 /** The Connectors tab body: one card per registered connector, under a search
@@ -327,7 +339,7 @@ function ConnectorCard({
   )
 }
 
-function RssBody({ config, storage }: BodyProps) {
+function RssBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // BodyProps.config is the generic ConnectorConfig union (BODY_COMPONENTS is
   // shared across every connector id); this component is registered only
   // under 'rss', so it is always RssConfig at runtime — one documented
@@ -343,10 +355,11 @@ function RssBody({ config, storage }: BodyProps) {
   const atCap = feeds.length >= MAX_FEEDS
 
   const updateRss = (fn: (rss: RssConfig) => RssConfig) =>
-    storage.update('connectors', (prev) => ({
-      ...prev,
-      rss: fn({ ...RSS_DEFAULT, ...prev.rss }),
-    }))
+    storage.update('connectors', (prev) => {
+      const current = { ...RSS_DEFAULT, ...prev.rss } as RssConfig
+      const next = fn(current)
+      return next === current ? prev : { ...prev, rss: next }
+    })
 
   async function handleAddFeed(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -373,42 +386,68 @@ function RssBody({ config, storage }: BodyProps) {
     }
     if (atCap) return // guarded by the disabled input/button too; belt and braces
 
-    // The gesture chain: ensureOrigin (→ chrome.permissions.request) is the
-    // FIRST await in this handler, with ZERO awaits ahead of it. Denied (or a
-    // rejected request) → the feed is not added and an alert explains why.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(url)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that site was denied, so the feed was not added.')
+    // `runOriginTransaction` starts chrome.permissions.request before its
+    // first await and keeps the owner write plus any rollback under the shared
+    // origin lifecycle authority.
+    const transaction = await runOriginTransaction(storage, [url], async () => {
+      let ownerCommitted = false
+      await updateRss((current) => {
+        if (current.feeds.includes(url) || current.feeds.length >= MAX_FEEDS) return current
+        ownerCommitted = true
+        return { ...current, feeds: [...current.feeds, url] }
+      })
+      if (!ownerCommitted) {
+        return {
+          ok: false as const,
+          message: 'That feed is already in the list.',
+        }
+      }
+      return { ok: true as const, value: undefined, ownerCommitted: true as const }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that site was denied, so the feed was not added.',
+    )
+    if (transactionMessage) {
+      setError(transactionMessage)
       return
     }
 
-    await updateRss((rss) => (rss.feeds.includes(url) ? rss : { ...rss, feeds: [...rss.feeds, url] }))
     setNewFeed('')
     setError(null)
   }
 
   async function handleRemoveFeed(url: string) {
-    // Survivors come from the WRITE's result, never the render-time `feeds`
-    // prop: two same-origin removals landing before a re-render would each
-    // see the other still present in the stale prop and NEITHER would
-    // revoke — a permanent grant leak PRIVACY.md's "released automatically"
-    // promise doesn't allow. storage.update serializes per-key and returns
-    // the post-write value, so the second removal always sees the first's.
-    const next = await updateRss((rss) => ({ ...rss, feeds: rss.feeds.filter((f) => f !== url) }))
-    // Same narrowing as the ConnectorCard call site above: next.rss is
-    // ConnectorConfig-typed post-union, but updateRss only ever writes RssConfig.
-    const remaining = (next.rss as RssConfig | undefined)?.feeds ?? []
-    // Revoke the origin only when this was its last user — another feed on the
-    // same site still needs the grant. originOf swallows bad entries so they
-    // don't count as sharing (and don't crash the sweep).
-    const origin = originOf(url)
-    const stillUsed = origin !== null && remaining.some((f) => originOf(f) === origin)
-    if (!stillUsed) await removeOrigin(url)
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const current = { ...RSS_DEFAULT, ...prev.rss } as RssConfig
+        if (!current.feeds.includes(url)) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('rss', { ...current, feeds: [url] })
+        return {
+          ...prev,
+          rss: { ...current, feeds: current.feeds.filter((feed) => feed !== url) },
+        }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That feed is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that site was denied, so the feed was not removed.')!)
+      return
+    }
+
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (candidates.length > 0) reportPendingCleanup(candidates)
+    }
   }
 
   return (
@@ -1026,7 +1065,7 @@ function parseCoinIds(raw: string): string[] {
 // neither of which a no-auth connector has), just one labelled text input
 // (CoinGecko ids, comma-separated) and a Save button, closest in spirit to
 // RssBody's own handleAddFeed above.
-function CryptoBody({ config, storage }: BodyProps) {
+function CryptoBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'crypto', so it is always
@@ -1062,26 +1101,26 @@ function CryptoBody({ config, storage }: BodyProps) {
 
     setSaving(true)
     try {
-      // ensureOrigin -> chrome.permissions.request is the first await, per
-      // the comment above.
-      let granted: boolean
-      try {
-        granted = await ensureOrigin(CRYPTO_ORIGIN_URL)
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        setError('Permission to read CoinGecko was denied, so nothing was saved.')
+      const transaction = await runOriginTransaction(storage, [CRYPTO_ORIGIN_URL], async () => {
+        // Replace the whole crypto config (dropping any stray cruft the
+        // generic enable-toggle's `{}` seed left) with exactly the connector's
+        // two fields.
+        await storage.update('connectors', (prev) => ({
+          ...prev,
+          crypto: { enabled: true, coins: ids },
+        }))
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+      reportTransactionCleanup(transaction, reportPendingCleanup)
+      const transactionMessage = transactionError(
+        transaction,
+        'Permission to read CoinGecko was denied, so nothing was saved.',
+      )
+      if (transactionMessage) {
+        setError(transactionMessage)
         return
       }
 
-      // Replace the whole crypto config (dropping any stray cruft the
-      // generic enable-toggle's `{}` seed left) with exactly the connector's
-      // two fields.
-      await storage.update('connectors', (prev) => ({
-        ...prev,
-        crypto: { enabled: true, coins: ids },
-      }))
       setValue(ids.join(', '))
     } finally {
       setSaving(false)
@@ -1089,22 +1128,17 @@ function CryptoBody({ config, storage }: BodyProps) {
   }
 
   async function handleClear() {
-    // Compute what's safe to revoke BEFORE clearing the config (releasable-
-    // Origins needs crypto's own config present to derive its origins), then
-    // drop the entry entirely and revoke each released origin — mirrors the
-    // token connector bodies' own onDisconnect above (GithubBody et al.),
-    // even though crypto has no token to forget: api.coingecko.com is
-    // crypto's alone today, so this always releases it.
-    const current = await storage.get('connectors')
-    const releasable = releasableOrigins('crypto', current)
-    await storage.update('connectors', (prev) => {
-      const next = { ...prev }
-      delete next.crypto
-      return next
-    })
+    // Crypto has no token, but its teardown is the same descriptor-derived
+    // owner mutation as a token connector's Disconnect path.
+    const candidates = await disconnectTokenConnector(storage, 'crypto')
     setValue('')
     setError(null)
-    await Promise.all(releasable.map((origin) => removeOrigin(origin)))
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (candidates.length > 0) reportPendingCleanup(candidates)
+    }
   }
 
   return (
@@ -1161,8 +1195,8 @@ function CryptoBody({ config, storage }: BodyProps) {
 // CryptoBody's single Save/Clear form — but keeps the origin semantics that
 // made ics distinct from rss to begin with: each entry's origin is DERIVED
 // from its own url (like GitlabBody's instanceUrl / JiraBody's site) via the
-// same originPattern() the descriptor's own origins() and ensureOrigin()
-// both call, and removal is share-aware exactly like RssBody's
+// same originPattern() the descriptor's own origins() and transaction
+// acquisition both call, and removal is share-aware exactly like RssBody's
 // handleRemoveFeed — now doubly so, since two calendars in THIS card can
 // share a host (two paths under the same iCloud account, say) the same way
 // two rss feeds can share one. The url field stays `type="password"` (the
@@ -1186,7 +1220,7 @@ function hostOf(url: string): string {
   }
 }
 
-function IcsBody({ config, storage }: BodyProps) {
+function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'ics', so it is always IcsConfig at
@@ -1212,24 +1246,31 @@ function IcsBody({ config, storage }: BodyProps) {
   // view/upcomingCount: a write that doesn't touch it (add/remove, or a view
   // change) still carries the CURRENT effective value forward rather than
   // dropping it.
+  const icsConfig = (
+    previous: IcsConfig | undefined,
+    nextCalendars: IcsCalendar[],
+    patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount' | 'meetLinks'>>,
+  ): IcsConfig => {
+    const v = icsViewOf(previous)
+    return {
+      enabled: true,
+      calendars: nextCalendars,
+      view: v.view,
+      upcomingCount: v.upcomingCount,
+      meetLinks: v.meetLinks,
+      ...patch,
+    }
+  }
+
   const updateIcs = (
     fn: (cals: IcsCalendar[]) => IcsCalendar[],
     patch?: Partial<Pick<IcsConfig, 'view' | 'upcomingCount' | 'meetLinks'>>,
   ) =>
     storage.update('connectors', (prev) => {
-      const prevIcs = prev.ics as IcsConfig | undefined
-      const v = icsViewOf(prevIcs)
-      return {
-        ...prev,
-        ics: {
-          enabled: true,
-          calendars: fn(icsCalendarsOf(prevIcs)),
-          view: v.view,
-          upcomingCount: v.upcomingCount,
-          meetLinks: v.meetLinks,
-          ...patch,
-        },
-      }
+      const previous = prev.ics as IcsConfig | undefined
+      const current = icsCalendarsOf(previous)
+      const next = fn(current)
+      return next === current && !patch ? prev : { ...prev, ics: icsConfig(previous, next, patch) }
     })
 
   // WHY: CalendarWidget.tsx's own gate remounts CalendarInner on every
@@ -1259,7 +1300,7 @@ function IcsBody({ config, storage }: BodyProps) {
     // webcal:// is an https ICS feed behind a different scheme — normalize
     // BEFORE validation, case-insensitively, so a link pasted straight from
     // Apple Calendar just works. Synchronous, same load-bearing boundary as
-    // every other body's own handler above: ensureOrigin below must be the
+    // every other body's own handler above: the transaction below must be the
     // FIRST await, with ZERO awaits ahead of it.
     const normalized = url.trim().replace(/^webcal:\/\//i, 'https://')
     try {
@@ -1276,57 +1317,88 @@ function IcsBody({ config, storage }: BodyProps) {
     }
     if (atCap) return // guarded by the disabled inputs/button too; belt and braces
 
-    // ensureOrigin -> chrome.permissions.request is the first await, per the
-    // comment above.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(normalized)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that calendar was denied, so nothing was saved.')
+    // The transaction invokes chrome.permissions.request before this handler's
+    // first await, per the comment above.
+    const trimmedName = name.trim()
+    const transaction = await runOriginTransaction(storage, [normalized], async () => {
+      let ownerCommitted = false
+      let abortMessage = 'That calendar is already in the list.'
+      await updateIcs((cals) => {
+        // Re-checked HERE (not just the disabled inputs/button, and not just
+        // the `atCap` closed over from render): two rapid submits before a
+        // re-render both read the same stale `atCap`, so without re-deriving
+        // the cap against THIS write's own `cals` a double-submit could push
+        // past MAX_CALENDARS. Belt and braces with icsCalendarsOf's own
+        // .slice(0, MAX_CALENDARS) (ics.ts) — that one guards hand-edited
+        // storage, this one guards the write path itself.
+        if (cals.some((c) => c.url === normalized)) return cals
+        if (cals.length >= MAX_CALENDARS) {
+          abortMessage = `Up to ${MAX_CALENDARS} calendars. Remove one to add another.`
+          return cals
+        }
+        ownerCommitted = true
+        return [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }]
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: abortMessage }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that calendar was denied, so nothing was saved.',
+    )
+    if (transactionMessage) {
+      setError(transactionMessage)
       return
     }
-
-    const trimmedName = name.trim()
-    await updateIcs((cals) =>
-      // Re-checked HERE (not just the disabled inputs/button, and not just
-      // the `atCap` closed over from render): two rapid submits before a
-      // re-render both read the same stale `atCap`, so without re-deriving
-      // the cap against THIS write's own `cals` a double-submit could push
-      // past MAX_CALENDARS. Belt and braces with icsCalendarsOf's own
-      // .slice(0, MAX_CALENDARS) (ics.ts) — that one guards hand-edited
-      // storage, this one guards the write path itself.
-      cals.some((c) => c.url === normalized) || cals.length >= MAX_CALENDARS
-        ? cals
-        : [...cals, { name: trimmedName || `Calendar ${cals.length + 1}`, url: normalized }],
-    )
-    await clearIcsSnapshot()
     setName('')
     setUrl('')
+    try {
+      await clearIcsSnapshot()
+    } catch {
+      setError('The calendar was saved, but its cached events could not be cleared.')
+    }
   }
 
   async function handleRemove(target: string) {
-    // Pre-removal record: the cross-connector sharing check below
-    // (releasableOrigins) needs ics's own config as it stood BEFORE this
-    // removal. Survivors come from the WRITE's result, never the render-time
-    // `calendars` prop — same two-removals-before-rerender discipline
-    // RssBody's handleRemoveFeed documents above: storage.update serializes
-    // per-key and returns the post-write value, so a second removal clicked
-    // before a re-render still sees the first's result, not a stale one.
-    const before = await storage.get('connectors')
-    const next = await updateIcs((cals) => cals.filter((c) => c.url !== target))
-    // Clear BEFORE the origin early-return below (a bad/unparseable url
-    // still removes its calendar from the list, and its stale cal-indexed
-    // events must not linger regardless of whether an origin can be
-    // derived from it) — see clearIcsSnapshot's own doc comment above.
-    await clearIcsSnapshot()
-    const origin = originOf(target)
-    if (!origin) return
-    const remaining = icsCalendarsOf(next.ics as IcsConfig | undefined)
-    const stillUsed = remaining.some((c) => originOf(c.url) === origin)
-    if (!stillUsed && releasableOrigins('ics', before).includes(origin)) await removeOrigin(origin)
+    // The removed row's descriptor-derived candidate is captured inside the
+    // authoritative owner write. The global release runs only afterwards.
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const previous = prev.ics as IcsConfig | undefined
+        const current = icsCalendarsOf(previous)
+        const removed = current.find((calendar) => calendar.url === target)
+        if (!removed) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('ics', icsConfig(previous, [removed]))
+        return { ...prev, ics: icsConfig(previous, current.filter((calendar) => calendar.url !== target)) }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That calendar is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that calendar was not removed.')!)
+      return
+    }
+    // Cache invalidation and permission release are intentionally independent:
+    // either failure must not suppress the other completed operation.
+    const [snapshot, release] = await Promise.allSettled([
+      clearIcsSnapshot(),
+      releaseUnownedOrigins(storage, candidates),
+    ])
+    if (snapshot.status === 'rejected') {
+      setError('The calendar was removed, but its cached events could not be cleared.')
+    }
+    if (release.status === 'fulfilled') {
+      if (release.value.pending.length > 0) reportPendingCleanup(release.value.pending)
+    } else if (candidates.length > 0) {
+      reportPendingCleanup(candidates)
+    }
   }
 
   return (
@@ -1516,7 +1588,7 @@ function IcsBody({ config, storage }: BodyProps) {
 // today (handleCuratedPick below, handleCustomAdd further down), and the
 // flip touches only which of them the select's own choice feeds through, not
 // addService itself.
-function StatusBody({ config, storage }: BodyProps) {
+function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'status', so it is always
@@ -1537,10 +1609,11 @@ function StatusBody({ config, storage }: BodyProps) {
   // serializes per key and hands each call the prior call's own result, so a
   // second write queued before a re-render still sees the first's effect.
   const updateStatus = (fn: (services: StatusService[]) => StatusService[]) =>
-    storage.update('connectors', (prev) => ({
-      ...prev,
-      status: { enabled: true, services: fn(statusServicesOf(prev.status as StatusConfig | undefined)) },
-    }))
+    storage.update('connectors', (prev) => {
+      const current = statusServicesOf(prev.status as StatusConfig | undefined)
+      const next = fn(current)
+      return next === current ? prev : { ...prev, status: { enabled: true, services: next } }
+    })
 
   // THE PACT's settings-side helper, named identically to IcsBody's own
   // clearIcsSnapshot for the identical reason (see that function's doc
@@ -1557,8 +1630,8 @@ function StatusBody({ config, storage }: BodyProps) {
   // doc comment above): sync validate (originPattern, https-only) ->
   // duplicate check on the RESOLVED url (a curated pick and a custom entry
   // collide exactly like two custom entries would, since both are checked
-  // against the same `services` list by url) -> cap check -> ensureOrigin as
-  // the FIRST await -> persist -> clear the snapshot. Returns whether the add
+  // against the same `services` list by url) -> cap check -> transaction
+  // acquisition -> persist -> clear the snapshot. Returns whether the add
   // actually landed, so each call site can decide its OWN post-success
   // behavior (the custom form clears its two inputs; the curated select has
   // already reset itself before calling this, gesture or no).
@@ -1576,34 +1649,47 @@ function StatusBody({ config, storage }: BodyProps) {
     }
     if (atCap) return false // guarded by the disabled select/inputs/button too; belt and braces
 
-    // ensureOrigin -> chrome.permissions.request is the first await, per the
-    // comment above.
-    let granted: boolean
-    try {
-      granted = await ensureOrigin(rawUrl)
-    } catch {
-      granted = false
-    }
-    if (!granted) {
-      setError('Permission to read that status page was denied, so nothing was saved.')
-      return false
-    }
-
+    // The transaction invokes chrome.permissions.request before this handler's
+    // first await, per the comment above.
     const trimmedName = rawName.trim()
-    await updateStatus((svcs) =>
-      // Re-checked HERE (not just the disabled controls, and not just the
-      // `atCap`/`services` closed over from render) — same belt-and-braces
-      // re-derivation IcsBody's handleAdd documents for its own write.
-      svcs.some((s) => s.url === rawUrl) || svcs.length >= MAX_SERVICES
-        ? svcs
+    const transaction = await runOriginTransaction(storage, [rawUrl], async () => {
+      let ownerCommitted = false
+      let abortMessage = 'That service is already in the list.'
+      await updateStatus((svcs) => {
+        // Re-checked HERE (not just the disabled controls, and not just the
+        // `atCap`/`services` closed over from render) — same belt-and-braces
+        // re-derivation IcsBody's handleAdd documents for its own write.
+        if (svcs.some((s) => s.url === rawUrl)) return svcs
+        if (svcs.length >= MAX_SERVICES) {
+          abortMessage = `Up to ${MAX_SERVICES} services.`
+          return svcs
+        }
         // Empty name -> the url's host, NOT "Service N": unlike a calendar
         // (IcsBody's own "Calendar N" default), a status page's host IS
         // meaningful information (which service this actually is), so
         // falling back to it loses nothing a numbered placeholder would have
         // hidden anyway.
-        : [...svcs, { name: trimmedName || hostOf(rawUrl), url: rawUrl }],
+        ownerCommitted = true
+        return [...svcs, { name: trimmedName || hostOf(rawUrl), url: rawUrl }]
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: abortMessage }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    const transactionMessage = transactionError(
+      transaction,
+      'Permission to read that status page was denied, so nothing was saved.',
     )
-    await clearStatusSnapshot()
+    if (transactionMessage) {
+      setError(transactionMessage)
+      return false
+    }
+    try {
+      await clearStatusSnapshot()
+    } catch {
+      setError('The service was saved, but its cached service statuses could not be cleared.')
+    }
     return true
   }
 
@@ -1632,19 +1718,45 @@ function StatusBody({ config, storage }: BodyProps) {
   }
 
   async function handleRemove(target: string) {
-    // Same before-record / write-result-survivors / releasableOrigins
-    // discipline as IcsBody's handleRemove above (see its doc comment for the
-    // full rationale) — snapshot cleared before the origin-revoke early
-    // return, since a bad/unparseable url still removes its service from the
-    // list regardless of whether an origin can be derived from it.
-    const before = await storage.get('connectors')
-    const next = await updateStatus((svcs) => svcs.filter((s) => s.url !== target))
-    await clearStatusSnapshot()
-    const origin = originOf(target)
-    if (!origin) return
-    const remaining = statusServicesOf(next.status as StatusConfig | undefined)
-    const stillUsed = remaining.some((s) => originOf(s.url) === origin)
-    if (!stillUsed && releasableOrigins('status', before).includes(origin)) await removeOrigin(origin)
+    // The removed row's descriptor-derived candidate is captured inside the
+    // authoritative owner write; cache invalidation and release follow
+    // independently so neither failure suppresses the other.
+    let candidates: string[] = []
+    const transaction = await runOriginTransaction(storage, [], async () => {
+      let ownerCommitted = false
+      await storage.update('connectors', (prev) => {
+        const previous = prev.status as StatusConfig | undefined
+        const current = statusServicesOf(previous)
+        const removed = current.find((service) => service.url === target)
+        if (!removed) return prev
+        ownerCommitted = true
+        candidates = descriptorCandidates('status', { ...previous, enabled: true, services: [removed] })
+        return {
+          ...prev,
+          status: { enabled: true, services: current.filter((service) => service.url !== target) },
+        }
+      })
+      return ownerCommitted
+        ? { ok: true as const, value: undefined, ownerCommitted: true as const }
+        : { ok: false as const, message: 'That service is no longer in the list.' }
+    })
+    reportTransactionCleanup(transaction, reportPendingCleanup)
+    if (transaction.status !== 'committed') {
+      setError(transactionError(transaction, 'Permission to read that status page was not removed.')!)
+      return
+    }
+    const [snapshot, release] = await Promise.allSettled([
+      clearStatusSnapshot(),
+      releaseUnownedOrigins(storage, candidates),
+    ])
+    if (snapshot.status === 'rejected') {
+      setError('The service was removed, but its cached service statuses could not be cleared.')
+    }
+    if (release.status === 'fulfilled') {
+      if (release.value.pending.length > 0) reportPendingCleanup(release.value.pending)
+    } else if (candidates.length > 0) {
+      reportPendingCleanup(candidates)
+    }
   }
 
   return (
