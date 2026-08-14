@@ -125,9 +125,99 @@ await context.addInitScript(({ flagKey }) => {
   const failNextRemove = new Set()
   const deferredLifecycle = []
   let deferNextLifecycle = false
+  const initiatingEventTypes = new Set(['click', 'change', 'submit'])
+  const capturedInitiatingEvents = new WeakMap()
+  const listenerWrappers = new WeakMap()
+  let initiatingEventSequence = 0
+  let activeInitiatingEvent = null
+
+  const markInitiatingEvent = (event) => {
+    if (!event.isTrusted) return
+    const target = event.target instanceof Element ? event.target : null
+    const submitter = event instanceof SubmitEvent && event.submitter instanceof HTMLElement
+      ? event.submitter
+      : null
+    capturedInitiatingEvents.set(event, {
+      type: event.type,
+      trusted: true,
+      homeAssistantForm: event.type === 'submit' && target instanceof HTMLFormElement &&
+        !!target.closest('.rounded-xl')?.querySelector('#connector-homeassistant-enabled'),
+      submitterText: submitter?.textContent?.trim() ?? null,
+    })
+  }
+
+  const nativeAddEventListener = EventTarget.prototype.addEventListener
+  const nativeRemoveEventListener = EventTarget.prototype.removeEventListener
+  const captureOf = (options) => typeof options === 'boolean' ? options : !!options?.capture
+  const callListener = (listener, receiver, event) => typeof listener === 'function'
+    ? listener.call(receiver, event)
+    : listener.handleEvent(event)
+
+  // Chromium checkpoints microtasks between native event listeners. Capture
+  // therefore records trusted provenance in the WeakMap, while each later
+  // listener wrapper activates that exact event and queues its clear before
+  // product code runs. Synchronous product handlers see the marker; a first
+  // await continuation runs only after the marker-clear microtask.
+  Object.defineProperties(EventTarget.prototype, {
+    addEventListener: {
+      configurable: true,
+      writable: true,
+      value(type, listener, options) {
+        if (!initiatingEventTypes.has(type) || listener === null || listener === undefined) {
+          return nativeAddEventListener.call(this, type, listener, options)
+        }
+        const capture = captureOf(options)
+        let wrappers = listenerWrappers.get(listener)
+        if (!wrappers) {
+          wrappers = []
+          listenerWrappers.set(listener, wrappers)
+        }
+        let entry = wrappers.find((candidate) =>
+          candidate.target === this && candidate.type === type && candidate.capture === capture
+        )
+        if (!entry) {
+          const target = this
+          const wrapped = function(event) {
+            const evidence = capturedInitiatingEvents.get(event)
+            if (evidence) {
+              const sequence = ++initiatingEventSequence
+              activeInitiatingEvent = { ...evidence }
+              queueMicrotask(() => {
+                if (initiatingEventSequence === sequence) activeInitiatingEvent = null
+              })
+            }
+            return callListener(listener, this, event)
+          }
+          entry = { target, type, capture, wrapped }
+          wrappers.push(entry)
+        }
+        return nativeAddEventListener.call(this, type, entry.wrapped, options)
+      },
+    },
+    removeEventListener: {
+      configurable: true,
+      writable: true,
+      value(type, listener, options) {
+        if (!initiatingEventTypes.has(type) || listener === null || listener === undefined) {
+          return nativeRemoveEventListener.call(this, type, listener, options)
+        }
+        const capture = captureOf(options)
+        const entry = listenerWrappers.get(listener)?.find((candidate) =>
+          candidate.target === this && candidate.type === type && candidate.capture === capture
+        )
+        return nativeRemoveEventListener.call(this, type, entry?.wrapped ?? listener, options)
+      },
+    },
+  })
+
+  for (const type of initiatingEventTypes) {
+    nativeAddEventListener.call(document, type, markInitiatingEvent, true)
+  }
 
   const originsOf = (details) => Array.isArray(details?.origins) ? [...details.origins] : []
-  const record = (op, origins = []) => log.push({ sequence: log.length, op, origins: [...origins] })
+  const record = (op, origins = [], evidence = {}) => {
+    log.push({ sequence: log.length, op, origins: [...origins], ...evidence })
+  }
   const persist = () => sessionStorage.setItem(flagKey, JSON.stringify({ held: [...held] }))
   const emit = (listeners, op, origins) => {
     if (origins.length === 0) return
@@ -152,7 +242,9 @@ await context.addInitScript(({ flagKey }) => {
     },
     async request(details) {
       const origins = originsOf(details)
-      record('request', origins)
+      record('request', origins, {
+        initiatingEvent: activeInitiatingEvent ? { ...activeInitiatingEvent } : null,
+      })
       const added = origins.filter((origin) => !held.has(origin))
       for (const origin of added) held.add(origin)
       persist()
@@ -7929,12 +8021,15 @@ function gitlabContributionsFixture() {
       const queuedAt = beforeRelease.log.findIndex((entry) => entry.op === 'lifecycle-lock-queued')
       const requestAt = beforeRelease.log.findIndex((entry) => entry.op === 'request')
       const callbackAt = beforeRelease.log.findIndex((entry) => entry.op === 'lifecycle-lock-callback')
+      const requestEvent = beforeRelease.log[requestAt]?.initiatingEvent
       const requestOrderingOk =
-        queuedAt >= 0 && requestAt > queuedAt && callbackAt === -1 && beforeRelease.pendingLifecycle === 1
+        queuedAt >= 0 && requestAt > queuedAt && callbackAt === -1 && beforeRelease.pendingLifecycle === 1 &&
+        requestEvent?.trusted === true && requestEvent.type === 'submit' &&
+        requestEvent.homeAssistantForm === true && requestEvent.submitterText === 'Connect'
       console.log(
         requestOrderingOk
-          ? 'PASS: the initiating Connect control queued lifecycle authority, invoked the permission request in the same event, and did not start transaction work before the deferred lock callback'
-          : `FAIL: permission request/lifecycle ordering (${JSON.stringify(beforeRelease)})`,
+          ? 'PASS: the trusted Home Assistant form submit stayed active through the initiating Connect handler and permission request, before deferred lifecycle work started'
+          : `FAIL: permission request was not recorded inside the trusted Home Assistant form submit (${JSON.stringify(beforeRelease)})`,
       )
       await page.evaluate(() => globalThis.__auroraPermissionsHarnessControl.releaseLifecycle())
       await page.waitForFunction((pattern) => {
@@ -7966,18 +8061,39 @@ function gitlabContributionsFixture() {
       const addedEvent = await controlSnapshot()
       await clearPermissionLog()
       await page.click(`${haCard} button[type="submit"]`)
-      await page.waitForFunction((pattern) => {
+      await page.waitForFunction(({ card, message }) => {
+        const root = document.querySelector(card)
+        const alert = root?.querySelector('[role="alert"]')
+        const connect = [...(root?.querySelectorAll('button[type="submit"]') ?? [])]
+          .find((button) => button.textContent?.trim() === 'Connect')
+        return alert?.textContent?.trim() === message && !!connect && !connect.disabled
+      }, { card: haCard, message: 'Home Assistant rejected that token (a network error).' }, { timeout: 12_000 })
+      const preExistingHa = await page.evaluate(({ card, pattern }) => {
         const state = globalThis.__auroraPermissionsHarnessControl.snapshot()
-        return state.log.some((entry) => entry.op === 'contains' && entry.origins.includes(pattern)) &&
-          !state.log.some((entry) => entry.op === 'request')
-      }, HA_PATTERN, { timeout: 12_000 })
-      const preExistingHa = await controlSnapshot()
+        const root = document.querySelector(card)
+        const alert = root?.querySelector('[role="alert"]')
+        const connect = [...(root?.querySelectorAll('button[type="submit"]') ?? [])]
+          .find((button) => button.textContent?.trim() === 'Connect')
+        return chrome.storage.local.get('connectors').then(({ connectors }) => ({
+          config: connectors?.homeassistant,
+          state,
+          alertText: alert?.textContent?.trim() ?? null,
+          connectEnabled: !!connect && !connect.disabled,
+          pattern,
+        }))
+      }, { card: haCard, pattern: HA_PATTERN })
       console.log(
         addedEvent.log.some((entry) =>
           entry.op === 'onAdded' && entry.origins.length === 1 && entry.origins[0] === HA_PATTERN
-        ) && preExistingHa.held.includes(HA_PATTERN) &&
-          !preExistingHa.log.some((entry) => entry.op === 'request')
-          ? 'PASS: the same Home Assistant validation failure preserves a pre-existing adapter-held pattern and sends no redundant request'
+        ) && preExistingHa.state.held.includes(HA_PATTERN) &&
+          preExistingHa.state.log.some((entry) => entry.op === 'contains' && entry.origins.includes(HA_PATTERN)) &&
+          !preExistingHa.state.log.some((entry) => entry.op === 'request') &&
+          !preExistingHa.state.log.some((entry) => entry.op === 'remove' && entry.origins.includes(HA_PATTERN)) &&
+          preExistingHa.config?.enabled === true && !preExistingHa.config.instanceUrl &&
+          !preExistingHa.config.token && !preExistingHa.config.locationName &&
+          preExistingHa.alertText === 'Home Assistant rejected that token (a network error).' &&
+          preExistingHa.connectEnabled
+          ? 'PASS: after the real Home Assistant validation alert and re-enabled Connect control, the pre-existing adapter-held pattern remains, with no request, remove, or connection fields persisted'
           : `FAIL: pre-existing Home Assistant preservation (added=${JSON.stringify(addedEvent)}, after=${JSON.stringify(preExistingHa)})`,
       )
       await setHeld([])
