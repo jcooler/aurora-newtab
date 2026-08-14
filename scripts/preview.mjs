@@ -7439,9 +7439,10 @@ function gitlabContributionsFixture() {
 }
 
 // Home Assistant widget (homeassistant connector) — Task 103's own
-// browser-real proof of Tasks 99-102: the chip row's exact copy, the
-// three-button service-call tint (including its per-button isolation and its
-// auto-clear), and the anti-staleness null-entities gate. Modeled on the
+// browser-real proof of Tasks 99-102 plus W1-P5's action-safety contract: the
+// chip row's exact copy, native Enter/Space activation, pending/error feedback,
+// per-button isolation, retry quiescence, and the anti-staleness null-entities
+// gate. Modeled on the
 // crypto/status blocks' own seed -> assert -> restore shape, not on status's
 // own TWO-block split (widget band, then drawer): homeassistant has no
 // shared "band" of its own (it flows in col1's own stack — App.tsx's own
@@ -7544,74 +7545,240 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/ha-card.png` })
   console.log('captured ha-card.png (1600x1100 — the honest boundary for a `tallest`-gated card, same idiom as status-strip-dots-900.png\'s own note)')
 
-  // ── REAL click: per-button error tint, then auto-clear ─────────────────
+  // ── REAL keyboard activation: guarded pending, durable error, retry ─────
   // 'Porch plug' (switch domain -> switch.toggle) is the target; 'Movie
-  // night'/'Good morning' are the SIBLINGS this probe proves stay untouched —
-  // per-button state, not a shared one (Task 102 review-verified property,
-  // brief-pinned as worth its own assertion). The POST fails naturally
+  // night'/'Good morning' are the SIBLINGS this probe proves stay untouched.
+  // The POST fails naturally
   // headless: HA_INSTANCE_URL was seeded directly (THE FIXTURE LAW), never
   // granted through a real chrome.permissions gesture, so callHaService's own
   // try/catch (homeassistant.ts) resolves false — no live instance, no
   // network stub, nothing faked. Polls rather than guessing a fixed wait: the
   // failure's own timing is honestly unpredictable (a fast CORS/permission
-  // block, or the full 8s FETCH_TIMEOUT_MS abort — http.ts), and each poll
-  // snapshots the TWO siblings' tint at the SAME instant the target actually
-  // shows error, so the isolation claim below is checked at the moment that
-  // matters, not some other one.
+  // block, or the full 8s FETCH_TIMEOUT_MS abort — http.ts). Enter starts the
+  // first call and Space starts the retry, exercising both native keyboard
+  // activation paths. Exact service-call counting stays at the component-test
+  // boundary; this extension-real probe checks the disabled native boundary,
+  // visible state, focus behavior, sibling isolation, and natural settlement.
   const runBtnSel = (name) => `${haSel} button[aria-label="Run ${name}"]`
-  const isError = (c) => !!c && c.includes('text-red-400') && !c.includes('hover:brightness-110')
-  const isIdle = (c) => !!c && c.includes('text-fg') && c.includes('hover:brightness-110') && !c.includes('text-red-400')
-  const classesOf = async () =>
-    page.evaluate(
-      (sels) => sels.map((s) => document.querySelector(s)?.className ?? null),
-      [runBtnSel('Porch plug'), runBtnSel('Movie night'), runBtnSel('Good morning')],
-    )
-
-  await page.click(runBtnSel('Porch plug'))
-  let errorSeenAt = null
-  let siblingsAtError = null
-  for (let i = 0; i < 40; i++) { // up to ~10s (40 * 250ms) — comfortably past the 8s abort
-    const [target, sib1, sib2] = await classesOf()
-    if (isError(target)) {
-      errorSeenAt = Date.now()
-      siblingsAtError = [sib1, sib2]
-      break
-    }
-    await page.waitForTimeout(250)
-  }
-  const errorFoundOk = errorSeenAt !== null
-  console.log(
-    errorFoundOk
-      ? 'PASS: a REAL click on "Run Porch plug" against the ungranted/unreachable seeded instance turns its OWN tint to error (BTN_TINT.error — text-red-400, no hover:brightness-110)'
-      : 'FAIL: "Run Porch plug" never showed the error tint within the ~10s poll window',
-  )
-  const siblingsIdleOk = errorFoundOk && isIdle(siblingsAtError[0]) && isIdle(siblingsAtError[1])
-  console.log(
-    siblingsIdleOk
-      ? 'PASS: per-button isolation — Movie night/Good morning stayed idle-tinted (BTN_TINT.idle) at the exact instant Porch plug showed error, proving the tint is per-button state, not shared'
-      : `FAIL: per-button isolation at the error instant (siblings=${JSON.stringify(siblingsAtError)})`,
-  )
-
-  // Auto-clear: ERROR_TINT_MS=1200 (HomeAssistantWidget.tsx) — polled from the
-  // moment error was OBSERVED (not the click), a bounded window with real
-  // margin over the pinned 1200ms.
-  let clearedAt = null
-  if (errorFoundOk) {
-    for (let i = 0; i < 12; i++) { // up to ~3s
-      const [target] = await classesOf()
-      if (isIdle(target)) {
-        clearedAt = Date.now()
-        break
+  const targetSel = runBtnSel('Porch plug')
+  const PENDING_TEXT = 'Running Porch plug…'
+  const ERROR_TEXT = "Couldn't run Porch plug. Try again."
+  const readActions = () =>
+    page.evaluate(({ target, siblings }) => {
+      const read = (selector) => {
+        const button = document.querySelector(selector)
+        if (!(button instanceof HTMLButtonElement)) return null
+        const feedbackId = button.getAttribute('aria-describedby')
+        const feedback = feedbackId ? document.getElementById(feedbackId) : null
+        const feedbackRect = feedback?.getBoundingClientRect()
+        const feedbackStyle = feedback ? getComputedStyle(feedback) : null
+        return {
+          text: button.textContent?.trim() ?? null,
+          className: button.className,
+          disabled: button.disabled,
+          ariaBusy: button.getAttribute('aria-busy'),
+          feedbackId,
+          feedbackRole: feedback?.getAttribute('role') ?? null,
+          feedbackText: feedback?.textContent?.trim() ?? null,
+          feedbackVisible: !!feedbackRect && feedbackRect.width > 0 && feedbackRect.height > 0 &&
+            feedbackStyle?.display !== 'none' && feedbackStyle?.visibility !== 'hidden',
+          active: document.activeElement === button,
+        }
       }
-      await page.waitForTimeout(250)
+      return {
+        target: read(target),
+        siblings: siblings.map(read),
+        activeTag: document.activeElement?.tagName ?? null,
+        activeLabel: document.activeElement?.getAttribute?.('aria-label') ?? null,
+      }
+    }, { target: targetSel, siblings: [runBtnSel('Movie night'), runBtnSel('Good morning')] })
+  const captureAx = async () => {
+    const { nodes } = await axSession.send('Accessibility.getFullAXTree')
+    const byId = new Map(nodes.map((node) => [node.nodeId, node]))
+    const roleOf = (node) => node?.role?.value ?? null
+    const nameOf = (node) => node?.name?.value ?? null
+    const textIn = (node, expected, seen = new Set()) => {
+      if (!node || seen.has(node.nodeId)) return false
+      seen.add(node.nodeId)
+      if (nameOf(node) === expected) return true
+      return (node.childIds ?? []).some((id) => textIn(byId.get(id), expected, seen))
+    }
+    const propertyOf = (node, name) => node?.properties?.find((property) => property.name === name)?.value?.value ?? null
+    const button = nodes.find((node) => roleOf(node) === 'button' && nameOf(node) === 'Run Porch plug')
+    const status = nodes.find((node) => roleOf(node) === 'status' && textIn(node, PENDING_TEXT))
+    const alert = nodes.find((node) => roleOf(node) === 'alert' && textIn(node, ERROR_TEXT))
+    return {
+      button: button ? {
+        role: roleOf(button),
+        name: nameOf(button),
+        description: button.description?.value ?? null,
+        disabled: propertyOf(button, 'disabled'),
+        busy: propertyOf(button, 'busy'),
+      } : null,
+      status: status ? { role: roleOf(status), text: PENDING_TEXT } : null,
+      alert: alert ? { role: roleOf(alert), text: ERROR_TEXT } : null,
     }
   }
-  const autoClearOk = errorFoundOk && clearedAt !== null
-  console.log(
-    autoClearOk
-      ? `PASS: the error tint auto-clears back to idle ${clearedAt - errorSeenAt}ms after it was observed — within the pinned 1200ms window plus real polling margin`
-      : `FAIL: error tint auto-clear (errorSeenAt=${errorSeenAt}, clearedAt=${clearedAt})`,
+  const axSession = await context.newCDPSession(page)
+
+  await page.focus(targetSel)
+  const focusedBeforeEnter = await page.evaluate((selector) => document.activeElement === document.querySelector(selector), targetSel)
+  await page.keyboard.press('Enter')
+  await page.waitForFunction(
+    ({ selector, pending }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      return button instanceof HTMLButtonElement && button.disabled && button.getAttribute('aria-busy') === 'true' &&
+        !!feedback && document.getElementById(feedback)?.textContent?.trim() === pending
+    },
+    { selector: targetSel, pending: PENDING_TEXT },
+    { timeout: 2_000 },
   )
+  const firstPending = await readActions()
+  const pendingAx = await captureAx()
+  const firstPendingOk =
+    focusedBeforeEnter && firstPending.target?.disabled === true && firstPending.target?.ariaBusy === 'true' &&
+    firstPending.target?.feedbackRole === 'status' && firstPending.target?.feedbackText === PENDING_TEXT &&
+    firstPending.target?.feedbackVisible === true &&
+    firstPending.target?.active === false
+  console.log(
+    firstPendingOk
+      ? `PASS: focusing enabled "Run Porch plug" and pressing Enter starts the real action, exposes disabled + aria-busy="true" + status "${PENDING_TEXT}", and moves focus away from the disabled control`
+      : `FAIL: Enter pending/disabled/focus contract (${JSON.stringify({ focusedBeforeEnter, firstPending })})`,
+  )
+
+  // The disabled button cannot recover focus. Real keyboard input therefore
+  // lands outside it, and HTMLElement.click() itself honors the native
+  // disabled no-op rule. The component test owns the exact one-call count.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Space')
+  await page.evaluate((selector) => {
+    const button = document.querySelector(selector)
+    if (button instanceof HTMLButtonElement) {
+      button.focus()
+      button.click()
+    }
+  }, targetSel)
+  const guardedPending = await readActions()
+  const siblingsIdle = guardedPending.siblings.every((button) =>
+    button?.disabled === false && button.ariaBusy === null && button.feedbackId === null &&
+    button.className.includes('text-fg') && button.className.includes('hover:brightness-110') &&
+    !button.className.includes('text-red-400')
+  )
+  const disabledNoOpsOk =
+    guardedPending.target?.disabled === true && guardedPending.target?.ariaBusy === 'true' &&
+    guardedPending.target?.feedbackId === firstPending.target?.feedbackId &&
+    guardedPending.target?.feedbackText === PENDING_TEXT && guardedPending.target?.feedbackVisible === true &&
+    guardedPending.target?.active === false && siblingsIdle
+  console.log(
+    disabledNoOpsOk
+      ? 'PASS: further Enter/Space input plus HTMLElement.click() are no-ops while Porch plug is disabled; its pending feedback is unchanged and Movie night/Good morning remain enabled and idle (exact one-call counting stays component-tested)'
+      : `FAIL: disabled no-op / sibling isolation contract (${JSON.stringify(guardedPending)})`,
+  )
+
+  await page.waitForFunction(
+    ({ selector, error }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      const node = feedback ? document.getElementById(feedback) : null
+      return button instanceof HTMLButtonElement && !button.disabled && button.getAttribute('aria-busy') === null &&
+        node?.getAttribute('role') === 'alert' && node.textContent?.trim() === error
+    },
+    { selector: targetSel, error: ERROR_TEXT },
+    { timeout: 12_000 },
+  )
+  const firstError = await readActions()
+  const errorAx = await captureAx()
+  const firstErrorOk =
+    firstError.target?.disabled === false && firstError.target?.ariaBusy === null &&
+    firstError.target?.feedbackRole === 'alert' && firstError.target?.feedbackText === ERROR_TEXT &&
+    firstError.target?.feedbackVisible === true &&
+    firstError.target?.className.includes('text-red-400') === true
+  console.log(
+    firstErrorOk
+      ? `PASS: the natural service failure returns Porch plug to enabled and exposes the persistent alert "${ERROR_TEXT}" with an independent non-color text cue`
+      : `FAIL: natural failure/error-alert contract (${JSON.stringify(firstError)})`,
+  )
+
+  await page.focus(targetSel)
+  await page.screenshot({ path: `${outDir}/ha-action-error.png` })
+  console.log('captured ha-action-error.png (1600x1100 — focused, enabled retry control with its complete persistent error alert)')
+
+  const persistenceStartedAt = Date.now()
+  await page.waitForTimeout(1_400)
+  const persistentError = await readActions()
+  const persistentErrorOk =
+    persistentError.target?.disabled === false && persistentError.target?.feedbackId === firstError.target?.feedbackId &&
+    persistentError.target?.feedbackRole === 'alert' && persistentError.target?.feedbackText === ERROR_TEXT &&
+    persistentError.target?.feedbackVisible === true
+  console.log(
+    persistentErrorOk
+      ? `PASS: the Porch plug error remains enabled and unchanged ${Date.now() - persistenceStartedAt}ms later, beyond the former 1,200ms auto-clear window`
+      : `FAIL: error persistence beyond the former 1,200ms window (${JSON.stringify(persistentError)})`,
+  )
+
+  await page.focus(targetSel)
+  const focusedBeforeSpace = await page.evaluate((selector) => document.activeElement === document.querySelector(selector), targetSel)
+  await page.keyboard.press('Space')
+  await page.waitForFunction(
+    ({ selector, pending }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      return button instanceof HTMLButtonElement && button.disabled && button.getAttribute('aria-busy') === 'true' &&
+        !!feedback && document.getElementById(feedback)?.textContent?.trim() === pending
+    },
+    { selector: targetSel, pending: PENDING_TEXT },
+    { timeout: 2_000 },
+  )
+  const retryPending = await readActions()
+  const retryPendingOk =
+    focusedBeforeSpace && retryPending.target?.disabled === true && retryPending.target?.ariaBusy === 'true' &&
+    retryPending.target?.feedbackRole === 'status' && retryPending.target?.feedbackText === PENDING_TEXT &&
+    retryPending.target?.feedbackVisible === true &&
+    retryPending.target?.active === false
+  console.log(
+    retryPendingOk
+      ? `PASS: focusing the re-enabled Porch plug control and pressing Space clears the old alert and starts a guarded retry with disabled + aria-busy="true" + status "${PENDING_TEXT}"`
+      : `FAIL: Space retry pending contract (${JSON.stringify({ focusedBeforeSpace, retryPending })})`,
+  )
+
+  await page.waitForFunction(
+    ({ selector, error }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      const node = feedback ? document.getElementById(feedback) : null
+      return button instanceof HTMLButtonElement && !button.disabled && button.getAttribute('aria-busy') === null &&
+        node?.getAttribute('role') === 'alert' && node.textContent?.trim() === error
+    },
+    { selector: targetSel, error: ERROR_TEXT },
+    { timeout: 12_000 },
+  )
+  const secondError = await readActions()
+  const secondErrorOk =
+    secondError.target?.disabled === false && secondError.target?.ariaBusy === null &&
+    secondError.target?.feedbackRole === 'alert' && secondError.target?.feedbackText === ERROR_TEXT &&
+    secondError.target?.feedbackVisible === true &&
+    secondError.siblings.every((button) => button?.disabled === false && button.ariaBusy === null && button.feedbackId === null)
+  console.log(
+    secondErrorOk
+      ? `PASS: the retry naturally settles to a second persistent "${ERROR_TEXT}" alert with every action enabled before teardown, leaving the Home Assistant action probe quiescent`
+      : `FAIL: retry settlement/quiescence contract (${JSON.stringify(secondError)})`,
+  )
+
+  const axOk =
+    pendingAx.button?.name === 'Run Porch plug' && pendingAx.button?.description === PENDING_TEXT &&
+    pendingAx.button?.disabled === true && pendingAx.button?.busy === 1 &&
+    pendingAx.status?.role === 'status' && pendingAx.status?.text === PENDING_TEXT &&
+    errorAx.button?.name === 'Run Porch plug' && errorAx.button?.description === ERROR_TEXT &&
+    errorAx.button?.disabled === null && errorAx.button?.busy === null &&
+    errorAx.alert?.role === 'alert' && errorAx.alert?.text === ERROR_TEXT
+  const axSummary = { pending: pendingAx, error: errorAx }
+  console.log(
+    axOk
+      ? `PASS: Chromium Accessibility.getFullAXTree exposes the named disabled/busy action described by its complete live status, then the enabled named action described by the complete retry alert (${JSON.stringify(axSummary)})`
+      : `FAIL: Chromium Accessibility.getFullAXTree action-state semantics (${JSON.stringify(axSummary)})`,
+  )
+  await axSession.detach()
 
   // ── anti-staleness, all-or-nothing: entities:null hides the WHOLE section ─
   // Plan-pinned ruling 2 (homeassistant.ts's own header comment): a failed
@@ -7632,8 +7799,8 @@ function gitlabContributionsFixture() {
   const staleGone = (await page.locator(haSel).count()) === 0
   console.log(
     staleGone
-      ? 'PASS: entities:null (a failed poll) hides the WHOLE section — chips AND buttons together, anti-staleness all-or-nothing (plan-pinned ruling 2)'
-      : 'FAIL: entities:null should hide the whole Home Assistant section (chips AND buttons together)',
+      ? 'PASS: entities:null (a failed poll) hides the WHOLE section — chips, action buttons, and action feedback together, anti-staleness all-or-nothing (plan-pinned ruling 2)'
+      : 'FAIL: entities:null should hide the whole Home Assistant section (chips, action buttons, and action feedback together)',
   )
 
   // Restore: FULLY cleared (not just disabled) — status's own restore idiom
@@ -7806,12 +7973,16 @@ function gitlabContributionsFixture() {
       const summary = [...card.querySelectorAll('p')].find(
         (p) => p.textContent === 'No entities picked yet' || p.textContent?.includes('chips'),
       )
+      const disclosure = [...card.querySelectorAll('p')].find((p) =>
+        p.textContent?.startsWith('Choosing entities loads the full entity list'),
+      )
       const btn = [...card.querySelectorAll('button')].find(
         (b) => b.textContent?.trim() === 'Choose entities' || b.textContent?.trim() === 'Loading…',
       )
       return {
         connectedText: connectedLine?.textContent ?? null,
         summaryText: summary?.textContent ?? null,
+        disclosureText: disclosure?.textContent ?? null,
         btnText: btn?.textContent?.trim() ?? null,
         btnDisabled: btn?.disabled ?? null,
       }
@@ -7849,6 +8020,15 @@ function gitlabContributionsFixture() {
     connectedPickedOk
       ? `PASS: the picked-summary line matches the seeded refs exactly ("${connectedPicked?.summaryText}"), Choose entities stays enabled`
       : `FAIL: picked-summary line (${JSON.stringify(connectedPicked)})`,
+  )
+
+  const HA_DISCLOSURE =
+    'Choosing entities loads the full entity list from your Home Assistant instance for this picker only. Regular dashboard updates request only your selected entities.'
+  const disclosureOk = connectedPicked?.disclosureText === HA_DISCLOSURE
+  console.log(
+    disclosureOk
+      ? `PASS: the connected Home Assistant Settings card renders the exact picker-only bulk / regular-selected disclosure ("${HA_DISCLOSURE}")`
+      : `FAIL: Home Assistant picker-only bulk / regular-selected disclosure (${JSON.stringify(connectedPicked?.disclosureText)})`,
   )
 
   // The plan's own owed drawer capture (status precedent :6942).
