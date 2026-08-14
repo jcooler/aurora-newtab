@@ -22,6 +22,46 @@ const outDir = resolve('screenshots')
 const profileDir = resolve('.playwright-profile')
 const headed = process.argv.includes('--headed')
 
+const WEATHER_CURRENT_FIELDS = [
+  'temperature_2m',
+  'apparent_temperature',
+  'weather_code',
+  'wind_speed_10m',
+  'relative_humidity_2m',
+  'is_day',
+]
+const WEATHER_HOURLY_FIELDS = [
+  'temperature_2m',
+  'precipitation_probability',
+  'weather_code',
+  'is_day',
+]
+const WEATHER_DAILY_FIELDS = ['sunrise', 'sunset']
+const normalizeWeatherCoordinate = (value, minimum, maximum) => {
+  if (!Number.isFinite(value) || value < minimum || value > maximum) {
+    throw new Error('Invalid harness weather coordinates')
+  }
+  const rounded = Number(value.toFixed(4))
+  return Object.is(rounded, -0) ? 0 : rounded
+}
+const weatherRequestUrlFixture = (lat, lon) => {
+  const params = new URLSearchParams()
+  params.set('temperature_unit', 'celsius')
+  params.set('wind_speed_unit', 'kmh')
+  params.set('forecast_hours', '12')
+  params.set('forecast_days', '1')
+  params.set('timezone', 'auto')
+  params.set('timeformat', 'iso8601')
+  params.set('current', WEATHER_CURRENT_FIELDS.join(','))
+  params.set('hourly', WEATHER_HOURLY_FIELDS.join(','))
+  params.set('daily', WEATHER_DAILY_FIELDS.join(','))
+  params.set('latitude', String(normalizeWeatherCoordinate(lat, -90, 90)))
+  params.set('longitude', String(normalizeWeatherCoordinate(lon, -180, 180)))
+  return `https://api.open-meteo.com/v1/forecast?${params.toString()}`
+}
+const weatherRequestIdentityFixture = (lat, lon) =>
+  `open-meteo:v1:${weatherRequestUrlFixture(lat, lon)}`
+
 rmSync(profileDir, { recursive: true, force: true }) // fresh storage every run
 mkdirSync(outDir, { recursive: true })
 
@@ -41,6 +81,28 @@ await context.addInitScript(() => {
   // The script also runs in Playwright's initial about:blank document, where
   // extension APIs do not exist. It will run again after chrome://newtab/
   // resolves to the extension page.
+  globalThis.__auroraWeatherRequestIdentity = (lat, lon) => {
+    const normalize = (value, minimum, maximum) => {
+      if (!Number.isFinite(value) || value < minimum || value > maximum) {
+        throw new Error('Invalid harness weather coordinates')
+      }
+      const rounded = Number(value.toFixed(4))
+      return Object.is(rounded, -0) ? 0 : rounded
+    }
+    const params = new URLSearchParams()
+    params.set('temperature_unit', 'celsius')
+    params.set('wind_speed_unit', 'kmh')
+    params.set('forecast_hours', '12')
+    params.set('forecast_days', '1')
+    params.set('timezone', 'auto')
+    params.set('timeformat', 'iso8601')
+    params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
+    params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
+    params.set('daily', 'sunrise,sunset')
+    params.set('latitude', String(normalize(lat, -90, 90)))
+    params.set('longitude', String(normalize(lon, -180, 180)))
+    return `open-meteo:v1:https://api.open-meteo.com/v1/forecast?${params.toString()}`
+  }
   if (!globalThis.chrome?.storage?.local) return
 
   const canonical = (value) => {
@@ -594,6 +656,284 @@ console.log('captured newtab.png')
       .catch(() => {})
     await authorityPageB.close()
   }
+}
+
+// W1-P6: Weather request identity and request-generation ownership through the
+// real built extension. Network payloads are intercepted only to control
+// completion order; request construction, AbortSignal handling, storage
+// authority, hook effects, and rendering are production code.
+{
+  const A = { lat: 39.7817, lon: -89.6501, label: 'Springfield', manual: true }
+  const B = { lat: 37.209, lon: -93.2923, label: 'Springfield', manual: true }
+  const MAX_AGE_MS = 30 * 60 * 1000
+  const originalPair = await page.evaluate(async () => {
+    const { location, weatherCache } = await chrome.storage.local.get(['location', 'weatherCache'])
+    return { location: location ?? null, weatherCache: weatherCache ?? null }
+  })
+  const pending = []
+  let cover = null
+  let firstFiveComplete = false
+  let visibilityRequestCount = -1
+  let repeatedVisibilityRequestCount = -2
+
+  const payload = (tempC) => {
+    const day = new Date().toISOString().slice(0, 10)
+    const times = Array.from({ length: 12 }, (_, index) => `${day}T${String(8 + index).padStart(2, '0')}:00`)
+    return {
+      current: {
+        temperature_2m: tempC,
+        apparent_temperature: tempC - 1,
+        weather_code: 1,
+        wind_speed_10m: 8,
+        relative_humidity_2m: 55,
+        is_day: 1,
+      },
+      hourly: {
+        time: times,
+        temperature_2m: times.map(() => tempC),
+        precipitation_probability: times.map(() => 0),
+        weather_code: times.map(() => 1),
+        is_day: times.map(() => 1),
+      },
+      daily: { sunrise: [`${day}T06:00`], sunset: [`${day}T20:00`] },
+    }
+  }
+  const waitForRequests = async (count) => {
+    const deadline = Date.now() + 10_000
+    while (pending.length < count && Date.now() < deadline) await page.waitForTimeout(25)
+    if (pending.length < count) throw new Error(`Timed out waiting for ${count} Weather requests; saw ${pending.length}`)
+  }
+  const requestFor = (location, afterIndex = 0) => pending.find((entry, index) =>
+    index >= afterIndex &&
+    entry.url.searchParams.get('latitude') === String(location.lat) &&
+    entry.url.searchParams.get('longitude') === String(location.lon))
+  const waitForLocationRequest = async (location, afterIndex = 0) => {
+    const deadline = Date.now() + 10_000
+    let entry = requestFor(location, afterIndex)
+    while (!entry && Date.now() < deadline) {
+      await page.waitForTimeout(25)
+      entry = requestFor(location, afterIndex)
+    }
+    if (!entry) throw new Error(`Timed out waiting for Weather request at ${location.lat},${location.lon}`)
+    return entry
+  }
+  const settle = async (entry, action, body) => {
+    if (!entry || entry.handled) return 'already-settled'
+    try {
+      if (action === 'fulfill') {
+        await entry.route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
+      } else {
+        await entry.route.abort()
+      }
+      return action
+    } catch (error) {
+      return `browser-cancelled:${String(error)}`
+    } finally {
+      entry.handled = true
+    }
+  }
+  const handler = (route) => {
+    pending.push({ route, url: new URL(route.request().url()), handled: false })
+  }
+
+  await page.route('**/api.open-meteo.com/**', handler)
+  try {
+    const aCache = {
+      current: { tempC: 11, feelsLikeC: 10, code: 1, windKmh: 8, humidity: 55, isDay: true },
+      hourly: [],
+      fetchedAt: Date.now() - MAX_AGE_MS,
+      locationLabel: A.label,
+      requestIdentity: weatherRequestIdentityFixture(A.lat, A.lon),
+    }
+    await page.evaluate(
+      ({ location, weatherCache }) => globalThis.__auroraSetHarnessStorage({ location, weatherCache }),
+      { location: A, weatherCache: aCache },
+    )
+    const aRequest = await waitForLocationRequest(A)
+
+    const beforeB = pending.length
+    await page.evaluate(
+      (location) => globalThis.__auroraSetHarnessStorage({ location }),
+      B,
+    )
+    const bRequest = await waitForLocationRequest(B, beforeB)
+    const switched = await page.evaluate(() => {
+      const text = document.querySelector('[data-block-id="weather"]')?.textContent ?? ''
+      return chrome.storage.local.get(['location', 'weatherCache']).then(({ location, weatherCache }) => ({
+        text,
+        location,
+        cacheIdentity: weatherCache?.requestIdentity ?? null,
+      }))
+    })
+    const bIdentity = weatherRequestIdentityFixture(B.lat, B.lon)
+    const aIdentity = weatherRequestIdentityFixture(A.lat, A.lon)
+    const mismatchSuppressed =
+      switched.location?.lat === B.lat &&
+      switched.location?.lon === B.lon &&
+      switched.cacheIdentity === aIdentity &&
+      !switched.text.includes('11°')
+    console.log(
+      mismatchSuppressed
+        ? 'PASS: Weather suppresses a fresh same-label cache when normalized coordinates belong to the previous Springfield'
+        : `FAIL: Weather suppresses a fresh same-label cache when normalized coordinates belong to the previous Springfield (${JSON.stringify(switched)})`,
+    )
+
+    const bUrl = bRequest.url
+    const requestContractOk =
+      aRequest.url.searchParams.get('latitude') === String(A.lat) &&
+      aRequest.url.searchParams.get('longitude') === String(A.lon) &&
+      bUrl.origin === 'https://api.open-meteo.com' &&
+      bUrl.pathname === '/v1/forecast' &&
+      bUrl.searchParams.get('latitude') === String(B.lat) &&
+      bUrl.searchParams.get('longitude') === String(B.lon) &&
+      bUrl.searchParams.get('temperature_unit') === 'celsius' &&
+      bUrl.searchParams.get('wind_speed_unit') === 'kmh' &&
+      bUrl.searchParams.get('forecast_hours') === '12' &&
+      bUrl.searchParams.get('forecast_days') === '1' &&
+      bUrl.searchParams.get('timezone') === 'auto' &&
+      bUrl.searchParams.get('timeformat') === 'iso8601' &&
+      bUrl.searchParams.get('current') === WEATHER_CURRENT_FIELDS.join(',') &&
+      bUrl.searchParams.get('hourly') === WEATHER_HOURLY_FIELDS.join(',') &&
+      bUrl.searchParams.get('daily') === WEATHER_DAILY_FIELDS.join(',')
+    console.log(
+      requestContractOk
+        ? 'PASS: Springfield-B starts while Springfield-A is held and carries the complete normalized Celsius/kmh/12-hour/auto-timezone request contract'
+        : `FAIL: Springfield-B starts while Springfield-A is held with the complete request contract (${bUrl.toString()})`,
+    )
+
+    await settle(bRequest, 'fulfill', payload(27))
+    await page.waitForFunction(
+      (identity) => chrome.storage.local.get('weatherCache').then(({ weatherCache }) =>
+        weatherCache?.requestIdentity === identity && weatherCache?.current?.tempC === 27),
+      bIdentity,
+    )
+    const bRendered = await page.evaluate(() => ({
+      text: document.querySelector('[data-block-id="weather"]')?.textContent ?? '',
+      cache: null,
+    })).then(async (state) => ({
+      ...state,
+      cache: await page.evaluate(() => chrome.storage.local.get('weatherCache').then((v) => v.weatherCache)),
+    }))
+    const bCommitOk =
+      bRendered.text.includes('27°') &&
+      bRendered.text.includes('Springfield') &&
+      bRendered.cache?.requestIdentity === bIdentity &&
+      bRendered.cache?.current?.tempC === 27
+    console.log(
+      bCommitOk
+        ? 'PASS: Springfield-B response renders and persists under its exact Weather request identity'
+        : `FAIL: Springfield-B response renders and persists under its exact Weather request identity (${JSON.stringify(bRendered)})`,
+    )
+
+    const aRelease = await settle(aRequest, 'fulfill', payload(7))
+    await page.waitForTimeout(250)
+    const afterA = await page.evaluate(() => chrome.storage.local.get('weatherCache').then(({ weatherCache }) => ({
+      cache: weatherCache,
+      text: document.querySelector('[data-block-id="weather"]')?.textContent ?? '',
+    })))
+    const oldCannotOverwrite =
+      afterA.cache?.requestIdentity === bIdentity &&
+      afterA.cache?.current?.tempC === 27 &&
+      afterA.text.includes('27°') &&
+      !afterA.text.includes('Offline')
+    console.log(
+      oldCannotOverwrite
+        ? `PASS: releasing the older Springfield-A request (${aRelease}) cannot overwrite Springfield-B data, identity, display, or error state`
+        : `FAIL: releasing the older Springfield-A request cannot overwrite Springfield-B (${JSON.stringify({ aRelease, afterA })})`,
+    )
+
+    const boundaryBase = Date.now()
+    await page.clock.setFixedTime(boundaryBase)
+    const beforeFresh = pending.length
+    const freshCache = { ...afterA.cache, fetchedAt: boundaryBase - MAX_AGE_MS + 60_000 }
+    await page.evaluate(
+      ({ location, weatherCache }) => globalThis.__auroraSetHarnessStorage({ location, weatherCache }),
+      { location: B, weatherCache: freshCache },
+    )
+    await page.reload()
+    await page.waitForSelector('time')
+    await page.waitForTimeout(300)
+    const freshRequestCount = pending.length
+
+    cover = await context.newPage()
+    await cover.goto('about:blank')
+    await cover.bringToFront()
+    // Headless Chromium keeps every target "visible" even when another page
+    // is frontmost. Model only that unavailable browser signal by shadowing
+    // the standard read-only state on this document, then dispatch the real
+    // DOM event consumed by production. Unit coverage separately proves the
+    // same listener against jsdom's visibility boundary and exact fake time.
+    const hiddenState = await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      return document.visibilityState
+    })
+    await page.clock.setFixedTime(boundaryBase + 60_000)
+    const hiddenRequestCount = pending.length
+    await page.bringToFront()
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await waitForRequests(beforeFresh + 1)
+    visibilityRequestCount = pending.length
+    const visibilityBoundaryOk =
+      hiddenState === 'hidden' &&
+      freshRequestCount === beforeFresh &&
+      hiddenRequestCount === beforeFresh &&
+      visibilityRequestCount === beforeFresh + 1
+    console.log(
+      visibilityBoundaryOk
+        ? 'PASS: a comfortably fresh matching cache does not fetch, while the exact 30-minute boundary refreshes only after an asserted hidden-to-visible restoration'
+        : `FAIL: Weather visibility/cache boundary is deterministic (${JSON.stringify({ beforeFresh, freshRequestCount, hiddenRequestCount, visibilityRequestCount })})`,
+    )
+
+    await cover.bringToFront()
+    const repeatedHiddenState = await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+      return document.visibilityState
+    })
+    await page.bringToFront()
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    await page.waitForTimeout(200)
+    repeatedVisibilityRequestCount = pending.length
+    firstFiveComplete = mismatchSuppressed && requestContractOk && bCommitOk && oldCannotOverwrite && visibilityBoundaryOk && repeatedHiddenState === 'hidden'
+  } finally {
+    await page.evaluate(() => {
+      delete document.visibilityState
+    }).catch(() => {})
+    await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null, weatherCache: null })).catch(() => {})
+    for (const entry of pending) await settle(entry, 'abort')
+    await page.unroute('**/api.open-meteo.com/**', handler).catch(() => {})
+    await page.evaluate(
+      (pair) => globalThis.__auroraSetHarnessStorage(pair),
+      originalPair,
+    ).catch(() => {})
+    await page.bringToFront().catch(() => {})
+    if (cover) await cover.close().catch(() => {})
+    await page.clock.setFixedTime(Date.now()).catch(() => {})
+    await page.waitForTimeout(300)
+  }
+
+  const restoredPair = await page.evaluate(async () => {
+    const { location, weatherCache } = await chrome.storage.local.get(['location', 'weatherCache'])
+    return { location: location ?? null, weatherCache: weatherCache ?? null }
+  })
+  const noOverlapAndClean =
+    firstFiveComplete &&
+    visibilityRequestCount >= 0 &&
+    repeatedVisibilityRequestCount === visibilityRequestCount &&
+    pending.every((entry) => entry.handled) &&
+    JSON.stringify(restoredPair) === JSON.stringify(originalPair)
+  console.log(
+    noOverlapAndClean
+      ? 'PASS: repeated visibility restoration dedupes the held refresh and W1-P6 teardown restores the exact Weather pair with no pending request'
+      : `FAIL: repeated visibility restoration dedupes and teardown restores Weather state (${JSON.stringify({ visibilityRequestCount, repeatedVisibilityRequestCount, pending: pending.map((entry) => entry.handled), restored: JSON.stringify(restoredPair) === JSON.stringify(originalPair) })})`,
+  )
 }
 
 // Cross-tab no-flicker invariant (2026-08-06 flicker investigation, Task 2 of
@@ -2951,6 +3291,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -3152,6 +3493,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -3336,6 +3678,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -3829,6 +4172,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -4244,6 +4588,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -4373,6 +4718,7 @@ function gitlabContributionsFixture() {
       hourly,
       fetchedAt: now - (MAX_AGE_MS + 10 * 60_000),
       locationLabel: 'New York',
+      requestIdentity: weatherRequestIdentityFixture(40.71, -74.01),
     }
   }
   // The SAME rows-bearing github shape Task 70's original 591-bottom
@@ -10625,6 +10971,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: staleFetchedAt,
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -10754,6 +11101,7 @@ function gitlabContributionsFixture() {
           hourly,
           fetchedAt: staleFetchedAt,
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
       })
     },
@@ -10876,6 +11224,7 @@ function gitlabContributionsFixture() {
         hourly,
         fetchedAt: now, // fresh — useWeather won't try to refetch on mount
         locationLabel: 'New York',
+        requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         sunriseISO: `${day}T06:12`,
         sunsetISO: `${day}T20:03`,
       },
@@ -12554,6 +12903,7 @@ function gitlabContributionsFixture() {
           hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })),
           fetchedAt: fx.weatherFetchedAt,
           locationLabel: 'New York',
+          requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
         },
         habits: [
           { id: 'h1', name: 'Read daily', createdAt: now, log: runEndingAt(todayKey, 12) },
@@ -13591,7 +13941,7 @@ function gitlabContributionsFixture() {
     const today = lk(new Date(now)); const yst = prev(today)
     await globalThis.__auroraSetHarnessStorage({
       location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
-      weatherCache: { current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true }, hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })), fetchedAt: fx.fMs, locationLabel: 'New York' },
+      weatherCache: { current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true }, hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })), fetchedAt: fx.fMs, locationLabel: 'New York', requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01) },
       links: [{ id: 'l1', title: 'GitHub', url: 'https://github.com' }, { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' }],
       worldClocks: [{ zone: 'Asia/Tokyo', label: 'Tokyo' }, { zone: 'Europe/London', label: 'London' }],
       countdowns: [{ id: 'c1', name: 'Launch', date: '2030-01-01' }],
