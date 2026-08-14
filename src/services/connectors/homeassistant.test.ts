@@ -1,8 +1,8 @@
 // src/services/connectors/homeassistant.test.ts — the Home Assistant
 // connector's pure service layer: whoamiHomeAssistant (the connect form's
 // token+instance probe), fetchAllStates (the entity PICKER's one fetch, all
-// states unfiltered), fetchHomeAssistant (the widget's fetch — fetchAllStates
-// filtered to the user's picked entities, never-throw, never-stale),
+// states unfiltered), fetchHomeAssistant (the widget's selected-endpoint poll,
+// never-throw and never-stale),
 // callHaService (the three-button POST), the two read-time normalization
 // boundaries (haEntitiesOf/haActionsOf), and the descriptor's shape. Same
 // fake-Response/injectable-fetchFn idiom as gitlab.test.ts, so nothing here
@@ -232,6 +232,12 @@ describe('fetchHomeAssistant', () => {
       ? fakeResponse({ ok: false, status: 404 })
       : fakeResponse({ status: 200, body: { entity_id: 'light.porch', state: 'on', attributes: {} } }))
     expect(await fetchHomeAssistant('https://ha.example.com', 'tok', selected, missingFetch as unknown as typeof fetch)).toEqual({ entities: [{ id: 'light.porch', state: 'on', unit: null, friendlyName: 'light.porch', domain: 'light' }] })
+    const failedSiblingFetch = vi.fn(async (url: string, _init?: RequestInit) => url.endsWith('/sensor.gone')
+      ? fakeResponse({ ok: false, status: 401 })
+      : fakeResponse({ status: 200, body: { entity_id: 'light.porch', state: 'on', attributes: {} } }))
+    await expect(
+      fetchHomeAssistant('https://ha.example.com', 'tok', selected, failedSiblingFetch as unknown as typeof fetch),
+    ).resolves.toEqual({ entities: null })
     for (const response of [statusFetch(401), statusFetch(500), rejectingFetch(), jsonFetch([{ entity_id: 'sensor.gone', state: 'on' }]), jsonFetch({ entity_id: 'sensor.gone', state: 1 }), jsonFetch({ entity_id: 'wrong.id', state: 'on' })]) {
       await expect(fetchHomeAssistant('https://ha.example.com', 'tok', [selected[0]!], response as unknown as typeof fetch)).resolves.toEqual({ entities: null })
     }
@@ -243,6 +249,12 @@ describe('fetchHomeAssistant', () => {
     expect(d).toEqual({ entities: [] })
     expect(fetchFn).toHaveBeenCalledTimes(1)
     expect(fetchFn).toHaveBeenCalledWith('https://ha.example.com/api/', expect.objectContaining({ headers: { Authorization: 'Bearer tok' } }))
+  })
+
+  it('returns the null sentinel when empty-selection health is not OK', async () => {
+    await expect(
+      fetchHomeAssistant('https://ha.example.com', 'tok', [], statusFetch(401) as unknown as typeof fetch),
+    ).resolves.toEqual({ entities: null })
   })
 
   it('never exposes bearer credentials in URLs or failed data', async () => {

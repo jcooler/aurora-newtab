@@ -233,18 +233,7 @@ async function fetchSelectedState(
   }
 }
 
-/** The widget's fetch: fetchAllStates, filtered down to the picked entity
- *  ids. NEVER throws (every failure inside fetchAllStates already resolves
- *  null, and there's no further step here that can reject) and NEVER carries
- *  a `prev` — no `prev` parameter exists at all, unlike gitlab.ts's
- *  fetchGitlab. See this module's header comment (citing status.ts:117-131)
- *  for why: a stale "on" for a light that's actually off by the time this
- *  renders is the same class of lie status.ts refuses to tell with a cached
- *  green dot. A picked id absent from the fetched states (deleted/renamed in
- *  HA since it was picked) is silently omitted, not an error — the chip row
- *  just shows fewer entities than were picked. An empty `picked` list short-
- *  circuits to `{ entities: [] }` without a network call at all: nothing to
- *  filter for, so nothing to fetch. */
+/** The widget fetches each distinct selected endpoint in parallel. A 404 is omitted; any other request or parsing failure returns the null anti-staleness sentinel. Empty selections make a narrow authenticated health request instead of calling the picker-only bulk endpoint. */
 export async function fetchHomeAssistant(
   instanceUrl: string,
   token: string,
