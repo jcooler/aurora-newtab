@@ -5214,6 +5214,19 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
   })
 
+  it('the Home Assistant card explains picker-only bulk loading and selected-entity dashboard updates without exposing credentials', async () => {
+    await renderWithHa(CONNECTED_HA)
+    const chooseButton = screen.getByRole('button', { name: 'Choose entities' })
+    const pickerGroup = chooseButton.parentElement as HTMLElement
+    const disclosure = within(pickerGroup).getByText(
+      'Choosing entities loads the full entity list from your Home Assistant instance for this picker only. Regular dashboard updates request only your selected entities.',
+    )
+
+    expect(disclosure).toBeTruthy()
+    expect(pickerGroup.textContent).not.toContain(CONNECTED_HA.token!)
+    expect(pickerGroup.textContent).not.toContain(CONNECTED_HA.instanceUrl!)
+  })
+
   it('an already-picked config shows the "N chips · M actions" summary line, not the empty-state copy', async () => {
     await renderWithHa({
       ...CONNECTED_HA,

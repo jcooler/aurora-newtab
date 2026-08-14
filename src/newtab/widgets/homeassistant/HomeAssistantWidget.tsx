@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import {
@@ -192,18 +192,19 @@ function HomeAssistantInner({
       {actions.length > 0 && (
         <div className={`flex flex-wrap gap-2${chips.length > 0 ? ' mt-2' : ''}`}>
           {actions.map((a) => (
-            <ActionButton key={a.id} action={a} instanceUrl={instanceUrl} token={token} />
+            <ActionButton
+              key={a.id}
+              action={a}
+              instanceUrl={instanceUrl}
+              token={token}
+              snapshotEpoch={config.snapshotEpoch}
+            />
           ))}
         </div>
       )}
     </section>
   )
 }
-
-// How long a failed press's error tint stays up before auto-clearing back to
-// idle — brief-pinned at 1200ms. No dialog, no error text anywhere on this
-// card (brief-pinned): the tint IS the entire error UI.
-const ERROR_TINT_MS = 1200
 
 // Every button state's COMPLETE literal class string — never a template
 // interpolation. GitlabWidget.tsx:42-56's own fix-round story is the reason:
@@ -229,66 +230,103 @@ const ERROR_TINT_MS = 1200
 // button here never is. `error` reuses the app's one established danger
 // convention, `text-red-400` (ArrangeController.tsx's own Reset button),
 // adapted onto this control's own surface rather than a bare-text button.
-// `pressed` is a brief, self-contained brightness/scale nudge — no color
+// `pending` is a brief, self-contained brightness/scale nudge — no color
 // change, so a press reads as "acknowledged" a beat before the real
 // success/error tint lands.
 const BTN_TINT = {
   idle: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-  pressed: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
+  pending: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
+  success: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-accent shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
   error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
 } as const
 
-type BtnTintState = keyof typeof BTN_TINT
+type ActionState = keyof typeof BTN_TINT
 
-/** One of the three service-call buttons. Fire-and-forget optimistic tap
- *  (homeassistant.ts's own callHaService doc comment): press -> pressed tint
- *  immediately -> the real POST resolves -> idle on success, error tint on
- *  failure, auto-clearing after ERROR_TINT_MS. No dialog, no error text
- *  anywhere (brief-pinned) — the tint IS the entire error UI. */
-function ActionButton({
+/** One independently guarded Home Assistant service call. Configuration
+ * changes advance the generation in a committed layout effect: stale promise
+ * continuations can therefore neither overwrite feedback nor release a newer
+ * request's synchronous pending guard. */
+export function ActionButton({
   action,
   instanceUrl,
   token,
+  snapshotEpoch,
 }: {
   action: HaAction
   instanceUrl: string
   token: string
+  snapshotEpoch?: string
 }) {
-  const [state, setState] = useState<BtnTintState>('idle')
-  // The pending error-clear timeout, so a press mid-error-tint (or an
-  // unmount, e.g. a picker save remounting this whole card via the key
-  // above) cancels it instead of leaving a stray setState-after-unmount call
-  // scheduled — the exact "store the timeout id, clear on unmount" the brief
-  // pins.
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [state, setState] = useState<ActionState>('idle')
+  const feedbackId = useId()
+  const pendingRef = useRef<number | null>(null)
+  const mountedRef = useRef(false)
+  const generationRef = useRef(0)
+
+  useLayoutEffect(() => {
+    generationRef.current += 1
+    pendingRef.current = null
+    setState('idle')
+  }, [snapshotEpoch, instanceUrl, token, action.id, action.domain])
 
   useEffect(() => {
+    mountedRef.current = true
     return () => {
-      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current)
+      mountedRef.current = false
     }
   }, [])
 
   async function handlePress() {
-    if (timeoutRef.current !== null) {
-      clearTimeout(timeoutRef.current)
-      timeoutRef.current = null
+    if (pendingRef.current !== null) return
+
+    const generation = generationRef.current
+    pendingRef.current = generation
+    setState('pending')
+
+    let ok = false
+    try {
+      ok = await callHaService(instanceUrl, token, action)
+    } catch {
+      ok = false
     }
-    setState('pressed')
-    const ok = await callHaService(instanceUrl, token, action)
-    if (ok) {
-      setState('idle')
-      return
-    }
-    setState('error')
-    timeoutRef.current = setTimeout(() => {
-      timeoutRef.current = null
-      setState('idle')
-    }, ERROR_TINT_MS)
+
+    if (generation !== generationRef.current || pendingRef.current !== generation) return
+    pendingRef.current = null
+    if (!mountedRef.current) return
+    setState(ok ? 'success' : 'error')
   }
 
+  const feedback =
+    state === 'pending'
+      ? `Running ${action.name}…`
+      : state === 'success'
+        ? `${action.name} completed.`
+        : state === 'error'
+          ? `Couldn't run ${action.name}. Try again.`
+          : null
+
   return (
-    <button type="button" aria-label={`Run ${action.name}`} onClick={() => void handlePress()} className={BTN_TINT[state]}>
-      {action.name}
-    </button>
+    <div className="flex flex-col items-start gap-1">
+      <button
+        type="button"
+        aria-label={`Run ${action.name}`}
+        aria-busy={state === 'pending' ? 'true' : undefined}
+        aria-describedby={feedback ? feedbackId : undefined}
+        disabled={state === 'pending'}
+        onClick={() => void handlePress()}
+        className={BTN_TINT[state]}
+      >
+        {action.name}
+      </button>
+      {feedback && (
+        <span
+          id={feedbackId}
+          role={state === 'error' ? 'alert' : 'status'}
+          className="text-photo text-xs text-canvas-fg"
+        >
+          {feedback}
+        </span>
+      )}
+    </div>
   )
 }

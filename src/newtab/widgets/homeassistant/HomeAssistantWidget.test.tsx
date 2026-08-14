@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { StrictMode } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
@@ -28,7 +29,7 @@ vi.mock('../../../services/connectors/homeassistant', async (importActual) => {
 })
 import { callHaService, fetchHomeAssistant } from '../../../services/connectors/homeassistant'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
-import HomeAssistantWidget, { chipCopy, remountKey } from './HomeAssistantWidget'
+import HomeAssistantWidget, { ActionButton, chipCopy, remountKey } from './HomeAssistantWidget'
 
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
@@ -69,6 +70,15 @@ const PICKED: HaEntityRef[] = [
   { id: 'light.porch', name: 'Porch light' },
 ]
 const ACTIONS: HaAction[] = [{ id: 'scene.movie', name: 'Movie night', domain: 'scene' }]
+const EVENING_ACTION: HaAction = { id: 'script.evening', name: 'Evening routine', domain: 'script' }
+
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((next) => {
+    resolve = next
+  })
+  return { promise, resolve }
+}
 
 const CONNECTED: HomeAssistantConfig = {
   enabled: true,
@@ -170,6 +180,39 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
     expect(screen.getByRole('button', { name: 'Run Movie night' })).toBeTruthy()
     expect(section.querySelectorAll('li').length).toBe(0)
   })
+
+  it('an action-only config stays absent while health is pending, then appears after an authenticated empty result', async () => {
+    const health = deferred<HomeAssistantData>()
+    vi.mocked(fetchHomeAssistant).mockReturnValue(health.promise)
+    const storage = await seededStorage({ ...CONNECTED, entities: [] }, null)
+    const { container } = mount(storage)
+
+    await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
+    expect(container.firstChild).toBeNull()
+
+    await act(async () => {
+      health.resolve({ entities: [] })
+    })
+
+    expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
+  })
+
+  it('an action-only config stays absent when its pending health refresh reports failure', async () => {
+    const health = deferred<HomeAssistantData>()
+    vi.mocked(fetchHomeAssistant).mockReturnValue(health.promise)
+    const storage = await seededStorage({ ...CONNECTED, entities: [] }, null)
+    const { container } = mount(storage)
+
+    await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
+    expect(container.firstChild).toBeNull()
+
+    await act(async () => {
+      health.resolve({ entities: null })
+    })
+
+    expect(container.firstChild).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
+  })
 })
 
 describe('HomeAssistantWidget — chip copy', () => {
@@ -198,45 +241,57 @@ describe('HomeAssistantWidget — chip copy', () => {
 })
 
 describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ruling 2)', () => {
-  it('selection B wins when pending selection A resolves after B', async () => {
-    const selectedA: HomeAssistantConfig = {
+  it('identical selected entities/actions still hide A data while config B is pending, and B wins a later A completion', async () => {
+    const configA: HomeAssistantConfig = {
       ...CONNECTED,
       entities: [PICKED[0]],
-      actions: [],
+      snapshotEpoch: 'generation-a',
     }
-    const selectedB: HomeAssistantConfig = {
-      ...CONNECTED,
-      entities: [PICKED[1]],
-      actions: [],
+    const configB: HomeAssistantConfig = {
+      ...configA,
+      instanceUrl: 'https://ha-b.example.com',
+      token: 'tok-b',
+      snapshotEpoch: 'generation-b',
     }
-    let resolveA!: (value: HomeAssistantData) => void
-    let resolveB!: (value: HomeAssistantData) => void
+    const kitchenB: HaState = { ...KITCHEN, state: '22.0' }
+    const refreshA = deferred<HomeAssistantData>()
+    const refreshB = deferred<HomeAssistantData>()
     vi.mocked(fetchHomeAssistant)
-      .mockReturnValueOnce(new Promise((resolve) => (resolveA = resolve)))
-      .mockReturnValueOnce(new Promise((resolve) => (resolveB = resolve)))
-    const storage = await seededStorage(selectedA, null)
+      .mockReturnValueOnce(refreshA.promise)
+      .mockReturnValueOnce(refreshB.promise)
+    const storage = await seededStorage(configA, null)
+    await storage.set('connectorSnapshots', {
+      homeassistant: {
+        scope: await connectorSnapshotScope('homeassistant', configA),
+        fetchedAt: Date.now() - 61_000,
+        data: { entities: [KITCHEN] },
+      },
+    })
     mount(storage)
+    expect(await screen.findByText('Kitchen 21.5°C')).toBeTruthy()
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(1))
 
     await act(async () => {
-      await storage.set('connectors', { homeassistant: selectedB })
+      await storage.set('connectors', { homeassistant: configB })
     })
+    await waitFor(() => expect(screen.queryByText('Kitchen 21.5°C')).toBeNull())
+    expect(screen.queryByRole('region', { name: 'Home Assistant' })).toBeNull()
     await waitFor(() => expect(fetchHomeAssistant).toHaveBeenCalledTimes(2))
 
     await act(async () => {
-      resolveB({ entities: [PORCH] })
+      refreshB.resolve({ entities: [kitchenB] })
       await Promise.resolve()
       await Promise.resolve()
-      resolveA({ entities: [KITCHEN] })
+      refreshA.resolve({ entities: [KITCHEN] })
       await Promise.resolve()
       await Promise.resolve()
     })
 
     expect(screen.queryByText('Kitchen 21.5°C')).toBeNull()
-    expect(screen.getByText('Porch light on')).toBeTruthy()
+    expect(screen.getByText('Kitchen 22.0°C')).toBeTruthy()
     const stored = (await storage.get('connectorSnapshots')).homeassistant
-    expect(stored?.scope).toBe(await connectorSnapshotScope('homeassistant', selectedB))
-    expect(stored?.data).toEqual({ entities: [PORCH] })
+    expect(stored?.scope).toBe(await connectorSnapshotScope('homeassistant', configB))
+    expect(stored?.data).toEqual({ entities: [kitchenB] })
   })
 
   it('a failed poll (entities: null) renders NOTHING — chips AND buttons both hide', async () => {
@@ -278,84 +333,213 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     vi.mocked(callHaService).mockReset()
   })
 
-  it('press calls callHaService with the picked action, instanceUrl and token, and immediately flashes the pressed tint', async () => {
-    let resolvePress!: (ok: boolean) => void
-    vi.mocked(callHaService).mockReturnValue(
-      new Promise((resolve) => {
-        resolvePress = resolve
-      }),
+  function renderActionButton(snapshotEpoch = 'generation-a', action = ACTIONS[0]) {
+    return render(
+      <ActionButton
+        snapshotEpoch={snapshotEpoch}
+        action={action}
+        instanceUrl="https://ha.example.com"
+        token="tok"
+      />,
     )
-    const storage = await seededStorage(CONNECTED)
-    mount(storage)
-    const button = await screen.findByRole('button', { name: 'Run Movie night' })
+  }
 
-    fireEvent.click(button)
-    // Synchronous, before the awaited callHaService promise ever resolves.
-    expect(button.className).toContain('scale-95')
-    expect(button.className).toContain('brightness-125')
-    expect(callHaService).toHaveBeenCalledWith('https://ha.example.com', 'tok', ACTIONS[0])
+  it('an action button synchronously enters pending, disables and describes only itself, while its sibling stays enabled', () => {
+    vi.mocked(callHaService).mockReturnValue(new Promise(() => {}))
+    render(
+      <>
+        <ActionButton snapshotEpoch="generation-a" action={ACTIONS[0]} instanceUrl="https://ha.example.com" token="tok" />
+        <ActionButton snapshotEpoch="generation-a" action={EVENING_ACTION} instanceUrl="https://ha.example.com" token="tok" />
+      </>,
+    )
+    const movie = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
+    const evening = screen.getByRole('button', { name: 'Run Evening routine' }) as HTMLButtonElement
 
-    await act(async () => {
-      resolvePress(true)
-    })
-    expect(button.className).not.toContain('scale-95')
-    expect(button.className).not.toContain('text-red-400')
+    fireEvent.click(movie)
+
+    const running = screen.getByText('Running Movie night…')
+    expect(movie.disabled).toBe(true)
+    expect(movie.getAttribute('aria-busy')).toBe('true')
+    expect(movie.getAttribute('aria-describedby')).toBe(running.id)
+    expect(running.getAttribute('role')).toBe('status')
+    expect(evening.disabled).toBe(false)
+    expect(evening.getAttribute('aria-busy')).toBeNull()
+    expect(screen.queryByText('Running Evening routine…')).toBeNull()
   })
 
-  // Fake timers block testing-library's setTimeout-polled findBy/waitFor
-  // (LocationSetup.test.tsx's own documented caveat) — scoped to just this
-  // describe block so every OTHER test above keeps using real-timer
-  // findBy/screen queries unaffected. Every assertion below reads the DOM
-  // synchronously right after an awaited `act` + `advanceTimersByTimeAsync`.
-  describe('with fake timers', () => {
-    afterEach(() => vi.useRealTimers())
+  it('an action button rejects two programmatic clicks in one act turn through its synchronous local guard', () => {
+    vi.mocked(callHaService).mockReturnValue(new Promise(() => {}))
+    renderActionButton()
+    const button = screen.getByRole('button', { name: 'Run Movie night' })
 
-    it('a failed press applies the error tint, which auto-clears back to idle after exactly 1200ms', async () => {
-      vi.mocked(callHaService).mockResolvedValue(false)
-      const storage = await seededStorage(CONNECTED)
-      mount(storage)
-      const button = await screen.findByRole('button', { name: 'Run Movie night' })
-      vi.useFakeTimers()
-
-      await act(async () => {
-        fireEvent.click(button)
-        await vi.advanceTimersByTimeAsync(0) // let the awaited callHaService promise settle
-      })
-      expect(button.className).toContain('text-red-400')
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1199)
-      })
-      expect(button.className).toContain('text-red-400') // still one ms short
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1)
-      })
-      expect(button.className).not.toContain('text-red-400')
-      expect(button.className).toContain('text-fg') // back to the idle tint
+    act(() => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
 
-    it('clears any pending error-clear timeout on unmount (no stale setState-after-unmount)', async () => {
-      vi.mocked(callHaService).mockResolvedValue(false)
-      const storage = await seededStorage(CONNECTED)
-      const { unmount } = mount(storage)
-      const button = await screen.findByRole('button', { name: 'Run Movie night' })
-      vi.useFakeTimers()
+    expect(callHaService).toHaveBeenCalledTimes(1)
+  })
 
-      await act(async () => {
-        fireEvent.click(button)
-        await vi.advanceTimersByTimeAsync(0)
-      })
-      expect(button.className).toContain('text-red-400')
+  it('an action button announces persistent success and clears it only when the next attempt begins', async () => {
+    const first = deferred<boolean>()
+    const second = deferred<boolean>()
+    vi.mocked(callHaService).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    renderActionButton()
+    const button = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
 
-      const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      unmount()
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(1200) // the pending clearTimeout must have fired; nothing left to run
-      })
-      expect(errorSpy).not.toHaveBeenCalled()
-      errorSpy.mockRestore()
+    fireEvent.click(button)
+    const feedbackId = screen.getByText('Running Movie night…').id
+    await act(async () => {
+      first.resolve(true)
     })
+
+    const success = screen.getByRole('status')
+    expect(success.textContent).toBe('Movie night completed.')
+    expect(success.id).toBe(feedbackId)
+    expect(button.disabled).toBe(false)
+    expect(button.getAttribute('aria-busy')).toBeNull()
+    expect(button.getAttribute('aria-describedby')).toBe(feedbackId)
+    await act(async () => Promise.resolve())
+    expect(screen.getByText('Movie night completed.')).toBeTruthy()
+
+    fireEvent.click(button)
+    expect(screen.queryByText('Movie night completed.')).toBeNull()
+    expect(screen.getByText('Running Movie night…')).toBeTruthy()
+    await act(async () => {
+      second.resolve(true)
+    })
+  })
+
+  it('an action button announces persistent failure, stays retryable, and replaces it with success after retry', async () => {
+    vi.mocked(callHaService).mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    renderActionButton()
+    const button = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toBe("Couldn't run Movie night. Try again.")
+    expect(button.disabled).toBe(false)
+    expect(button.getAttribute('aria-busy')).toBeNull()
+    expect(button.getAttribute('aria-describedby')).toBe(alert.id)
+    await act(async () => Promise.resolve())
+    expect(screen.getByRole('alert')).toBe(alert)
+
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Movie night completed.')
+    expect(callHaService).toHaveBeenCalledTimes(2)
+  })
+
+  it('two production action buttons keep independent pending guards and feedback', async () => {
+    const movieCall = deferred<boolean>()
+    const eveningCall = deferred<boolean>()
+    vi.mocked(callHaService).mockImplementation((_url, _token, action) =>
+      action.id === ACTIONS[0].id ? movieCall.promise : eveningCall.promise,
+    )
+    render(
+      <>
+        <ActionButton snapshotEpoch="generation-a" action={ACTIONS[0]} instanceUrl="https://ha.example.com" token="tok" />
+        <ActionButton snapshotEpoch="generation-a" action={EVENING_ACTION} instanceUrl="https://ha.example.com" token="tok" />
+      </>,
+    )
+    const movie = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
+    const evening = screen.getByRole('button', { name: 'Run Evening routine' }) as HTMLButtonElement
+
+    fireEvent.click(movie)
+    fireEvent.click(evening)
+    expect(callHaService).toHaveBeenCalledTimes(2)
+    expect(callHaService).toHaveBeenCalledWith('https://ha.example.com', 'tok', ACTIONS[0])
+    expect(callHaService).toHaveBeenCalledWith('https://ha.example.com', 'tok', EVENING_ACTION)
+    expect(movie.disabled).toBe(true)
+    expect(evening.disabled).toBe(true)
+
+    await act(async () => {
+      movieCall.resolve(true)
+    })
+    expect(screen.getByText('Movie night completed.')).toBeTruthy()
+    expect(screen.getByText('Running Evening routine…')).toBeTruthy()
+    expect(movie.disabled).toBe(false)
+    expect(evening.disabled).toBe(true)
+
+    await act(async () => {
+      eveningCall.resolve(false)
+    })
+    expect(screen.getByText("Couldn't run Evening routine. Try again.")).toBeTruthy()
+    expect(screen.getByText('Movie night completed.')).toBeTruthy()
+  })
+
+  it('an action button generation change prevents A from overwriting or releasing pending B', async () => {
+    const callA = deferred<boolean>()
+    const callB = deferred<boolean>()
+    vi.mocked(callHaService).mockReturnValueOnce(callA.promise).mockReturnValueOnce(callB.promise)
+    const { rerender } = renderActionButton('generation-a')
+    const button = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
+    fireEvent.click(button)
+    expect(screen.getByText('Running Movie night…')).toBeTruthy()
+
+    rerender(
+      <ActionButton
+        snapshotEpoch="generation-b"
+        action={ACTIONS[0]}
+        instanceUrl="https://ha.example.com"
+        token="tok"
+      />,
+    )
+    expect(button.disabled).toBe(false)
+    expect(screen.queryByText('Running Movie night…')).toBeNull()
+    fireEvent.click(button)
+    expect(button.disabled).toBe(true)
+
+    await act(async () => {
+      callA.resolve(false)
+    })
+    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    expect(screen.getByText('Running Movie night…')).toBeTruthy()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(callHaService).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      callB.resolve(true)
+    })
+    expect(button.disabled).toBe(false)
+    expect(screen.getByText('Movie night completed.')).toBeTruthy()
+  })
+
+  it('an action button under StrictMode remains mounted for a post-mount completion', async () => {
+    const call = deferred<boolean>()
+    vi.mocked(callHaService).mockReturnValue(call.promise)
+    render(
+      <StrictMode>
+        <ActionButton snapshotEpoch="generation-a" action={ACTIONS[0]} instanceUrl="https://ha.example.com" token="tok" />
+      </StrictMode>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Run Movie night' }))
+
+    await act(async () => {
+      call.resolve(true)
+    })
+
+    expect(screen.getByRole('status').textContent).toBe('Movie night completed.')
+  })
+
+  it('an action button unmounts cleanly while its service promise is pending', async () => {
+    const call = deferred<boolean>()
+    vi.mocked(callHaService).mockReturnValue(call.promise)
+    const { unmount } = renderActionButton()
+    fireEvent.click(screen.getByRole('button', { name: 'Run Movie night' }))
+
+    unmount()
+    await act(async () => {
+      call.resolve(true)
+    })
+
+    expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
+    expect(screen.queryByText('Movie night completed.')).toBeNull()
   })
 })
 

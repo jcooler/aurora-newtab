@@ -2045,6 +2045,9 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
             >
               {pickerLoading ? 'Loading…' : 'Choose entities'}
             </button>
+            <p className="mt-2 text-xs text-fg-muted">
+              Choosing entities loads the full entity list from your Home Assistant instance for this picker only. Regular dashboard updates request only your selected entities.
+            </p>
             {pickerError && (
               <p role="alert" className="mt-2 text-xs text-fg-muted">
                 {pickerError}
