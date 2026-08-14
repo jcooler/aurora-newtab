@@ -175,8 +175,60 @@ describe('NotesPanel', () => {
     releaseNotesRead()
     await act(async () => {}) // notes resolves; NotesPanel now registers
 
-    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+      await Promise.resolve()
+    })
     expect(notesOnClose).toHaveBeenCalledOnce()
     expect(belowOnClose).toHaveBeenCalledOnce() // unchanged — this press was Notes'
+  })
+
+  it('reports Saving through a deferred authority write and Saved only after it fulfills', async () => {
+    const base = memoryDriver()
+    let releaseWrite = () => {}
+    let deferNotes = false
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      write: async (patch) => {
+        if (!deferNotes || !Object.prototype.hasOwnProperty.call(patch, 'notes')) {
+          await base.write(patch)
+          return
+        }
+        deferNotes = false
+        await new Promise<void>((resolve) => {
+          releaseWrite = async () => {
+            await base.write(patch)
+            resolve()
+          }
+        })
+      },
+      onChanged: (cb) => base.onChanged(cb),
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    deferNotes = true
+
+    render(
+      <StorageProvider storage={storage}>
+        <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Await the real write' } })
+    expect(screen.getByRole('status').textContent).toBe('Saving…')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+    expect(screen.getByRole('status').textContent).toBe('Saving…')
+    expect((await storage.get('notes')).text).toBe('')
+
+    await act(async () => {
+      releaseWrite()
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('status').textContent).toBe('Saved')
+    expect((await storage.get('notes')).text).toBe('Await the real write')
   })
 })
