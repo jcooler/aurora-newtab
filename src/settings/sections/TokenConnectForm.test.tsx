@@ -174,6 +174,87 @@ describe('TokenConnectForm origin transactions', () => {
     expect(remove).not.toHaveBeenCalled()
   })
 
+  it('a denied origin grant shows an alert and calls neither validate nor onConnected', async () => {
+    requestGranted = false
+    const { validate, onConnected } = await renderForm()
+    fillFields()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(request).toHaveBeenCalledOnce()
+    expect(validate).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toBe('Permission to read that site was denied, so nothing was connected.')
+  })
+
+  it('a required-empty field shows an alert and never queues a permission request', async () => {
+    const { validate, onConnected } = await renderForm()
+    // Only fill the username; leave the token field blank.
+    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'octocat' } })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(request).not.toHaveBeenCalled()
+    expect(validate).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toBe('Personal access token is required.')
+  })
+
+  it('originsFor returning no origins shows an alert and never queues a permission request', async () => {
+    const { validate, onConnected } = await renderForm({ originsFor: vi.fn(() => []) })
+    fillFields()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(request).not.toHaveBeenCalled()
+    expect(validate).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toBe('Could not determine which site to connect to.')
+  })
+
+  it('preserves a connector-specific originsFor error without requesting permission', async () => {
+    const { validate, onConnected } = await renderForm({
+      originsFor: vi.fn(() => {
+        throw new Error('Enter your site as yoursite.atlassian.net')
+      }),
+    })
+    fillFields()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(request).not.toHaveBeenCalled()
+    expect(validate).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toBe('Enter your site as yoursite.atlassian.net')
+  })
+
+  it('falls back to the generic origins alert for a messageless throw without requesting permission', async () => {
+    const { validate, onConnected } = await renderForm({
+      originsFor: vi.fn(() => {
+        // eslint-disable-next-line @typescript-eslint/no-throw-literal
+        throw 'not an Error instance'
+      }),
+    })
+    fillFields()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(request).not.toHaveBeenCalled()
+    expect(validate).not.toHaveBeenCalled()
+    expect(onConnected).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toBe('Could not determine which site to connect to.')
+  })
+
   it('recovers a rejected persistence write, rolls back its new origin, and shows a storage alert', async () => {
     const origin = 'https://new.example.com/*'
     const storage = {
@@ -218,9 +299,34 @@ describe('TokenConnectForm origin transactions', () => {
     expect(held.has(origin)).toBe(true)
     expect(reportPendingCleanup).toHaveBeenCalledWith([origin])
   })
+
+  it('labels every field and marks password fields autocomplete off', async () => {
+    await renderForm()
+
+    const token = screen.getByLabelText('Personal access token') as HTMLInputElement
+    expect(token.type).toBe('password')
+    expect(token.getAttribute('autocomplete')).toBe('off')
+    expect(screen.getByLabelText('Username')).toBeTruthy()
+  })
+
+  it('uses a connector-supplied connect label', async () => {
+    await renderForm({ connectLabel: 'Link account' })
+
+    expect(screen.getByRole('button', { name: 'Link account' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+  })
 })
 
 describe('TokenConnectForm connected state', () => {
+  it('replaces the form with Disconnect without repeating the card-shell identity', async () => {
+    await renderForm({ connectedAs: 'octocat' })
+
+    expect(screen.queryByText(/octocat/)).toBeNull()
+    expect(screen.queryByLabelText('Personal access token')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+  })
+
   it('renders connected extras before Disconnect and delegates the removal callback', async () => {
     const { onDisconnect } = await renderForm({
       connectedAs: 'octocat',
@@ -236,5 +342,63 @@ describe('TokenConnectForm connected state', () => {
     })
 
     expect(onDisconnect).toHaveBeenCalledOnce()
+  })
+
+  it('does not render connected extras while the connect form is visible', async () => {
+    await renderForm({ connectedAs: null, connectedExtras: <div data-testid="extras">Show on your board</div> })
+    expect(screen.queryByTestId('extras')).toBeNull()
+  })
+
+  it('has no stray extras node when connected extras are omitted', async () => {
+    await renderForm({ connectedAs: 'octocat' })
+    expect(screen.queryByTestId('extras')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+  })
+})
+
+// Github and Vercel can both be rendered in one connector tab and both expose
+// a `token` field. useId must keep their labels and controls instance-local.
+describe('TokenConnectForm per-instance ids', () => {
+  function renderTwo() {
+    const makeProps = () => ({
+      fields: FIELDS,
+      originsFor: vi.fn(() => []),
+      validate: vi.fn(async () => ({ ok: false as const, message: 'x' })),
+      onConnected: vi.fn(async () => {}),
+      connectedAs: null,
+      onDisconnect: vi.fn(async () => [] as string[]),
+      storage: createStorage(memoryDriver()),
+      reportPendingCleanup: vi.fn(),
+    })
+    return render(
+      <>
+        <TokenConnectForm {...makeProps()} />
+        <TokenConnectForm {...makeProps()} />
+      </>,
+    )
+  }
+
+  it('generates no duplicate DOM ids when two instances share the token field id', () => {
+    const { container } = renderTwo()
+    const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id)
+
+    expect(ids.length).toBeGreaterThan(0)
+    expect(new Set(ids).size).toBe(ids.length)
+  })
+
+  it('keeps each label associated with its own instance input', () => {
+    renderTwo()
+    const labels = screen.getAllByText('Personal access token').filter((el) => el.tagName === 'LABEL') as HTMLLabelElement[]
+    const inputs = screen.getAllByPlaceholderText('ghp_...')
+    expect(labels).toHaveLength(2)
+    expect(inputs).toHaveLength(2)
+    expect(inputs[0]!.id).not.toBe(inputs[1]!.id)
+    expect(labels[0]!.control).toBe(inputs[0])
+    expect(labels[1]!.control).toBe(inputs[1])
+
+    inputs[1]!.focus()
+    expect(document.activeElement).toBe(inputs[1])
+    inputs[0]!.focus()
+    expect(document.activeElement).toBe(inputs[0])
   })
 })
