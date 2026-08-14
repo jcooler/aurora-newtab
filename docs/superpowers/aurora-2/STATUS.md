@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P3` - Optional-permission transactions and shared-origin ownership<br>
-**Next packet:** `W1-P4` - Atomic backup/restore and permission reconciliation; plan not yet created
+**Last verified packet:** `W1-P4` - Atomic backup/restore and permission reconciliation<br>
+**Next packet:** `W1-P5` - Home Assistant data minimization, health, and action safety; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Optional-origin acquisition is gesture-safe and transactional; validation/storage failure rolls back only newly acquired unowned grants; pre-existing grants remain; every configured connector plus APOD participates in shared ownership; final-owner removal is verified; revoke failure is explicit and retryable; `remove revokes live` receives a truthful evidence-backed disposition.
-- **Expected files:** Permission mirror/wrappers/transactions, connector ownership descriptors/registry, Settings token/list/APOD integration, cleanup alert/controller, focused tests, and the real-extension harness. Backup/restore reconciliation, Home Assistant polling/actions, layout, CSS redesign, manifest expansion, privacy/Store copy, packaging, and release actions remain outside this packet.
-- **Test scope:** Acquisition rollback, pre-existing grants, partial persistence, disabled and shared owners, final owner, remove false/rejection/retry, fresh ownership recheck, trusted event-turn ordering, targeted/full Vitest, TypeScript, production/preview builds, production adapter-leak search, and the real MV3 harness.
-- **Visual scope:** No redesign. The only visible addition is an accessible permission-cleanup failure/Retry alert; verification is behavioral through component and extension harness checks.
+- **Acceptance:** Export is authority-consistent and secret-safe; the whole migrated backup is validated and reconciled before Confirm; permission acquisition remains in the confirmation turn; every target/verification/finalizer failure either restores exact logical pre-import data and preserves its grants or reports a distinct rollback failure; committed old-owner revoke failures remain durable and retryable.
+- **Expected files:** Backup envelope/preparation, connector backup policies, storage snapshot/rollback primitives, permission transaction context, restore coordinator, Settings Data recovery UI, focused tests, and the preview-only real-extension harness. Home Assistant polling/actions, layout, CSS redesign, manifest expansion, final privacy/Store copy, packaging, and release actions remain outside this packet.
+- **Test scope:** Current/legacy/future/malformed envelopes, secret/capability/cache redaction, all-key snapshot and target/rollback readback, before/apply-then-reject writes, finalizer and rollback failures, gesture ordering, acquired/pre-existing/shared/final ownership, durable cleanup, trusted copy, targeted/full Vitest, TypeScript, production/preview builds, adapter-leak search, and real MV3 Data controls.
+- **Visual scope:** No redesign. Data gains accessible confirmation, pending, success, recoverable failure, fatal rollback failure, and Retry states; verification is behavioral through component and real-extension checks.
 
 ## Last completed commits
 
@@ -32,9 +32,24 @@
 - `c054a66f1e04d1742f8ca9b9ff37ae341e25295d` and `a576921f7d6e08462d052bade8d3ec760020ed5c` - APOD two-origin transactions and authoritative stale-render exit fix.
 - `79f6d37f334e20440e4357f6e269c1810450c774` and `75efc1160fcd3e58bc5f17656960bbbb8536b4e1` - preview-only extension transaction matrix and strengthened gesture/pre-existing proof.
 - `a8d62367db97ba42b2b70047b7d0414df6019a90` - bounded whole-packet review fixes (`fix(permissions): address W1-P3 review`); verified W1-P3 implementation head.
+- `206e1b8bbc18d306ec3089496eb32456109d4e56` - independently reviewed executable W1-P4 plan (`docs: plan W1-P4 atomic backup restore`).
+- `110b483b78d08a148036661b55b9729973d91722` and `3234796608bdece5196650679ecdc8a3a6d9fdf4` - descriptor-driven secret/capability redaction, prepared import, and legacy Calendar review fix.
+- `6c561a8b32ea532242d43c9b6a8b25da3011627e` and `1bf2f2e0165b8a92408e1064609f882a33e74f10` - authority-held snapshots, verified rollback-capable all-key replace, and hardened contention proof.
+- `0dcdbdca32eb2f5bbb670411905da7a8bf2e246c` and `5d57dcab9da45292e22312b3f933c79d3da293ec` - gesture-safe restore coordinator, accessible Data recovery, and failed-restore cleanup coverage.
+- `5daa5ac4b3f7c9cc038715df1ca8fd5a31f0dd24`, `768f1c47d1037ca2fc67d9e0adf5ac1b9b72bce1`, and `6f30b915719586cb519aa0f8f2b4418b0724debe` - real-extension restore proof, exact predicates/failure-isolated teardown, and post-reload locked teardown quiescence.
+- `d28d6f53d6ffa87444646caa39816310d8cd6b00` - bounded whole-packet review fix that moves irreversible permission cleanup after atomic storage commit; verified W1-P4 implementation head is `6f30b915719586cb519aa0f8f2b4418b0724debe` including its reviewed harness proof.
 
 ## Latest verification
 
+- W1-P4 exact targeted suite at `6f30b91` - exit 0; 15 files / 600 tests passed.
+- `npx tsc --noEmit` at `6f30b91` - exit 0.
+- `npm test` at `6f30b91` - exit 0; photo manifest 23 entries / 46 tier files; 104 files / 1,694 tests passed.
+- `npm run build` and `npm run build:preview` at `6f30b91` - exit 0; both transformed 171 modules.
+- Production search for `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `node scripts/preview.mjs` final controller-owned run - process exit 0 in 274.9 seconds; 432 PASS / 0 FAIL / 3 SKIP. All eight W1-P4 lines passed: secret-safe real export, confirmation-turn adapter request, exact cleaned atomic commit/cache reset, exact restored-owned set and old-only revoke, committed revoke failure with durable tab-round-trip Retry, exact trusted re-entry copy, exact old-only retry removal, and post-reload locked all-key/native-boundary teardown. The permission-matrix outer fallback also passed its all-key locked restore proof.
+- Final harness SKIPs remain honest ceilings: real Home Assistant entity-picker behavior against a live user instance, native NASA Block, and native NASA Allow. Headless automation cannot settle the browser permission prompt.
+- Independent W1-P4 plan review - four Important contract gaps and one Minor timestamp ambiguity were fixed; final verdict Ready.
+- Independent W1-P4 implementation review - task reviews fixed all findings; bounded whole-packet review found one Important rollback/revoked-old-grant defect, fixed in `d28d6f5`; fresh rereview marked it addressed. Controller verification then exposed an in-flight connector-snapshot teardown race, fixed in `6f30b91`; fresh scoped review found no Critical, Important, or packet-local correctness issue open.
 - W1-P3 exact targeted suite after final review fix - exit 0; 18 files / 631 tests passed.
 - `npx tsc --noEmit` at `a8d6236` - exit 0.
 - `npm test` at `a8d6236` - exit 0; photo manifest 23 entries / 46 tier files; 103 files / 1,631 tests passed.
@@ -90,30 +105,30 @@
 
 ## Known blockers and residual risks
 
-- Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P3 does not claim a synthetic click or a native-grant revoke.
+- Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P4 does not claim a synthetic click, a grant restored from a backup file, or native-grant revocation.
 - Real Home Assistant entity-picker behavior still requires the user's live instance.
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
-- Atomic backup/restore and permission reconciliation remain W1-P4 work; W1-P3 intentionally made no restore behavior change.
+- Home Assistant selected-entity polling, action-only health, action safety, and stale-generation handling remain W1-P5 work; W1-P4 intentionally made no Home Assistant polling/action behavior change.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P3`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P4.
+- None expected after `docs: checkpoint W1-P4`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P5.
 
 ## Single next packet
 
-- **Packet:** `W1-P4` - Atomic backup/restore and permission reconciliation
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P3 evidence, the current backup/restore implementation, and the new permission ownership/lifecycle contracts.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P4 plan before any W1-P4 implementation; this W1-P3 task stops at the packet boundary.
+- **Packet:** `W1-P5` - Home Assistant data minimization, health, and action safety
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P1/W1-P3/W1-P4 evidence, and the current Home Assistant connector, picker, polling, action, snapshot, storage, and permission contracts.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P5 plan before any W1-P5 implementation; this W1-P4 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P4 atomic backup/restore and permission reconciliation plan
-Packet ID: W1-P4
-Verified W1-P3 implementation SHA: a8d62367db97ba42b2b70047b7d0414df6019a90
-Expected next checkpoint subject: docs: checkpoint W1-P4
+Next plan: create just-in-time W1-P5 Home Assistant data minimization, health, and action safety plan
+Packet ID: W1-P5
+Verified W1-P4 implementation SHA: 6f30b915719586cb519aa0f8f2b4418b0724debe
+Expected next checkpoint subject: docs: checkpoint W1-P5
 ```

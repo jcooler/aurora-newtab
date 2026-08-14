@@ -55,11 +55,12 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P4 — Atomic backup/restore and permission reconciliation
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P2, W1-P3
-- **Plan gate:** Create when W1-P3 is Verified.
+- **Plan:** [`2026-08-14-w1-p4-atomic-backup-restore-permission-reconciliation.md`](../plans/2026-08-14-w1-p4-atomic-backup-restore-permission-reconciliation.md)
 - **Acceptance:** Whole backup validates before mutation; injected failure at each phase restores the exact pre-import state; malformed/old/new schemas are handled honestly; recognized secrets and capability URLs are stripped/redacted; required optional origins are reported and reconciled without pretending the file restored grants; failure is an accessible alert and retry is possible.
-- **Finishing commit:** —
+- **Verified evidence:** Export excludes connector tokens, RSS/ICS capability URLs, connector snapshots, and APOD cache while emitting trusted re-entry metadata. Import prepares and validates the entire migrated envelope before Confirm; the confirmation gesture enters the existing permission transaction synchronously; lifecycle-before-storage locking, verified all-key target/rollback writes, safe rollback classification, pre-existing/new grant preservation, shared/final ownership, committed revoke failure, durable Retry, accessible recovery, and trusted copy are covered. Final verification passed 15 targeted files / 600 tests, 104 total files / 1,694 tests, TypeScript, 171-module production/preview builds, and the production adapter-leak gate. The real-extension harness passed 432 / 0 / 3 with all eight W1-P4 assertions plus post-reload locked all-key teardown. Task reviews fixed all findings; the bounded whole-packet review's one Important permission/data atomicity finding was fixed in `d28d6f5`; controller verification exposed and fixed the teardown late-write race in `6f30b91`; final scoped reviews found no Critical, Important, or packet-local correctness issue open.
+- **Finishing commit:** `6f30b91` plus checkpoint subject `docs: checkpoint W1-P4`
 
 ### W1-P5 — Home Assistant data minimization, health, and action safety
 
