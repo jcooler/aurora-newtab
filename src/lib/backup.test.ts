@@ -107,6 +107,29 @@ describe('secret-safe redaction and prepared import (W1-P4)', () => {
     }
   })
 
+  it('does not warn about re-entry for a complete legacy ICS capability URL', () => {
+    const result = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: { ...defaults(), connectors: { ics: { enabled: true, url: 'https://calendar.example.test/legacy.ics' } } },
+    }))
+    expect(result).toMatchObject({ ok: true })
+    if (result.ok) {
+      expect(result.redactions.reentryRequired).toEqual([])
+      expect(result.legacyReentryMayBeRequired).toBe(false)
+    }
+  })
+
+  it('rejects Calendar re-entry metadata that contradicts a complete legacy ICS capability URL', () => {
+    const result = prepareBackup(JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      redactions: { reentryRequired: ['ics'], notice: BACKUP_REDACTION_NOTICE },
+      data: { ...defaults(), connectors: { ics: { enabled: true, url: 'https://calendar.example.test/legacy.ics' } } },
+    }))
+    expect(result).toEqual({ ok: false, reason: "That backup's redaction metadata is invalid." })
+  })
+
   it.each([
     ['malformed metadata', { reentryRequired: ['github'], notice: 7 }],
     ['unknown id', { reentryRequired: ['bogus'], notice: BACKUP_REDACTION_NOTICE }],

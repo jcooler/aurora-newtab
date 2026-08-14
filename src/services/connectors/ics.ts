@@ -734,7 +734,7 @@ export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   ttlMs: 15 * 60_000,
   secretFields: ['url', 'calendars'],
   redactForBackup: (config) => ({ ...config, calendars: [] }),
-  backupReentryRequired: (config) => config.enabled === true && (!Array.isArray(config.calendars) || config.calendars.length === 0),
+  backupReentryRequired: (config) => config.enabled === true && icsCalendarsOf(config).length === 0,
   // One origin per calendar, filtered not thrown — same contract rss/crypto
   // document: a restored config can hold a non-https or unparseable url per
   // entry (import validates only `enabled` structurally), and origins() must
