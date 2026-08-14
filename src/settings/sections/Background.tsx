@@ -5,7 +5,7 @@ import type { AuroraStorage } from '../../lib/storage/index'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { APOD_ORIGINS } from '../../services/apod'
 import {
-  releaseUnownedOrigins,
+  runOriginOwnerMutation,
   runOriginTransaction,
   type OriginTransactionResult,
 } from '../../services/permissionTransactions'
@@ -23,9 +23,10 @@ function reportTransactionCleanup<T>(
 
 function apodTransactionError(transaction: OriginTransactionResult<void>): string | null {
   if (transaction.status === 'committed') return null
-  if (transaction.status === 'denied' || transaction.status === 'access-lost') {
+  if (transaction.status === 'denied') {
     return 'Permission to reach NASA was denied, so the background is unchanged.'
   }
+  if (transaction.status === 'access-lost') return 'Access changed before saving. Please try again.'
   if (transaction.status === 'aborted') return transaction.message
   return "Couldn't save the NASA background. Please try again."
 }
@@ -53,6 +54,33 @@ export default function Background({
   // (any of the four), not just a later apod attempt.
   const [apodError, setApodError] = useState<string | null>(null)
 
+  async function commitPhotoOwnerMutation(
+    updatePrefs: (prefs: PhotoPrefs) => PhotoPrefs,
+  ) {
+    return runOriginOwnerMutation(storage, async () => {
+      let leavingApod = false
+      await storage.update('photoPrefs', (prefs) => {
+        const next = updatePrefs(prefs)
+        leavingApod = prefs.mode === 'apod' && next.mode !== 'apod'
+        return next
+      })
+
+      let cacheClearFailed = false
+      if (leavingApod) {
+        try {
+          await storage.update('apodCache', () => null)
+        } catch {
+          cacheClearFailed = true
+        }
+      }
+
+      return {
+        value: { cacheClearFailed },
+        releaseCandidates: leavingApod ? APOD_ORIGINS : [],
+      }
+    })
+  }
+
   async function handleSourceChange(newMode: PhotoPrefs['mode']) {
     if (!photoPrefs) return
 
@@ -66,36 +94,18 @@ export default function Background({
       return
     }
 
-    let leavingApod = false
-    try {
-      await storage.update('photoPrefs', (prefs) => {
-        leavingApod = prefs.mode === 'apod'
-        return { ...prefs, mode: newMode }
-      })
-    } catch {
+    const mutation = await commitPhotoOwnerMutation((prefs) => ({ ...prefs, mode: newMode }))
+    if (mutation.status !== 'committed') {
       setApodError("Couldn't save the background. Please try again.")
       return
     }
     setApodError(null)
 
-    if (leavingApod) {
-      let cacheClearFailed = false
-      try {
-        await storage.update('apodCache', () => null)
-      } catch {
-        cacheClearFailed = true
-      }
-
-      try {
-        const cleanup = await releaseUnownedOrigins(storage, APOD_ORIGINS)
-        if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
-      } catch {
-        reportPendingCleanup(APOD_ORIGINS)
-      }
-
-      if (cacheClearFailed) {
-        setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
-      }
+    if (mutation.cleanup.pending.length > 0) {
+      reportPendingCleanup(mutation.cleanup.pending)
+    }
+    if (mutation.value.cacheClearFailed) {
+      setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
     }
   }
 
@@ -126,14 +136,27 @@ export default function Background({
       setGalleryError("Couldn't save that photo. Your device may be low on storage.")
       return
     }
-    setGalleryError(null)
-    // fresh read + changed value: a stale spread could revert concurrent
-    // writes, and a deep-equal write emits no chrome.storage event at all
-    await storage.update('photoPrefs', (p) => ({
+    // The upload itself can take long enough for another context to select
+    // APOD. Re-read and change the owner only after entering the shared
+    // lifecycle authority, then clean up any APOD ownership in that same lock.
+    const mutation = await commitPhotoOwnerMutation((p) => ({
       ...p,
       mode: 'upload',
       uploadedAt: new Date().toISOString(),
     }))
+    if (mutation.status !== 'committed') {
+      setGalleryError("The photo was saved, but the background couldn't be updated. Please try again.")
+      return
+    }
+    setGalleryError(null)
+    if (mutation.cleanup.pending.length > 0) {
+      reportPendingCleanup(mutation.cleanup.pending)
+    }
+    if (mutation.value.cacheClearFailed) {
+      setApodError("The NASA photo cache couldn't be cleared. The new background was saved.")
+    } else {
+      setApodError(null)
+    }
   }
 
   return (

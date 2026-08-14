@@ -12,7 +12,7 @@ import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../ser
 import { addUploads, listUploads, removeUpload } from '../lib/idb'
 import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
-import { releaseUnownedOrigins } from '../services/permissionTransactions'
+import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
 import { authState } from './sections/Connectors'
 // Imported (not hardcoded) so the About footer's version assertion below
@@ -157,6 +157,46 @@ async function removeHeldOrigin(pattern: string): Promise<boolean> {
 function holdOrigin(pattern: string) {
   cleanupHeld.add(pattern)
   cleanupAddedListeners.forEach((listener) => listener({ origins: [pattern] }))
+}
+
+function deferred<T = void>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}
+
+function installQueuedLifecycleLocks() {
+  const originalLocks = navigator.locks
+  let tail: Promise<void> = Promise.resolve()
+  const request = vi.fn(<T,>(
+    _name: string,
+    _options: LockOptions,
+    work: () => Promise<T>,
+  ): Promise<T> => {
+    const result = tail.then(work)
+    tail = result.then(
+      () => undefined,
+      () => undefined,
+    )
+    return result
+  })
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } })
+  return () => Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+}
+
+function deferPermissionRemovals() {
+  const started = deferred<void>()
+  const allow = deferred<void>()
+  vi.mocked(removeOrigin).mockImplementation(async (pattern) => {
+    started.resolve()
+    await allow.promise
+    return removeHeldOrigin(pattern)
+  })
+  return { started, allow }
 }
 
 beforeAll(async () => {
@@ -707,6 +747,63 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     expect((await storage.get('photoPrefs')).uploadedAt).toBeTruthy()
   })
 
+  it('an upload completing after another context selects APOD releases the now-unowned NASA grants and reports retryable cleanup', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const uploadGate = deferred<void>()
+    vi.mocked(addUploads).mockReturnValue(uploadGate.promise)
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach(holdOrigin)
+      return true
+    })
+    vi.mocked(removeOrigin)
+      .mockReset()
+      .mockRejectedValueOnce(new Error('one-shot remove failure'))
+      .mockImplementation(removeHeldOrigin)
+
+    try {
+      const { storage } = await renderPanelInUploadMode()
+      await storage.set('apodCache', {
+        date: '2026-08-14',
+        photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+      })
+      const file = new File(['a'], 'a.png', { type: 'image/png' })
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Image files'), { target: { files: [file] } })
+      })
+      expect(addUploads).toHaveBeenCalledWith([file])
+
+      await act(async () => {
+        await runOriginTransaction(storage, APOD_ORIGINS, async () => {
+          await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+          return { ok: true, value: undefined, ownerCommitted: true }
+        })
+      })
+      expect((await storage.get('photoPrefs')).mode).toBe('apod')
+
+      await act(async () => {
+        uploadGate.resolve()
+        await flushAsyncWork()
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('upload')
+      expect(await storage.get('apodCache')).toBeNull()
+      const apodPatterns = APOD_ORIGINS.map(originPattern)
+      expect(cleanupHeld.has(apodPatterns[0]!)).toBe(true)
+      expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+      expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+      })
+
+      expect(apodPatterns.some((pattern) => cleanupHeld.has(pattern))).toBe(false)
+      expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+    } finally {
+      restoreLocks()
+    }
+  })
+
   it('renders one thumbnail per upload from the mocked gallery', async () => {
     vi.mocked(listUploads).mockResolvedValue([
       { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
@@ -956,6 +1053,39 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     expect(error.className).toContain('text-xs')
     expect(error.className).toContain('text-fg-muted')
     expect(select.getAttribute('aria-describedby')).toBe('bg-apod-error')
+  })
+
+  it('reports access changed, not denial, when a queued APOD transaction loses its click-time grants to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const { started, allow } = deferPermissionRemovals()
+    const apodPatterns = APOD_ORIGINS.map(originPattern)
+    apodPatterns.forEach(holdOrigin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderPanel()
+      release = releaseUnownedOrigins(storage, APOD_ORIGINS)
+      await started.promise
+
+      act(() => {
+        fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
+      })
+      expect(ensureOrigins).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect((await storage.get('photoPrefs')).mode).toBe('auto')
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
   })
 
   it('a rejected APOD request leaves the mode and cache untouched', async () => {
@@ -2011,6 +2141,41 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect((await readRss(storage))?.feeds).toEqual([])
   })
 
+  it('reports access changed, not denial, when a queued RSS add loses its click-time grant to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const origin = 'https://race-rss.example.com/*'
+    const url = 'https://race-rss.example.com/feed.xml'
+    const { started, allow } = deferPermissionRemovals()
+    holdOrigin(origin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderWithConnectors({ enabled: true, feeds: [], shownCount: 5 })
+      release = releaseUnownedOrigins(storage, [origin])
+      await started.promise
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Add feed URL'), { target: { value: url } })
+        fireEvent.click(within(connectorsRegion()).getByRole('button', { name: 'Add' }))
+      })
+      expect(ensureOrigin).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect((await readRss(storage))?.feeds).toEqual([])
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
+  })
+
   it('rolls back a newly acquired RSS origin when persisting the feed rejects', async () => {
     const url = 'https://rollback-rss.example.com/feed.xml'
     const origin = 'https://rollback-rss.example.com/*'
@@ -2383,6 +2548,43 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     expect((await readGithub(storage))?.token).toBe('')
   })
 
+  it('reports access changed, not denial, when a queued GitHub connect loses its click-time grant to a release', async () => {
+    const restoreLocks = installQueuedLifecycleLocks()
+    const origin = 'https://api.github.com/*'
+    const { started, allow } = deferPermissionRemovals()
+    holdOrigin(origin)
+    let release: ReturnType<typeof releaseUnownedOrigins> | undefined
+
+    try {
+      const storage = await renderWithGithub({ enabled: true, token: '', username: '' })
+      release = releaseUnownedOrigins(storage, [origin])
+      await started.promise
+
+      act(() => {
+        fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), {
+          target: { value: 'github_pat_race' },
+        })
+        fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+      })
+      expect(ensureOrigin).not.toHaveBeenCalled()
+
+      await act(async () => {
+        allow.resolve()
+        await release
+      })
+
+      expect(whoamiGithub).not.toHaveBeenCalled()
+      expect((await readGithub(storage))?.token).toBe('')
+      expect((await screen.findByRole('alert')).textContent).toBe(
+        'Access changed before saving. Please try again.',
+      )
+    } finally {
+      allow.resolve()
+      await release?.catch(() => undefined)
+      restoreLocks()
+    }
+  })
+
   it('connected state renders "Connected as {login}" + Disconnect; disconnecting revokes api.github.com and clears the config', async () => {
     const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
 
@@ -2401,6 +2603,43 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     expect(removeOrigin).toHaveBeenCalledWith('https://api.github.com/*')
     // The config entry is cleared entirely.
     expect(await readGithub(storage)).toBeUndefined()
+  })
+
+  it('keeps GitHub connected and does not release when the shared disconnect lifecycle authority is unavailable', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    const originalLocks = navigator.locks
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined })
+
+    try {
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      })
+    } finally {
+      Object.defineProperty(navigator, 'locks', { configurable: true, value: originalLocks })
+    }
+
+    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Connected as octocat')).toHaveLength(1)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be updated/i)
+  })
+
+  it('keeps GitHub connected and does not release when its authoritative removal write rejects', async () => {
+    const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('storage rejected'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(await readGithub(storage)).toEqual({ enabled: true, token: 'github_pat_x', username: 'octocat' })
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect(screen.getAllByText('Connected as octocat')).toHaveLength(1)
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be updated/i)
   })
 
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {

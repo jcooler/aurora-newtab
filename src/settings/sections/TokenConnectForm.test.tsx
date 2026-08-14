@@ -96,7 +96,15 @@ async function renderForm(overrides: Record<string, unknown> = {}) {
   if (typeof storage.init === 'function') await storage.init()
   const validate = vi.fn(async () => ({ ok: true as const, identity: 'octocat' }))
   const onConnected = vi.fn(async () => {})
-  const onDisconnect = vi.fn(async () => [] as string[])
+  const onDisconnect = vi.fn(async () => ({
+    candidates: [] as string[],
+    transaction: {
+      status: 'committed' as const,
+      value: undefined,
+      preExisting: [] as string[],
+      acquired: [] as string[],
+    },
+  }))
   const reportPendingCleanup = vi.fn()
   const props = {
     fields: FIELDS,
@@ -344,6 +352,80 @@ describe('TokenConnectForm connected state', () => {
     expect(onDisconnect).toHaveBeenCalledOnce()
   })
 
+  it('keeps the connected branch visible and stops before release when lifecycle authority is unavailable', async () => {
+    const origin = 'https://api.example.com/*'
+    const reportPendingCleanup = vi.fn()
+    await renderForm({
+      connectedAs: 'octocat',
+      reportPendingCleanup,
+      onDisconnect: vi.fn(async () => ({
+        candidates: [origin],
+        transaction: { status: 'permission-unavailable' as const },
+      })),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(remove).not.toHaveBeenCalled()
+    expect(reportPendingCleanup).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      "Couldn't disconnect because the saved connection could not be updated. Please try again.",
+    )
+  })
+
+  it('keeps the connected branch visible and stops before release after a rejected authoritative owner write', async () => {
+    const origin = 'https://api.example.com/*'
+    await renderForm({
+      connectedAs: 'octocat',
+      onDisconnect: vi.fn(async () => ({
+        candidates: [origin],
+        transaction: {
+          status: 'failed' as const,
+          error: new Error('storage rejected'),
+          preExisting: [] as string[],
+          acquired: [] as string[],
+          pendingCleanup: [] as string[],
+        },
+      })),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(remove).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not be updated/i)
+  })
+
+  it('releases committed disconnect candidates through the shared form contract', async () => {
+    const origin = 'https://api.example.com/*'
+    grantExisting(origin)
+    await renderForm({
+      connectedAs: 'octocat',
+      onDisconnect: vi.fn(async () => ({
+        candidates: [origin],
+        transaction: {
+          status: 'committed' as const,
+          value: undefined,
+          preExisting: [] as string[],
+          acquired: [] as string[],
+        },
+      })),
+    })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect(remove).toHaveBeenCalledWith({ origins: [origin] })
+    expect(held.has(origin)).toBe(false)
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('does not render connected extras while the connect form is visible', async () => {
     await renderForm({ connectedAs: null, connectedExtras: <div data-testid="extras">Show on your board</div> })
     expect(screen.queryByTestId('extras')).toBeNull()
@@ -366,7 +448,15 @@ describe('TokenConnectForm per-instance ids', () => {
       validate: vi.fn(async () => ({ ok: false as const, message: 'x' })),
       onConnected: vi.fn(async () => {}),
       connectedAs: null,
-      onDisconnect: vi.fn(async () => [] as string[]),
+      onDisconnect: vi.fn(async () => ({
+        candidates: [] as string[],
+        transaction: {
+          status: 'committed' as const,
+          value: undefined,
+          preExisting: [] as string[],
+          acquired: [] as string[],
+        },
+      })),
       storage: createStorage(memoryDriver()),
       reportPendingCleanup: vi.fn(),
     })

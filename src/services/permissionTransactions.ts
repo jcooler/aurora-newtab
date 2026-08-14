@@ -20,6 +20,16 @@ export interface OriginReleaseResult {
   pending: string[]
 }
 
+export interface OriginOwnerMutationCommit<T> {
+  value: T
+  releaseCandidates: readonly string[]
+}
+
+export type OriginOwnerMutationResult<T> =
+  | { status: 'permission-unavailable' }
+  | { status: 'failed'; error: unknown }
+  | { status: 'committed'; value: T; cleanup: OriginReleaseResult }
+
 export interface OriginPermissionAuthority {
   runExclusive<T>(work: () => Promise<T>): Promise<T>
 }
@@ -141,6 +151,31 @@ export function retryOriginRelease(
   authority?: OriginPermissionAuthority,
 ): Promise<OriginReleaseResult> {
   return releaseUnownedOrigins(storage, pending, authority)
+}
+
+/** Runs an owner-changing write and its resulting ownership-aware release in
+ * one lifecycle critical section. The release path is already-held so this
+ * helper never reacquires the stable Web Lock from inside its callback. */
+export function runOriginOwnerMutation<T>(
+  storage: AuroraStorage,
+  work: () => Promise<OriginOwnerMutationCommit<T>>,
+  authority?: OriginPermissionAuthority,
+): Promise<OriginOwnerMutationResult<T>> {
+  const resolvedAuthority = authority ?? productionAuthority()
+  if (!resolvedAuthority) return Promise.resolve({ status: 'permission-unavailable' })
+
+  return resolvedAuthority.runExclusive(async (): Promise<OriginOwnerMutationResult<T>> => {
+    try {
+      const mutation = await work()
+      const canonicalCandidates = canonicalOriginPatterns(mutation.releaseCandidates)
+      const cleanup = canonicalCandidates.length > 0
+        ? await releaseUnownedOriginsAlreadyHeld(storage, canonicalCandidates)
+        : { released: [], pending: [] }
+      return { status: 'committed', value: mutation.value, cleanup }
+    } catch (error) {
+      return { status: 'failed', error }
+    }
+  }).catch((error): OriginOwnerMutationResult<T> => ({ status: 'failed', error }))
 }
 
 async function rollbackAcquired(

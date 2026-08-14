@@ -1,6 +1,10 @@
 import { useId, useState, type ReactNode } from 'react'
 import type { AuroraStorage } from '../../lib/storage'
-import { releaseUnownedOrigins, runOriginTransaction } from '../../services/permissionTransactions'
+import {
+  releaseUnownedOrigins,
+  runOriginTransaction,
+  type OriginTransactionResult,
+} from '../../services/permissionTransactions'
 import { control, submitBtn } from './shared'
 
 export interface TokenField {
@@ -9,6 +13,11 @@ export interface TokenField {
   type: 'text' | 'password'
   placeholder: string
   defaultValue?: string
+}
+
+export interface TokenDisconnectResult {
+  candidates: string[]
+  transaction: OriginTransactionResult<void>
 }
 
 /** The one card body every token connector (Tasks 48-51) renders: a small
@@ -34,8 +43,9 @@ export function TokenConnectForm(props: {
   onConnected(values: Record<string, string>, identity: string): Promise<void>
   /** Present when already connected -> renders Disconnect instead of the form. */
   connectedAs: string | null
-  /** Removes the config and returns the canonical origins that configuration owned. */
-  onDisconnect(): Promise<string[]>
+  /** Attempts the authoritative config removal and returns both its lifecycle
+   * outcome and the canonical origins captured from the removed config. */
+  onDisconnect(): Promise<TokenDisconnectResult>
   /** The real SettingsPanel storage instance, needed for transaction rollback ownership checks. */
   storage: AuroraStorage
   /** Durable SettingsPanel-owned cleanup reporter. */
@@ -76,12 +86,27 @@ export function TokenConnectForm(props: {
   const [connecting, setConnecting] = useState(false)
 
   async function handleDisconnect() {
-    const candidates = await onDisconnect()
+    let result: TokenDisconnectResult
     try {
-      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      setError(null)
+      result = await onDisconnect()
+      if ('pendingCleanup' in result.transaction && result.transaction.pendingCleanup.length > 0) {
+        reportPendingCleanup(result.transaction.pendingCleanup)
+      }
+      if (result.transaction.status !== 'committed') {
+        setError("Couldn't disconnect because the saved connection could not be updated. Please try again.")
+        return
+      }
+    } catch {
+      setError("Couldn't disconnect because the saved connection could not be updated. Please try again.")
+      return
+    }
+
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, result.candidates)
       if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
     } catch {
-      if (candidates.length > 0) reportPendingCleanup(candidates)
+      if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
     }
   }
 
@@ -97,10 +122,16 @@ export function TokenConnectForm(props: {
         <button
           type="button"
           onClick={() => void handleDisconnect()}
+          aria-describedby={error ? `${uid}-error` : undefined}
           className={`${submitBtn} self-start`}
         >
           Disconnect
         </button>
+        {error && (
+          <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">
+            {error}
+          </p>
+        )}
       </div>
     )
   }
@@ -158,8 +189,12 @@ export function TokenConnectForm(props: {
         setError(transaction.message)
         return
       }
-      if (transaction.status === 'denied' || transaction.status === 'access-lost') {
+      if (transaction.status === 'denied') {
         setError('Permission to read that site was denied, so nothing was connected.')
+        return
+      }
+      if (transaction.status === 'access-lost') {
+        setError('Access changed before saving. Please try again.')
         return
       }
       setError("Couldn't save that connection. Please try again.")

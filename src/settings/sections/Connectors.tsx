@@ -29,7 +29,7 @@ import {
   type OriginTransactionResult,
 } from '../../services/permissionTransactions'
 import { fuzzyScore } from '../../lib/fuzzy'
-import { TokenConnectForm } from './TokenConnectForm'
+import { TokenConnectForm, type TokenDisconnectResult } from './TokenConnectForm'
 import EntityPickerDialog from './EntityPickerDialog'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
@@ -89,13 +89,9 @@ function transactionError<T>(
 ): string | null {
   if (transaction.status === 'committed') return null
   if (transaction.status === 'aborted') return transaction.message
-  if (transaction.status === 'denied' || transaction.status === 'access-lost') return deniedMessage
+  if (transaction.status === 'denied') return deniedMessage
+  if (transaction.status === 'access-lost') return 'Access changed before saving. Please try again.'
   return "Couldn't save that connection. Please try again."
-}
-
-interface DisconnectResult {
-  candidates: string[]
-  transaction: OriginTransactionResult<void>
 }
 
 /** Captures origin candidates from the exact config value removed by the
@@ -103,7 +99,10 @@ interface DisconnectResult {
  * The empty-origin transaction is deliberately permission-free: it only puts
  * the owner mutation into the same lifecycle authority used by its subsequent
  * release in TokenConnectForm. */
-async function disconnectTokenConnector(storage: AuroraStorage, id: DisconnectableConnectorId): Promise<DisconnectResult> {
+async function disconnectTokenConnector(
+  storage: AuroraStorage,
+  id: DisconnectableConnectorId,
+): Promise<TokenDisconnectResult> {
   let candidates: string[] = []
   const transaction = await runOriginTransaction(storage, [], async () => {
     await storage.update('connectors', (prev) => {
@@ -644,7 +643,7 @@ function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => (await disconnectTokenConnector(storage, 'github')).candidates}
+      onDisconnect={() => disconnectTokenConnector(storage, 'github')}
     />
   )
 }
@@ -777,7 +776,7 @@ function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => (await disconnectTokenConnector(storage, 'gitlab')).candidates}
+      onDisconnect={() => disconnectTokenConnector(storage, 'gitlab')}
     />
   )
 }
@@ -924,7 +923,7 @@ function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => (await disconnectTokenConnector(storage, 'jira')).candidates}
+      onDisconnect={() => disconnectTokenConnector(storage, 'jira')}
     />
   )
 }
@@ -1034,7 +1033,7 @@ function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => (await disconnectTokenConnector(storage, 'vercel')).candidates}
+      onDisconnect={() => disconnectTokenConnector(storage, 'vercel')}
     />
   )
 }
@@ -2064,7 +2063,7 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
             />
           </div>
         }
-        onDisconnect={async () => (await disconnectTokenConnector(storage, 'homeassistant')).candidates}
+        onDisconnect={() => disconnectTokenConnector(storage, 'homeassistant')}
       />
     </>
   )

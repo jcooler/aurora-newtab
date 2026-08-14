@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuroraStorage } from '../lib/storage'
 import type { AuroraData, PhotoPrefs } from '../lib/storage/schema'
 import type { ConnectorConfig, ConnectorId } from './connectors/types'
+import type { OriginPermissionAuthority } from './permissionTransactions'
 
 type PermissionListener = (permissions: chrome.permissions.Permissions) => void
 
@@ -436,6 +437,51 @@ describe('ownership-aware release and retry', () => {
       pending: [],
     })
     expect(permissions.remove).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps an owner mutation and its fresh ownership-aware release inside one lifecycle lock without nesting', async () => {
+    const origin = 'https://owner-mutation.example.com/*'
+    const { permissions, transactions } = await loadCore([origin])
+    const { storage } = createTestStorage(
+      {},
+      { mode: 'apod', index: 0, lastRotated: '' },
+    )
+    const order: string[] = []
+    permissions.remove.mockImplementation(async ({ origins = [] }) => {
+      order.push('remove')
+      for (const candidate of origins) permissions.held.delete(candidate)
+      permissions.emitRemoved(origins)
+      return true
+    })
+    let lockCalls = 0
+    const authority: OriginPermissionAuthority = {
+      async runExclusive<T>(work: () => Promise<T>): Promise<T> {
+        lockCalls += 1
+        order.push('lock-enter')
+        const result = await work()
+        order.push('lock-exit')
+        return result
+      },
+    }
+
+    const result = await transactions.runOriginOwnerMutation(
+      storage,
+      async () => {
+        order.push('owner-write')
+        await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'upload' }))
+        return { value: 'upload', releaseCandidates: [origin] }
+      },
+      authority,
+    )
+
+    expect(result).toEqual({
+      status: 'committed',
+      value: 'upload',
+      cleanup: { released: [origin], pending: [] },
+    })
+    expect(lockCalls).toBe(1)
+    expect(order).toEqual(['lock-enter', 'owner-write', 'remove', 'lock-exit'])
+    expect(permissions.held.has(origin)).toBe(false)
   })
 
   it('treats remove(false)+contains(false) as success while still-held, remove rejection, and verification rejection remain pending', async () => {
