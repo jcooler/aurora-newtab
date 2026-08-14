@@ -6,16 +6,18 @@ export async function reverseGeocode(
   lat: number,
   lon: number,
   fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const url =
     `https://api.bigdatacloud.net/data/reverse-geocode-client` +
     `?latitude=${lat}&longitude=${lon}&localityLanguage=en`
   try {
-    const res = await fetchFn(url)
+    const res = signal ? await fetchFn(url, { signal }) : await fetchFn(url)
     if (!res.ok) return null
     const data = await res.json()
     return data.city || data.locality || data.principalSubdivision || null
-  } catch {
+  } catch (error) {
+    if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) throw error
     return null
   }
 }

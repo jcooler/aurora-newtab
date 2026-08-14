@@ -15,6 +15,10 @@ export default function LocationSetup() {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const mountedRef = useRef(false)
+  const selectionGenerationRef = useRef(0)
+  const reverseControllerRef = useRef<AbortController | null>(null)
+  const devicePendingRef = useRef(false)
 
   // Typeahead state, entirely separate from the geolocation flow's busy/error
   // above. `open` tracks whether the dropdown should be visible — it's only
@@ -75,13 +79,23 @@ export default function LocationSetup() {
   // Abort whatever's outstanding on unmount so a response that arrives after
   // the component is gone never touches state.
   useEffect(() => {
+    mountedRef.current = true
     return () => {
+      mountedRef.current = false
+      selectionGenerationRef.current += 1
+      devicePendingRef.current = false
       if (searchTimeoutRef.current !== null) clearTimeout(searchTimeoutRef.current)
       controllerRef.current?.abort()
+      reverseControllerRef.current?.abort()
     }
   }, [])
 
   async function useDevice() {
+    if (devicePendingRef.current) return
+    devicePendingRef.current = true
+    const generation = selectionGenerationRef.current + 1
+    selectionGenerationRef.current = generation
+    reverseControllerRef.current?.abort()
     // setBusy(true) is the first synchronous line — before
     // navigator.geolocation.getCurrentPosition below — so the button
     // (disabled={busy}) goes inert on this very click. Without this, a
@@ -103,19 +117,43 @@ export default function LocationSetup() {
     // either way.
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
+        if (!mountedRef.current || selectionGenerationRef.current !== generation) return
+        const controller = new AbortController()
+        reverseControllerRef.current = controller
         try {
           const lat = Math.round(pos.coords.latitude * 100) / 100 // ~1km precision is plenty
           const lon = Math.round(pos.coords.longitude * 100) / 100
           // One-time lookup so the pill reads "Overcast · Dallas", not "· My location"
-          const label = (await reverseGeocode(lat, lon)) ?? 'My location'
-          await storage.set('location', { lat, lon, label, manual: false })
+          const label = (await reverseGeocode(lat, lon, fetch, controller.signal)) ?? 'My location'
+          await storage.updateMany(['location', 'weatherCache'], () => {
+            if (
+              !mountedRef.current ||
+              controller.signal.aborted ||
+              selectionGenerationRef.current !== generation
+            ) return {}
+            return {
+              location: { lat, lon, label, manual: false },
+              weatherCache: null,
+            }
+          })
         } catch {
-          setError('Could not save location — try again.')
+          if (
+            mountedRef.current &&
+            !controller.signal.aborted &&
+            selectionGenerationRef.current === generation
+          ) setError('Could not save location — try again.')
         } finally {
-          setBusy(false)
+          if (reverseControllerRef.current === controller) reverseControllerRef.current = null
+          if (selectionGenerationRef.current === generation) {
+            devicePendingRef.current = false
+            if (mountedRef.current) setBusy(false)
+          }
         }
       },
       () => {
+        if (selectionGenerationRef.current !== generation) return
+        devicePendingRef.current = false
+        if (!mountedRef.current) return
         setBusy(false)
         setError('Location denied — search for your city instead.')
       },
@@ -155,10 +193,7 @@ export default function LocationSetup() {
       searchTimeoutRef.current = null
       const controller = new AbortController()
       controllerRef.current = controller
-      const abortableFetch: typeof fetch = (input, init) =>
-        fetch(input, { ...init, signal: controller.signal })
-
-      searchCity(trimmed, abortableFetch)
+      searchCity(trimmed, fetch, controller.signal)
         .then((found) => {
           if (controller.signal.aborted) return
           setResults(found)
@@ -177,9 +212,16 @@ export default function LocationSetup() {
     }, SEARCH_DEBOUNCE_MS)
   }
 
-  function selectResult(index: number) {
+  async function selectResult(index: number) {
     const m = results[index]
     if (!m) return
+    const generation = selectionGenerationRef.current + 1
+    selectionGenerationRef.current = generation
+    devicePendingRef.current = false
+    reverseControllerRef.current?.abort()
+    reverseControllerRef.current = null
+    setBusy(false)
+    setError(null)
     // Review fix: a selection can happen mid-debounce (the old results are
     // still on screen "by design" while a newer keystroke's timer is armed —
     // see handleQueryChange) or while a search from an EARLIER keystroke is
@@ -191,10 +233,20 @@ export default function LocationSetup() {
       searchTimeoutRef.current = null
     }
     controllerRef.current?.abort()
-    void storage.set('location', { lat: m.lat, lon: m.lon, label: m.name, manual: true })
-    setQuery(m.name)
-    setOpen(false)
-    setActiveIndex(-1)
+    try {
+      await storage.setMany({
+        location: { lat: m.lat, lon: m.lon, label: m.name, manual: true },
+        weatherCache: null,
+      })
+      if (!mountedRef.current || selectionGenerationRef.current !== generation) return
+      setQuery(m.name)
+      setOpen(false)
+      setActiveIndex(-1)
+    } catch {
+      if (mountedRef.current && selectionGenerationRef.current === generation) {
+        setError('Could not save location — try again.')
+      }
+    }
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -211,7 +263,7 @@ export default function LocationSetup() {
       e.preventDefault()
       // No arrowed-to option yet — Enter picks the top match, preserving the
       // old "type, then Enter" muscle memory from before typeahead existed.
-      selectResult(activeIndex === -1 ? 0 : activeIndex)
+      void selectResult(activeIndex === -1 ? 0 : activeIndex)
     } else if (e.key === 'Escape' && open) {
       // Deliberate inner consumer (same precedent as TodoPanel's draft-name
       // input): stop this Escape from reaching the shared dialog stack so it
@@ -253,6 +305,7 @@ export default function LocationSetup() {
           aria-activedescendant={activeId}
           aria-autocomplete="list"
           aria-label="Search for a city"
+          aria-describedby={error ? 'location-error' : undefined}
           autoComplete="off"
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
@@ -287,7 +340,7 @@ export default function LocationSetup() {
                 role="option"
                 aria-selected={i === activeIndex}
                 onMouseEnter={() => setActiveIndex(i)}
-                onClick={() => selectResult(i)}
+                onClick={() => void selectResult(i)}
                 className={`flex cursor-pointer items-baseline gap-1.5 rounded px-2 py-1.5 text-sm ${
                   i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
                 }`}

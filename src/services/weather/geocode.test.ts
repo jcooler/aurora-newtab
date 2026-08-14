@@ -21,6 +21,14 @@ describe('searchCity', () => {
     ])
   })
 
+  it('forwards the caller AbortSignal to fetch', async () => {
+    const fetchFn = ok({ results: [] })
+    const controller = new AbortController()
+    await searchCity('Dallas', fetchFn, controller.signal)
+
+    expect(fetchFn).toHaveBeenCalledWith(expect.any(String), { signal: controller.signal })
+  })
+
   it('strips a ", GA"-style qualifier before querying, so "Dallas, GA" still finds every Dallas', async () => {
     const fetchFn = ok({ results: [] })
     await searchCity('Dallas, GA', fetchFn)

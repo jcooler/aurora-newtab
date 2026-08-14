@@ -7,6 +7,7 @@ import { StorageProvider } from '../lib/storage/context'
 import { defaults } from '../lib/storage/schema'
 import type { StoredLocation, WeatherSnapshot } from '../lib/storage/schema'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
+import { weatherRequestIdentity } from '../services/weather/identity'
 import App from './App'
 
 // loadBarModel/hasBookmarksPermission (chrome.bookmarks.getTree,
@@ -455,6 +456,7 @@ describe('App — weather wrapper z-index elevation while the panel is expanded 
     })),
     fetchedAt: Date.now(), // fresh — useWeather's SWR check must not refetch
     locationLabel: 'New York',
+    requestIdentity: weatherRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
     sunriseISO: '2026-08-06T06:12',
     sunsetISO: '2026-08-06T19:58',
   }

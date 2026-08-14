@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
+import type { StorageAuthority } from '../../../lib/storage/authority'
 import { StorageProvider } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import LocationSetup from './LocationSetup'
@@ -38,8 +39,8 @@ const dallasGA = {
   longitude: -84.8,
 }
 
-async function renderSetup() {
-  const storage = createStorage(memoryDriver())
+async function renderSetup(driver = memoryDriver(), authority?: StorageAuthority) {
+  const storage = authority ? createStorage(driver, authority) : createStorage(driver)
   await storage.init()
   const utils = render(
     <StorageProvider storage={storage}>
@@ -252,6 +253,74 @@ describe('LocationSetup typeahead', () => {
 
     expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
     expect(screen.queryByRole('listbox')).toBeNull()
+  })
+
+  it('commits a manual selection and cache invalidation in one atomic patch', async () => {
+    const driver = memoryDriver()
+    const write = vi.spyOn(driver, 'write')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(driver)
+    await storage.set('weatherCache', {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Old place',
+    })
+    write.mockClear()
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledWith({
+      location: { lat: 32.78, lon: -96.8, label: 'Dallas', manual: true },
+      weatherCache: null,
+    })
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('keeps the prior state, reports a save failure, and permits retry', async () => {
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX] })))
+    const { storage, input } = await renderSetup(driver)
+    const oldLocation = { lat: 1, lon: 2, label: 'Old place', manual: true }
+    await storage.setMany({ location: oldLocation, weatherCache: null })
+
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+
+    expect(await storage.get('location')).toEqual(oldLocation)
+    expect(screen.getByRole('alert').textContent).toContain('Could not save location')
+    expect(screen.getByRole('listbox')).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toMatchObject({ lat: 32.78, lon: -96.8, manual: true })
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('review fix: selecting mid-debounce cancels the pending timer — no ghost second fetch, no reopened list', async () => {
@@ -479,5 +548,172 @@ describe('LocationSetup "Use my location" (geolocation is an install-time permis
       manual: false,
     })
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('a manual selection wins when an older device reverse-geocode finishes late', async () => {
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('reverse-geocode-client')) {
+        return new Promise((resolve) => {
+          resolveReverse = resolve
+        })
+      }
+      return Promise.resolve(jsonResponse({ results: [dallasGA] }))
+    }))
+    const { storage, input } = await renderSetup()
+    await storage.set('weatherCache', {
+      current: { tempC: 10, feelsLikeC: 9, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Old place',
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Device Dallas' }))
+      await Promise.resolve()
+    })
+
+    expect(await storage.get('location')).toEqual({
+      lat: 34,
+      lon: -84.8,
+      label: 'Dallas',
+      manual: true,
+    })
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('rechecks device ownership inside a delayed authority entry after a manual save rejects', async () => {
+    let holdNext = false
+    let releaseHeld: () => void = () => {}
+    let announceHeld: () => void = () => {}
+    let held = Promise.resolve()
+    const authority: StorageAuthority = {
+      runExclusive<T>(work: () => Promise<T>): Promise<T> {
+        if (!holdNext) return work()
+        holdNext = false
+        const gate = new Promise<void>((resolve) => {
+          releaseHeld = resolve
+        })
+        held = new Promise<void>((resolve) => {
+          announceHeld = resolve
+        })
+        announceHeld()
+        return gate.then(work)
+      },
+    }
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      if (String(input).includes('reverse-geocode-client')) {
+        return new Promise((resolve) => {
+          resolveReverse = resolve
+        })
+      }
+      return Promise.resolve(jsonResponse({ results: [dallasGA] }))
+    }))
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    const { storage, input } = await renderSetup(driver, authority)
+    const priorLocation = { lat: 1, lon: 2, label: 'Prior', manual: true }
+    const priorCache = {
+      current: { tempC: 10, feelsLikeC: 9, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: Date.now(),
+      locationLabel: 'Prior',
+    }
+    await storage.setMany({ location: priorLocation, weatherCache: priorCache })
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    holdNext = true
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Device Dallas' }))
+      await Promise.resolve()
+      await held
+    })
+
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('alert').textContent).toContain('Could not save location')
+
+    await act(async () => {
+      releaseHeld()
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toEqual(priorLocation)
+    expect(await storage.get('weatherCache')).toEqual(priorCache)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('option'))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toMatchObject({ lat: 34, lon: -84.8, manual: true })
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('unmounting during reverse geocoding aborts and prevents a late write', async () => {
+    let resolvePosition: (pos: unknown) => void = () => {}
+    let resolveReverse: (value: unknown) => void = () => {}
+    let reverseSignal: AbortSignal | undefined
+    getCurrentPosition.mockImplementation((success: (pos: unknown) => void) => {
+      resolvePosition = success
+    })
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_input: RequestInfo | URL, init?: RequestInit) => {
+      reverseSignal = init?.signal ?? undefined
+      return new Promise((resolve) => {
+        resolveReverse = resolve
+      })
+    }))
+    const { storage, unmount } = await renderSetup()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use my location' }))
+    await act(async () => {
+      resolvePosition({ coords: { latitude: 32.7767, longitude: -96.797 } })
+      await Promise.resolve()
+    })
+    unmount()
+    expect(reverseSignal?.aborted).toBe(true)
+    await act(async () => {
+      resolveReverse(jsonResponse({ city: 'Too late' }))
+      await Promise.resolve()
+    })
+    expect(await storage.get('location')).toBeNull()
   })
 })

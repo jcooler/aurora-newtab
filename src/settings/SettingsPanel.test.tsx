@@ -413,7 +413,9 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
   })
 
   it('clearing the location resets both location and weatherCache', async () => {
-    const storage = createStorage(memoryDriver())
+    const driver = memoryDriver()
+    const write = vi.spyOn(driver, 'write')
+    const storage = createStorage(driver)
     await storage.init()
     await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
     await storage.set('weatherCache', {
@@ -431,10 +433,63 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     openTab('Widgets')
 
     const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    write.mockClear()
     await act(async () => {
       fireEvent.click(clearButton)
+      await Promise.resolve()
     })
 
+    expect(write).toHaveBeenCalledTimes(1)
+    expect(write).toHaveBeenCalledWith({ location: null, weatherCache: null })
+    expect(await storage.get('location')).toBeNull()
+    expect(await storage.get('weatherCache')).toBeNull()
+  })
+
+  it('reports an atomic clear failure, preserves state, and permits retry', async () => {
+    const driver = memoryDriver()
+    const baseWrite = driver.write.bind(driver)
+    const storage = createStorage(driver)
+    await storage.init()
+    const location = { lat: 1, lon: 2, label: 'Springfield', manual: true }
+    await storage.setMany({
+      location,
+      weatherCache: {
+        current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+        hourly: [],
+        fetchedAt: Date.now(),
+        locationLabel: 'Springfield',
+      },
+    })
+    let failNext = true
+    driver.write = vi.fn(async (patch) => {
+      if (failNext) {
+        failNext = false
+        throw new Error('disk full')
+      }
+      await baseWrite(patch)
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    openTab('Widgets')
+
+    const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
+    await act(async () => {
+      fireEvent.click(clearButton)
+      await Promise.resolve()
+    })
+    expect(screen.getByRole('alert').textContent).toContain('Could not clear weather location')
+    expect(clearButton.hasAttribute('disabled')).toBe(false)
+    expect(await storage.get('location')).toEqual(location)
+    expect(await storage.get('weatherCache')).not.toBeNull()
+
+    await act(async () => {
+      fireEvent.click(clearButton)
+      await Promise.resolve()
+    })
     expect(await storage.get('location')).toBeNull()
     expect(await storage.get('weatherCache')).toBeNull()
   })

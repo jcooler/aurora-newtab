@@ -5,6 +5,7 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { StoredLocation, WeatherSnapshot } from '../../../lib/storage/schema'
+import { weatherRequestIdentity } from '../../../services/weather/identity'
 import WeatherWidget from './WeatherWidget'
 
 const NEW_YORK: StoredLocation = { lat: 40.71, lon: -74.01, label: 'New York', manual: true }
@@ -24,6 +25,7 @@ function makeSnapshot(overrides: Partial<WeatherSnapshot> = {}): WeatherSnapshot
     })),
     fetchedAt: Date.now(), // fresh — useWeather's SWR check must not refetch
     locationLabel: 'New York',
+    requestIdentity: weatherRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
     sunriseISO: '2026-08-06T06:12',
     sunsetISO: '2026-08-06T19:58',
     ...overrides,
@@ -115,6 +117,25 @@ describe('WeatherWidget collapsed chip', () => {
     expect(letter.className).toContain('text-[0.7em]')
     expect(letter.className).toContain('text-fg-muted')
     expect(big.textContent).toBe('70°F') // == displayTempWithUnit(21, 'imperial')
+  })
+
+  it('reformats a mounted snapshot when display units change without refetching', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    const { storage, view } = await renderWidget()
+    expect(toggle().textContent).toContain('21°C')
+
+    await act(async () => {
+      const settings = await storage.get('settings')
+      await storage.set('settings', { ...settings!, units: 'imperial' })
+    })
+
+    expect(toggle().textContent).toContain('70°F')
+    expect(fetchSpy).not.toHaveBeenCalled()
+    expect((await storage.get('weatherCache'))?.requestIdentity).toBe(
+      weatherRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+    )
+    view.unmount()
+    fetchSpy.mockRestore()
   })
 
   it('keeps condition and location on one line, with the full text in a title', async () => {
@@ -420,7 +441,10 @@ describe('WeatherWidget full-forecast link', () => {
 
 describe('WeatherWidget stale data', () => {
   it('reports staleness inside the chip and offers refresh only once expanded', async () => {
-    await renderWidget({
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
+      () => new Promise<Response>(() => {}),
+    )
+    const { view } = await renderWidget({
       snapshot: makeSnapshot({ fetchedAt: Date.now() - 60 * 60 * 1000 }),
     })
     // Still exactly one button while collapsed — the chip stays one hit target
@@ -431,6 +455,8 @@ describe('WeatherWidget stale data', () => {
 
     await expandPanel()
     expect(screen.getByRole('button', { name: /refresh/i })).toBeTruthy()
+    view.unmount()
+    fetchSpy.mockRestore()
   })
 })
 
