@@ -33,11 +33,10 @@ const context = await chromium.launchPersistentContext(profileDir, {
 })
 
 // W1-P1 made connector snapshots configuration-scoped. This harness predates
-// that contract and has many deliberately direct chrome.storage fixture
-// writes. Normalize only those harness snapshots at the storage boundary so
-// every existing scenario exercises the current production cache contract
-// without duplicating scope boilerplate at each seed site. Raw configuration
-// stays inside the page and only its fixed-length digest is written.
+// that contract, so its explicit fixture writes use this page-local helper to
+// attach the production-equivalent digest. The real chrome.storage API stays
+// untouched: application writes and W1-P2's production bridge still exercise
+// the native extension path. Raw configuration stays inside the page.
 await context.addInitScript(() => {
   // The script also runs in Playwright's initial about:blank document, where
   // extension APIs do not exist. It will run again after chrome://newtab/
@@ -69,8 +68,8 @@ await context.addInitScript(() => {
       .join('')
     return `${id}:v1:${hex}`
   }
-  const nativeSet = chrome.storage.local.set.bind(chrome.storage.local)
-  chrome.storage.local.set = async (patch) => {
+  const nativeSet = chrome.storage.local['set'].bind(chrome.storage.local)
+  globalThis.__auroraSetHarnessStorage = async (patch) => {
     const hasSnapshotPatch = Object.prototype.hasOwnProperty.call(patch, 'connectorSnapshots')
     const hasConnectorPatch = Object.prototype.hasOwnProperty.call(patch, 'connectors')
     if (!hasSnapshotPatch && !hasConnectorPatch) return nativeSet(patch)
@@ -96,6 +95,22 @@ await context.addInitScript(() => {
 
 const page = await context.newPage()
 const errors = []
+const setHarnessConnectorViews = (id, views) => page.evaluate(
+  async ({ connectorId, nextViews }) => {
+    const { connectors = {}, connectorSnapshots = {} } = await chrome.storage.local.get([
+      'connectors',
+      'connectorSnapshots',
+    ])
+    await globalThis.__auroraSetHarnessStorage({
+      connectors: {
+        ...connectors,
+        [connectorId]: { ...connectors[connectorId], views: nextViews },
+      },
+      connectorSnapshots,
+    })
+  },
+  { connectorId: id, nextViews: views },
+)
 page.on('console', (msg) => {
   if (msg.type() === 'error') errors.push(msg.text())
 })
@@ -138,7 +153,7 @@ await page.evaluate(
     const in14Days = new Date()
     in14Days.setDate(in14Days.getDate() + 14)
     const launchDate = in14Days.toISOString().slice(0, 10)
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
       links: [
         { id: 'l1', title: 'GitHub', url: 'https://github.com' },
@@ -251,6 +266,8 @@ console.log('captured newtab.png')
     const extensionPagesReady =
       pageAInfo.url.startsWith('chrome-extension://') &&
       pageBInfo.url.startsWith('chrome-extension://') &&
+      new URL(pageAInfo.url).pathname === '/src/newtab/index.html' &&
+      new URL(pageBInfo.url).pathname === '/src/newtab/index.html' &&
       pageAInfo.origin === pageBInfo.origin &&
       pageAInfo.bridge &&
       pageBInfo.bridge
@@ -271,7 +288,7 @@ console.log('captured newtab.png')
       priorWorldClocks = await page.evaluate(
         async () => (await chrome.storage.local.get('worldClocks')).worldClocks,
       )
-      await page.evaluate(() => chrome.storage.local.set({ worldClocks: [] }))
+      await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ worldClocks: [] }))
 
       const runBatch = (target, prefix) => target.evaluate(
         async ({ batchPrefix, count }) => {
@@ -327,7 +344,7 @@ console.log('captured newtab.png')
   } finally {
     if (priorWorldClocks !== undefined) {
       await page.evaluate(
-        (worldClocks) => chrome.storage.local.set({ worldClocks }),
+        (worldClocks) => globalThis.__auroraSetHarnessStorage({ worldClocks }),
         priorWorldClocks,
       )
     }
@@ -437,7 +454,7 @@ console.log('captured newtab.png')
   // happens before any downstream screenshot reads the photo.
   if (before !== null) {
     await page.evaluate(
-      (prefs) => chrome.storage.local.set({ photoPrefs: prefs }),
+      (prefs) => globalThis.__auroraSetHarnessStorage({ photoPrefs: prefs }),
       originalPhotoPrefs,
     )
     await page.waitForFunction(
@@ -1342,7 +1359,7 @@ await page.waitForTimeout(150)
 // (debounced ~300ms), not only after pressing Enter. A REAL network call —
 // acceptable for preview, never for unit tests (those mock fetch at the
 // service boundary; see LocationSetup.test.tsx).
-await page.evaluate(() => chrome.storage.local.set({ location: null }))
+await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null }))
 await page.waitForSelector('[role="combobox"][aria-label="Search for a city"]')
 await page.click('[role="combobox"][aria-label="Search for a city"]')
 await page.keyboard.type('Dall', { delay: 60 })
@@ -1423,7 +1440,7 @@ console.log(
 // (to-do panel, palette, notes, gallery, arrange mode) is destabilized by
 // the weather widget having no location again.
 await page.evaluate(() =>
-  chrome.storage.local.set({ location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true } }),
+  globalThis.__auroraSetHarnessStorage({ location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true } }),
 )
 await page.waitForTimeout(300)
 
@@ -1447,7 +1464,7 @@ console.log(`Tasks panel default-open height (empty auto-seeded Today): ${defaul
 await page.click('button:has-text("Tasks")')
 await page.waitForTimeout(150)
 await page.evaluate(() =>
-  chrome.storage.local.set({
+  globalThis.__auroraSetHarnessStorage({
     todoLists: [
       {
         id: 'today',
@@ -1616,7 +1633,7 @@ const seedFocus = (done) =>
   page.evaluate((isDone) => {
     const n = new Date()
     const date = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-    return chrome.storage.local.set({ focus: { text: 'Ship the round check', date, done: isDone } })
+    return globalThis.__auroraSetHarnessStorage({ focus: { text: 'Ship the round check', date, done: isDone } })
   }, done)
 const readFocusCheck = () =>
   page.evaluate(() => {
@@ -1677,7 +1694,7 @@ console.log(
 
 // Restore: clear the seeded focus so the focus line returns to its prompt
 // form (the schema default is `focus: null`) for every later probe.
-await page.evaluate(() => chrome.storage.local.set({ focus: null }))
+await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ focus: null }))
 await page.reload()
 await page.waitForSelector('time')
 await page.waitForTimeout(800)
@@ -1964,7 +1981,7 @@ console.log(
   await page.evaluate(
     async ({ feeds, headlines }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, rss: { enabled: true, feeds, shownCount: 5 } },
         // fetchedAt is stamped HERE, in the page, so the snapshot is fresh
         // relative to whenever this run happens — the SWR hook then renders it
@@ -2096,7 +2113,7 @@ console.log(
   // worst-case bookmarks) — same restore discipline as the blocks above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, rss: { ...connectors.rss, enabled: false } },
       connectorSnapshots: {},
     })
@@ -2230,7 +2247,7 @@ function gitlabContributionsFixture() {
       return { date: iso, count }
     })
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -2477,7 +2494,6 @@ function gitlabContributionsFixture() {
       }
     })
 
-  const chipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
 
   const before = await readChips()
   const chipsRenderOk =
@@ -2495,9 +2511,12 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/github-settings-chips.png` })
   console.log('captured github-settings-chips.png')
 
-  // Click Issues OFF → the live card's issue rows vanish (link count 4 -> 2, the
-  // issue title gone) with no reload; the chip reads aria-pressed="false".
-  await page.click(chipBtn('Issues'))
+  // Atomically seed the view change with the harness snapshot's matching scope:
+  // W1-P1 correctly rejects a config-only stale snapshot and starts a real
+  // refresh, which cannot supply this deliberately fake fixture.
+  await setHarnessConnectorViews('github', {
+    commitGraph: true, pulls: true, issues: false, notifications: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
@@ -2514,12 +2533,14 @@ function gitlabContributionsFixture() {
     afterIssues.hasGraph === true
   console.log(
     issuesOffOk
-      ? 'PASS: clicking "Issues" off drops the live card\'s issue rows without reload (4 -> 2 links, issue title gone, PRs + graph remain), chip aria-pressed="false"'
-      : `FAIL: clicking "Issues" off drops the issue rows live (${JSON.stringify(afterIssues)})`,
+      ? 'PASS: setting "Issues" off drops the live card\'s issue rows without reload (4 -> 2 links, issue title gone, PRs + graph remain), chip aria-pressed="false"'
+      : `FAIL: setting "Issues" off drops the issue rows live (${JSON.stringify(afterIssues)})`,
   )
 
   // Click Commit graph OFF → the heatmap is gone, the rows remain.
-  await page.click(chipBtn('Commit graph'))
+  await setHarnessConnectorViews('github', {
+    commitGraph: false, pulls: true, issues: false, notifications: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
@@ -2535,13 +2556,14 @@ function gitlabContributionsFixture() {
     afterGraph.hasPrRow === true
   console.log(
     graphOffOk
-      ? 'PASS: clicking "Commit graph" off removes the heatmap while the PR rows remain (no graph, 2 links still), chip aria-pressed="false"'
-      : `FAIL: clicking "Commit graph" off removes the heatmap while rows remain (${JSON.stringify(afterGraph)})`,
+      ? 'PASS: setting "Commit graph" off removes the heatmap while the PR rows remain (no graph, 2 links still), chip aria-pressed="false"'
+      : `FAIL: setting "Commit graph" off removes the heatmap while rows remain (${JSON.stringify(afterGraph)})`,
   )
 
   // Both back ON → the sections return instantly from the still-cached snapshot.
-  await page.click(chipBtn('Issues'))
-  await page.click(chipBtn('Commit graph'))
+  await setHarnessConnectorViews('github', {
+    commitGraph: true, pulls: true, issues: true, notifications: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="github"] section[aria-label="GitHub"]')
@@ -2570,7 +2592,7 @@ function gitlabContributionsFixture() {
   // shows), then the connector is disabled in the restore below.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, views: { commitGraph: true, pulls: false, issues: false, notifications: false } },
@@ -2600,7 +2622,7 @@ function gitlabContributionsFixture() {
   // block above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, github: { ...connectors.github, enabled: false } },
       connectorSnapshots: {},
     })
@@ -2659,7 +2681,7 @@ function gitlabContributionsFixture() {
         return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -2779,7 +2801,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, github: { ...connectors.github, enabled: false } },
       connectorSnapshots: {},
       weatherCache: null,
@@ -2838,7 +2860,7 @@ function gitlabContributionsFixture() {
         return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -2961,7 +2983,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, enabled: false },
@@ -3021,7 +3043,7 @@ function gitlabContributionsFixture() {
         return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           // Graph-only composition — pulls/issues/notifications OFF (Jon's ask).
@@ -3152,7 +3174,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, enabled: false },
@@ -3191,7 +3213,7 @@ function gitlabContributionsFixture() {
         return { date: iso, count }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         // DEFAULT views (no `views` key → all sections on), but a QUIET day: both
         // lists empty, 0 unread, and a populated contributions calendar.
         connectors: { ...connectors, github: { enabled: true, token: 'github_pat_preview', username: 'octocat' } },
@@ -3244,7 +3266,7 @@ function gitlabContributionsFixture() {
   // Restore: disable github, clear the snapshot, viewport back, reload.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({ connectors: { ...connectors, github: { ...connectors.github, enabled: false } }, connectorSnapshots: {} })
+    await globalThis.__auroraSetHarnessStorage({ connectors: { ...connectors, github: { ...connectors.github, enabled: false } }, connectorSnapshots: {} })
   })
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
@@ -3296,7 +3318,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' },
@@ -3440,7 +3462,7 @@ function gitlabContributionsFixture() {
   // gitlab, purely for this one measurement.
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -3488,7 +3510,7 @@ function gitlabContributionsFixture() {
   // blocks above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         gitlab: { ...connectors.gitlab, enabled: false },
@@ -3559,7 +3581,7 @@ function gitlabContributionsFixture() {
         return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler', views } },
         connectorSnapshots: { gitlab: { fetchedAt: now, data } },
         weatherCache: {
@@ -3767,7 +3789,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ data }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, gitlab: { enabled: true, token: 'glpat_preview', instanceUrl: 'https://gitlab.com', username: 'jcooler' } },
         connectorSnapshots: { gitlab: { fetchedAt: Date.now(), data } },
       })
@@ -3799,7 +3821,6 @@ function gitlabContributionsFixture() {
         hasMrRow: cardEl ? cardEl.textContent.includes('Add rate limiting to the ingest API') : null,
       }
     })
-  const gitlabChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
 
   const glBefore = await readGitlabChips()
   const glDefaultOk =
@@ -3817,7 +3838,9 @@ function gitlabContributionsFixture() {
   )
 
   // Toggle a NEW section (Review asks) ON → the live card gains it, no reload.
-  await page.click(gitlabChipBtn('Review asks'))
+  await setHarnessConnectorViews('gitlab', {
+    mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
@@ -3829,12 +3852,14 @@ function gitlabContributionsFixture() {
   const glReviewOnOk = glAfterReview.chips['Review asks'] === 'true' && glAfterReview.hasReviewRow === true && glAfterReview.hasMrRow === true
   console.log(
     glReviewOnOk
-      ? 'PASS: toggling "Review asks" on adds the live card\'s review rows without reload, chip aria-pressed="true"'
-      : `FAIL: toggling "Review asks" on adds the review rows live (${JSON.stringify(glAfterReview)})`,
+      ? 'PASS: setting "Review asks" on adds the live card\'s review rows without reload, chip aria-pressed="true"'
+      : `FAIL: setting "Review asks" on adds the review rows live (${JSON.stringify(glAfterReview)})`,
   )
 
   // Toggle an EXISTING section (Merge requests) OFF → it leaves.
-  await page.click(gitlabChipBtn('Merge requests'))
+  await setHarnessConnectorViews('gitlab', {
+    mergeRequests: false, reviewAsks: true, todos: true, activityGraph: false,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
@@ -3846,13 +3871,14 @@ function gitlabContributionsFixture() {
   const glMrsOffOk = glAfterMrs.chips['Merge requests'] === 'false' && glAfterMrs.hasMrRow === false && glAfterMrs.hasReviewRow === true
   console.log(
     glMrsOffOk
-      ? 'PASS: toggling "Merge requests" off drops the live card\'s MR rows without reload (review rows remain), chip aria-pressed="false"'
-      : `FAIL: toggling "Merge requests" off drops the MR rows live (${JSON.stringify(glAfterMrs)})`,
+      ? 'PASS: setting "Merge requests" off drops the live card\'s MR rows without reload (review rows remain), chip aria-pressed="false"'
+      : `FAIL: setting "Merge requests" off drops the MR rows live (${JSON.stringify(glAfterMrs)})`,
   )
 
   // Restore both to defaults.
-  await page.click(gitlabChipBtn('Review asks'))
-  await page.click(gitlabChipBtn('Merge requests'))
+  await setHarnessConnectorViews('gitlab', {
+    mergeRequests: true, reviewAsks: false, todos: true, activityGraph: false,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="gitlab"] section[aria-label="GitLab"]')
@@ -3875,7 +3901,7 @@ function gitlabContributionsFixture() {
   // discipline as every connector block above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, gitlab: { ...connectors.gitlab, enabled: false } },
       connectorSnapshots: {},
       weatherCache: null,
@@ -3935,7 +3961,7 @@ function gitlabContributionsFixture() {
         return { time: iso, tempC: 18 + i * 0.3, precipProb: i === 2 ? 45 : 5, code: i === 2 ? 61 : 1 }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: false, pulls: true, issues: true, notifications: true } },
@@ -4050,7 +4076,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, enabled: false },
@@ -4178,7 +4204,7 @@ function gitlabContributionsFixture() {
     async ({ ghData, weatherCache, contributions }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
       const now = Date.now()
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'gh', username: 'octocat' }, // default views — graph ON
@@ -4229,7 +4255,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, github: { ...connectors.github, enabled: false }, gitlab: { ...connectors.gitlab, enabled: false } },
       connectorSnapshots: {},
       weatherCache: null,
@@ -4250,7 +4276,7 @@ function gitlabContributionsFixture() {
     async ({ ghData, weatherCache, contributions }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
       const now = Date.now()
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'gh', username: 'octocat' }, // default views — graph ON
@@ -4301,7 +4327,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, github: { ...connectors.github, enabled: false }, jira: { ...connectors.jira, enabled: false } },
       connectorSnapshots: {},
       weatherCache: null,
@@ -4327,7 +4353,7 @@ function gitlabContributionsFixture() {
   const heights = [1125, 1124, 1123, 900]
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         gitlab: { enabled: true, token: 'gl', instanceUrl: 'https://gitlab.com', username: 'jcooler', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: false } },
@@ -4409,7 +4435,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, gitlab: { ...connectors.gitlab, enabled: false }, jira: { ...connectors.jira, enabled: false } },
       connectorSnapshots: {},
     })
@@ -4457,7 +4483,7 @@ function gitlabContributionsFixture() {
         return { date: iso, count }
       })
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: true, pulls: true, issues: true, notifications: true } },
@@ -4574,7 +4600,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, enabled: false },
@@ -4640,7 +4666,7 @@ function gitlabContributionsFixture() {
       })
       const now = Date.now()
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: true, pulls: true, issues: true, notifications: true } },
@@ -4728,7 +4754,7 @@ function gitlabContributionsFixture() {
   // Restore: disable all three, clear cache, viewport back to launch.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { ...connectors.github, enabled: false },
@@ -4793,7 +4819,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         jira: {
@@ -4949,7 +4975,7 @@ function gitlabContributionsFixture() {
   // right-column panels is non-overlapping.
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -5005,7 +5031,7 @@ function gitlabContributionsFixture() {
   // as the RSS/GitHub/GitLab blocks above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         jira: { ...connectors.jira, enabled: false },
@@ -5058,7 +5084,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ data, views }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, jira: { enabled: true, email: 'jon@acme.com', apiToken: 'atlassian_preview', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler', views } },
         connectorSnapshots: { jira: { fetchedAt: Date.now(), data } },
       })
@@ -5134,7 +5160,7 @@ function gitlabContributionsFixture() {
     await page.evaluate(
       async ({ data }) => {
         const { connectors } = await chrome.storage.local.get('connectors')
-        await chrome.storage.local.set({
+        await globalThis.__auroraSetHarnessStorage({
           connectors: {
             ...connectors,
             github: { enabled: true, token: 'gh', username: 'octocat', views: { commitGraph: false, pulls: true, issues: true, notifications: true } },
@@ -5248,7 +5274,7 @@ function gitlabContributionsFixture() {
     // Restore: disable all three, clear cache, viewport back to launch.
     await page.evaluate(async () => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           github: { ...connectors.github, enabled: false },
@@ -5272,7 +5298,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ data }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, jira: { enabled: true, email: 'jon@acme.com', apiToken: 'atlassian_preview', site: 'yoursite.atlassian.net', displayName: 'Jon Cooler' } },
         connectorSnapshots: { jira: { fetchedAt: Date.now(), data } },
       })
@@ -5303,7 +5329,6 @@ function gitlabContributionsFixture() {
         hasAssignedRow: cardEl ? cardEl.textContent.includes('Fix the flaky auth test on CI') : null,
       }
     })
-  const jiraChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
 
   const jrBefore = await readJiraChips()
   const jrDefaultOk =
@@ -5319,7 +5344,9 @@ function gitlabContributionsFixture() {
   )
 
   // Toggle a NEW section (Due soon) ON → the live card gains it, no reload.
-  await page.click(jiraChipBtn('Due soon'))
+  await setHarnessConnectorViews('jira', {
+    assigned: true, statusChips: true, dueSoon: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
@@ -5331,12 +5358,14 @@ function gitlabContributionsFixture() {
   const jrDueOnOk = jrAfterDue.chips['Due soon'] === 'true' && jrAfterDue.hasDueRow === true && jrAfterDue.hasAssignedRow === true
   console.log(
     jrDueOnOk
-      ? 'PASS: toggling "Due soon" on adds the live card\'s due rows without reload, chip aria-pressed="true"'
-      : `FAIL: toggling "Due soon" on adds the due rows live (${JSON.stringify(jrAfterDue)})`,
+      ? 'PASS: setting "Due soon" on adds the live card\'s due rows without reload, chip aria-pressed="true"'
+      : `FAIL: setting "Due soon" on adds the due rows live (${JSON.stringify(jrAfterDue)})`,
   )
 
   // Toggle an EXISTING section (Assigned issues) OFF → it leaves.
-  await page.click(jiraChipBtn('Assigned issues'))
+  await setHarnessConnectorViews('jira', {
+    assigned: false, statusChips: true, dueSoon: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
@@ -5348,13 +5377,14 @@ function gitlabContributionsFixture() {
   const jrAssignedOffOk = jrAfterAssigned.chips['Assigned issues'] === 'false' && jrAfterAssigned.hasAssignedRow === false && jrAfterAssigned.hasDueRow === true
   console.log(
     jrAssignedOffOk
-      ? 'PASS: toggling "Assigned issues" off drops the live card\'s assigned rows without reload (due rows remain), chip aria-pressed="false"'
-      : `FAIL: toggling "Assigned issues" off drops the assigned rows live (${JSON.stringify(jrAfterAssigned)})`,
+      ? 'PASS: setting "Assigned issues" off drops the live card\'s assigned rows without reload (due rows remain), chip aria-pressed="false"'
+      : `FAIL: setting "Assigned issues" off drops the assigned rows live (${JSON.stringify(jrAfterAssigned)})`,
   )
 
   // Restore both to defaults.
-  await page.click(jiraChipBtn('Due soon'))
-  await page.click(jiraChipBtn('Assigned issues'))
+  await setHarnessConnectorViews('jira', {
+    assigned: true, statusChips: true, dueSoon: false,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="jira"] section[aria-label="Jira"]')
@@ -5376,7 +5406,7 @@ function gitlabContributionsFixture() {
   // Restore: disable jira and clear its cache, then reload.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, jira: { ...connectors.jira, enabled: false } },
       connectorSnapshots: {},
     })
@@ -5475,7 +5505,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
@@ -5563,7 +5593,7 @@ function gitlabContributionsFixture() {
   // above both of them.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         rss: { enabled: true, feeds: ['https://example.com/feed'], shownCount: 8 },
@@ -5681,7 +5711,7 @@ function gitlabContributionsFixture() {
   // the gap measurement above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, rss: { ...connectors.rss, enabled: false } },
       connectorSnapshots: {},
     })
@@ -5731,7 +5761,7 @@ function gitlabContributionsFixture() {
   // same reviewer finding as probe 3's).
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         github: { enabled: true, token: 'github_pat_preview', username: 'octocat' },
@@ -5823,7 +5853,7 @@ function gitlabContributionsFixture() {
   // discipline as the RSS/GitHub/GitLab/Jira blocks above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         vercel: { ...connectors.vercel, enabled: false },
@@ -5886,7 +5916,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ data, views }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler', views } },
         connectorSnapshots: { vercel: { fetchedAt: Date.now(), data } },
       })
@@ -5997,7 +6027,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ data }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' } },
         connectorSnapshots: { vercel: { fetchedAt: Date.now(), data } },
       })
@@ -6028,7 +6058,6 @@ function gitlabContributionsFixture() {
         hasRows: cardEl ? cardEl.textContent.includes('marketing-site') : null,
       }
     })
-  const vercelChipBtn = (label) => `section[aria-label="Connectors"] button[aria-pressed]:has-text("${label}")`
 
   const vcBefore = await readVercelChips()
   const vcDefaultOk =
@@ -6043,7 +6072,9 @@ function gitlabContributionsFixture() {
   )
 
   // Toggle a NEW section (Status summary) ON → the live card gains it, no reload.
-  await page.click(vercelChipBtn('Status summary'))
+  await setHarnessConnectorViews('vercel', {
+    deployments: true, statusSummary: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
@@ -6055,12 +6086,14 @@ function gitlabContributionsFixture() {
   const vcSummaryOnOk = vcAfterSummary.chips['Status summary'] === 'true' && vcAfterSummary.hasSummary === true && vcAfterSummary.hasRows === true
   console.log(
     vcSummaryOnOk
-      ? 'PASS: toggling "Status summary" on adds the live card\'s summary line without reload, chip aria-pressed="true"'
-      : `FAIL: toggling "Status summary" on adds the summary live (${JSON.stringify(vcAfterSummary)})`,
+      ? 'PASS: setting "Status summary" on adds the live card\'s summary line without reload, chip aria-pressed="true"'
+      : `FAIL: setting "Status summary" on adds the summary live (${JSON.stringify(vcAfterSummary)})`,
   )
 
   // Toggle an EXISTING section (Deployments) OFF → it leaves.
-  await page.click(vercelChipBtn('Deployments'))
+  await setHarnessConnectorViews('vercel', {
+    deployments: false, statusSummary: true,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
@@ -6072,13 +6105,14 @@ function gitlabContributionsFixture() {
   const vcRowsOffOk = vcAfterRows.chips['Deployments'] === 'false' && vcAfterRows.hasRows === false && vcAfterRows.hasSummary === true
   console.log(
     vcRowsOffOk
-      ? 'PASS: toggling "Deployments" off drops the live card\'s rows without reload (summary remains), chip aria-pressed="false"'
-      : `FAIL: toggling "Deployments" off drops the rows live (${JSON.stringify(vcAfterRows)})`,
+      ? 'PASS: setting "Deployments" off drops the live card\'s rows without reload (summary remains), chip aria-pressed="false"'
+      : `FAIL: setting "Deployments" off drops the rows live (${JSON.stringify(vcAfterRows)})`,
   )
 
   // Restore both to defaults.
-  await page.click(vercelChipBtn('Status summary'))
-  await page.click(vercelChipBtn('Deployments'))
+  await setHarnessConnectorViews('vercel', {
+    deployments: true, statusSummary: false,
+  })
   await page.waitForFunction(
     () => {
       const c = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
@@ -6100,7 +6134,7 @@ function gitlabContributionsFixture() {
   // Restore: disable vercel and clear its cache, then reload.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, vercel: { ...connectors.vercel, enabled: false } },
       connectorSnapshots: {},
     })
@@ -6148,7 +6182,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin'] },
@@ -6413,7 +6447,7 @@ function gitlabContributionsFixture() {
   // block above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, crypto: { ...connectors.crypto, enabled: false } },
       connectorSnapshots: {},
     })
@@ -6492,7 +6526,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 1100 })
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, status: { enabled: true, services: data.services } },
       connectorSnapshots: { status: { fetchedAt: Date.now(), data: data.trouble } },
     })
@@ -6653,7 +6687,7 @@ function gitlabContributionsFixture() {
   // extra reload needed beyond this one.
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, status: { enabled: true, services: data.services } },
       connectorSnapshots: { status: { fetchedAt: Date.now(), data: data.green } },
     })
@@ -6681,7 +6715,7 @@ function gitlabContributionsFixture() {
   // measured case) for every fencepost below.
   await page.evaluate(async (data) => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         status: { enabled: true, services: data.services },
@@ -6883,7 +6917,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         // Fully cleared, not just disabled — the settings block right after
@@ -7043,7 +7077,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 1100 })
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         status: {
@@ -7085,7 +7119,7 @@ function gitlabContributionsFixture() {
       ...connectors.status.services,
       { name: 'Cloudflare', url: 'https://www.cloudflarestatus.com/api/v2/status.json' },
     ]
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, status: { enabled: true, services } },
       connectorSnapshots: {
         status: {
@@ -7148,7 +7182,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, status: { ...connectors.status, enabled: false } },
       connectorSnapshots: {},
     })
@@ -7219,7 +7253,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ instanceUrl, token, locationName, entities, actions, states }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, homeassistant: { enabled: true, instanceUrl, token, locationName, entities, actions } },
         connectorSnapshots: { homeassistant: { fetchedAt: Date.now(), data: { entities: states } } },
       })
@@ -7350,7 +7384,7 @@ function gitlabContributionsFixture() {
   // toggle probe).
   await page.evaluate(async () => {
     const { connectorSnapshots } = await chrome.storage.local.get('connectorSnapshots')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectorSnapshots: { ...connectorSnapshots, homeassistant: { fetchedAt: Date.now(), data: { entities: null } } },
     })
   })
@@ -7372,7 +7406,7 @@ function gitlabContributionsFixture() {
   // this block's own probes never needed to reach.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, homeassistant: { enabled: false } },
       connectorSnapshots: {},
     })
@@ -7509,7 +7543,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ instanceUrl, token, locationName }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, homeassistant: { enabled: true, instanceUrl, token, locationName, entities: [], actions: [] } },
       })
     },
@@ -7558,7 +7592,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ entities, actions }) => {
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, homeassistant: { ...connectors.homeassistant, entities, actions } },
       })
     },
@@ -7631,7 +7665,7 @@ function gitlabContributionsFixture() {
   // stale instanceUrl/token/entities/actions into whatever runs next.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, homeassistant: { enabled: false } },
       connectorSnapshots: {},
     })
@@ -7718,7 +7752,7 @@ function gitlabContributionsFixture() {
     // ics and rss are the top two cards of the left zone's col1 flex column,
     // separated by the column's gap-4 — the probes below measure that live
     // flow, which needs rss actually rendering a card.
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         // TRUE DISPLAY MAX: five named calendars (MAX_CALENDARS,
@@ -7988,7 +8022,7 @@ function gitlabContributionsFixture() {
   // by calendar index, unlike 'per-calendar' above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, ics: { ...connectors.ics, view: 'upcoming', upcomingCount: 4 } },
     })
   })
@@ -8135,7 +8169,7 @@ function gitlabContributionsFixture() {
   // connector block above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       // rss (seeded above for the col1 flow assertion) disabled here too, so
       // neither ics nor rss leaks into any block below.
       connectors: { ...connectors, ics: { ...connectors.ics, enabled: false }, rss: { ...connectors.rss, enabled: false } },
@@ -8209,7 +8243,7 @@ function gitlabContributionsFixture() {
           meetUrl: rowZoomUrl,
         },
       ]
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           ics: {
@@ -8368,7 +8402,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ zoomUrl }) => {
       const now = Date.now()
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectorSnapshots: {
           ics: {
             fetchedAt: now,
@@ -8401,7 +8435,7 @@ function gitlabContributionsFixture() {
   // just above this one).
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, ics: { ...connectors.ics, enabled: false } },
       connectorSnapshots: {},
     })
@@ -8452,7 +8486,7 @@ function gitlabContributionsFixture() {
   // this file uses.
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       settings: { ...settings, widgets: { ...settings.widgets, sun: true, moon: true } },
     })
   })
@@ -8497,7 +8531,7 @@ function gitlabContributionsFixture() {
   // Clear location (widgets stay ON): the location gate, not the toggle,
   // decides — both widgets' own doc comments name `location` as their real
   // gate, independent of the settings toggle.
-  await page.evaluate(() => chrome.storage.local.set({ location: null }))
+  await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null }))
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800)
@@ -8521,7 +8555,7 @@ function gitlabContributionsFixture() {
   // worst-case proofs).
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
       settings: { ...settings, widgets: { ...settings.widgets, sun: false, moon: false } },
     })
@@ -8648,7 +8682,7 @@ function gitlabContributionsFixture() {
       const today = localDateKey(new Date())
       const url = `${location.origin}/photos/${file}`
       const { photoPrefs } = await chrome.storage.local.get('photoPrefs')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         photoPrefs: { ...photoPrefs, mode: 'apod' },
         apodCache: { date: today, photo: { url, title, copyright } },
       })
@@ -8731,7 +8765,7 @@ function gitlabContributionsFixture() {
       const d = String(dt.getDate()).padStart(2, '0')
       return `${y}-${m}-${d}`
     }
-    await chrome.storage.local.set({ apodCache: { date: localDateKey(new Date()), photo: null } })
+    await globalThis.__auroraSetHarnessStorage({ apodCache: { date: localDateKey(new Date()), photo: null } })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -8757,7 +8791,7 @@ function gitlabContributionsFixture() {
   // Restore: 'auto' + a cleared cache, reload, verify the restore landed.
   await page.evaluate(async () => {
     const { photoPrefs } = await chrome.storage.local.get('photoPrefs')
-    await chrome.storage.local.set({ photoPrefs: { ...photoPrefs, mode: 'auto' }, apodCache: null })
+    await globalThis.__auroraSetHarnessStorage({ photoPrefs: { ...photoPrefs, mode: 'auto' }, apodCache: null })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -8856,7 +8890,7 @@ function gitlabContributionsFixture() {
       { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/dep-ready', createdAt: now - 20 * 60_000 },
       { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/dep-building', createdAt: now - 60 * 60_000 },
     ]
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         ics: {
@@ -8992,7 +9026,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async ({ entities, actions, states }) => {
       const { connectors, connectorSnapshots } = await chrome.storage.local.get(['connectors', 'connectorSnapshots'])
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           homeassistant: {
@@ -9058,7 +9092,7 @@ function gitlabContributionsFixture() {
   // this probe's own instanceUrl/token/entities/actions.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         ics: { ...connectors.ics, enabled: false },
@@ -9178,7 +9212,7 @@ function gitlabContributionsFixture() {
 
   await page.evaluate(
     async ({ hourly, staleFetchedAt }) => {
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         weatherCache: {
           current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
           hourly,
@@ -9246,7 +9280,7 @@ function gitlabContributionsFixture() {
   // discipline as every connector block in this file.
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
-    await chrome.storage.local.set({ weatherCache: null })
+    await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -9307,7 +9341,7 @@ function gitlabContributionsFixture() {
   })
   await page.evaluate(
     async ({ hourly, staleFetchedAt }) => {
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         weatherCache: {
           current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
           hourly,
@@ -9388,7 +9422,7 @@ function gitlabContributionsFixture() {
   await page.unroute('**/api.open-meteo.com/**')
   await page.clock.setFixedTime(Date.now())
   await page.evaluate(async () => {
-    await chrome.storage.local.set({ weatherCache: null })
+    await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
   })
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
@@ -9429,7 +9463,7 @@ function gitlabContributionsFixture() {
       return { time: iso, tempC: temps[i], precipProb: rain[i], code: i >= 4 && i <= 7 ? 61 : 1 }
     })
     const day = new Date(now).toISOString().slice(0, 10)
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       weatherCache: {
         current: { tempC: 22, feelsLikeC: 23, code: 1, windKmh: 19, humidity: 58, isDay: true },
         hourly,
@@ -9501,7 +9535,7 @@ function gitlabContributionsFixture() {
   await setWeatherExpanded(false)
   await page.unroute('**/api.open-meteo.com/**')
   await page.evaluate(async () => {
-    await chrome.storage.local.set({ weatherCache: null })
+    await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -9913,7 +9947,7 @@ function gitlabContributionsFixture() {
           log: [],
         },
       ]
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         habits,
         // Task 97: sun/moon join the all-on scenario too. `location` is
         // untouched by this write (a separate top-level key, already seeded
@@ -10868,7 +10902,7 @@ function gitlabContributionsFixture() {
   // same restore discipline as every connector block above.
   await page.evaluate(async () => {
     const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         rss: { ...connectors.rss, enabled: false },
@@ -11106,7 +11140,7 @@ function gitlabContributionsFixture() {
       }
       const todayKey = localDateKey(new Date(now))
       const yesterdayKey = prevDayKey(todayKey)
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
         weatherCache: {
           current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
@@ -11319,7 +11353,7 @@ function gitlabContributionsFixture() {
   // below, before the shared scope's other sub-probes run.
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, sun: true, moon: true } } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, widgets: { ...settings.widgets, sun: true, moon: true } } })
   })
   await page.waitForTimeout(250)
 
@@ -11404,7 +11438,7 @@ function gitlabContributionsFixture() {
   // bottom-of-col2 anchor (habits.bottom instead of the real moon.bottom).
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, sun: false, moon: false } } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, widgets: { ...settings.widgets, sun: false, moon: false } } })
   })
   await page.waitForTimeout(250)
 
@@ -11748,7 +11782,7 @@ function gitlabContributionsFixture() {
   // contain:layout / transform / filter / will-change to a zone: any would trap
   // this fixed widget against the zone box instead of the viewport).
   await page.evaluate(async () => {
-    await chrome.storage.local.set({ layout: { monthCal: { x: 50, y: 50 } } })
+    await globalThis.__auroraSetHarnessStorage({ layout: { monthCal: { x: 50, y: 50 } } })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -11782,7 +11816,7 @@ function gitlabContributionsFixture() {
   )
   // Restore the default (flowing) layout.
   await page.evaluate(async () => {
-    await chrome.storage.local.set({ layout: {} })
+    await globalThis.__auroraSetHarnessStorage({ layout: {} })
   })
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
@@ -11901,7 +11935,7 @@ function gitlabContributionsFixture() {
     const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
     const off = {}
     for (const k of ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics']) off[k] = { ...connectors[k], enabled: false }
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, ...off },
       connectorSnapshots: {},
       habits: [],
@@ -11958,7 +11992,7 @@ function gitlabContributionsFixture() {
   const cryptoSel = '[data-block-id="crypto"] section'
   await page.evaluate(async () => {
     const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       links: [
         { id: 'l1', title: 'GitHub', url: 'https://github.com' },
         { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
@@ -12050,7 +12084,7 @@ function gitlabContributionsFixture() {
   // Restore: crypto off, clock back to real, viewport back to 1600x900.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, crypto: { ...connectors.crypto, enabled: false } },
       connectorSnapshots: {},
     })
@@ -12148,7 +12182,7 @@ function gitlabContributionsFixture() {
     const prev = (k) => { const [y, m, d] = k.split('-').map(Number); return lk(new Date(y, m - 1, d - 1)) }
     const run = (end, n) => { const a = []; let c = end; for (let i = 0; i < n; i++) { a.push(c); c = prev(c) } return a }
     const today = lk(new Date(now)); const yst = prev(today)
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
       weatherCache: { current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true }, hourly: Array.from({ length: 12 }, (_, i) => ({ time: `t${i}`, tempC: 18, precipProb: 5, code: 1 })), fetchedAt: fx.fMs, locationLabel: 'New York' },
       links: [{ id: 'l1', title: 'GitHub', url: 'https://github.com' }, { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' }],
@@ -12197,7 +12231,7 @@ function gitlabContributionsFixture() {
     const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
     const off = {}
     for (const k of ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics']) off[k] = { ...connectors[k], enabled: false }
-    await chrome.storage.local.set({ connectors: { ...connectors, ...off }, connectorSnapshots: {}, habits: [], settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } } })
+    await globalThis.__auroraSetHarnessStorage({ connectors: { ...connectors, ...off }, connectorSnapshots: {}, habits: [], settings: { ...settings, widgets: { ...settings.widgets, habits: false, monthCal: false } } })
   })
   await page.clock.setFixedTime(Date.now())
   await page.setViewportSize({ width: 1600, height: 900 })
@@ -12269,7 +12303,7 @@ function gitlabContributionsFixture() {
         { summary: '1:1 with Sam', start: now + step * 3, end: now + step * 3 + 30_000 },
       ]
       const { connectors } = await chrome.storage.local.get('connectors')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         connectors: {
           ...connectors,
           vercel: { enabled: true, token: 'vercel_preview', username: 'jcooler' },
@@ -12388,7 +12422,7 @@ function gitlabContributionsFixture() {
   // block above.
   await page.evaluate(async () => {
     const { connectors } = await chrome.storage.local.get('connectors')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       connectors: {
         ...connectors,
         vercel: { ...connectors.vercel, enabled: false },
@@ -12678,7 +12712,7 @@ function gitlabContributionsFixture() {
         log: [],
       },
     ]
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       habits,
       settings: { ...settings, widgets: { ...settings.widgets, habits: true } },
       connectors: { rss: { enabled: true, feeds: ['https://example.com/rss'], shownCount: 5 } },
@@ -12897,7 +12931,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, name: 'Christopherson' } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, name: 'Christopherson' } })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -12936,7 +12970,7 @@ function gitlabContributionsFixture() {
   )
   await page.evaluate(async (name) => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, name } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, name } })
   }, nameBeforeProbe)
 
   // (b) HIDE BELOW THE BREAKPOINT. Enable monthCal too so the WHOLE mid-left
@@ -12949,7 +12983,7 @@ function gitlabContributionsFixture() {
   // fail; hide too aggressively and 1600/1593 fail.
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: true } } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: true } } })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -13002,7 +13036,7 @@ function gitlabContributionsFixture() {
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: false } } })
+    await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, widgets: { ...settings.widgets, monthCal: false } } })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -13014,7 +13048,7 @@ function gitlabContributionsFixture() {
   // bookmarks blocks below.
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       habits: [],
       settings: { ...settings, widgets: { ...settings.widgets, habits: false } },
       connectors: { rss: { enabled: false, feeds: [], shownCount: 5 } },
@@ -13118,7 +13152,7 @@ function gitlabContributionsFixture() {
         log: [],
       },
     ]
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       habits,
       countdowns: [{ id: 'mc1', name: 'Launch day', date: todayKey }],
       settings: { ...settings, widgets: { ...settings.widgets, monthCal: true, habits: true } },
@@ -13472,7 +13506,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async (countdowns) => {
       const { settings } = await chrome.storage.local.get('settings')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         habits: [],
         countdowns,
         settings: { ...settings, widgets: { ...settings.widgets, monthCal: false, habits: false } },
@@ -13567,7 +13601,7 @@ function gitlabContributionsFixture() {
         log: [],
       },
     ]
-    await chrome.storage.local.set({
+    await globalThis.__auroraSetHarnessStorage({
       habits,
       settings: { ...settings, widgets: { ...settings.widgets, monthCal: true, habits: true } },
     })
@@ -13689,7 +13723,7 @@ function gitlabContributionsFixture() {
   await page.evaluate(
     async (countdowns) => {
       const { settings } = await chrome.storage.local.get('settings')
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         habits: [],
         countdowns,
         settings: { ...settings, widgets: { ...settings.widgets, monthCal: false, habits: false } },
@@ -14377,7 +14411,7 @@ for (const { w, h } of viewportMatrix) {
   )
   const WORST_CASE_NAME = 'BARTHOLOMEW-MAXIMILIAN-FEATHERSTONEHAUGH 天気予報'
   await page.evaluate(
-    ({ settings, name }) => chrome.storage.local.set({ settings: { ...settings, name } }),
+    ({ settings, name }) => globalThis.__auroraSetHarnessStorage({ settings: { ...settings, name } }),
     { settings: originalSettings, name: WORST_CASE_NAME },
   )
   await page.waitForFunction(
@@ -14459,7 +14493,7 @@ for (const { w, h } of viewportMatrix) {
 
   // Restore: the seeded name (nothing else changed), same discipline as
   // every other seed/restore point in this script.
-  await page.evaluate((settings) => chrome.storage.local.set({ settings }), originalSettings)
+  await page.evaluate((settings) => globalThis.__auroraSetHarnessStorage({ settings }), originalSettings)
   await page.waitForFunction(
     () => !document.querySelector('[data-block-id="greeting"] p')?.getAttribute('title')?.includes('BARTHOLOMEW'),
     { timeout: 5000 },
@@ -14487,7 +14521,7 @@ for (const { w, h } of viewportMatrix) {
   )
   await page.evaluate(
     (settings) =>
-      chrome.storage.local.set({
+      globalThis.__auroraSetHarnessStorage({
         settings: { ...settings, widgets: { ...settings.widgets, bookmarks: false, timer: false } },
       }),
     originalSettings,
@@ -14567,7 +14601,7 @@ for (const { w, h } of viewportMatrix) {
   // Restore: original settings (bookmarks/timer back to whatever this
   // script's own seed had them at), launch viewport, reload — so nothing
   // captured after this section runs against the default-off state.
-  await page.evaluate((settings) => chrome.storage.local.set({ settings }), originalSettings)
+  await page.evaluate((settings) => globalThis.__auroraSetHarnessStorage({ settings }), originalSettings)
   await page.setViewportSize(launchViewport)
   await page.reload()
   await page.waitForSelector('time')

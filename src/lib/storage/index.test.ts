@@ -197,13 +197,17 @@ describe('createStorage', () => {
     expect(ids).toEqual(['l1', 'l2', 'l3']) // neither write lost
   })
 
-  it('preserves both same-key updates from independent storage contexts', async () => {
+  it('the independent-context control loses one same-key update without a shared authority', async () => {
     const base = memoryDriver({
       'aurora:version': CURRENT_VERSION,
       todoLists: [{ id: 'l1', name: 'A', items: [] }],
     })
     let waitingReads = 0
+    let bothReadsReady = () => {}
     let releaseReads = () => {}
+    const bothReads = new Promise<void>((resolve) => {
+      bothReadsReady = resolve
+    })
     const readsReleased = new Promise<void>((resolve) => {
       releaseReads = resolve
     })
@@ -212,25 +216,75 @@ describe('createStorage', () => {
         const value = await base.read(keys)
         if (keys?.includes('todoLists')) {
           waitingReads += 1
-          if (waitingReads === 2) releaseReads()
-          await Promise.race([
-            readsReleased,
-            new Promise<void>((resolve) => setTimeout(resolve, 25)),
-          ])
+          if (waitingReads === 2) bothReadsReady()
+          await readsReleased
         }
         return value
       },
       write: (patch) => base.write(patch),
       onChanged: (cb) => base.onChanged(cb),
     }
+    const first = createStorage(driver, createInProcessStorageAuthority())
+    const second = createStorage(driver, createInProcessStorageAuthority())
+
+    const updates = Promise.all([
+      first.update('todoLists', (lists) => [...lists, { id: 'l2', name: 'B', items: [] }]),
+      second.update('todoLists', (lists) => [...lists, { id: 'l3', name: 'C', items: [] }]),
+    ])
+    await bothReads
+    releaseReads()
+    await updates
+
+    expect((await first.get('todoLists')).map((list) => list.id)).toHaveLength(2)
+  })
+
+  it('preserves both same-key updates from independent contexts under one shared authority', async () => {
+    const base = memoryDriver({
+      'aurora:version': CURRENT_VERSION,
+      todoLists: [{ id: 'l1', name: 'A', items: [] }],
+    })
+    let reads = 0
+    let releaseFirstWrite = () => {}
+    let firstWriteEntered = () => {}
+    const writeReleased = new Promise<void>((resolve) => {
+      releaseFirstWrite = resolve
+    })
+    const firstWrite = new Promise<void>((resolve) => {
+      firstWriteEntered = resolve
+    })
+    const driver: StorageDriver = {
+      async read(keys) {
+        if (keys?.includes('todoLists')) reads += 1
+        return base.read(keys)
+      },
+      async write(patch) {
+        if ('todoLists' in patch && reads === 1) {
+          firstWriteEntered()
+          await writeReleased
+        }
+        await base.write(patch)
+      },
+      onChanged: (cb) => base.onChanged(cb),
+    }
     const authority = createInProcessStorageAuthority()
     const first = createStorage(driver, authority)
     const second = createStorage(driver, authority)
 
-    await Promise.all([
-      first.update('todoLists', (lists) => [...lists, { id: 'l2', name: 'B', items: [] }]),
-      second.update('todoLists', (lists) => [...lists, { id: 'l3', name: 'C', items: [] }]),
+    const firstUpdate = first.update('todoLists', (lists) => [
+      ...lists,
+      { id: 'l2', name: 'B', items: [] },
     ])
+    await firstWrite
+    const secondUpdater = vi.fn((lists: ReturnType<typeof defaults>['todoLists']) => [
+      ...lists,
+      { id: 'l3', name: 'C', items: [] },
+    ])
+    const secondUpdate = second.update('todoLists', secondUpdater)
+
+    expect(reads).toBe(1)
+    expect(secondUpdater).not.toHaveBeenCalled()
+    releaseFirstWrite()
+    await Promise.all([firstUpdate, secondUpdate])
 
     expect((await first.get('todoLists')).map((list) => list.id)).toEqual(['l1', 'l2', 'l3'])
   })
