@@ -93,12 +93,17 @@ function transactionError<T>(
   return "Couldn't save that connection. Please try again."
 }
 
+interface DisconnectResult {
+  candidates: string[]
+  transaction: OriginTransactionResult<void>
+}
+
 /** Captures origin candidates from the exact config value removed by the
  * authoritative update, never from render-time props or a separate read.
  * The empty-origin transaction is deliberately permission-free: it only puts
  * the owner mutation into the same lifecycle authority used by its subsequent
  * release in TokenConnectForm. */
-async function disconnectTokenConnector(storage: AuroraStorage, id: DisconnectableConnectorId): Promise<string[]> {
+async function disconnectTokenConnector(storage: AuroraStorage, id: DisconnectableConnectorId): Promise<DisconnectResult> {
   let candidates: string[] = []
   const transaction = await runOriginTransaction(storage, [], async () => {
     await storage.update('connectors', (prev) => {
@@ -110,7 +115,7 @@ async function disconnectTokenConnector(storage: AuroraStorage, id: Disconnectab
     })
     return { ok: true as const, value: undefined, ownerCommitted: true as const }
   })
-  return transaction.status === 'committed' ? candidates : []
+  return { candidates: transaction.status === 'committed' ? candidates : [], transaction }
 }
 
 /** Card auth-state, exported (beside the default export) purely for direct
@@ -639,7 +644,7 @@ function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={() => disconnectTokenConnector(storage, 'github')}
+      onDisconnect={async () => (await disconnectTokenConnector(storage, 'github')).candidates}
     />
   )
 }
@@ -772,7 +777,7 @@ function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={() => disconnectTokenConnector(storage, 'gitlab')}
+      onDisconnect={async () => (await disconnectTokenConnector(storage, 'gitlab')).candidates}
     />
   )
 }
@@ -919,7 +924,7 @@ function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={() => disconnectTokenConnector(storage, 'jira')}
+      onDisconnect={async () => (await disconnectTokenConnector(storage, 'jira')).candidates}
     />
   )
 }
@@ -1029,7 +1034,7 @@ function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={() => disconnectTokenConnector(storage, 'vercel')}
+      onDisconnect={async () => (await disconnectTokenConnector(storage, 'vercel')).candidates}
     />
   )
 }
@@ -1130,14 +1135,18 @@ function CryptoBody({ config, storage, reportPendingCleanup }: BodyProps) {
   async function handleClear() {
     // Crypto has no token, but its teardown is the same descriptor-derived
     // owner mutation as a token connector's Disconnect path.
-    const candidates = await disconnectTokenConnector(storage, 'crypto')
+    const result = await disconnectTokenConnector(storage, 'crypto')
+    if (result.transaction.status !== 'committed') {
+      setError("Couldn't clear Crypto because its saved configuration could not be updated. Please try again.")
+      return
+    }
     setValue('')
     setError(null)
     try {
-      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      const cleanup = await releaseUnownedOrigins(storage, result.candidates)
       if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
     } catch {
-      if (candidates.length > 0) reportPendingCleanup(candidates)
+      if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
     }
   }
 
@@ -2055,7 +2064,7 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
             />
           </div>
         }
-        onDisconnect={() => disconnectTokenConnector(storage, 'homeassistant')}
+        onDisconnect={async () => (await disconnectTokenConnector(storage, 'homeassistant')).candidates}
       />
     </>
   )

@@ -1921,6 +1921,33 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     expect((await readRss(storage))?.feeds).toEqual(['https://example.com/feed-b'])
   })
 
+  it('keeps final-owner RSS cleanup recoverable after the row is removed and retries it from Settings', async () => {
+    const url = 'https://recoverable-rss.example.com/feed.xml'
+    const origin = 'https://recoverable-rss.example.com/*'
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    const storage = await renderWithConnectors({ enabled: true, feeds: [url], shownCount: 5 })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
+    })
+
+    expect((await readRss(storage))?.feeds).toEqual([])
+    expect(screen.queryByRole('button', { name: `Remove ${url}` })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+    expect(cleanupHeld.has(origin)).toBe(true)
+
+    openTab('Data')
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(removeOrigin).toHaveBeenLastCalledWith(origin)
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
   it('two same-origin removes racing before a re-render leave no grant behind, even when the second remove verifies absence', async () => {
     // The leak this covers: `remaining` used to come from the render-time
     // feeds prop, so two removals clicked before React re-rendered each saw
@@ -3101,6 +3128,26 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     // origin, claimed by no other enabled connector).
     expect(removeOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toBeUndefined()
+  })
+
+  it('keeps Crypto configured and reports an owner-write error when Clear cannot persist removal', async () => {
+    const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    const update = storage.update.bind(storage)
+    storage.update = ((key, fn) => {
+      if (key === 'connectors') return Promise.reject(new Error('disk full'))
+      return update(key, fn)
+    }) as AuroraStorage['update']
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    })
+
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: ['bitcoin', 'ethereum'] })
+    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
+      'bitcoin, ethereum',
+    )
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't clear crypto.*saved configuration/i)
   })
 
   it('withholds Crypto clear revocation while a disabled descriptor config owns CoinGecko', async () => {
