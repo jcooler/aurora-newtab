@@ -74,6 +74,7 @@ ADR-lite entries record settled implementation direction without replaying conve
 - **Reason:** Current per-context promise chains cannot prevent lost updates. A global lock preserves the existing updater API and allows multi-key restore coordination without inventing fake compare-and-set semantics over `chrome.storage.local`.
 - **Rejected:** Context-local queues; unproven revision retries without atomic CAS; granular keys alone; silently falling back to last-write-wins.
 - **Consequence:** The packet includes two simulated contexts and real extension-page evidence. Platform failure materially changes architecture and therefore triggers a decision checkpoint.
+- **Verification:** Implemented through `fac883ba4cccf6f567a8460188a84902d219730c`; the service-worker fallback was not taken. Timing-free simulated tests prove the unlocked lost-update control and the shared-authority success path. Two exact-path MV3 extension pages both exposed Web Locks and retained all 50 concurrent mutations. Final evidence is 7 targeted files / 312 tests, 98 total files / 1,544 tests, clean TypeScript, clean 165-module production/preview builds, no production harness bridge, and a 412 PASS / 0 FAIL / 3 SKIP real-extension run. The bounded implementation rereview found no Critical, Important, or packet-local Minor findings.
 
 ## A2-D010 — Correct behavior before final Store prose
 

@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P1` — Connector snapshot identity and freshness<br>
-**Next packet:** `W1-P2` — Cross-context storage authority; plan not yet created
+**Last verified packet:** `W1-P2` — Cross-context storage authority<br>
+**Next packet:** `W1-P3` — Optional-permission transactions and shared-origin ownership; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Scope every connector cache to hashed config/account identity; rotate identical token reconnects; suppress stale data on the config-changing render; prevent prior generations from writing; recheck TTL on timers/visibility/focus without overlap; retain only matching stale data after rejected hook refreshes; preserve connector-specific anti-staleness sentinels.
-- **Expected files:** Snapshot identity/type modules and tests; shared snapshot hook and tests; all nine connector widget call sites/tests; token-connect and Home Assistant settings writes/tests. The storage authority, permission lifecycle, HA data minimization/actions, layout, CSS, manifest, and Store copy remain outside this packet.
-- **Test scope:** Pure identity, hook lifecycle/generation/fake timers, RSS preserved-mount mutation, HA stale ordering and epoch preservation, all connector widget tests, full TypeScript/Vitest/build.
-- **Visual scope:** None expected. Stop and route any unplanned visible change instead of absorbing it.
+- **Acceptance:** One global Web Lock serializes every storage mutation, initialization/migration, and multi-key restore across extension contexts; independent-context updates retain every value; authority/storage failures are explicit and preserve prior state; schema validation and subscriptions remain intact; simulated contexts and two real MV3 extension pages prove the authority.
+- **Expected files:** `src/lib/storage/*`, production/test authority wiring, Data restore, storage and adapted consumer tests, and the real-extension harness. Permission lifecycle, backup rollback/reconciliation, Home Assistant behavior, layout, CSS, manifest, and Store copy remain outside this packet.
+- **Test scope:** Timing-free unlocked-control and shared-authority concurrency proofs; authority failure/retry, initialization/migration, validation, subscription, and atomic restore coverage; targeted and full Vitest, TypeScript, production/preview builds, production bridge-leak check, and the real MV3 harness.
+- **Visual scope:** None. Verification is behavioral through the extension harness; no visible product change was accepted.
 
 ## Last completed commits
 
@@ -22,9 +22,20 @@
 - `b2256f2a13f00e0e987593fdd9b83b839f401394` — scoped connector snapshot identity (`feat(connectors): scope snapshot identity`).
 - `0e93944116281cf95fe6b444398f7aa30730353d` — generation-safe lifecycle, nine call sites, and reconnect epochs (`fix(connectors): refresh scoped snapshots safely`).
 - `cd511f06c3758ce9b237f6a493087376e34886f8` — bounded-review fix for queued stale-owner writes (`fix(connectors): guard queued snapshot writes`).
+- `aa7648817aa3c076e3e960bcd0ed6bff8d6f14b0` — independently reviewed executable W1-P2 plan (`docs: plan W1-P2 cross-context storage authority`).
+- `8efbb0a3b9be4787dff1924da128321901c28217` — Web Lock mutation authority, atomic restore, and two-page harness proof (`fix(storage): serialize cross-context mutations`).
+- `fac883ba4cccf6f567a8460188a84902d219730c` — bounded-review fixes for explicit harness fixtures and timing-free concurrency tests (`fix(storage): address W1-P2 review`).
 
 ## Latest verification
 
+- W1-P2 exact targeted suite — exit 0; 7 files / 312 tests passed.
+- `npx tsc --noEmit` after the review fix — exit 0.
+- `npm test` after the review fix — exit 0; photo manifest clean; 98 files / 1,544 tests passed.
+- `npm run build` after the review fix — exit 0; production build passed, 165 modules transformed; `__auroraStorageHarness` absent from `dist`.
+- `npm run build:preview` after the review fix — exit 0; preview build passed, 165 modules transformed.
+- `node scripts/preview.mjs` final W1-P2 run — harness process exit 0; 412 PASS / 0 FAIL / 3 SKIP. Both exact MV3 extension pages exposed Web Locks and the preview-only authority probe; all 50 concurrent mutations were retained.
+- Independent W1-P2 plan review — initial one Critical and six Important findings fixed; a follow-up NotesPanel fixture finding fixed; final verdict Ready with no Critical or Important findings.
+- Independent W1-P2 implementation review — one Important global harness monkey-patch and two Minor determinism/path findings confirmed and fixed in `fac883b`; bounded rereview found no Critical, Important, or packet-local Minor findings.
 - W1-P1 exact targeted suite — exit 0; 12 files / 409 tests passed.
 - `npx tsc --noEmit` after the review fix — exit 0.
 - `npx vitest run` after the review fix — exit 0; 97 files / 1,531 tests passed.
@@ -67,25 +78,25 @@
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
-- Cross-context read/modify/write remains last-write-wins until W1-P2 establishes and verifies one mutation authority; W1-P1 intentionally did not enter that subsystem.
+- Optional-permission acquisition, rollback, shared-origin ownership, and revocation remain W1-P3 work; W1-P2 intentionally made no permission-lifecycle changes.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P1`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P2.
+- None expected after `docs: checkpoint W1-P2`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P3.
 
 ## Single next packet
 
-- **Packet:** `W1-P2` — Cross-context storage authority
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P1 evidence, A2-D009, and the current storage implementation.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P2 plan before any W1-P2 implementation; this W1-P1 task stops at the packet boundary.
+- **Packet:** `W1-P3` — Optional-permission transactions and shared-origin ownership
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2 evidence, the permission implementation, and the open `remove revokes live` browser evidence.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P3 plan before any W1-P3 implementation; this W1-P2 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P2 cross-context storage authority plan
-Packet ID: W1-P2
-Verified W1-P1 implementation SHA: cd511f06c3758ce9b237f6a493087376e34886f8
-Expected next checkpoint subject: docs: checkpoint W1-P2
+Next plan: create just-in-time W1-P3 optional-permission transactions and shared-origin ownership plan
+Packet ID: W1-P3
+Verified W1-P2 implementation SHA: fac883ba4cccf6f567a8460188a84902d219730c
+Expected next checkpoint subject: docs: checkpoint W1-P3
 ```

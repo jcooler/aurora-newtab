@@ -35,12 +35,13 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P2 — Cross-context storage authority
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P1
-- **Plan gate:** Ready to create just in time from verified W1-P1 implementation `cd511f0`; no W1-P2 implementation has started.
+- **Plan:** [`2026-08-13-w1-p2-cross-context-storage-authority.md`](../plans/2026-08-13-w1-p2-cross-context-storage-authority.md)
 - **Acceptance:** One proven cross-context mutation authority prevents lost updates between separate new-tab/settings contexts; schema validation and change propagation remain intact; conflicts/retries or authority failures are explicit; storage rejection leaves prior state intact; simulated independent contexts and a real extension-page harness prove no lost update.
 - **Expected subsystem:** `src/lib/storage/*`, storage consumers only where the authority API requires adaptation, storage tests, browser harness.
-- **Finishing commit:** —
+- **Verified evidence:** A stable exclusive Web Lock guards `set`, the complete `update` read/write transaction, initialization/migration, and atomic multi-key restore; authority unavailability is explicit with no unsafe fallback. Timing-free unlocked-control/shared-authority tests prove the lost-update boundary, with failure/retry, validation, migration, subscription, and restore coverage. Final verification passed 7 targeted files / 312 tests, 98 total files / 1,544 tests, TypeScript, production and preview builds at 165 modules, and the production bridge-leak check. The two-page MV3 harness passed 412 / 0 / 3 and retained all 50 mutations. Bounded review's one Important and two Minor findings were fixed; rereview found none open.
+- **Finishing commit:** `fac883b` plus checkpoint subject `docs: checkpoint W1-P2`
 
 ### W1-P3 — Optional-permission transactions and shared-origin ownership
 
