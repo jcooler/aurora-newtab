@@ -55,7 +55,6 @@ export default function Background({
 
   async function handleSourceChange(newMode: PhotoPrefs['mode']) {
     if (!photoPrefs) return
-    const prevMode = photoPrefs.mode
 
     if (newMode === 'apod') {
       const transaction = await runOriginTransaction(storage, APOD_ORIGINS, async () => {
@@ -67,15 +66,19 @@ export default function Background({
       return
     }
 
+    let leavingApod = false
     try {
-      await storage.update('photoPrefs', (prefs) => ({ ...prefs, mode: newMode }))
+      await storage.update('photoPrefs', (prefs) => {
+        leavingApod = prefs.mode === 'apod'
+        return { ...prefs, mode: newMode }
+      })
     } catch {
       setApodError("Couldn't save the background. Please try again.")
       return
     }
     setApodError(null)
 
-    if (prevMode === 'apod') {
+    if (leavingApod) {
       let cacheClearFailed = false
       try {
         await storage.update('apodCache', () => null)

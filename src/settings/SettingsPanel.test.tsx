@@ -1077,6 +1077,38 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
   })
 
+  it('uses the authoritative APOD mode for exit cleanup when the rendered source value is stale', async () => {
+    const authoritativeStorage = createStorage(memoryDriver())
+    await authoritativeStorage.init()
+    await authoritativeStorage.set('apodCache', {
+      date: '2026-08-13',
+      photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
+    })
+    const stalePanelStorage: AuroraStorage = {
+      ...authoritativeStorage,
+      subscribe(key, callback) {
+        return key === 'photoPrefs' ? () => {} : authoritativeStorage.subscribe(key, callback)
+      },
+    }
+    apodPatterns.forEach(holdOrigin)
+    vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
+    await renderPanel(() => {}, stalePanelStorage)
+    expect(sourceSelect().value).toBe('auto')
+
+    await authoritativeStorage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
+
+    await act(async () => {
+      fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
+    })
+
+    expect((await authoritativeStorage.get('photoPrefs')).mode).toBe('gradient')
+    expect(await authoritativeStorage.get('apodCache')).toBeNull()
+    expect(cleanupHeld.has(apodPatterns[0]!)).toBe(false)
+    expect(cleanupHeld.has(apodPatterns[1]!)).toBe(false)
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[0])
+    expect(removeOrigin).toHaveBeenCalledWith(apodPatterns[1])
+  })
+
   it('leaving APOD preserves an API origin claimed by a disabled configured connector, then releases it after that final owner disappears', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
