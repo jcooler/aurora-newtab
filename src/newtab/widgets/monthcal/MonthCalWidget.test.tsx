@@ -43,11 +43,17 @@ function cell(container: HTMLElement, key: string): HTMLElement | null {
 }
 
 describe('MonthCalWidget', () => {
+  function spyOnSetInterval() {
+    return vi.spyOn(window, 'setInterval')
+  }
+  let intervalSpy: ReturnType<typeof spyOnSetInterval>
   beforeEach(() => {
     vi.useFakeTimers()
     vi.setSystemTime(NOW)
+    intervalSpy = spyOnSetInterval()
   })
   afterEach(() => {
+    intervalSpy.mockRestore()
     vi.useRealTimers()
   })
 
@@ -58,6 +64,7 @@ describe('MonthCalWidget', () => {
 
   it('renders the current month\'s matrix (May 2026) with the today cell ringed', async () => {
     const { container } = await renderWithMonthCal()
+    expect(intervalSpy).not.toHaveBeenCalled()
     expect(screen.getByText('May 2026')).toBeTruthy()
     // 6 rows x 7 cols — May 2026 is the 6-row worst case (see monthGrid.test.ts).
     expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
@@ -65,6 +72,19 @@ describe('MonthCalWidget', () => {
     const today = cell(container, TODAY_KEY)
     expect(today).toBeTruthy()
     expect(today!.querySelector('span')!.className).toContain('ring-accent')
+  })
+
+  it('moves the today identity into June after restoration across midnight', async () => {
+    const { container } = await renderWithMonthCal()
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')
+
+    vi.setSystemTime(new Date(2026, 5, 1, 0, 0, 1))
+    act(() => window.dispatchEvent(new Event('focus')))
+
+    expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).not.toContain('ring-accent')
+    expect(screen.getByRole('button', { name: 'Back to today' })).toBeTruthy()
+    act(() => screen.getByRole('button', { name: 'Back to today' }).click())
+    expect(screen.getByText('June 2026')).toBeTruthy()
   })
 
   it('out-of-month leading/trailing cells are styled muted and never ringed', async () => {

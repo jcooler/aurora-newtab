@@ -9,6 +9,15 @@ import { StorageProvider } from '../../lib/storage/context'
 import { fetchApod } from '../../services/apod'
 import type { ApodPhoto, PhotoPrefs } from '../../lib/storage/schema'
 
+const localDay = vi.hoisted(() => ({
+  sample: { key: '2026-07-26', timeZone: 'America/New_York', now: new Date('2026-07-26T12:00:00Z') },
+}))
+
+vi.mock('../../lib/hooks/useLocalDay', () => ({
+  useLocalDay: () => localDay.sample,
+  readLocalDay: () => localDay.sample,
+}))
+
 // Only 'upload' mode touches IndexedDB; mock the whole module so the two
 // upload-mode cases below don't need real IndexedDB (unavailable in jsdom).
 vi.mock('../../lib/idb', () => ({ listUploads: vi.fn() }))
@@ -85,6 +94,11 @@ describe('Background', () => {
     // the wall-clock date the suite happens to run on.
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-07-26T12:00:00'))
+    localDay.sample = {
+      key: '2026-07-26',
+      timeZone: 'America/New_York',
+      now: new Date('2026-07-26T12:00:00Z'),
+    }
     vi.mocked(listUploads).mockReset()
     vi.mocked(listUploads).mockResolvedValue([])
     vi.mocked(fetchApod).mockReset()
@@ -456,6 +470,53 @@ describe('Background', () => {
       expect(fetchApod).toHaveBeenCalledTimes(1)
       expect(await storage.get('apodCache')).toEqual({ date: '2026-07-26', photo: null })
       expect(container.querySelector('img')?.getAttribute('src')).toContain('/photos/')
+    })
+
+    it('rolls APOD to the next local day without reloading the tab', async () => {
+      vi.mocked(fetchApod).mockResolvedValue(APOD_PHOTO)
+      const prefs: PhotoPrefs = { mode: 'apod', index: 0, lastRotated: '' }
+      const { storage, rerender } = await renderBg(prefs, vi.fn(), {
+        apodCache: { date: '2026-07-26', photo: APOD_PHOTO },
+      })
+
+      localDay.sample = {
+        key: '2026-07-27',
+        timeZone: 'America/New_York',
+        now: new Date('2026-07-27T04:00:01Z'),
+      }
+      await rerender(prefs)
+
+      expect(fetchApod).toHaveBeenCalledTimes(1)
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: APOD_PHOTO })
+    })
+
+    it('starts the new local-day APOD request while the prior day is pending and rejects the stale completion', async () => {
+      let resolveFirst!: (photo: ApodPhoto | null) => void
+      let resolveSecond!: (photo: ApodPhoto | null) => void
+      vi.mocked(fetchApod)
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
+        .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve }))
+      const prefs: PhotoPrefs = { mode: 'apod', index: 0, lastRotated: '' }
+      const { storage, rerender } = await renderBg(prefs, vi.fn(), {})
+      expect(fetchApod).toHaveBeenCalledTimes(1)
+
+      localDay.sample = {
+        key: '2026-07-27',
+        timeZone: 'America/New_York',
+        now: new Date('2026-07-27T04:00:01Z'),
+      }
+      await rerender(prefs)
+      expect(fetchApod).toHaveBeenCalledTimes(2)
+
+      const nextPhoto: ApodPhoto = {
+        url: 'https://apod.nasa.gov/apod/image/2607/tomorrow.jpg',
+        title: 'Tomorrow',
+      }
+      await act(async () => { resolveSecond(nextPhoto) })
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: nextPhoto })
+
+      await act(async () => { resolveFirst(APOD_PHOTO) })
+      expect(await storage.get('apodCache')).toEqual({ date: '2026-07-27', photo: nextPhoto })
     })
 
     it('non-apod modes never call fetchApod, even with a stale or absent cache', async () => {

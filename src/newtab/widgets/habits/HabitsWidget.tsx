@@ -1,7 +1,7 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { useNow } from '../../../lib/hooks/useNow'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useStorage } from '../../../lib/storage/context'
-import { localDateKey, streak, toggleDay } from '../../../lib/habits'
+import { streak, toggleDay } from '../../../lib/habits'
 import type { Habit } from '../../../lib/storage/schema'
 
 // Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
@@ -36,15 +36,10 @@ export default function HabitsWidget() {
 
 function HabitsInner({ habits }: { habits: Habit[] }) {
   const storage = useStorage()
-  // The ONE impure boundary in this widget (everything habits.ts exports is
-  // pure — see its own top-of-file comment): today's local date key, derived
-  // from a ticking `Date`. useNow(60_000) is the shared ticking hook
-  // (Clock.tsx's own use is the precedent) — a full minute is coarse enough
-  // to cost nothing while still rolling the widget over local midnight
-  // within 60s of it actually happening, the same tradeoff WorldClocks'
-  // useNow(30_000) makes for its own display refresh.
-  const now = useNow(60_000)
-  const todayKey = localDateKey(now)
+  // The ONE impure boundary in this widget: the coherent local-day identity.
+  // The shared scheduler handles midnight, restoration, and timezone changes
+  // without a permanent polling interval.
+  const { key: todayKey } = useLocalDay()
 
   const toggleToday = (habitId: string) =>
     void storage.update('habits', (list) =>

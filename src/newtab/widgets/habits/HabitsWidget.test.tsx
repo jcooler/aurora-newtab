@@ -114,7 +114,7 @@ describe('HabitsWidget', () => {
     expect(chip.getAttribute('aria-pressed')).toBe('false')
     // The interval only exists once the widget actually mounted its inner,
     // ticking half — confirms this test's gate passed through cleanly.
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    expect(intervalSpy).not.toHaveBeenCalled()
 
     await act(async () => {
       fireEvent.click(chip)

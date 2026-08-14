@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
@@ -7,19 +7,29 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { defaults } from '../../../lib/storage/schema'
 import QuoteWidget from './QuoteWidget'
 
-// Lean regression guard for the text-shadow legibility system (visual-quality
-// overhaul): the quote + its attribution sit directly on the photo, so both
-// MUST carry the .text-photo utility. See Clock.test.tsx for why this is a
-// className assertion rather than a rendered-shadow assertion.
-describe('QuoteWidget — text-photo legibility utility', () => {
+const localDay = vi.hoisted(() => ({
+  sample: { key: '2026-07-26', timeZone: 'America/New_York', now: new Date('2026-07-26T12:00:00Z') },
+  hook: vi.fn(),
+}))
+vi.mock('../../../lib/hooks/useLocalDay', () => ({ useLocalDay: () => {
+  localDay.hook()
+  return localDay.sample
+} }))
+
+describe('QuoteWidget', () => {
+  beforeEach(() => {
+    localDay.hook.mockReset()
+    localDay.sample = {
+      key: '2026-07-26', timeZone: 'America/New_York', now: new Date('2026-07-26T12:00:00Z'),
+    }
+  })
+
   it('applies text-photo to both the quote text and its attribution', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('settings', defaults().settings) // widgets.quote defaults true
+    await storage.set('settings', defaults().settings)
     const { container } = render(
-      <StorageProvider storage={storage}>
-        <QuoteWidget />
-      </StorageProvider>,
+      <StorageProvider storage={storage}><QuoteWidget /></StorageProvider>,
     )
     await act(async () => {})
 
@@ -29,5 +39,32 @@ describe('QuoteWidget — text-photo legibility utility', () => {
     expect(figcaption).toBeTruthy()
     expect(blockquote?.classList.contains('text-photo')).toBe(true)
     expect(figcaption?.classList.contains('text-photo')).toBe(true)
+  })
+
+  it('selects a new daily quote after local midnight without a reload', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const view = render(<StorageProvider storage={storage}><QuoteWidget /></StorageProvider>)
+    await act(async () => {})
+    const before = view.container.querySelector('blockquote')?.textContent
+
+    localDay.sample = {
+      key: '2026-07-27', timeZone: 'America/New_York', now: new Date('2026-07-27T04:00:01Z'),
+    }
+    view.rerender(<StorageProvider storage={storage}><QuoteWidget /></StorageProvider>)
+    expect(view.container.querySelector('blockquote')?.textContent).not.toBe(before)
+  })
+
+  it('renders no daily scheduler while disabled', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const settings = defaults().settings
+    settings.widgets.quote = false
+    await storage.set('settings', settings)
+    const { container } = render(<StorageProvider storage={storage}><QuoteWidget /></StorageProvider>)
+    await act(async () => {})
+
+    expect(container.firstChild).toBeNull()
+    expect(localDay.hook).not.toHaveBeenCalled()
   })
 })

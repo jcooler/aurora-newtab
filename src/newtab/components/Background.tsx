@@ -13,19 +13,24 @@ import {
   resolvePhoto,
   type PhotoTier,
 } from '../../services/photos/index'
-import { todayKey } from '../../lib/dates'
+import { readLocalDay, useLocalDay } from '../../lib/hooks/useLocalDay'
 
-// Module-level in-flight guard for the once-per-day APOD fetch (Task 96) —
-// the SAME dedupe idiom useWeather.ts's own `inFlight` ref uses, just at
-// module scope rather than a per-component ref: Background can remount
-// (e.g. arrange mode's own tree churn) mid-fetch, and a component-level ref
-// would reset on that remount and risk a second concurrent request for the
-// same day. Module scope survives a remount; the DATE check inside the
-// effect below is what actually stops a second calendar day's fetch from
-// being blocked forever by a stale leftover reference. Not a photoKey/date
-// map — this whole feature is one photo a day, so "one fetch in flight at a
-// time, ever" and "one fetch per day" collapse to the same guard.
-let apodFetchInFlight: Promise<void> | null = null
+// Module-level APOD ownership survives Background remounts. Identity-based
+// dedupe collapses requests only for the same local day and timezone; a new
+// day may start while yesterday is still pending. The monotonic generation
+// prevents an older promise's finally handler from clearing a newer owner.
+interface ApodFetchOwner {
+  identity: string
+  generation: number
+  promise: Promise<void>
+}
+
+let apodFetchInFlight: ApodFetchOwner | null = null
+let apodFetchGeneration = 0
+
+function localDayIdentity(day: { key: string; timeZone: string }): string {
+  return `${day.timeZone}\n${day.key}`
+}
 
 // Physical display size drives the tier pick (see pickTier's own doc): the
 // larger of screen width/height times devicePixelRatio, falling back to the
@@ -63,7 +68,9 @@ export default function Background({
     url: string
     lqip: string | null
   } | null>(null)
-  const today = todayKey()
+  const localDay = useLocalDay()
+  const today = localDay.key
+  const dayIdentity = localDayIdentity(localDay)
 
   // apodCache (Task 96): read the same way useWeather.ts reads weatherCache —
   // straight off context, since Background (unlike its settings-side
@@ -135,21 +142,25 @@ export default function Background({
     if (prefs.mode !== 'apod') return
     if (apodCache === undefined) return // not loaded yet — don't fetch on a guess
     if (apodCache !== null && apodCache.date === today) return // already attempted today
-    if (apodFetchInFlight) return // a fetch from this or a prior instance is already running
+    if (apodFetchInFlight?.identity === dayIdentity) return
 
-    apodFetchInFlight = (async () => {
+    const generation = ++apodFetchGeneration
+    const promise = (async () => {
       const photo = await fetchApod()
       await storage.update('apodCache', (current) =>
         // Fresh-read update (the section's own stale-spread law, mirrored
         // here): re-check staleness against the value storage.update hands
         // back, not the `today` closed over above, in case another write
         // already landed today's cache while this fetch was in flight.
-        current && current.date === today ? current : { date: today, photo },
+        localDayIdentity(readLocalDay()) !== dayIdentity || (current && current.date === today)
+          ? current
+          : { date: today, photo },
       )
     })().finally(() => {
-      apodFetchInFlight = null
+      if (apodFetchInFlight?.generation === generation) apodFetchInFlight = null
     })
-  }, [prefs.mode, apodCache, today, storage])
+    apodFetchInFlight = { identity: dayIdentity, generation, promise }
+  }, [prefs.mode, apodCache, today, dayIdentity, storage])
 
   useEffect(() => {
     // Gradient never owns index/lastRotated. Auto and upload both do now —

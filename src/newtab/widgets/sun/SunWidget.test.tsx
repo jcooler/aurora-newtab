@@ -96,7 +96,15 @@ describe('SunWidget', () => {
   it('toggle on with a location set renders the section and starts the interval', async () => {
     const { container } = await renderWithSun()
     expect(container.querySelector('section[aria-label="Sun times"]')).toBeTruthy()
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    expect(intervalSpy).not.toHaveBeenCalled()
+  })
+
+  it('recomputes sun times when the local day changes in an open tab', async () => {
+    const { container } = await renderWithSun()
+    const before = container.querySelector('section[aria-label="Sun times"]')!.textContent
+    vi.setSystemTime(new Date(2026, 8, 21, 12, 0, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('section[aria-label="Sun times"]')!.textContent).not.toBe(before)
   })
 
   it('line text matches "☀ {rise} → {set} · golden hour {gh}" exactly, computed via the real pipeline', async () => {

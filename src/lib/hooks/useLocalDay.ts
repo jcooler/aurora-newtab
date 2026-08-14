@@ -9,7 +9,7 @@ export interface LocalDaySample {
   now: Date
 }
 
-function sampleLocalDay(): LocalDaySample & { end: number } {
+export function readLocalDay(): LocalDaySample & { end: number } {
   const nowMs = Date.now()
   const timeZone = resolvedLocalTimeZone()
   const range = zonedLocalDayRange(nowMs, timeZone)
@@ -17,7 +17,7 @@ function sampleLocalDay(): LocalDaySample & { end: number } {
 }
 
 export function useLocalDay(): LocalDaySample {
-  const [sample, setSample] = useState<LocalDaySample>(() => sampleLocalDay())
+  const [sample, setSample] = useState<LocalDaySample>(() => readLocalDay())
 
   useEffect(() => {
     let live = true
@@ -36,7 +36,7 @@ export function useLocalDay(): LocalDaySample {
       if (!live) return
       clearSchedule()
       const currentGeneration = generation
-      const next = sampleLocalDay()
+      const next = readLocalDay()
       setSample((previous) =>
         previous.key === next.key && previous.timeZone === next.timeZone
           ? previous

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
@@ -10,6 +10,24 @@ import Clock from './Clock'
 // actually loaded/cascaded by vitest, so this asserts the utility is really
 // DEFINED, not just referenced as a className that happens to match nothing.
 import indexCss from '../index.css?raw'
+
+describe('Clock restoration sampling', () => {
+  it('refreshes immediately on window focus instead of waiting for its interval', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 6, 26, 9, 5, 0))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(<StorageProvider storage={storage}><Clock /></StorageProvider>)
+    await act(async () => {})
+    const before = container.querySelector('time')!.textContent
+
+    vi.setSystemTime(new Date(2026, 6, 26, 10, 6, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('time')!.textContent).not.toBe(before)
+    vi.useRealTimers()
+  })
+})
 
 describe('index.css — .text-photo utility', () => {
   it('is defined via @utility, with both the tight contact shadow and the soft ambient one', () => {

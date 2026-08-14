@@ -1,5 +1,5 @@
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { useNow } from '../../../lib/hooks/useNow'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { formatClock } from '../../../lib/clock'
 import { sunTimes } from '../../../lib/sun'
 import type { Settings, StoredLocation } from '../../../lib/storage/schema'
@@ -9,7 +9,7 @@ export default function SunWidget() {
   // (MonthCalWidget's own doc comment): both useStoredKey reads run
   // unconditionally every render (Rules of Hooks stay satisfied), but a
   // disabled toggle or an unset location never mounts SunInner and therefore
-  // never starts useNow's interval (the WorldClocks gate-bug precedent).
+  // never starts the local-day lifecycle.
   //
   // `location` (StoredLocation | null | undefined) doubles as the gate for
   // BOTH this widget and MoonWidget — it's the weather widget's own stored
@@ -24,7 +24,7 @@ export default function SunWidget() {
 }
 
 function SunInner({ settings, location }: { settings: Settings; location: StoredLocation }) {
-  const now = useNow(60_000)
+  const { now } = useLocalDay()
   const times = sunTimes(now, location.lat, location.lon)
   // Polar day/night (no sunrise or no sunset today at this latitude): the
   // no-husk law — nothing to show today, so nothing renders, rather than an

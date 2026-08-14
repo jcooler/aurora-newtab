@@ -1,11 +1,17 @@
 import quotes from '../../../assets/quotes.json'
-import { dayHash, todayKey } from '../../../lib/dates'
+import { dayHash } from '../../../lib/dates'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 
 export default function QuoteWidget() {
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.quote || quotes.length === 0) return null
-  const quote = quotes[dayHash(todayKey()) % quotes.length]
+  return <DailyQuote />
+}
+
+function DailyQuote() {
+  const { key: today } = useLocalDay()
+  const quote = quotes[dayHash(today) % quotes.length]
   return (
     <figure className="mx-auto max-w-xl narrow:max-w-sm px-16 narrow:px-6 text-center">
       {/* Type steps DOWN under height pressure (mid → short → xshort), the

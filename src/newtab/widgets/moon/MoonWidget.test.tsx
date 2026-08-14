@@ -75,7 +75,15 @@ describe('MoonWidget', () => {
   it('toggle on with a location set renders the section and starts the interval', async () => {
     const { container } = await renderWithMoon()
     expect(container.querySelector('section[aria-label="Moon phase"]')).toBeTruthy()
-    expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 60_000)
+    expect(intervalSpy).not.toHaveBeenCalled()
+  })
+
+  it('recomputes the phase when the local day changes in an open tab', async () => {
+    const { container } = await renderWithMoon()
+    const before = container.querySelector('section[aria-label="Moon phase"]')!.textContent
+    vi.setSystemTime(new Date(MOON_DATE.getTime() + 8 * 86_400_000))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('section[aria-label="Moon phase"]')!.textContent).not.toBe(before)
   })
 
   it('renders "{glyph} {name}" exactly, computed via the real moonPhase pipeline', async () => {

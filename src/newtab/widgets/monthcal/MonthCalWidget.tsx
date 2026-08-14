@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { useNow } from '../../../lib/hooks/useNow'
-import { localDateKey } from '../../../lib/habits'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { monthGrid, type MonthCell } from '../../../lib/monthGrid'
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] // Sunday-origin, matching monthGrid's own fixed row-0 weekday
@@ -29,24 +28,18 @@ export default function MonthCalWidget() {
 
 function MonthCalInner() {
   const [countdowns] = useStoredKey('countdowns')
-  // Ticking "today" — the ring (and the current-month check it depends on)
-  // re-derives every 60s so the widget rolls over local midnight without a
-  // reload, same cadence and rationale as HabitsWidget.tsx's own useNow(60_000).
-  const now = useNow(60_000)
-  const todayKey = localDateKey(now)
+  // Coherent local-day identity for the ring and current-month control. The
+  // scheduler covers midnight, restoration, and runtime timezone changes.
+  const { key: todayKey } = useLocalDay()
+  const [todayYear, todayMonth] = todayKey.split('-').map(Number) as [number, number, number]
 
-  // The ONE mount-time impure boundary in this widget: which month the grid
-  // OPENS on. A lazy initializer so `new Date()` is read exactly once, at
-  // first mount — navigating with prev/next/Today below never re-reads the
-  // system clock again (Today explicitly re-derives from the ticking `now`
-  // above instead, so it still lands on the right month even if the widget
-  // has been open across a midnight rollover).
+  // The grid opens on the hook's local calendar month. Navigation remains
+  // user-owned; only the Today control re-derives from later day samples.
   const [view, setView] = useState<{ y: number; m0: number }>(() => {
-    const d = new Date()
-    return { y: d.getFullYear(), m0: d.getMonth() }
+    return { y: todayYear, m0: todayMonth - 1 }
   })
 
-  const isCurrentMonth = view.y === now.getFullYear() && view.m0 === now.getMonth()
+  const isCurrentMonth = view.y === todayYear && view.m0 === todayMonth - 1
 
   // Normalize (y, m0) through Date's own rollover on EVERY step, the same
   // technique monthGrid.ts's own top-of-function normalization uses (bug
@@ -74,7 +67,7 @@ function MonthCalInner() {
       const d = new Date(v.y, v.m0 + 1, 1)
       return { y: d.getFullYear(), m0: d.getMonth() }
     })
-  const goToday = () => setView({ y: now.getFullYear(), m0: now.getMonth() })
+  const goToday = () => setView({ y: todayYear, m0: todayMonth - 1 })
 
   const weeks = monthGrid(view.y, view.m0)
   const countdownKeys = new Set((countdowns ?? []).map((c) => c.date))

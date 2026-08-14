@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { todayKey } from '../../lib/dates'
+import { useLocalDay } from '../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { currentFocus, setFocusText } from './focusLogic'
 
@@ -9,9 +9,9 @@ export default function FocusLine() {
   // Guards the submit+blur double-fire: submitting unmounts the input, whose
   // teardown blur re-enters the stale onBlur closure and would save twice.
   const committed = useRef(false)
+  const { key: today } = useLocalDay()
   if (stored === undefined) return null
 
-  const today = todayKey()
   const focus = currentFocus(stored, today)
 
   if (!focus || editing) {

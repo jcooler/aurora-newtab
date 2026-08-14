@@ -1,11 +1,29 @@
 // @vitest-environment jsdom
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, render } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import { defaults } from '../../lib/storage/schema'
 import Greeting from './Greeting'
+
+describe('Greeting restoration sampling', () => {
+  it('changes daypart immediately when a sleeping tab regains focus', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 6, 26, 11, 59, 0))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(<StorageProvider storage={storage}><Greeting /></StorageProvider>)
+    await act(async () => {})
+    expect(container.querySelector('p')!.textContent).toContain('morning')
+
+    vi.setSystemTime(new Date(2026, 6, 26, 12, 1, 0))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(container.querySelector('p')!.textContent).toContain('afternoon')
+    vi.useRealTimers()
+  })
+})
 
 // Task 60 fix round: text that sits directly on the photograph paints with the
 // FIXED canvas ink (text-canvas-fg / text-canvas-fg-muted → var(--canvas-fg*)),

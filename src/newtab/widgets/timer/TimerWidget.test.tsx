@@ -27,6 +27,17 @@ async function renderWidget({
 }
 
 describe('TimerWidget', () => {
+  it('does not mount its ticking clock while disabled', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const intervalSpy = vi.spyOn(window, 'setInterval')
+    const { container } = render(<StorageProvider storage={storage}><TimerWidget /></StorageProvider>)
+    await act(async () => {})
+    expect(container.firstChild).toBeNull()
+    expect(intervalSpy).not.toHaveBeenCalled()
+    intervalSpy.mockRestore()
+  })
+
   it('renders the pill with no fixed-position class of its own (placement now lives on the App-level PositionedBlock wrapper)', async () => {
     await renderWidget()
     const pill = await screen.findByRole('button', { name: /Focus timer/ })
@@ -81,6 +92,23 @@ describe('TimerWidget', () => {
     rectSpy.mockRestore()
     widthSpy.mockRestore()
     heightSpy.mockRestore()
+  })
+
+  it('catches a running timer up immediately when a sleeping tab regains focus', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-07-26T12:00:00Z'))
+      await renderWidget()
+      fireEvent.click(screen.getByRole('button', { name: /Focus timer/ }))
+      fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+      expect(screen.getAllByText('25:00')).toHaveLength(2)
+
+      vi.setSystemTime(new Date('2026-07-26T12:01:01Z'))
+      act(() => window.dispatchEvent(new Event('focus')))
+      expect(screen.getAllByText('23:59')).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

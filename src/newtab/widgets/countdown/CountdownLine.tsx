@@ -1,5 +1,6 @@
-import { todayKey } from '../../../lib/dates'
+import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
+import type { Countdown } from '../../../lib/storage/schema'
 import { countdownPhrase, daysUntil } from '../../../lib/worldTime'
 
 export default function CountdownLine() {
@@ -12,9 +13,13 @@ export default function CountdownLine() {
 
 function CountdownLineInner() {
   const [countdowns] = useStoredKey('countdowns')
-  if (!countdowns) return null
+  if (!Array.isArray(countdowns) || countdowns.length === 0) return null
 
-  const today = todayKey()
+  return <PopulatedCountdownLine countdowns={countdowns} />
+}
+
+function PopulatedCountdownLine({ countdowns }: { countdowns: Countdown[] }) {
+  const { key: today } = useLocalDay()
   const nearest = countdowns
     .map((c) => ({ name: c.name, days: daysUntil(c.date, today) }))
     .filter((c) => c.days >= 0)

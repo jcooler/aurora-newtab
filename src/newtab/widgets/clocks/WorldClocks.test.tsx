@@ -15,12 +15,13 @@ async function renderWithClocks(worldClocks: { zone: string; label: string }[]) 
     widgets: { ...defaults().settings.widgets, clocks: true },
   })
   await storage.set('worldClocks', worldClocks)
-  render(
+  const view = render(
     <StorageProvider storage={storage}>
       <WorldClocks />
     </StorageProvider>,
   )
   await act(async () => {})
+  return view
 }
 
 describe('WorldClocks', () => {
@@ -38,6 +39,7 @@ describe('WorldClocks', () => {
 
   afterEach(() => {
     intervalSpy.mockRestore()
+    vi.useRealTimers()
   })
 
   it('renders nothing while settings.widgets.clocks is off', async () => {
@@ -89,5 +91,15 @@ describe('WorldClocks', () => {
     expect(screen.getByText(/Tokyo/)).toBeTruthy()
     expect(screen.getByText(/London/)).toBeTruthy()
     expect(intervalSpy).toHaveBeenCalledWith(expect.any(Function), 30_000)
+  })
+
+  it('refreshes zone text immediately when a sleeping tab regains focus', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-26T12:00:00Z'))
+    const view = await renderWithClocks([{ zone: 'Asia/Tokyo', label: 'Tokyo' }])
+    const before = view.container.textContent
+    vi.setSystemTime(new Date('2026-07-26T13:01:00Z'))
+    act(() => window.dispatchEvent(new Event('focus')))
+    expect(view.container.textContent).not.toBe(before)
   })
 })
