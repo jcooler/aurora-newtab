@@ -1,5 +1,6 @@
 import { useId, useState, type ReactNode } from 'react'
-import { ensureOrigin } from '../../services/permissions'
+import type { AuroraStorage } from '../../lib/storage'
+import { releaseUnownedOrigins, runOriginTransaction } from '../../services/permissionTransactions'
 import { control, submitBtn } from './shared'
 
 export interface TokenField {
@@ -33,7 +34,12 @@ export function TokenConnectForm(props: {
   onConnected(values: Record<string, string>, identity: string): Promise<void>
   /** Present when already connected -> renders Disconnect instead of the form. */
   connectedAs: string | null
-  onDisconnect(): Promise<void>
+  /** Removes the config and returns the canonical origins that configuration owned. */
+  onDisconnect(): Promise<string[]>
+  /** The real SettingsPanel storage instance, needed for transaction rollback ownership checks. */
+  storage: AuroraStorage
+  /** Durable SettingsPanel-owned cleanup reporter. */
+  reportPendingCleanup(patterns: readonly string[]): void
   /** Connector-specific content slotted into the CONNECTED branch only,
    *  between the connected-as row (owned by the card shell, not this form —
    *  see the comment on that branch below) and the Disconnect row. GithubBody
@@ -42,7 +48,18 @@ export function TokenConnectForm(props: {
    *  to show chips for. */
   connectedExtras?: ReactNode
 }) {
-  const { fields, connectLabel = 'Connect', originsFor, validate, onConnected, connectedAs, onDisconnect, connectedExtras } = props
+  const {
+    fields,
+    connectLabel = 'Connect',
+    originsFor,
+    validate,
+    onConnected,
+    connectedAs,
+    onDisconnect,
+    storage,
+    reportPendingCleanup,
+    connectedExtras,
+  } = props
 
   // Two token connectors can render on the same Connectors tab at once
   // (GithubConfig and VercelConfig both declare a `token` field, for
@@ -58,6 +75,16 @@ export function TokenConnectForm(props: {
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
 
+  async function handleDisconnect() {
+    const candidates = await onDisconnect()
+    try {
+      const cleanup = await releaseUnownedOrigins(storage, candidates)
+      if (cleanup.pending.length > 0) reportPendingCleanup(cleanup.pending)
+    } catch {
+      if (candidates.length > 0) reportPendingCleanup(candidates)
+    }
+  }
+
   if (connectedAs !== null) {
     // `connectedAs` still SELECTS this connected branch, but the identity itself
     // is shown by the card SHELL's authState-driven chip (Connectors.tsx) — the
@@ -69,7 +96,7 @@ export function TokenConnectForm(props: {
         {connectedExtras}
         <button
           type="button"
-          onClick={() => void onDisconnect()}
+          onClick={() => void handleDisconnect()}
           className={`${submitBtn} self-start`}
         >
           Disconnect
@@ -82,14 +109,10 @@ export function TokenConnectForm(props: {
     e.preventDefault()
     setError(null)
 
-    // COMPLIANCE-CRITICAL gesture chain, same discipline as Connectors.tsx's
-    // RSS handleAddFeed and permissions.ts's ensureOrigin doc comment:
-    // chrome.permissions.request (inside ensureOrigin below) must be the
-    // FIRST await anywhere in this handler, with ZERO awaits ahead of it —
-    // any earlier await (even a fast one) is an IPC round-trip that can land
-    // outside the user-gesture window and make Chrome refuse to show its
-    // permission prompt. Trimming/required-check and originsFor() are both
-    // synchronous, so they cost the gesture nothing.
+    // COMPLIANCE-CRITICAL gesture chain: trimming and originsFor() are
+    // synchronous, then runOriginTransaction queues lifecycle authority and
+    // invokes chrome.permissions.request before its first await. Do not insert
+    // an await between this validation boundary and that call.
     const trimmed: Record<string, string> = {}
     for (const field of fields) {
       const value = (values[field.id] ?? '').trim()
@@ -120,28 +143,26 @@ export function TokenConnectForm(props: {
 
     setConnecting(true)
     try {
-      // ensureOrigin -> chrome.permissions.request is the first await, per
-      // the comment above. Multi-origin originsFor() results would only ever
-      // request the FIRST origin in-gesture; every token connector this form
-      // serves derives exactly one, so that's also always the whole set.
-      let granted: boolean
-      try {
-        granted = await ensureOrigin(origins[0]!)
-      } catch {
-        granted = false
+      const transaction = await runOriginTransaction(storage, origins, async () => {
+        const result = await validate(trimmed)
+        if (!result.ok) return result
+        await onConnected(trimmed, result.identity)
+        return { ok: true as const, value: undefined, ownerCommitted: true as const }
+      })
+
+      if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
+        reportPendingCleanup(transaction.pendingCleanup)
       }
-      if (!granted) {
+      if (transaction.status === 'committed') return
+      if (transaction.status === 'aborted') {
+        setError(transaction.message)
+        return
+      }
+      if (transaction.status === 'denied' || transaction.status === 'access-lost') {
         setError('Permission to read that site was denied, so nothing was connected.')
         return
       }
-
-      const result = await validate(trimmed)
-      if (!result.ok) {
-        setError(result.message)
-        return
-      }
-
-      await onConnected(trimmed, result.identity)
+      setError("Couldn't save that connection. Please try again.")
     } finally {
       setConnecting(false)
     }

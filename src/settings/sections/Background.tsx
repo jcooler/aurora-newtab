@@ -18,6 +18,7 @@ import { row, label, select } from './shared'
  *  and live entirely here. */
 export default function Background({
   storage,
+  reportPendingCleanup: _reportPendingCleanup,
   photoPrefs,
   savePhotoPrefs,
   uploads,
@@ -26,6 +27,8 @@ export default function Background({
   setGalleryError,
 }: {
   storage: AuroraStorage
+  /** SettingsPanel owns this durable recovery state; APOD wires into it in Task 4. */
+  reportPendingCleanup(patterns: readonly string[]): void
   photoPrefs: PhotoPrefs | undefined
   savePhotoPrefs: (next: PhotoPrefs) => void
   uploads: Upload[]

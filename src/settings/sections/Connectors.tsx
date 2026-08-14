@@ -3,7 +3,7 @@ import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
-import { CONNECTORS, releasableOrigins } from '../../services/connectors/registry'
+import { CONNECTORS, getConnector, releasableOrigins } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
@@ -22,7 +22,8 @@ import {
   type HaState,
   type HomeAssistantConfig,
 } from '../../services/connectors/homeassistant'
-import { ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
+import { canonicalOriginPatterns, ensureOrigin, removeOrigin, originPattern } from '../../services/permissions'
+import { runOriginTransaction } from '../../services/permissionTransactions'
 import { fuzzyScore } from '../../lib/fuzzy'
 import { TokenConnectForm } from './TokenConnectForm'
 import EntityPickerDialog from './EntityPickerDialog'
@@ -41,6 +42,49 @@ const RSS_DEFAULT: RssConfig = { enabled: true, feeds: [], shownCount: 5 }
 interface BodyProps {
   config: ConnectorConfig | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
+}
+
+type TokenConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant'
+
+function canonicalCandidates(candidates: readonly string[]): string[] {
+  const canonical = new Set<string>()
+  for (const candidate of candidates) {
+    try {
+      for (const pattern of canonicalOriginPatterns([candidate])) canonical.add(pattern)
+    } catch {
+      // Descriptor origins are expected to be canonical. Ignore one malformed
+      // entry rather than preventing the valid removed origins from recovery.
+    }
+  }
+  return [...canonical]
+}
+
+/** Captures origin candidates from the exact config value removed by the
+ * authoritative update, never from render-time props or a separate read.
+ * The empty-origin transaction is deliberately permission-free: it only puts
+ * the owner mutation into the same lifecycle authority used by its subsequent
+ * release in TokenConnectForm. */
+async function disconnectTokenConnector(storage: AuroraStorage, id: TokenConnectorId): Promise<string[]> {
+  let candidates: string[] = []
+  const transaction = await runOriginTransaction(storage, [], async () => {
+    await storage.update('connectors', (prev) => {
+      const removed = prev[id]
+      const next = { ...prev }
+      delete next[id]
+      const descriptor = getConnector(id)
+      if (removed && descriptor) {
+        try {
+          candidates = canonicalCandidates(descriptor.origins(removed))
+        } catch {
+          candidates = []
+        }
+      }
+      return next
+    })
+    return { ok: true as const, value: undefined, ownerCommitted: true as const }
+  })
+  return transaction.status === 'committed' ? candidates : []
 }
 
 /** Card auth-state, exported (beside the default export) purely for direct
@@ -110,9 +154,11 @@ function originOf(url: string): string | null {
 export default function Connectors({
   connectors,
   storage,
+  reportPendingCleanup,
 }: {
   connectors: AuroraData['connectors'] | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const [query, setQuery] = useState('')
   const q = query.trim()
@@ -136,7 +182,13 @@ export default function Connectors({
       })).filter((g) => g.cards.length > 0)
 
   const card = (d: ConnectorDescriptor) => (
-    <ConnectorCard key={d.id} descriptor={d} config={connectors?.[d.id]} storage={storage} />
+    <ConnectorCard
+      key={d.id}
+      descriptor={d}
+      config={connectors?.[d.id]}
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+    />
   )
 
   return (
@@ -205,10 +257,12 @@ function ConnectorCard({
   descriptor,
   config,
   storage,
+  reportPendingCleanup,
 }: {
   descriptor: ConnectorDescriptor
   config: ConnectorConfig | undefined
   storage: AuroraStorage
+  reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const enabled = !!config?.enabled
   const state = authState(descriptor, config)
@@ -268,7 +322,7 @@ function ConnectorCard({
         </div>
       </div>
 
-      {Body && enabled && <Body config={config} storage={storage} />}
+      {Body && enabled && <Body config={config} storage={storage} reportPendingCleanup={reportPendingCleanup} />}
     </div>
   )
 }
@@ -449,7 +503,7 @@ const VIEW_CHIPS: Array<{ key: keyof GithubViews; label: string }> = [
 // mechanics (the gesture-safe ensureOrigin-first chain, the single inline
 // alert, the per-instance field ids) live in the shared TokenConnectForm
 // (Task 47); this body only supplies the pure, connector-specific callbacks.
-function GithubBody({ config, storage }: BodyProps) {
+function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as RssBody above: BodyProps.config is the generic
   // union (the body map is shared across ids), and this component is registered
   // only under 'github', so it is always GithubConfig at runtime — one
@@ -471,6 +525,8 @@ function GithubBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
       fields={[
         {
           id: 'token',
@@ -544,21 +600,7 @@ function GithubBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config (releasable-
-        // Origins needs github's own config present to derive its origins), then
-        // drop the entry and revoke each released origin. releasableOrigins runs
-        // through the REAL registry, so an origin another enabled connector also
-        // claimed would be withheld — api.github.com is github's alone today.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('github', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.github
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'github')}
     />
   )
 }
@@ -579,7 +621,7 @@ const GITLAB_VIEW_CHIPS: Array<{ key: keyof GitlabViews; label: string }> = [
 // difference: TWO fields (a per-config instance URL alongside the token,
 // since GitLab is self-hostable), which flows through into `originsFor`
 // deriving the origin from the FIELD VALUE rather than a single constant.
-function GitlabBody({ config, storage }: BodyProps) {
+function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'gitlab', so it is always GitlabConfig at runtime —
@@ -603,6 +645,8 @@ function GitlabBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
       fields={[
         {
           id: 'instanceUrl',
@@ -689,23 +733,7 @@ function GitlabBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config
-        // (releasableOrigins needs gitlab's own config present to derive its
-        // origin), then drop the entry and revoke each released origin.
-        // releasableOrigins runs through the REAL registry, so an origin
-        // another enabled connector (or another gitlab-pointed-at-the-same-
-        // instance connector, hypothetically) still claimed would be
-        // withheld.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('gitlab', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.gitlab
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'gitlab')}
     />
   )
 }
@@ -732,7 +760,7 @@ const JIRA_VIEW_CHIPS: Array<{ key: keyof JiraViews; label: string }> = [
   { key: 'dueSoon', label: 'Due soon' },
 ]
 
-function JiraBody({ config, storage }: BodyProps) {
+function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as GitlabBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'jira', so it is always JiraConfig at runtime —
@@ -756,6 +784,8 @@ function JiraBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
       fields={[
         {
           id: 'site',
@@ -850,21 +880,7 @@ function JiraBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config
-        // (releasableOrigins needs jira's own config present to derive its
-        // origin), then drop the entry and revoke each released origin.
-        // releasableOrigins runs through the REAL registry, so an origin
-        // another enabled connector still claimed would be withheld.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('jira', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.jira
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'jira')}
     />
   )
 }
@@ -881,7 +897,7 @@ const VERCEL_VIEW_CHIPS: Array<{ key: keyof VercelViews; label: string }> = [
 // The Vercel connector's card body — the fourth token connector (Task 51),
 // copying GithubBody's mechanics most closely: ONE field, a single constant
 // origin (unlike GitlabBody's/JiraBody's per-config derived one).
-function VercelBody({ config, storage }: BodyProps) {
+function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'vercel', so it is always VercelConfig at runtime —
@@ -904,6 +920,8 @@ function VercelBody({ config, storage }: BodyProps) {
 
   return (
     <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
       fields={[
         {
           id: 'token',
@@ -972,21 +990,7 @@ function VercelBody({ config, storage }: BodyProps) {
           <p className="mt-2 text-xs text-fg-muted">Your card shows only the sections you turn on.</p>
         </div>
       }
-      onDisconnect={async () => {
-        // Compute what's safe to revoke BEFORE clearing the config (releasable-
-        // Origins needs vercel's own config present to derive its origins), then
-        // drop the entry and revoke each released origin. releasableOrigins runs
-        // through the REAL registry, so an origin another enabled connector also
-        // claimed would be withheld — api.vercel.com is vercel's alone today.
-        const current = await storage.get('connectors')
-        const releasable = releasableOrigins('vercel', current)
-        await storage.update('connectors', (prev) => {
-          const next = { ...prev }
-          delete next.vercel
-          return next
-        })
-        await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-      }}
+      onDisconnect={() => disconnectTokenConnector(storage, 'vercel')}
     />
   )
 }
@@ -1773,7 +1777,7 @@ function StatusBody({ config, storage }: BodyProps) {
 // mirroring StatusBody's clearStatusSnapshot (:1526-1531) exactly, so the
 // widget's next mount finds no stale cached snapshot and fetches the newly
 // picked entities immediately rather than serving up to ttlMs-stale data.
-function HomeAssistantBody({ config, storage }: BodyProps) {
+function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'homeassistant' — one documented
@@ -1859,6 +1863,8 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
         </p>
       )}
       <TokenConnectForm
+        storage={storage}
+        reportPendingCleanup={reportPendingCleanup}
         fields={[
           {
             id: 'instanceUrl',
@@ -1937,21 +1943,7 @@ function HomeAssistantBody({ config, storage }: BodyProps) {
             />
           </div>
         }
-        onDisconnect={async () => {
-          // Compute what's safe to revoke BEFORE clearing the config
-          // (releasableOrigins needs homeassistant's own config present to
-          // derive its origin), then drop the entry and revoke each
-          // released origin — same ordering as GitlabBody's own
-          // onDisconnect (:675-691).
-          const current = await storage.get('connectors')
-          const releasable = releasableOrigins('homeassistant', current)
-          await storage.update('connectors', (prev) => {
-            const next = { ...prev }
-            delete next.homeassistant
-            return next
-          })
-          await Promise.all(releasable.map((origin) => removeOrigin(origin)))
-        }}
+        onDisconnect={() => disconnectTokenConnector(storage, 'homeassistant')}
       />
     </>
   )

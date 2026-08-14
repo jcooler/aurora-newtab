@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
@@ -49,9 +49,23 @@ import { isPremium } from '../lib/premium'
 // "still held by an enabled connector?" check).
 vi.mock('../services/permissions', async (importActual) => {
   const actual = await importActual<typeof import('../services/permissions')>()
-  return { ...actual, ensureOrigin: vi.fn(), removeOrigin: vi.fn(), ensureOrigins: vi.fn() }
+  const ensureOrigin = vi.fn()
+  // Existing card tests assert connector-specific input/origin mapping through
+  // this singular spy. TokenConnectForm now correctly calls ensureOrigins via
+  // its transaction, so the test boundary delegates that one-origin batch to
+  // the established spy while the dedicated transaction tests exercise Chrome.
+  const ensureOrigins = vi.fn(async (origins: readonly string[]) => {
+    const granted = await ensureOrigin(origins[0]!)
+    if (granted) {
+      origins.forEach((origin) => cleanupHeld.add(origin))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+    }
+    return granted
+  })
+  return { ...actual, ensureOrigin, removeOrigin: vi.fn(), ensureOrigins }
 })
 import { ensureOrigin, ensureOrigins, removeOrigin } from '../services/permissions'
+import { initializePermissionMirror } from '../services/permissionMirror'
 
 // The GitHub connector card's connect flow calls whoamiGithub (a real network
 // GET /user) — mock ONLY that. githubDescriptor and fetchGithub stay REAL via
@@ -109,6 +123,66 @@ import { whoamiHomeAssistant, fetchAllStates } from '../services/connectors/home
 function attr(el: Element, name: string) {
   return el.getAttribute(name)
 }
+
+afterEach(() => {
+  const removed = [...cleanupHeld]
+  cleanupHeld.clear()
+  if (removed.length > 0) cleanupRemovedListeners.forEach((listener) => listener({ origins: removed }))
+  // Background's APOD cases reset/configure the plural mock directly. Restore
+  // the token-card compatibility delegate for the next test without changing
+  // any completed assertion in the test that just ran.
+  vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+    const granted = await vi.mocked(ensureOrigin)(origins[0]!)
+    if (granted) {
+      origins.forEach((origin) => cleanupHeld.add(origin))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+    }
+    return granted
+  })
+})
+
+type PermissionListener = (permissions: chrome.permissions.Permissions) => void
+
+const cleanupHeld = new Set<string>()
+const cleanupAddedListeners: PermissionListener[] = []
+const cleanupRemovedListeners: PermissionListener[] = []
+
+async function removeHeldOrigin(pattern: string): Promise<boolean> {
+  const removed = cleanupHeld.delete(pattern)
+  if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins: [pattern] }))
+  return removed
+}
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', {
+    permissions: {
+      getAll: async () => ({ origins: [...cleanupHeld] }),
+      request: async ({ origins = [] }: chrome.permissions.Permissions) => {
+        origins.forEach((origin) => cleanupHeld.add(origin))
+        cleanupAddedListeners.forEach((listener) => listener({ origins }))
+        return true
+      },
+      contains: async ({ origins = [] }: chrome.permissions.Permissions) => origins.every((origin) => cleanupHeld.has(origin)),
+      remove: async ({ origins = [] }: chrome.permissions.Permissions) => {
+        const removed = origins.some((origin) => cleanupHeld.delete(origin))
+        if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins }))
+        return removed
+      },
+      onAdded: { addListener: (listener: PermissionListener) => cleanupAddedListeners.push(listener) },
+      onRemoved: { addListener: (listener: PermissionListener) => cleanupRemovedListeners.push(listener) },
+    },
+  })
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: async (_name: string, _options: LockOptions, work: () => Promise<unknown>) => work() },
+  })
+  await initializePermissionMirror()
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'locks')
+})
 
 async function renderPanel(
   onArrangeLayout: () => void = () => {},
@@ -1653,7 +1727,7 @@ describe('Connectors tab — search and categories', () => {
 describe('SettingsPanel Connectors section (RSS card)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
   })
 
   async function renderWithConnectors(rss?: { enabled: boolean; feeds: string[]; shownCount: number }) {
@@ -1851,7 +1925,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
 describe('SettingsPanel Connectors section (GitHub card — first token connector)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiGithub).mockReset()
   })
 
@@ -2033,7 +2107,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
 describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s sibling)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiGitlab).mockReset()
   })
 
@@ -2301,7 +2375,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
 describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiJira).mockReset()
   })
 
@@ -2544,7 +2618,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
 describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s sibling)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiVercel).mockReset()
   })
 
@@ -3603,7 +3677,7 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
 describe('SettingsPanel Connectors section (Home Assistant card — Task 101, connect + entity picker + THE PACT)', () => {
   beforeEach(() => {
     vi.mocked(ensureOrigin).mockReset()
-    vi.mocked(removeOrigin).mockReset()
+    vi.mocked(removeOrigin).mockReset().mockImplementation(removeHeldOrigin)
     vi.mocked(whoamiHomeAssistant).mockReset()
     vi.mocked(fetchAllStates).mockReset()
   })
@@ -3933,6 +4007,80 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
   function connectorsRegion() {
     return screen.getByRole('region', { name: 'Connectors' })
   }
+})
+
+describe('SettingsPanel permission cleanup recovery', () => {
+  it('retains rollback cleanup across the connector and tab unmount, then clears it only after retry succeeds', async () => {
+    const origin = 'https://api.github.com/*'
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigins).mockImplementation(async (origins) => {
+      origins.forEach((pattern) => cleanupHeld.add(pattern))
+      cleanupAddedListeners.forEach((listener) => listener({ origins: [...origins] }))
+      return true
+    })
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('remove failed'))
+    vi.mocked(whoamiGithub).mockResolvedValue({ ok: false, message: 'Bad token' })
+
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, token: '', username: '' } })
+    await renderPanel(() => {}, storage)
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), { target: { value: 'ghp_bad' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(true)
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    vi.mocked(removeOrigin).mockImplementation(async (pattern) => {
+      const removed = cleanupHeld.delete(pattern)
+      if (removed) cleanupRemovedListeners.forEach((listener) => listener({ origins: [pattern] }))
+      return removed
+    })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
+
+  it('retains failed final-owner disconnect cleanup after its card disappears, then retries it from another tab', async () => {
+    const origin = 'https://api.github.com/*'
+    cleanupHeld.clear()
+    cleanupHeld.add(origin)
+    cleanupAddedListeners.forEach((listener) => listener({ origins: [origin] }))
+    vi.mocked(removeOrigin).mockReset().mockRejectedValueOnce(new Error('remove failed'))
+
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, token: 'ghp_live', username: 'octocat' } })
+    await renderPanel(() => {}, storage)
+    openTab('Connectors')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+    })
+
+    expect((await storage.get('connectors')).github).toBeUndefined()
+    expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('Data')
+    vi.mocked(removeOrigin).mockImplementation(async (pattern) => removeHeldOrigin(pattern))
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(cleanupHeld.has(origin)).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+  })
 })
 
 // Pure unit tests of the extracted auth-state helper — exported from

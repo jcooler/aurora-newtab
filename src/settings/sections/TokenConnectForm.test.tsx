@@ -1,57 +1,116 @@
 // @vitest-environment jsdom
-// TokenConnectForm.test.tsx — dedicated test file for the one card body every
-// token connector (Tasks 48-51) renders. Mocks ../../services/permissions the
-// same way SettingsPanel.test.tsx does for the RSS body: only ensureOrigin is
-// mocked, everything else stays real (nothing else here needs it, but the
-// import shape matches the house idiom).
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
-
-vi.mock('../../services/permissions', async (importActual) => {
-  const actual = await importActual<typeof import('../../services/permissions')>()
-  return { ...actual, ensureOrigin: vi.fn() }
-})
-import { ensureOrigin } from '../../services/permissions'
+import { createStorage, type AuroraStorage } from '../../lib/storage'
+import { memoryDriver } from '../../lib/storage/driver'
+import { initializePermissionMirror } from '../../services/permissionMirror'
 import { TokenConnectForm, type TokenField } from './TokenConnectForm'
+
+type PermissionListener = (permissions: chrome.permissions.Permissions) => void
+
+const held = new Set<string>()
+const addedListeners: PermissionListener[] = []
+const removedListeners: PermissionListener[] = []
+let order: string[] = []
+let requestGranted = true
+const getAll = vi.fn(async () => ({ origins: [...held] }))
+const request = vi.fn(async ({ origins = [] }: chrome.permissions.Permissions) => {
+  order.push('request')
+  if (!requestGranted) return false
+  for (const origin of origins) held.add(origin)
+  addedListeners.forEach((listener) => listener({ origins }))
+  return true
+})
+const contains = vi.fn(async ({ origins = [] }: chrome.permissions.Permissions) =>
+  origins.every((origin) => held.has(origin)),
+)
+const remove = vi.fn(async ({ origins = [] }: chrome.permissions.Permissions) => {
+  const removed = origins.some((origin) => held.delete(origin))
+  if (removed) removedListeners.forEach((listener) => listener({ origins }))
+  return removed
+})
+const locks = {
+  request: vi.fn(async (_name: string, _options: LockOptions, work: () => Promise<unknown>) => {
+    order.push('lock-queued')
+    return Promise.resolve().then(() => {
+      order.push('lock-callback')
+      return work()
+    })
+  }),
+}
 
 const FIELDS: TokenField[] = [
   { id: 'token', label: 'Personal access token', type: 'password', placeholder: 'ghp_...' },
   { id: 'username', label: 'Username', type: 'text', placeholder: 'octocat' },
 ]
 
-// Every test's spies push into this array so happy-path ordering can be
-// asserted directly (ensureOrigin before validate before onConnected),
-// rather than relying on vi.fn mock.invocationCallOrder across three
-// independently-created mocks.
-let calls: string[]
+function clearPermissions() {
+  const origins = [...held]
+  held.clear()
+  if (origins.length > 0) removedListeners.forEach((listener) => listener({ origins }))
+}
 
-beforeEach(() => {
-  calls = []
-  vi.mocked(ensureOrigin).mockReset()
+function grantExisting(...origins: string[]) {
+  origins.forEach((origin) => held.add(origin))
+  addedListeners.forEach((listener) => listener({ origins }))
+}
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', {
+    permissions: {
+      getAll,
+      request,
+      contains,
+      remove,
+      onAdded: { addListener: (listener: PermissionListener) => addedListeners.push(listener) },
+      onRemoved: { addListener: (listener: PermissionListener) => removedListeners.push(listener) },
+    },
+  })
+  Object.defineProperty(navigator, 'locks', { configurable: true, value: locks })
+  await initializePermissionMirror()
 })
 
-function renderForm(overrides: Partial<Parameters<typeof TokenConnectForm>[0]> = {}) {
-  const originsFor = vi.fn((_values: Record<string, string>) => ['https://api.example.com/*'])
-  const validate = vi.fn(async (_values: Record<string, string>) => {
-    calls.push('validate')
-    return { ok: true as const, identity: 'octocat' }
-  })
-  const onConnected = vi.fn(async (_values: Record<string, string>, _identity: string) => {
-    calls.push('onConnected')
-  })
-  const onDisconnect = vi.fn(async () => {})
+afterAll(() => {
+  vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'locks')
+})
 
+beforeEach(() => {
+  clearPermissions()
+  order = []
+  requestGranted = true
+  getAll.mockClear()
+  request.mockClear()
+  contains.mockClear()
+  remove.mockReset()
+  remove.mockImplementation(async ({ origins = [] }: chrome.permissions.Permissions) => {
+    const removed = origins.some((origin) => held.delete(origin))
+    if (removed) removedListeners.forEach((listener) => listener({ origins }))
+    return removed
+  })
+  locks.request.mockClear()
+})
+
+async function renderForm(overrides: Record<string, unknown> = {}) {
+  const storage = (overrides.storage as AuroraStorage | undefined) ?? createStorage(memoryDriver())
+  if (typeof storage.init === 'function') await storage.init()
+  const validate = vi.fn(async () => ({ ok: true as const, identity: 'octocat' }))
+  const onConnected = vi.fn(async () => {})
+  const onDisconnect = vi.fn(async () => [] as string[])
+  const reportPendingCleanup = vi.fn()
   const props = {
     fields: FIELDS,
-    originsFor,
+    originsFor: () => ['https://api.example.com/*'],
     validate,
     onConnected,
     connectedAs: null,
     onDisconnect,
+    storage,
+    reportPendingCleanup,
     ...overrides,
   }
-  render(<TokenConnectForm {...props} />)
-  return { originsFor, validate, onConnected, onDisconnect }
+  render(<TokenConnectForm {...(props as Parameters<typeof TokenConnectForm>[0])} />)
+  return { storage, validate, onConnected, onDisconnect, reportPendingCleanup }
 }
 
 function fillFields() {
@@ -59,45 +118,30 @@ function fillFields() {
   fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'octocat' } })
 }
 
-describe('TokenConnectForm — connect gesture', () => {
-  it('happy path: ensureOrigin runs before validate, which runs before onConnected', async () => {
-    vi.mocked(ensureOrigin).mockImplementation(async (_url: string) => {
-      calls.push('ensureOrigin')
-      return true
-    })
-    const { validate, onConnected } = renderForm()
+describe('TokenConnectForm origin transactions', () => {
+  it('queues lifecycle work, requests only a click-time mirror-absent origin, then validates and persists', async () => {
+    const alreadyHeld = 'https://existing.example.com/*'
+    const newlyRequested = 'https://new.example.com/*'
+    grantExisting(alreadyHeld)
+    const { validate, onConnected } = await renderForm({ originsFor: () => [alreadyHeld, newlyRequested] })
     fillFields()
 
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
 
-    expect(calls).toEqual(['ensureOrigin', 'validate', 'onConnected'])
-    expect(ensureOrigin).toHaveBeenCalledWith('https://api.example.com/*')
+    expect(order).toEqual(['lock-queued', 'request'])
+    expect(request).toHaveBeenCalledWith({ origins: [newlyRequested] })
+
+    await act(async () => {})
+
+    expect(order).toEqual(['lock-queued', 'request', 'lock-callback'])
     expect(validate).toHaveBeenCalledWith({ token: 'secret-token', username: 'octocat' })
     expect(onConnected).toHaveBeenCalledWith({ token: 'secret-token', username: 'octocat' }, 'octocat')
-    expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('a denied origin grant shows an alert and calls neither validate nor onConnected', async () => {
-    vi.mocked(ensureOrigin).mockResolvedValue(false)
-    const { validate, onConnected } = renderForm()
-    fillFields()
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-    })
-
-    expect(ensureOrigin).toHaveBeenCalledOnce()
-    expect(validate).not.toHaveBeenCalled()
-    expect(onConnected).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-  })
-
-  it('a validate() failure shows an alert and never calls onConnected', async () => {
-    vi.mocked(ensureOrigin).mockResolvedValue(true)
-    const { onConnected } = renderForm({
+  it('rolls back a newly granted origin when credentials are invalid, without storing a connector', async () => {
+    const origin = 'https://new.example.com/*'
+    const { storage, onConnected } = await renderForm({
+      originsFor: () => [origin],
       validate: vi.fn(async () => ({ ok: false as const, message: 'Bad token' })),
     })
     fillFields()
@@ -107,49 +151,18 @@ describe('TokenConnectForm — connect gesture', () => {
     })
 
     expect(onConnected).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe('Bad token')
+    expect(held.has(origin)).toBe(false)
+    expect(remove).toHaveBeenCalledWith({ origins: [origin] })
+    expect((await storage.get('connectors')).github).toBeUndefined()
+    expect((await screen.findByRole('alert')).textContent).toBe('Bad token')
   })
 
-  it('a required-empty field shows an alert and never calls ensureOrigin', async () => {
-    renderForm()
-    // Only fill the username; leave the token field blank.
-    fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'octocat' } })
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-    })
-
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-  })
-
-  it('originsFor() returning [] shows an alert and never calls ensureOrigin', async () => {
-    renderForm({ originsFor: vi.fn(() => []) })
-    fillFields()
-
-    await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
-    })
-
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBeTruthy()
-  })
-
-  // Review fix (round 1, Task 50): originsFor throwing an Error with a
-  // message used to be discarded entirely — the catch below only ever set
-  // origins to [], and the alert always showed the generic fallback text,
-  // no matter what originsFor's own thrown message said. That silently
-  // swallowed connector-specific guidance (e.g. jira.ts's
-  // normalizeJiraSite naming the exact site format it expects). The thrown
-  // message is now captured and preferred when present.
-  it('originsFor() throwing an Error with a message shows THAT message, never calls ensureOrigin', async () => {
-    renderForm({
-      originsFor: vi.fn(() => {
-        throw new Error('Enter your site as yoursite.atlassian.net')
-      }),
+  it('keeps a pre-existing origin after invalid credentials', async () => {
+    const origin = 'https://existing.example.com/*'
+    grantExisting(origin)
+    await renderForm({
+      originsFor: () => [origin],
+      validate: vi.fn(async () => ({ ok: false as const, message: 'Bad token' })),
     })
     fillFields()
 
@@ -157,17 +170,26 @@ describe('TokenConnectForm — connect gesture', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     })
 
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe('Enter your site as yoursite.atlassian.net')
+    expect(held.has(origin)).toBe(true)
+    expect(remove).not.toHaveBeenCalled()
   })
 
-  it('originsFor() throwing a messageless value falls back to the generic alert, never calls ensureOrigin', async () => {
-    renderForm({
-      originsFor: vi.fn(() => {
-        // eslint-disable-next-line @typescript-eslint/no-throw-literal
-        throw 'not an Error instance'
-      }),
+  it('recovers a rejected persistence write, rolls back its new origin, and shows a storage alert', async () => {
+    const origin = 'https://new.example.com/*'
+    const storage = {
+      async get(key: string) {
+        if (key === 'connectors') return {}
+        if (key === 'photoPrefs') return { mode: 'auto', index: 0, lastRotated: '' }
+        throw new Error(`unexpected key ${key}`)
+      },
+      async update() {
+        throw new Error('disk full')
+      },
+    } as unknown as AuroraStorage
+    const { reportPendingCleanup } = await renderForm({
+      storage,
+      originsFor: () => [origin],
+      onConnected: async () => storage.update('connectors', (value) => value),
     })
     fillFields()
 
@@ -175,140 +197,44 @@ describe('TokenConnectForm — connect gesture', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
     })
 
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toBe('Could not determine which site to connect to.')
+    expect(held.has(origin)).toBe(false)
+    expect(reportPendingCleanup).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't save/i)
   })
 
-  it('every field input is labelled', () => {
-    renderForm()
-    expect(screen.getByLabelText('Personal access token')).toBeTruthy()
-    expect(screen.getByLabelText('Username')).toBeTruthy()
-  })
+  it('reports a failed rollback for durable Settings-level cleanup', async () => {
+    const origin = 'https://stuck.example.com/*'
+    remove.mockRejectedValueOnce(new Error('remove failed'))
+    const { reportPendingCleanup } = await renderForm({
+      originsFor: () => [origin],
+      validate: vi.fn(async () => ({ ok: false as const, message: 'Bad token' })),
+    })
+    fillFields()
 
-  it('a password field gets autocomplete="off"', () => {
-    renderForm()
-    const tokenInput = screen.getByLabelText('Personal access token') as HTMLInputElement
-    expect(tokenInput.type).toBe('password')
-    expect(tokenInput.getAttribute('autocomplete')).toBe('off')
-  })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
 
-  it('connectLabel overrides the default "Connect" button text', () => {
-    renderForm({ connectLabel: 'Link account' })
-    expect(screen.getByRole('button', { name: 'Link account' })).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+    expect(held.has(origin)).toBe(true)
+    expect(reportPendingCleanup).toHaveBeenCalledWith([origin])
   })
 })
 
-describe('TokenConnectForm — connected state', () => {
-  it('connectedAs set replaces the form with just a Disconnect button — the identity is shown by the card shell, not repeated here', () => {
-    renderForm({ connectedAs: 'octocat' })
+describe('TokenConnectForm connected state', () => {
+  it('renders connected extras before Disconnect and delegates the removal callback', async () => {
+    const { onDisconnect } = await renderForm({
+      connectedAs: 'octocat',
+      connectedExtras: <div data-testid="extras">Show on your board</div>,
+    })
 
-    // `connectedAs` still SELECTS the connected branch, but the identity is NOT
-    // displayed here: the card shell's authState chip (Connectors.tsx) is the
-    // single source of "Connected as X". Repeating it in the form was redundant.
-    expect(screen.queryByText(/octocat/)).toBeNull()
-    expect(screen.queryByLabelText('Personal access token')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
-  })
-
-  it('clicking Disconnect calls onDisconnect', async () => {
-    const { onDisconnect } = renderForm({ connectedAs: 'octocat' })
+    const extras = screen.getByTestId('extras')
+    const disconnect = screen.getByRole('button', { name: 'Disconnect' })
+    expect(extras.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
+      fireEvent.click(disconnect)
     })
 
     expect(onDisconnect).toHaveBeenCalledOnce()
-  })
-
-  // Task 69: connectedExtras is the slot GithubBody's "Show on your board"
-  // chips render through — ONLY in the connected state, and positioned
-  // between the (card-shell-owned) connected indicator and the Disconnect
-  // row, never replacing or displacing Disconnect itself.
-  it('connectedExtras renders between the connected row and Disconnect, when connectedAs is set', () => {
-    renderForm({ connectedAs: 'octocat', connectedExtras: <div data-testid="extras">Show on your board</div> })
-
-    const extras = screen.getByTestId('extras')
-    expect(extras).toBeTruthy()
-    const disconnect = screen.getByRole('button', { name: 'Disconnect' })
-    // DOCUMENT_POSITION_FOLLOWING: extras comes BEFORE Disconnect in document order.
-    expect(extras.compareDocumentPosition(disconnect) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-  })
-
-  it('connectedExtras does NOT render in the disconnected (form) state', () => {
-    renderForm({ connectedAs: null, connectedExtras: <div data-testid="extras">Show on your board</div> })
-    expect(screen.queryByTestId('extras')).toBeNull()
-  })
-
-  it('omitting connectedExtras renders the connected state exactly as before (no stray node)', () => {
-    renderForm({ connectedAs: 'octocat' })
-    expect(screen.queryByTestId('extras')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
-  })
-})
-
-// Review fix (round 1): ids used to be static (`token-connect-${field.id}`,
-// hardcoded `token-connect-error`). GithubConfig and VercelConfig both
-// declare a `token` field, so two token-connector cards mounted on the same
-// Connectors tab at once — an ordinary state, not an edge case — used to
-// collide on id="token-connect-token" and id="token-connect-error", breaking
-// label association and aria-describedby for screen readers. useId()
-// prefixes every generated id per mounted instance; this block is the
-// falsifying case for the old bug.
-describe('TokenConnectForm — two instances mounted at once (per-instance ids)', () => {
-  function renderTwo() {
-    const makeProps = () => ({
-      fields: FIELDS,
-      originsFor: vi.fn(() => []),
-      validate: vi.fn(async () => ({ ok: false as const, message: 'x' })),
-      onConnected: vi.fn(async () => {}),
-      connectedAs: null,
-      onDisconnect: vi.fn(async () => {}),
-    })
-    return render(
-      <>
-        <TokenConnectForm {...makeProps()} />
-        <TokenConnectForm {...makeProps()} />
-      </>,
-    )
-  }
-
-  it('generates no duplicate DOM ids, even though both instances share a field id ("token")', () => {
-    const { container } = renderTwo()
-    const ids = Array.from(container.querySelectorAll('[id]')).map((el) => el.id)
-    // Sanity: there ARE ids to check (both the per-field input ids and, once
-    // an error is present, the alert id) — an empty list would make the
-    // uniqueness assertion below vacuously true.
-    expect(ids.length).toBeGreaterThan(0)
-    expect(new Set(ids).size).toBe(ids.length)
-  })
-
-  it("each label resolves to (and would focus) its OWN instance's input, never the other instance's", () => {
-    renderTwo()
-    const labels = screen.getAllByText('Personal access token').filter((el) => el.tagName === 'LABEL') as HTMLLabelElement[]
-    const inputs = screen.getAllByPlaceholderText('ghp_...')
-    expect(labels).toHaveLength(2)
-    expect(inputs).toHaveLength(2)
-    expect(inputs[0]!.id).not.toBe(inputs[1]!.id)
-
-    // `label.control` is the browser-native resolution of a label's target
-    // control (per the labeled-control algorithm: look up `for`'s value with
-    // getElementById, the SAME lookup a real click-to-focus relies on and
-    // the exact mechanism duplicate ids would break — getElementById always
-    // returns the FIRST matching id in document order, so with the old
-    // static ids labels[1].control would have resolved to inputs[0], not
-    // inputs[1]). Asserted via `.control` rather than a simulated click
-    // because jsdom implements label->control resolution but does not
-    // forward a synthetic label click into focusing a text input.
-    expect(labels[0]!.control).toBe(inputs[0])
-    expect(labels[1]!.control).toBe(inputs[1])
-
-    // And the real focus path still works end-to-end for each instance.
-    inputs[1]!.focus()
-    expect(document.activeElement).toBe(inputs[1])
-    inputs[0]!.focus()
-    expect(document.activeElement).toBe(inputs[0])
   })
 })

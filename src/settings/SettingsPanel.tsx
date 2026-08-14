@@ -15,6 +15,8 @@ import About from './sections/About'
 import Connectors from './sections/Connectors'
 import Tabs from './Tabs'
 import { isPremium } from '../lib/premium'
+import PermissionCleanupAlert from './PermissionCleanupAlert'
+import { usePermissionCleanup } from './usePermissionCleanup'
 
 type TabId = 'general' | 'widgets' | 'connectors' | 'data'
 
@@ -59,6 +61,7 @@ export default function SettingsPanel({
   const [countdowns] = useStoredKey('countdowns')
   const [habits] = useStoredKey('habits')
   const [connectors] = useStoredKey('connectors')
+  const cleanup = usePermissionCleanup(storage)
   const [galleryError, setGalleryError] = useState<string | null>(null)
   // Reload the gallery whenever mode enters 'upload' or the uploadedAt nonce
   // bumps (every add/remove) — same "fresh read on nonce change" pattern the
@@ -102,13 +105,20 @@ export default function SettingsPanel({
   // thumbnail grid). The keys SettingsPanel itself reads stay above this
   // split, so switching tabs never re-reads storage.
   return (
-    <Tabs tabs={TABS} active={tab} onChange={setTab}>
+    <>
+      <PermissionCleanupAlert
+        pendingPatterns={cleanup.pendingPatterns}
+        onRetry={() => void cleanup.retryPermissionCleanup()}
+        retrying={cleanup.retrying}
+      />
+      <Tabs tabs={TABS} active={tab} onChange={setTab}>
       {tab === 'general' && (
         <>
           <General settings={settings} patch={patch} />
 
           <Background
             storage={storage}
+            reportPendingCleanup={cleanup.reportPendingCleanup}
             photoPrefs={photoPrefs}
             savePhotoPrefs={savePhotoPrefs}
             uploads={uploads}
@@ -133,7 +143,13 @@ export default function SettingsPanel({
         </>
       )}
 
-      {tab === 'connectors' && premium && <Connectors connectors={connectors} storage={storage} />}
+      {tab === 'connectors' && premium && (
+        <Connectors
+          connectors={connectors}
+          storage={storage}
+          reportPendingCleanup={cleanup.reportPendingCleanup}
+        />
+      )}
 
       {tab === 'data' && (
         <>
@@ -142,6 +158,7 @@ export default function SettingsPanel({
           <About />
         </>
       )}
-    </Tabs>
+      </Tabs>
+    </>
   )
 }
