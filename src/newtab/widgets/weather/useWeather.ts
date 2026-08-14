@@ -23,6 +23,7 @@ export function useWeather() {
   const storage = useStorage()
   const [location] = useStoredKey('location')
   const [storedSnapshot] = useStoredKey('weatherCache')
+  const storageReady = location !== undefined && storedSnapshot !== undefined
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const mountedRef = useRef(false)
@@ -73,7 +74,7 @@ export function useWeather() {
   }, [currentIdentity])
 
   const refresh = useCallback(async (): Promise<void> => {
-    if (!location || !currentIdentity || coordinateError) return
+    if (!storageReady || !location || !currentIdentity || coordinateError) return
     const active = inFlightRef.current
     if (active?.identity === currentIdentity) return active.promise
     if (active) active.controller.abort()
@@ -135,7 +136,7 @@ export function useWeather() {
     })()
     inFlightRef.current = { identity: currentIdentity, generation, controller, promise: request }
     return request
-  }, [coordinateError, currentIdentity, location, storage])
+  }, [coordinateError, currentIdentity, location, storage, storageReady])
 
   useEffect(() => {
     if (!currentIdentity || coordinateError || document.visibilityState !== 'visible') return

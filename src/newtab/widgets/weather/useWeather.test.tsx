@@ -133,6 +133,38 @@ describe('useWeather identity and request generations', () => {
     expect(fetchSnapshot).not.toHaveBeenCalled()
   })
 
+  it('waits for both location and cache hydration before deciding to fetch', async () => {
+    const baseDriver = memoryDriver()
+    const setupStorage = createStorage(baseDriver)
+    await setupStorage.init()
+    await setupStorage.setMany({ location: TEXAS, weatherCache: snapshotFor(TEXAS, 21) })
+    const cacheRead = deferred<void>()
+    const delayedDriver: StorageDriver = {
+      read: async (keys) => {
+        if (keys?.length === 1 && keys[0] === 'weatherCache') await cacheRead.promise
+        return baseDriver.read(keys)
+      },
+      write: (patch) => baseDriver.write(patch),
+      onChanged: (listener) => baseDriver.onChanged(listener),
+    }
+    const storage = createStorage(delayedDriver, baseDriver.authority)
+    const view = render(
+      <StorageProvider storage={storage}>
+        <Probe />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(fetchSnapshot).not.toHaveBeenCalled()
+    await act(async () => {
+      cacheRead.resolve()
+      await cacheRead.promise
+    })
+    expect(latest?.snapshot?.current.tempC).toBe(21)
+    expect(fetchSnapshot).not.toHaveBeenCalled()
+    view.unmount()
+  })
+
   it('starts a newer same-label location immediately and ignores every late old completion path', async () => {
     const oldRequest = deferred<WeatherSnapshot>()
     const newRequest = deferred<WeatherSnapshot>()
