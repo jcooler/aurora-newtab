@@ -7689,20 +7689,69 @@ function gitlabContributionsFixture() {
   )
   const firstError = await readActions()
   const errorAx = await captureAx()
-  const firstErrorOk =
+  const initialTargetErrorOk =
     firstError.target?.disabled === false && firstError.target?.ariaBusy === null &&
     firstError.target?.feedbackRole === 'alert' && firstError.target?.feedbackText === ERROR_TEXT &&
     firstError.target?.feedbackVisible === true &&
     firstError.target?.className.includes('text-red-400') === true
+
+  // Visual-only proof: keep the errored Porch plug target intact while a
+  // sibling is genuinely pending, then refocus the enabled target. The
+  // screenshot therefore contains, at the same instant, complete persistent
+  // error text, an enabled focused control, and a disabled/pending control.
+  // Let the sibling request fail naturally before the main target retry; its
+  // durable alert remains until the later entities:null teardown.
+  const visualSiblingSel = runBtnSel('Movie night')
+  const VISUAL_PENDING_TEXT = 'Running Movie night…'
+  const VISUAL_ERROR_TEXT = "Couldn't run Movie night. Try again."
+  await page.click(visualSiblingSel)
+  await page.waitForFunction(
+    ({ selector, pending }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      return button instanceof HTMLButtonElement && button.disabled && button.getAttribute('aria-busy') === 'true' &&
+        !!feedback && document.getElementById(feedback)?.textContent?.trim() === pending
+    },
+    { selector: visualSiblingSel, pending: VISUAL_PENDING_TEXT },
+    { timeout: 2_000 },
+  )
+  await page.focus(targetSel)
+  const visualPending = await readActions()
+  const screenshotStateOk =
+    visualPending.target?.active === true && visualPending.target?.disabled === false &&
+    visualPending.target?.feedbackRole === 'alert' && visualPending.target?.feedbackText === ERROR_TEXT &&
+    visualPending.target?.feedbackVisible === true &&
+    visualPending.siblings[0]?.disabled === true && visualPending.siblings[0]?.ariaBusy === 'true' &&
+    visualPending.siblings[0]?.feedbackRole === 'status' &&
+    visualPending.siblings[0]?.feedbackText === VISUAL_PENDING_TEXT &&
+    visualPending.siblings[0]?.feedbackVisible === true
+  await page.screenshot({ path: `${outDir}/ha-action-error.png` })
+  console.log('captured ha-action-error.png (1600x1100 — focused enabled Porch plug retry + complete error alert alongside a genuinely disabled/pending Movie night action)')
+
+  await page.waitForFunction(
+    ({ selector, error }) => {
+      const button = document.querySelector(selector)
+      const feedback = button?.getAttribute('aria-describedby')
+      const node = feedback ? document.getElementById(feedback) : null
+      return button instanceof HTMLButtonElement && !button.disabled && button.getAttribute('aria-busy') === null &&
+        node?.getAttribute('role') === 'alert' && node.textContent?.trim() === error
+    },
+    { selector: visualSiblingSel, error: VISUAL_ERROR_TEXT },
+    { timeout: 12_000 },
+  )
+  const visualSettled = await readActions()
+  const visualQuiescentOk =
+    visualSettled.target?.disabled === false && visualSettled.target?.feedbackText === ERROR_TEXT &&
+    visualSettled.siblings[0]?.disabled === false && visualSettled.siblings[0]?.ariaBusy === null &&
+    visualSettled.siblings[0]?.feedbackRole === 'alert' &&
+    visualSettled.siblings[0]?.feedbackText === VISUAL_ERROR_TEXT &&
+    visualSettled.siblings[0]?.feedbackVisible === true
+  const firstErrorOk = initialTargetErrorOk && screenshotStateOk && visualQuiescentOk
   console.log(
     firstErrorOk
-      ? `PASS: the natural service failure returns Porch plug to enabled and exposes the persistent alert "${ERROR_TEXT}" with an independent non-color text cue`
-      : `FAIL: natural failure/error-alert contract (${JSON.stringify(firstError)})`,
+      ? `PASS: the natural Porch plug failure returns enabled with persistent alert "${ERROR_TEXT}"; the error screenshot pairs its focused retry with a genuinely disabled/pending sibling, whose extra real request then settles naturally before the main retry`
+      : `FAIL: natural failure/error-alert/screenshot quiescence contract (${JSON.stringify({ firstError, visualPending, visualSettled })})`,
   )
-
-  await page.focus(targetSel)
-  await page.screenshot({ path: `${outDir}/ha-action-error.png` })
-  console.log('captured ha-action-error.png (1600x1100 — focused, enabled retry control with its complete persistent error alert)')
 
   const persistenceStartedAt = Date.now()
   await page.waitForTimeout(1_400)
@@ -7758,7 +7807,11 @@ function gitlabContributionsFixture() {
     secondError.target?.disabled === false && secondError.target?.ariaBusy === null &&
     secondError.target?.feedbackRole === 'alert' && secondError.target?.feedbackText === ERROR_TEXT &&
     secondError.target?.feedbackVisible === true &&
-    secondError.siblings.every((button) => button?.disabled === false && button.ariaBusy === null && button.feedbackId === null)
+    secondError.siblings[0]?.disabled === false && secondError.siblings[0]?.ariaBusy === null &&
+    secondError.siblings[0]?.feedbackRole === 'alert' &&
+    secondError.siblings[0]?.feedbackText === VISUAL_ERROR_TEXT &&
+    secondError.siblings[1]?.disabled === false && secondError.siblings[1]?.ariaBusy === null &&
+    secondError.siblings[1]?.feedbackId === null
   console.log(
     secondErrorOk
       ? `PASS: the retry naturally settles to a second persistent "${ERROR_TEXT}" alert with every action enabled before teardown, leaving the Home Assistant action probe quiescent`
@@ -7795,7 +7848,7 @@ function gitlabContributionsFixture() {
       connectorSnapshots: { ...connectorSnapshots, homeassistant: { fetchedAt: Date.now(), data: { entities: null } } },
     })
   })
-  await page.waitForTimeout(300)
+  await page.waitForSelector(haSel, { state: 'detached', timeout: 5_000 }).catch(() => {})
   const staleGone = (await page.locator(haSel).count()) === 0
   console.log(
     staleGone
@@ -8074,7 +8127,7 @@ function gitlabContributionsFixture() {
   )
 
   console.log(
-    'SKIP: opening the real entity picker (search / caps / grouping) against a LIVE Home Assistant instance — those browser-real behaviors are already unit-tested (Task 100, EntityPickerDialog.test.tsx); this harness cannot fetch real /api/states headless without stubbing the page\'s own network, which THE FIXTURE LAW forbids — a headed spot-check against a real instance is owed.',
+    'SKIP: opening the real entity picker (search / caps / grouping) and successfully running a real service action through the user\'s LIVE Home Assistant instance — picker behavior is unit-tested (Task 100, EntityPickerDialog.test.tsx), while this harness cannot fetch real /api/states or prove successful live control without user-instance access or forbidden network stubs; both remain explicit headed/user-instance manual ceilings.',
   )
 
   await page.keyboard.press('Escape')
