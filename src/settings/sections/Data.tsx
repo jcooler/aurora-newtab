@@ -80,7 +80,7 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
   async function handleConfirmImport() {
     if (!pendingImport) return
     const { migrated } = pendingImport
-    await Promise.all(DATA_KEYS.map((key) => storage.set(key, migrated[key])))
+    await storage.setMany(migrated)
     setPendingImport(null)
   }
 

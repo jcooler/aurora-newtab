@@ -1,3 +1,5 @@
+import { createInProcessStorageAuthority, type StorageAuthority } from './authority'
+
 export type Changes = Record<string, unknown>
 
 export interface StorageDriver {
@@ -6,13 +8,19 @@ export interface StorageDriver {
   onChanged(cb: (changes: Changes) => void): () => void
 }
 
+export interface MemoryStorageDriver extends StorageDriver {
+  readonly authority: StorageAuthority
+  dump(): Record<string, unknown>
+}
+
 /** In-memory driver for tests. `write` notifies listeners like chrome.storage does. */
 export function memoryDriver(
   seed: Record<string, unknown> = {},
-): StorageDriver & { dump(): Record<string, unknown> } {
+): MemoryStorageDriver {
   const store: Record<string, unknown> = { ...seed }
   const listeners = new Set<(c: Changes) => void>()
   return {
+    authority: createInProcessStorageAuthority(),
     async read(keys) {
       if (keys === null) return { ...store }
       const out: Record<string, unknown> = {}

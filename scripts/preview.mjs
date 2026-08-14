@@ -32,6 +32,68 @@ const context = await chromium.launchPersistentContext(profileDir, {
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 })
 
+// W1-P1 made connector snapshots configuration-scoped. This harness predates
+// that contract and has many deliberately direct chrome.storage fixture
+// writes. Normalize only those harness snapshots at the storage boundary so
+// every existing scenario exercises the current production cache contract
+// without duplicating scope boilerplate at each seed site. Raw configuration
+// stays inside the page and only its fixed-length digest is written.
+await context.addInitScript(() => {
+  // The script also runs in Playwright's initial about:blank document, where
+  // extension APIs do not exist. It will run again after chrome://newtab/
+  // resolves to the extension page.
+  if (!globalThis.chrome?.storage?.local) return
+
+  const canonical = (value) => {
+    if (value === null) return 'null'
+    if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
+    if (typeof value === 'number') {
+      if (!Number.isFinite(value)) throw new TypeError('Harness connector config contains a non-finite number')
+      return JSON.stringify(value)
+    }
+    if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+    if (typeof value === 'object') {
+      return `{${Object.keys(value)
+        .filter((key) => value[key] !== undefined)
+        .sort()
+        .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+        .join(',')}}`
+    }
+    throw new TypeError('Harness connector config contains an unsupported value')
+  }
+  const scopeFor = async (id, config) => {
+    const bytes = new TextEncoder().encode(`${id}\n${canonical(config)}`)
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    const hex = [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('')
+    return `${id}:v1:${hex}`
+  }
+  const nativeSet = chrome.storage.local.set.bind(chrome.storage.local)
+  chrome.storage.local.set = async (patch) => {
+    const hasSnapshotPatch = Object.prototype.hasOwnProperty.call(patch, 'connectorSnapshots')
+    const hasConnectorPatch = Object.prototype.hasOwnProperty.call(patch, 'connectors')
+    if (!hasSnapshotPatch && !hasConnectorPatch) return nativeSet(patch)
+
+    const snapshots = hasSnapshotPatch
+      ? patch.connectorSnapshots
+      : (await chrome.storage.local.get('connectorSnapshots')).connectorSnapshots
+    if (!snapshots || typeof snapshots !== 'object') return nativeSet(patch)
+    const current = patch.connectors ?? (await chrome.storage.local.get('connectors')).connectors ?? {}
+    const scoped = { ...snapshots }
+    await Promise.all(Object.entries(scoped).map(async ([id, snapshot]) => {
+      if (!snapshot || typeof snapshot !== 'object' || !current[id]) return
+      // A harness interaction that changes connector configuration (including
+      // view chips) keeps its deliberately seeded fixture current by moving
+      // the fixture to the new production identity. An explicit snapshot
+      // seed preserves an already supplied scope and fills only legacy ones.
+      if (!hasConnectorPatch && snapshot.scope) return
+      scoped[id] = { ...snapshot, scope: await scopeFor(id, current[id]) }
+    }))
+    return nativeSet({ ...patch, connectorSnapshots: scoped })
+  }
+})
+
 const page = await context.newPage()
 const errors = []
 page.on('console', (msg) => {
@@ -163,6 +225,119 @@ await page.waitForTimeout(2500) // weather fetch
 await page.waitForTimeout(800) // photo fade-in
 await page.screenshot({ path: `${outDir}/newtab.png` })
 console.log('captured newtab.png')
+
+// W1-P2: production-path cross-context storage authority. This bridge exists
+// only in the preview build; both pages below are real MV3 extension pages
+// backed by the same chrome.storage.local area and Web Lock namespace.
+{
+  const authorityPageB = await context.newPage()
+  let priorWorldClocks
+  try {
+    await authorityPageB.goto('chrome://newtab/')
+    await authorityPageB.waitForSelector('time', { timeout: 10_000 })
+
+    const pageAInfo = await page.evaluate(() => ({
+      url: location.href,
+      origin: location.origin,
+      bridge: typeof globalThis.__auroraStorageHarness?.update === 'function',
+      locks: typeof navigator.locks?.request === 'function',
+    }))
+    const pageBInfo = await authorityPageB.evaluate(() => ({
+      url: location.href,
+      origin: location.origin,
+      bridge: typeof globalThis.__auroraStorageHarness?.update === 'function',
+      locks: typeof navigator.locks?.request === 'function',
+    }))
+    const extensionPagesReady =
+      pageAInfo.url.startsWith('chrome-extension://') &&
+      pageBInfo.url.startsWith('chrome-extension://') &&
+      pageAInfo.origin === pageBInfo.origin &&
+      pageAInfo.bridge &&
+      pageBInfo.bridge
+    console.log(
+      extensionPagesReady
+        ? 'PASS: cross-context storage authority probe is ready in both MV3 extension pages'
+        : `FAIL: cross-context storage authority probe is ready in both MV3 extension pages (${JSON.stringify({ pageAInfo, pageBInfo })})`,
+    )
+
+    const locksReady = pageAInfo.locks && pageBInfo.locks
+    console.log(
+      locksReady
+        ? 'PASS: Web Locks are available in both MV3 extension pages'
+        : `FAIL: Web Locks are available in both MV3 extension pages (${JSON.stringify({ pageAInfo, pageBInfo })})`,
+    )
+
+    if (extensionPagesReady && locksReady) {
+      priorWorldClocks = await page.evaluate(
+        async () => (await chrome.storage.local.get('worldClocks')).worldClocks,
+      )
+      await page.evaluate(() => chrome.storage.local.set({ worldClocks: [] }))
+
+      const runBatch = (target, prefix) => target.evaluate(
+        async ({ batchPrefix, count }) => {
+          globalThis.__auroraAuthorityRaceReady = batchPrefix
+          await new Promise((resolve) => {
+            globalThis.addEventListener('aurora-authority-race-start', resolve, { once: true })
+          })
+          const bridge = globalThis.__auroraStorageHarness
+          if (!bridge) return { entered: false, completed: 0 }
+          await Promise.all(
+            Array.from({ length: count }, (_, index) =>
+              bridge.update('worldClocks', (clocks) => [
+                ...clocks,
+                { zone: 'UTC', label: `Authority ${batchPrefix}-${String(index).padStart(2, '0')}` },
+              ]),
+            ),
+          )
+          return { entered: true, completed: count }
+        },
+        { batchPrefix: prefix, count: 25 },
+      )
+
+      const batchA = runBatch(page, 'A')
+      const batchB = runBatch(authorityPageB, 'B')
+      await page.waitForFunction(() => globalThis.__auroraAuthorityRaceReady === 'A')
+      await authorityPageB.waitForFunction(() => globalThis.__auroraAuthorityRaceReady === 'B')
+      await Promise.all([
+        page.evaluate(() => globalThis.dispatchEvent(new Event('aurora-authority-race-start'))),
+        authorityPageB.evaluate(() => globalThis.dispatchEvent(new Event('aurora-authority-race-start'))),
+      ])
+      const batches = await Promise.all([batchA, batchB])
+      const stored = await page.evaluate(
+        async () => (await chrome.storage.local.get('worldClocks')).worldClocks ?? [],
+      )
+      const labels = stored.map((clock) => clock.label)
+      const expected = Array.from({ length: 25 }, (_, index) => [
+        `Authority A-${String(index).padStart(2, '0')}`,
+        `Authority B-${String(index).padStart(2, '0')}`,
+      ]).flat()
+      const complete =
+        batches.every((batch) => batch.entered && batch.completed === 25) &&
+        labels.length === 50 &&
+        new Set(labels).size === 50 &&
+        expected.every((label) => labels.includes(label))
+      console.log(
+        complete
+          ? 'PASS: cross-context storage authority preserves all 50 concurrent mutations'
+          : `FAIL: cross-context storage authority preserves all 50 concurrent mutations (${JSON.stringify({ batches, stored: labels.length, unique: new Set(labels).size, missing: expected.filter((label) => !labels.includes(label)) })})`,
+      )
+    } else {
+      console.log('FAIL: cross-context storage authority preserves all 50 concurrent mutations (probe unavailable)')
+    }
+  } finally {
+    if (priorWorldClocks !== undefined) {
+      await page.evaluate(
+        (worldClocks) => chrome.storage.local.set({ worldClocks }),
+        priorWorldClocks,
+      )
+    }
+    await page.evaluate(() => { delete globalThis.__auroraAuthorityRaceReady }).catch(() => {})
+    await authorityPageB
+      .evaluate(() => { delete globalThis.__auroraAuthorityRaceReady })
+      .catch(() => {})
+    await authorityPageB.close()
+  }
+}
 
 // Cross-tab no-flicker invariant (2026-08-06 flicker investigation, Task 2 of
 // the 2026-08-06-cleanup-queue). Jon reported that opening a new tab makes an

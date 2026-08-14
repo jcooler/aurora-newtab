@@ -202,6 +202,7 @@ describe('LocationSetup typeahead', () => {
     expect(input.getAttribute('aria-activedescendant')).toBe(options[1].id)
 
     fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {})
 
     expect(await storage.get('location')).toEqual({ lat: 34.0, lon: -84.8, label: 'Dallas', manual: true })
     expect(input.value).toBe('Dallas')
@@ -232,6 +233,7 @@ describe('LocationSetup typeahead', () => {
     })
 
     fireEvent.keyDown(input, { key: 'Enter' })
+    await act(async () => {})
 
     expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
   })
@@ -246,6 +248,7 @@ describe('LocationSetup typeahead', () => {
     })
 
     fireEvent.click(screen.getByRole('option'))
+    await act(async () => {})
 
     expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
     expect(screen.queryByRole('listbox')).toBeNull()
@@ -273,6 +276,7 @@ describe('LocationSetup typeahead', () => {
     // Select the still-visible suggestion from the FIRST search before that
     // second timer ever fires.
     fireEvent.click(screen.getByRole('option'))
+    await act(async () => {})
 
     expect(await storage.get('location')).toEqual({ lat: 32.78, lon: -96.8, label: 'Dallas', manual: true })
     expect(input.value).toBe('Dallas')

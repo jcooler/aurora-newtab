@@ -142,7 +142,7 @@ describe('NotesPanel', () => {
       write: (patch) => base.write(patch),
       onChanged: (cb) => base.onChanged(cb),
     }
-    const storage = createStorage(driver)
+    const storage = createStorage(driver, base.authority)
     await storage.init()
     driver.read = async (keys) => {
       await gate

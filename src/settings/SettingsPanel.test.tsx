@@ -110,9 +110,12 @@ function attr(el: Element, name: string) {
   return el.getAttribute(name)
 }
 
-async function renderPanel(onArrangeLayout: () => void = () => {}) {
-  const storage = createStorage(memoryDriver())
-  await storage.init()
+async function renderPanel(
+  onArrangeLayout: () => void = () => {},
+  suppliedStorage?: AuroraStorage,
+) {
+  const storage = suppliedStorage ?? createStorage(memoryDriver())
+  if (!suppliedStorage) await storage.init()
   render(
     <StorageProvider storage={storage}>
       <SettingsPanel onArrangeLayout={onArrangeLayout} />
@@ -447,7 +450,10 @@ describe('SettingsPanel Data section (export/import backup)', () => {
   })
 
   it('import happy path: parses, shows a confirm summary, and writes storage on confirm', async () => {
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const setMany = vi.spyOn(storage, 'setMany')
+    await renderPanel(() => {}, storage)
     openTab('Data')
     const backupData = {
       ...defaults(),
@@ -482,11 +488,20 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(await storage.get('links')).toEqual([
       { id: 'a', title: 'Example', url: 'https://example.com' },
     ])
+    expect(setMany).toHaveBeenCalledTimes(1)
+    expect(setMany).toHaveBeenCalledWith(expect.objectContaining({
+      links: [{ id: 'a', title: 'Example', url: 'https://example.com' }],
+      connectorSnapshots: {},
+      apodCache: null,
+    }))
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
   })
 
   it('malformed import shows the rejection reason inline and writes nothing', async () => {
-    const storage = await renderPanel()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const setMany = vi.spyOn(storage, 'setMany')
+    await renderPanel(() => {}, storage)
     openTab('Data')
     const before = await storage.get('links')
     const file = new File(['not json at all {'], 'broken.json', { type: 'application/json' })
@@ -503,6 +518,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(input.getAttribute('aria-describedby')).toBe(error.id)
     expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
+    expect(setMany).not.toHaveBeenCalled()
   })
 
   it('a shape-invalid backup (envelope is fine, a key is hand-edited garbage) is rejected before Confirm is offered', async () => {
@@ -1390,6 +1406,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
+    await act(async () => {})
     expect(await storage.get('layout')).toEqual({})
   })
 
