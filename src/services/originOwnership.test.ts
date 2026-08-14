@@ -123,6 +123,28 @@ describe('ownedOriginPatterns', () => {
     expect(ownedOriginPatterns(state({}, autoPhotoPrefs))).toEqual([])
   })
 
+  it('permission reconciliation retains every restored shared owner including configured disabled connectors', () => {
+    expect(ownedOriginPatterns(state({
+      rss: {
+        enabled: true,
+        feeds: ['https://shared-restored.example.com/rss.xml'],
+        shownCount: 5,
+      },
+      status: {
+        enabled: false,
+        services: [
+          { name: 'Shared', url: 'https://shared-restored.example.com/status.json' },
+          { name: 'Disabled owner', url: 'https://disabled-restored.example.com/status.json' },
+        ],
+      },
+    }, { mode: 'apod', index: 0, lastRotated: '' }))).toEqual([
+      'https://shared-restored.example.com/*',
+      'https://disabled-restored.example.com/*',
+      'https://api.nasa.gov/*',
+      'https://apod.nasa.gov/*',
+    ])
+  })
+
   it('sweeps past malformed connector configs and malformed provider output without throwing', () => {
     const providers = ORIGIN_OWNER_PROVIDERS as OriginOwnerProvider[]
     providers.push(

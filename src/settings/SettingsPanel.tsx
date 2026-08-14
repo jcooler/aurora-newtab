@@ -152,7 +152,10 @@ export default function SettingsPanel({
 
       {tab === 'data' && (
         <>
-          <Data storage={storage} />
+          <Data
+            storage={storage}
+            reportPendingCleanup={cleanup.reportPendingCleanup}
+          />
 
           <About />
         </>

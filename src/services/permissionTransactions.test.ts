@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuroraStorage } from '../lib/storage'
 import type { AuroraData, PhotoPrefs } from '../lib/storage/schema'
 import type { ConnectorConfig, ConnectorId } from './connectors/types'
-import type { OriginPermissionAuthority } from './permissionTransactions'
+import type { OriginOwnershipState } from './originOwnership'
+import type { OriginPermissionAuthority, OriginTransactionContext } from './permissionTransactions'
 
 type PermissionListener = (permissions: chrome.permissions.Permissions) => void
 
@@ -482,6 +483,50 @@ describe('ownership-aware release and retry', () => {
     expect(lockCalls).toBe(1)
     expect(order).toEqual(['lock-enter', 'owner-write', 'remove', 'lock-exit'])
     expect(permissions.held.has(origin)).toBe(false)
+  })
+
+  it('permission reconciliation context uses supplied restored ownership without a storage read or nested lifecycle lock', async () => {
+    const removed = 'https://removed-owner.example.com/*'
+    const retained = 'https://retained-owner.example.com/*'
+    const { permissions, transactions } = await loadCore([removed, retained])
+    const get = vi.fn(async () => { throw new Error('public storage read is forbidden') })
+    const storage = { get } as unknown as AuroraStorage
+    let lockCalls = 0
+    const authority: OriginPermissionAuthority = {
+      async runExclusive<T>(work: () => Promise<T>): Promise<T> {
+        lockCalls += 1
+        return work()
+      },
+    }
+    const restoredState = {
+      connectors: {
+        status: {
+          enabled: false,
+          services: [{ name: 'Retained', url: 'https://retained-owner.example.com/status.json' }],
+        },
+      },
+      photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
+    } satisfies OriginOwnershipState
+
+    const result = await transactions.runOriginTransaction(
+      storage,
+      [],
+      async (context: OriginTransactionContext) => {
+        const cleanup = await context.releaseUnownedOrigins([removed, retained], restoredState)
+        return { ok: true, value: cleanup, ownerCommitted: true }
+      },
+      authority,
+    )
+
+    expect(result).toMatchObject({
+      status: 'committed',
+      value: { released: [removed], pending: [] },
+    })
+    expect(lockCalls).toBe(1)
+    expect(get).not.toHaveBeenCalled()
+    expect(permissions.remove).toHaveBeenCalledTimes(1)
+    expect(permissions.remove).toHaveBeenCalledWith({ origins: [removed] })
+    expect(permissions.held.has(retained)).toBe(true)
   })
 
   it('treats remove(false)+contains(false) as success while still-held, remove rejection, and verification rejection remain pending', async () => {

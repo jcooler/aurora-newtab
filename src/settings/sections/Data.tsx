@@ -1,92 +1,145 @@
 import { useRef, useState } from 'react'
-import { serializeBackup, parseBackup, validateBackupShape } from '../../lib/backup'
-import { migrate } from '../../lib/storage/migrations'
+import { prepareBackup, serializeBackup } from '../../lib/backup'
+import {
+  restorePreparedBackup,
+  type PreparedBackup,
+  type RestoreBackupResult,
+} from '../../lib/backupRestore'
 import { todayKey } from '../../lib/dates'
-import { defaults, type AuroraData, type DataKey } from '../../lib/storage/schema'
-import type { AuroraStorage } from '../../lib/storage/index'
+import type { AuroraStorage } from '../../lib/storage'
+import { getConnector } from '../../services/connectors/registry'
 import Section from '../Section'
 import { row, label, btnQuiet, btnPrimary } from './shared'
 
-const DATA_KEYS = Object.keys(defaults()) as DataKey[]
+interface PendingImport {
+  prepared: PreparedBackup
+  summary: string
+}
 
-/** Export/import backup, including the confirm-before-overwrite dialog.
- *  Entirely section-local: `storage` (SettingsPanel's single useStorage()
- *  call) is the only thing threaded in from outside. */
-export default function Data({ storage }: { storage: AuroraStorage }) {
+function reentryReminder(prepared: PreparedBackup, ids = prepared.redactions.reentryRequired): string | null {
+  if (prepared.legacyReentryMayBeRequired) {
+    return 'This older backup may omit connection details. Review connector settings and re-enter anything missing.'
+  }
+  const labels = [...new Set(ids.flatMap((id) => {
+    const descriptor = getConnector(id)
+    return descriptor ? [descriptor.label] : []
+  }))]
+  return labels.length > 0
+    ? `Re-enter connection details after restore: ${labels.join(', ')}.`
+    : null
+}
+
+export default function Data({
+  storage,
+  reportPendingCleanup,
+}: {
+  storage: AuroraStorage
+  reportPendingCleanup: (patterns: readonly string[]) => void
+}) {
   const importInputRef = useRef<HTMLInputElement>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [pendingImport, setPendingImport] = useState<{
-    migrated: AuroraData
-    summary: string
-  } | null>(null)
+  const [alert, setAlert] = useState<string | null>(null)
+  const [status, setStatus] = useState<string | null>(null)
+  const [pendingImport, setPendingImport] = useState<PendingImport | null>(null)
+  const [restorePending, setRestorePending] = useState(false)
+  const [restoreAttempted, setRestoreAttempted] = useState(false)
 
   async function handleExport() {
-    const entries = await Promise.all(
-      DATA_KEYS.map(async (key) => [key, await storage.get(key)] as const),
-    )
-    const data = Object.fromEntries(entries) as unknown as AuroraData
-    const json = serializeBackup(data)
-    const blob = new Blob([json], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `aurora-backup-${todayKey()}.json`
-    document.body.appendChild(a)
-    a.click()
-    a.remove()
-    URL.revokeObjectURL(url)
-  }
-
-  async function handleImportChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.currentTarget.files?.[0]
-    e.currentTarget.value = '' // allow re-selecting the same file later
-    if (!file) return
-    setImportError(null)
-    setPendingImport(null)
-    const text = await file.text()
-    const result = parseBackup(text)
-    if (!result.ok) {
-      setImportError(result.reason)
-      return
-    }
-    const migrated = migrate(result.data, result.version)
-    // Shape-check runs AFTER migrate(): a v1 backup's nested widget keys
-    // etc. must be backfilled first, or they'd fail validation for simply
-    // predating the current schema. A hand-edited/corrupted backup (e.g.
-    // `"settings": "oops"`) that gets this far would otherwise be written
-    // verbatim and throw at render time inside the always-mounted Drawer.
-    const shapeCheck = validateBackupShape(migrated)
-    if (!shapeCheck.ok) {
-      setImportError(shapeCheck.reason)
-      return
-    }
-    const data = shapeCheck.data
-    // parseBackup already confirmed valid JSON; re-parsing here just recovers
-    // exportedAt, which parseBackup's contract deliberately omits.
-    let exportedAt: string | undefined
+    setAlert(null)
+    setStatus(null)
     try {
-      const raw = JSON.parse(text) as { exportedAt?: unknown }
-      if (typeof raw.exportedAt === 'string') exportedAt = raw.exportedAt
+      const data = await storage.snapshot()
+      const json = serializeBackup(data)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `aurora-backup-${todayKey()}.json`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(url)
     } catch {
-      // unreachable: parseBackup already validated this text is JSON
+      setAlert('Aurora could not create the backup file. Try again.')
     }
-    const dateStr = exportedAt ? exportedAt.slice(0, 10) : 'an unknown date'
-    const summary =
-      `Replace current data? Backup from ${dateStr} — ${data.todoLists.length} lists, ` +
-      `${data.links.length} links, ${data.countdowns.length} countdowns.`
-    setPendingImport({ migrated: data, summary })
   }
 
-  async function handleConfirmImport() {
-    if (!pendingImport) return
-    const { migrated } = pendingImport
-    await storage.setMany(migrated)
+  async function handleImportChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0]
+    event.currentTarget.value = ''
+    if (!file) return
+    setAlert(null)
+    setStatus(null)
     setPendingImport(null)
+    setRestoreAttempted(false)
+    let text: string
+    try {
+      text = await file.text()
+    } catch {
+      setAlert('Aurora could not read that backup file. Choose it again or try another file.')
+      return
+    }
+    const result = prepareBackup(text)
+    if (!result.ok) {
+      setAlert(result.reason)
+      return
+    }
+    const date = result.exportedAt ? result.exportedAt.slice(0, 10) : 'an unknown date'
+    setPendingImport({
+      prepared: result,
+      summary:
+        `Replace current data? Backup from ${date} - ${result.data.todoLists.length} lists, `
+        + `${result.data.links.length} links, ${result.data.countdowns.length} countdowns.`,
+    })
+  }
+
+  function finishRestore(result: RestoreBackupResult, prepared: PreparedBackup) {
+    if (result.pendingCleanup.length > 0) reportPendingCleanup(result.pendingCleanup)
+    setRestorePending(false)
+    if (result.status !== 'committed') {
+      setRestoreAttempted(true)
+      setAlert(result.message)
+      return
+    }
+    const reminder = reentryReminder(prepared, result.reentryRequired)
+    setPendingImport(null)
+    setRestoreAttempted(false)
+    setAlert(null)
+    setStatus(`Backup restored.${reminder ? ` ${reminder}` : ''}`)
+  }
+
+  function failRestoreSafely() {
+    setRestorePending(false)
+    setRestoreAttempted(true)
+    setAlert('That backup could not be restored. Your current data was left unchanged. You can retry.')
+  }
+
+  function handleConfirmImport() {
+    if (!pendingImport || restorePending) return
+    const prepared = pendingImport.prepared
+    setRestorePending(true)
+    setAlert(null)
+    setStatus(null)
+    let restore: Promise<RestoreBackupResult>
+    try {
+      restore = restorePreparedBackup(storage, prepared)
+    } catch {
+      failRestoreSafely()
+      return
+    }
+    void restore.then(
+      (result) => finishRestore(result, prepared),
+      () => failRestoreSafely(),
+    )
   }
 
   function handleCancelImport() {
+    if (restorePending) return
     setPendingImport(null)
+    setRestoreAttempted(false)
+    setAlert(null)
   }
+
+  const reminder = pendingImport ? reentryReminder(pendingImport.prepared) : null
 
   return (
     <Section title="Data">
@@ -105,31 +158,50 @@ export default function Data({ storage }: { storage: AuroraStorage }) {
           ref={importInputRef}
           type="file"
           accept=".json,application/json"
-          onChange={(e) => void handleImportChange(e)}
-          aria-describedby={importError ? 'import-error' : undefined}
+          onChange={(event) => void handleImportChange(event)}
+          aria-describedby={alert ? 'data-backup-alert' : undefined}
           className="max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
         />
       </div>
-      {importError && (
-        <p id="import-error" role="alert" className="text-xs text-fg-muted">
-          {importError}
+      {alert && (
+        <p id="data-backup-alert" role="alert" className="text-xs text-fg-muted">
+          {alert}
+        </p>
+      )}
+      {status && (
+        <p role="status" className="text-xs text-fg-muted">
+          {status}
         </p>
       )}
       {pendingImport && (
         <div className="mt-3 flex flex-col gap-3 rounded-lg border border-control-border p-3">
           <p className="text-sm text-fg-muted">{pendingImport.summary}</p>
+          <p className="text-sm text-fg-muted">
+            This restore needs access to {pendingImport.prepared.requiredOrigins.length} configured sites. Chrome will ask for any missing access when you confirm.
+          </p>
+          {reminder && <p className="text-sm text-fg-muted">{reminder}</p>}
           <div className="flex gap-2">
-            <button type="button" onClick={() => void handleConfirmImport()} className={btnPrimary}>
-              Confirm
+            <button
+              type="button"
+              onClick={handleConfirmImport}
+              disabled={restorePending}
+              className={btnPrimary}
+            >
+              {restorePending ? 'Restoring...' : restoreAttempted ? 'Retry restore' : 'Confirm restore'}
             </button>
-            <button type="button" onClick={handleCancelImport} className={btnQuiet}>
+            <button
+              type="button"
+              onClick={handleCancelImport}
+              disabled={restorePending}
+              className={btnQuiet}
+            >
               Cancel
             </button>
           </div>
         </div>
       )}
       <p className="mt-3 text-xs text-fg-muted">
-        Background photo uploads, connector sign-in secrets, and cached connector data are not included.
+        Background photo uploads, connector sign-in secrets, RSS and calendar capability URLs, and cached connector data are not included.
       </p>
     </Section>
   )

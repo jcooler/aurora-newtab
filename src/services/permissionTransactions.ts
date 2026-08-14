@@ -1,5 +1,9 @@
 import type { AuroraStorage } from '../lib/storage'
-import { readOwnedOriginPatterns } from './originOwnership'
+import {
+  ownedOriginPatterns,
+  readOwnedOriginPatterns,
+  type OriginOwnershipState,
+} from './originOwnership'
 import { permissionMirror } from './permissionMirror'
 import { canonicalOriginPatterns, ensureOrigins, hasOrigin, hasOrigins, removeOrigin } from './permissions'
 
@@ -18,6 +22,16 @@ export type OriginTransactionResult<T> =
 export interface OriginReleaseResult {
   released: string[]
   pending: string[]
+}
+
+export interface OriginTransactionContext {
+  /** Already inside the origin lifecycle authority. Supplying ownershipState
+   * avoids public storage reads while an atomic storage replace holds its own
+   * authority. */
+  releaseUnownedOrigins(
+    candidates: readonly string[],
+    ownershipState?: OriginOwnershipState,
+  ): Promise<OriginReleaseResult>
 }
 
 export interface OriginOwnerMutationCommit<T> {
@@ -103,10 +117,15 @@ export function beginOriginTransaction<T>(
 async function releaseUnownedOriginsAlreadyHeld(
   storage: AuroraStorage,
   canonicalCandidates: readonly string[],
+  ownershipState?: OriginOwnershipState,
 ): Promise<OriginReleaseResult> {
   let owned: Set<string>
   try {
-    owned = new Set(await readOwnedOriginPatterns(storage))
+    owned = new Set(
+      ownershipState
+        ? ownedOriginPatterns(ownershipState)
+        : await readOwnedOriginPatterns(storage),
+    )
   } catch {
     return { released: [], pending: [...canonicalCandidates] }
   }
@@ -189,7 +208,7 @@ async function rollbackAcquired(
 export function runOriginTransaction<T>(
   storage: AuroraStorage,
   urls: readonly string[],
-  body: () => Promise<TransactionBodyResult<T>>,
+  body: (context: OriginTransactionContext) => Promise<TransactionBodyResult<T>>,
   authority?: OriginPermissionAuthority,
 ): Promise<OriginTransactionResult<T>> {
   const requested = canonicalOriginPatterns(urls)
@@ -201,6 +220,15 @@ export function runOriginTransaction<T>(
 
   let requestOutcome: Promise<boolean> | undefined
   const begun = beginOriginTransaction(resolvedAuthority, async (): Promise<OriginTransactionResult<T>> => {
+    const context: OriginTransactionContext = {
+      releaseUnownedOrigins(candidates, ownershipState) {
+        return releaseUnownedOriginsAlreadyHeld(
+          storage,
+          canonicalOriginPatterns(candidates),
+          ownershipState,
+        )
+      },
+    }
     if (requestOutcome) {
       const granted = await requestOutcome
       if (!granted) return { status: 'denied' }
@@ -230,7 +258,7 @@ export function runOriginTransaction<T>(
 
     let bodyResult: TransactionBodyResult<T>
     try {
-      bodyResult = await body()
+      bodyResult = await body(context)
     } catch (error) {
       const cleanup = await rollbackAcquired(storage, acquired)
       return {

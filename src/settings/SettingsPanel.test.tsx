@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
-import { createStorage, type AuroraStorage } from '../lib/storage/index'
+import { AtomicRestoreRollbackError, createStorage, type AuroraStorage } from '../lib/storage/index'
 import { memoryDriver } from '../lib/storage/driver'
 import { StorageProvider } from '../lib/storage/context'
-import { parseBackup } from '../lib/backup'
-import { CURRENT_VERSION, defaults } from '../lib/storage/schema'
+import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
+import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
 import { CURATED_STATUS } from '../services/connectors/status'
 import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
@@ -546,7 +546,21 @@ describe('SettingsPanel Data section (export/import backup)', () => {
 
     const storage = await renderPanel()
     openTab('Data')
-    await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
+    await act(async () => {
+      await storage.set('links', [{ id: '1', title: 'HN', url: 'https://news.ycombinator.com' }])
+      await storage.set('connectors', {
+        rss: {
+          enabled: true,
+          feeds: ['https://rss.example.com/feed.xml?token=rss-private'],
+          shownCount: 5,
+        },
+        ics: {
+          enabled: true,
+          calendars: [{ name: 'Private', url: 'https://calendar.example.com/private.ics?token=ics-private' }],
+        },
+      })
+    })
+    const snapshot = vi.spyOn(storage, 'snapshot')
 
     const exportButton = await screen.findByRole('button', { name: 'Export' })
     await act(async () => {
@@ -554,7 +568,13 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(capturedBlob).not.toBeNull()
+    expect(snapshot).toHaveBeenCalledTimes(1)
     const text = await (capturedBlob as unknown as Blob).text()
+    expect(text).not.toContain('rss-private')
+    expect(text).not.toContain('ics-private')
+    expect(text).not.toContain('rss.example.com')
+    expect(text).not.toContain('calendar.example.com')
+    expect(text).toContain(BACKUP_REDACTION_NOTICE)
     const result = parseBackup(text)
     expect(result.ok).toBe(true)
     if (result.ok) {
@@ -572,7 +592,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
   it('import happy path: parses, shows a confirm summary, and writes storage on confirm', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    const setMany = vi.spyOn(storage, 'setMany')
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
     await renderPanel(() => {}, storage)
     openTab('Data')
     const backupData = {
@@ -597,7 +617,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       await Promise.resolve()
     })
 
-    const confirmButton = await screen.findByRole('button', { name: 'Confirm' })
+    const confirmButton = await screen.findByRole('button', { name: 'Confirm restore' })
     expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
     expect(screen.getByText(/2026-07-20/)).toBeTruthy()
 
@@ -608,19 +628,20 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect(await storage.get('links')).toEqual([
       { id: 'a', title: 'Example', url: 'https://example.com' },
     ])
-    expect(setMany).toHaveBeenCalledTimes(1)
-    expect(setMany).toHaveBeenCalledWith(expect.objectContaining({
+    expect(replaceAll).toHaveBeenCalledTimes(1)
+    expect(replaceAll).toHaveBeenCalledWith(expect.objectContaining({
       links: [{ id: 'a', title: 'Example', url: 'https://example.com' }],
       connectorSnapshots: {},
       apodCache: null,
-    }))
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    }), expect.any(Function))
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
   })
 
   it('malformed import shows the rejection reason inline and writes nothing', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    const setMany = vi.spyOn(storage, 'setMany')
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
     await renderPanel(() => {}, storage)
     openTab('Data')
     const before = await storage.get('links')
@@ -636,9 +657,31 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const error = await screen.findByText("That file isn't valid JSON.")
     expect(error.getAttribute('role')).toBe('alert')
     expect(input.getAttribute('aria-describedby')).toBe(error.id)
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
-    expect(setMany).not.toHaveBeenCalled()
+    expect(replaceAll).not.toHaveBeenCalled()
+  })
+
+  it('backup file read failure offers no Confirm and calls neither permissions nor storage replacement', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    vi.mocked(ensureOrigins).mockClear()
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const file = new File(['private unreadable contents'], 'unreadable.json', { type: 'application/json' })
+    vi.spyOn(file, 'text').mockRejectedValue(new Error('private file boundary'))
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByRole('alert').textContent).toBe('Aurora could not read that backup file. Choose it again or try another file.')
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
+    expect(ensureOrigins).not.toHaveBeenCalled()
+    expect(replaceAll).not.toHaveBeenCalled()
   })
 
   it('a shape-invalid backup (envelope is fine, a key is hand-edited garbage) is rejected before Confirm is offered', async () => {
@@ -669,8 +712,219 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(await screen.findByText('That backup\'s "links" data is invalid.')).toBeTruthy()
-    expect(screen.queryByRole('button', { name: 'Confirm' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Confirm restore' })).toBeNull()
     expect(await storage.get('links')).toEqual(before)
+  })
+
+  it('backup restore denial retains confirmation and exposes a reachable Retry restore that can later succeed', async () => {
+    cleanupHeld.clear()
+    vi.mocked(ensureOrigin).mockResolvedValueOnce(false).mockResolvedValueOnce(true)
+    const storage = await renderPanel()
+    openTab('Data')
+    const restored = {
+      ...defaults(),
+      photoPrefs: { mode: 'apod', index: 0, lastRotated: '' } as const,
+    }
+    const file = new File([serializeBackup(restored)], 'restore.json', { type: 'application/json' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('This restore needs access to 2 configured sites. Chrome will ask for any missing access when you confirm.')).toBeTruthy()
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    await act(async () => {
+      fireEvent.click(confirm)
+    })
+
+    expect(screen.getByRole('alert').textContent).toContain('Chrome did not grant the site access')
+    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+    expect((await storage.get('photoPrefs')).mode).toBe('auto')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry restore' }))
+    })
+
+    expect((await storage.get('photoPrefs')).mode).toBe('apod')
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
+    expect(screen.queryByRole('button', { name: 'Retry restore' })).toBeNull()
+  })
+
+  it('backup restore exposes disabled Restoring status while the atomic replace is pending', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replace = storage.replaceAllWithRollback.bind(storage)
+    const started = deferred<void>()
+    const allow = deferred<void>()
+    storage.replaceAllWithRollback = async <T,>(
+      next: AuroraData,
+      finalize: (previous: AuroraData) => Promise<T>,
+    ) => {
+      started.resolve()
+      await allow.promise
+      return replace(next, finalize)
+    }
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const file = new File([serializeBackup(defaults())], 'pending.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    act(() => {
+      fireEvent.click(confirm)
+    })
+    await started.promise
+
+    const pending = screen.getByRole('button', { name: 'Restoring...' }) as HTMLButtonElement
+    expect(pending.disabled).toBe(true)
+    await act(async () => {
+      allow.resolve()
+      await Promise.resolve()
+    })
+    expect(await screen.findByRole('status')).toBeTruthy()
+  })
+
+  it('backup confirmation uses registry labels for exact re-entry and a generic warning for ambiguous legacy calendars', async () => {
+    await renderPanel()
+    openTab('Data')
+    const exact = new File([JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      exportedAt: '2026-08-14T12:00:00.000Z',
+      redactions: { reentryRequired: ['github'], notice: BACKUP_REDACTION_NOTICE },
+      data: {
+        ...defaults(),
+        connectors: { github: { enabled: true, username: 'untrusted.example/token' } },
+      },
+    })], 'exact.json', { type: 'application/json' })
+
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [exact] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('Re-enter connection details after restore: GitHub.')).toBeTruthy()
+    expect(screen.getByText('This restore needs access to 0 configured sites. Chrome will ask for any missing access when you confirm.')).toBeTruthy()
+    expect(screen.queryByText(/untrusted\.example/)).toBeNull()
+
+    const legacy = new File([JSON.stringify({
+      app: 'aurora',
+      version: CURRENT_VERSION,
+      data: { ...defaults(), connectors: { ics: { enabled: true } } },
+    })], 'legacy.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [legacy] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    expect(screen.getByText('This older backup may omit connection details. Review connector settings and re-enter anything missing.')).toBeTruthy()
+    expect(screen.queryByText('Re-enter connection details after restore: Calendar.')).toBeNull()
+  })
+
+  it('backup rollback failure renders distinct fatal recovery copy and retains Retry restore', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    vi.spyOn(storage, 'replaceAllWithRollback').mockRejectedValue(
+      new AtomicRestoreRollbackError(new Error('private primary'), new Error('private rollback')),
+    )
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Imported' },
+    })], 'fatal.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    const alert = screen.getByRole('alert')
+    expect(alert.textContent).toContain('could not verify recovery')
+    expect(alert.textContent).not.toContain('left unchanged')
+    expect(alert.textContent).not.toContain('private')
+    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+  })
+
+  it('backup revoke failure still commits, keeps Settings cleanup across a tab round trip, and Retry rechecks fresh ownership', async () => {
+    const origin = 'https://old-backup-owner.example.com/*'
+    cleanupHeld.clear()
+    holdOrigin(origin)
+    vi.mocked(removeOrigin).mockRejectedValueOnce(new Error('private revoke failure'))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      rss: { enabled: false, feeds: ['https://old-backup-owner.example.com/feed'], shownCount: 5 },
+    })
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const file = new File([serializeBackup({
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Committed restore' },
+    })], 'cleanup.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Import backup'), { target: { files: [file] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    await act(async () => {
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm restore' }))
+    })
+
+    expect((await storage.get('settings')).name).toBe('Committed restore')
+    expect(screen.getByRole('status').textContent).toContain('Backup restored')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+
+    openTab('General')
+    expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
+    openTab('Data')
+    await act(async () => {
+      await storage.set('connectors', {
+        status: {
+          enabled: false,
+          services: [{ name: 'New owner', url: 'https://old-backup-owner.example.com/status.json' }],
+        },
+      })
+    })
+    vi.mocked(removeOrigin).mockClear()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
+    })
+
+    expect(vi.mocked(removeOrigin)).not.toHaveBeenCalled()
+    expect(screen.queryByRole('button', { name: 'Retry permission cleanup' })).toBeNull()
+    expect(cleanupHeld.has(origin)).toBe(true)
+  })
+
+  it('backup export failure creates no download and renders one safe inline alert', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    vi.spyOn(storage, 'snapshot').mockRejectedValue(new Error('private export failure'))
+    const originalCreate = URL.createObjectURL
+    URL.createObjectURL = vi.fn() as typeof URL.createObjectURL
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Export' }))
+    })
+
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
+    expect(screen.getByRole('alert').textContent).toBe('Aurora could not create the backup file. Try again.')
+    expect(screen.getByRole('alert').textContent).not.toContain('private')
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    URL.createObjectURL = originalCreate
   })
 })
 
