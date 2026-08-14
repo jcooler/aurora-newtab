@@ -66,7 +66,8 @@ await context.addInitScript(() => {
     const hex = [...new Uint8Array(digest)]
       .map((byte) => byte.toString(16).padStart(2, '0'))
       .join('')
-    return `${id}:v1:${hex}`
+    const version = id === 'homeassistant' ? 'v2' : 'v1'
+    return `${id}:${version}:${hex}`
   }
   const nativeSet = chrome.storage.local['set'].bind(chrome.storage.local)
   globalThis.__auroraSetHarnessStorage = async (patch) => {
