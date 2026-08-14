@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { AuroraStorage } from './storage'
 import type { StorageDriver } from './storage/driver'
 import type { AuroraData } from './storage/schema'
-import type { OriginPermissionAuthority } from '../services/permissionTransactions'
+import type {
+  OriginPermissionAuthority,
+  OriginTransactionContext,
+  OriginTransactionResult,
+  TransactionBodyResult,
+} from '../services/permissionTransactions'
 
 type PermissionListener = (permissions: chrome.permissions.Permissions) => void
 
@@ -369,6 +375,66 @@ describe('backup restore coordinator', () => {
     expect(core.permissions.held.has(acquired)).toBe(false)
   })
 
+  it('retains a held pre-import owner and rolls back only the fresh target grant when verified storage fails before cleanup', async () => {
+    const oldOwner = 'https://old-finalizer-owner.example.com/*'
+    const acquiredTarget = 'https://new-finalizer-target.example.com/*'
+    const events: string[] = []
+    const core = await loadRestoreCore([oldOwner], {}, events)
+    const previous: AuroraData = {
+      ...core.schema.defaults(),
+      settings: { ...core.schema.defaults().settings, name: 'Exact previous owner state' },
+      connectors: {
+        rss: {
+          enabled: false,
+          feeds: ['https://old-finalizer-owner.example.com/feed.xml'],
+          shownCount: 5,
+        },
+      },
+    }
+    const restored: AuroraData = {
+      ...core.schema.defaults(),
+      settings: { ...core.schema.defaults().settings, name: 'Must not survive failure' },
+      connectors: {
+        status: {
+          enabled: false,
+          services: [{ name: 'New target', url: 'https://new-finalizer-target.example.com/status.json' }],
+        },
+      },
+    }
+    const { base, storage } = core.storageFor(previous)
+    const storageWithFailureBeforeCleanup = {
+      ...storage,
+      replaceAllWithRollback<T>(
+        next: AuroraData,
+        finalize: (preImage: AuroraData) => Promise<T>,
+      ) {
+        return storage.replaceAllWithRollback(next, async (preImage) => {
+          await finalize(preImage)
+          events.push('finalizer:failure-before-cleanup')
+          throw new Error('injected failure before irreversible cleanup')
+        })
+      },
+    }
+
+    const result = await core.restore.restorePreparedBackup(
+      storageWithFailureBeforeCleanup,
+      core.prepare(restored),
+      { runExclusive: async (work) => work() },
+    )
+
+    expect(result).toEqual({
+      status: 'failed',
+      pendingCleanup: [],
+      message: 'That backup could not be restored. Your current data was left unchanged. You can retry.',
+    })
+    expect(events.indexOf('storage:read:2')).toBeLessThan(events.indexOf('finalizer:failure-before-cleanup'))
+    expect(knownSnapshot(base.dump(), previous)).toEqual(previous)
+    expect(core.permissions.held.has(oldOwner)).toBe(true)
+    expect(core.permissions.held.has(acquiredTarget)).toBe(false)
+    expect(core.permissions.remove).toHaveBeenCalledTimes(1)
+    expect(core.permissions.remove).toHaveBeenCalledWith({ origins: [acquiredTarget] })
+  })
+
   it.each([
     ['target-write failure with remove rejection', 'target', 'reject'],
     ['verification failure with remove(false) and contains(true)', 'verify', 'false-still-held'],
@@ -590,5 +656,74 @@ describe('backup restore coordinator', () => {
       reentryRequired: [],
     })
     expect(knownSnapshot(base.dump(), restored)).toEqual(restored)
+  })
+
+  it('keeps committed storage and returns every cleanup candidate as pending when post-commit reconciliation throws', async () => {
+    const old = 'https://unexpected-cleanup.example.com/*'
+    vi.resetModules()
+    vi.doMock('../services/permissionTransactions', async (importActual) => {
+      const actual = await importActual<typeof import('../services/permissionTransactions')>()
+      return {
+        ...actual,
+        runOriginTransaction: async <T,>(
+          _storage: AuroraStorage,
+          _urls: readonly string[],
+          body: (context: OriginTransactionContext) => Promise<TransactionBodyResult<T>>,
+        ): Promise<OriginTransactionResult<T>> => {
+          try {
+            const bodyResult = await body({
+              releaseUnownedOrigins: async () => {
+                throw new Error('private unexpected cleanup failure')
+              },
+            })
+            if (!bodyResult.ok) {
+              return {
+                status: 'aborted',
+                message: bodyResult.message,
+                preExisting: [],
+                acquired: [],
+                pendingCleanup: [],
+              }
+            }
+            return { status: 'committed', value: bodyResult.value, preExisting: [], acquired: [] }
+          } catch (error) {
+            return { status: 'failed', error, preExisting: [], acquired: [], pendingCleanup: [] }
+          }
+        },
+      }
+    })
+
+    try {
+      const [{ createStorage }, { memoryDriver }, restore, backup, schema] = await Promise.all([
+        import('./storage'),
+        import('./storage/driver'),
+        import('./backupRestore'),
+        import('./backup'),
+        import('./storage/schema'),
+      ])
+      const previous: AuroraData = {
+        ...schema.defaults(),
+        connectors: {
+          rss: { enabled: false, feeds: ['https://unexpected-cleanup.example.com/feed'], shownCount: 5 },
+        },
+      }
+      const restored: AuroraData = {
+        ...schema.defaults(),
+        settings: { ...schema.defaults().settings, name: 'Committed before cleanup failure' },
+      }
+      const driver = memoryDriver(clone(previous) as unknown as Record<string, unknown>)
+      const storage = createStorage(driver)
+      const prepared = backup.prepareBackup(backup.serializeBackup(restored))
+      if (!prepared.ok) throw new Error(`test fixture did not prepare: ${prepared.reason}`)
+
+      await expect(restore.restorePreparedBackup(storage, prepared)).resolves.toEqual({
+        status: 'committed',
+        pendingCleanup: [old],
+        reentryRequired: [],
+      })
+      expect(knownSnapshot(driver.dump(), previous)).toEqual(restored)
+    } finally {
+      vi.doUnmock('../services/permissionTransactions')
+    }
   })
 })

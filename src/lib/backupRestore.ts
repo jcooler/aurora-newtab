@@ -80,9 +80,9 @@ function mapTransaction(
 
 /**
  * Begins the gesture-sensitive origin transaction synchronously. The
- * lifecycle authority is acquired before storage authority, and the atomic
- * finalizer uses only the already-held context release with the supplied
- * restored ownership state.
+ * lifecycle authority is acquired before storage authority. Irreversible
+ * permission release runs only after the rollbackable storage replacement
+ * has committed, using the already-held lifecycle context.
  */
 export function restorePreparedBackup(
   storage: AuroraStorage,
@@ -95,16 +95,21 @@ export function restorePreparedBackup(
     storage,
     prepared.requiredOrigins,
     async (context) => {
-      const replaced = await storage.replaceAllWithRollback(prepared.data, async (previous) => {
-        const previousOwned = ownedOriginPatterns({
-          connectors: previous.connectors,
-          photoPrefs: previous.photoPrefs,
-        })
-        const candidates = previousOwned.filter((pattern) => !restoredOwned.has(pattern))
-        const cleanup = await context.releaseUnownedOrigins(candidates, restoredState)
-        return cleanup.pending
+      const replaced = await storage.replaceAllWithRollback(prepared.data, async () => undefined)
+      const previousOwned = ownedOriginPatterns({
+        connectors: replaced.previous.connectors,
+        photoPrefs: replaced.previous.photoPrefs,
       })
-      return { ok: true, value: replaced.value, ownerCommitted: true }
+      const candidates = previousOwned.filter((pattern) => !restoredOwned.has(pattern))
+      let pendingCleanup = [...candidates]
+      try {
+        const cleanup = await context.releaseUnownedOrigins(candidates, restoredState)
+        pendingCleanup = cleanup.pending
+      } catch {
+        // Storage is already committed. Conservatively retain every canonical
+        // candidate for the durable Settings retry instead of rolling back.
+      }
+      return { ok: true, value: pendingCleanup, ownerCommitted: true }
     },
     authority,
   )
