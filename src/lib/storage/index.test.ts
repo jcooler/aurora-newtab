@@ -724,6 +724,32 @@ describe('createStorage', () => {
     expect(controlled.reads).toEqual([KNOWN_KEYS, KNOWN_KEYS, KNOWN_KEYS])
   })
 
+  it('rollback materializes missing known keys at defaults and preserves driver sentinels', async () => {
+    const storedFocus = { text: 'Physically stored', date: '2026-08-14', done: false }
+    const logicalPrevious: AuroraData = { ...defaults(), focus: storedFocus }
+    const primary = new Error('target applied then rejected')
+    const controlled = controllableDriver({
+      focus: storedFocus,
+      'aurora:version': CURRENT_VERSION,
+      unknown: { sentinel: 'preserve me' },
+    }, {
+      async write(_patch, call, apply) {
+        await apply()
+        if (call === 1) throw primary
+      },
+    })
+    const storage = atomicStorage(controlled.driver, createInProcessStorageAuthority())
+
+    await expect(storage.replaceAllWithRollback(TARGET, async () => 'not reached'))
+      .rejects.toBe(primary)
+
+    expect(controlled.writes).toEqual([TARGET, logicalPrevious])
+    expect(Object.keys(controlled.writes[1])).toEqual(KNOWN_KEYS)
+    expect(await controlled.base.read([...KNOWN_KEYS])).toEqual(logicalPrevious)
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'preserve me' })
+  })
+
   it.each([
     ['rollback write rejection', 'write'],
     ['rollback read rejection', 'read'],
@@ -779,14 +805,15 @@ describe('createStorage', () => {
       return 'committed'
     })
     await inFinalize
-    const updater = vi.fn((links: AuroraData['links']) => [
-      ...links,
-      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
-    ])
-    const queuedMutation = second.update('links', updater)
+    const queuedFocus = { text: 'Queued focus', date: '2026-08-16', done: false }
+    const queuedMutation = second.set('focus', queuedFocus)
 
+    // Drain the authority's promise scheduling. If the critical section were
+    // already free, the direct set() would have reached the driver by now.
     await Promise.resolve()
-    expect(updater).not.toHaveBeenCalled()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(controlled.writes).toEqual([TARGET])
     expect(await controlled.base.read(['focus', 'links'])).toEqual({
       focus: TARGET.focus,
       links: TARGET.links,
@@ -795,10 +822,11 @@ describe('createStorage', () => {
     await expect(replace).resolves.toEqual({ previous: PREVIOUS, value: 'committed' })
     await queuedMutation
 
-    expect((await controlled.base.read(['links'])).links).toEqual([
-      ...TARGET.links,
-      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
-    ])
+    expect(await controlled.base.read(['focus', 'links'])).toEqual({
+      focus: queuedFocus,
+      links: TARGET.links,
+    })
+    expect(controlled.writes).toEqual([TARGET, { focus: queuedFocus }])
   })
 
   it('blocks a second storage instance until a failed replace fully rolls back', async () => {
@@ -817,34 +845,27 @@ describe('createStorage', () => {
       return finalizeGate
     })
     await inFinalize
-    const updater = vi.fn((links: AuroraData['links']) => [
-      ...links,
-      { id: 'queued', title: 'Queued', url: 'https://queued.example' },
-    ])
-    const queuedMutation = second.update('links', updater)
+    const queuedFocus = { text: 'Queued focus', date: '2026-08-16', done: false }
+    const queuedMutation = second.set('focus', queuedFocus)
 
+    // Drain the authority's promise scheduling. A prematurely released lock
+    // would let this direct set() write before rollback begins.
     await Promise.resolve()
-    expect(updater).not.toHaveBeenCalled()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(controlled.writes).toEqual([TARGET])
     rejectFinalize(primary)
     await expect(replace).rejects.toBe(primary)
     await queuedMutation
 
     expect(await controlled.base.read(['focus', 'links'])).toEqual({
-      focus: PREVIOUS.focus,
-      links: [
-        ...PREVIOUS.links,
-        { id: 'queued', title: 'Queued', url: 'https://queued.example' },
-      ],
+      focus: queuedFocus,
+      links: PREVIOUS.links,
     })
     expect(controlled.writes).toEqual([
       TARGET,
       PREVIOUS,
-      {
-        links: [
-          ...PREVIOUS.links,
-          { id: 'queued', title: 'Queued', url: 'https://queued.example' },
-        ],
-      },
+      { focus: queuedFocus },
     ])
   })
 })
