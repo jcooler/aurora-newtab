@@ -92,11 +92,12 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P8 — Notes persistence integrity
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P2
-- **Plan gate:** Create when W1-P7 is Verified.
+- **Plan:** [`2026-08-14-w1-p8-notes-persistence-integrity.md`](../plans/2026-08-14-w1-p8-notes-persistence-integrity.md)
 - **Acceptance:** Notes shows Saving only while pending, Saved only after settled persistence, and an accessible recoverable Error after rejection; unsaved text survives failure, close/navigation attempts are safe, and retry persists the latest text.
-- **Finishing commit:** —
+- **Verified evidence:** Revision-owned, authority-backed Notes writes keep one operation in flight, coalesce newer edits, retain dirty/error text, reconcile authority-ordered external values, and announce Saving/Saved/Error truthfully. Pill, Escape, widget-disable, and arrange entry await the latest successful persistence; failed close stays interactive. Current-tab Search, Quick Link, and bookmark producers retain a dirty-only beforeunload guard with honest browser limits. Final verification passed 13 targeted files / 173 tests, 112 total files / 1,848 tests, TypeScript, 174-module production/preview builds, production preview-symbol isolation, and a 451 PASS / 0 FAIL / 3 SKIP built-extension run. The bounded review's two Important findings—Retry target size and assertion-failure teardown ordering—were fixed in `5c570f7`; the focused rereview found no remaining Critical, Important, or packet-local Minor finding.
+- **Finishing commit:** `5c570f7` plus checkpoint subject `docs: checkpoint W1-P8`
 
 ### W1-P9 — Privacy classification and secret-handling foundation
 

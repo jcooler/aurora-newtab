@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P7` - Local-day, DST, midnight, sleep/wake, and timezone rollover<br>
-**Next packet:** `W1-P8` - Notes persistence integrity; plan not yet created
+**Last verified packet:** `W1-P8` - Notes persistence integrity<br>
+**Next packet:** `W1-P9` - Privacy classification and secret-handling foundation; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** IANA-zone local days use calendar-constructed first-valid boundaries across ordinary, DST, skipped-midnight, and skipped-day transitions; one generation-owned local-day schedule converges after midnight, visibility/focus/pageshow, sleep/wake, backwards clock movement, and timezone change. Background, Focus, Countdown, Quote, calendar, Greeting, clocks, sun/moon, habits, and Timer update in an open tab. APOD and ICS preserve W1-P1/W1-P2 ownership, all-day semantics are explicit, and ICS snapshot identity is timezone-scoped.
-- **Expected files:** Shared date and restoration-aware clock hooks, date-driven surfaces, APOD/ICS/Calendar/Timer logic and tests, Settings/backup validation for the explicit ICS event contract, and preview-only built-extension evidence. W1-P1 through W1-P6 contracts are preserved. Notes, privacy/Store copy, layout/CSS redesign, dependencies, packaging, and release actions remain outside this packet.
-- **Test scope:** New York/Berlin DST, Havana/Santiago/Azores midnight gaps, Apia skipped day, overlap/gap inversion, calendar distance, scheduler generation/cleanup, Strict Mode/unmount, visibility/focus/pageshow, sleep/wake/backwards clock/timezone probes, all named surfaces, APOD stale ownership, explicit all-day/timed-midnight/recurrence semantics, Calendar tokens/Join windows, ICS v2 scope/payload ownership, Timer exactly-once wake completion, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, built-extension fake-time rollover, and teardown clock restoration.
-- **Visual scope:** No redesign. W1-P7 is a correctness packet. The built harness deterministically advances a disposable extension page's clock and restores the shared browser context; genuine operating-system timezone changes and real machine sleep/wake remain manual ceilings backed by exact unit/component restoration-event coverage.
+- **Acceptance:** Notes reports Saving only while unsaved/pending, Saved only after the exact latest authority write fulfills, and a persistent accessible recoverable Error after rejection. The latest draft survives failure and external writes; Retry persists the latest text. Pill, Escape, widget disable, arrange entry, and current-tab navigation preserve recoverability.
+- **Expected files:** Notes persistence hook/panel/widget, awaited dialog-stack and arrange entry, current-tab navigation source tests, preview-only Notes write controller, built-extension proof, screenshot, and W1-P8 ledgers. W1-P2 remains the sole mutation authority. Privacy/Store copy, layout redesign, dependencies, packaging, and release actions remain outside this packet.
+- **Test scope:** Debounce/single-flight/revision ordering, stale completion, rejection/retry, cross-context same-millisecond subscription order, Strict Mode/unmount, beforeunload, all close/disable/arrange paths, Search/Quick Link/bookmark producers, accessibility roles/target size/focus, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, real-extension defer/reject/navigation proof, exact teardown, and responsive screenshot inspection.
+- **Visual scope:** No redesign. The fixed 320×256 Notes panel remains reachable at 800×600, 1600×900, and 2560×1440. The visible Error copy is not color-only, Retry owns a 36px target, and Chromium AX evidence exposes the alert and button.
 
 ## Last completed commits
 
@@ -56,9 +56,22 @@
 - `f66c9345e1aef89f1eb0914fbc7d6a3a0019c74a` - explicit all-day Calendar/ICS semantics and timezone-scoped snapshots.
 - `32ffb8bbc703ea498ad1de6ab13f1d31ebfd2def` - deterministic built-extension rollover, Timer wake, and Calendar semantics proof.
 - `2fcb4438b0857500db1e5fb0785e1da45e9eacd8` - bounded-review fix for skipped-midnight/skipped-day inverse conversion and expired-boundary rescheduling; verified W1-P7 implementation head.
+- `5f2b32f863f1ec4c479e4216de673c18a3b9eb0b` - independently reviewed executable W1-P8 plan.
+- `4915f2f5320cdd1e235ea471d7140a795b7b7304` and `8f101c22d352af04cf8dbba6e8c26a37223a082b` - revision-owned recoverable Notes persistence plus awaited close, disable, arrange, and navigation boundaries.
+- `58a3e7992c1422e879b58e9d66df5fe476128fca` - preview-only authority-preserving failure controller, built-extension navigation/AX proof, and error screenshot.
+- `5c570f7087d8d6e41b73db9e271339c75c93f62c` - bounded-review fixes for a 36px Retry target and close-before-restore teardown quiescence; verified W1-P8 implementation head.
 
 ## Latest verification
 
+- W1-P8 exact targeted suite at `5c570f7` - exit 0; 13 files / 173 tests passed.
+- `npx tsc --noEmit` at `5c570f7` - exit 0.
+- `npm test` at `5c570f7` - exit 0; photo manifest 23 entries / 46 tier files; 112 files / 1,848 tests passed.
+- `npm run build` and `npm run build:preview` at `5c570f7` - exit 0; both transformed 174 modules.
+- Production search for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `node scripts/preview.mjs` final reviewed W1-P8 run at `5c570f7` - harness process exit 0; exactly 451 PASS / 0 FAIL / 3 SKIP. Its four W1-P8 lines prove deferred Saving-to-Saved truth, rejected-write draft/alert/Retry/AX behavior, awaited Escape and arrange entry, current-tab Quick Link beforeunload retention/unblock, and exact close-before-restore teardown.
+- `screenshots/w1-p8-notes-error.png` was inspected at original 1600×900; the fixed 320×256 panel is unclipped, the alert is visible and not color-only, and Retry owns a 36px target. Built checks also passed at 800×600 and 2560×1440. Chromium's accessibility snapshot contains the alert and named Retry button; this is not a real screen-reader run.
+- The independent implementation review found two Important gaps: the recovery target was approximately 16px high and assertion-failure teardown could restore before dirty-editor unmount cleanup. Red target coverage plus close/reset/lock-barrier teardown fixed both in `5c570f7`; focused rereview found no remaining Critical, Important, or packet-local Minor issue.
+- The first and third W1-P8-capable full harness attempts each hit only the known unrelated Status row/dot UI timing race after the W1-P8 lines passed; a fresh post-review run produced the required 451 / 0 / 3 total without changing Status behavior. The three SKIPs remain the unchanged Home Assistant/native NASA permission ceilings; W1-P8 added none.
 - W1-P7 exact targeted suite at `2fcb443` - exit 0; 23 files / 563 tests passed.
 - `npx tsc --noEmit` at `2fcb443` - exit 0.
 - `npm test` at `2fcb443` - exit 0; photo manifest 23 entries / 46 tier files; 110 files / 1,831 tests passed.
@@ -160,24 +173,25 @@
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
 - A native hidden-to-visible browser transition is unavailable in the current headless harness; W1-P6 records modeled built-extension convergence plus exact fake-time listener coverage without overstating that boundary.
 - Genuine operating-system timezone changes and machine sleep/wake cannot be induced by the deterministic extension harness; W1-P7 proves their production event paths and clock discontinuities with exact unit/component coverage and retains the real-environment checks as manual gates.
+- Browser beforeunload is intentionally best-effort: W1-P8 starts the authority flush and warns only while dirty, but cannot promise an async write finishes after a user explicitly confirms navigation.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P7`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P8.
+- None expected after `docs: checkpoint W1-P8`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P9.
 
 ## Single next packet
 
-- **Packet:** `W1-P8` - Notes persistence integrity
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P7 evidence, and the current Notes panel, storage authority, close/navigation, error, retry, and accessibility contracts.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P8 plan before any W1-P8 implementation; this W1-P7 task stops at the packet boundary.
+- **Packet:** `W1-P9` - Privacy classification and secret-handling foundation
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P3/W1-P4/W1-P5/W1-P6/W1-P8 evidence, current data flows, storage/network/permission boundaries, secret-bearing capability URLs, manifest/source privacy copy, and the indirect dev-only nanoid advisory.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P9 plan before any W1-P9 implementation; this W1-P8 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P8 Notes persistence-integrity plan
-Packet ID: W1-P8
-Verified W1-P7 implementation SHA: 2fcb4438b0857500db1e5fb0785e1da45e9eacd8
-Expected next checkpoint subject: docs: checkpoint W1-P8
+Next plan: create just-in-time W1-P9 privacy-classification and secret-handling plan
+Packet ID: W1-P9
+Verified W1-P8 implementation SHA: 5c570f7087d8d6e41b73db9e271339c75c93f62c
+Expected next checkpoint subject: docs: checkpoint W1-P9
 ```
