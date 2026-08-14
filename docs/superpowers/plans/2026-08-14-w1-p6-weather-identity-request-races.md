@@ -278,7 +278,7 @@ git commit -m "fix(weather): reject stale request generations"
 
 - Add one preview-script `weatherRequestIdentity` fixture helper that exactly mirrors the public normalized request contract without importing source into the built extension. Update all seeded Weather caches in the harness with the correct identity for their paired seeded location so unrelated visual/connector probes remain deterministic.
 - The W1-P6 block uses Playwright `page.route('**/api.open-meteo.com/**', ...)` to hold/fulfill real production forecast requests. It seeds through the established preview storage helper, never through a new production global.
-- The race uses two locations sharing the literal label `Springfield` but with distinct normalized coordinates. For visibility, an inert `about:blank` cover page and `bringToFront()` drive a real extension-page `visible -> hidden -> visible` transition that is asserted in page state. Teardown releases/aborts every deferred route, awaits request settlement, atomically clears location/cache to abort the hook, destroys or reloads the tested document, removes routes, atomically restores the original location/cache pair, closes the cover page, restores viewport/focus, and waits for exact stable storage before downstream probes.
+- The race uses two locations sharing the literal label `Springfield` but with distinct normalized coordinates. The intended visibility proof uses an inert `about:blank` cover page. **Execution reconciliation:** Playwright's headless Chromium keeps every target `visible` after `bringToFront()`, so this run must not claim a real browser-provided transition. The built-extension block models only the unavailable `visibilityState` signal and dispatches the standard event into the real production listener; exact fake-time unit coverage remains the authoritative fencepost/native-listener proof. Teardown releases/aborts every deferred route, awaits request settlement, atomically clears location/cache to abort the hook, reloads the tested document, removes routes, atomically restores the original location/cache pair, closes the cover page, restores viewport/focus, and waits for exact stable storage before downstream probes.
 
 - [ ] **Step 1: Add the deterministic W1-P6 real-extension block and update fixtures**
 
@@ -288,10 +288,10 @@ Add six countable assertions:
 2. While A's forecast request is held, B starts immediately with its distinct normalized coordinates and explicit Celsius/km/h/12-hour/auto-timezone query.
 3. B's fulfilled response renders the B temperature/current label and persists B's exact request identity.
 4. Releasing A after B cannot change visible temperature, stored identity/data, or current error state.
-5. A matching cache at exactly the 30-minute boundary refreshes after an asserted hidden-to-visible restoration; a comfortably fresh `MAX_AGE_MS - 60_000` cache does not. The exact `MAX_AGE_MS - 1` fencepost remains fake-time unit evidence, not a real-time browser claim.
-6. Repeated visibility restoration while that refresh is held produces one request, and teardown leaves no forecast request or Weather cache/location mutation for downstream probes.
+5. A matching cache at exactly the 30-minute boundary refreshes after the modeled headless hidden-to-visible event; a comfortably fresh `MAX_AGE_MS - 60_000` cache does not. The exact `MAX_AGE_MS - 1` fencepost and native listener semantics remain fake-time unit evidence, not a real-time browser claim.
+6. Repeated modeled visibility events while that refresh is held produce one request, and teardown leaves no forecast request or Weather cache/location mutation for downstream probes.
 
-Use hand-written valid Open-Meteo payloads with distinctive current temperatures and exact hourly/daily arrays. Do not claim that route interception proves live provider availability; it proves the built extension's request identity, abort/generation, storage ownership, and visibility behavior. Existing live Weather rendering remains separate incidental evidence.
+Use hand-written valid Open-Meteo payloads with distinctive current temperatures and exact hourly/daily arrays. Do not claim that route interception proves live provider availability or that headless page focus delivered a native visibility transition; it proves the built extension's request identity, abort/generation, storage ownership, and modeled visibility convergence. Existing live Weather rendering remains separate incidental evidence.
 
 - [ ] **Step 2: Build preview and run the full harness once**
 

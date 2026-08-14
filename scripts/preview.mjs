@@ -738,25 +738,21 @@ console.log('captured newtab.png')
 
   await page.route('**/api.open-meteo.com/**', handler)
   try {
+    const bIdentity = weatherRequestIdentityFixture(B.lat, B.lon)
+    const aIdentity = weatherRequestIdentityFixture(A.lat, A.lon)
     const aCache = {
       current: { tempC: 11, feelsLikeC: 10, code: 1, windKmh: 8, humidity: 55, isDay: true },
       hourly: [],
-      fetchedAt: Date.now() - MAX_AGE_MS,
+      fetchedAt: Date.now() - MAX_AGE_MS + 60_000,
       locationLabel: A.label,
-      requestIdentity: weatherRequestIdentityFixture(A.lat, A.lon),
+      requestIdentity: aIdentity,
     }
+    const beforeMismatch = pending.length
     await page.evaluate(
       ({ location, weatherCache }) => globalThis.__auroraSetHarnessStorage({ location, weatherCache }),
-      { location: A, weatherCache: aCache },
+      { location: B, weatherCache: aCache },
     )
-    const aRequest = await waitForLocationRequest(A)
-
-    const beforeB = pending.length
-    await page.evaluate(
-      (location) => globalThis.__auroraSetHarnessStorage({ location }),
-      B,
-    )
-    const bRequest = await waitForLocationRequest(B, beforeB)
+    const mismatchRequest = await waitForLocationRequest(B, beforeMismatch)
     const switched = await page.evaluate(() => {
       const text = document.querySelector('[data-block-id="weather"]')?.textContent ?? ''
       return chrome.storage.local.get(['location', 'weatherCache']).then(({ location, weatherCache }) => ({
@@ -765,8 +761,6 @@ console.log('captured newtab.png')
         cacheIdentity: weatherCache?.requestIdentity ?? null,
       }))
     })
-    const bIdentity = weatherRequestIdentityFixture(B.lat, B.lon)
-    const aIdentity = weatherRequestIdentityFixture(A.lat, A.lon)
     const mismatchSuppressed =
       switched.location?.lat === B.lat &&
       switched.location?.lon === B.lon &&
@@ -777,6 +771,26 @@ console.log('captured newtab.png')
         ? 'PASS: Weather suppresses a fresh same-label cache when normalized coordinates belong to the previous Springfield'
         : `FAIL: Weather suppresses a fresh same-label cache when normalized coordinates belong to the previous Springfield (${JSON.stringify(switched)})`,
     )
+
+    await settle(mismatchRequest, 'fulfill', payload(16))
+    await page.waitForFunction(
+      (identity) => chrome.storage.local.get('weatherCache').then(({ weatherCache }) =>
+        weatherCache?.requestIdentity === identity && weatherCache?.current?.tempC === 16),
+      bIdentity,
+    )
+
+    const beforeA = pending.length
+    await page.evaluate(
+      (location) => globalThis.__auroraSetHarnessStorage({ location, weatherCache: null }),
+      A,
+    )
+    const aRequest = await waitForLocationRequest(A, beforeA)
+    const beforeB = pending.length
+    await page.evaluate(
+      (location) => globalThis.__auroraSetHarnessStorage({ location }),
+      B,
+    )
+    const bRequest = await waitForLocationRequest(B, beforeB)
 
     const bUrl = bRequest.url
     const requestContractOk =
@@ -884,7 +898,7 @@ console.log('captured newtab.png')
       visibilityRequestCount === beforeFresh + 1
     console.log(
       visibilityBoundaryOk
-        ? 'PASS: a comfortably fresh matching cache does not fetch, while the exact 30-minute boundary refreshes only after an asserted hidden-to-visible restoration'
+        ? 'PASS: a comfortably fresh matching cache does not fetch, while the exact 30-minute boundary refreshes after the modeled hidden-to-visible event used by the headless harness'
         : `FAIL: Weather visibility/cache boundary is deterministic (${JSON.stringify({ beforeFresh, freshRequestCount, hiddenRequestCount, visibilityRequestCount })})`,
     )
 
@@ -908,9 +922,16 @@ console.log('captured newtab.png')
     }).catch(() => {})
     await page.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null, weatherCache: null })).catch(() => {})
     for (const entry of pending) await settle(entry, 'abort')
+    await page.reload().catch(() => {})
+    await page.waitForSelector('time').catch(() => {})
     await page.unroute('**/api.open-meteo.com/**', handler).catch(() => {})
     await page.evaluate(
       (pair) => globalThis.__auroraSetHarnessStorage(pair),
+      originalPair,
+    ).catch(() => {})
+    await page.waitForFunction(
+      (pair) => chrome.storage.local.get(['location', 'weatherCache']).then(({ location, weatherCache }) =>
+        JSON.stringify({ location: location ?? null, weatherCache: weatherCache ?? null }) === JSON.stringify(pair)),
       originalPair,
     ).catch(() => {})
     await page.bringToFront().catch(() => {})
@@ -931,8 +952,8 @@ console.log('captured newtab.png')
     JSON.stringify(restoredPair) === JSON.stringify(originalPair)
   console.log(
     noOverlapAndClean
-      ? 'PASS: repeated visibility restoration dedupes the held refresh and W1-P6 teardown restores the exact Weather pair with no pending request'
-      : `FAIL: repeated visibility restoration dedupes and teardown restores Weather state (${JSON.stringify({ visibilityRequestCount, repeatedVisibilityRequestCount, pending: pending.map((entry) => entry.handled), restored: JSON.stringify(restoredPair) === JSON.stringify(originalPair) })})`,
+      ? 'PASS: repeated modeled visibility events dedupe the held refresh and W1-P6 teardown reloads quiescently, then restores the exact Weather pair with no pending request'
+      : `FAIL: repeated modeled visibility events dedupe and teardown restores Weather state (${JSON.stringify({ visibilityRequestCount, repeatedVisibilityRequestCount, pending: pending.map((entry) => entry.handled), restored: JSON.stringify(restoredPair) === JSON.stringify(originalPair) })})`,
   )
 }
 

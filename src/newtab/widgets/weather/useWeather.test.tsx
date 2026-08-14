@@ -4,6 +4,8 @@ import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StorageProvider } from '../../../lib/storage/context'
 import { memoryDriver } from '../../../lib/storage/driver'
+import type { StorageDriver } from '../../../lib/storage/driver'
+import { createInProcessStorageAuthority } from '../../../lib/storage/authority'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import type { StoredLocation, WeatherSnapshot } from '../../../lib/storage/schema'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
@@ -42,6 +44,24 @@ function deferred<T>() {
     reject = rej
   })
   return { promise, resolve, reject }
+}
+
+function isolatedSharedDriver(store: Record<string, unknown>): StorageDriver {
+  const listeners = new Set<(changes: Record<string, unknown>) => void>()
+  return {
+    async read(keys) {
+      if (keys === null) return { ...store }
+      return Object.fromEntries(keys.filter((key) => key in store).map((key) => [key, store[key]]))
+    },
+    async write(patch) {
+      Object.assign(store, patch)
+      for (const listener of listeners) listener(patch)
+    },
+    onChanged(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
 }
 
 let latest: ReturnType<typeof useWeather> | undefined
@@ -160,6 +180,64 @@ describe('useWeather identity and request generations', () => {
     expect(await storage.get('weatherCache')).not.toMatchObject({
       requestIdentity: weatherRequestIdentity(TEXAS.lat, TEXAS.lon),
     })
+  })
+
+  it('rechecks stored ownership inside updateMany when another context changes location silently', async () => {
+    const store: Record<string, unknown> = {}
+    const authority = createInProcessStorageAuthority()
+    const mountedStorage = createStorage(isolatedSharedDriver(store), authority)
+    const otherContextStorage = createStorage(isolatedSharedDriver(store), authority)
+    await mountedStorage.init()
+    await otherContextStorage.init()
+    await mountedStorage.setMany({ location: TEXAS, weatherCache: null })
+    const pending = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(pending.promise)
+    const updateMany = vi.spyOn(mountedStorage, 'updateMany')
+    const view = render(
+      <StorageProvider storage={mountedStorage}>
+        <Probe />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    // This write shares the real authority/store but intentionally has its
+    // own change-listener surface, modeling another extension context whose
+    // echo has not reached the mounted React tree yet.
+    await otherContextStorage.setMany({ location: GEORGIA, weatherCache: null })
+    await act(async () => {
+      pending.resolve(snapshotFor(TEXAS, 8))
+      await pending.promise
+    })
+
+    expect(updateMany).toHaveBeenCalledTimes(1)
+    expect(await mountedStorage.get('location')).toEqual(GEORGIA)
+    expect(await mountedStorage.get('weatherCache')).toBeNull()
+    view.unmount()
+  })
+
+  it('keeps the newer request state when an aborted older request rejects late', async () => {
+    const oldRequest = deferred<WeatherSnapshot>()
+    const newRequest = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise)
+    const { storage } = await renderProbe({ location: TEXAS, cache: null })
+    await act(async () => {
+      await storage.setMany({ location: GEORGIA, weatherCache: null })
+    })
+    await act(async () => {
+      newRequest.resolve(snapshotFor(GEORGIA, 28))
+      await newRequest.promise
+    })
+    await act(async () => {
+      oldRequest.reject(new Error('late old failure'))
+      await oldRequest.promise.catch(() => undefined)
+    })
+
+    expect(latest?.snapshot?.current.tempC).toBe(28)
+    expect(latest?.loading).toBe(false)
+    expect(latest?.error).toBeNull()
+    expect((await storage.get('weatherCache'))?.requestIdentity).toBe(
+      weatherRequestIdentity(GEORGIA.lat, GEORGIA.lon),
+    )
   })
 
   it('clearing location aborts and old work cannot recreate the cache', async () => {
