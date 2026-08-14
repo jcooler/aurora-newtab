@@ -7952,6 +7952,7 @@ function gitlabContributionsFixture() {
     'apodCache',
   ]
   const originalAllData = await page.evaluate((keys) => chrome.storage.local.get(keys), allDataKeys)
+  const STORAGE_MUTATION_LOCK = 'aurora:storage:mutation:v1'
   const HA_URL = 'https://127.0.0.1:9'
   const HA_PATTERN = 'https://127.0.0.1:9/*'
   const SHARED_PATTERN = 'https://shared-owner.example.com/*'
@@ -8665,6 +8666,7 @@ function gitlabContributionsFixture() {
         } finally {
           const cleanupFailures = []
           let restored = null
+          let lateWriteKeys = []
 
           // Restore adapter state, every raw Data key, and the session flag
           // before touching fallible UI. The nested browser-side finally blocks
@@ -8732,15 +8734,41 @@ function gitlabContributionsFixture() {
               globalThis.__auroraPermissionsHarnessControl === undefined &&
               typeof chrome.permissions?.getAll === 'function',
             PERMISSIONS_HARNESS_FLAG, { timeout: 10_000 })
-            restored = await page.evaluate(async (keys) => ({
-              values: await chrome.storage.local.get(keys),
+            // The reload destroys the adapter document and its React hooks.
+            // Re-enter the production storage lock only after that quiescence
+            // boundary: an old-document snapshot update already holding the
+            // lock must finish first, while a pending request from the dead
+            // document is cancelled. Then reapply and verify the raw snapshot
+            // so a late cache write cannot survive the one-pass restore above.
+            const finalState = await page.evaluate(async ({ keys, snapshot, lockName }) =>
+              navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+                const beforeFinalRestore = await chrome.storage.local.get(keys)
+                const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+                if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
+                if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+                return {
+                  beforeFinalRestore,
+                  values: await chrome.storage.local.get(keys),
+                }
+              }), {
+              keys: dataKeys,
+              snapshot: originalData,
+              lockName: STORAGE_MUTATION_LOCK,
+            })
+            lateWriteKeys = dataKeys.filter((key) =>
+              Object.prototype.hasOwnProperty.call(finalState.beforeFinalRestore, key) !==
+                Object.prototype.hasOwnProperty.call(originalData, key) ||
+              !exact(finalState.beforeFinalRestore[key], originalData[key])
+            )
+            restored = await page.evaluate((values) => ({
+              values,
               drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
               viewport: { width: innerWidth, height: innerHeight },
               nativeBoundary:
                 globalThis.__auroraPermissionsHarnessApi === undefined &&
                 globalThis.__auroraPermissionsHarnessControl === undefined &&
                 typeof chrome.permissions?.getAll === 'function',
-            }), dataKeys)
+            }), finalState.values)
           } catch (error) {
             cleanupFailures.push(`reload=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
           }
@@ -8750,8 +8778,8 @@ function gitlabContributionsFixture() {
             exact(restored?.viewport, launchSize) && restored?.nativeBoundary
           console.log(
             teardownOk
-              ? 'PASS: W1-P4 finally restored every Data key and adapter-held set, closed Settings, restored the launch viewport, removed the session flag, reloaded, and proved the native Chrome permission boundary'
-              : `FAIL: W1-P4 full teardown/native-boundary restoration (${JSON.stringify({ cleanupFailures, adapterRestoredBeforeReload, originalData, restored })})`,
+              ? `PASS: W1-P4 finally restored every Data key and adapter-held set, quiesced the old document, neutralized ${lateWriteKeys.length} late-written Data key(s) with a locked final restore, closed Settings, restored the launch viewport, removed the session flag, and proved the native Chrome permission boundary`
+              : `FAIL: W1-P4 full teardown/native-boundary restoration (${JSON.stringify({ cleanupFailures, adapterRestoredBeforeReload, lateWriteKeys, originalData, restored })})`,
           )
         }
       }
@@ -8796,15 +8824,32 @@ function gitlabContributionsFixture() {
       PERMISSIONS_HARNESS_FLAG,
       { timeout: 10_000 },
     )
-    const restored = await page.evaluate(async (keys) => ({
-      values: await chrome.storage.local.get(keys),
-      drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.getAttribute('inert') !== null,
-    }), allDataKeys)
+    const restored = await page.evaluate(async ({ keys, snapshot, lockName }) => {
+      const state = await navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+        const beforeFinalRestore = await chrome.storage.local.get(keys)
+        const missingKeys = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+        if (missingKeys.length > 0) await chrome.storage.local.remove(missingKeys)
+        if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+        return {
+          beforeFinalRestore,
+          values: await chrome.storage.local.get(keys),
+        }
+      })
+      return {
+        ...state,
+        drawerClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.getAttribute('inert') !== null,
+      }
+    }, { keys: allDataKeys, snapshot: originalAllData, lockName: STORAGE_MUTATION_LOCK })
+    const outerLateWriteKeys = allDataKeys.filter((key) =>
+      Object.prototype.hasOwnProperty.call(restored.beforeFinalRestore, key) !==
+        Object.prototype.hasOwnProperty.call(originalAllData, key) ||
+      JSON.stringify(restored.beforeFinalRestore[key]) !== JSON.stringify(originalAllData[key])
+    )
     const stateRestored = JSON.stringify(restored.values) === JSON.stringify(originalAllData)
     console.log(
       outerCleanupFailures.length === 0 && stateRestored && restored.drawerClosed
-        ? 'PASS: permission matrix outer fallback restored every Data key, the closed/default drawer state, default viewport, and the native Chrome permission boundary for downstream checks'
-        : `FAIL: permission matrix teardown/restoration (failures=${JSON.stringify(outerCleanupFailures)}, original=${JSON.stringify(originalAllData)}, restored=${JSON.stringify(restored)})`,
+        ? `PASS: permission matrix outer fallback used a post-reload locked final restore for every Data key, neutralized ${outerLateWriteKeys.length} divergent key(s), and preserved the closed/default drawer state, default viewport, and native Chrome permission boundary for downstream checks`
+        : `FAIL: permission matrix teardown/restoration (failures=${JSON.stringify(outerCleanupFailures)}, lateWriteKeys=${JSON.stringify(outerLateWriteKeys)}, original=${JSON.stringify(originalAllData)}, restored=${JSON.stringify(restored)})`,
     )
   }
 }
