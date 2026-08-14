@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P4` - Atomic backup/restore and permission reconciliation<br>
-**Next packet:** `W1-P5` - Home Assistant data minimization, health, and action safety; plan not yet created
+**Last verified packet:** `W1-P5` - Home Assistant data minimization, health, and action safety<br>
+**Next packet:** `W1-P6` - Weather identity and request races; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Export is authority-consistent and secret-safe; the whole migrated backup is validated and reconciled before Confirm; permission acquisition remains in the confirmation turn; every target/verification/finalizer failure either restores exact logical pre-import data and preserves its grants or reports a distinct rollback failure; committed old-owner revoke failures remain durable and retryable.
-- **Expected files:** Backup envelope/preparation, connector backup policies, storage snapshot/rollback primitives, permission transaction context, restore coordinator, Settings Data recovery UI, focused tests, and the preview-only real-extension harness. Home Assistant polling/actions, layout, CSS redesign, manifest expansion, final privacy/Store copy, packaging, and release actions remain outside this packet.
-- **Test scope:** Current/legacy/future/malformed envelopes, secret/capability/cache redaction, all-key snapshot and target/rollback readback, before/apply-then-reject writes, finalizer and rollback failures, gesture ordering, acquired/pre-existing/shared/final ownership, durable cleanup, trusted copy, targeted/full Vitest, TypeScript, production/preview builds, adapter-leak search, and real MV3 Data controls.
-- **Visual scope:** No redesign. Data gains accessible confirmation, pending, success, recoverable failure, fatal rollback failure, and Retry states; verification is behavioral through component and real-extension checks.
+- **Acceptance:** Normal polling requests only deduped selected Home Assistant entities; bulk state fetch stays picker-only and disclosed; action-only visibility requires authenticated narrow health; legacy action-only snapshots cannot bypass that health check; per-action guards exclude duplicate activation; committed configuration generations reject stale action completions; persistent visible and announced pending/success/error states remain retryable.
+- **Expected files:** Home Assistant service/widget/Settings tests and production code, shared opaque snapshot identity only for the Home Assistant polling-contract version, and the preview-only real-extension harness. W1-P3 permission ownership and W1-P4 restore/finalizer contracts are preserved. Weather, day rollover, Notes, privacy/Store copy, layout/CSS redesign, manifests, dependencies, packaging, and release actions remain outside this packet.
+- **Test scope:** Selected endpoint ordering/dedupe/encoding, 404 omission and poll-wide fail-closed behavior, picker-only bulk access, authenticated action-only health, legacy-snapshot invalidation, same-turn duplicate activation, sibling independence, snapshot-epoch action generation, Strict Mode/unmount, storage-backed stale polls, exact disclosure, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, keyboard/error/retry/quiescence, Chromium AX tree, and full MV3 teardown.
+- **Visual scope:** No redesign. The existing action controls gain visible persistent status/alert copy and pending/busy/disabled semantics. `screenshots/ha-action-error.png` was inspected at 1600x1100 with a real pending sibling, focused retry, complete error text, and no clipping or color-only meaning.
 
 ## Last completed commits
 
@@ -38,9 +38,26 @@
 - `0dcdbdca32eb2f5bbb670411905da7a8bf2e246c` and `5d57dcab9da45292e22312b3f933c79d3da293ec` - gesture-safe restore coordinator, accessible Data recovery, and failed-restore cleanup coverage.
 - `5daa5ac4b3f7c9cc038715df1ca8fd5a31f0dd24`, `768f1c47d1037ca2fc67d9e0adf5ac1b9b72bce1`, and `6f30b915719586cb519aa0f8f2b4418b0724debe` - real-extension restore proof, exact predicates/failure-isolated teardown, and post-reload locked teardown quiescence.
 - `d28d6f53d6ffa87444646caa39816310d8cd6b00` - bounded whole-packet review fix that moves irreversible permission cleanup after atomic storage commit; verified W1-P4 implementation head is `6f30b915719586cb519aa0f8f2b4418b0724debe` including its reviewed harness proof.
+- `4b5a9b5e55172a5e393f47f972716eebeedd5590` - independently reviewed executable W1-P5 plan (`docs: plan W1-P5 Home Assistant safety`).
+- `ea95db06d301e11d77fd945b6bab665a87e3948e` and `e74cf4b7450dba2797c14c165e4f8034969bbf53` - selected-entity polling, narrow action-only health, and task-review mutation guards.
+- `cd90c3d4fbec391fd46e5743833360c03cd164e0` - generation-safe per-action exclusion and persistent accessible feedback.
+- `3d4ef14a759c331b494120d0f73429a9a6e96c21` and `6f17fefd4396dae8117604a26e2abf7e5844cc42` - real-extension action/AX proof and reviewed screenshot/manual-ceiling strengthening.
+- `2ab1139730d4677f4b015002f3a1f9adcd2e0d0d` - bounded whole-packet review fix that versions Home Assistant opaque snapshot identity and rejects fresh legacy action-only snapshots.
+- `74d4e27a6fa1262416ac8aa0149020a0ef02918e` - preview fixture scope alignment; verified W1-P5 implementation head.
 
 ## Latest verification
 
+- W1-P5 expanded exact targeted suite at `74d4e27` - exit 0; 10 files / 378 tests passed.
+- `npx tsc --noEmit` at `74d4e27` - exit 0.
+- `npm test` at `74d4e27` - exit 0; photo manifest 23 entries / 46 tier files; 104 files / 1,709 tests passed.
+- `npm run build` and `npm run build:preview` at `74d4e27` - exit 0; both transformed 171 modules.
+- Production search for `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `node scripts/preview.mjs` final controller-owned run at `74d4e27` - process exit 0 in 276.5 seconds; 437 PASS / 0 FAIL / 3 SKIP. Home Assistant evidence covers selected fixture scope v2, real Enter/Space activation, synchronous disabled/busy pending, same-action no-op input, sibling isolation, persistent natural failure, genuine pending/focused/error screenshot state, retry quiescence, `entities:null` hiding the whole card, exact Settings disclosure, and `Accessibility.getFullAXTree` status/alert semantics. The preserved W1-P3/W1-P4 permission, all-key restore, locked teardown, and native-boundary evidence also passed.
+- Official endpoint boundary: regular polling uses authenticated single-entity `GET /api/states/{entity_id}`; picker-only discovery uses bulk `GET /api/states`; action-only health uses authenticated `GET /api/`; actions retain service POSTs without new permissions. Tokens remain in headers and opaque SHA-256 scopes only.
+- `screenshots/ha-action-error.png` was inspected at original 1600x1100: six chips and three actions are unclipped; Movie night is genuinely pending; Porch plug is focused with complete persistent error text; meaning is independent of red.
+- Chromium AX evidence exposes `Run Porch plug` as disabled/busy and described by `Running Porch plug…`, then enabled and described by the complete retry alert. This is screen-reader-oriented accessibility-tree evidence, not a real assistive-technology run.
+- Final harness SKIPs remain honest ceilings: real Home Assistant picker contents plus a successful real service action against the user's instance, native NASA Block, and native NASA Allow. A real screen reader remains a separate manual ceiling.
+- Independent W1-P5 plan review fixed all confirmed Critical/Important and packet-local Minor gaps; final verdict Ready. Task reviews fixed missing service mutation guards and harness evidence gaps. The bounded whole-packet review found one Important legacy action-only snapshot bypass, fixed in `2ab1139`; controller verification then exposed the preview v1/v2 fixture mismatch, fixed in `74d4e27`. Scoped rereviews found no Critical, Important, or packet-local correctness issue open.
 - W1-P4 exact targeted suite at `6f30b91` - exit 0; 15 files / 600 tests passed.
 - `npx tsc --noEmit` at `6f30b91` - exit 0.
 - `npm test` at `6f30b91` - exit 0; photo manifest 23 entries / 46 tier files; 104 files / 1,694 tests passed.
@@ -106,29 +123,29 @@
 ## Known blockers and residual risks
 
 - Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P4 does not claim a synthetic click, a grant restored from a backup file, or native-grant revocation.
-- Real Home Assistant entity-picker behavior still requires the user's live instance.
+- Real Home Assistant entity-picker contents, successful service execution, and real screen-reader behavior still require the user's live instance/manual session.
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
-- Home Assistant selected-entity polling, action-only health, action safety, and stale-generation handling remain W1-P5 work; W1-P4 intentionally made no Home Assistant polling/action behavior change.
+- W1-P6 weather cache identity and request-race behavior remain unstarted; W1-P5 made no weather change.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P4`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P5.
+- None expected after `docs: checkpoint W1-P5`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P6.
 
 ## Single next packet
 
-- **Packet:** `W1-P5` - Home Assistant data minimization, health, and action safety
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P1/W1-P3/W1-P4 evidence, and the current Home Assistant connector, picker, polling, action, snapshot, storage, and permission contracts.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P5 plan before any W1-P5 implementation; this W1-P4 task stops at the packet boundary.
+- **Packet:** `W1-P6` - Weather identity and request races
+- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P2/W1-P5 evidence, and the current weather cache identity, geocode/forecast request, visibility refresh, storage, and race contracts.
+- **State:** Not started. The next fresh task should write and independently review the executable W1-P6 plan before any W1-P6 implementation; this W1-P5 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P5 Home Assistant data minimization, health, and action safety plan
-Packet ID: W1-P5
-Verified W1-P4 implementation SHA: 6f30b915719586cb519aa0f8f2b4418b0724debe
-Expected next checkpoint subject: docs: checkpoint W1-P5
+Next plan: create just-in-time W1-P6 Weather identity and request races plan
+Packet ID: W1-P6
+Verified W1-P5 implementation SHA: 74d4e27a6fa1262416ac8aa0149020a0ef02918e
+Expected next checkpoint subject: docs: checkpoint W1-P6
 ```

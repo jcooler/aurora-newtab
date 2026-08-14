@@ -64,18 +64,19 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P5 — Home Assistant data minimization, health, and action safety
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P1, W1-P3
-- **Plan gate:** Create when W1-P4 is Verified unless code ownership permits an earlier checkpointed start.
+- **Plan:** [`2026-08-14-w1-p5-home-assistant-data-health-action-safety.md`](../plans/2026-08-14-w1-p5-home-assistant-data-health-action-safety.md)
 - **Acceptance:** Normal polling fetches selected entities individually; bulk state fetch is picker-only and disclosed; connection/action-only health performs a genuine narrow network check; per-action pending guards stop double click/keyboard activation; config generations reject stale polls/actions; persistent accessible pending/success/error state recovers after failure.
 - **Required evidence:** Selected-entity polling, action-only health, double activation, stale action after reconfiguration, failure/retry, screen-reader state; headed Home Assistant picker/action spot-check requires user instance access and is recorded separately.
-- **Finishing commit:** —
+- **Verified evidence:** Regular polling requests deduped selected `/api/states/{entity_id}` endpoints in order, omits isolated 404s, and fails closed on authentication/network/non-404/malformed/wrong-ID results; picker-only `/api/states` use is disclosed. Action-only configs require authenticated `/api/` health. Home Assistant's opaque snapshot identity advances to `v2`, rejecting fresh legacy action-only snapshots without exposing config. Per-button synchronous pending, five-input in-memory generations, stale-completion rejection, Strict Mode/unmount safety, persistent associated status/alert feedback, and independent retry are covered. Final verification passed 10 targeted files / 378 tests, 104 total files / 1,709 tests, TypeScript, 171-module production/preview builds, production preview-symbol isolation, and a controller-owned 437 PASS / 0 FAIL / 3 SKIP real-extension run. `ha-action-error.png` and the Chromium accessibility tree were inspected; live picker contents, a successful real service action, and a real screen reader remain explicit user-instance/manual ceilings. Task reviews and the bounded whole-packet review are clean after the legacy-snapshot fix `2ab1139` and preview-scope alignment `74d4e27`.
+- **Finishing commit:** `74d4e27` plus checkpoint subject `docs: checkpoint W1-P5`
 
 ### W1-P6 — Weather identity and request races
 
 - **State:** Not started
 - **Depends on:** W1-P2
-- **Plan gate:** Create when W1-P5 is Verified.
+- **Plan gate:** Create just in time now that W1-P5 is Verified; no W1-P6 plan exists yet.
 - **Acceptance:** Weather cache identity uses normalized coordinates plus units/provider inputs; same-name locations do not collide; a late/aborted older request cannot overwrite a newer selection; visibility refresh and cache boundaries are deterministic.
 - **Finishing commit:** —
 
