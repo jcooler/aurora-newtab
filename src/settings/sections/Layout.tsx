@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
+import { emptyLayoutV2 } from '../../lib/layout/v2'
 import Section from '../Section'
 import { row, label, btnQuiet, btnDanger } from './shared'
 
@@ -71,7 +72,7 @@ export default function Layout({
         onCancel={() => setResetDialogOpen(false)}
         onConfirm={() => {
           setResetDialogOpen(false)
-          void storage.set('layout', {})
+          void storage.set('layout', emptyLayoutV2())
         }}
       />
     </Section>

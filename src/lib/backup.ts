@@ -7,7 +7,8 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
-import { BLOCK_IDS, type BlockId, type Layout } from './layout/types'
+import { BLOCK_IDS, LAYOUT_PROFILES, type BlockId, type LayoutV2, type Placement } from './layout/types'
+import { isValidPlacement, LegacyLayoutValidationError, validateLegacyLayout } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
 import { ownedOriginPatterns } from '../services/originOwnership'
@@ -374,16 +375,13 @@ function isCountdowns(v: unknown): boolean {
   )
 }
 
-function isBlockPos(v: unknown): boolean {
-  return isPlainObject(v) && isNumber(v.x) && isNumber(v.y)
-}
-
-// Structural only: every entry must be a finite {x,y} pair. Unknown block ids
-// (keys outside BLOCK_IDS) are NOT rejected here — they're silently dropped
-// later in the cleaned-assembly step below, matching the unknown-top-level-key
-// convention rather than failing the whole import.
 function isLayout(v: unknown): boolean {
-  return isPlainObject(v) && Object.values(v).every(isBlockPos)
+  try {
+    cleanLayout(v)
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Structural only, same restraint as every other validator here: just
@@ -424,14 +422,28 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   habits: isHabits,
 }
 
-const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
-
-/** Drops any layout entry whose key isn't a known BlockId. */
-function cleanLayout(v: unknown): Layout {
-  const layout = v as Layout
-  const cleaned: Layout = {}
-  for (const id of Object.keys(layout) as BlockId[]) {
-    if (BLOCK_ID_SET.has(id)) cleaned[id] = layout[id]
+/** Strictly validates known V2 members while dropping future profile/block ids. */
+function cleanLayout(v: unknown): LayoutV2 {
+  if (!isPlainObject(v) || v.version !== 2 || !isPlainObject(v.profiles)) {
+    throw new Error('invalid layout')
+  }
+  const profiles: LayoutV2['profiles'] = {}
+  for (const profileName of LAYOUT_PROFILES) {
+    if (!Object.prototype.hasOwnProperty.call(v.profiles, profileName)) continue
+    const rawProfile = v.profiles[profileName]
+    if (!isPlainObject(rawProfile)) throw new Error('invalid layout')
+    const profile: Partial<Record<BlockId, Placement>> = {}
+    for (const id of BLOCK_IDS) {
+      if (!Object.prototype.hasOwnProperty.call(rawProfile, id)) continue
+      const placement = rawProfile[id]
+      if (!isValidPlacement(placement)) throw new Error('invalid layout')
+      profile[id] = { ...placement }
+    }
+    profiles[profileName] = profile
+  }
+  const cleaned: LayoutV2 = { version: 2, profiles }
+  if (Object.prototype.hasOwnProperty.call(v, 'legacy')) {
+    cleaned.legacy = validateLegacyLayout(v.legacy)
   }
   return cleaned
 }
@@ -582,7 +594,10 @@ export function prepareBackup(raw: string): PrepareBackupResult {
   let migrated: AuroraData
   try {
     migrated = migrate(parsed.data, parsed.version)
-  } catch {
+  } catch (error) {
+    if (error instanceof LegacyLayoutValidationError) {
+      return { ok: false, reason: 'That backup\'s "layout" data is invalid.' }
+    }
     return { ok: false, reason: 'That backup cannot be migrated by this Aurora version.' }
   }
 

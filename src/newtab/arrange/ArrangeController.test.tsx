@@ -2,10 +2,11 @@
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { createStorage } from '../../lib/storage/index'
+import { createStorage, type AuroraStorage } from '../../lib/storage/index'
 import { memoryDriver, type StorageDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
-import type { Layout } from '../../lib/layout/types'
+import type { Layout, LayoutV2, Placement } from '../../lib/layout/types'
+import { emptyLayoutV2, layoutV2FromLegacy, legacyLayoutOf, withLegacyBlockPosition } from '../../lib/layout/v2'
 import { snapPosition } from '../../lib/layout/snap'
 import { clampCenterPct } from '../../lib/layout/clamp'
 import { pillAnchorRect } from '../../lib/layout/pillPlacement'
@@ -70,10 +71,12 @@ function Fixture({ onDraftChange }: { onDraftChange: (d: Layout) => void }) {
   )
 }
 
-async function renderController(seedLayout?: Layout) {
+async function renderController(seedLayout?: Layout | LayoutV2) {
   const storage = createStorage(memoryDriver())
   await storage.init()
-  if (seedLayout) await storage.set('layout', seedLayout)
+  if (seedLayout) {
+    await storage.set('layout', 'version' in seedLayout ? seedLayout : layoutV2FromLegacy(seedLayout))
+  }
   const onDraftChange = vi.fn()
   render(
     <StorageProvider storage={storage}>
@@ -82,6 +85,10 @@ async function renderController(seedLayout?: Layout) {
   )
   await act(async () => {})
   return { storage, onDraftChange }
+}
+
+async function readLegacy(storage: AuroraStorage): Promise<Layout> {
+  return legacyLayoutOf(await storage.get('layout'))
 }
 
 /** Long-press the clock fixture (500ms hold, no movement) — engages arrange
@@ -245,7 +252,7 @@ describe('ArrangeController', () => {
     fireEvent.pointerMove(outline, { pointerId: 1, clientX: 1000, clientY: 304 })
 
     // Drafts never hit storage mid-drag: still nothing written after the move.
-    expect((await storage.get('layout')).clock).toBeUndefined()
+    expect((await readLegacy(storage)).clock).toBeUndefined()
     expect(onDraftChange).toHaveBeenCalled()
 
     fireEvent.pointerUp(outline, { pointerId: 1 })
@@ -256,7 +263,7 @@ describe('ArrangeController', () => {
     const expectedSnap = snapPosition(rawPct, { w: 200, h: 100 }, others, { w: 1600, h: 900 })
     const expectedPos = clampCenterPct(expectedSnap.pos, { w: 200, h: 100 }, { w: 1600, h: 900 })
 
-    expect((await storage.get('layout')).clock).toEqual(expectedPos)
+    expect((await readLegacy(storage)).clock).toEqual(expectedPos)
     // Important review fix I2: the draft is NOT cleared on drop — it keeps
     // the dropped block's own committed position (matching what storage now
     // holds) instead of falling back to `{}`, which would have briefly
@@ -296,7 +303,7 @@ describe('ArrangeController', () => {
     fireEvent.pointerMove(outline, { pointerId: 1, clientX: 1000, clientY: 304 })
     fireEvent.pointerCancel(outline, { pointerId: 1 })
 
-    expect((await storage.get('layout')).clock).toBeUndefined()
+    expect((await readLegacy(storage)).clock).toBeUndefined()
     expect(onDraftChange).toHaveBeenLastCalledWith({})
     // Mode itself stays on — only the in-flight drag is aborted.
     expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
@@ -312,7 +319,94 @@ describe('ArrangeController', () => {
 
     expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
     expect(await storage.get('layout')).toEqual(beforeDone)
-    expect(beforeDone.clock).toBeDefined()
+    expect(legacyLayoutOf(beforeDone).clock).toBeDefined()
+  })
+
+  it('merges a moved block into every profile without erasing profile-only semantic overrides', async () => {
+    const greeting: Placement = {
+      zone: 'pulse', order: 7, colSpan: 2, rowSpan: 1,
+      variant: 'expanded', priority: 'automatic', locked: true,
+    }
+    const imported: LayoutV2 = {
+      version: 2,
+      profiles: { standard: { greeting }, ultrawide: { greeting: { ...greeting, order: 2 } } },
+    }
+    const { storage } = await renderController(imported)
+
+    engageClock()
+    await settleDrag()
+
+    const stored = await storage.get('layout')
+    expect(stored.legacy).toEqual({ clock: { x: 50, y: 50 } })
+    for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
+      expect(stored.profiles[profile]?.clock).toBeDefined()
+    }
+    expect(stored.profiles.standard?.greeting).toEqual(greeting)
+    expect(stored.profiles.ultrawide?.greeting).toEqual({ ...greeting, order: 2 })
+  })
+
+  it('serializes concurrent moved-block updates without losing legacy or unrelated semantic state', async () => {
+    const retained: Placement = {
+      zone: 'day', order: 4, colSpan: 3, rowSpan: 2,
+      variant: 'compact', priority: 'dock',
+    }
+    const migrated = layoutV2FromLegacy({ greeting: { x: 12, y: 88 }, clock: { x: 20, y: 20 } })
+    const seed: LayoutV2 = {
+      version: 2,
+      profiles: {
+        ultrawide: { notes: retained, ...migrated.profiles.ultrawide },
+        standard: { notes: retained, ...migrated.profiles.standard },
+        display: migrated.profiles.display,
+        compact: migrated.profiles.compact,
+      },
+      legacy: { greeting: { x: 12, y: 88 }, clock: { x: 20, y: 20 } },
+    }
+    const { storage } = await renderController(seed)
+    engageClock()
+    await settleDrag()
+
+    await act(async () => {
+      await Promise.all([
+        storage.update('layout', (current) => withLegacyBlockPosition(current, 'clock', { x: 51, y: 50 })),
+        storage.update('layout', (current) => withLegacyBlockPosition(current, 'greeting', { x: 25, y: 75 })),
+      ])
+    })
+
+    const stored = await storage.get('layout')
+    expect(stored.legacy).toEqual({ clock: { x: 51, y: 50 }, greeting: { x: 25, y: 75 } })
+    expect(stored.profiles.standard?.notes).toEqual({ ...retained, order: 1 })
+    expect(stored.profiles.ultrawide?.notes).toEqual({ ...retained, order: 1 })
+  })
+
+  it('persists identical exact V2 output for equivalent inputs with reversed insertion order', async () => {
+    const canonical = layoutV2FromLegacy({
+      weather: { x: 16.667, y: 40 },
+      clock: { x: 16.667, y: 60 },
+    })
+    const reversed: LayoutV2 = {
+      version: 2,
+      profiles: Object.fromEntries(Object.entries(canonical.profiles).reverse().map(([profile, blocks]) => [
+        profile,
+        Object.fromEntries(Object.entries(blocks ?? {}).reverse()),
+      ])) as LayoutV2['profiles'],
+      legacy: Object.fromEntries(Object.entries(canonical.legacy ?? {}).reverse()),
+    }
+
+    const first = await renderController(canonical)
+    engageClock()
+    await settleDrag()
+    const firstStored = await first.storage.get('layout')
+
+    cleanup()
+    const second = await renderController(reversed)
+    engageClock()
+    await settleDrag()
+    const secondStored = await second.storage.get('layout')
+
+    const expected = withLegacyBlockPosition(canonical, 'clock', { x: 50, y: 50 })
+    expect(firstStored).toEqual(expected)
+    expect(secondStored).toEqual(expected)
+    expect(JSON.stringify(secondStored)).toBe(JSON.stringify(firstStored))
   })
 
   describe('Reset opens a real confirm dialog (replaces the old two-click armed idiom)', () => {
@@ -324,7 +418,7 @@ describe('ArrangeController', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
       await act(async () => {})
 
-      expect((await storage.get('layout')).clock).toBeDefined() // unchanged — opening the dialog never writes
+      expect((await readLegacy(storage)).clock).toBeDefined() // unchanged — opening the dialog never writes
       const dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
       expect(dialog).toBeTruthy()
       expect(screen.getByText("Every widget returns to its default position. This can't be undone.")).toBeTruthy()
@@ -352,7 +446,7 @@ describe('ArrangeController', () => {
       await act(async () => {})
 
       expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
-      expect((await storage.get('layout')).clock).toBeDefined() // still untouched
+      expect((await readLegacy(storage)).clock).toBeDefined() // still untouched
       // Still in arrange mode — Cancel doesn't exit arrange, only the dialog.
       expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
     })
@@ -367,7 +461,7 @@ describe('ArrangeController', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
       await act(async () => {})
 
-      expect(await storage.get('layout')).toEqual({})
+      expect(await storage.get('layout')).toEqual(emptyLayoutV2())
       expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
       // Still in arrange mode — confirming Reset doesn't exit.
       expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy()
@@ -386,7 +480,7 @@ describe('ArrangeController', () => {
       fireEvent.keyDown(document, { key: 'Escape' }) // dialog is the newest stack entry — closes first
       expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
       expect(screen.getByRole('button', { name: 'Done' })).toBeTruthy() // still arranging
-      expect((await storage.get('layout')).clock).toBeDefined() // Escape-cancel never writes
+      expect((await readLegacy(storage)).clock).toBeDefined() // Escape-cancel never writes
 
       fireEvent.keyDown(document, { key: 'Escape' }) // now arrange's own exit is the top entry
       expect(screen.queryByRole('button', { name: 'Done' })).toBeNull()
@@ -425,13 +519,13 @@ describe('ArrangeController', () => {
     await act(async () => {})
 
     // The second pointer's gesture must not have written anything.
-    expect((await storage.get('layout')).greeting).toBeUndefined()
+    expect((await readLegacy(storage)).greeting).toBeUndefined()
 
     // The original (pointerId 1) drag is still live and completes normally.
     fireEvent.pointerMove(clockOutline, { pointerId: 1, clientX: 1000, clientY: 304 })
     fireEvent.pointerUp(clockOutline, { pointerId: 1 })
     await act(async () => {})
-    expect((await storage.get('layout')).clock).toBeDefined()
+    expect((await readLegacy(storage)).clock).toBeDefined()
   })
 
   it('long-press entry focuses the ENGAGED block\'s own Move button (not just any outline)', async () => {
@@ -461,7 +555,7 @@ describe('ArrangeController', () => {
       const others = [{ cxPx: 175, cyPx: 830, w: 150, h: 60 }] // greeting's measured center/size
       const snapped = snapPosition(rawPct, { w: 200, h: 100 }, others, { w: 1600, h: 900 })
       const draggedPos = clampCenterPct(snapped.pos, { w: 200, h: 100 }, { w: 1600, h: 900 })
-      expect((await storage.get('layout')).clock).toEqual(draggedPos)
+      expect((await readLegacy(storage)).clock).toEqual(draggedPos)
 
       // Now nudge — this MUST base off draggedPos. clock's `rects` entry
       // (from mode-entry measureAll) still holds its ORIGINAL (700,400)
@@ -476,7 +570,7 @@ describe('ArrangeController', () => {
         { w: 200, h: 100 },
         { w: 1600, h: 900 },
       )
-      expect((await storage.get('layout')).clock).toEqual(expectedAfterNudge)
+      expect((await readLegacy(storage)).clock).toEqual(expectedAfterNudge)
     })
 
     it('a nudge then a NEW drag (grabbing the same outline again) starts from the post-nudge position, not a re-derived stale rect', async () => {
@@ -487,7 +581,7 @@ describe('ArrangeController', () => {
       const outline = screen.getByRole('button', { name: 'Move Clock' })
       fireEvent.keyDown(outline, { key: 'ArrowRight' }) // +8px -> 50.5%
       await act(async () => {})
-      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+      expect((await readLegacy(storage)).clock).toEqual({ x: 50.5, y: 50 })
 
       // Press the SAME outline again to start a second drag — with NO
       // movement before release, whatever position beginDrag computes as
@@ -499,7 +593,7 @@ describe('ArrangeController', () => {
       // Must still be the post-nudge (50.5, 50) — before the fix, beginDrag
       // always re-derived from the fresh (but stale-for-this-purpose)
       // measured rect, landing back at (50, 50) instead.
-      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+      expect((await readLegacy(storage)).clock).toEqual({ x: 50.5, y: 50 })
     })
   })
 
@@ -537,7 +631,7 @@ describe('ArrangeController', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button — writes {} to layout, clears nudged
       await act(async () => {})
 
-      expect(await storage.get('layout')).toEqual({})
+      expect(await storage.get('layout')).toEqual(emptyLayoutV2())
 
       // The self-heal effect schedules its re-measure via
       // requestAnimationFrame (real in this jsdom-via-vitest environment,
@@ -570,7 +664,7 @@ describe('ArrangeController', () => {
         { w: 200, h: 100 },
         { w: 1600, h: 900 },
       )
-      expect((await storage.get('layout')).clock).toEqual(expected)
+      expect((await readLegacy(storage)).clock).toEqual(expected)
     })
   })
 
@@ -591,7 +685,7 @@ describe('ArrangeController', () => {
       fireEvent.pointerUp(clockOutline, { pointerId: 3 })
       await act(async () => {})
 
-      const finalLayout = await storage.get('layout')
+      const finalLayout = await readLegacy(storage)
       // The LAST draft this drop sends must still contain greeting's earlier
       // nudge AND clock's own just-committed drop — not `{}`. Before the
       // fix, this called onDraftChange({}) here: PositionedBlock would then
@@ -640,7 +734,7 @@ describe('ArrangeController', () => {
 
       // clock's rect centers at (800, 450) on a 1600x900 viewport = (50%, 50%).
       // +8px on x = (8/1600)*100 = 0.5% -> 50.5%; y is untouched.
-      expect((await storage.get('layout')).clock).toEqual({ x: 50.5, y: 50 })
+      expect((await readLegacy(storage)).clock).toEqual({ x: 50.5, y: 50 })
     })
 
     it('Shift+Arrow nudges by 1px instead of 8px', async () => {
@@ -653,7 +747,7 @@ describe('ArrangeController', () => {
       await act(async () => {})
 
       const expectedY = 50 + (1 / 900) * 100
-      expect((await storage.get('layout')).clock).toEqual({ x: 50, y: expectedY })
+      expect((await readLegacy(storage)).clock).toEqual({ x: 50, y: expectedY })
     })
 
     it('consecutive nudges compound from the LAST nudged position, not the original rect each time', async () => {
@@ -669,7 +763,7 @@ describe('ArrangeController', () => {
       // Two 8px nudges = 16px total = (16/1600)*100 = 1% -> 51%. A bug that
       // re-derives the base from the (unchanged) measured rect every time
       // would instead land back at 50.5% on the second press.
-      expect((await storage.get('layout')).clock).toEqual({ x: 51, y: 50 })
+      expect((await readLegacy(storage)).clock).toEqual({ x: 51, y: 50 })
     })
 
     it("a default-positioned block's first nudge bases off its CURRENT measured rect center — it must not jump to some other value", async () => {
@@ -685,7 +779,7 @@ describe('ArrangeController', () => {
       // (10.9375%, 92.2222...%); +8px on x = 0.5% -> 11.4375%. A base of 0 or
       // the viewport center (either being "not this block's own rect") would
       // land somewhere else entirely.
-      const layout = await storage.get('layout')
+      const layout = await readLegacy(storage)
       expect(layout.greeting?.x).toBeCloseTo(11.4375, 10)
       expect(layout.greeting?.y).toBeCloseTo((830 / 900) * 100, 10)
     })
@@ -707,7 +801,7 @@ describe('ArrangeController', () => {
       }
       await act(async () => {})
 
-      const finalPos = (await storage.get('layout')).clock
+      const finalPos = (await readLegacy(storage)).clock
       expect(finalPos?.x).toBeCloseTo((108 / 1600) * 100, 10)
       expect(finalPos?.y).toBe(50)
     })

@@ -10,6 +10,8 @@ import {
 } from './backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate, migrations } from './storage/migrations'
+import type { LayoutV2, Placement } from './layout/types'
+import { layoutV2FromLegacy } from './layout/v2'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
 describe('Quick Link import safety (W1-P9)', () => {
@@ -748,8 +750,8 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     expect(result).toEqual({ ok: false, reason: 'That backup\'s "timerConfig" data is invalid.' })
   })
 
-  it('rejects a layout whose entry is not a finite pair', () => {
-    const bad = { ...defaults(), layout: { clock: { x: NaN, y: 10 } } }
+  it('rejects a V2 layout whose known legacy entry is not a finite pair', () => {
+    const bad = { ...defaults(), layout: { version: 2, profiles: {}, legacy: { clock: { x: NaN, y: 10 } } } }
     const result = validateBackupShape(bad as never)
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.reason).toBe('That backup\'s "layout" data is invalid.')
@@ -880,12 +882,105 @@ describe('validateBackupShape: unknown-key dropping', () => {
     }
   })
 
-  it('drops unknown block ids from layout on import but keeps known ones', () => {
-    const data = { ...defaults(), layout: { clock: { x: 40, y: 30 }, bogus: { x: 1, y: 1 } } }
+  it('drops unknown profile and block ids from V2 layout while keeping known placements and legacy rows', () => {
+    const placement: Placement = { zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' }
+    const data = {
+      ...defaults(),
+      layout: {
+        version: 2,
+        profiles: { standard: { clock: placement, bogus: 'malformed but unknown' }, future: { clock: 'ignored' } },
+        legacy: { clock: { x: 40, y: 30 }, bogus: 'malformed but unknown' },
+      },
+    }
     const result = validateBackupShape(data as never)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      expect(result.data.layout).toEqual({ clock: { x: 40, y: 30 } })
+      expect(result.data.layout).toEqual({
+        version: 2,
+        profiles: { standard: { clock: placement } },
+        legacy: { clock: { x: 40, y: 30 } },
+      })
     }
+  })
+})
+
+describe('W3-P1 Layout V2 backup compatibility', () => {
+  const placement: Placement = {
+    zone: 'pulse', order: 2, colSpan: 2, rowSpan: 3,
+    variant: 'expanded', priority: 'automatic', locked: true,
+  }
+
+  function envelope(version: number, layout: unknown): string {
+    return JSON.stringify({ app: 'aurora', version, data: { ...defaults(), layout } })
+  }
+
+  it('exports schema 10 with only the supplied V2 overrides and exact optional legacy map', () => {
+    const layout: LayoutV2 = { version: 2, profiles: { display: { notes: placement } }, legacy: { notes: { x: 12, y: 34 } } }
+    const parsed = JSON.parse(serializeBackup({ ...defaults(), layout }))
+    expect(parsed.version).toBe(10)
+    expect(parsed.data.layout).toEqual(layout)
+    expect(Object.keys(parsed.data.layout.profiles)).toEqual(['display'])
+  })
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])('migrates a v%s layout through the complete historical acceptance matrix', (version) => {
+    const legacy = { clock: { x: 50, y: 50 }, greeting: { x: 83.333, y: 50 } }
+    const result = prepareBackup(envelope(version, legacy))
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const expectedLegacy = version <= 2 ? {} : legacy
+    expect(result.data.layout).toEqual(layoutV2FromLegacy(expectedLegacy))
+    expect(result.data.layout.legacy).toEqual(expectedLegacy)
+    expect(Object.keys(result.data.layout.profiles)).toEqual(['compact', 'standard', 'display', 'ultrawide'])
+    for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
+      expect(result.data.layout.profiles[profile]).toEqual(layoutV2FromLegacy(expectedLegacy).profiles[profile])
+    }
+  })
+
+  it.each([
+    ['primitive', 'bad'],
+    ['array', []],
+    ['malformed known row', { clock: { x: 1e400, y: 10 } }],
+  ])('maps old %s layout failures to the safe layout reason', (_label, layout) => {
+    expect(prepareBackup(envelope(9, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
+  })
+
+  it('drops malformed unknown legacy ids only after validating every known row', () => {
+    const result = prepareBackup(envelope(9, { clock: { x: 10, y: 20 }, bogus: 'malformed' }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.layout.legacy).toEqual({ clock: { x: 10, y: 20 } })
+
+    expect(prepareBackup(envelope(9, { clock: { x: 'bad', y: 20 }, bogus: { x: 1, y: 2 } }))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layout" data is invalid.',
+    })
+  })
+
+  it('round-trips valid current profiles and optional legacy after cleanup', () => {
+    const layout: LayoutV2 = { version: 2, profiles: { standard: { notes: placement } }, legacy: { notes: { x: 15, y: 25 } } }
+    const result = prepareBackup(envelope(10, layout))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.layout).toEqual(layout)
+  })
+
+  it.each([
+    ['primitive layout', 'bad'],
+    ['array layout', []],
+    ['missing version', { profiles: {} }],
+    ['wrong version', { version: 3, profiles: {} }],
+    ['primitive profiles', { version: 2, profiles: 'bad' }],
+    ['malformed known profile', { version: 2, profiles: { standard: [] } }],
+    ['malformed known placement', { version: 2, profiles: { standard: { clock: { ...placement, zone: 'future' } } } }],
+    ['missing variant', { version: 2, profiles: { standard: { clock: { ...placement, variant: undefined } } } }],
+    ['invalid variant', { version: 2, profiles: { standard: { clock: { ...placement, variant: 'future' } } } }],
+    ['missing priority', { version: 2, profiles: { standard: { clock: { ...placement, priority: undefined } } } }],
+    ['invalid priority', { version: 2, profiles: { standard: { clock: { ...placement, priority: 'future' } } } }],
+    ['negative order', { version: 2, profiles: { standard: { clock: { ...placement, order: -1 } } } }],
+    ['fractional order', { version: 2, profiles: { standard: { clock: { ...placement, order: 0.5 } } } }],
+    ['zero span', { version: 2, profiles: { standard: { clock: { ...placement, colSpan: 0 } } } }],
+    ['fractional span', { version: 2, profiles: { standard: { clock: { ...placement, rowSpan: 1.5 } } } }],
+    ['nonboolean locked', { version: 2, profiles: { standard: { clock: { ...placement, locked: 'yes' } } } }],
+    ['malformed legacy', { version: 2, profiles: {}, legacy: { clock: { x: 1, y: 'bad' } } }],
+  ])('rejects current V2 %s with the safe layout reason', (_label, layout) => {
+    expect(prepareBackup(envelope(10, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
   })
 })

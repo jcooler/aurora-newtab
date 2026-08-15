@@ -7,6 +7,7 @@ import { createInProcessStorageAuthority } from '../lib/storage/authority'
 import { StorageProvider } from '../lib/storage/context'
 import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
+import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
 import { CURATED_STATUS } from '../services/connectors/status'
 import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
@@ -2409,7 +2410,8 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   it('Reset layout opens a real confirm dialog; Cancel writes nothing, confirming writes {}', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
+    await storage.set('layout', positioned)
     render(
       <StorageProvider storage={storage}>
         <SettingsPanel onArrangeLayout={() => {}} />
@@ -2419,7 +2421,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     openTab('Widgets')
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // opening the dialog never writes
+    expect(await storage.get('layout')).toEqual(positioned) // opening the dialog never writes
     // The dialog portals to document.body, outside the "Layout" region's own
     // subtree — and its confirm button shares the SAME accessible name
     // ("Reset layout") as the section button that opened it, so every
@@ -2429,19 +2431,20 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Cancel never writes
+    expect(await storage.get('layout')).toEqual(positioned) // Cancel never writes
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
     await act(async () => {})
-    expect(await storage.get('layout')).toEqual({})
+    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
   })
 
   it('Escape cancels the confirm dialog without writing anything', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
+    await storage.set('layout', positioned)
     render(
       <StorageProvider storage={storage}>
         <SettingsPanel onArrangeLayout={() => {}} />
@@ -2456,13 +2459,13 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
 
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+    expect(await storage.get('layout')).toEqual(positioned)
   })
 
   it('an open confirm dialog does not survive the drawer closing, so reopening within the same session shows it closed (review fix)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    await storage.set('layout', layoutV2FromLegacy({ clock: { x: 10, y: 10 } }))
     function Wrapper({ open }: { open: boolean }) {
       return (
         <StorageProvider storage={storage}>
@@ -2483,7 +2486,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(within(layoutRegion()).getByRole('button', { name: 'Reset layout' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
     // And nothing was actually written by the stray open dialog.
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } })
+    expect(await storage.get('layout')).toEqual(layoutV2FromLegacy({ clock: { x: 10, y: 10 } }))
   })
 
   it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {

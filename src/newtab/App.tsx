@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { applyPanelColor } from '../theme/index'
 import type { Layout } from '../lib/layout/types'
+import { legacyLayoutOf } from '../lib/layout/v2'
 import Background from './components/Background'
 import Clock from './components/Clock'
 import Greeting from './components/Greeting'
@@ -149,6 +150,7 @@ export default function App() {
   }, [])
 
   if (!settings || !photoPrefs || !layout) return null
+  const legacyLayout = legacyLayoutOf(layout)
 
   return (
     <main className="relative h-screen overflow-hidden text-fg">
@@ -173,7 +175,7 @@ export default function App() {
               the column bounds the greeting directly now. */}
           <div className="mx-auto flex h-full max-w-[var(--center-reserve)] flex-col items-center justify-center narrow:px-4">
             <WidgetBoundary name="clock">
-              <PositionedBlock id="clock" pos={layout?.clock}>
+              <PositionedBlock id="clock" pos={legacyLayout.clock}>
                 <Clock />
               </PositionedBlock>
             </WidgetBoundary>
@@ -187,32 +189,32 @@ export default function App() {
                   wrapper to the column makes the greeting's cap bind — see
                   Greeting.tsx's own min-w-0 note. Dropped on the arranged branch
                   (a stored pos is the user's own). */}
-              <PositionedBlock id="greeting" pos={layout?.greeting} className="min-w-0 max-w-full">
+              <PositionedBlock id="greeting" pos={legacyLayout.greeting} className="min-w-0 max-w-full">
                 <Greeting />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="clocks">
-              <PositionedBlock id="worldClocks" pos={layout?.worldClocks}>
+              <PositionedBlock id="worldClocks" pos={legacyLayout.worldClocks}>
                 <WorldClocks />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="countdown">
-              <PositionedBlock id="countdown" pos={layout?.countdown}>
+              <PositionedBlock id="countdown" pos={legacyLayout.countdown}>
                 <CountdownLine />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="search">
-              <PositionedBlock id="search" pos={layout?.search}>
+              <PositionedBlock id="search" pos={legacyLayout.search}>
                 <SearchBar />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="focus">
-              <PositionedBlock id="focus" pos={layout?.focus}>
+              <PositionedBlock id="focus" pos={legacyLayout.focus}>
                 <FocusLine />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="links">
-              <PositionedBlock id="links" pos={layout?.links}>
+              <PositionedBlock id="links" pos={legacyLayout.links}>
                 <LinksWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -263,7 +265,7 @@ export default function App() {
             */}
             <PositionedBlock
               id="weather"
-              pos={layout?.weather}
+              pos={legacyLayout.weather}
               className={`fixed right-4 top-[var(--top-band)]${weatherExpanded ? ' z-30' : ''}`}
             >
               <WeatherWidget onExpandedChange={setWeatherExpanded} />
@@ -350,7 +352,7 @@ export default function App() {
             */}
             <PositionedBlock
               id="bookmarks"
-              pos={layout?.bookmarks}
+              pos={legacyLayout.bookmarks}
               className={`fixed inset-x-0 top-[var(--top-band-gap)] mx-auto w-fit${bookmarksPopoverOpen ? ' z-50' : ''}`}
             >
               <BookmarksBar onPopoverOpenChange={setBookmarksPopoverOpen} />
@@ -370,7 +372,7 @@ export default function App() {
                 this fix. */}
             <PositionedBlock
               id="timer"
-              pos={layout?.timer}
+              pos={legacyLayout.timer}
               className={`fixed left-4 top-[var(--top-band)]${timerOpen ? ' z-30' : ''}`}
             >
               <TimerWidget onOpenChange={setTimerOpen} />
@@ -384,7 +386,7 @@ export default function App() {
                 found first (Notes panel painting under Vercel's card). */}
             <PositionedBlock
               id="notes"
-              pos={layout?.notes}
+              pos={legacyLayout.notes}
               className={`fixed bottom-4 left-16${notesOpen ? ' z-30' : ''}`}
             >
               <NotesWidget onOpenChange={setNotesOpen} />
@@ -398,7 +400,7 @@ export default function App() {
                 (Tasks panel painting under Jira's card). */}
             <PositionedBlock
               id="tasks"
-              pos={layout?.tasks}
+              pos={legacyLayout.tasks}
               className={`fixed bottom-4 right-16${tasksOpen ? ' z-30' : ''}`}
             >
               <TodoWidget onOpenChange={setTasksOpen} />
@@ -490,17 +492,17 @@ export default function App() {
             <div className="flex flex-row items-start gap-4">
               <div className="flex flex-col gap-4">
                 <WidgetBoundary name="ics">
-                  <PositionedBlock id="ics" pos={layout?.ics} className="rail-primary tier-fade">
+                  <PositionedBlock id="ics" pos={legacyLayout.ics} className="rail-primary tier-fade">
                     <CalendarWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="rss">
-                  <PositionedBlock id="rss" pos={layout?.rss} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
+                  <PositionedBlock id="rss" pos={legacyLayout.rss} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
                     <RssWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="vercel">
-                  <PositionedBlock id="vercel" pos={layout?.vercel} className="rail-primary tier-fade dense:hidden dense:opacity-0">
+                  <PositionedBlock id="vercel" pos={legacyLayout.vercel} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                     <VercelWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
@@ -557,7 +559,7 @@ export default function App() {
                 <WidgetBoundary name="homeassistant">
                   <PositionedBlock
                     id="homeassistant"
-                    pos={layout?.homeassistant}
+                    pos={legacyLayout.homeassistant}
                     className="rail-primary tier-fade hidden opacity-0 tallest:block tallest:opacity-100"
                   >
                     <HomeAssistantWidget />
@@ -566,22 +568,22 @@ export default function App() {
               </div>
               <div className="flex flex-col gap-4">
                 <WidgetBoundary name="monthCal">
-                  <PositionedBlock id="monthCal" pos={layout?.monthCal} className="rail-col2 tier-fade">
+                  <PositionedBlock id="monthCal" pos={legacyLayout.monthCal} className="rail-col2 tier-fade">
                     <MonthCalWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="habits">
-                  <PositionedBlock id="habits" pos={layout?.habits} className="rail-col2 tier-fade">
+                  <PositionedBlock id="habits" pos={legacyLayout.habits} className="rail-col2 tier-fade">
                     <HabitsWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="sun">
-                  <PositionedBlock id="sun" pos={layout?.sun} className="rail-col2 tier-fade">
+                  <PositionedBlock id="sun" pos={legacyLayout.sun} className="rail-col2 tier-fade">
                     <SunWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
                 <WidgetBoundary name="moon">
-                  <PositionedBlock id="moon" pos={layout?.moon} className="rail-col2 tier-fade">
+                  <PositionedBlock id="moon" pos={legacyLayout.moon} className="rail-col2 tier-fade">
                     <MoonWidget />
                   </PositionedBlock>
                 </WidgetBoundary>
@@ -704,17 +706,17 @@ export default function App() {
               see the left rail's WIDTH DISCIPLINE note and index.css. */}
           <aside data-zone="right" aria-label="Right widget rail" className="fixed right-8 top-[var(--rail-top-right)] flex w-[var(--rail-w)] flex-col items-end gap-4">
             <WidgetBoundary name="github">
-              <PositionedBlock id="github" pos={layout?.github} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
+              <PositionedBlock id="github" pos={legacyLayout.github} className="rail-primary tier-fade xshort:hidden xshort:opacity-0">
                 <GithubWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="gitlab">
-              <PositionedBlock id="gitlab" pos={layout?.gitlab} className="rail-primary tier-fade dense:hidden dense:opacity-0">
+              <PositionedBlock id="gitlab" pos={legacyLayout.gitlab} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                 <GitlabWidget />
               </PositionedBlock>
             </WidgetBoundary>
             <WidgetBoundary name="jira">
-              <PositionedBlock id="jira" pos={layout?.jira} className="rail-primary tier-fade dense:hidden dense:opacity-0">
+              <PositionedBlock id="jira" pos={legacyLayout.jira} className="rail-primary tier-fade dense:hidden dense:opacity-0">
                 <JiraWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -864,7 +866,7 @@ export default function App() {
                   TEXT gets its own separate, still-`tallest`-gated reveal
                   inside StatusWidget.tsx itself (each `<p>` carries its own
                   `hidden tallest:block`), not this wrapper. */}
-              <PositionedBlock id="status" pos={layout?.status} className="tier-fade hidden opacity-0 ampler:block ampler:opacity-100">
+              <PositionedBlock id="status" pos={legacyLayout.status} className="tier-fade hidden opacity-0 ampler:block ampler:opacity-100">
                 <StatusWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -881,7 +883,7 @@ export default function App() {
                   when the viewport is `taller` than the measured floor (a hidden
                   crypto sets display:none and drops out of the flex flow — no
                   phantom gap above the quote). */}
-              <PositionedBlock id="crypto" pos={layout?.crypto} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
+              <PositionedBlock id="crypto" pos={legacyLayout.crypto} className="tier-fade hidden opacity-0 taller:block taller:opacity-100">
                 <CryptoWidget />
               </PositionedBlock>
             </WidgetBoundary>
@@ -910,7 +912,7 @@ export default function App() {
                   landmine the bookmarks/quote wrappers were converted away from. A
                   stored `pos` still wins (both classes dropped on the arranged
                   branch, so an arranged quote is never height-hidden). */}
-              <PositionedBlock id="quote" pos={layout?.quote} className="quote-gate tier-fade">
+              <PositionedBlock id="quote" pos={legacyLayout.quote} className="quote-gate tier-fade">
                 <QuoteWidget />
               </PositionedBlock>
             </WidgetBoundary>

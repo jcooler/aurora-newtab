@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { BLOCK_IDS, type BlockId, type BlockPos, type Layout } from '../../lib/layout/types'
+import { emptyLayoutV2, withLegacyBlockPosition } from '../../lib/layout/v2'
 import { clampCenterPct, type Size } from '../../lib/layout/clamp'
 import { snapPosition, type Guide, type OtherRect } from '../../lib/layout/snap'
 import { choosePillAnchor, pillAnchorRect, type PillAnchor } from '../../lib/layout/pillPlacement'
@@ -452,7 +453,7 @@ export default function ArrangeController({
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!drag || e.pointerId !== drag.pointerId) return
     const { blockId, pos, pointerId } = drag
-    void storage.update('layout', (current) => ({ ...current, [blockId]: pos }))
+    void storage.update('layout', (current) => withLegacyBlockPosition(current, blockId, pos))
     // CRITICAL review fix: reconcile `nudged` with the position this drag
     // just committed. `rects`/a fresh DOM measurement won't reflect this
     // until the next resize or mode re-entry, so without this, a keyboard
@@ -541,7 +542,7 @@ export default function ArrangeController({
     const nextNudged = { ...nudged, [blockId]: next }
     setNudged(nextNudged)
     onDraftChange(nextNudged)
-    void storage.update('layout', (current) => ({ ...current, [blockId]: next }))
+    void storage.update('layout', (current) => withLegacyBlockPosition(current, blockId, next))
   }
 
   if (mode !== 'on') return null
@@ -665,7 +666,7 @@ export default function ArrangeController({
         onCancel={() => setResetDialogOpen(false)}
         onConfirm={() => {
           setResetDialogOpen(false)
-          void storage.set('layout', {})
+          void storage.set('layout', emptyLayoutV2())
           setNudged({})
           onDraftChange({})
         }}

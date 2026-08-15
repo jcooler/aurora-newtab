@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { AuroraStorage } from './storage'
 import type { StorageDriver } from './storage/driver'
 import type { AuroraData } from './storage/schema'
+import { layoutV2FromLegacy } from './layout/v2'
 import type {
   OriginPermissionAuthority,
   OriginTransactionContext,
@@ -329,7 +330,7 @@ describe('backup restore coordinator', () => {
       notes: { text: 'Literal note', updatedAt: 1234 },
       worldClocks: [{ zone: 'Europe/London', label: 'London' }],
       countdowns: [{ id: 'before-countdown', name: 'Before countdown', date: '2026-12-31' }],
-      layout: { clock: { x: 12, y: 34 } },
+      layout: layoutV2FromLegacy({ clock: { x: 12, y: 34 } }),
       connectors: {},
       connectorSnapshots: {},
       habits: [{ id: 'before-habit', name: 'Before habit', createdAt: 10, log: ['2026-08-13'] }],

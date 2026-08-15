@@ -8,6 +8,7 @@ import { defaults } from '../lib/storage/schema'
 import type { StoredLocation, WeatherSnapshot } from '../lib/storage/schema'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import { weatherRequestIdentity } from '../services/weather/identity'
+import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
 import App from './App'
 
 // loadBarModel/hasBookmarksPermission (chrome.bookmarks.getTree,
@@ -111,7 +112,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
   it('Settings\' Reset layout confirm dialog: a first Escape cancels the dialog only; a second Escape then closes the drawer (dialog-stack ordering)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { clock: { x: 10, y: 10 } })
+    await storage.set('layout', layoutV2FromLegacy({ clock: { x: 10, y: 10 } }))
     render(
       <StorageProvider storage={storage}>
         <App />
@@ -140,7 +141,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     })
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
     expect(drawerPanel.getAttribute('inert')).toBeNull() // drawer untouched by this first Escape
-    expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Escape-cancel never writes
+    expect(await storage.get('layout')).toEqual(layoutV2FromLegacy({ clock: { x: 10, y: 10 } })) // Escape-cancel never writes
     expect(document.activeElement).toBe(resetButton)
 
     await act(async () => {
@@ -379,6 +380,23 @@ describe('App — default-placement wrapper classNames carry no transform (bookm
 // at risk of an accidental revert — that neither peripheral shares the bar's
 // own `top-4` any more.
 describe('App — the bookmarks bar owns the top band; timer/weather default below it', () => {
+  it('a fresh V2 envelope with no legacy positions keeps the source default flow', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layout', emptyLayoutV2())
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const timer = document.querySelector('[data-block-id="timer"]') as HTMLElement
+    expect(timer.classList.contains('left-4')).toBe(true)
+    expect(timer.classList.contains('top-[var(--top-band)]')).toBe(true)
+    expect(timer.style.position).toBe('')
+  })
+
   it('bookmarks sits at the top of the band; timer and weather default below it', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -417,7 +435,7 @@ describe('App — the bookmarks bar owns the top band; timer/weather default bel
   it('a stored layout still wins — the new default offset never reaches a positioned block', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { timer: { x: 80, y: 60 }, weather: { x: 20, y: 40 } })
+    await storage.set('layout', layoutV2FromLegacy({ timer: { x: 80, y: 60 }, weather: { x: 20, y: 40 } }))
     render(
       <StorageProvider storage={storage}>
         <App />
@@ -789,7 +807,7 @@ describe('App — responsive rails: flowing default placement, arranged widgets 
   it('an ARRANGED rail widget leaves the rail: rendered once, position:fixed, className (any hide/marker) dropped — an arranged user owns their layout at every width', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { monthCal: { x: 30, y: 20 }, vercel: { x: 70, y: 80 } })
+    await storage.set('layout', layoutV2FromLegacy({ monthCal: { x: 30, y: 20 }, vercel: { x: 70, y: 80 } }))
     render(
       <StorageProvider storage={storage}>
         <App />
@@ -881,7 +899,7 @@ describe('App — bottom band: flowing crypto + quote, arranged widgets leave th
   it('an ARRANGED crypto/quote leaves the band: rendered once, position:fixed, className (the tier hide) dropped', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('layout', { crypto: { x: 40, y: 90 }, quote: { x: 55, y: 85 } })
+    await storage.set('layout', layoutV2FromLegacy({ crypto: { x: 40, y: 90 }, quote: { x: 55, y: 85 } }))
     render(
       <StorageProvider storage={storage}>
         <App />
