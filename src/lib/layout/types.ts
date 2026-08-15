@@ -5,4 +5,34 @@ export const BLOCK_IDS = [
 export type BlockId = (typeof BLOCK_IDS)[number]
 /** Block CENTER as percent of viewport (0-100 each axis), finite. */
 export interface BlockPos { x: number; y: number }
-export type Layout = Partial<Record<BlockId, BlockPos>>
+export type LegacyLayout = Partial<Record<BlockId, BlockPos>>
+/** Compatibility alias for percentage-based W3-P1 consumers. */
+export type Layout = LegacyLayout
+
+export const LAYOUT_PROFILES = ['compact', 'standard', 'display', 'ultrawide'] as const
+export type LayoutProfile = (typeof LAYOUT_PROFILES)[number]
+
+export const WIDGET_VARIANTS = ['compact', 'standard', 'expanded'] as const
+export type WidgetVariant = (typeof WIDGET_VARIANTS)[number]
+
+export const ZONES = ['day', 'now', 'pulse', 'dock'] as const
+export type Zone = (typeof ZONES)[number]
+
+export const PRIORITIES = ['pinned', 'automatic', 'dock'] as const
+export type Priority = (typeof PRIORITIES)[number]
+
+export interface Placement {
+  zone: Zone
+  order: number
+  colSpan: number
+  rowSpan: number
+  variant: WidgetVariant
+  priority: Priority
+  locked?: boolean
+}
+
+export interface LayoutV2 {
+  version: 2
+  profiles: Partial<Record<LayoutProfile, Partial<Record<BlockId, Placement>>>>
+  legacy?: LegacyLayout
+}

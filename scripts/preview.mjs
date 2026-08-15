@@ -19513,6 +19513,199 @@ await page.waitForTimeout(150)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
 }
 
+// W3-P1 packet aggregate. This complete fixture, predicate set, result line,
+// and teardown were frozen before any Layout V2 production edit. It uses one
+// disposable extension page and raw native storage to enter at schema v9,
+// then crosses the real startup and Data backup/restore paths. Every fallible
+// assertion is reduced to this one aggregate result and finally restores the
+// complete preimage before the page closes and the shared lock is crossed.
+{
+  const aggregateName = 'W3-P1 layout v2 migration and compatibility semantics'
+  const evidencePage = await context.newPage()
+  const storageLock = 'aurora:storage:mutation:v1'
+  const versionKey = 'aurora:version'
+  const dataKeys = [
+    'settings', 'focus', 'todoLists', 'links', 'timerConfig', 'photoPrefs',
+    'location', 'weatherCache', 'notes', 'worldClocks', 'countdowns', 'layout',
+    'connectors', 'connectorSnapshots', 'habits', 'apodCache',
+  ]
+  const touchedKeys = [...dataKeys, versionKey]
+  const profileNames = ['compact', 'standard', 'display', 'ultrawide']
+  const knownLegacy = {
+    clock: { x: 50, y: 50 },
+    greeting: { x: 33.3335, y: 50 },
+    weather: { x: 16.667, y: 50 },
+    github: { x: 83.333, y: 50 },
+    notes: { x: 50, y: 91.667 },
+    search: { x: 50, y: 55 },
+    focus: { x: -25, y: 140 },
+  }
+  const rawLegacy = { ...knownLegacy, removedWidget: { malformed: true } }
+  const expectedProfile = {
+    weather: { zone: 'day', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    greeting: { zone: 'day', order: 1, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    clock: { zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    search: { zone: 'now', order: 1, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    github: { zone: 'pulse', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    notes: { zone: 'dock', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    focus: { zone: 'dock', order: 1, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+  }
+  const expectedLayout = {
+    version: 2,
+    profiles: Object.fromEntries(profileNames.map((profile) => [profile, expectedProfile])),
+    legacy: knownLegacy,
+  }
+  const observations = {
+    fixture: { schema: 9, rawLegacy, expectedLayout },
+    migration: null,
+    centers: null,
+    backup: null,
+    cleanup: { restored: false, pageClosed: false, lockCrossed: false },
+    errors: [],
+  }
+  let originalPreimage = null
+
+  const canonicalize = (value) => {
+    if (Array.isArray(value)) return value.map(canonicalize)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
+    }
+    return value
+  }
+  const exact = (actual, expected) =>
+    JSON.stringify(canonicalize(actual)) === JSON.stringify(canonicalize(expected))
+  const centerOf = async (blockId) => evidencePage.locator(`[data-block-id="${blockId}"]`).evaluate((element) => {
+    const rect = element.getBoundingClientRect()
+    return { x: +(rect.left + rect.width / 2).toFixed(2), y: +(rect.top + rect.height / 2).toFixed(2) }
+  })
+
+  try {
+    await evidencePage.goto('chrome://newtab/')
+    await evidencePage.waitForSelector('time')
+    originalPreimage = await evidencePage.evaluate(async ({ keys, lockName, versionKey, layout }) =>
+      navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+        const original = await chrome.storage.local.get(keys)
+        await chrome.storage.local.set({ [versionKey]: 9, layout })
+        return original
+      }), { keys: touchedKeys, lockName: storageLock, versionKey, layout: rawLegacy })
+
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    const migrated = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    observations.migration = {
+      version: migrated[versionKey],
+      layout: migrated.layout,
+      exact: migrated[versionKey] === 10 && exact(migrated.layout, expectedLayout),
+      allProfiles: profileNames.every((profile) => exact(migrated.layout?.profiles?.[profile], expectedProfile)),
+      unknownDropped: migrated.layout?.legacy?.removedWidget === undefined &&
+        profileNames.every((profile) => migrated.layout?.profiles?.[profile]?.removedWidget === undefined),
+    }
+
+    const viewport = await evidencePage.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+    const expectedCenters = {
+      clock: { x: +(knownLegacy.clock.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.clock.y * viewport.height / 100).toFixed(2) },
+      greeting: { x: +(knownLegacy.greeting.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.greeting.y * viewport.height / 100).toFixed(2) },
+      search: { x: +(knownLegacy.search.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.search.y * viewport.height / 100).toFixed(2) },
+    }
+    const renderedCenters = {
+      clock: await centerOf('clock'),
+      greeting: await centerOf('greeting'),
+      search: await centerOf('search'),
+    }
+    observations.centers = {
+      expected: expectedCenters,
+      rendered: renderedCenters,
+      unchanged: Object.keys(expectedCenters).every((id) =>
+        Math.abs(expectedCenters[id].x - renderedCenters[id].x) <= 1 &&
+        Math.abs(expectedCenters[id].y - renderedCenters[id].y) <= 1
+      ),
+    }
+
+    const backupPreimage = { ...migrated, layout: expectedLayout, [versionKey]: 10 }
+    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, [versionKey]: _version, ...backupData } = backupPreimage
+    const backupEnvelope = {
+      app: 'aurora',
+      version: 10,
+      exportedAt: '2026-08-15T12:00:00.000Z',
+      redactions: {
+        reentryRequired: [],
+        notice: 'Connector secrets and capability URLs were not included. Re-enter them after restore.',
+      },
+      data: backupData,
+    }
+    await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({ settings: { ...current.settings, name: 'W3-P1 disposable mutation' } })
+    })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.getByRole('button', { name: 'Open settings', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Settings', exact: true }).waitFor()
+    await evidencePage.getByRole('tab', { name: 'Data', exact: true }).click()
+    await evidencePage.locator('#set-import').setInputFiles({
+      name: 'w3-p1-layout-v2.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify(backupEnvelope)),
+    })
+    const confirm = evidencePage.getByRole('button', { name: 'Confirm restore', exact: true })
+    const prepared = await confirm.isVisible().catch(() => false)
+    if (prepared) {
+      await confirm.click()
+      await evidencePage.getByRole('status').filter({ hasText: 'Backup restored.' }).waitFor({ timeout: 10_000 })
+    }
+    const restored = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    observations.backup = {
+      prepared,
+      committed: prepared && exact(restored, backupPreimage),
+      layout: restored.layout,
+      version: restored[versionKey],
+    }
+  } catch (error) {
+    observations.errors.push(error instanceof Error ? error.message : String(error))
+  } finally {
+    try {
+      if (originalPreimage) {
+        observations.cleanup.restored = await evidencePage.evaluate(async ({ keys, snapshot, lockName }) =>
+          navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+            const missing = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+            if (missing.length > 0) await chrome.storage.local.remove(missing)
+            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+            const restored = await chrome.storage.local.get(keys)
+            const canonicalize = (value) => {
+              if (Array.isArray(value)) return value.map(canonicalize)
+              if (value && typeof value === 'object') {
+                return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
+              }
+              return value
+            }
+            return JSON.stringify(canonicalize(restored)) === JSON.stringify(canonicalize(snapshot))
+          }), { keys: touchedKeys, snapshot: originalPreimage, lockName: storageLock })
+      }
+    } catch (error) {
+      observations.errors.push(`restore: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    await evidencePage.close().then(
+      () => { observations.cleanup.pageClosed = true },
+      (error) => observations.errors.push(`close: ${error instanceof Error ? error.message : String(error)}`),
+    )
+    try {
+      await page.evaluate((lockName) => navigator.locks.request(lockName, { mode: 'exclusive' }, () => undefined), storageLock)
+      observations.cleanup.lockCrossed = true
+    } catch (error) {
+      observations.errors.push(`lock: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const ok = observations.errors.length === 0 && observations.migration?.exact &&
+    observations.migration.allProfiles && observations.migration.unknownDropped &&
+    observations.centers?.unchanged && observations.backup?.prepared &&
+    observations.backup.committed && exact(observations.backup.layout, expectedLayout) &&
+    observations.backup.version === 10 && observations.cleanup.restored &&
+    observations.cleanup.pageClosed && observations.cleanup.lockCrossed
+  console.log(`EVIDENCE: W3-P1 immutable migration observations: ${JSON.stringify(observations)}`)
+  console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
+}
+
 console.log(
   `EVIDENCE: W2-P1 Chromium Accessibility.getFullAXTree (Chromium AX only; not a real screen-reader run): ${JSON.stringify(w2P1AxEvidence)}`,
 )
