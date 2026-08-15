@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 2 — Accessibility, recovery states, and narrow reflow<br>
-**Last verified packet:** `W2-P1` - Shared async/freshness state primitives<br>
-**Next packet:** `W2-P2` - Focus, naming, boundary, and error recovery; Not started, no plan
+**Last verified packet:** `W2-P2` - Focus, naming, boundary, and error recovery<br>
+**Next packet:** `W2-P3` - Settings and tool reflow; Not started, no plan
 
 ## Packet envelope
 
-- **Acceptance:** One pure orthogonal operation/freshness contract and shared render-only feedback semantics adopted at the verified Notes, Home Assistant action, connector snapshot, and Weather seams; healthy state stays quiet, retained stale/offline data stays honest, and Wave 1 ownership remains unchanged.
-- **Implemented files:** Pure async algebra/tests, shared status/alert/resource renderers/tests, semantic state exports and consumers, Notes/Home Assistant operation feedback, Weather recovery controls, and real built-extension screenshot/AX/keyboard evidence. W2-P2 focus/naming/boundary work and W2-P3 narrow reflow remain outside the packet.
-- **Test scope:** Exact state/TTL matrices, DOM roles/politeness/atomicity, Notes retained-error retry/edit ownership, Home Assistant action generations, connector/Weather identity and retry states, 36px recovery targets, targeted/full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground harness.
-- **Visual scope:** Six compact/standard/large Notes/Weather state captures plus two Weather recovery captures, all inspected at original resolution for readable non-color-only feedback, focus, clipping, target geometry, and unchanged layout. Chromium AX evidence is not a real screen-reader session.
+- **Acceptance:** Focus and Quick Link editors preserve committed state, cancel without writes, expose associated errors, and restore focus; repeated Calendar content is source-named programmatically; the Home Assistant picker exposes named domain relationships and restores its invoker across every close path; DrawerBoundary retries only after reopen; backup/restore transitions are announced without moving async ownership.
+- **Implemented files:** Focus/Quick Link editor semantics and geometry, Calendar source naming, Home Assistant picker relationships and invoker-owned restoration, DrawerBoundary reopen reset, Data operation feedback, and causal built-extension target/AX/screenshot evidence. W2-P3 narrow reflow remains outside the packet.
+- **Test scope:** Exact editor write/focus paths, source relationships, picker naming/focus, boundary reopen recovery, Data status/alert/pending semantics, 36px targets and collision-free Focus geometry, targeted/full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground harness.
+- **Visual scope:** Six exact Focus/Quick Link, Calendar, Home Assistant picker, and Data feedback captures inspected at original resolution for readable non-color-only feedback, focus, clipping, target geometry, and stable rendered state. Chromium AX evidence is not a real screen-reader session.
 
 ## Last completed commits
 
@@ -70,8 +70,26 @@
 - `76dddaeae3f0947d694bfc611ff115989d0b7467` and `6d930685ba9fb86629d0b4f5363afcd868a46779` - connector/Weather semantic resource state and Notes/Home Assistant shared operation feedback.
 - `0b2db71f26c1686b2c0cd5528303ebe19756945f` - six exact built-extension state captures and Chromium AX evidence without adding another counted W2-P1 result.
 - `f2c1b788d6f341eb0137a05f270e7a531a4db9af` - bounded whole-packet review fixes for Notes retry/edit ownership, 36px Weather recovery targets, causal Chromium Enter retries, and exact Unicode primitive tests; verified W2-P1 implementation head.
+- `e59e929de0884126c7a7c493607dfcb027c29b1b` - independently reviewed executable W2-P2 plan (`docs: plan W2-P2 recovery semantics`).
+- `dd958894a7ebaafa49c0402d0f041b53e2a3e42b` - stable Focus and Quick Link editor focus, cancel, commit, error, and target semantics.
+- `914ac4b17dcaf2870524f3b7cf1ffea490fb32c3` - Calendar source relationships and Home Assistant picker naming/group semantics.
+- `5449fc7cde652cca6a8ffeaa3880321e9ebfd791` - DrawerBoundary reopen recovery and Data export/import/restore feedback.
+- `5db8dc44121fd9bece4cf670d8d04d9d337de3c3` - bounded whole-packet review fixes for async picker focus restoration and causal/stable browser evidence.
+- `1fdaf0c9c8192b10b53d732b552aa656f1ca23a3` - packet-local Focus prompt geometry regression fix; verified W2-P2 implementation head.
 
 ## Latest verification
+
+- W2-P2 exact targeted suite at `1fdaf0c` - exit 0; 16 files / 661 tests passed.
+- `npx tsc --noEmit` at `1fdaf0c` - exit 0.
+- `npm test` at `1fdaf0c` - exit 0; 117 files / 1,962 tests passed.
+- `npm run build` and `npm run build:preview` at `1fdaf0c` - exit 0; both transformed 178 modules.
+- Production scan for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview bridge matched in `dist`.
+- `npm audit --omit=dev` and `npm audit --include=dev` - exit 0; zero vulnerabilities.
+- Fresh foreground `node scripts/preview.mjs` at `1fdaf0c` - process exit 0; exactly 453 PASS / 0 FAIL / 3 SKIP, exactly one `PASS: W2-P2 focus, naming, boundary, and recovery semantics`, and zero named FAIL. Focus completion/Edit and prompt input remain at least 36 CSS px with no interactive collisions; bottom-member clearances are 8.7, 8.5, 13.5, 24.5, and 84.5 CSS px at the five exact geometry viewports.
+- The six exact W2-P2 captures (`w2-p2-focus-link-800x600.png`, both Calendar source captures, both Home Assistant picker captures, and `w2-p2-data-feedback-2560x1440.png`) were inspected at original resolution: the Quick Link alert and pending restore status are visible and non-color-only; Calendar rows are stable and legible; picker content, focus, and controls are unclipped; and the pending restore controls visibly remain disabled.
+- Chromium `Accessibility.getFullAXTree` exposes the named/associated Focus, Quick Link, Calendar, Home Assistant picker, and Data status/alert/button/disabled/busy relationships. This is supporting Chromium AX evidence, not a real screen-reader run.
+- The bounded whole-packet review found 0 Critical and 3 Important findings. Real async picker focus loss plus non-causal/unstable browser evidence were fixed with red/green coverage in `5db8dc4`; the same reviewer rereviewed every finding and returned Ready. Controller verification then exposed six packet-local bottom-band failures caused by the new 36px Focus prompt input increasing centered flow height; an independent causal audit, literal unit/browser RED, and exact margin-box compensation fixed them in `1fdaf0c`. Final rereview returned Ready with no Critical/Important issue open.
+- The three harness SKIPs remain the existing live Home Assistant/user-instance and native NASA permission ceilings. Real screen-reader behavior remains manual; no Store action occurred.
 
 - W2-P1 exact targeted suite at `f2c1b78` - exit 0; 10 files / 187 tests passed.
 - `npx tsc --noEmit` at `f2c1b78` - exit 0.
@@ -199,7 +217,7 @@
 
 - Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P4 does not claim a synthetic click, a grant restored from a backup file, or native-grant revocation.
 - Real Home Assistant entity-picker contents, successful service execution, and real screen-reader behavior still require the user's live instance/manual session.
-- Chromium AX trees support W2-P1 semantic inspection but do not establish real assistive-technology speech, timing, or interaction behavior.
+- Chromium AX trees support W2-P1/W2-P2 semantic inspection but do not establish real assistive-technology speech, timing, or interaction behavior.
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory is resolved by the exact `3.3.18` override; production and full audits are clean and no production dependency changed.
@@ -209,13 +227,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W2-P1`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P2.
+- None expected after `docs: checkpoint W2-P2`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P3.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W2-P2` - Focus, naming, boundary, and error recovery
-- **Plan:** None. Create it just in time from the master specification, verified W2-P1 shared semantics, current Focus/calendar/Home Assistant picker/DrawerBoundary/backup/Quick Link seams, and the W2-P2 acceptance boundary.
-- **State:** Not started. Write and independently review the executable W2-P2 plan before any W2-P2 implementation.
+- **Packet:** `W2-P3` - Settings and tool reflow
+- **Plan:** None. Create it just in time from the master specification, verified W2-P2 semantics, current Settings/tool/dialog/popover layout seams, and the W2-P3 320 CSS px / 400% zoom acceptance boundary.
+- **State:** Not started. Write and independently review the executable W2-P3 plan before any W2-P3 implementation.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -227,9 +245,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W2-P2
-Verified W2-P1 implementation SHA: f2c1b788d6f341eb0137a05f270e7a531a4db9af
-Expected next checkpoint subject: docs: checkpoint W2-P2
+Starting packet: W2-P3
+Verified W2-P2 implementation SHA: 1fdaf0c9c8192b10b53d732b552aa656f1ca23a3
+Expected next checkpoint subject: docs: checkpoint W2-P3
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
