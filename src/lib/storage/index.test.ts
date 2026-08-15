@@ -72,6 +72,20 @@ function v9Seed(extra: Record<string, unknown> = {}): Record<string, unknown> {
   }
 }
 
+function v10Settings(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  const { layoutDensity: _layoutDensity, ...settings } = defaults().settings as unknown as Record<string, unknown>
+  return { ...settings, ...extra }
+}
+
+function v10Seed(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...defaults(),
+    settings: v10Settings({ name: 'Stored v10' }),
+    ...extra,
+    'aurora:version': 10,
+  }
+}
+
 interface AtomicStorage {
   snapshot(): Promise<AuroraData>
   replaceAllWithRollback<T>(
@@ -349,6 +363,198 @@ describe('createStorage', () => {
     await storage.init()
     expect((await storage.get('settings')).name).toBe('Jon')
     expect(controlled.writes).toEqual([])
+  })
+
+  it('migrates v10 to v11 with Auto Fit in one authority-held target write and verified readback', async () => {
+    const events: string[] = []
+    const seed = v10Seed({
+      settings: v10Settings({ name: 'Migrated density', muted: true }),
+      unknown: { sentinel: 'keep' },
+    })
+    const controlled = controllableDriver(seed, {
+      async read(keys, _call, proceed) {
+        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
+        return proceed()
+      },
+      async write(_patch, _call, apply) {
+        events.push('write')
+        await apply()
+      },
+    })
+
+    await createStorage(controlled.driver, recordingAuthority(events)).init()
+
+    expect(controlled.writes).toHaveLength(1)
+    expect(controlled.writes[0]['aurora:version']).toBe(11)
+    expect((controlled.writes[0].settings as Record<string, unknown>)).toEqual({
+      ...seed.settings as Record<string, unknown>,
+      layoutDensity: 'auto',
+    })
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
+    expect(events).toEqual([
+      'lock:enter', 'read:null', 'write',
+      `read:${[...KNOWN_KEYS, 'aurora:version'].join(',')}`,
+      'lock:exit',
+    ])
+  })
+
+  it.each([
+    ['absent', () => {
+      const { settings: _settings, ...seed } = v10Seed()
+      return seed
+    }],
+    ['null', () => v10Seed({ settings: null })],
+    ['string', () => v10Seed({ settings: 'corrupt' })],
+    ['array', () => v10Seed({ settings: [] })],
+  ])('rejects a malformed persisted v10 %s settings container before any write', async (_label, makeSeed) => {
+    const seed = makeSeed()
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed)
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.writes).toEqual([])
+    expect(controlled.base.dump()).toEqual(before)
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['non-string', 7],
+    ['unknown', 'dense'],
+  ])('repairs a current-v11 %s density only, verifies it under authority, and notifies settings subscribers', async (_label, density) => {
+    const events: string[] = []
+    const settings = { ...defaults().settings, name: 'Keep every sibling', muted: true } as unknown as Record<string, unknown>
+    if (density === undefined) delete settings.layoutDensity
+    else settings.layoutDensity = density
+    const controlled = controllableDriver({
+      ...defaults(),
+      settings,
+      'aurora:version': 11,
+      unknown: { sentinel: 'keep' },
+    }, {
+      async read(keys, _call, proceed) {
+        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
+        return proceed()
+      },
+      async write(_patch, _call, apply) {
+        events.push('write:settings')
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, recordingAuthority(events))
+    const changed = vi.fn()
+    storage.subscribe('settings', changed)
+
+    await storage.init()
+
+    const expected = { ...settings, layoutDensity: 'auto' }
+    expect(await storage.get('settings')).toEqual(expected)
+    expect(controlled.writes).toEqual([{ settings: expected }])
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
+    expect(changed).toHaveBeenCalledOnce()
+    expect(changed).toHaveBeenCalledWith(expected)
+    expect(events).toEqual([
+      'lock:enter', 'read:null', 'write:settings', 'read:settings', 'lock:exit',
+      'read:settings',
+    ])
+  })
+
+  it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
+    'leaves valid current-v11 density %s byte-for-byte unchanged',
+    async (layoutDensity) => {
+      const settings = { ...defaults().settings, name: 'Current', layoutDensity }
+      const controlled = controllableDriver({ settings, 'aurora:version': 11 })
+
+      await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+      expect(controlled.writes).toEqual([])
+      expect((await controlled.base.read(['settings'])).settings).toEqual(settings)
+    },
+  )
+
+  it('rolls back a rejected current-v11 repair and succeeds on retry without changing Settings siblings', async () => {
+    const settings = v10Settings({ name: 'Rollback me', panelColor: '#123456' })
+    let rejectFirst = true
+    const controlled = controllableDriver({ settings, 'aurora:version': 11 }, {
+      async write(_patch, _call, apply) {
+        if (rejectFirst) {
+          rejectFirst = false
+          throw new Error('private repair write rejection')
+        }
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    const error = await storage.init().catch((caught) => caught)
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect((await controlled.base.read(['settings'])).settings).toEqual(settings)
+
+    await expect(storage.init()).resolves.toBeUndefined()
+    expect((await storage.get('settings'))).toEqual({ ...settings, layoutDensity: 'auto' })
+  })
+
+  it('rolls back a mismatched current-v11 repair readback and reports fatal rollback failure distinctly', async () => {
+    const settings = v10Settings({ name: 'Fatal rollback' })
+    const controlled = controllableDriver({ settings, 'aurora:version': 11 }, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2) return { settings: { ...settings, layoutDensity: 'dense' } }
+        if (call === 3) return { settings: { ...settings, name: 'wrong rollback' } }
+        return found
+      },
+    })
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.AtomicMigrationRollbackError)
+    expect(error.message).toBe('Aurora storage migration rollback failed')
+    expect(controlled.writes).toEqual([
+      { settings: { ...settings, layoutDensity: 'auto' } },
+      { settings },
+    ])
+  })
+
+  it('rolls back a failed v10 target and retries the complete migration to v11', async () => {
+    let rejectTarget = true
+    const seed = v10Seed({ settings: v10Settings({ name: 'Retry v10' }) })
+    const controlled = controllableDriver(seed, {
+      async write(_patch, call, apply) {
+        if (call === 1 && rejectTarget) {
+          rejectTarget = false
+          throw new Error('private target rejection')
+        }
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    await expect(storage.init()).rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+    expect((await controlled.base.read(['settings', 'aurora:version']))).toEqual({
+      settings: seed.settings,
+      'aurora:version': 10,
+    })
+    await expect(storage.init()).resolves.toBeUndefined()
+    expect((await storage.get('settings')).layoutDensity).toBe('auto')
+    expect(controlled.base.dump()['aurora:version']).toBe(11)
+  })
+
+  it('does not repair invalid density in a future-version store', async () => {
+    const settings = v10Settings({ layoutDensity: 'dense' })
+    const controlled = controllableDriver({ settings, 'aurora:version': 12 })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    expect(controlled.writes).toEqual([])
+    expect((await controlled.base.read(['settings'])).settings).toEqual(settings)
+    warn.mockRestore()
   })
 
   it('future-version init warns under one acquisition and performs no write', async () => {

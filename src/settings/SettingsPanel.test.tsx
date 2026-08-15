@@ -2397,28 +2397,94 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     return screen.getByRole('region', { name: 'Layout' })
   }
 
-  it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
-    const onArrangeLayout = vi.fn()
-    await renderPanel(onArrangeLayout)
-    openTab('Widgets')
+  async function openLayoutTab() {
+    await act(async () => {
+      openTab('Widgets')
+    })
+  }
 
-    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
+  it('renders the labeled four-option density control with an explanatory Auto Fit default', async () => {
+    await renderPanel()
+    await openLayoutTab()
 
-    expect(onArrangeLayout).toHaveBeenCalledOnce()
+    const region = within(layoutRegion())
+    const density = region.getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement
+    expect(density.value).toBe('auto')
+    expect(within(density).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Auto Fit', 'Compact', 'Balanced', 'Spacious',
+    ])
+    const description = region.getByText('Auto Fit chooses the roomiest layout that keeps automatic items on the board.')
+    expect(attr(density, 'aria-describedby')).toBe(description.id)
+    expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
+    expect(region.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
   })
 
-  it('Reset layout opens a real confirm dialog; Cancel writes nothing, confirming writes {}', async () => {
+  it('persists Balanced as a manual density and reflects authority-backed subscription updates', async () => {
+    const storage = await renderPanel()
+    await openLayoutTab()
+    const density = within(layoutRegion()).getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement
+
+    await act(async () => {
+      fireEvent.change(density, { target: { value: 'balanced' } })
+    })
+
+    expect((await storage.get('settings')).layoutDensity).toBe('balanced')
+    await act(async () => {
+      await storage.update('settings', (settings) => ({ ...settings, layoutDensity: 'spacious' }))
+    })
+    expect(density.value).toBe('spacious')
+  })
+
+  it('reloads an already-persisted manual density without rewriting Settings', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
-    await storage.set('layout', positioned)
+    const settings = { ...await storage.get('settings'), name: 'Reloaded', layoutDensity: 'compact' as const }
+    await storage.set('settings', settings)
+    const set = vi.spyOn(storage, 'set')
+
     render(
       <StorageProvider storage={storage}>
         <SettingsPanel onArrangeLayout={() => {}} />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openLayoutTab()
+
+    expect((within(layoutRegion()).getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement).value).toBe('compact')
+    expect(set).not.toHaveBeenCalled()
+    expect(await storage.get('settings')).toEqual(settings)
+  })
+
+  it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
+    const onArrangeLayout = vi.fn()
+    await renderPanel(onArrangeLayout)
+    await openLayoutTab()
+
+    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
+
+    expect(onArrangeLayout).toHaveBeenCalledOnce()
+  })
+
+  it('Reset layout Cancel writes neither key; confirm clears only Layout V2 and preserves Settings byte-for-byte', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
+    const settings = {
+      ...await storage.get('settings'),
+      name: 'Preserve all settings',
+      muted: true,
+      layoutDensity: 'spacious' as const,
+    }
+    await storage.set('settings', settings)
+    await storage.set('layout', positioned)
+    const set = vi.spyOn(storage, 'set')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(await storage.get('layout')).toEqual(positioned) // opening the dialog never writes
@@ -2432,12 +2498,17 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
     expect(await storage.get('layout')).toEqual(positioned) // Cancel never writes
+    expect(await storage.get('settings')).toEqual(settings)
+    expect(set).not.toHaveBeenCalled()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
     await act(async () => {})
     expect(await storage.get('layout')).toEqual(emptyLayoutV2())
+    expect(await storage.get('settings')).toEqual(settings)
+    expect(set).toHaveBeenCalledOnce()
+    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV2())
   })
 
   it('Escape cancels the confirm dialog without writing anything', async () => {
@@ -2451,7 +2522,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -2475,7 +2546,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     }
     const { rerender } = render(<Wrapper open={true} />)
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openLayoutTab()
 
     fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Reset layout' }))
     expect(screen.getByRole('dialog', { name: 'Reset layout?' })).toBeTruthy()
@@ -2492,7 +2563,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
   it('both buttons are absent entirely (no dead/disabled buttons) when isPremium() is false', async () => {
     vi.mocked(isPremium).mockReturnValue(false)
     await renderPanel()
-    openTab('Widgets')
+    await openLayoutTab()
 
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Arrange layout' })).toBeNull()

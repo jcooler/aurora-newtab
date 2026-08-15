@@ -1,8 +1,8 @@
 import { emptyLayoutV2 } from '../layout/v2'
-import type { LayoutV2 } from '../layout/types'
+import type { LayoutDensityPreference, LayoutV2 } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 10
+export const CURRENT_VERSION = 11
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -61,6 +61,10 @@ export interface Settings {
   panelColor: string | null
   units: 'metric' | 'imperial'
   muted: boolean
+  /** Independent Adaptive Stage preference. Auto Fit resolves the roomiest
+   *  density that keeps automatic items on the board; manual choices persist
+   *  unchanged across placement resets. */
+  layoutDensity: LayoutDensityPreference
   widgets: WidgetToggles
 }
 
@@ -234,6 +238,7 @@ export function defaults(): AuroraData {
       panelColor: null,
       units: 'metric',
       muted: false,
+      layoutDensity: 'auto',
       widgets: {
         search: true,
         weather: true,

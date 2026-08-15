@@ -7,7 +7,7 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
-import { BLOCK_IDS, LAYOUT_PROFILES, type BlockId, type LayoutV2, type Placement } from './layout/types'
+import { BLOCK_IDS, LAYOUT_DENSITY_PREFERENCES, LAYOUT_PROFILES, type BlockId, type LayoutV2, type Placement } from './layout/types'
 import { isValidPlacement, LegacyLayoutValidationError, validateLegacyLayout } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
@@ -227,6 +227,7 @@ function isOptional(v: unknown, pred: (v: unknown) => boolean): boolean {
 }
 
 const WIDGET_KEYS = Object.keys(defaults().settings.widgets) as (keyof AuroraData['settings']['widgets'])[]
+const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 // Deliberately strict on purpose (not defensive-loosened to "extra keys ok,
 // missing keys default"): requiring EVERY known widget key present as a
@@ -253,6 +254,7 @@ function isSettings(v: unknown): boolean {
     (v.panelColor === null || isPanelColor(v.panelColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
+    LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)
   )
 }

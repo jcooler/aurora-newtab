@@ -904,6 +904,74 @@ describe('validateBackupShape: unknown-key dropping', () => {
   })
 })
 
+describe('schema v11 layout density backup boundary', () => {
+  const safeReason = { ok: false, reason: 'That backup\'s "settings" data is invalid.' } as const
+
+  function withoutDensity() {
+    const { layoutDensity: _layoutDensity, ...settings } = defaults().settings as unknown as Record<string, unknown>
+    return settings
+  }
+
+  it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
+    'exports and strictly restores the exact %s preference',
+    (layoutDensity) => {
+      const input = { ...defaults(), settings: { ...defaults().settings, layoutDensity } }
+      const envelope = JSON.parse(serializeBackup(input))
+      expect(envelope.version).toBe(11)
+      expect(envelope.data.settings.layoutDensity).toBe(layoutDensity)
+
+      const prepared = prepareBackup(JSON.stringify(envelope))
+      expect(prepared.ok).toBe(true)
+      if (prepared.ok) expect(prepared.data.settings).toEqual(input.settings)
+    },
+  )
+
+  it.each([
+    ['missing', undefined],
+    ['null', null],
+    ['non-string', 7],
+    ['unknown', 'dense'],
+  ])('rejects current schema v11 %s density instead of normalizing it', (_label, layoutDensity) => {
+    const settings = { ...defaults().settings } as unknown as Record<string, unknown>
+    if (layoutDensity === undefined) delete settings.layoutDensity
+    else settings.layoutDensity = layoutDensity
+    const raw = JSON.stringify({ app: 'aurora', version: 11, data: { ...defaults(), settings } })
+
+    expect(prepareBackup(raw)).toEqual(safeReason)
+  })
+
+  it('migrates a schema-10 backup to Auto Fit while preserving every sibling and layout byte-for-byte', () => {
+    const layout: LayoutV2 = {
+      version: 2,
+      profiles: { standard: { clock: { zone: 'now', order: 0, colSpan: 2, rowSpan: 2, variant: 'standard', priority: 'pinned' } } },
+      legacy: { clock: { x: 50, y: 50 } },
+    }
+    const settings = { ...withoutDensity(), name: 'Migrated backup', muted: true }
+    const raw = JSON.stringify({ app: 'aurora', version: 10, data: { ...defaults(), settings, layout } })
+    const prepared = prepareBackup(raw)
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      expect(prepared.data.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+      expect(prepared.data.layout).toEqual(layout)
+    }
+  })
+
+  it('runs an older supported backup through all steps and ends at Auto Fit', () => {
+    const raw = JSON.stringify({ app: 'aurora', version: 1, data: { settings: withoutDensity() } })
+    const prepared = prepareBackup(raw)
+
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.settings.layoutDensity).toBe('auto')
+  })
+
+  it('rejects a schema-10 backup with missing settings instead of defaulting it', () => {
+    const raw = JSON.stringify({ app: 'aurora', version: 10, data: {} })
+
+    expect(prepareBackup(raw)).toEqual(safeReason)
+  })
+})
+
 describe('W3-P1 Layout V2 backup compatibility', () => {
   const placement: Placement = {
     zone: 'pulse', order: 2, colSpan: 2, rowSpan: 3,
@@ -911,13 +979,18 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
   }
 
   function envelope(version: number, layout: unknown): string {
-    return JSON.stringify({ app: 'aurora', version, data: { ...defaults(), layout } })
+    const data = { ...defaults(), layout }
+    if (version <= 10) {
+      const { layoutDensity: _layoutDensity, ...settings } = data.settings as unknown as Record<string, unknown>
+      data.settings = settings as unknown as AuroraData['settings']
+    }
+    return JSON.stringify({ app: 'aurora', version, data })
   }
 
-  it('exports schema 10 with only the supplied V2 overrides and exact optional legacy map', () => {
+  it('exports schema 11 with only the supplied V2 overrides and exact optional legacy map', () => {
     const layout: LayoutV2 = { version: 2, profiles: { display: { notes: placement } }, legacy: { notes: { x: 12, y: 34 } } }
     const parsed = JSON.parse(serializeBackup({ ...defaults(), layout }))
-    expect(parsed.version).toBe(10)
+    expect(parsed.version).toBe(11)
     expect(parsed.data.layout).toEqual(layout)
     expect(Object.keys(parsed.data.layout.profiles)).toEqual(['display'])
   })
@@ -957,7 +1030,7 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
 
   it('round-trips valid current profiles and optional legacy after cleanup', () => {
     const layout: LayoutV2 = { version: 2, profiles: { standard: { notes: placement } }, legacy: { notes: { x: 15, y: 25 } } }
-    const result = prepareBackup(envelope(10, layout))
+    const result = prepareBackup(envelope(11, layout))
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.layout).toEqual(layout)
   })
@@ -981,6 +1054,6 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
     ['nonboolean locked', { version: 2, profiles: { standard: { clock: { ...placement, locked: 'yes' } } } }],
     ['malformed legacy', { version: 2, profiles: {}, legacy: { clock: { x: 1, y: 'bad' } } }],
   ])('rejects current V2 %s with the safe layout reason', (_label, layout) => {
-    expect(prepareBackup(envelope(10, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
+    expect(prepareBackup(envelope(11, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
   })
 })

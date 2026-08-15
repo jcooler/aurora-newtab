@@ -8,9 +8,12 @@ import { migrate } from './migrations'
 import type { MemoryStorageDriver, StorageDriver } from './driver'
 import type { StorageAuthority } from './authority'
 import { LegacyLayoutValidationError } from '../layout/v2'
+import { LAYOUT_DENSITY_PREFERENCES } from '../layout/types'
+import { isPlainObject } from '../object'
 
 const VERSION_KEY = 'aurora:version'
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
+const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 export class AtomicRestoreRollbackError extends Error {
   constructor(
@@ -192,6 +195,9 @@ export function createStorage(
       if (caught instanceof LegacyLayoutValidationError) throw caught
       throw new StorageInitializationError(caught)
     }
+    if (!isPlainObject(migrated.settings)) {
+      throw new StorageInitializationError(undefined)
+    }
     const target: Record<string, unknown> = {
       ...allKeyPatch(migrated),
       [VERSION_KEY]: CURRENT_VERSION,
@@ -218,6 +224,35 @@ export function createStorage(
       const rolledBack = await driver.read(verificationKeys)
       if (!structurallyEqual(rolledBack, previous)) {
         throw new Error('Aurora storage migration rollback verification failed')
+      }
+    } catch (rollbackError) {
+      throw new AtomicMigrationRollbackError(primaryError, rollbackError)
+    }
+    throw new StorageInitializationError(primaryError)
+  }
+
+  async function repairCurrentDensity(all: Record<string, unknown>): Promise<void> {
+    const settings = all.settings
+    if (!isPlainObject(settings) || LAYOUT_DENSITY_SET.has(settings.layoutDensity)) return
+
+    const target = { ...settings, layoutDensity: 'auto' }
+    let primaryError: unknown
+    try {
+      await driver.write({ settings: target })
+      const verified = await driver.read(['settings'])
+      if (!structurallyEqual(verified, { settings: target })) {
+        throw new Error('Aurora storage density repair verification failed')
+      }
+      return
+    } catch (caught) {
+      primaryError = caught
+    }
+
+    try {
+      await driver.write({ settings })
+      const rolledBack = await driver.read(['settings'])
+      if (!structurallyEqual(rolledBack, { settings })) {
+        throw new Error('Aurora storage density repair rollback verification failed')
       }
     } catch (rollbackError) {
       throw new AtomicMigrationRollbackError(primaryError, rollbackError)
@@ -323,6 +358,10 @@ export function createStorage(
         }
         if (stored < CURRENT_VERSION) {
           await migrateAndVerify(all, stored)
+          return
+        }
+        if (stored === CURRENT_VERSION) {
+          await repairCurrentDensity(all)
           return
         }
         if (stored > CURRENT_VERSION) {

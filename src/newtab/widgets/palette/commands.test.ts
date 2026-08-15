@@ -9,6 +9,7 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
     panelColor: null,
     units: 'metric',
     muted: false,
+    layoutDensity: 'auto',
     widgets: {
       search: true,
       weather: true,

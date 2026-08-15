@@ -220,6 +220,29 @@ describe('backup restore coordinator', () => {
     expect(events[0]).toBe('lifecycle:callback')
   })
 
+  it('commits the exact restored manual density through ownership finalization', async () => {
+    const events: string[] = []
+    const core = await loadRestoreCore([], {}, events)
+    const previous: AuroraData = {
+      ...core.schema.defaults(),
+      settings: { ...core.schema.defaults().settings, name: 'Previous', layoutDensity: 'compact' },
+    }
+    const restored: AuroraData = {
+      ...core.schema.defaults(),
+      settings: { ...core.schema.defaults().settings, name: 'Restored', layoutDensity: 'spacious' },
+    }
+    const { base, storage } = core.storageFor(previous)
+
+    await expect(core.restore.restorePreparedBackup(
+      storage,
+      core.prepare(restored),
+      { runExclusive: async (work) => work() },
+    )).resolves.toEqual({ status: 'committed', pendingCleanup: [], reentryRequired: [] })
+
+    expect(knownSnapshot(base.dump(), previous).settings).toEqual(restored.settings)
+    expect(events.filter((event) => event.startsWith('storage:write'))).toEqual(['storage:write:1'])
+  })
+
   it('maps denial and unavailable permission state to safe retryable failures without touching storage', async () => {
     const denied = await loadRestoreCore()
     denied.permissions.request.mockResolvedValue(false)
@@ -303,6 +326,7 @@ describe('backup restore coordinator', () => {
         panelColor: '#123456',
         units: 'imperial',
         muted: true,
+        layoutDensity: 'auto',
         widgets: {
           search: false,
           weather: true,

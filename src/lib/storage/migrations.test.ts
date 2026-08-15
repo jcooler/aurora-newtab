@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   LEGACY_LAYOUT_VALIDATION_MESSAGE,
   LegacyLayoutValidationError,
+  layoutV2FromLegacy,
 } from '../layout/v2'
-import { defaults } from './schema'
+import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
 import { migrate, type Migration } from './migrations'
 
 const EMPTY_MIGRATED_LAYOUT = {
@@ -30,7 +31,7 @@ describe('migrate', () => {
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
       // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9,
-      // registry[9] upgrades v9 -> v10
+      // registry[9] upgrades v9 -> v10, registry[10] upgrades v10 -> v11
       // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
@@ -72,9 +73,13 @@ describe('migrate', () => {
         calls.push(9)
         return data
       },
+      10: (data) => {
+        calls.push(10)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -575,6 +580,87 @@ describe('v9 -> v10', () => {
   it('requires the v9 step before producing a v10 result', () => {
     const registry = { ...migrationsWithoutNine() }
     expect(() => migrate({ layout: {} }, 9, registry)).toThrow('No migration from schema v9')
+  })
+})
+
+describe('v10 -> v11', () => {
+  function v10Settings(extra: Record<string, unknown> = {}) {
+    const { layoutDensity: _layoutDensity, ...settings } = defaults().settings as ReturnType<typeof defaults>['settings'] & {
+      layoutDensity?: unknown
+    }
+    return { ...settings, ...extra }
+  }
+
+  it('adds Auto Fit only to a well-formed v10 Settings object', () => {
+    const settings = v10Settings({ name: 'Keep me', muted: true })
+    const out = migrate({ settings }, 10)
+
+    expect(CURRENT_VERSION).toBe(11)
+    expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+  })
+
+  it.each([
+    ['null settings', null],
+    ['string settings', 'oops'],
+    ['array settings', []],
+  ])('does not repair malformed v10 %s', (_label, settings) => {
+    const out = migrate({ settings }, 10) as unknown as Record<string, unknown>
+
+    expect(out.settings).toEqual(settings)
+  })
+
+  it('keeps missing v10 settings explicitly invalid instead of defaulting them', () => {
+    const out = migrate({}, 10) as unknown as Record<string, unknown>
+
+    expect(Object.hasOwn(out, 'settings')).toBe(true)
+    expect(out.settings).toBeUndefined()
+  })
+
+  it('does not normalize an invalid explicit v10 density', () => {
+    const settings = v10Settings({ layoutDensity: 'dense' })
+    const out = migrate({ settings }, 10)
+
+    expect((out.settings as unknown as Record<string, unknown>).layoutDensity).toBe('dense')
+  })
+
+  it('preserves layout, legacy coordinates, connectors, unknown stores, and every Settings sibling', () => {
+    const layout = layoutV2FromLegacy({ clock: { x: 12, y: 34 } })
+    const connectors = { github: { enabled: true, token: 'local-only', username: 'octocat' } }
+    const settings = v10Settings({ name: 'Jon', panelColor: '#123456' })
+    const unknownStore = { future: ['keep'] }
+    const out = migrate({ settings, layout, connectors, unknownStore }, 10) as AuroraData & {
+      unknownStore: typeof unknownStore
+    }
+
+    expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+    expect(out.layout).toEqual(layout)
+    expect(out.layout.legacy).toEqual({ clock: { x: 12, y: 34 } })
+    expect(out.connectors).toEqual(connectors)
+    expect(out.unknownStore).toEqual(unknownStore)
+  })
+
+  it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
+    'round-trips valid current-v11 density %s without mutation',
+    (layoutDensity) => {
+      const snapshot = {
+        ...defaults(),
+        settings: { ...defaults().settings, name: 'Current', layoutDensity },
+      }
+      const before = structuredClone(snapshot)
+
+      expect(migrate(snapshot, 11)).toEqual(before)
+      expect(snapshot).toEqual(before)
+    },
+  )
+
+  it('is idempotent after a v10 migration and older snapshots run sequentially through v11', () => {
+    const v10 = migrate({ settings: v10Settings(), layout: { version: 2, profiles: {} } }, 10)
+    expect(migrate(v10 as unknown as Record<string, unknown>, 11)).toEqual(v10)
+
+    const fromV9 = migrate({ settings: v10Settings(), layout: { clock: { x: 50, y: 50 } } }, 9)
+    expect(fromV9.settings.layoutDensity).toBe('auto')
+    expect(fromV9.layout.version).toBe(2)
+    expect(fromV9.layout.legacy).toEqual({ clock: { x: 50, y: 50 } })
   })
 })
 

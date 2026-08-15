@@ -152,6 +152,29 @@ export const migrations: Record<number, Migration> = {
       Object.prototype.hasOwnProperty.call(data, 'layout') ? data.layout : {},
     ),
   }),
+  // v10 -> v11: density is one new nested Settings preference. Preserve an
+  // explicitly present value verbatim so strict backup validation can reject
+  // malformed v11-shaped data instead of laundering it into a valid import.
+  // A malformed Settings container is likewise left untouched for the backup
+  // boundary to reject; live current-schema repair is deliberately narrower
+  // and lives in storage/index.ts.
+  10: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) {
+      return Object.prototype.hasOwnProperty.call(data, 'settings')
+        ? data
+        : { ...data, settings: undefined }
+    }
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        layoutDensity: Object.prototype.hasOwnProperty.call(settings, 'layoutDensity')
+          ? settings.layoutDensity
+          : 'auto',
+      },
+    }
+  },
 }
 
 export function migrate(
