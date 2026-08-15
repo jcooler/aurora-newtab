@@ -403,6 +403,15 @@ await context.addInitScript(({ flagKey }) => {
 
 const page = await context.newPage()
 const errors = []
+// W2-P1's one packet-level acceptance result is assembled from actual DOM
+// observations at the existing deterministic Notes, Home Assistant, and
+// Weather fixtures below. These are not harness markers: each value remains
+// false until its real browser state proves the shared semantic contract.
+const w2P1FeedbackContract = {
+  notes: false,
+  homeAssistant: false,
+  weather: false,
+}
 const setHarnessConnectorViews = (id, views) => page.evaluate(
   async ({ connectorId, nextViews }) => {
     const { connectors = {}, connectorSnapshots = {} } = await chrome.storage.local.get([
@@ -2448,9 +2457,19 @@ try {
   await waitForHeldNote()
   const pendingStored = await storedNote()
   const pendingStatus = await notesProofPage.getByRole('status').textContent()
+  const pendingStatusHandle = await notesProofPage.getByRole('status').elementHandle()
   const savedWhileHeld = pendingStatus?.includes('Saved') ?? false
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
   await notesProofPage.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+  const savedStatusContract = await notesProofPage.evaluate((pendingStatusElement) => {
+    const status = document.querySelector('[role="status"]')
+    return {
+      stable: status === pendingStatusElement,
+      polite: status?.getAttribute('aria-live') === 'polite',
+      atomic: status?.getAttribute('aria-atomic') === 'true',
+      text: status?.textContent?.trim() ?? null,
+    }
+  }, pendingStatusHandle)
   const pendingSettled = await storedNote()
   notesPendingOk = pendingStatus?.includes('Saving') === true
     && !savedWhileHeld
@@ -2464,6 +2483,27 @@ try {
   const failedStored = await storedNote()
   const failedText = await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).inputValue()
   const alertText = await notesProofPage.getByRole('alert').textContent()
+  const notesErrorContract = await notesProofPage.evaluate(() => {
+    const status = document.querySelector('[role="status"]')
+    const alert = document.querySelector('[role="alert"]')
+    const retry = alert?.querySelector('button')
+    return {
+      oneStatus: document.querySelectorAll('[role="status"]').length === 1,
+      alertAtomic: alert?.getAttribute('aria-atomic') === 'true',
+      retryNamedAndEnabled: retry instanceof HTMLButtonElement && retry.textContent?.trim() === 'Retry save' && !retry.disabled,
+      duplicatedFailure: status?.textContent?.includes('Couldnâ€™t save. Your note is still here.') ?? false,
+    }
+  })
+  w2P1FeedbackContract.notes =
+    pendingStatus?.trim() === 'Savingâ€¦' &&
+    savedStatusContract.stable &&
+    savedStatusContract.polite &&
+    savedStatusContract.atomic &&
+    savedStatusContract.text === 'Saved' &&
+    notesErrorContract.oneStatus &&
+    notesErrorContract.alertAtomic &&
+    notesErrorContract.retryNamedAndEnabled &&
+    !notesErrorContract.duplicatedFailure
   const axSnapshot = typeof notesProofPage.locator('body').ariaSnapshot === 'function'
     ? await notesProofPage.locator('body').ariaSnapshot()
     : ''
@@ -8356,6 +8396,8 @@ function gitlabContributionsFixture() {
           ariaBusy: button.getAttribute('aria-busy'),
           feedbackId,
           feedbackRole: feedback?.getAttribute('role') ?? null,
+          feedbackLive: feedback?.getAttribute('aria-live') ?? null,
+          feedbackAtomic: feedback?.getAttribute('aria-atomic') ?? null,
           feedbackText: feedback?.textContent?.trim() ?? null,
           feedbackVisible: !!feedbackRect && feedbackRect.width > 0 && feedbackRect.height > 0 &&
             feedbackStyle?.display !== 'none' && feedbackStyle?.visibility !== 'hidden',
@@ -8524,6 +8566,15 @@ function gitlabContributionsFixture() {
     visualSettled.siblings[0]?.feedbackText === VISUAL_ERROR_TEXT &&
     visualSettled.siblings[0]?.feedbackVisible === true
   const firstErrorOk = initialTargetErrorOk && screenshotStateOk && visualQuiescentOk
+  w2P1FeedbackContract.homeAssistant =
+    visualPending.target?.disabled === false &&
+    visualPending.target?.feedbackRole === 'alert' &&
+    visualPending.target?.feedbackAtomic === 'true' &&
+    visualPending.siblings[0]?.disabled === true &&
+    visualPending.siblings[0]?.ariaBusy === 'true' &&
+    visualPending.siblings[0]?.feedbackRole === 'status' &&
+    visualPending.siblings[0]?.feedbackLive === 'polite' &&
+    visualPending.siblings[0]?.feedbackAtomic === 'true'
   console.log(
     firstErrorOk
       ? `PASS: the natural Porch plug failure returns enabled with persistent alert "${ERROR_TEXT}"; the error screenshot pairs its focused retry with a genuinely disabled/pending sibling, whose extra real request then settles naturally before the main retry`
@@ -11476,7 +11527,61 @@ function gitlabContributionsFixture() {
 }
 
 // ---------------------------------------------------------------------------
-// Clock x weather-chip fencepost (the board's LAST open collision, closed) —
+// W2-P1 Weather feedback: a stale retained snapshot starts a real request.
+// Hold that request to observe refreshing, then abort it to observe the
+// bounded offline message. No fixture supplies either feedback element.
+{
+  let releaseWeatherRequest
+  const weatherRequestReleased = new Promise((resolveRequest) => {
+    releaseWeatherRequest = resolveRequest
+  })
+  const holdWeatherRequest = async (route) => {
+    await weatherRequestReleased
+    await route.abort()
+  }
+  await page.route('**/api.open-meteo.com/**', holdWeatherRequest)
+  await page.evaluate(async () => {
+    const now = Date.now()
+    const hour = new Date(now).toISOString().slice(0, 13) + ':00'
+    await globalThis.__auroraSetHarnessStorage({
+      weatherCache: {
+        current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+        hourly: [{ time: hour, tempC: 18, precipProb: 0, code: 1 }],
+        fetchedAt: now - (30 * 60 * 1000),
+        locationLabel: 'New York',
+        requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
+      },
+    })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  const refreshingVisible = await page.waitForFunction((selector) => {
+    const weather = document.querySelector(selector)
+    const status = weather?.querySelector('[role="status"]')
+    return status?.textContent?.trim() === 'Refreshingâ€¦' &&
+      status.getAttribute('aria-live') === 'polite' &&
+      status.getAttribute('aria-atomic') === 'true'
+  }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
+  releaseWeatherRequest()
+  const offlineVisible = await page.waitForFunction((selector) => {
+    const weather = document.querySelector(selector)
+    const status = weather?.querySelector('[role="status"]')
+    return status?.textContent?.trim() === 'Offline â€” showing cached' &&
+      status.getAttribute('aria-live') === 'polite' &&
+      status.getAttribute('aria-atomic') === 'true'
+  }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
+  w2P1FeedbackContract.weather = refreshingVisible && offlineVisible
+  await page.unroute('**/api.open-meteo.com/**', holdWeatherRequest)
+  await page.evaluate(async () => {
+    await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
+  })
+  await page.reload()
+  await page.waitForSelector('time')
+  await page.waitForTimeout(800)
+}
+
+// ---------------------------------------------------------------------------
+// Clock x weather-chip fencepost (the board's LAST open collision, closed).
 // at the extreme short-wide end of the matrix, 800x450, the centred clock's
 // FORCED-WIDE (2-digit hour) box and the collapsed weather chip's own
 // natural-content width used to reach into each other: measured, pre-fix,
@@ -16919,6 +17024,16 @@ if (hasBookmarksPermission) {
 // location, arrange overlay above).
 await page.setViewportSize(launchViewport)
 await page.waitForTimeout(150)
+
+const w2P1FeedbackOk =
+  w2P1FeedbackContract.notes &&
+  w2P1FeedbackContract.homeAssistant &&
+  w2P1FeedbackContract.weather
+console.log(
+  w2P1FeedbackOk
+    ? 'PASS: W2-P1 shared async and freshness semantics'
+    : 'FAIL: W2-P1 shared async and freshness semantics',
+)
 
 await page.waitForTimeout(300)
 if (errors.length) console.log('console errors:', errors)
