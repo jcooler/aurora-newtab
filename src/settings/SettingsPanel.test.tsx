@@ -127,6 +127,12 @@ function attr(el: Element, name: string) {
   return el.getAttribute(name)
 }
 
+function expectLocalRoutineTarget(el: Element) {
+  const classes = el.getAttribute('class')?.split(/\s+/) ?? []
+  expect(classes).toContain('min-h-9')
+  expect(classes).toContain('min-w-9')
+}
+
 afterEach(() => {
   const removed = [...cleanupHeld]
   cleanupHeld.clear()
@@ -582,6 +588,162 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
 })
 
 describe('SettingsPanel Data section (export/import backup)', () => {
+  it('keeps one export operation rendered, busy, described, and duplicate-safe through success', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const snapshotGate = deferred<AuroraData>()
+    const snapshot = vi.spyOn(storage, 'snapshot').mockReturnValue(snapshotGate.promise)
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:backup') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      await renderPanel(() => {}, storage)
+      openTab('Data')
+      const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+      expectLocalRoutineTarget(exportButton)
+
+      act(() => {
+        fireEvent.click(exportButton)
+        fireEvent.click(exportButton)
+      })
+
+      expect(snapshot).toHaveBeenCalledTimes(1)
+      expect(exportButton.disabled).toBe(true)
+      expect(attr(exportButton, 'aria-busy')).toBe('true')
+      const pendingId = attr(exportButton, 'aria-describedby')
+      expect(pendingId).toBeTruthy()
+      expect(document.getElementById(pendingId!)?.getAttribute('role')).toBe('status')
+      expect(document.getElementById(pendingId!)?.getAttribute('aria-atomic')).toBe('true')
+      expect(document.getElementById(pendingId!)?.textContent).toBe('Creating backup…')
+
+      await act(async () => {
+        snapshotGate.resolve(defaults())
+        await snapshotGate.promise
+        await Promise.resolve()
+      })
+
+      expect(exportButton.disabled).toBe(false)
+      expect(attr(exportButton, 'aria-busy')).toBeNull()
+      expect(screen.getByRole('status').textContent).toBe('Backup downloaded.')
+      expect(screen.queryByRole('alert')).toBeNull()
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('a held export excludes restore and file selection without replacing its active feedback', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const snapshotGate = deferred<AuroraData>()
+    const snapshot = vi.spyOn(storage, 'snapshot').mockReturnValue(snapshotGate.promise)
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
+    const originalCreate = URL.createObjectURL
+    const originalRevoke = URL.revokeObjectURL
+    URL.createObjectURL = vi.fn(() => 'blob:backup') as typeof URL.createObjectURL
+    URL.revokeObjectURL = vi.fn() as typeof URL.revokeObjectURL
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    try {
+      await renderPanel(() => {}, storage)
+      openTab('Data')
+      const input = screen.getByLabelText('Import backup') as HTMLInputElement
+      const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
+      await act(async () => {
+        fireEvent.change(input, { target: { files: [firstFile] } })
+        await Promise.resolve()
+        await Promise.resolve()
+      })
+      const confirm = await screen.findByRole('button', { name: 'Confirm restore' }) as HTMLButtonElement
+      const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
+      const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+      const replacement = new File(['not json'], 'replacement.json', { type: 'application/json' })
+
+      act(() => {
+        fireEvent.click(exportButton)
+        fireEvent.click(confirm)
+        fireEvent.change(input, { target: { files: [replacement] } })
+      })
+
+      expect(snapshot).toHaveBeenCalledTimes(1)
+      expect(replaceAll).not.toHaveBeenCalled()
+      expect(exportButton.disabled).toBe(true)
+      expect(confirm.disabled).toBe(true)
+      expect(cancel.disabled).toBe(true)
+      expect(input.disabled).toBe(true)
+      expect(screen.getByRole('status').textContent).toBe('Creating backup…')
+      expect(screen.queryByRole('alert')).toBeNull()
+      expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
+
+      await act(async () => {
+        snapshotGate.resolve(defaults())
+        await snapshotGate.promise
+        await Promise.resolve()
+      })
+    } finally {
+      URL.createObjectURL = originalCreate
+      URL.revokeObjectURL = originalRevoke
+      clickSpy.mockRestore()
+    }
+  })
+
+  it('a held restore excludes export and file selection without replacing its active feedback', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const replace = storage.replaceAllWithRollback.bind(storage)
+    const started = deferred<void>()
+    const allow = deferred<void>()
+    const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback').mockImplementation(async <T,>(
+      next: AuroraData,
+      finalize: (previous: AuroraData) => Promise<T>,
+    ) => {
+      started.resolve()
+      await allow.promise
+      return replace(next, finalize)
+    })
+    const snapshot = vi.spyOn(storage, 'snapshot')
+    await renderPanel(() => {}, storage)
+    openTab('Data')
+    const input = screen.getByLabelText('Import backup') as HTMLInputElement
+    const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [firstFile] } })
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
+    const replacement = new File(['not json'], 'replacement.json', { type: 'application/json' })
+
+    act(() => {
+      fireEvent.click(confirm)
+      fireEvent.click(exportButton)
+      fireEvent.change(input, { target: { files: [replacement] } })
+    })
+    await started.promise
+
+    const restoring = screen.getByRole('button', { name: 'Restoring...' }) as HTMLButtonElement
+    const cancel = screen.getByRole('button', { name: 'Cancel' }) as HTMLButtonElement
+    expect(replaceAll).toHaveBeenCalledTimes(1)
+    expect(snapshot).not.toHaveBeenCalled()
+    expect(restoring.disabled).toBe(true)
+    expect(exportButton.disabled).toBe(true)
+    expect(cancel.disabled).toBe(true)
+    expect(input.disabled).toBe(true)
+    expect(screen.getByRole('status').textContent).toBe('Restoring backup…')
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText(/Replace current data\?/)).toBeTruthy()
+
+    await act(async () => {
+      allow.resolve()
+      await Promise.resolve()
+    })
+  })
+
   it('export builds a parseable envelope via a Blob + object URL', async () => {
     let capturedBlob: Blob | null = null
     // jsdom doesn't implement URL.createObjectURL/revokeObjectURL at all
@@ -798,7 +960,9 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     expect(screen.getByRole('alert').textContent).toContain('Chrome did not grant the site access')
-    expect(screen.getByRole('button', { name: 'Retry restore' })).toBeTruthy()
+    const retry = screen.getByRole('button', { name: 'Retry restore' })
+    expect(attr(retry, 'aria-describedby')).toBe(screen.getByRole('alert').id)
+    expectLocalRoutineTarget(retry)
     expect((await storage.get('photoPrefs')).mode).toBe('auto')
 
     await act(async () => {
@@ -808,6 +972,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     expect((await storage.get('photoPrefs')).mode).toBe('apod')
     expect(screen.getByRole('status').textContent).toContain('Backup restored')
     expect(screen.queryByRole('button', { name: 'Retry restore' })).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('backup restore exposes disabled Restoring status while the atomic replace is pending', async () => {
@@ -816,10 +981,12 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const replace = storage.replaceAllWithRollback.bind(storage)
     const started = deferred<void>()
     const allow = deferred<void>()
+    let replaceAllCalls = 0
     storage.replaceAllWithRollback = async <T,>(
       next: AuroraData,
       finalize: (previous: AuroraData) => Promise<T>,
     ) => {
+      replaceAllCalls += 1
       started.resolve()
       await allow.promise
       return replace(next, finalize)
@@ -834,13 +1001,24 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     })
 
     const confirm = await screen.findByRole('button', { name: 'Confirm restore' })
+    expectLocalRoutineTarget(confirm)
+    expectLocalRoutineTarget(screen.getByRole('button', { name: 'Cancel' }))
+    expectLocalRoutineTarget(screen.getByLabelText('Import backup'))
     act(() => {
+      fireEvent.click(confirm)
       fireEvent.click(confirm)
     })
     await started.promise
 
     const pending = screen.getByRole('button', { name: 'Restoring...' }) as HTMLButtonElement
     expect(pending.disabled).toBe(true)
+    expect(attr(pending, 'aria-busy')).toBe('true')
+    const pendingId = attr(pending, 'aria-describedby')
+    expect(pendingId).toBeTruthy()
+    expect(document.getElementById(pendingId!)?.getAttribute('role')).toBe('status')
+    expect(document.getElementById(pendingId!)?.getAttribute('aria-atomic')).toBe('true')
+    expect(document.getElementById(pendingId!)?.textContent).toBe('Restoring backup…')
+    expect(replaceAllCalls).toBe(1)
     await act(async () => {
       allow.resolve()
       await Promise.resolve()

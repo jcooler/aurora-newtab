@@ -930,7 +930,7 @@ export default function App() {
           </button>
 
           <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
-            <DrawerBoundary>
+            <DrawerBoundary open={settingsOpen}>
               <SettingsPanel onArrangeLayout={requestArrange} open={settingsOpen} />
             </DrawerBoundary>
           </Drawer>

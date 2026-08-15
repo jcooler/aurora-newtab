@@ -82,6 +82,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     )
 
     const gear = await screen.findByRole('button', { name: 'Open settings' })
+    gear.focus()
     await act(async () => {
       fireEvent.click(gear)
     })
@@ -118,6 +119,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     )
 
     const gear = await screen.findByRole('button', { name: 'Open settings' })
+    gear.focus()
     await act(async () => {
       fireEvent.click(gear)
     })
@@ -125,6 +127,7 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     await openSettingsTab('Widgets')
 
     const resetButton = await screen.findByRole('button', { name: 'Reset layout' })
+    resetButton.focus()
     await act(async () => {
       fireEvent.click(resetButton)
     })
@@ -138,11 +141,76 @@ describe('App — arrange-mode focus management (Task 37 review fix)', () => {
     expect(screen.queryByRole('dialog', { name: 'Reset layout?' })).toBeNull()
     expect(drawerPanel.getAttribute('inert')).toBeNull() // drawer untouched by this first Escape
     expect(await storage.get('layout')).toEqual({ clock: { x: 10, y: 10 } }) // Escape-cancel never writes
+    expect(document.activeElement).toBe(resetButton)
 
     await act(async () => {
       fireEvent.keyDown(document, { key: 'Escape' }) // now the drawer's own stack entry is on top
     })
     expect(drawerPanel.getAttribute('inert')).toBe('')
+    expect(document.activeElement).toBe(gear)
+  })
+
+  it.each(['close button', 'backdrop', 'Escape'] as const)(
+    'Settings %s closes the drawer and restores the real gear invoker',
+    async (closePath) => {
+      const storage = createStorage(memoryDriver())
+      await storage.init()
+      render(
+        <StorageProvider storage={storage}>
+          <App />
+        </StorageProvider>,
+      )
+
+      const gear = await screen.findByRole('button', { name: 'Open settings' })
+      gear.focus()
+      await act(async () => {
+        fireEvent.click(gear)
+      })
+      const drawer = await screen.findByRole('dialog', { name: 'Settings' })
+
+      await act(async () => {
+        if (closePath === 'close button') {
+          fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
+        } else if (closePath === 'backdrop') {
+          const backdrop = document.querySelector<HTMLElement>('[aria-hidden].fixed.inset-0.z-40')
+          if (!backdrop) throw new Error('Settings backdrop missing')
+          fireEvent.click(backdrop)
+        } else {
+          fireEvent.keyDown(document, { key: 'Escape' })
+        }
+      })
+
+      expect(drawer.getAttribute('inert')).toBe('')
+      expect(document.activeElement).toBe(gear)
+    },
+  )
+
+  it('healthy Settings preserves its active tab across close and reopen', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <App />
+      </StorageProvider>,
+    )
+
+    const gear = await screen.findByRole('button', { name: 'Open settings' })
+    gear.focus()
+    await act(async () => {
+      fireEvent.click(gear)
+    })
+    await openSettingsTab('Data')
+    expect(screen.getByRole('tab', { name: 'Data' }).getAttribute('aria-selected')).toBe('true')
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
+    })
+    await act(async () => {
+      fireEvent.click(gear)
+    })
+
+    expect(screen.getByRole('tab', { name: 'Data' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('region', { name: 'Data' })).toBeTruthy()
   })
 })
 
