@@ -5343,11 +5343,11 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     })
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Kitchen Light' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Movie Night' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Office Fan' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Movie Night' }))
-      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Office Fan' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Kitchen Light light.kitchen' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Movie Night scene.movie_night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Show Office Fan switch.office_fan' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Movie Night scene.movie_night' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Action Office Fan switch.office_fan' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 

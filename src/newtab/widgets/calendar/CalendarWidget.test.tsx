@@ -8,7 +8,12 @@ import type { IcsData, IcsEvent } from '../../../services/connectors/ics'
 import type { IcsConfig } from '../../../services/connectors/types'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
-import CalendarWidget, { calendarDayToken, eventStartsBeforeLocalDayEnd, relNext } from './CalendarWidget'
+import CalendarWidget, {
+  calendarDayToken,
+  calendarSourceName,
+  eventStartsBeforeLocalDayEnd,
+  relNext,
+} from './CalendarWidget'
 
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
@@ -337,6 +342,81 @@ describe('CalendarWidget', () => {
     )
     expect(keyWarning).toBe(false)
     consoleError.mockRestore()
+  })
+
+  it('programmatically distinguishes identical multi-calendar events and the Join action without changing visible event copy', async () => {
+    const duplicateStart = NOW + 10 * 60_000
+    const headline = ev('Opening sync', NOW + 5 * 60_000, NOW + 35 * 60_000, 0, MEET_URL)
+    const personalDuplicate = ev('Duplicate review', duplicateStart, duplicateStart + 30 * 60_000, 0)
+    const workDuplicate = ev('Duplicate review', duplicateStart, duplicateStart + 30 * 60_000, 1)
+    const storage = await seededStorage(
+      {
+        enabled: true,
+        view: 'upcoming',
+        upcomingCount: 3,
+        meetLinks: true,
+        calendars: [
+          { name: '  Personal  ', url: 'https://calendar.example.com/private-personal.ics' },
+          { name: 'Work', url: 'https://calendar.example.com/private-work.ics' },
+        ],
+      },
+      { events: [headline, personalDuplicate, workDuplicate] },
+    )
+    mount(storage)
+    await act(async () => {})
+
+    const section = document.querySelector('section[aria-label="Calendar"]')!
+    const headlineRow = section.querySelector('p')!
+    const rows = [...section.querySelectorAll('ul > li')]
+    const programmaticText = (element: Element) => element.getAttribute('aria-label') ?? element.textContent ?? ''
+    expect(programmaticText(headlineRow).split('Personal').length - 1).toBe(1)
+    expect(rows.map(programmaticText)).toEqual([
+      expect.stringContaining('Duplicate review'),
+      expect.stringContaining('Duplicate review'),
+    ])
+    expect(programmaticText(rows[0]!).split('Personal').length - 1).toBe(1)
+    expect(programmaticText(rows[0]!)).not.toContain('Work')
+    expect(programmaticText(rows[1]!).split('Work').length - 1).toBe(1)
+    expect(programmaticText(rows[1]!)).not.toContain('Personal')
+
+    const visibleText = (element: Element) => {
+      const clone = element.cloneNode(true) as Element
+      clone.querySelectorAll('.sr-only').forEach((node) => node.remove())
+      return clone.textContent?.replace(/\s+/g, ' ').trim()
+    }
+    expect(rows.map(visibleText)).toEqual(['09:10 Duplicate review', '09:10 Duplicate review'])
+    const join = screen.getByRole('link', { name: 'Join Opening sync — Personal' })
+    expect(join.textContent).toBe('Join')
+    expect(join.className).toContain('min-h-9')
+    expect(join.className).toContain('min-w-9')
+  })
+
+  it('keeps single-calendar semantics quiet while preserving the visible Join label', async () => {
+    const soon = ev('Standup', NOW + 10 * 60_000, NOW + 40 * 60_000, 0, MEET_URL)
+    const storage = await seededStorage(CONNECTED, { events: [soon] })
+    mount(storage)
+    await act(async () => {})
+
+    expect(screen.getByRole('link', { name: 'Join' })).toBeTruthy()
+    expect(document.querySelector('section[aria-label="Calendar"]')?.textContent).not.toContain('Personal')
+  })
+
+  it('derives source names only from trimmed configured names or safe index fallbacks, never capability URLs', () => {
+    const calendars = [
+      { name: '  Personal  ', url: 'https://calendar.example.com/private-personal.ics' },
+      { name: '   ', url: 'https://calendar.example.com/private-work.ics' },
+    ]
+    expect(calendarSourceName(0, calendars)).toBe('Personal')
+    expect(calendarSourceName(1, calendars)).toBe('Calendar 2')
+    expect(calendarSourceName(4, calendars)).toBe('Calendar 5')
+    expect(calendarSourceName(-1, calendars)).toBe('Calendar')
+    expect(calendarSourceName(1.5, calendars)).toBe('Calendar')
+    expect(calendarSourceName(Number.NaN, calendars)).toBe('Calendar')
+    expect(calendarSourceName('1', calendars)).toBe('Calendar')
+    expect(calendarSourceName(undefined, calendars)).toBe('Calendar')
+    for (const value of [0, 1, 4, -1, 1.5, Number.NaN, '1', undefined]) {
+      expect(calendarSourceName(value, calendars)).not.toContain('https://')
+    }
   })
 
   // Final-review fix wave (Finding 5): dayToken's own 6-vs-7-day fencepost —

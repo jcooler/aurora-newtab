@@ -145,6 +145,7 @@ function CalendarInner({
   // dots render anywhere — the color-coding only earns its keep once there's
   // more than one calendar to distinguish. `multi` gates every dot below.
   const multi = calendars.length > 1
+  const sourceName = (cal: unknown) => calendarSourceName(cal, calendars)
   const dot = (cal: number) => (
     <span
       aria-hidden
@@ -190,7 +191,10 @@ function CalendarInner({
       aria-label="Calendar"
       className="w-72 short:w-60 xshort:w-52 rounded-2xl bg-panel-solid p-2.5 dense:p-2 text-fg shadow-lg"
     >
-      <p className="flex min-w-0 items-center gap-1.5 text-sm dense:text-xs font-medium text-fg">
+      <p
+        aria-label={multi ? `Next: ${next.summary} · ${relative} · ${sourceName(next.cal)}` : undefined}
+        className="flex min-w-0 items-center gap-1.5 text-sm dense:text-xs font-medium text-fg"
+      >
         {multi && dot(next.cal)}
         {/* min-w-0 (not just the row's own): with the Join anchor as a shrink-0
             sibling, this span must be free to shrink below its own content
@@ -205,7 +209,8 @@ function CalendarInner({
             href={next.meetUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 cursor-pointer text-accent transition-colors hover:text-accent/80 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            aria-label={multi ? `Join ${next.summary} — ${sourceName(next.cal)}` : undefined}
+            className="inline-flex min-h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center text-accent transition-colors hover:text-accent/80 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             Join
           </a>
@@ -213,23 +218,37 @@ function CalendarInner({
       </p>
       {rows.length > 0 && (
         <ul className="mt-1 flex flex-col gap-0.5">
-          {rows.map((ev) => (
-            <li
-              // `cal` included: the spec explicitly promises an event on two
-              // calendars renders TWICE — same start+summary, different
-              // cal — so start+summary alone collides (React duplicate-key
-              // warning, undefined reconciliation between the two rows).
-              key={`${ev.cal}-${ev.start}-${ev.summary}`}
-              className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
-            >
-              {multi && dot(ev.cal)}
-              <span className="block truncate">{formatAgendaRow(ev, nowMs, localDay.timeZone)}</span>
-            </li>
-          ))}
+          {rows.map((ev) => {
+            const rowText = formatAgendaRow(ev, nowMs, localDay.timeZone)
+            return (
+              <li
+                // `cal` included: the spec explicitly promises an event on two
+                // calendars renders TWICE — same start+summary, different
+                // cal — so start+summary alone collides (React duplicate-key
+                // warning, undefined reconciliation between the two rows).
+                key={`${ev.cal}-${ev.start}-${ev.summary}`}
+                aria-label={multi ? `${rowText} · ${sourceName(ev.cal)}` : undefined}
+                className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
+              >
+                {multi && dot(ev.cal)}
+                <span className="block truncate">{rowText}</span>
+              </li>
+            )
+          })}
         </ul>
       )}
     </section>
   )
+}
+
+/** Calendar display identity is deliberately derived only from non-secret
+ *  configured names or the event's numeric source slot. Capability-bearing
+ *  feed URLs never participate in the fallback. */
+export function calendarSourceName(cal: unknown, calendars: readonly IcsCalendar[]): string {
+  if (typeof cal !== 'number' || !Number.isInteger(cal) || cal < 0) return 'Calendar'
+  const configured = calendars[cal]?.name
+  if (typeof configured === 'string' && configured.trim() !== '') return configured.trim()
+  return `Calendar ${cal + 1}`
 }
 
 /** The active IANA zone's calendar-day bounds. The shared helper constructs
