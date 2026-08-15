@@ -2536,15 +2536,22 @@ try {
   await notesProofPage.getByRole('button', { name: 'Done' }).click()
   notesCloseArrangeOk = dialogStayedDuringClose && focusRestored && noArrangeOnFailure && notesGoneBeforeInert
 
-  const destination = new URL(notesProofPage.url())
-  destination.searchParams.set('w1-p8-destination', '1')
+  // W1-P9 Quick Links accept only safe HTTP(S) destinations. Use a routed,
+  // non-network HTTPS page for this navigation/beforeunload probe instead of
+  // seeding the old chrome-extension:// test-only destination.
+  const destination = 'https://w1-p8-navigation.invalid/destination'
+  await notesProofPage.route(destination, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html',
+    body: '<!doctype html><title>W1-P8 navigation destination</title>',
+  }))
   await notesProofPage.evaluate(async (url) => {
     const { links } = await chrome.storage.local.get('links')
     await globalThis.__auroraStorageHarness.update('links', () => [
       { id: 'w1-p8-link', title: 'W1-P8 destination', url },
       ...links.filter((link) => link.id !== 'w1-p8-link'),
     ])
-  }, destination.href)
+  }, destination)
   await notesProofPage.reload()
   await notesProofPage.waitForSelector('time')
   await openNotes()
@@ -2558,21 +2565,22 @@ try {
   })
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
   await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 navigation draft')
-  await notesProofPage.locator(`a[href="${destination.href}"]`).click()
+  await notesProofPage.locator(`a[href="${destination}"]`).click()
   await notesProofPage.getByRole('alert').waitFor({ timeout: 3_000 })
-  const dismissedRetained = notesProofPage.url() !== destination.href
+  const dismissedRetained = notesProofPage.url() !== destination
     && await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).inputValue() === 'W1-P8 navigation draft'
     && await notesProofPage.getByRole('button', { name: 'Retry save' }).isVisible()
   await retrySave()
   dismissNavigation = false
-  await notesProofPage.locator(`a[href="${destination.href}"]`).click()
-  await notesProofPage.waitForURL(destination.href)
+  await notesProofPage.locator(`a[href="${destination}"]`).click()
+  await notesProofPage.waitForURL(destination)
   notesNavigationOk = dismissedRetained && beforeUnloadDialogs === 1
 } finally {
   if (!notesProofPage.isClosed()) {
-    await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.reset()).catch(() => undefined)
+    await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness?.notes?.reset()).catch(() => undefined)
     await notesProofPage.waitForFunction(
-      () => globalThis.__auroraStorageHarness.notes.snapshot().pending === 0,
+      () => !globalThis.__auroraStorageHarness?.notes
+        || globalThis.__auroraStorageHarness.notes.snapshot().pending === 0,
       undefined,
       { timeout: 3_000 },
     ).catch(() => undefined)
