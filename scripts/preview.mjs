@@ -2441,28 +2441,50 @@ try {
     { timeout: 3_000 },
   )
   const storedNote = () => notesProofPage.evaluate(() => chrome.storage.local.get('notes').then((value) => value.notes))
+  const notesDialog = notesProofPage.getByRole('dialog', { name: 'Notes' })
   const openNotes = async () => {
     await notesProofPage.getByRole('button', { name: 'Notes' }).click()
-    await notesProofPage.getByRole('dialog', { name: 'Notes' }).waitFor()
+    await notesDialog.waitFor()
   }
   const retrySave = async () => {
-    await notesProofPage.getByRole('button', { name: 'Retry save' }).click()
-    await notesProofPage.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+    await notesDialog.getByRole('button', { name: 'Retry save' }).click()
+    await notesDialog.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+  }
+  const retrySaveWithKeyboard = async () => {
+    const retry = notesDialog.getByRole('button', { name: 'Retry save' })
+    const retryHandle = await retry.elementHandle()
+    await retry.focus()
+    const focused = await notesProofPage.evaluate((button) => document.activeElement === button, retryHandle)
+    await notesProofPage.keyboard.press('Enter')
+    await waitForHeldNote()
+    await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
+    await notesDialog.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+    return focused
   }
 
   await openNotes()
   const noteBeforePending = await storedNote()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
-  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 pending draft')
+  await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 pending draft')
   await waitForHeldNote()
   const pendingStored = await storedNote()
-  const pendingStatus = await notesProofPage.getByRole('status').textContent()
-  const pendingStatusHandle = await notesProofPage.getByRole('status').elementHandle()
+  const pendingStatus = await notesDialog.getByRole('status').textContent()
+  const pendingStatusHandle = await notesDialog.getByRole('status').elementHandle()
+  const pendingStatusContract = await notesDialog.evaluate((dialog) => {
+    const statuses = dialog.querySelectorAll('[role="status"]')
+    const status = statuses[0]
+    return {
+      oneStatus: statuses.length === 1,
+      polite: status?.getAttribute('aria-live') === 'polite',
+      atomic: status?.getAttribute('aria-atomic') === 'true',
+      text: status?.textContent?.trim() ?? null,
+    }
+  })
   const savedWhileHeld = pendingStatus?.includes('Saved') ?? false
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
-  await notesProofPage.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
-  const savedStatusContract = await notesProofPage.evaluate((pendingStatusElement) => {
-    const status = document.querySelector('[role="status"]')
+  await notesDialog.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
+  const savedStatusContract = await notesDialog.evaluate((dialog, pendingStatusElement) => {
+    const status = dialog.querySelector('[role="status"]')
     return {
       stable: status === pendingStatusElement,
       polite: status?.getAttribute('aria-live') === 'polite',
@@ -2478,29 +2500,35 @@ try {
     && (await notesHarnessSnapshot()).pending === 0
 
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
-  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 failed draft')
-  await notesProofPage.getByRole('alert').waitFor({ timeout: 3_000 })
+  await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 failed draft')
+  await notesDialog.getByRole('alert').waitFor({ timeout: 3_000 })
   const failedStored = await storedNote()
-  const failedText = await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).inputValue()
-  const alertText = await notesProofPage.getByRole('alert').textContent()
-  const notesErrorContract = await notesProofPage.evaluate(() => {
-    const status = document.querySelector('[role="status"]')
-    const alert = document.querySelector('[role="alert"]')
+  const failedText = await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).inputValue()
+  const alertText = await notesDialog.getByRole('alert').textContent()
+  const notesErrorContract = await notesDialog.evaluate((dialog) => {
+    const status = dialog.querySelector('[role="status"]')
+    const alerts = dialog.querySelectorAll('[role="alert"]')
+    const alert = alerts[0]
     const retry = alert?.querySelector('button')
     return {
-      oneStatus: document.querySelectorAll('[role="status"]').length === 1,
+      oneStatus: dialog.querySelectorAll('[role="status"]').length === 1,
+      oneAlert: alerts.length === 1,
       alertAtomic: alert?.getAttribute('aria-atomic') === 'true',
       retryNamedAndEnabled: retry instanceof HTMLButtonElement && retry.textContent?.trim() === 'Retry save' && !retry.disabled,
       duplicatedFailure: status?.textContent?.includes('Couldnâ€™t save. Your note is still here.') ?? false,
     }
   })
   w2P1FeedbackContract.notes =
-    pendingStatus?.trim() === 'Savingâ€¦' &&
+    pendingStatusContract.oneStatus &&
+    pendingStatusContract.polite &&
+    pendingStatusContract.atomic &&
+    pendingStatusContract.text === 'Savingâ€¦' &&
     savedStatusContract.stable &&
     savedStatusContract.polite &&
     savedStatusContract.atomic &&
     savedStatusContract.text === 'Saved' &&
     notesErrorContract.oneStatus &&
+    notesErrorContract.oneAlert &&
     notesErrorContract.alertAtomic &&
     notesErrorContract.retryNamedAndEnabled &&
     !notesErrorContract.duplicatedFailure
@@ -2530,14 +2558,16 @@ try {
     responsiveChecks.push(Boolean(geometry?.fixedSize && geometry?.reachable))
   }
   await notesProofPage.setViewportSize({ width: 1600, height: 900 })
-  await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 latest retry')
-  const alertStayedVisible = await notesProofPage.getByRole('alert').isVisible()
-  await retrySave()
+  await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 latest retry')
+  const alertStayedVisible = await notesDialog.getByRole('alert').isVisible()
+  await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
+  const keyboardRetryOk = await retrySaveWithKeyboard()
   const retriedNote = await storedNote()
   notesRecoveryOk = alertText === 'Couldn’t save. Your note is still here.Retry save'
     && failedText === 'W1-P8 failed draft'
     && failedStored.text === 'W1-P8 pending draft'
     && alertStayedVisible
+    && keyboardRetryOk
     && retriedNote.text === 'W1-P8 latest retry'
     && axSnapshot.includes('alert')
     && axSnapshot.includes('Retry save')
@@ -8568,11 +8598,18 @@ function gitlabContributionsFixture() {
   const firstErrorOk = initialTargetErrorOk && screenshotStateOk && visualQuiescentOk
   w2P1FeedbackContract.homeAssistant =
     visualPending.target?.disabled === false &&
+    visualPending.target?.feedbackId !== null &&
     visualPending.target?.feedbackRole === 'alert' &&
+    visualPending.target?.feedbackText === ERROR_TEXT &&
+    visualPending.target?.feedbackVisible === true &&
     visualPending.target?.feedbackAtomic === 'true' &&
+    visualPending.target?.feedbackLive === null &&
     visualPending.siblings[0]?.disabled === true &&
     visualPending.siblings[0]?.ariaBusy === 'true' &&
+    visualPending.siblings[0]?.feedbackId !== null &&
     visualPending.siblings[0]?.feedbackRole === 'status' &&
+    visualPending.siblings[0]?.feedbackText === VISUAL_PENDING_TEXT &&
+    visualPending.siblings[0]?.feedbackVisible === true &&
     visualPending.siblings[0]?.feedbackLive === 'polite' &&
     visualPending.siblings[0]?.feedbackAtomic === 'true'
   console.log(
@@ -11528,16 +11565,21 @@ function gitlabContributionsFixture() {
 
 // ---------------------------------------------------------------------------
 // W2-P1 Weather feedback: a stale retained snapshot starts a real request.
-// Hold that request to observe refreshing, then abort it to observe the
+// Hold that request to observe refreshing, then fail it to observe the
 // bounded offline message. No fixture supplies either feedback element.
 {
+  const RAW_PROVIDER_ERROR = 'W2-P1 raw provider error must never reach the weather surface'
   let releaseWeatherRequest
   const weatherRequestReleased = new Promise((resolveRequest) => {
     releaseWeatherRequest = resolveRequest
   })
   const holdWeatherRequest = async (route) => {
     await weatherRequestReleased
-    await route.abort()
+    await route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: JSON.stringify({ error: RAW_PROVIDER_ERROR }),
+    })
   }
   await page.route('**/api.open-meteo.com/**', holdWeatherRequest)
   await page.evaluate(async () => {
@@ -11562,6 +11604,21 @@ function gitlabContributionsFixture() {
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
   }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
+  const readWeatherFeedback = () => page.evaluate(({ selector, rawProviderError }) => {
+    const weather = document.querySelector(selector)
+    const statuses = weather?.querySelectorAll('[role="status"]') ?? []
+    const status = statuses[0]
+    const text = weather?.textContent ?? ''
+    return {
+      statusCount: statuses.length,
+      statusText: status?.textContent?.trim() ?? null,
+      statusPolite: status?.getAttribute('aria-live') === 'polite',
+      statusAtomic: status?.getAttribute('aria-atomic') === 'true',
+      retainedFixture: text.includes('New York') && (text.includes('18Â°C') || text.includes('64Â°F')),
+      rawProviderErrorShown: text.includes(rawProviderError),
+    }
+  }, { selector: weatherSel, rawProviderError: RAW_PROVIDER_ERROR })
+  const refreshingFeedback = await readWeatherFeedback()
   releaseWeatherRequest()
   const offlineVisible = await page.waitForFunction((selector) => {
     const weather = document.querySelector(selector)
@@ -11570,7 +11627,20 @@ function gitlabContributionsFixture() {
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
   }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
-  w2P1FeedbackContract.weather = refreshingVisible && offlineVisible
+  const offlineFeedback = await readWeatherFeedback()
+  w2P1FeedbackContract.weather =
+    refreshingVisible &&
+    refreshingFeedback.statusCount === 1 &&
+    refreshingFeedback.statusText === 'Refreshingâ€¦' &&
+    refreshingFeedback.statusPolite &&
+    refreshingFeedback.statusAtomic &&
+    offlineVisible &&
+    offlineFeedback.statusCount === 1 &&
+    offlineFeedback.statusText === 'Offline â€” showing cached' &&
+    offlineFeedback.statusPolite &&
+    offlineFeedback.statusAtomic &&
+    offlineFeedback.retainedFixture &&
+    !offlineFeedback.rawProviderErrorShown
   await page.unroute('**/api.open-meteo.com/**', holdWeatherRequest)
   await page.evaluate(async () => {
     await globalThis.__auroraSetHarnessStorage({ weatherCache: null })

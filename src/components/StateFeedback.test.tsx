@@ -35,6 +35,25 @@ describe('AssertiveAlert', () => {
     view.rerender(<AssertiveAlert id="save-error">{null}</AssertiveAlert>)
     expect(screen.queryByRole('alert')).toBeNull()
   })
+
+  it('keeps separate polite status and assertive error content free of duplicates', () => {
+    render(
+      <div>
+        <PoliteStatus id="save-status">Savingâ€¦</PoliteStatus>
+        <AssertiveAlert id="save-error">
+          <><span>Couldnâ€™t save.</span> <button type="button">Retry save</button></>
+        </AssertiveAlert>
+      </div>,
+    )
+    const status = screen.getByRole('status')
+    const alert = screen.getByRole('alert')
+    expect(screen.queryAllByRole('status')).toHaveLength(1)
+    expect(screen.queryAllByRole('alert')).toHaveLength(1)
+    expect(status.textContent).toBe('Savingâ€¦')
+    expect(status.textContent).not.toContain('Couldnâ€™t save.')
+    expect(alert.textContent).toContain('Couldnâ€™t save.')
+    expect(alert.textContent).toContain('Retry save')
+  })
 })
 
 describe('ResourceFeedback', () => {
