@@ -234,7 +234,7 @@ export default function Background({
                       type="button"
                       aria-label={`Remove photo ${i + 1}`}
                       onClick={() => void handleRemoveUpload(u.key)}
-                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:-right-2 max-[420px]:-top-2 max-[420px]:size-9"
+                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:right-0 max-[420px]:top-0 max-[420px]:size-9"
                     >
                       ✕
                     </button>

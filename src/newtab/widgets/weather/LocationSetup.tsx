@@ -31,14 +31,15 @@ export default function LocationSetup() {
   const [open, setOpen] = useState(false)
   const [activeIndex, setActiveIndex] = useState(-1)
   const [edgeShift, setEdgeShift] = useState(0)
-  const [verticalShift, setVerticalShift] = useState(0)
+  const [listSide, setListSide] = useState<'above' | 'below'>('below')
+  const [listMaxHeight, setListMaxHeight] = useState<number | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLUListElement>(null)
   // Mirrors `edgeShift` (updated in lockstep, below) so the measurement
   // effect can recover the list's TRUE unshifted position even though the
   // DOM it's reading already has a previous shift baked into its rendered
   // `style.left`.
   const appliedShiftRef = useRef(0)
-  const appliedVerticalShiftRef = useRef(0)
 
   // Weather is a freely-repositionable widget (arrange mode) that can end up
   // anywhere on screen, including hard against the right edge — where a
@@ -68,22 +69,24 @@ export default function LocationSetup() {
       if (rect.width === 0 || rect.height === 0) return
       const baseLeft = rect.left - appliedShiftRef.current
       const baseRight = rect.right - appliedShiftRef.current
-      const baseTop = rect.top - appliedVerticalShiftRef.current
-      const baseBottom = rect.bottom - appliedVerticalShiftRef.current
       let nextHorizontal = 0
-      let nextVertical = 0
       if (baseLeft < EDGE_MARGIN) nextHorizontal = EDGE_MARGIN - baseLeft
       else if (baseRight > window.innerWidth - EDGE_MARGIN) {
         nextHorizontal = window.innerWidth - EDGE_MARGIN - baseRight
       }
-      if (baseTop < EDGE_MARGIN) nextVertical = EDGE_MARGIN - baseTop
-      else if (baseBottom > window.innerHeight - EDGE_MARGIN) {
-        nextVertical = window.innerHeight - EDGE_MARGIN - baseBottom
+      const inputRect = inputRef.current?.getBoundingClientRect()
+      if (inputRect && inputRect.width > 0 && inputRect.height > 0) {
+        const gap = 4
+        const below = Math.max(0, window.innerHeight - EDGE_MARGIN - inputRect.bottom - gap)
+        const above = Math.max(0, inputRect.top - EDGE_MARGIN - gap)
+        const naturalHeight = Math.max(rect.height, el.scrollHeight + 2)
+        const nextSide = naturalHeight <= below || below >= above ? 'below' : 'above'
+        const available = nextSide === 'below' ? below : above
+        setListSide((current) => current === nextSide ? current : nextSide)
+        setListMaxHeight((current) => current === Math.floor(available) ? current : Math.floor(available))
       }
       appliedShiftRef.current = nextHorizontal
-      appliedVerticalShiftRef.current = nextVertical
       setEdgeShift(nextHorizontal)
-      setVerticalShift(nextVertical)
     }
     const schedule = () => {
       if (frame !== null) return
@@ -93,6 +96,7 @@ export default function LocationSetup() {
     window.addEventListener('resize', schedule)
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
     observer?.observe(listRef.current!)
+    if (inputRef.current) observer?.observe(inputRef.current)
     return () => {
       window.removeEventListener('resize', schedule)
       observer?.disconnect()
@@ -315,7 +319,8 @@ export default function LocationSetup() {
 
   return (
     <div className="flex flex-col gap-2 text-sm">
-      <p className="text-fg-muted">Weather needs a location.</p>
+      <p className="text-fg-muted xshort:hidden">Weather needs a location.</p>
+      <div className="flex flex-col gap-2 xshort:flex-row xshort:items-start">
       <button
         type="button"
         onClick={useDevice}
@@ -328,12 +333,13 @@ export default function LocationSetup() {
         // Neither is right for a form: a button is a control (pointer) and a
         // text field is a text field (I-beam). The suggestion rows below
         // already carry their own `cursor-pointer`.
-        className="self-start cursor-pointer rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
+        className="self-start cursor-pointer rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 xshort:order-2 xshort:shrink-0"
       >
         Use my location
       </button>
-      <div className="relative w-40">
+      <div className="relative w-40 xshort:order-1 xshort:min-w-0 xshort:flex-1">
         <input
+          ref={inputRef}
           role="combobox"
           aria-expanded={open}
           aria-controls="location-listbox"
@@ -346,7 +352,7 @@ export default function LocationSetup() {
           onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="or search a city"
-          className="w-40 cursor-text border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent max-[420px]:min-h-9"
+          className="w-40 cursor-text border-b border-panel-border bg-transparent text-fg outline-none focus-visible:border-accent max-[420px]:min-h-9 xshort:w-full"
         />
         {/* Rendered whenever there's something to show, then hidden (not
             unmounted) once closed — the `hidden` attribute drops it from the
@@ -360,11 +366,13 @@ export default function LocationSetup() {
           role="listbox"
           aria-label="City suggestions"
           hidden={!open}
-          style={edgeShift || verticalShift ? {
+          style={{
             ...(edgeShift ? { left: edgeShift } : {}),
-            ...(verticalShift ? { transform: `translateY(${verticalShift}px)` } : {}),
-          } : undefined}
-          className="absolute left-0 top-full z-10 mt-1 max-h-[calc(100dvh-1rem)] w-72 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+            top: listSide === 'below' ? 'calc(100% + 4px)' : 'auto',
+            bottom: listSide === 'above' ? 'calc(100% + 4px)' : 'auto',
+            maxHeight: listMaxHeight ?? 'calc(100dvh - 1rem)',
+          }}
+          className="absolute left-0 z-10 w-72 overflow-x-hidden overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
         >
           {results.length === 0 && noMatches && (
             <li className="px-2 py-1.5 text-sm text-fg-muted">No matches</li>
@@ -391,6 +399,7 @@ export default function LocationSetup() {
             )
           })}
         </ul>
+      </div>
       </div>
       {error && (
         <p id="location-error" role="alert" className="text-fg-muted">

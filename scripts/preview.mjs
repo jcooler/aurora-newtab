@@ -18267,6 +18267,7 @@ await page.waitForTimeout(150)
   let originalTouched = null
   let originalPermissionHarnessFlag = null
   let fixtureBookmarkFolderId = null
+  let fixtureNestedBookmarkFolderId = null
   let uploadBackupReady = false
 
   const recordError = (name, error) => {
@@ -18386,8 +18387,135 @@ await page.waitForTimeout(150)
       contained: drawer.scrollWidth <= drawer.clientWidth + 1,
       controls,
       allTargets: controls.length > 0 && controls.every((control) => control.width >= 36 && control.height >= 36),
+      sections: [...drawer.querySelectorAll('section[aria-label]')]
+        .filter((section) => visible(section))
+        .map((section) => section.getAttribute('aria-label')),
+      tokenForms: ['github', 'gitlab', 'jira', 'vercel', 'homeassistant'].filter((id) =>
+        drawer.querySelector(`.rounded-xl:has(#connector-${id}-enabled) form`) instanceof HTMLFormElement
+      ),
+      permissionCleanup: drawer.querySelector('[role="alert"]') instanceof HTMLElement,
+      aboutFooter: drawer.querySelector('[role="tabpanel"] footer') instanceof HTMLElement,
     }
   }, tabName)
+  const tabToNamedControl = async (ownerSelector, ariaLabel) => {
+    const count = await evidencePage.evaluate(({ ownerSelector, ariaLabel }) => {
+      const owner = document.querySelector(ownerSelector)
+      if (!(owner instanceof HTMLElement)) return 0
+      return [...owner.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+        .filter((node) => node instanceof HTMLElement && node.tabIndex >= 0).length +
+        (owner.querySelector(`[aria-label="${CSS.escape(ariaLabel)}"]`) ? 16 : 0)
+    }, { ownerSelector, ariaLabel })
+    for (let index = 0; index < count; index += 1) {
+      await evidencePage.keyboard.press('Tab')
+      const reached = await evidencePage.evaluate((ariaLabel) =>
+        document.activeElement?.getAttribute('aria-label') === ariaLabel,
+      ariaLabel)
+      if (!reached) continue
+      return evidencePage.evaluate(({ ownerSelector, ariaLabel }) => {
+        const owner = document.querySelector(ownerSelector)
+        const control = owner?.querySelector(`[aria-label="${CSS.escape(ariaLabel)}"]`)
+        if (!(owner instanceof HTMLElement) || !(control instanceof HTMLElement)) return { found: false }
+        const rect = control.getBoundingClientRect()
+        let current = control.parentElement
+        let ownedScrollport = null
+        while (current && owner.contains(current)) {
+          const style = getComputedStyle(current)
+          if (/(auto|scroll)/.test(`${style.overflowY} ${style.overflowX}`)) {
+            ownedScrollport = current
+            break
+          }
+          current = current.parentElement
+        }
+        const boundary = (ownedScrollport ?? owner).getBoundingClientRect()
+        const fullyVisible = rect.top >= boundary.top - 1 && rect.bottom <= boundary.bottom + 1 &&
+          rect.left >= boundary.left - 1 && rect.right <= boundary.right + 1 &&
+          rect.top >= -1 && rect.bottom <= innerHeight + 1 && rect.left >= -1 && rect.right <= innerWidth + 1
+        return {
+          found: true,
+          identity: control.getAttribute('aria-label'),
+          focused: document.activeElement === control,
+          rect: {
+            left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+            right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+            width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+          },
+          scrollOwner: {
+            tag: (ownedScrollport ?? owner).tagName,
+            role: (ownedScrollport ?? owner).getAttribute('role'),
+            scrollTop: (ownedScrollport ?? owner).scrollTop,
+            clientHeight: (ownedScrollport ?? owner).clientHeight,
+            scrollHeight: (ownedScrollport ?? owner).scrollHeight,
+          },
+          fullyVisible,
+        }
+      }, { ownerSelector, ariaLabel })
+    }
+    return { found: false, identity: ariaLabel, focused: false, fullyVisible: false }
+  }
+  const readLocationComposite = async () => evidencePage.evaluate(() => {
+    const input = document.querySelector('[role="combobox"][aria-controls="location-listbox"]')
+    const list = document.querySelector('#location-listbox')
+    const device = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Use my location')
+    if (!(input instanceof HTMLElement) || !(list instanceof HTMLElement) || !(device instanceof HTMLElement)) return { found: false }
+    const rectOf = (element) => {
+      const rect = element.getBoundingClientRect()
+      return {
+        left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+        right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+        width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+      }
+    }
+    const deviceRect = rectOf(device)
+    const inputRect = rectOf(input)
+    const listRect = rectOf(list)
+    const activeOption = document.getElementById(input.getAttribute('aria-activedescendant') ?? '')
+    const activeRect = activeOption instanceof HTMLElement ? rectOf(activeOption) : null
+    const inputHit = document.elementFromPoint(
+      (inputRect.left + inputRect.right) / 2,
+      (inputRect.top + inputRect.bottom) / 2,
+    )
+    const deviceHit = document.elementFromPoint(
+      (deviceRect.left + deviceRect.right) / 2,
+      (deviceRect.top + deviceRect.bottom) / 2,
+    )
+    const activeHits = activeOption instanceof HTMLElement && activeRect
+      ? [0.25, 0.5, 0.75].map((fraction) => {
+          const hit = document.elementFromPoint(
+            activeRect.left + activeRect.width * fraction,
+            (activeRect.top + activeRect.bottom) / 2,
+          )
+          return {
+            topmost: hit === activeOption || activeOption.contains(hit),
+            tag: hit instanceof HTMLElement ? hit.tagName : null,
+            name: hit instanceof HTMLElement ? hit.getAttribute('aria-label') ?? hit.textContent?.trim() ?? '' : '',
+          }
+        })
+      : []
+    const verticalScrollports = [list, ...list.querySelectorAll('*')].filter((node) => {
+      if (!(node instanceof HTMLElement)) return false
+      const style = getComputedStyle(node)
+      return /(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight + 1
+    }).length
+    return {
+      found: true,
+      inputFocused: document.activeElement === input,
+      activeDescendant: input.getAttribute('aria-activedescendant'),
+      device: { rect: deviceRect, target: deviceRect.width >= 36 && deviceRect.height >= 36 },
+      search: { rect: inputRect, target: inputRect.width >= 36 && inputRect.height >= 36 },
+      list: { rect: listRect, options: list.querySelectorAll('[role="option"]').length },
+      activeOption: { rect: activeRect, hits: activeHits, topmost: activeHits.length === 3 && activeHits.every((hit) => hit.topmost) },
+      disjoint: listRect.bottom <= inputRect.top - 3 || listRect.top >= inputRect.bottom + 3,
+      inputTopmost: inputHit === input || input.contains(inputHit),
+      deviceTopmost: deviceHit === device || device.contains(deviceHit),
+      inputHit: inputHit instanceof HTMLElement ? { tag: inputHit.tagName, name: inputHit.getAttribute('aria-label') ?? inputHit.textContent?.trim() ?? '' } : null,
+      deviceHit: deviceHit instanceof HTMLElement ? { tag: deviceHit.tagName, name: deviceHit.getAttribute('aria-label') ?? deviceHit.textContent?.trim() ?? '' } : null,
+      inputFullyVisible: inputRect.left >= -1 && inputRect.right <= innerWidth + 1 &&
+        inputRect.top >= -1 && inputRect.bottom <= innerHeight + 1,
+      deviceFullyVisible: deviceRect.left >= -1 && deviceRect.right <= innerWidth + 1 &&
+        deviceRect.top >= -1 && deviceRect.bottom <= innerHeight + 1,
+      verticalScrollports,
+    }
+  })
   // Reachability must come from the browser's real sequential-focus algorithm.
   // The old probe called focus()/scrollIntoView() itself, which could make an
   // unreachable control look reachable. Markers below identify the expected
@@ -18673,8 +18801,18 @@ await page.waitForTimeout(150)
           url: `https://example.com/w2-p3/${index + 1}`,
         })
       }
-      return folder.id
+      const nested = await chrome.bookmarks.create({ parentId: folder.id, title: 'W2-P3 nested folder' })
+      for (let index = 0; index < 12; index += 1) {
+        await chrome.bookmarks.create({
+          parentId: nested.id,
+          title: index === 0 ? 'W2-P3 nested bookmark' : `W2-P3 nested bookmark ${index + 1}`,
+          url: `https://example.com/w2-p3/nested/${index + 1}`,
+        })
+      }
+      return { folderId: folder.id, nestedId: nested.id }
     })
+    fixtureNestedBookmarkFolderId = fixtureBookmarkFolderId.nestedId
+    fixtureBookmarkFolderId = fixtureBookmarkFolderId.folderId
     originalPermissionHarnessFlag = await evidencePage.evaluate((flagKey) => sessionStorage.getItem(flagKey), PERMISSIONS_HARNESS_FLAG)
     await evidencePage.evaluate((flagKey) => {
       sessionStorage.setItem(flagKey, JSON.stringify({ held: [] }))
@@ -18749,8 +18887,11 @@ await page.waitForTimeout(150)
       focused: document.activeElement?.textContent?.trim(),
     }))
     const settingsRows = []
+    const settingsShortRows = []
     let settingsNarrowStyle = null
     let settingsFixtureInventory = {}
+    let settingsGeneralRemoveTall = null
+    let settingsGeneralRemoveShort = null
     for (const tab of ['General', 'Widgets', 'Connectors', 'Data']) {
       await openTab(tab)
       const row = await readSettingsTargets(tab)
@@ -18762,6 +18903,7 @@ await page.waitForTimeout(150)
           weather: [...document.querySelectorAll('button')].some((button) => button.textContent?.includes('W2-P3 weather location')),
         }))
         await capture('w2-p3-settings-general-320x812')
+        settingsGeneralRemoveTall = await tabToNamedControl('[role="dialog"][aria-label="Settings"]:not([inert])', 'Remove photo 1')
       }
       if (tab === 'Connectors') {
         settingsFixtureInventory = {
@@ -18814,8 +18956,17 @@ await page.waitForTimeout(150)
     await openTab('General')
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await capture('w2-p3-settings-short-320x180')
-    const settingsShort = await readSettingsTargets('General@320x180')
-    settingsShort.keyboard = await tabReachability('[role="tabpanel"]', { trap: false })
+    for (const tab of ['General', 'Widgets', 'Connectors', 'Data']) {
+      await openTab(tab)
+      const row = await readSettingsTargets(`${tab}@320x180`)
+      row.keyboard = await tabReachability('[role="tabpanel"]', { trap: false })
+      settingsShortRows.push(row)
+      if (tab === 'General') {
+        settingsGeneralRemoveShort = await tabToNamedControl('[role="dialog"][aria-label="Settings"]:not([inert])', 'Remove photo 1')
+      }
+    }
+    await openTab('General')
+    const settingsShort = settingsShortRows[0]
     const settingsTrap = await tabReachability('[role="dialog"][aria-label="Settings"]:not([inert])')
     await evidencePage.keyboard.press('Escape')
     await activeSettings().waitFor({ state: 'hidden' })
@@ -18823,6 +18974,11 @@ await page.waitForTimeout(150)
     observations.checks.settings = {
       rows: settingsRows,
       short: settingsShort,
+      shortRows: settingsShortRows,
+      generalRemove: {
+        tall: settingsGeneralRemoveTall,
+        short: settingsGeneralRemoveShort,
+      },
       tabs: settingsTabs,
       narrowStyle: settingsNarrowStyle,
       trap: settingsTrap,
@@ -18837,9 +18993,29 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
+    await evidencePage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
+    const notesTextbox = evidencePage.getByRole('textbox', { name: 'Scratchpad', exact: true })
+    await notesTextbox.fill(Array.from({ length: 18 }, (_, index) => `W2-P3 recoverable short draft line ${index + 1}`).join('\n'))
+    await evidencePage.getByRole('button', { name: 'Retry save', exact: true }).waitFor({ timeout: 3_000 })
     await capture('w2-p3-notes-320x180')
     observations.checks.notes = await readSurface('[role="dialog"][aria-label="Notes"]', 7)
     observations.checks.notes.keyboard = await tabReachability('[role="dialog"][aria-label="Notes"]')
+    observations.checks.notes.recovery = await evidencePage.evaluate(() => {
+      const panel = document.querySelector('[role="dialog"][aria-label="Notes"]')
+      const retry = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Retry save')
+      const textarea = document.querySelector('#notes-textarea')
+      return {
+        alert: panel?.querySelector('[role="alert"]')?.textContent?.includes('Couldn\u2019t save. Your note is still here.') ?? false,
+        retryNamed: retry?.getAttribute('aria-describedby') !== null && retry?.textContent?.trim() === 'Retry save',
+        retryTarget: retry instanceof HTMLElement && retry.getBoundingClientRect().width >= 36 && retry.getBoundingClientRect().height >= 36,
+        textareaTarget: textarea instanceof HTMLElement && textarea.getBoundingClientRect().width >= 36 && textarea.getBoundingClientRect().height >= 36,
+      }
+    })
+    await evidencePage.getByRole('button', { name: 'Retry save', exact: true }).focus()
+    await evidencePage.keyboard.press('Enter')
+    await evidencePage.getByRole('status').filter({ hasText: 'Saved' }).waitFor({ timeout: 3_000 })
+    observations.checks.notes.recovery.retrySucceeded = true
+    await notesTextbox.focus()
     const notesFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
     const notesOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Notes"]')
     const notesFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
@@ -19015,6 +19191,7 @@ await page.waitForTimeout(150)
     await capture('w2-p3-location-320x180')
     observations.checks.location = await readSurface('[role="listbox"][aria-label="City suggestions"]', 7)
     observations.checks.location.activeDescendants = { first: locationFirst, last: locationLast }
+    observations.checks.location.composite = await readLocationComposite()
     const locationBeforeOutside = await evidencePage.evaluate(() => {
       const input = document.querySelector('[role="combobox"][aria-controls="location-listbox"]')
       return {
@@ -19034,7 +19211,17 @@ await page.waitForTimeout(150)
         activeDescendantPreserved: !!before.activeDescendant && input?.getAttribute('aria-activedescendant') === before.activeDescendant,
       }
     }, { point: locationOutsidePoint, before: locationBeforeOutside })
+    await locationInput.focus()
     await evidencePage.keyboard.press('Escape')
+    await evidencePage.getByRole('listbox', { name: 'City suggestions', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.location.cleanup = await evidencePage.evaluate(() => {
+      const input = document.querySelector('[role="combobox"][aria-controls="location-listbox"]')
+      const list = document.querySelector('#location-listbox')
+      return {
+        listClosed: list instanceof HTMLElement && list.hidden,
+        inputFocused: document.activeElement === input,
+      }
+    })
 
     if (!(await evidencePage.getByRole('navigation', { name: 'Bookmarks bar', exact: true }).count())) {
       throw new Error('W2-P3 preview contract requires the bookmarks permission and both bookmark captures')
@@ -19049,20 +19236,36 @@ await page.waitForTimeout(150)
     await capture('w2-p3-bookmarks-320x568')
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
-    await capture('w2-p3-bookmarks-short-320x180')
     observations.checks.folder = await readSurface('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', 7)
     observations.checks.folder.keyboard = await tabReachability('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', { trap: false })
-    const folderOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', { backdrop: true })
-    await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('button', { name: 'W2-P3 nested folder', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 nested folder bookmarks', exact: true }).waitFor()
+    await capture('w2-p3-bookmarks-short-320x180')
+    observations.checks.folder.nested = await readSurface('[role="dialog"][aria-label="W2-P3 nested folder bookmarks"]', 7)
+    observations.checks.folder.nested.keyboard = await tabReachability('[role="dialog"][aria-label="W2-P3 nested folder bookmarks"]', { trap: false })
+    observations.checks.folder.path = await evidencePage.evaluate((nestedId) => ({
+      fixtureNestedId: nestedId,
+      back: [...document.querySelectorAll('button')].some((button) => button.textContent?.trim() === '\u2039 Back'),
+      nestedBookmark: [...document.querySelectorAll('a')].some((link) => link.textContent?.trim() === 'W2-P3 nested bookmark'),
+    }), fixtureNestedBookmarkFolderId)
+    await evidencePage.getByRole('button', { name: '\u2039 Back', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor()
+    observations.checks.folder.path.backReturned = true
+    await evidencePage.getByRole('button', { name: 'W2-P3 nested folder', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 nested folder bookmarks', exact: true }).waitFor()
+    const folderOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="W2-P3 nested folder bookmarks"]', { backdrop: true })
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 nested folder bookmarks', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.folder.outside = await evidencePage.evaluate(({ point, title }) => ({
       point,
-      folderClosed: !document.querySelector('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]'),
+      folderClosed: !document.querySelector('[role="dialog"][aria-label$=" bookmarks"]'),
       invokerFocused: document.activeElement?.getAttribute('title') === title,
     }), { point: folderOutsidePoint, title: folderInvokerTitle })
     await folder.click()
     await evidencePage.locator('[role="dialog"][aria-label$=" bookmarks"]').waitFor()
     await evidencePage.getByRole('button', { name: 'W2-P3 evidence folder', exact: true }).click()
     await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor()
+    await evidencePage.getByRole('button', { name: 'W2-P3 nested folder', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 nested folder bookmarks', exact: true }).waitFor()
     await evidencePage.keyboard.press('Escape')
     observations.checks.folder.escapeRestored = await evidencePage.evaluate((title) =>
       document.activeElement?.getAttribute('title') === title,
@@ -19184,11 +19387,31 @@ await page.waitForTimeout(150)
       const surfaces = value?.panel ? [value.panel, value.menu] : [value]
       return surfaces.filter(Boolean).every((surface) => surface.found && surface.pageContained && surface.horizontallyContained && surface.inset && surface.allTargets)
     })
-  const settingsOk = settingsChecks?.rows?.length === 4 &&
+  const expectedShortSections = {
+    'General@320x180': ['Profile', 'Appearance', 'Clock and units', 'Background'],
+    'Widgets@320x180': ['Widgets', 'Habits', 'Weather', 'World clocks', 'Countdowns', 'Layout'],
+    'Connectors@320x180': ['Connectors'],
+    'Data@320x180': ['Data'],
+  }
+  const settingsOk = settingsChecks?.rows?.length === 4 && settingsChecks?.shortRows?.length === 4 &&
     [...settingsChecks.rows, settingsChecks.short].every((row) =>
       row.found && row.pageContained && row.contained && row.allTargets && tabReachabilityOk(row.keyboard)
     ) &&
-    settingsChecks.short.drawer.verticalScrollports === 1 &&
+    settingsChecks.shortRows.every((row) =>
+      row.found && row.pageContained && row.contained && row.allTargets &&
+      row.drawer.verticalScrollports === 1 && tabReachabilityOk(row.keyboard) &&
+      JSON.stringify(row.sections) === JSON.stringify(expectedShortSections[row.tabName]) &&
+      row.permissionCleanup &&
+      (row.tabName === 'Connectors@320x180'
+        ? JSON.stringify(row.tokenForms) === JSON.stringify(['github', 'gitlab', 'jira', 'vercel', 'homeassistant'])
+        : row.tokenForms.length === 0) &&
+      (row.tabName === 'Data@320x180' ? row.aboutFooter : !row.aboutFooter)
+    ) &&
+    ['tall', 'short'].every((size) => {
+      const endpoint = settingsChecks.generalRemove?.[size]
+      return endpoint?.found && endpoint.identity === 'Remove photo 1' && endpoint.focused && endpoint.fullyVisible &&
+        endpoint.rect?.width >= 36 && endpoint.rect?.height >= 36 && endpoint.scrollOwner?.scrollHeight >= endpoint.scrollOwner?.clientHeight
+    }) &&
     tabReachabilityOk(settingsChecks.trap) &&
     settingsChecks.tabs.end.selected === 'Data' && settingsChecks.tabs.end.focused === 'Data' &&
     settingsChecks.tabs.home.selected === 'General' && settingsChecks.tabs.home.focused === 'General' &&
@@ -19205,7 +19428,8 @@ await page.waitForTimeout(150)
     tabReachabilityOk(observations.checks[name]?.keyboard)
   ) && tabReachabilityOk(observations.checks.tasks?.panel?.keyboard) &&
     tabReachabilityOk(observations.checks.tasks?.menu?.keyboard) &&
-    tabReachabilityOk(observations.checks.folder?.keyboard)
+    tabReachabilityOk(observations.checks.folder?.keyboard) &&
+    tabReachabilityOk(observations.checks.folder?.nested?.keyboard)
   const closeOk = observations.checks.notes?.escapeRestored && observations.checks.timer?.escapeRestored &&
     observations.checks.tasks?.escapeRestored && observations.checks.tasks?.newestFirst?.menuClosed &&
     observations.checks.tasks?.newestFirst?.triggerFocused && observations.checks.tasks?.newestFirst?.panelOpen &&
@@ -19226,7 +19450,8 @@ await page.waitForTimeout(150)
     observations.checks.palette.outside.paletteClosed && observations.checks.palette.outside.priorFocusRestored &&
     observations.checks.location?.outside?.point && observations.checks.location.outside.listPreserved &&
     observations.checks.location.outside.inputFocusBefore && !observations.checks.location.outside.inputFocusAfter &&
-    observations.checks.location.outside.activeDescendantPreserved &&
+    observations.checks.location.outside.activeDescendantPreserved && observations.checks.location.cleanup?.listClosed &&
+    observations.checks.location.cleanup.inputFocused &&
     observations.checks.folder?.outside?.point && observations.checks.folder.outside.folderClosed &&
     observations.checks.folder.outside.invokerFocused && observations.checks.reset?.outside?.point &&
     observations.checks.reset.outside.resetClosed && observations.checks.reset.outside.settingsOpen &&
@@ -19235,14 +19460,29 @@ await page.waitForTimeout(150)
     const active = observations.checks[name]?.activeDescendants
     return active?.first?.found && active.first.inputFocused && active.first.visible &&
       active?.last?.found && active.last.inputFocused && active.last.visible && active.first.id !== active.last.id
-  })
+  }) && observations.checks.location?.composite?.found &&
+    observations.checks.location.composite.inputFocused &&
+    observations.checks.location.composite.activeDescendant === observations.checks.location.activeDescendants.last.id &&
+    observations.checks.location.composite.device?.target && observations.checks.location.composite.search?.target &&
+    observations.checks.location.composite.list?.options === 12 &&
+    observations.checks.location.composite.activeOption?.topmost &&
+    observations.checks.location.composite.disjoint && observations.checks.location.composite.inputTopmost &&
+    observations.checks.location.composite.deviceTopmost && observations.checks.location.composite.inputFullyVisible &&
+    observations.checks.location.composite.deviceFullyVisible && observations.checks.location.composite.verticalScrollports === 1
   const singleScrollOwnerOk = ['notes', 'tasks', 'timer', 'picker', 'palette', 'location', 'folder'].every((name) => {
     const value = observations.checks[name]
     const surface = value?.panel ?? value
     return surface?.verticalScrollports === 1
-  })
+  }) && observations.checks.folder?.nested?.verticalScrollports === 1
   const folderOk = observations.checks.folder?.found && observations.checks.folder.pageContained &&
-    observations.checks.folder.horizontallyContained && observations.checks.folder.inset && observations.checks.folder.allTargets
+    observations.checks.folder.horizontallyContained && observations.checks.folder.inset && observations.checks.folder.allTargets &&
+    observations.checks.folder.nested?.found && observations.checks.folder.nested.pageContained &&
+    observations.checks.folder.nested.horizontallyContained && observations.checks.folder.nested.inset &&
+    observations.checks.folder.nested.allTargets && observations.checks.folder.path?.fixtureNestedId &&
+    observations.checks.folder.path.back && observations.checks.folder.path.nestedBookmark && observations.checks.folder.path.backReturned
+  const notesRecoveryOk = observations.checks.notes?.recovery?.alert && observations.checks.notes.recovery.retryNamed &&
+    observations.checks.notes.recovery.retryTarget && observations.checks.notes.recovery.textareaTarget &&
+    observations.checks.notes.recovery.retrySucceeded
   const ordinaryOk = observations.checks.standard?.horizontallyContained &&
     observations.checks.standard.style?.paddingLeft === '24px' &&
     observations.checks.standard.style?.paddingRight === '24px' &&
@@ -19268,7 +19508,7 @@ await page.waitForTimeout(150)
     'w2-p3-large-tools-2560x1440',
   ])
   const ok = observations.errors.length === 0 && settingsOk && settingsFixturesOk && bounded && keyboardOk &&
-    closeOk && outsideLifecycleOk && compositeOk && singleScrollOwnerOk && folderOk && capturesOk && ordinaryOk
+    closeOk && outsideLifecycleOk && compositeOk && singleScrollOwnerOk && folderOk && notesRecoveryOk && capturesOk && ordinaryOk
   console.log(`EVIDENCE: W2-P3 immutable reflow observations: ${JSON.stringify(observations)}`)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
 }

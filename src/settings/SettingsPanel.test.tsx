@@ -1419,6 +1419,23 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     unmount()
   })
 
+  it('keeps each narrow 36px gallery remove endpoint inside its thumbnail instead of protruding past the scrollable drawer edge', async () => {
+    vi.mocked(listUploads).mockResolvedValue([
+      { key: 'photo:a', blob: new Blob(['a'], { type: 'image/png' }) },
+    ])
+    const { unmount } = await renderPanelInUploadMode()
+    try {
+      const remove = await screen.findByRole('button', { name: 'Remove photo 1' })
+      expect(remove.className).toContain('max-[420px]:size-9')
+      expect(remove.className).toContain('max-[420px]:right-0')
+      expect(remove.className).toContain('max-[420px]:top-0')
+      expect(remove.className).not.toContain('max-[420px]:-right-2')
+      expect(remove.className).not.toContain('max-[420px]:-top-2')
+    } finally {
+      unmount()
+    }
+  })
+
   it('a gallery tile renders the THUMB object URL, not the full photo, when a thumb exists', async () => {
     // The regression this covers: the grid used to build every tile's URL
     // from the full-resolution blob unconditionally, forcing a multi-MB

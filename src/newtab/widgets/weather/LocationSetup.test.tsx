@@ -468,22 +468,32 @@ describe('LocationSetup dropdown edge clamping', () => {
     Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
     const scrollIntoView = vi.fn()
     Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 400,
+      right: 560,
+      top: 110,
+      bottom: 146,
+      width: 160,
+      height: 36,
+      x: 400,
+      y: 110,
+      toJSON() {},
+    } as DOMRect)
     rectSpy.mockImplementation(function (this: HTMLUListElement) {
       const appliedLeft = parseFloat(this.style.left || '0') || 0
-      const appliedTop = Number(this.style.transform.match(/translateY\((-?\d+)px\)/)?.[1] ?? 0)
       const baseLeft = 400
-      const baseTop = 150
       const width = 300
-      const height = 164
+      const height = Math.min(164, parseFloat(this.style.maxHeight || '164'))
+      const top = this.style.bottom && this.style.bottom !== 'auto' ? 110 - 4 - height : 150
       return {
         left: baseLeft + appliedLeft,
         right: baseLeft + width + appliedLeft,
         width,
         height,
-        top: baseTop + appliedTop,
-        bottom: baseTop + height + appliedTop,
+        top,
+        bottom: top + height,
         x: baseLeft + appliedLeft,
-        y: baseTop + appliedTop,
+        y: top,
         toJSON() {},
       } as DOMRect
     })
@@ -495,9 +505,12 @@ describe('LocationSetup dropdown edge clamping', () => {
     })
     const list = screen.getByRole('listbox')
 
-    expect(list.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(list.classList.contains('overflow-x-hidden')).toBe(true)
     expect(list.style.left).toBe('-208px')
-    expect(list.style.transform).toBe('translateY(-142px)')
+    expect(list.style.top).toBe('auto')
+    expect(list.style.bottom).toBe('calc(100% + 4px)')
+    expect(list.style.maxHeight).toBe('98px')
+    expect(list.style.transform).toBe('')
 
     input.focus()
     fireEvent.keyDown(input, { key: 'ArrowDown' })
@@ -509,7 +522,67 @@ describe('LocationSetup dropdown edge clamping', () => {
       await vi.advanceTimersByTimeAsync(20)
     })
     expect(list.style.left).toBe('-208px')
-    expect(list.style.transform).toBe('translateY(-142px)')
+    expect(list.style.top).toBe('auto')
+    expect(list.style.bottom).toBe('calc(100% + 4px)')
+    expect(list.style.maxHeight).toBe('98px')
+    inputRectSpy.mockRestore()
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
+  })
+
+  it('caps the list to available space on one side of the focused input so the composite never self-occludes at 320x180', async () => {
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { value: 320, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const inputRectSpy = vi.spyOn(HTMLInputElement.prototype, 'getBoundingClientRect').mockReturnValue({
+      left: 16,
+      right: 176,
+      top: 70,
+      bottom: 106,
+      width: 160,
+      height: 36,
+      x: 16,
+      y: 70,
+      toJSON() {},
+    } as DOMRect)
+    rectSpy.mockImplementation(function (this: HTMLUListElement) {
+      const appliedLeft = parseFloat(this.style.left || '0') || 0
+      const height = Math.min(164, parseFloat(this.style.maxHeight || '164'))
+      const top = this.style.bottom && this.style.bottom !== 'auto' ? 70 - 4 - height : 110
+      return {
+        left: 16 + appliedLeft,
+        right: 304 + appliedLeft,
+        width: 288,
+        height,
+        top,
+        bottom: top + height,
+        x: 16 + appliedLeft,
+        y: top,
+        toJSON() {},
+      } as DOMRect
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX, dallasGA] })))
+    const { input } = await renderSetup()
+    input.focus()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    const list = screen.getByRole('listbox')
+    const compactControlRow = input.parentElement?.parentElement
+    expect(compactControlRow?.className).toContain('xshort:flex-row')
+    expect(input.parentElement?.className).toContain('xshort:order-1')
+    expect(screen.getByRole('button', { name: 'Use my location' }).className).toContain('xshort:order-2')
+    expect(screen.getByText('Weather needs a location.').className).toContain('xshort:hidden')
+    expect(document.activeElement).toBe(input)
+    expect(list.style.top).toBe('calc(100% + 4px)')
+    expect(list.style.bottom).toBe('auto')
+    expect(list.style.maxHeight).toBe('62px')
+    expect(list.style.transform).toBe('')
+    expect(list.className).toContain('overflow-x-hidden')
+    expect(list.className).not.toContain('max-h-[calc(100dvh-1rem)]')
+
+    inputRectSpy.mockRestore()
     Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
   })
 })

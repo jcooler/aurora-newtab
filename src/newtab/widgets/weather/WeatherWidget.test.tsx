@@ -181,6 +181,14 @@ describe('WeatherWidget collapsed chip', () => {
     expect(section.className).not.toContain('tight:max-w-[30vw]')
   })
 
+  it('gives the no-location setup a viewport-contained narrow sheet instead of the collapsed chip cap', async () => {
+    await renderWidget({ location: null, snapshot: null })
+    const section = screen.getByRole('region', { name: 'Weather' })
+
+    expect(section.className).toContain('w-[min(20rem,calc(100vw_-_2rem))]')
+    expect(section.className).not.toContain('xshort:max-w-')
+  })
+
   // The short-wide fix (the board's last open collision): at 800x450 the
   // FORCED-WIDE (2-digit hour) clock's own right edge and this chip's
   // natural-content left edge measured 48.9px into each other (this fix's
@@ -579,6 +587,15 @@ describe('WeatherWidget stale data', () => {
 // conditional `z-30` depends on: the callback fires true on open, false on
 // close, and false again on unmount, never a stale value.
 describe('WeatherWidget onExpandedChange (Task 55)', () => {
+  it('reports the no-location setup as an open surface so its composite owns stacking', async () => {
+    const onExpandedChange = vi.fn()
+    const { view } = await renderWidget({ location: null, snapshot: null, onExpandedChange })
+
+    expect(onExpandedChange).toHaveBeenLastCalledWith(true)
+    view.unmount()
+    expect(onExpandedChange).toHaveBeenLastCalledWith(false)
+  })
+
   it('calls onExpandedChange(true) on open and onExpandedChange(false) on close', async () => {
     const onExpandedChange = vi.fn()
     await renderWidget({ onExpandedChange })

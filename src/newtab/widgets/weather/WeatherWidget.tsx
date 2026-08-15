@@ -72,10 +72,11 @@ export default function WeatherWidget({
   // so the collapsed chip (which never reaches that far) is unaffected.
   const onExpandedChangeRef = useRef(onExpandedChange)
   onExpandedChangeRef.current = onExpandedChange
+  const surfaceOpen = expanded || location === null
   useEffect(() => {
-    onExpandedChangeRef.current?.(expanded)
+    onExpandedChangeRef.current?.(surfaceOpen)
     return () => onExpandedChangeRef.current?.(false)
-  }, [expanded])
+  }, [surfaceOpen])
 
   if (!settings?.widgets.weather) return null
 
@@ -213,9 +214,11 @@ export default function WeatherWidget({
   // Written out as whole literal strings (rather than composed from a
   // `widthCap` constant) because Tailwind only ever sees source TEXT — a
   // class name assembled at runtime is never generated at build time.
-  const widthClass = expanded
-    ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
-    : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
+  const widthClass = location === null
+    ? 'w-[min(20rem,calc(100vw_-_2rem))]'
+    : expanded
+      ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
+      : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
 
   return (
     <section
