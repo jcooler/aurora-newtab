@@ -104,10 +104,12 @@ export default function LocationSetup() {
     }
   }, [open, results, noMatches])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || activeIndex < 0) return
-    document.getElementById(`location-option-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' })
-  }, [activeIndex, open])
+    listRef.current
+      ?.querySelector<HTMLElement>(`#location-option-${activeIndex}`)
+      ?.scrollIntoView?.({ block: 'nearest' })
+  }, [activeIndex, listMaxHeight, listSide, open])
 
   // Debounce timer + in-flight abort controller, both held in refs (not
   // state) since neither should ever trigger a re-render on its own — same

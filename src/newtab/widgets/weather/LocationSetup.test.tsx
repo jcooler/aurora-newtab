@@ -517,6 +517,25 @@ describe('LocationSetup dropdown edge clamping', () => {
     expect(document.activeElement).toBe(input)
     expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
 
+    // Reproduce the clean-browser race from the packet aggregate: keyboard
+    // navigation can select an option while the list still owns its old
+    // height, then the queued resize measurement commits a shorter cap. The
+    // active descendant must be scrolled again after that geometry commit;
+    // otherwise the same active id survives while its row falls below the
+    // newly clipped viewport.
+    scrollIntoView.mockClear()
+    Object.defineProperty(window, 'innerHeight', { value: 160, configurable: true })
+    inputRectSpy.mockReturnValue({
+      left: 400,
+      right: 560,
+      top: 90,
+      bottom: 126,
+      width: 160,
+      height: 36,
+      x: 400,
+      y: 90,
+      toJSON() {},
+    } as DOMRect)
     await act(async () => {
       fireEvent(window, new Event('resize'))
       await vi.advanceTimersByTimeAsync(20)
@@ -524,7 +543,8 @@ describe('LocationSetup dropdown edge clamping', () => {
     expect(list.style.left).toBe('-208px')
     expect(list.style.top).toBe('auto')
     expect(list.style.bottom).toBe('calc(100% + 4px)')
-    expect(list.style.maxHeight).toBe('98px')
+    expect(list.style.maxHeight).toBe('78px')
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
     inputRectSpy.mockRestore()
     Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
   })
