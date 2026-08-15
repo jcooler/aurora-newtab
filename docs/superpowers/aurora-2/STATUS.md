@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P8` - Notes persistence integrity<br>
-**Next packet:** `W1-P9` - Privacy classification and secret-handling foundation; plan not yet created
+**Last verified packet:** `W1-P9` - Privacy classification and secret-handling foundation<br>
+**Next packet:** `W2-P1` - Shared async/freshness state primitives; plan not yet created
 
 ## Packet envelope
 
-- **Acceptance:** Notes reports Saving only while unsaved/pending, Saved only after the exact latest authority write fulfills, and a persistent accessible recoverable Error after rejection. The latest draft survives failure and external writes; Retry persists the latest text. Pill, Escape, widget disable, arrange entry, and current-tab navigation preserve recoverability.
-- **Expected files:** Notes persistence hook/panel/widget, awaited dialog-stack and arrange entry, current-tab navigation source tests, preview-only Notes write controller, built-extension proof, screenshot, and W1-P8 ledgers. W1-P2 remains the sole mutation authority. Privacy/Store copy, layout redesign, dependencies, packaging, and release actions remain outside this packet.
-- **Test scope:** Debounce/single-flight/revision ordering, stale completion, rejection/retry, cross-context same-millisecond subscription order, Strict Mode/unmount, beforeunload, all close/disable/arrange paths, Search/Quick Link/bookmark producers, accessibility roles/target size/focus, targeted/full Vitest, TypeScript, production/preview builds, preview-symbol isolation, real-extension defer/reject/navigation proof, exact teardown, and responsive screenshot inspection.
-- **Visual scope:** No redesign. The fixed 320×256 Notes panel remains reachable at 800×600, 1600×900, and 2560×1440. The visible Error copy is not color-only, Retry owns a 36px target, and Chromium AX evidence exposes the alert and button.
+- **Acceptance:** Exhaustive code-backed storage/network/browser/connector classification; authentication versus capability secrets; local plaintext/shared-profile disclosure; safe Quick Link add/import/render policy; accurate manifest/Settings/README/privacy/interim-listing source; exact dev-only advisory resolution; no live Store mutation.
+- **Expected files:** Typed privacy inventory/tests, shared Quick Link URL policy and all trust-boundary tests, manifest and Connectors disclosure, README/privacy/interim-listing source, exact npm override, preview harness alignment, and W1-P9 ledgers. W2 shared async/freshness behavior, packaging, release, and live Store actions remain outside this packet.
+- **Test scope:** Schema/connector exhaustiveness, destinations/triggers/methods/sent/received/cache/permission/backend boundaries, exact backup cache/redaction behavior, manifest modes, local plaintext notice, unsafe/malformed/userinfo Quick Links at add/import/render, targeted/full Vitest, TypeScript, production/preview builds, production bridge isolation, audits/tree, and the complete built-extension harness.
+- **Visual scope:** No redesign and no new screenshot acceptance artifact. The in-product Connectors notice is covered by rendered Settings tests; full responsive regression remains the existing harness.
 
 ## Last completed commits
 
@@ -60,8 +60,23 @@
 - `4915f2f5320cdd1e235ea471d7140a795b7b7304` and `8f101c22d352af04cf8dbba6e8c26a37223a082b` - revision-owned recoverable Notes persistence plus awaited close, disable, arrange, and navigation boundaries.
 - `58a3e7992c1422e879b58e9d66df5fe476128fca` - preview-only authority-preserving failure controller, built-extension navigation/AX proof, and error screenshot.
 - `5c570f7087d8d6e41b73db9e271339c75c93f62c` - bounded-review fixes for a 36px Retry target and close-before-restore teardown quiescence; verified W1-P8 implementation head.
+- `3864ba7ee5f9f349f393ac555ecbf6d5791970df` - independently reviewed executable W1-P9 plan.
+- `db94a73f0c56139f4d4ebbed4de1ad00ac3ae1f7` - typed privacy inventory, shared Quick Link trust boundary, manifest copy, and local plaintext disclosure.
+- `9e1d43937c5ec4f1a9523a709cea46928dd628e0` - behavior-aligned source privacy/listing copy and exact dev-only `nanoid` override.
+- `1cefce7d8b498737c1e1c28264963210a1bd9c1a` - bounded-review fixes for malformed HTTP(S), exhaustive transmitted/received flow fields, APOD truth, and interim listing contradictions; final focused rereview Ready.
+- `34f89600f24c7be203854bdbaf348932ab1831f0` - development harness alignment to an intercepted safe HTTPS Notes navigation target; verified W1-P9 implementation head.
 
 ## Latest verification
+
+- W1-P9 exact targeted suite - exit 0; 6 files / 362 tests passed.
+- `npx tsc --noEmit` - exit 0.
+- `npm test` - exit 0; photo manifest 23 entries / 46 tier files; 114 files / 1,890 tests passed.
+- `npm run build` and `npm run build:preview` - exit 0; both transformed 176 modules. Production and preview descriptions are exactly `A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend.`; permission arrays preserve their exact existing split and `https://*/*` optional-host boundary.
+- Production search for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview symbol matched in `dist`.
+- `npm audit --omit=dev` and `npm audit --include=dev` - zero vulnerabilities. `npm ls nanoid --all` resolves only `vite@6.4.3 -> postcss@8.5.23 -> nanoid@3.3.18 overridden`; the lock diff changes only nanoid 3.3.16 to 3.3.18 metadata.
+- `node scripts/preview.mjs` final W1-P9 run - process exit 0; exactly 451 PASS / 0 FAIL / 3 SKIP. The W1-P8 Notes navigation probe now uses a routed HTTPS Quick Link compatible with W1-P9 policy and still proves warning, retained dismissed draft, Retry, navigation, and exact teardown.
+- Independent plan review fixed two Important Quick Link/cache-contract gaps plus inventory/copy/dependency/preview-check precision. Independent implementation review found three Important malformed-HTTP(S), inventory-depth/APOD, and listing-truth gaps; red/green fixes plus two focused rereviews ended `ADDRESSED — Ready` with no Critical issue open.
+- The three SKIPs remain unchanged manual ceilings: live Home Assistant picker/successful action against the user's instance, native NASA Block, and native NASA Allow. No W1-P9 SKIP was added.
 
 - W1-P8 exact targeted suite at `5c570f7` - exit 0; 13 files / 173 tests passed.
 - `npx tsc --noEmit` at `5c570f7` - exit 0.
@@ -170,28 +185,28 @@
 - Real Home Assistant entity-picker contents, successful service execution, and real screen-reader behavior still require the user's live instance/manual session.
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
-- The indirect development-only nanoid advisory remains open for the scoped hygiene packet; production dependency audit is clean.
+- The indirect development-only nanoid advisory is resolved by the exact `3.3.18` override; production and full audits are clean and no production dependency changed.
 - A native hidden-to-visible browser transition is unavailable in the current headless harness; W1-P6 records modeled built-extension convergence plus exact fake-time listener coverage without overstating that boundary.
 - Genuine operating-system timezone changes and machine sleep/wake cannot be induced by the deterministic extension harness; W1-P7 proves their production event paths and clock discontinuities with exact unit/component coverage and retains the real-environment checks as manual gates.
 - Browser beforeunload is intentionally best-effort: W1-P8 starts the authority flush and warns only while dirty, but cannot promise an async write finishes after a user explicitly confirms navigation.
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P8`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W1-P9.
+- None expected after `docs: checkpoint W1-P9`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P1.
 
 ## Single next packet
 
-- **Packet:** `W1-P9` - Privacy classification and secret-handling foundation
-- **Plan:** Not yet created; create it just in time from the master specification, verified W1-P3/W1-P4/W1-P5/W1-P6/W1-P8 evidence, current data flows, storage/network/permission boundaries, secret-bearing capability URLs, manifest/source privacy copy, and the indirect dev-only nanoid advisory.
-- **State:** Not started. The next fresh task should write and independently review the executable W1-P9 plan before any W1-P9 implementation; this W1-P8 task stops at the packet boundary.
+- **Packet:** `W2-P1` - Shared async/freshness state primitives
+- **Plan:** Not yet created; create it just in time from the master specification, verified Wave 1 contracts, current duplicated pending/success/error/freshness semantics, accessibility announcements, and the W2 acceptance boundary.
+- **State:** Not started. The next fresh task should write and independently review the executable W2-P1 plan before any W2-P1 implementation; this W1-P9 task stops at the packet boundary.
 
 ## Continuation seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W1-P9 privacy-classification and secret-handling plan
-Packet ID: W1-P9
-Verified W1-P8 implementation SHA: 5c570f7087d8d6e41b73db9e271339c75c93f62c
-Expected next checkpoint subject: docs: checkpoint W1-P9
+Next plan: create just-in-time W2-P1 shared async/freshness state primitives plan
+Packet ID: W2-P1
+Verified W1-P9 implementation SHA: 34f89600f24c7be203854bdbaf348932ab1831f0
+Expected next checkpoint subject: docs: checkpoint W2-P1
 ```

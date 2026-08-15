@@ -101,11 +101,12 @@ Wave 1 packets are deliberately sequenced. Snapshot generation safety lands befo
 
 ### W1-P9 — Privacy classification and secret-handling foundation
 
-- **State:** Not started
+- **State:** Verified
 - **Depends on:** W1-P3, W1-P4, W1-P5, W1-P6, W1-P8
-- **Plan gate:** Create when behavior-changing Wave 1 packets are Verified.
+- **Plan:** [`2026-08-14-w1-p9-privacy-classification-secret-handling.md`](../plans/2026-08-14-w1-p9-privacy-classification-secret-handling.md)
 - **Acceptance:** A code-backed data-flow inventory classifies stored/transmitted data and secrets; local plaintext credential posture and device-profile risk are explicit; capability URLs are treated as secrets; unsafe quick-link schemes are rejected; manifest “No accounts” becomes “No Aurora account”; interim privacy/listing/Data Usage source copy matches behavior without claiming the live dashboard is updated; the indirect dev-only nanoid advisory is documented and narrowly resolved only if safe.
-- **Finishing commit:** —
+- **Verified evidence:** Typed storage and connector records cover all 16 `AuroraData` keys, `aurora:version`, IndexedDB photos, fixed/browser-mediated flows, every connector destination/trigger/method/sent/received/cache/permission/backend boundary, and the exact Home Assistant and APOD contracts. Authentication secrets and RSS/Calendar capability URLs are local plaintext with shared-profile guidance and backup redaction. One Quick Link policy rejects unsafe schemes, credentials, and malformed HTTP(S) at add/import/render. Manifest, Settings, README, privacy policy, and tracked interim listing source use “No Aurora account” and preserve the W6-P3 live-dashboard gate. The exact dev-only `nanoid@3.3.18` override changes no other package and both audits are zero. Final verification passed 6 targeted files / 362 tests, 114 total files / 1,890 tests, TypeScript, 176-module production/preview builds, exact manifest/preview-symbol gates, and 451 PASS / 0 FAIL / 3 SKIP in the built-extension harness. Independent review's three Important findings were fixed; focused rereview returned Ready. The harness's old test-only `chrome-extension://` Quick Link was replaced by an intercepted safe HTTPS destination without weakening production policy.
+- **Finishing commit:** `34f8960` plus checkpoint subject `docs: checkpoint W1-P9`
 
 ## Wave 2 — Accessibility, recovery states, and narrow reflow
 
