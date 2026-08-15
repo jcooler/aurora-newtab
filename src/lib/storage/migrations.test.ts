@@ -1,10 +1,20 @@
 import { describe, expect, it } from 'vitest'
+import {
+  LEGACY_LAYOUT_VALIDATION_MESSAGE,
+  LegacyLayoutValidationError,
+} from '../layout/v2'
 import { defaults } from './schema'
 import { migrate, type Migration } from './migrations'
 
+const EMPTY_MIGRATED_LAYOUT = {
+  version: 2,
+  profiles: { compact: {}, standard: {}, display: {}, ultrawide: {} },
+  legacy: {},
+} as const
+
 describe('migrate', () => {
   it('fills an empty snapshot with defaults', () => {
-    expect(migrate({}, 1)).toEqual(defaults())
+    expect(migrate({}, 1)).toEqual({ ...defaults(), layout: EMPTY_MIGRATED_LAYOUT })
   })
 
   it('preserves stored values over defaults', () => {
@@ -19,7 +29,8 @@ describe('migrate', () => {
       // registry[0] upgrades v0 -> v1, registry[1] upgrades v1 -> v2, registry[2]
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
-      // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9
+      // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9,
+      // registry[9] upgrades v9 -> v10
       // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
@@ -57,9 +68,13 @@ describe('migrate', () => {
         calls.push(8)
         return data
       },
+      9: (data) => {
+        calls.push(9)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -122,12 +137,12 @@ describe('v1 -> v2', () => {
 describe('v2 -> v3', () => {
   it('backfills an empty layout map', () => {
     const out = migrate({ settings: defaults().settings }, 2)
-    expect(out.layout).toEqual({})
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT)
   })
   it('a v1 snapshot chains through both migrations', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 still ran
-    expect(out.layout).toEqual({}) // v2->v3 ran after it
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran after it
   })
 })
 
@@ -171,7 +186,7 @@ describe('v3 -> v4', () => {
     const out = migrate({ settings: v1Settings }, 1)
     expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran last
   })
 
@@ -211,7 +226,7 @@ describe('v4 -> v5', () => {
   it('a v1 snapshot chains through all four migrations: layout and connectors backfilled, searchEngine gone', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
@@ -239,7 +254,7 @@ describe('v5 -> v6', () => {
   it('a v1 snapshot chains through all five migrations, ending with habits present and every v5-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.connectorSnapshots).toEqual({}) // v4->v5 ran
@@ -309,7 +324,7 @@ describe('v6 -> v7', () => {
   it('a v1 snapshot chains through all six migrations, ending with habits AND monthCal present and every v6-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -377,7 +392,7 @@ describe('v7 -> v8', () => {
     const out = migrate({ settings: v1Settings }, 1)
     expect(out.settings.name).toBe('Jon') // v1->v2 preserved it
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 backfilled it
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -443,7 +458,7 @@ describe('v8 -> v9', () => {
   it('a v1 snapshot chains through all eight migrations, ending with sun AND moon present and every v8-era key intact', () => {
     const out = migrate({}, 1)
     expect(out.settings.widgets.notes).toBe(true) // v1->v2 ran
-    expect(out.layout).toEqual({}) // v2->v3 ran
+    expect(out.layout).toEqual(EMPTY_MIGRATED_LAYOUT) // v2->v3 and v9->v10 ran
     expect('searchEngine' in out.settings).toBe(false) // v3->v4 ran
     expect(out.connectors).toEqual({}) // v4->v5 ran
     expect(out.habits).toEqual([]) // v5->v6 ran
@@ -470,3 +485,99 @@ describe('v8 -> v9', () => {
     expect(out.settings.widgets.moon).toBe(false) // backfilled default (v8->v9 step)
   })
 })
+
+describe('v9 -> v10', () => {
+  it('maps a populated legacy layout into exact preserved legacy data and deterministic all-profile overrides', () => {
+    const legacy = {
+      weather: { x: 12, y: 20 },
+      focus: { x: 50, y: 50 },
+      github: { x: 88, y: 30 },
+      timer: { x: 50, y: 96 },
+    }
+    const snapshot = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Keep me' },
+      layout: legacy,
+    }
+    const before = structuredClone(snapshot)
+
+    const out = migrate(snapshot, 9)
+
+    const expectedProfile = {
+      weather: { zone: 'day', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      focus: { zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      github: { zone: 'pulse', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+      timer: { zone: 'dock', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned' },
+    }
+    expect(out.layout).toEqual({
+      version: 2,
+      profiles: {
+        compact: expectedProfile,
+        standard: expectedProfile,
+        display: expectedProfile,
+        ultrawide: expectedProfile,
+      },
+      legacy,
+    })
+    expect(out.settings.name).toBe('Keep me')
+    expect(snapshot).toEqual(before)
+  })
+
+  it('keeps migration deterministic across repeat runs and legacy insertion order', () => {
+    const first = migrate({ layout: {
+      weather: { x: 10, y: 20 },
+      sun: { x: 10, y: 20 },
+      clock: { x: 50, y: 50 },
+    } }, 9).layout
+    const reordered = migrate({ layout: {
+      clock: { x: 50, y: 50 },
+      sun: { x: 10, y: 20 },
+      weather: { x: 10, y: 20 },
+    } }, 9).layout
+
+    expect(reordered).toEqual(first)
+    expect(migrate({ layout: first.legacy }, 9).layout).toEqual(first)
+  })
+
+  it.each([
+    ['primitive', 'oops'],
+    ['array', []],
+    ['malformed known row', { weather: { x: 10 } }],
+    ['non-finite known x', { weather: { x: Number.NaN, y: 20 } }],
+    ['non-finite known y', { weather: { x: 10, y: Number.POSITIVE_INFINITY } }],
+  ])('rejects %s with the typed fixed-message validation error', (_label, layout) => {
+    const error = (() => {
+      try {
+        migrate({ layout }, 9)
+      } catch (caught) {
+        return caught
+      }
+      return undefined
+    })()
+
+    expect(error).toBeInstanceOf(LegacyLayoutValidationError)
+    expect((error as Error).message).toBe(LEGACY_LAYOUT_VALIDATION_MESSAGE)
+  })
+
+  it('drops valid or malformed unknown IDs only after validating every known row', () => {
+    expect(migrate({ layout: {
+      weather: { x: 10, y: 20 },
+      unknownValid: { x: 1, y: 2 },
+      unknownMalformed: 'ignored',
+    } }, 9).layout.legacy).toEqual({ weather: { x: 10, y: 20 } })
+
+    expect(() => migrate({ layout: {
+      weather: { x: 'bad', y: 20 },
+      unknownMalformed: 'ignored',
+    } }, 9)).toThrow(LegacyLayoutValidationError)
+  })
+
+  it('requires the v9 step before producing a v10 result', () => {
+    const registry = { ...migrationsWithoutNine() }
+    expect(() => migrate({ layout: {} }, 9, registry)).toThrow('No migration from schema v9')
+  })
+})
+
+function migrationsWithoutNine(): Record<number, Migration> {
+  return {}
+}

@@ -1,7 +1,8 @@
-import type { Layout } from '../layout/types'
+import { emptyLayoutV2 } from '../layout/v2'
+import type { LayoutV2 } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 9
+export const CURRENT_VERSION = 10
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -208,7 +209,7 @@ export interface AuroraData {
   notes: Notes
   worldClocks: WorldClock[]
   countdowns: Countdown[]
-  layout: Layout
+  layout: LayoutV2
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
   habits: Habit[]
@@ -260,7 +261,7 @@ export function defaults(): AuroraData {
     notes: { text: '', updatedAt: 0 },
     worldClocks: [],
     countdowns: [],
-    layout: {},
+    layout: emptyLayoutV2(),
     connectors: {},
     connectorSnapshots: {},
     habits: [],

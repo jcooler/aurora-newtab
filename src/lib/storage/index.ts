@@ -7,6 +7,7 @@ import {
 import { migrate } from './migrations'
 import type { MemoryStorageDriver, StorageDriver } from './driver'
 import type { StorageAuthority } from './authority'
+import { LegacyLayoutValidationError } from '../layout/v2'
 
 const VERSION_KEY = 'aurora:version'
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
@@ -18,6 +19,23 @@ export class AtomicRestoreRollbackError extends Error {
   ) {
     super('Aurora storage rollback failed')
     this.name = 'AtomicRestoreRollbackError'
+  }
+}
+
+export class StorageInitializationError extends Error {
+  constructor(public readonly cause: unknown) {
+    super('Aurora storage initialization failed')
+    this.name = 'StorageInitializationError'
+  }
+}
+
+export class AtomicMigrationRollbackError extends Error {
+  constructor(
+    public readonly primaryError: unknown,
+    public readonly rollbackError: unknown,
+  ) {
+    super('Aurora storage migration rollback failed')
+    this.name = 'AtomicMigrationRollbackError'
   }
 }
 
@@ -70,6 +88,21 @@ export function createStorage(
     return Object.fromEntries(DATA_KEYS.map((key) => [key, data[key]])) as unknown as AuroraData
   }
 
+  function knownSnapshotFrom(
+    source: Record<string, unknown>,
+    legacyLayoutDefault = false,
+  ): Record<string, unknown> {
+    const fallback = defaults() as unknown as Record<string, unknown>
+    return Object.fromEntries(DATA_KEYS.map((key) => [
+      key,
+      Object.prototype.hasOwnProperty.call(source, key)
+        ? source[key]
+        : legacyLayoutDefault && key === 'layout'
+          ? {}
+          : fallback[key],
+    ]))
+  }
+
   function structurallyEqual(left: unknown, right: unknown): boolean {
     if (Object.is(left, right)) return true
     if (Array.isArray(left) || Array.isArray(right)) {
@@ -99,6 +132,97 @@ export function createStorage(
 
   async function writePatch(patch: Partial<AuroraData>): Promise<void> {
     await driver.write(patch)
+  }
+
+  async function verifyFreshDefaults(): Promise<void> {
+    const target = allKeyPatch(defaults())
+    let writeError: unknown
+    try {
+      await driver.write(target as unknown as Record<string, unknown>)
+    } catch (caught) {
+      writeError = caught
+    }
+    try {
+      const verified = await driver.read([...DATA_KEYS])
+      if (!structurallyEqual(verified, target)) {
+        throw new Error('Aurora storage defaults verification failed')
+      }
+    } catch (verificationError) {
+      throw new StorageInitializationError(writeError ?? verificationError)
+    }
+  }
+
+  async function stampAndVerifyVersion(): Promise<void> {
+    const target = { [VERSION_KEY]: CURRENT_VERSION }
+    let writeError: unknown
+    try {
+      await driver.write(target)
+    } catch (caught) {
+      writeError = caught
+    }
+    try {
+      const verified = await driver.read([VERSION_KEY])
+      if (!structurallyEqual(verified, target)) {
+        throw new Error('Aurora storage version verification failed')
+      }
+    } catch (verificationError) {
+      throw new StorageInitializationError(writeError ?? verificationError)
+    }
+  }
+
+  function isExactInterruptedDefaults(all: Record<string, unknown>): boolean {
+    const expected = allKeyPatch(defaults())
+    return DATA_KEYS.every((key) => (
+      Object.prototype.hasOwnProperty.call(all, key)
+      && structurallyEqual(all[key], expected[key])
+    ))
+  }
+
+  async function migrateAndVerify(
+    all: Record<string, unknown>,
+    storedVersion: number,
+  ): Promise<void> {
+    const { [VERSION_KEY]: _version, ...snapshot } = all
+    // Migration and its typed legacy validation complete before the first
+    // write, so malformed known state can never create a partial target.
+    let migrated: AuroraData
+    try {
+      migrated = migrate(snapshot, storedVersion)
+    } catch (caught) {
+      if (caught instanceof LegacyLayoutValidationError) throw caught
+      throw new StorageInitializationError(caught)
+    }
+    const target: Record<string, unknown> = {
+      ...allKeyPatch(migrated),
+      [VERSION_KEY]: CURRENT_VERSION,
+    }
+    const previous: Record<string, unknown> = {
+      ...knownSnapshotFrom(snapshot, true),
+      [VERSION_KEY]: storedVersion,
+    }
+    const verificationKeys = [...DATA_KEYS, VERSION_KEY]
+    let primaryError: unknown
+    try {
+      await driver.write(target)
+      const verified = await driver.read(verificationKeys)
+      if (!structurallyEqual(verified, target)) {
+        throw new Error('Aurora storage migration verification failed')
+      }
+      return
+    } catch (caught) {
+      primaryError = caught
+    }
+
+    try {
+      await driver.write(previous)
+      const rolledBack = await driver.read(verificationKeys)
+      if (!structurallyEqual(rolledBack, previous)) {
+        throw new Error('Aurora storage migration rollback verification failed')
+      }
+    } catch (rollbackError) {
+      throw new AtomicMigrationRollbackError(primaryError, rollbackError)
+    }
+    throw new StorageInitializationError(primaryError)
   }
 
   async function setMany(patch: Partial<AuroraData>): Promise<void> {
@@ -178,15 +302,27 @@ export function createStorage(
     async init() {
       await authority.runExclusive(async () => {
         const all = await driver.read(null)
+        const hasVersion = Object.prototype.hasOwnProperty.call(all, VERSION_KEY)
         const stored = all[VERSION_KEY]
-        if (typeof stored !== 'number') {
-          await driver.write({ ...defaults(), [VERSION_KEY]: CURRENT_VERSION })
+        if (!hasVersion) {
+          const hasKnownData = DATA_KEYS.some((key) => Object.prototype.hasOwnProperty.call(all, key))
+          if (!hasKnownData) {
+            await verifyFreshDefaults()
+            await stampAndVerifyVersion()
+            return
+          }
+          if (!isExactInterruptedDefaults(all)) {
+            throw new StorageInitializationError(undefined)
+          }
+          await stampAndVerifyVersion()
           return
         }
+        if (typeof stored !== 'number' || !Number.isFinite(stored)
+          || !Number.isInteger(stored) || stored < 1) {
+          throw new StorageInitializationError(undefined)
+        }
         if (stored < CURRENT_VERSION) {
-          const { [VERSION_KEY]: _v, ...snapshot } = all
-          const migrated = migrate(snapshot, stored)
-          await driver.write({ ...migrated, [VERSION_KEY]: CURRENT_VERSION })
+          await migrateAndVerify(all, stored)
           return
         }
         if (stored > CURRENT_VERSION) {

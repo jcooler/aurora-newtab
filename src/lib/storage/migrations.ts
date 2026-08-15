@@ -1,5 +1,6 @@
 import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
 import { isPlainObject } from '../object'
+import { layoutV2FromLegacy } from '../layout/v2'
 
 type Snapshot = Record<string, unknown>
 
@@ -141,6 +142,16 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v9 -> v10: preserve the complete known legacy percentage layout and map
+  // its explicit user positions into deterministic overrides for every
+  // future layout profile. The pure mapper validates before returning, so a
+  // malformed known row cannot produce a partial migration target.
+  9: (data) => ({
+    ...data,
+    layout: layoutV2FromLegacy(
+      Object.prototype.hasOwnProperty.call(data, 'layout') ? data.layout : {},
+    ),
+  }),
 }
 
 export function migrate(

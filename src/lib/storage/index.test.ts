@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import * as storageModule from './index'
 import { createStorage } from './index'
+import { migrations, type Migration } from './migrations'
 import { memoryDriver, type StorageDriver } from './driver'
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './schema'
+import { LegacyLayoutValidationError } from '../layout/v2'
 import {
   createInProcessStorageAuthority,
   type StorageAuthority,
@@ -61,6 +63,15 @@ function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
 }
 
+function v9Seed(extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...defaults(),
+    layout: { weather: { x: 12, y: 20 }, focus: { x: 50, y: 50 } },
+    ...extra,
+    'aurora:version': 9,
+  }
+}
+
 interface AtomicStorage {
   snapshot(): Promise<AuroraData>
   replaceAllWithRollback<T>(
@@ -113,103 +124,483 @@ function controllableDriver(
 }
 
 describe('createStorage', () => {
-  it('init seeds defaults and stamps the version on first run', async () => {
-    const driver = memoryDriver()
-    await createStorage(driver).init()
-    expect(driver.dump()['aurora:version']).toBe(CURRENT_VERSION)
-    expect(driver.dump()['settings']).toEqual(defaults().settings)
+  it('first-run init writes and verifies every default before separately stamping and verifying the version', async () => {
+    const events: string[] = []
+    const controlled = controllableDriver({}, {
+      async read(keys, _call, proceed) {
+        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
+        return proceed()
+      },
+      async write(patch, _call, apply) {
+        events.push(`write:${Object.keys(patch).join(',')}`)
+        await apply()
+      },
+    })
+
+    await createStorage(controlled.driver, recordingAuthority(events)).init()
+
+    expect(controlled.writes).toEqual([defaults(), { 'aurora:version': CURRENT_VERSION }])
+    expect(controlled.reads).toEqual([null, [...KNOWN_KEYS], ['aurora:version']])
+    expect(events).toEqual([
+      'lock:enter',
+      'read:null',
+      `write:${KNOWN_KEYS.join(',')}`,
+      `read:${KNOWN_KEYS.join(',')}`,
+      'write:aurora:version',
+      'read:aurora:version',
+      'lock:exit',
+    ])
   })
 
-  it('init preserves existing data at the current version', async () => {
-    const driver = memoryDriver({
+  it('resumes an exact interrupted defaults seed by stamping only the version', async () => {
+    const controlled = controllableDriver(defaults())
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    expect(controlled.reads).toEqual([null, ['aurora:version']])
+    expect(controlled.writes).toEqual([{ 'aurora:version': CURRENT_VERSION }])
+  })
+
+  it.each([
+    ['partial known data without a version', { settings: defaults().settings }],
+    ['non-default complete known data without a version', {
+      ...defaults(), settings: { ...defaults().settings, name: 'Unversioned' },
+    }],
+    ['string version', { ...defaults(), 'aurora:version': '9' }],
+    ['non-finite NaN version', { ...defaults(), 'aurora:version': Number.NaN }],
+    ['non-finite infinite version', { ...defaults(), 'aurora:version': Number.POSITIVE_INFINITY }],
+    ['fractional version', { ...defaults(), 'aurora:version': 9.5 }],
+    ['negative version', { ...defaults(), 'aurora:version': -1 }],
+    ['unsupported zero version', { ...defaults(), 'aurora:version': 0 }],
+  ])('rejects %s safely without writing', async (_label, seed) => {
+    const controlled = controllableDriver(seed)
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.writes).toEqual([])
+  })
+
+  it.each([
+    ['reject-before-apply', false],
+    ['apply-then-reject', true],
+  ])('handles a fresh defaults write that %s and remains retryable', async (_label, applyFirst) => {
+    let reject = true
+    const controlled = controllableDriver({}, {
+      async write(_patch, call, apply) {
+        if (call === 1 && reject) {
+          reject = false
+          if (applyFirst) await apply()
+          throw new Error('private defaults write failure')
+        }
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    if (applyFirst) {
+      await expect(storage.init()).resolves.toBeUndefined()
+    } else {
+      const error = await storage.init().catch((caught) => caught)
+      expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+      expect(error.message).toBe('Aurora storage initialization failed')
+      expect(controlled.base.dump()).toEqual({})
+      await expect(storage.init()).resolves.toBeUndefined()
+    }
+    expect(controlled.base.dump()).toEqual({ ...defaults(), 'aurora:version': CURRENT_VERSION })
+  })
+
+  it('rejects a mismatched fresh defaults readback without stamping a version', async () => {
+    const controlled = controllableDriver({}, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        return call === 2 ? { ...found, focus: { text: 'wrong', date: '2026-08-15', done: false } } : found
+      },
+    })
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(controlled.writes).toEqual([defaults()])
+    expect(controlled.base.dump()).not.toHaveProperty('aurora:version')
+  })
+
+  it('reports a fixed safe error when fresh defaults readback rejects, then resumes the exact seed', async () => {
+    let rejectReadback = true
+    const controlled = controllableDriver({}, {
+      async read(_keys, call, proceed) {
+        if (call === 2 && rejectReadback) {
+          rejectReadback = false
+          throw new Error('private defaults readback failure')
+        }
+        return proceed()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    const error = await storage.init().catch((caught) => caught)
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.base.dump()).toEqual(defaults())
+    await expect(storage.init()).resolves.toBeUndefined()
+  })
+
+  it.each([
+    ['reject-before-apply', false],
+    ['apply-then-reject', true],
+  ])('verifies a version stamp that %s and allows the interrupted seed to retry', async (_label, applyFirst) => {
+    let reject = true
+    const controlled = controllableDriver(defaults(), {
+      async write(_patch, call, apply) {
+        if (call === 1 && reject) {
+          reject = false
+          if (applyFirst) await apply()
+          throw new Error('private version write failure')
+        }
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    if (applyFirst) {
+      await expect(storage.init()).resolves.toBeUndefined()
+    } else {
+      await expect(storage.init()).rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+      expect(controlled.base.dump()).toEqual(defaults())
+      await expect(storage.init()).resolves.toBeUndefined()
+    }
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
+  })
+
+  it('rejects a mismatched version readback', async () => {
+    const controlled = controllableDriver(defaults(), {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        return call === 2 ? { 'aurora:version': CURRENT_VERSION - 1 } : found
+      },
+    })
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+  })
+
+  it('reports a fixed safe error when version readback rejects and a later init observes the applied stamp', async () => {
+    let rejectReadback = true
+    const controlled = controllableDriver(defaults(), {
+      async read(_keys, call, proceed) {
+        if (call === 2 && rejectReadback) {
+          rejectReadback = false
+          throw new Error('private version readback failure')
+        }
+        return proceed()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    const error = await storage.init().catch((caught) => caught)
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
+    await expect(storage.init()).resolves.toBeUndefined()
+  })
+
+  it('old-version init writes and verifies the complete migration target under one acquisition', async () => {
+    const events: string[] = []
+    const v9 = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Migrated' },
+      layout: { weather: { x: 12, y: 20 } },
+      'aurora:version': 9,
+      unknown: { sentinel: 'keep' },
+    }
+    const controlled = controllableDriver(v9, {
+      async read(keys, _call, proceed) {
+        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
+        return proceed()
+      },
+      async write(_patch, _call, apply) {
+        events.push('write')
+        await apply()
+      },
+    })
+
+    await createStorage(controlled.driver, recordingAuthority(events)).init()
+
+    expect(controlled.reads).toEqual([null, [...KNOWN_KEYS, 'aurora:version']])
+    expect(controlled.writes).toHaveLength(1)
+    expect(Object.keys(controlled.writes[0])).toEqual([...KNOWN_KEYS, 'aurora:version'])
+    expect(controlled.writes[0]['aurora:version']).toBe(CURRENT_VERSION)
+    expect((controlled.writes[0].layout as AuroraData['layout']).legacy).toEqual({ weather: { x: 12, y: 20 } })
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
+    expect(events).toEqual([
+      'lock:enter', 'read:null', 'write',
+      `read:${[...KNOWN_KEYS, 'aurora:version'].join(',')}`,
+      'lock:exit',
+    ])
+  })
+
+  it('preserves existing data at the current version without writing', async () => {
+    const controlled = controllableDriver({
       'aurora:version': CURRENT_VERSION,
       settings: { ...defaults().settings, name: 'Jon' },
     })
-    const storage = createStorage(driver)
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
     await storage.init()
     expect((await storage.get('settings')).name).toBe('Jon')
-  })
-
-  it('first-run init acquires once, reads all data, and writes defaults plus the version', async () => {
-    const events: string[] = []
-    const base = memoryDriver()
-    const driver: StorageDriver = {
-      async read(keys) {
-        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
-        return base.read(keys)
-      },
-      async write(patch) {
-        events.push('write')
-        await base.write(patch)
-      },
-      onChanged: (cb) => base.onChanged(cb),
-    }
-
-    await createStorage(driver, recordingAuthority(events)).init()
-
-    expect(events).toEqual(['lock:enter', 'read:null', 'write', 'lock:exit'])
-    expect(base.dump()['aurora:version']).toBe(CURRENT_VERSION)
-    expect(base.dump().settings).toEqual(defaults().settings)
-  })
-
-  it('old-version init migrates under one acquisition, preserves user data, and stamps once', async () => {
-    const events: string[] = []
-    const base = memoryDriver({
-      'aurora:version': 8,
-      settings: {
-        ...defaults().settings,
-        name: 'Migrated',
-        widgets: {
-          search: true, weather: true, links: true, todo: true, timer: false,
-          quote: true, bookmarks: false, notes: true, clocks: false,
-          countdown: false, habits: false, monthCal: false,
-        },
-      },
-    })
-    const driver: StorageDriver = {
-      async read(keys) {
-        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
-        return base.read(keys)
-      },
-      async write(patch) {
-        events.push('write')
-        await base.write(patch)
-      },
-      onChanged: (cb) => base.onChanged(cb),
-    }
-
-    await createStorage(driver, recordingAuthority(events)).init()
-
-    expect(events).toEqual(['lock:enter', 'read:null', 'write', 'lock:exit'])
-    expect(base.dump()['aurora:version']).toBe(CURRENT_VERSION)
-    expect((base.dump().settings as ReturnType<typeof defaults>['settings']).name).toBe('Migrated')
-    expect((base.dump().settings as ReturnType<typeof defaults>['settings']).widgets.sun).toBe(false)
-    expect((base.dump().settings as ReturnType<typeof defaults>['settings']).widgets.moon).toBe(false)
+    expect(controlled.writes).toEqual([])
   })
 
   it('future-version init warns under one acquisition and performs no write', async () => {
     const events: string[] = []
-    const base = memoryDriver({ 'aurora:version': CURRENT_VERSION + 1 })
-    const driver: StorageDriver = {
-      async read(keys) {
+    const controlled = controllableDriver({ 'aurora:version': CURRENT_VERSION + 1 }, {
+      async read(keys, _call, proceed) {
         events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
-        return base.read(keys)
+        return proceed()
       },
-      async write(patch) {
+      async write(_patch, _call, apply) {
         events.push('write')
-        await base.write(patch)
+        await apply()
       },
-      onChanged: (cb) => base.onChanged(cb),
-    }
+    })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    await createStorage(driver, recordingAuthority(events)).init()
+    await createStorage(controlled.driver, recordingAuthority(events)).init()
 
     expect(events).toEqual(['lock:enter', 'read:null', 'lock:exit'])
+    expect(controlled.writes).toEqual([])
     expect(warn).toHaveBeenCalledWith(
       `Aurora data is schema v${CURRENT_VERSION + 1}, app expects v${CURRENT_VERSION}`,
     )
     warn.mockRestore()
+  })
+
+  it('rejects an invalid known legacy row before any migration write', async () => {
+    const controlled = controllableDriver(v9Seed({ layout: { weather: { x: Number.NaN, y: 20 } } }))
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(LegacyLayoutValidationError)
+    expect(controlled.writes).toEqual([])
+  })
+
+  it('rejects a missing v9 migration step before any storage write', async () => {
+    const registry = migrations as Partial<Record<number, Migration>>
+    const step = registry[9]
+    delete registry[9]
+    const controlled = controllableDriver(v9Seed())
+    try {
+      const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+        .init().catch((caught) => caught)
+
+      expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+      expect(error.message).toBe('Aurora storage initialization failed')
+      expect(error.message).not.toContain('schema v9')
+      expect(error.cause).toBeInstanceOf(Error)
+      expect(error.cause.message).toBe('No migration from schema v9')
+      expect(controlled.writes).toEqual([])
+    } finally {
+      registry[9] = step
+    }
+  })
+
+  it.each([
+    ['reject-before-apply', false],
+    ['apply-then-reject', true],
+  ])('rolls back exact v9 logical values when the migration target write %s', async (_label, applyFirst) => {
+    const seed = v9Seed({
+      notes: { text: 'private prior note', updatedAt: 9 },
+      unknown: { sentinel: 'keep' },
+    })
+    const controlled = controllableDriver(seed, {
+      async write(_patch, call, apply) {
+        if (call === 1) {
+          if (applyFirst) await apply()
+          throw new Error('private target write cause')
+        }
+        await apply()
+      },
+    })
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.writes).toHaveLength(2)
+    expect(controlled.writes[1]).toEqual(Object.fromEntries([
+      ...KNOWN_KEYS.map((key) => [key, seed[key]]),
+      ['aurora:version', 9],
+    ]))
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
+    expect(await controlled.base.read([...KNOWN_KEYS, 'aurora:version'])).toEqual(controlled.writes[1])
+  })
+
+  it.each([
+    ['rejects', 'reject'],
+    ['mismatches', 'mismatch'],
+  ])('rolls back exact v9 logical values when target readback %s', async (_label, mode) => {
+    const seed = v9Seed({ unknown: 'keep' })
+    const controlled = controllableDriver(seed, {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call !== 2) return found
+        if (mode === 'reject') throw new Error('private target read cause')
+        return { ...found, notes: { text: 'wrong', updatedAt: 10 } }
+      },
+    })
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.StorageInitializationError)
+    expect(error.message).toBe('Aurora storage initialization failed')
+    expect(controlled.writes).toHaveLength(2)
+    expect(await controlled.base.read([...KNOWN_KEYS, 'aurora:version'])).toEqual(controlled.writes[1])
+    expect(controlled.base.dump().unknown).toBe('keep')
+  })
+
+  it('materializes missing prior keys at v9 logical defaults during rollback', async () => {
+    const seed = {
+      settings: { ...defaults().settings, name: 'Stored v9' },
+      layout: { weather: { x: 12, y: 20 } },
+      'aurora:version': 9,
+      unknown: 'keep',
+    }
+    const controlled = controllableDriver(seed, {
+      async write(_patch, call, apply) {
+        if (call === 1) throw new Error('target rejected')
+        await apply()
+      },
+    })
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+
+    expect(controlled.writes[1]).toEqual({
+      ...defaults(),
+      settings: seed.settings,
+      layout: seed.layout,
+      'aurora:version': 9,
+    })
+    expect(controlled.base.dump().unknown).toBe('keep')
+  })
+
+  it.each([
+    ['rollback write rejection', 'write'],
+    ['rollback read rejection', 'read'],
+    ['rollback readback mismatch', 'mismatch'],
+  ])('raises a distinct fixed-message fatal migration error for %s', async (_label, mode) => {
+    const controlled = controllableDriver(v9Seed(), {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2) return { ...found, notes: { text: 'wrong target readback', updatedAt: 10 } }
+        if (call === 3 && mode === 'read') throw new Error('private rollback read cause')
+        if (call === 3 && mode === 'mismatch') return { ...found, links: [{ private: 'wrong' }] }
+        return found
+      },
+      async write(_patch, call, apply) {
+        if (call === 2 && mode === 'write') throw new Error('private rollback write cause')
+        await apply()
+      },
+    })
+
+    const error = await createStorage(controlled.driver, createInProcessStorageAuthority())
+      .init().catch((caught) => caught)
+
+    expect(error).toBeInstanceOf(storageModule.AtomicMigrationRollbackError)
+    expect(error.message).toBe('Aurora storage migration rollback failed')
+    expect(error.message).not.toContain('private')
+    expect(error.primaryError).toBeDefined()
+    expect(error.rollbackError).toBeDefined()
+  })
+
+  it('keeps a second context queued through migration target verification', async () => {
+    let verificationEntered = () => {}
+    let releaseVerification = () => {}
+    const entered = new Promise<void>((resolve) => { verificationEntered = resolve })
+    const gate = new Promise<void>((resolve) => { releaseVerification = resolve })
+    const controlled = controllableDriver(v9Seed(), {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2) {
+          verificationEntered()
+          await gate
+        }
+        return found
+      },
+    })
+    const authority = createInProcessStorageAuthority()
+    const migrating = createStorage(controlled.driver, authority)
+    const second = createStorage(controlled.driver, authority)
+
+    const init = migrating.init()
+    await entered
+    const queued = second.set('focus', { text: 'queued', date: '2026-08-15', done: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(controlled.writes).toHaveLength(1)
+    releaseVerification()
+    await init
+    await queued
+    expect(controlled.writes).toHaveLength(2)
+    expect((await controlled.base.read(['focus'])).focus).toEqual({
+      text: 'queued', date: '2026-08-15', done: false,
+    })
+  })
+
+  it('keeps a second context queued until a failed migration fully rolls back', async () => {
+    let rollbackReadEntered = () => {}
+    let releaseRollbackRead = () => {}
+    const entered = new Promise<void>((resolve) => { rollbackReadEntered = resolve })
+    const gate = new Promise<void>((resolve) => { releaseRollbackRead = resolve })
+    const controlled = controllableDriver(v9Seed(), {
+      async read(_keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2) return { ...found, notes: { text: 'wrong target readback', updatedAt: 10 } }
+        if (call === 3) {
+          rollbackReadEntered()
+          await gate
+        }
+        return found
+      },
+    })
+    const authority = createInProcessStorageAuthority()
+    const migrating = createStorage(controlled.driver, authority)
+    const second = createStorage(controlled.driver, authority)
+
+    const init = migrating.init()
+    await entered
+    const queuedFocus = { text: 'queued', date: '2026-08-15', done: false }
+    const queued = second.set('focus', queuedFocus)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(controlled.writes).toHaveLength(2)
+    releaseRollbackRead()
+    await expect(init).rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+    await queued
+    expect(controlled.writes).toHaveLength(3)
+    expect((await controlled.base.read(['focus'])).focus).toEqual(queuedFocus)
+  })
+
+  it('allows a successful init retry after safe rollback', async () => {
+    let failFirstTarget = true
+    const controlled = controllableDriver(v9Seed(), {
+      async write(_patch, _call, apply) {
+        if (failFirstTarget) {
+          failFirstTarget = false
+          throw new Error('first target rejected')
+        }
+        await apply()
+      },
+    })
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+
+    await expect(storage.init()).rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+    await expect(storage.init()).resolves.toBeUndefined()
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
+    expect((controlled.base.dump().layout as AuroraData['layout']).legacy).toEqual({
+      weather: { x: 12, y: 20 }, focus: { x: 50, y: 50 },
+    })
   })
 
   it('get falls back to defaults for a missing key', async () => {
