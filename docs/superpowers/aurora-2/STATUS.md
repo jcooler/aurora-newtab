@@ -1,18 +1,18 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-14<br>
+**Updated:** 2026-08-15<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 1 — Trust and correctness foundation<br>
-**Last verified packet:** `W1-P9` - Privacy classification and secret-handling foundation<br>
-**Next packet:** `W2-P1` - Shared async/freshness state primitives; plan not yet created
+**Current wave:** Wave 2 — Accessibility, recovery states, and narrow reflow<br>
+**Last verified packet:** `W2-P1` - Shared async/freshness state primitives<br>
+**Next packet:** `W2-P2` - Focus, naming, boundary, and error recovery; Not started, no plan
 
 ## Packet envelope
 
-- **Acceptance:** Exhaustive code-backed storage/network/browser/connector classification; authentication versus capability secrets; local plaintext/shared-profile disclosure; safe Quick Link add/import/render policy; accurate manifest/Settings/README/privacy/interim-listing source; exact dev-only advisory resolution; no live Store mutation.
-- **Expected files:** Typed privacy inventory/tests, shared Quick Link URL policy and all trust-boundary tests, manifest and Connectors disclosure, README/privacy/interim-listing source, exact npm override, preview harness alignment, and W1-P9 ledgers. W2 shared async/freshness behavior, packaging, release, and live Store actions remain outside this packet.
-- **Test scope:** Schema/connector exhaustiveness, destinations/triggers/methods/sent/received/cache/permission/backend boundaries, exact backup cache/redaction behavior, manifest modes, local plaintext notice, unsafe/malformed/userinfo Quick Links at add/import/render, targeted/full Vitest, TypeScript, production/preview builds, production bridge isolation, audits/tree, and the complete built-extension harness.
-- **Visual scope:** No redesign and no new screenshot acceptance artifact. The in-product Connectors notice is covered by rendered Settings tests; full responsive regression remains the existing harness.
+- **Acceptance:** One pure orthogonal operation/freshness contract and shared render-only feedback semantics adopted at the verified Notes, Home Assistant action, connector snapshot, and Weather seams; healthy state stays quiet, retained stale/offline data stays honest, and Wave 1 ownership remains unchanged.
+- **Implemented files:** Pure async algebra/tests, shared status/alert/resource renderers/tests, semantic state exports and consumers, Notes/Home Assistant operation feedback, Weather recovery controls, and real built-extension screenshot/AX/keyboard evidence. W2-P2 focus/naming/boundary work and W2-P3 narrow reflow remain outside the packet.
+- **Test scope:** Exact state/TTL matrices, DOM roles/politeness/atomicity, Notes retained-error retry/edit ownership, Home Assistant action generations, connector/Weather identity and retry states, 36px recovery targets, targeted/full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground harness.
+- **Visual scope:** Six compact/standard/large Notes/Weather state captures plus two Weather recovery captures, all inspected at original resolution for readable non-color-only feedback, focus, clipping, target geometry, and unchanged layout. Chromium AX evidence is not a real screen-reader session.
 
 ## Last completed commits
 
@@ -65,8 +65,24 @@
 - `9e1d43937c5ec4f1a9523a709cea46928dd628e0` - behavior-aligned source privacy/listing copy and exact dev-only `nanoid` override.
 - `1cefce7d8b498737c1e1c28264963210a1bd9c1a` - bounded-review fixes for malformed HTTP(S), exhaustive transmitted/received flow fields, APOD truth, and interim listing contradictions; final focused rereview Ready.
 - `34f89600f24c7be203854bdbaf348932ab1831f0` - development harness alignment to an intercepted safe HTTPS Notes navigation target; verified W1-P9 implementation head.
+- `a13f5b1b6a619f99d48e095d564677cd1c4acdef` - independently reviewed executable W2-P1 plan (`docs: plan W2-P1 shared async state`).
+- `7dc510ac55f0f0175d517027b762510b889bdf1b`, `0d71e1f12d34a69d2d7ad31b6f71aa323114844f`, and `3505b13a825bf3684f1e566675f256cc79daf092` - pure operation/freshness algebra, shared render-only feedback, and hardened browser truth inputs.
+- `76dddaeae3f0947d694bfc611ff115989d0b7467` and `6d930685ba9fb86629d0b4f5363afcd868a46779` - connector/Weather semantic resource state and Notes/Home Assistant shared operation feedback.
+- `0b2db71f26c1686b2c0cd5528303ebe19756945f` - six exact built-extension state captures and Chromium AX evidence without adding another counted W2-P1 result.
+- `f2c1b788d6f341eb0137a05f270e7a531a4db9af` - bounded whole-packet review fixes for Notes retry/edit ownership, 36px Weather recovery targets, causal Chromium Enter retries, and exact Unicode primitive tests; verified W2-P1 implementation head.
 
 ## Latest verification
+
+- W2-P1 exact targeted suite at `f2c1b78` - exit 0; 10 files / 187 tests passed.
+- `npx tsc --noEmit` at `f2c1b78` - exit 0.
+- `npm test` at `f2c1b78` - exit 0; 116 files / 1,929 tests passed.
+- `npm run build` and `npm run build:preview` at `f2c1b78` - exit 0; both transformed 178 modules.
+- Production scan for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview bridge matched in `dist`.
+- `npm audit --omit=dev` and `npm audit --include=dev` - exit 0; zero vulnerabilities.
+- Fresh foreground `node scripts/preview.mjs` at `f2c1b78` - process exit 0; exactly 452 PASS / 0 FAIL / 3 SKIP, exactly one `PASS: W2-P1 shared async and freshness semantics`, and zero named FAIL. One prior unchanged run was rejected at 451 / 1 / 3 for the unrelated legacy Status removal timing flake; the accepted rerun changed no source.
+- The six exact W2-P1 compact/standard/large Notes and Weather captures plus `w2-p1-weather-cached-recovery-1600x900.png` and `w2-p1-weather-no-data-recovery-800x600.png` were inspected at original resolution: feedback is readable and non-color-only, focus is visible, controls/panels are unclipped, both recovery targets are at least 36 CSS px, and geometry is unchanged.
+- Chromium `Accessibility.getFullAXTree` exposes the named Notes/Home Assistant/Weather status, alert, button, description, disabled, and busy semantics, including both Weather recovery paths. This is Chromium AX evidence, not a real screen-reader run.
+- The bounded whole-packet review found 0 Critical, 3 Important, and 1 packet-local Minor finding. All were fixed with red/green coverage in `f2c1b78`; focused rereview found no new Critical/Important breakage. The three harness SKIPs remain the existing live Home Assistant/user-instance and native NASA permission ceilings; W2-P1 added none.
 
 - W1-P9 exact targeted suite - exit 0; 6 files / 362 tests passed.
 - `npx tsc --noEmit` - exit 0.
@@ -183,6 +199,7 @@
 
 - Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P4 does not claim a synthetic click, a grant restored from a backup file, or native-grant revocation.
 - Real Home Assistant entity-picker contents, successful service execution, and real screen-reader behavior still require the user's live instance/manual session.
+- Chromium AX trees support W2-P1 semantic inspection but do not establish real assistive-technology speech, timing, or interaction behavior.
 - Live Store version/dashboard answers require user/dashboard access in Wave 6.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory is resolved by the exact `3.3.18` override; production and full audits are clean and no production dependency changed.
@@ -192,13 +209,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W1-P9`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P1.
+- None expected after `docs: checkpoint W2-P1`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P2.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W2-P1` - Shared async/freshness state primitives
-- **Plan:** Not yet created; create it just in time from the master specification, verified Wave 1 contracts, current duplicated pending/success/error/freshness semantics, accessibility announcements, and the W2 acceptance boundary.
-- **State:** Not started. Write and independently review the executable W2-P1 plan before any W2-P1 implementation.
+- **Packet:** `W2-P2` - Focus, naming, boundary, and error recovery
+- **Plan:** None. Create it just in time from the master specification, verified W2-P1 shared semantics, current Focus/calendar/Home Assistant picker/DrawerBoundary/backup/Quick Link seams, and the W2-P2 acceptance boundary.
+- **State:** Not started. Write and independently review the executable W2-P2 plan before any W2-P2 implementation.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -210,9 +227,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W2-P1
-Verified W1-P9 implementation SHA: 34f89600f24c7be203854bdbaf348932ab1831f0
-Expected next checkpoint subject: docs: checkpoint W2-P1
+Starting packet: W2-P2
+Verified W2-P1 implementation SHA: f2c1b788d6f341eb0137a05f270e7a531a4db9af
+Expected next checkpoint subject: docs: checkpoint W2-P2
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
