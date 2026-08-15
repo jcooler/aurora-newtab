@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import type { OperationFeedbackState } from '../../../lib/asyncState'
 import { useStorage } from '../../../lib/storage/context'
 import type { Notes } from '../../../lib/storage/schema'
 
 const SAVE_DEBOUNCE_MS = 500
 const SAVED_VISIBLE_MS = 1_400
 
-export type NoteSaveStatus = 'idle' | 'saving' | 'saved' | 'error'
-
 export interface NotesPersistence {
   ready: boolean
   text: string
-  status: NoteSaveStatus
+  feedback: OperationFeedbackState
   edit(value: string): void
   focus(): void
   blur(): void
@@ -26,7 +25,10 @@ export function useNotesPersistence(): NotesPersistence {
   const storage = useStorage()
   const [ready, setReady] = useState(false)
   const [text, setText] = useState('')
-  const [status, setStatus] = useState<NoteSaveStatus>('idle')
+  const [feedback, setFeedback] = useState<OperationFeedbackState>({
+    operation: 'idle',
+    retainedError: false,
+  })
   const [dirty, setDirty] = useState(false)
 
   const mountedRef = useRef(false)
@@ -63,12 +65,12 @@ export function useNotesPersistence(): NotesPersistence {
     if (!mountedRef.current) return
     errorRef.current = false
     if (savedTimerRef.current !== null) clearTimeout(savedTimerRef.current)
-    setStatus('saved')
+    setFeedback({ operation: 'success', retainedError: false })
     const revision = revisionRef.current
     savedTimerRef.current = setTimeout(() => {
       savedTimerRef.current = null
       if (mountedRef.current && !dirtyRef.current && revisionRef.current === revision) {
-        setStatus('idle')
+        setFeedback({ operation: 'idle', retainedError: false })
       }
     }, SAVED_VISIBLE_MS)
   }, [])
@@ -78,7 +80,9 @@ export function useNotesPersistence(): NotesPersistence {
     const payload: Notes = { text: textRef.current, updatedAt: Date.now() }
     inFlightPayloadRef.current = payload
     saveRevisionRef.current = revision
-    if (mountedRef.current && !errorRef.current) setStatus('saving')
+    if (mountedRef.current) {
+      setFeedback({ operation: 'pending', retainedError: errorRef.current })
+    }
 
     const operation = storage.set('notes', payload).then(
       () => {
@@ -93,7 +97,9 @@ export function useNotesPersistence(): NotesPersistence {
       () => {
         if (revisionRef.current === revision) {
           errorRef.current = true
-          if (mountedRef.current) setStatus('error')
+          if (mountedRef.current) {
+            setFeedback({ operation: 'error', retainedError: true })
+          }
         }
         return false
       },
@@ -188,7 +194,10 @@ export function useNotesPersistence(): NotesPersistence {
     dirtyRef.current = true
     setText(value)
     setDirty(true)
-    setStatus(errorRef.current ? 'error' : 'saving')
+    setFeedback({
+      operation: errorRef.current ? 'error' : 'pending',
+      retainedError: errorRef.current,
+    })
     if (savedTimerRef.current !== null) {
       clearTimeout(savedTimerRef.current)
       savedTimerRef.current = null
@@ -225,7 +234,7 @@ export function useNotesPersistence(): NotesPersistence {
   return {
     ready,
     text,
-    status,
+    feedback,
     edit,
     focus,
     blur,

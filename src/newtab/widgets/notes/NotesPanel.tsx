@@ -1,9 +1,11 @@
 import {
   forwardRef,
   useCallback,
+  useId,
   useImperativeHandle,
   useRef,
 } from 'react'
+import { AssertiveAlert, PoliteStatus } from '../../../components/StateFeedback'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import type { PanelPlacement } from '../../../lib/layout/anchor'
@@ -24,6 +26,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
 ) {
   const notes = useNotesPersistence()
   const panelRef = useRef<HTMLDivElement>(null)
+  const errorMessageId = useId()
   const onCloseRef = useRef(onClose)
   const closePromiseRef = useRef<Promise<boolean> | null>(null)
   onCloseRef.current = onClose
@@ -62,30 +65,33 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
     >
       <div className="flex items-center justify-between px-3.5 pb-1 pt-2.5">
         <h2 className="text-sm font-semibold tracking-tight text-fg">Notes</h2>
-        <span
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-          className="min-h-4 text-xs text-fg-muted"
-        >
-          {notes.status === 'saving' ? 'Saving…' : notes.status === 'saved' ? 'Saved' : ''}
-        </span>
+        <PoliteStatus className="min-h-4 text-xs text-fg-muted">
+          {notes.feedback.operation === 'pending'
+            ? 'Saving…'
+            : notes.feedback.operation === 'success'
+              ? 'Saved'
+              : ''}
+        </PoliteStatus>
       </div>
-      {notes.status === 'error' && (
-        <div
-          role="alert"
-          className="mx-3.5 mb-1 flex min-h-9 items-center justify-between gap-2 rounded border border-red-400/50 px-2 text-xs text-fg"
-        >
-          <span>Couldn’t save. Your note is still here.</span>
-          <button
-            type="button"
-            onClick={() => void notes.retry()}
-            className="min-h-9 shrink-0 px-2 font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent"
-          >
-            Retry save
-          </button>
-        </div>
-      )}
+      <AssertiveAlert
+        className="mx-3.5 mb-1 flex min-h-9 items-center justify-between gap-2 rounded border border-red-400/50 px-2 text-xs text-fg"
+      >
+        {notes.feedback.retainedError ? (
+          <>
+            <span id={errorMessageId}>Couldn’t save. Your note is still here.</span>
+            <button
+              type="button"
+              onClick={() => void notes.retry()}
+              aria-busy={notes.feedback.operation === 'pending' ? 'true' : undefined}
+              aria-describedby={errorMessageId}
+              disabled={notes.feedback.operation === 'pending'}
+              className="min-h-9 shrink-0 px-2 font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Retry save
+            </button>
+          </>
+        ) : null}
+      </AssertiveAlert>
       <label htmlFor="notes-textarea" className="sr-only">
         Scratchpad
       </label>

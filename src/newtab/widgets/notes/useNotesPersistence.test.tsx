@@ -77,20 +77,24 @@ describe('useNotesPersistence', () => {
       wrapper: wrapper(control.storage),
     })
     await act(async () => {})
-    expect(result.current).toMatchObject({ ready: true, text: 'Persisted', status: 'idle' })
+    expect(result.current).toMatchObject({
+      ready: true,
+      text: 'Persisted',
+      feedback: { operation: 'idle', retainedError: false },
+    })
     expect(control.writes).toHaveLength(0)
 
     act(() => result.current.edit('Latest'))
-    expect(result.current.status).toBe('saving')
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: false })
     await act(async () => { await vi.advanceTimersByTimeAsync(500) })
-    expect(result.current.status).toBe('saving')
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: false })
     expect((await control.storage.get('notes')).text).toBe('Persisted')
 
     await act(async () => { await control.release() })
-    expect(result.current.status).toBe('saved')
+    expect(result.current.feedback).toEqual({ operation: 'success', retainedError: false })
     expect((await control.storage.get('notes')).text).toBe('Latest')
     await act(async () => { await vi.advanceTimersByTimeAsync(1_400) })
-    expect(result.current.status).toBe('idle')
+    expect(result.current.feedback).toEqual({ operation: 'idle', retainedError: false })
   })
 
   it('coalesces debounce edits and drains a newer edit after an older deferred write', async () => {
@@ -111,11 +115,11 @@ describe('useNotesPersistence', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(500) })
     act(() => result.current.edit('newer while pending'))
     await act(async () => { await vi.advanceTimersByTimeAsync(500) })
-    expect(result.current.status).toBe('saving')
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: false })
     await act(async () => { await control.release() })
     await act(async () => {})
     expect((await control.storage.get('notes')).text).toBe('newer while pending')
-    expect(result.current.status).toBe('saved')
+    expect(result.current.feedback).toEqual({ operation: 'success', retainedError: false })
   })
 
   it('keeps a failed draft and retries the latest edit rather than the rejected value', async () => {
@@ -126,15 +130,26 @@ describe('useNotesPersistence', () => {
     await act(async () => {})
     act(() => result.current.edit('Rejected'))
     await act(async () => { await vi.advanceTimersByTimeAsync(500) })
-    expect(result.current).toMatchObject({ text: 'Rejected', status: 'error' })
+    expect(result.current).toMatchObject({
+      text: 'Rejected',
+      feedback: { operation: 'error', retainedError: true },
+    })
     expect((await control.storage.get('notes')).text).toBe('Old')
 
     act(() => result.current.edit('Newest retry'))
-    expect(result.current.status).toBe('error')
+    expect(result.current.feedback).toEqual({ operation: 'error', retainedError: true })
+    control.deferNext()
+    let retry!: Promise<boolean>
+    act(() => { retry = result.current.retry() })
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: true })
+    await act(async () => { await control.release() })
     let ok = false
-    await act(async () => { ok = await result.current.retry() })
+    await act(async () => { ok = await retry })
     expect(ok).toBe(true)
-    expect(result.current).toMatchObject({ text: 'Newest retry', status: 'saved' })
+    expect(result.current).toMatchObject({
+      text: 'Newest retry',
+      feedback: { operation: 'success', retainedError: false },
+    })
     expect((await control.storage.get('notes')).text).toBe('Newest retry')
   })
 
@@ -159,7 +174,10 @@ describe('useNotesPersistence', () => {
     let rejected = true
     await act(async () => { rejected = await result.current.flushLatest() })
     expect(rejected).toBe(false)
-    expect(result.current).toMatchObject({ text: 'Still here', status: 'error' })
+    expect(result.current).toMatchObject({
+      text: 'Still here',
+      feedback: { operation: 'error', retainedError: true },
+    })
   })
 
   it('guards beforeunload only while dirty and removes the guard after persistence', async () => {

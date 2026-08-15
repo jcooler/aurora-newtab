@@ -395,6 +395,9 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     )
     const movie = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
     const evening = screen.getByRole('button', { name: 'Run Evening routine' }) as HTMLButtonElement
+    const idleStatuses = screen.getAllByRole('status')
+    expect(idleStatuses).toHaveLength(2)
+    expect(idleStatuses.every((status) => status.textContent === '')).toBe(true)
 
     fireEvent.click(movie)
 
@@ -403,6 +406,9 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     expect(movie.getAttribute('aria-busy')).toBe('true')
     expect(movie.getAttribute('aria-describedby')).toBe(running.id)
     expect(running.getAttribute('role')).toBe('status')
+    expect(running).toBe(idleStatuses[0])
+    expect(running.getAttribute('aria-live')).toBe('polite')
+    expect(running.getAttribute('aria-atomic')).toBe('true')
     expect(evening.disabled).toBe(false)
     expect(evening.getAttribute('aria-busy')).toBeNull()
     expect(screen.queryByText('Running Evening routine…')).toBeNull()
@@ -427,14 +433,18 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     vi.mocked(callHaService).mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
     renderActionButton()
     const button = screen.getByRole('button', { name: 'Run Movie night' }) as HTMLButtonElement
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('')
 
     fireEvent.click(button)
     const feedbackId = screen.getByText('Running Movie night…').id
+    expect(screen.getByRole('status')).toBe(status)
     await act(async () => {
       first.resolve(true)
     })
 
     const success = screen.getByRole('status')
+    expect(success).toBe(status)
     expect(success.textContent).toBe('Movie night completed.')
     expect(success.id).toBe(feedbackId)
     expect(button.disabled).toBe(false)
@@ -461,17 +471,23 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     })
     const alert = screen.getByRole('alert')
     expect(alert.textContent).toBe("Couldn't run Movie night. Try again.")
+    expect(alert.getAttribute('aria-atomic')).toBe('true')
+    expect(screen.queryByRole('status')).toBeNull()
     expect(button.disabled).toBe(false)
     expect(button.getAttribute('aria-busy')).toBeNull()
     expect(button.getAttribute('aria-describedby')).toBe(alert.id)
     await act(async () => Promise.resolve())
     expect(screen.getByRole('alert')).toBe(alert)
 
-    await act(async () => {
-      fireEvent.click(button)
-    })
+    fireEvent.click(button)
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByRole('status').textContent).toBe('Movie night completed.')
+    const retryStatus = screen.getByRole('status')
+    expect(retryStatus.textContent).toBe('Running Movie night…')
+    expect(button.disabled).toBe(true)
+    expect(button.getAttribute('aria-busy')).toBe('true')
+    await act(async () => {})
+    expect(screen.getByRole('status')).toBe(retryStatus)
+    expect(retryStatus.textContent).toBe('Movie night completed.')
     expect(callHaService).toHaveBeenCalledTimes(2)
   })
 
@@ -532,6 +548,9 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     )
     expect(button.disabled).toBe(false)
     expect(screen.queryByText('Running Movie night…')).toBeNull()
+    const quiet = screen.getByRole('status')
+    expect(quiet.textContent).toBe('')
+    expect(quiet.getAttribute('aria-atomic')).toBe('true')
     fireEvent.click(button)
     expect(button.disabled).toBe(true)
 
@@ -540,7 +559,7 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     })
     expect(button.disabled).toBe(true)
     expect(button.getAttribute('aria-busy')).toBe('true')
-    expect(screen.getByText('Running Movie night…')).toBeTruthy()
+    expect(screen.getByText('Running Movie night…')).toBe(quiet)
     expect(screen.queryByRole('alert')).toBeNull()
     expect(callHaService).toHaveBeenCalledTimes(2)
 
@@ -549,6 +568,38 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
     })
     expect(button.disabled).toBe(false)
     expect(screen.getByText('Movie night completed.')).toBeTruthy()
+  })
+
+  it('a stale completion leaves the new generation quiet and unmount removes its stable polite region', async () => {
+    const staleCall = deferred<boolean>()
+    vi.mocked(callHaService).mockReturnValue(staleCall.promise)
+    const { rerender, unmount } = renderActionButton('generation-a')
+    const button = screen.getByRole('button', { name: 'Run Movie night' })
+    const status = screen.getByRole('status')
+
+    fireEvent.click(button)
+    expect(screen.getByText('Running Movie night…')).toBe(status)
+    rerender(
+      <ActionButton
+        snapshotEpoch="generation-b"
+        action={ACTIONS[0]}
+        instanceUrl="https://ha.example.com"
+        token="tok"
+      />,
+    )
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('')
+
+    await act(async () => {
+      staleCall.resolve(true)
+    })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('')
+    expect(screen.queryByRole('alert')).toBeNull()
+
+    unmount()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 
   it('an action button under StrictMode remains mounted for a post-mount completion', async () => {
@@ -581,6 +632,8 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
 
     expect(screen.queryByRole('button', { name: 'Run Movie night' })).toBeNull()
     expect(screen.queryByText('Movie night completed.')).toBeNull()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })
 

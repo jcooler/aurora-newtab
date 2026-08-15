@@ -185,7 +185,7 @@ describe('NotesPanel', () => {
 
   it('reports Saving through a deferred authority write and Saved only after it fulfills', async () => {
     const base = memoryDriver()
-    let releaseWrite = () => {}
+    let releaseWrite: () => Promise<void> = async () => {}
     let deferNotes = false
     const driver: StorageDriver = {
       read: (keys) => base.read(keys),
@@ -216,19 +216,113 @@ describe('NotesPanel', () => {
     await act(async () => {})
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Await the real write' } })
-    expect(screen.getByRole('status').textContent).toBe('Saving…')
+    const status = screen.getByRole('status')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.getAttribute('aria-atomic')).toBe('true')
+    expect(status.textContent).toBe('Saving…')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(500)
     })
-    expect(screen.getByRole('status').textContent).toBe('Saving…')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saving…')
     expect((await storage.get('notes')).text).toBe('')
 
     await act(async () => {
-      releaseWrite()
-      await Promise.resolve()
+      await releaseWrite()
     })
-    expect(screen.getByRole('status').textContent).toBe('Saved')
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saved')
     expect((await storage.get('notes')).text).toBe('Await the real write')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_400)
+    })
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('')
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('retains one atomic failure alert and its stable described Retry while a deferred retry is pending', async () => {
+    const base = memoryDriver()
+    let mode: 'pass' | 'reject' | 'defer' = 'pass'
+    let writeHeld = false
+    let releaseWrite: () => Promise<void> = async () => {}
+    const driver: StorageDriver = {
+      read: (keys) => base.read(keys),
+      write: async (patch) => {
+        if (!Object.prototype.hasOwnProperty.call(patch, 'notes') || mode === 'pass') {
+          await base.write(patch)
+          return
+        }
+        const writeMode = mode
+        mode = 'pass'
+        if (writeMode === 'reject') throw new Error('configured notes write failure')
+        await new Promise<void>((resolve) => {
+          writeHeld = true
+          releaseWrite = async () => {
+            await base.write(patch)
+            resolve()
+          }
+        })
+      },
+      onChanged: (cb) => base.onChanged(cb),
+    }
+    const storage = createStorage(driver, base.authority)
+    await storage.init()
+    mode = 'reject'
+    const view = render(
+      <StorageProvider storage={storage}>
+        <NotesPanel anchor={{ left: 16, top: 582 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep this draft' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(500)
+    })
+
+    const status = screen.getByRole('status')
+    const alert = screen.getByRole('alert')
+    const retry = screen.getByRole('button', { name: 'Retry save' }) as HTMLButtonElement
+    const descriptionId = retry.getAttribute('aria-describedby')
+    const description = descriptionId ? document.getElementById(descriptionId) : null
+    expect(screen.queryAllByRole('status')).toHaveLength(1)
+    expect(screen.queryAllByRole('alert')).toHaveLength(1)
+    expect(status.textContent).toBe('')
+    expect(status.textContent).not.toContain('Couldn’t save')
+    expect(alert.getAttribute('aria-atomic')).toBe('true')
+    expect(description?.textContent).toBe('Couldn’t save. Your note is still here.')
+    expect(retry.textContent).toBe('Retry save')
+    expect(retry.classList.contains('min-h-9')).toBe(true)
+    expect(retry.disabled).toBe(false)
+    retry.focus()
+    expect(document.activeElement).toBe(retry)
+
+    mode = 'defer'
+    fireEvent.click(retry)
+    expect(screen.getByRole('alert')).toBe(alert)
+    expect(screen.getByRole('button', { name: 'Retry save' })).toBe(retry)
+    expect(retry.disabled).toBe(true)
+    expect(retry.getAttribute('aria-busy')).toBe('true')
+    expect(retry.getAttribute('aria-describedby')).toBe(descriptionId)
+    expect(document.getElementById(descriptionId ?? '')).toBe(description)
+    expect(status.textContent).toBe('Saving…')
+
+    await act(async () => {
+      for (let attempts = 0; !writeHeld && attempts < 10; attempts += 1) {
+        await Promise.resolve()
+      }
+      expect(writeHeld).toBe(true)
+      await releaseWrite()
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByRole('status')).toBe(status)
+    expect(status.textContent).toBe('Saved')
+
+    view.unmount()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
   })
 })

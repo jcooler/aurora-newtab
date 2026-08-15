@@ -1,4 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { AssertiveAlert, PoliteStatus } from '../../../components/StateFeedback'
+import type { OperationState } from '../../../lib/asyncState'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import {
@@ -238,9 +240,7 @@ const BTN_TINT = {
   pending: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] scale-95 brightness-125 transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none motion-reduce:scale-100',
   success: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-accent shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
   error: 'rounded-full border border-panel-border bg-panel-solid px-3 py-1 text-xs text-red-400 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] transition focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none',
-} as const
-
-type ActionState = keyof typeof BTN_TINT
+} as const satisfies Record<OperationState, string>
 
 /** One independently guarded Home Assistant service call. Configuration
  * changes advance the generation in a committed layout effect: stale promise
@@ -257,7 +257,7 @@ export function ActionButton({
   token: string
   snapshotEpoch?: string
 }) {
-  const [state, setState] = useState<ActionState>('idle')
+  const [state, setState] = useState<OperationState>('idle')
   const feedbackId = useId()
   const pendingRef = useRef<number | null>(null)
   const mountedRef = useRef(false)
@@ -318,14 +318,14 @@ export function ActionButton({
       >
         {action.name}
       </button>
-      {feedback && (
-        <span
-          id={feedbackId}
-          role={state === 'error' ? 'alert' : 'status'}
-          className="text-photo text-xs text-canvas-fg"
-        >
+      {state === 'error' ? (
+        <AssertiveAlert id={feedbackId} className="text-photo text-xs text-canvas-fg">
           {feedback}
-        </span>
+        </AssertiveAlert>
+      ) : (
+        <PoliteStatus id={feedbackId} className="text-photo text-xs text-canvas-fg">
+          {feedback}
+        </PoliteStatus>
       )}
     </div>
   )
