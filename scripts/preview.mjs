@@ -17425,6 +17425,7 @@ await page.waitForTimeout(150)
     data: false,
     settings: false,
     targets: false,
+    focusGeometry: false,
   }
   const details = {}
   const axEvidence = {}
@@ -17632,6 +17633,172 @@ await page.waitForTimeout(150)
       escaped.storedText === 'Packet focus' && escaped.writes === 0 && committed.storedText === 'Committed once' &&
       committed.writeDelta === 1 && committed.editFocused
     details.focusTargets = focusTargetsBefore && editorTarget
+  })
+
+  await step('focusGeometry', async () => {
+    const scopedKeys = ['settings', 'focus', 'links', 'worldClocks', 'countdowns', 'connectors', 'connectorSnapshots']
+    const scopedOriginal = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), scopedKeys)
+    const rows = []
+    try {
+      await evidencePage.evaluate(async () => {
+        const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+        const now = new Date()
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        await globalThis.__auroraSetHarnessStorage({
+          focus: { text: 'W2-P2 geometry', date: today, done: false },
+          links: [
+            { id: 'w2-p2-geometry-1', title: 'GitHub', url: 'https://github.com' },
+            { id: 'w2-p2-geometry-2', title: 'HN', url: 'https://news.ycombinator.com' },
+          ],
+          worldClocks: [
+            { zone: 'Asia/Tokyo', label: 'Tokyo' },
+            { zone: 'Europe/London', label: 'London' },
+          ],
+          countdowns: [{ id: 'w2-p2-geometry-countdown', name: 'Launch', date: '2030-01-01' }],
+          settings: {
+            ...settings,
+            widgets: { ...settings.widgets, links: true, clocks: true, countdown: true },
+          },
+          connectors: {
+            ...connectors,
+            rss: { enabled: false, feeds: [] },
+            github: { enabled: false },
+            gitlab: { enabled: false },
+            jira: { enabled: false },
+            vercel: { enabled: false },
+            ics: { enabled: false },
+            homeassistant: { enabled: false },
+            crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] },
+          },
+          connectorSnapshots: {
+            crypto: {
+              fetchedAt: Date.now(),
+              data: {
+                coins: [
+                  { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 },
+                  { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 },
+                  { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+                  { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+                  { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+                ],
+              },
+            },
+          },
+        })
+      })
+      await evidencePage.reload()
+      await evidencePage.waitForSelector('time')
+
+      for (const height of [672, 890, 900, 922, 1042]) {
+        await evidencePage.setViewportSize({ width: 1600, height })
+        await evidencePage.waitForTimeout(340)
+        const idleTargets = await evidencePage.evaluate((expectedHeight) => {
+          const box = (element) => {
+            if (!(element instanceof HTMLElement)) return null
+            const rect = element.getBoundingClientRect()
+            if (rect.width === 0 || rect.height === 0) return null
+            return {
+              left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+              right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+              width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+            }
+          }
+          const intersects = (a, b) => !!a && !!b &&
+            !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+          const completionElement = document.querySelector('#focus-done')?.closest('label') ?? null
+          const editElement = [...document.querySelectorAll('button')]
+            .find((node) => node.textContent?.trim() === 'Edit') ?? null
+          const targets = [
+            { name: 'completion', element: completionElement, rect: box(completionElement) },
+            { name: 'edit', element: editElement, rect: box(editElement) },
+          ]
+          const interactive = [...document.querySelectorAll(
+            'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])',
+          )]
+          const collisions = targets.flatMap((target) => interactive.flatMap((other) => {
+            if (!(other instanceof HTMLElement) || !target.element || target.element === other ||
+                target.element.contains(other) || other.contains(target.element)) return []
+            const otherRect = box(other)
+            if (!intersects(target.rect, otherRect)) return []
+            return [`${target.name}:${other.getAttribute('aria-label') ?? other.textContent?.trim() ?? other.tagName}`]
+          }))
+          return {
+            viewport: { width: window.innerWidth, height: window.innerHeight },
+            targets: targets.map(({ name, rect }) => ({ name, rect })),
+            collisions,
+            ok: window.innerWidth === 1600 && window.innerHeight === expectedHeight &&
+              targets.every((target) => target.rect && target.rect.width >= 36 && target.rect.height >= 36) &&
+              collisions.length === 0,
+          }
+        }, height)
+        await evidencePage.evaluate(() => chrome.storage.local.set({ focus: null }))
+        await evidencePage.locator('#focus-input').waitFor()
+        const promptClearance = await evidencePage.evaluate(() => {
+          const box = (target) => {
+            const element = typeof target === 'string' ? document.querySelector(target) : target
+            if (!(element instanceof HTMLElement)) return null
+            const rect = element.getBoundingClientRect()
+            if (rect.width === 0 || rect.height === 0) return null
+            return {
+              left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+              right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+              width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+            }
+          }
+          const links = box('[data-block-id="links"]')
+          const crypto = box('[data-block-id="crypto"] section')
+          const quote = box('[data-block-id="quote"]')
+          const promptInput = document.querySelector('#focus-input')
+          const promptInputRect = box('#focus-input')
+          const interactive = [...document.querySelectorAll(
+            'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])',
+          )]
+          const intersects = (a, b) => !!a && !!b &&
+            !(a.right <= b.left || a.left >= b.right || a.bottom <= b.top || a.top >= b.bottom)
+          const collisions = interactive.flatMap((other) => {
+            if (!(other instanceof HTMLElement) || !promptInput || promptInput === other ||
+                promptInput.contains(other) || other.contains(promptInput)) return []
+            const otherRect = box(other)
+            if (!intersects(promptInputRect, otherRect)) return []
+            return [other.getAttribute('aria-label') ?? other.textContent?.trim() ?? other.tagName]
+          })
+          const bottomMember = crypto ?? quote
+          const clearance = links && bottomMember ? +(bottomMember.top - links.bottom).toFixed(1) : null
+          return {
+            promptInput: promptInputRect,
+            collisions,
+            shownBottomMember: crypto ? 'crypto' : quote ? 'quote' : null,
+            links,
+            bottomMember,
+            clearance,
+            ok: !!promptInputRect && promptInputRect.width >= 36 && promptInputRect.height >= 36 &&
+              collisions.length === 0 && clearance !== null && clearance >= 8,
+          }
+        })
+        rows.push({
+          viewport: idleTargets.viewport,
+          idleTargets,
+          promptClearance,
+          ok: idleTargets.ok && promptClearance.ok,
+        })
+        await evidencePage.evaluate(async () => {
+          const now = new Date()
+          const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+          await chrome.storage.local.set({ focus: { text: 'W2-P2 geometry', date: today, done: false } })
+        })
+        await evidencePage.locator('#focus-done').waitFor()
+      }
+      details.focusGeometry = rows
+      checks.focusGeometry = rows.length === 5 && rows.every((row) => row.ok)
+    } finally {
+      await evidencePage.evaluate(async ({ keys, snapshot }) => {
+        await chrome.storage.local.remove(keys)
+        await chrome.storage.local.set(snapshot)
+      }, { keys: scopedKeys, snapshot: scopedOriginal })
+      await evidencePage.setViewportSize({ width: 800, height: 600 })
+      await evidencePage.reload()
+      await evidencePage.waitForSelector('time')
+    }
   })
 
   await step('quickLink', async () => {

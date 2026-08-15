@@ -167,4 +167,13 @@ describe('FocusLine editor ownership', () => {
     const input = screen.getByLabelText(/main focus today/i)
     expect(input.className).toContain('min-h-9')
   })
+
+  it('compensates the prompt input margin-box without shrinking its 36px target', async () => {
+    setup(null)
+    const input = await screen.findByLabelText(/main focus today/i)
+    expect(input.className).toContain('min-h-9')
+    expect(input.className).toContain('-mb-[3px]')
+    expect(input.className).toContain('short:mb-0')
+    expect(input.className).toContain('xshort:mb-0')
+  })
 })

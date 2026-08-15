@@ -112,7 +112,7 @@ export default function FocusLine() {
           onBlur={(e) => {
             commitDraft(e.currentTarget.value, false)
           }}
-          className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 min-h-9 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
+          className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 min-h-9 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent -mb-[3px] short:mb-0 xshort:mb-0"
         />
       </form>
     )
