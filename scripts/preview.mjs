@@ -9594,6 +9594,14 @@ function gitlabContributionsFixture() {
           habits: [],
           apodCache: null,
         }
+        const EXPECTED_RESTORED_DATA = {
+          ...RESTORED_DATA,
+          layout: {
+            version: 2,
+            profiles: { compact: {}, standard: {}, display: {}, ultrawide: {} },
+            legacy: {},
+          },
+        }
         const literalBackup = {
           app: 'aurora',
           version: 9,
@@ -9671,7 +9679,8 @@ function gitlabContributionsFixture() {
             .sort()
           const exportOk =
             download.suggestedFilename().startsWith('aurora-backup-') &&
-            exportedEnvelope?.app === 'aurora' && exportedEnvelope?.version === 9 && exportedAtValid &&
+            exportedEnvelope?.app === 'aurora' && exportedEnvelope?.version === 10 && exportedAtValid &&
+            exact(exportedEnvelope?.data?.layout, { version: 2, profiles: {} }) &&
             exact(exportedDataKeys, expectedExportDataKeys) &&
             exportedEnvelope?.redactions?.notice === BACKUP_NOTICE &&
             exact(exportedEnvelope?.redactions?.reentryRequired, EXPECTED_EXPORT_REENTRY) &&
@@ -9758,7 +9767,7 @@ function gitlabContributionsFixture() {
               : `FAIL: W1-P4 confirmation gesture adapter requests (${JSON.stringify({ requestedPatterns, requestEntries })})`,
           )
 
-          const exactCommitted = exact(committed.values, RESTORED_DATA)
+          const exactCommitted = exact(committed.values, EXPECTED_RESTORED_DATA)
           console.log(
             exactCommitted && exact(committed.values.connectorSnapshots, {}) && committed.values.apodCache === null
               ? 'PASS: W1-P4 the production restore coordinator atomically committed the exact cleaned target through real storage and reset connectorSnapshots/apodCache'
@@ -9792,7 +9801,7 @@ function gitlabContributionsFixture() {
             statusText: document.querySelector('section[aria-label="Data"] [role="status"]')?.textContent?.trim() ?? '',
           }), dataKeys)
           const failedRevokeDurable =
-            exact(afterRoundTrip.values, RESTORED_DATA) && afterRoundTrip.retryVisible
+            exact(afterRoundTrip.values, EXPECTED_RESTORED_DATA) && afterRoundTrip.retryVisible
           console.log(
             failedRevokeDurable
               ? 'PASS: W1-P4 the failed adapter revoke left the imported state committed and Retry permission cleanup durable across a Data/General/Data round trip'
@@ -14464,7 +14473,9 @@ function gitlabContributionsFixture() {
   // contain:layout / transform / filter / will-change to a zone: any would trap
   // this fixed widget against the zone box instead of the viewport).
   await page.evaluate(async () => {
-    await globalThis.__auroraSetHarnessStorage({ layout: { monthCal: { x: 50, y: 50 } } })
+    await globalThis.__auroraSetHarnessStorage({
+      layout: { version: 2, profiles: {}, legacy: { monthCal: { x: 50, y: 50 } } },
+    })
   })
   await page.reload()
   await page.waitForSelector('time')
@@ -14498,7 +14509,7 @@ function gitlabContributionsFixture() {
   )
   // Restore the default (flowing) layout.
   await page.evaluate(async () => {
-    await globalThis.__auroraSetHarnessStorage({ layout: {} })
+    await globalThis.__auroraSetHarnessStorage({ layout: { version: 2, profiles: {} } })
   })
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
@@ -14621,7 +14632,7 @@ function gitlabContributionsFixture() {
       connectors: { ...connectors, ...off },
       connectorSnapshots: {},
       habits: [],
-      layout: {},
+      layout: { version: 2, profiles: {} },
       weatherCache: null,
       // sun/moon were already switched off live right after the sweep loop
       // (see that toggle's own comment) — restated here too, defensively,
@@ -18840,7 +18851,7 @@ await page.waitForTimeout(150)
         })),
         location: { lat: 40.7128, lon: -74.006, label: 'A very long W2-P3 weather location', manual: true },
         weatherCache: null,
-        layout: {},
+        layout: { version: 2, profiles: {} },
         connectors: {
           ...connectors,
           github: { enabled: true },
@@ -19648,7 +19659,7 @@ await page.waitForTimeout(150)
       buffer: Buffer.from(JSON.stringify(backupEnvelope)),
     })
     const confirm = evidencePage.getByRole('button', { name: 'Confirm restore', exact: true })
-    const prepared = await confirm.isVisible().catch(() => false)
+    const prepared = await confirm.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false)
     if (prepared) {
       await confirm.click()
       await evidencePage.getByRole('status').filter({ hasText: 'Backup restored.' }).waitFor({ timeout: 10_000 })
