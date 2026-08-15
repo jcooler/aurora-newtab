@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** August 8, 2026
+**Effective date:** August 14, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -8,7 +8,9 @@ If something isn't listed here, Aurora doesn't do it.
 
 ## Summary
 
-Aurora has no backend and no accounts. It does not collect, sell, rent, or
+Aurora has no backend and requires no Aurora account. Optional credentialed
+connectors can use accounts you already have with their third-party providers.
+Aurora does not collect, sell, rent, or
 transfer any of your data to anyone, for any purpose — including to the
 developer. There is no analytics and no tracking of any kind. Everything
 Aurora stores lives only on your own device. The outbound network calls
@@ -28,6 +30,11 @@ which is stored locally like everything else and sent only to the one
 service it authenticates to; the other four (RSS, Crypto, Calendar,
 Status) need no credential at all. See "Connectors" below for the complete
 disclosure.
+
+Connector credentials and RSS/Calendar capability URLs are stored as local
+plaintext in `chrome.storage.local`, protected by your Chrome/OS profile.
+They are not encrypted, obfuscated, or vault-grade. On a shared or untrusted
+profile, disconnect connectors or clear Aurora's extension data after use.
 
 ## What Aurora stores, and where
 
@@ -82,10 +89,11 @@ something you entered — to a JSON file you choose to
 save, and re-import it later. Importing a backup also resets the NASA
 photo-of-the-day cache to empty, the same "rebuilds on next use" treatment
 every other excluded cache gets, rather than carrying an old day's photo
-forward. Connector configuration itself (e.g. your RSS
-feed list) IS included in the export, minus any field that connector
+forward. Connector configuration itself is included in the export, minus
+any field that connector
 declares as secret — every GitHub/GitLab/Jira/Vercel/Home Assistant
-token, and every calendar address you've added to the Calendar connector,
+token, every calendar address you've added to the Calendar connector, and
+every RSS feed URL,
 is stripped from the exported file automatically, before it's ever
 written to disk (see "Connectors" below for
 the full per-connector list and the mechanism that enforces it). This file
@@ -277,9 +285,10 @@ pre-granted at install, nothing is granted in the background, and removing
 the last thing pointed at a given origin releases that origin's permission
 automatically.
 
-**Token connectors.** RSS, Crypto, Calendar, and Status need no credential
-(`auth: 'none'`) — there's nothing to keep secret beyond, for Calendar,
-each calendar address itself (see below). GitHub, GitLab, Jira, Vercel, and
+**Authentication and capability secrets.** RSS, Crypto, Calendar, and Status
+need no credential (`auth: 'none'`). RSS feed URLs and Calendar addresses are
+still capability secrets: possession of the full URL may grant read access,
+even though it is not an account sign-in. GitHub, GitLab, Jira, Vercel, and
 Home Assistant do require a credential — to read your own data, and for
 Home Assistant alone, to also send it a command — and each one stores that
 credential only in `chrome.storage.local`, on your device, exactly like
@@ -293,10 +302,11 @@ remember to update. GitHub/GitLab/Vercel/Home Assistant each declare their
 token secret; Jira declares its API token secret (the email address
 travels with the rest of the config, unstripped — it identifies you to
 Jira, the same way a username would, and isn't itself a bearer
-credential); Calendar declares its whole `calendars` list (every entry's
+credential); RSS uses its descriptor's backup redactor to remove every feed
+URL; Calendar declares its whole `calendars` list (every entry's
 own address) secret, since each address alone is what grants read access
-to that calendar — up to 5 per the connector's own cap; RSS, Crypto, and
-Status declare no secret fields, because they have none — a status page
+to that calendar — up to 5 per the connector's own cap; Crypto and Status
+declare no secret fields because they have none — a status page
 URL, curated or custom, grants no access to anything and identifies no
 one.
 
@@ -304,7 +314,8 @@ one.
 Settings → Connectors — nothing else — at most about once every 30 minutes
 per feed (or sooner, on demand, if you open the widget with a stale cache).
 Each fetch is a single HTTP GET straight to that feed's own host; nothing
-is sent but the request itself. The response — headline titles, links,
+is sent but the request itself. Each full feed URL is treated as a capability
+secret and removed from backup exports. The response — headline titles, links,
 source names, and publish dates — is parsed on your device and cached
 locally (as part of "What Aurora stores," above) purely so the widget
 doesn't need to refetch on every new tab; that cache is excluded from
@@ -362,11 +373,13 @@ covers its one write path, the only one in this whole list):
   reverse-proxied instances work fine). Sends your long-lived access
   token as the Authorization header, stored locally and stripped from
   backup exports exactly like the four other credentialed connectors
-  above. Reads two endpoints on that instance: `/api/config` (a one-time
+  above. Reads `/api/config` once (a one-time
   check, at the moment you connect, that resolves the location name your
-  card is labeled with) and `/api/states` (the entity picker's one bulk
-  fetch when you click "Choose entities," and the widget's own poll,
-  filtered down to just the entities you picked). Polled at most once
+  card is labeled with). The entity picker makes one bulk `/api/states`
+  request only when you click "Choose entities"; regular widget refreshes
+  request `/api/states/{entity_id}` separately for only the selected
+  entities. The action controller checks `/api/` for health and does not use
+  that endpoint for ordinary state polling. Selected entities are polled at most once
   every 60 seconds, and only while a tab with the widget open is
   on-screen — there's no background timer of its own. A chip's text
   (the name and the value both) comes from that live poll, so renaming or
@@ -375,7 +388,7 @@ covers its one write path, the only one in this whole list):
   pick it, since an action is never re-fetched — it's static config, not
   polled state. **The one write path:** up to 3 of your picked entities can
   be one-tap actions (a scene, script, or switch); clicking that action's
-  button on the board sends a single command —
+  button on the board sends a single POST —
   `/api/services/scene/turn_on`, `/api/services/script/turn_on`, or
   `/api/services/switch/toggle`, matching what you picked — carrying
   nothing but that one entity's id, to that same instance, only in the
@@ -403,7 +416,7 @@ only on your device.
 ## Changes to this policy
 
 If this policy changes, the updated version will be published at the same
-location with a new effective date above. Because Aurora has no accounts
+location with a new effective date above. Because Aurora has no Aurora account
 and no way to contact users directly, checking this page is the only way to
 learn of changes.
 

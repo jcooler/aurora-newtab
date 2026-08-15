@@ -60,9 +60,9 @@ export type PrepareBackupResult =
 
 /** Returns a new connectors map with every field a connector's descriptor
  *  lists in `secretFields` removed — the single source of truth is the
- *  registry (no local secret list to keep in sync). RSS declares none today,
- *  so this is an identity over its config; the first secret-bearing connector
- *  only adds `secretFields` to its descriptor, nothing here changes.
+ *  registry (no local secret list to keep in sync). Capability-URL connectors
+ *  can additionally use `redactForBackup` for nested or whole-list values;
+ *  RSS and Calendar both use that second-stage policy today.
  *
  *  Never mutates its input — `data.connectors` is what's actually sitting in
  *  storage and must survive an export untouched (each stripped entry is a fresh

@@ -12,7 +12,8 @@
 // the secret is the URL itself (an ICS "private address" grants read access to
 // the whole calendar). So secretFields:['url'] and there is no identityField.
 // backup.test.ts's ics case is the first auth-'none' connector that DOES strip
-// a secret (crypto/rss strip nothing) — see that file.
+// a secret through `secretFields` (RSS uses `redactForBackup` for its feed
+// list instead; Crypto strips nothing) — see that file.
 //
 // TZID STRATEGY (decided up front): to convert a TZID-stamped local wall time
 // to an epoch we use the JS runtime's own IANA zone database via Intl, NOT the

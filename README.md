@@ -1,6 +1,6 @@
 # Aurora
 
-A calm, local-first new-tab dashboard for Chrome. No accounts, no tracking,
+A calm, local-first new-tab dashboard for Chrome. No Aurora account, no tracking,
 no backend — everything lives on your machine.
 
 ## Features
@@ -175,7 +175,10 @@ anything on your board stays pinned on top.
 fetches each feed directly from your browser — there's no Aurora server in
 the middle relaying the request — merges the results newest-first, and
 caches them locally so the widget doesn't refetch on every new tab (about
-once every 30 minutes, or sooner if you refresh).
+once every 30 minutes, or sooner if you refresh). Treat each full feed URL
+as a capability secret: it can contain an unguessable token that grants read
+access, so Aurora redacts it from JSON backups and requires re-entry after
+restore.
 
 The other eight, briefly — what you see, and what Aurora reads (and, for
 one connector, writes) to show it. Every connector card is composable —
@@ -235,7 +238,11 @@ a single request that keeps firing as long as either section is on.
   schedule — every other connector on this page, Home Assistant's own
   state poll included, only ever reads. Polled at most once a minute,
   Aurora's shortest interval, since home state goes stale faster than
-  anything else here.
+  anything else here. The bulk `/api/states` request runs only when you open
+  the entity picker; regular refreshes request each selected
+  `/api/states/{entity_id}`. Aurora uses `/api/config` once while connecting,
+  `/api/` only for action health, and posts to the selected service endpoint
+  only on an action click.
 
 **The permission model** is per-site, not all-or-nothing. Aurora's manifest
 lists every `https://` origin as *requestable*, but none is granted until
@@ -347,10 +354,10 @@ as a single JSON file:
   envelope (`app`, `version`, `exportedAt`, and `data`) containing every
   stored key: settings, quick links, to-do lists, the focus timer config,
   today's focus text, background preferences, weather cache, location,
-  notes, world clocks, countdowns, and connector configuration (e.g. your
-  RSS feed list) — with any field a connector marks as secret (a GitHub/
+  notes, world clocks, countdowns, and connector configuration — with any
+  field a connector marks as secret (a GitHub/
   GitLab/Jira/Vercel/Home Assistant token, or the Calendar connector's
-  saved calendar addresses) stripped out first (see
+  saved calendar addresses, or an RSS feed list) stripped out first (see
   [Connectors](#connectors)).
 - **Background photo uploads are not included**, and neither is connectors'
   cached data (e.g. fetched RSS headlines). Photos live in IndexedDB as a
@@ -378,7 +385,8 @@ The full, standalone privacy policy (Chrome Web Store submission copy,
 audited line-by-line against this codebase) lives in
 [`PRIVACY.md`](PRIVACY.md). Summary:
 
-Aurora has no backend and no accounts. All of your data — settings, quick
+Aurora has no backend and requires no Aurora account. Third-party accounts
+are used only when you choose a credentialed connector. All of your data — settings, quick
 links, to-do lists, focus timer config, today's focus text, background
 preferences, weather cache, location, notes, world clocks, countdowns,
 habits, widget layout, and connector configuration (e.g. your RSS feed
@@ -404,11 +412,19 @@ goes directly from your browser to that connector's own host, with no
 Aurora server in between, only for connectors you've actually configured.
 GitHub/GitLab/Jira/Vercel/Home Assistant send only the token (or, for
 Jira, email + token) you connected with; Crypto, Calendar, and Status need
-no account at all. Home Assistant is the one connector that also writes:
+no third-party account. RSS and Calendar URLs are capability secrets even
+without an account and are redacted from backups. Home Assistant is the one connector that also writes:
 its action buttons send a single command to your own instance, only when
 you click one, never on a schedule (see [Connectors](#connectors) and
 [`PRIVACY.md`](PRIVACY.md) for the full disclosure). There is no
 analytics, no telemetry, and no tracking of any kind.
+
+Connector credentials and RSS/Calendar capability URLs remain local
+plaintext in `chrome.storage.local`, protected by the Chrome/OS profile—not
+encrypted or vault-grade. On a shared or untrusted profile, disconnect
+connectors or clear Aurora's extension data after use. Provider responses are
+cached locally after direct receipt; Aurora never relays them through a
+backend.
 
 The **Bookmarks bar** widget is off by default, and the `bookmarks`
 permission it needs is requested only when you turn it on — not at install.

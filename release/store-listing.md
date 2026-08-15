@@ -1,5 +1,11 @@
 # Chrome Web Store listing — Aurora v1.2.1
 
+> **W1-P9 INTERIM SOURCE ONLY — USER/DASHBOARD VERIFICATION REQUIRED.**
+> This tracked file has not been uploaded or pasted into the live Chrome Web
+> Store listing, and it does not claim any live listing or Data Usage change.
+> Reconcile the current official categories, Limited Use language, dashboard
+> answers, and policy URL in W6-P3 before any submission or publication.
+
 Prepared for Jon to paste into the CWS Developer Dashboard. Nothing here is
 final until he's read it — voice/tone calls are flagged inline where marked
 **[Jon: ...]**.
@@ -21,7 +27,7 @@ reviewer-facing note and Jon's resubmission steps.
 
 ## Summary (132-character max, shown in search results)
 
-    A calm, local-first new-tab dashboard. No accounts, no tracking, no backend — everything stays on your device.
+    A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend — everything stays on your device.
 
 Length: 110/132 characters. Deliberately echoes `src/manifest.ts`'s own
 `description` field (also updated this release, 76/132 chars) so the
@@ -39,7 +45,7 @@ feature among many, not the point of the extension).
 
 > Aurora replaces the new-tab page with a local-first personal dashboard —
 > clock, weather, quick links, to-dos, a focus timer, notes, and an optional
-> bookmarks bar — with no accounts, no backend, and no data collection.
+> bookmarks bar — with no Aurora account, no backend, and no data collection.
 
 Every permission below exists to serve this one page. There's no secondary
 feature (e.g. no unrelated "also blocks ads" or "also tracks prices") that
@@ -47,7 +53,7 @@ would need its own justification.
 
 ## Detailed description
 
-    Aurora is a calm, local-first new-tab dashboard. No accounts, no
+    Aurora is a calm, local-first new-tab dashboard. No Aurora account, no
     backend, no tracking of any kind — everything it stores lives only on
     your device, and the developer never sees any of it. See
     aurora-newtab's PRIVACY.md for the complete, audited policy.
@@ -86,7 +92,8 @@ would need its own justification.
     model that needs your data, because it doesn't have a business model
     at all — it's a dashboard, not a data pipeline. Concretely:
 
-    - No account, no sign-up, no login, ever.
+    - No Aurora account, sign-up, or login. Optional connectors can use
+      credentials for third-party accounts you already have.
     - No analytics, no telemetry, no crash reporting, no ad network.
     - No backend server of any kind — there is nothing for your data to
       be collected BY, even if we wanted to.
@@ -189,7 +196,7 @@ it does make three third-party network calls (Open-Meteo ×2, BigDataCloud
 | Personally identifiable information | No | The "name" field (used only for the greeting) never leaves `chrome.storage.local`. |
 | Health information | No | — |
 | Financial and payment information | No | — |
-| Authentication information | No | No accounts exist. |
+| **Authentication information** | **User/dashboard verification required in W6-P3** | Credentialed connectors send tokens directly to the selected third-party provider. Tokens remain local plaintext in `chrome.storage.local`, are stripped from backup exports, and never pass through an Aurora backend. RSS and Calendar URLs are capability secrets rather than account authentication and are also redacted. Do not paste this interim mapping into the live dashboard without current official-form reconciliation. |
 | Personal communications | No | — |
 | **Location** | **Yes — approximate location** | The `geolocation` permission is held from install (Chrome requires that — see the permission justification above), but coordinates are only ever read and sent at the moment you click "Use my location," never in the background. Rounded to ~1 km and sent to Open-Meteo (forecast) and, once per click, BigDataCloud (place-name lookup). Never sold, never used for advertising, used only to show weather for that location. |
 | Web history | No | Bookmarks are read via `chrome.bookmarks.getTree()` but never transmitted anywhere — they stay on-device, so this is a local *read*, not a *collection* under Google's definition. Same reasoning covers search: text typed into the search bar/palette is handed to `chrome.search.query()`, a browser-mediated API call, not a network request Aurora itself makes — Aurora never builds or sends the request and never learns the result. |
@@ -338,7 +345,7 @@ it, since it now describes seven connectors, not one):
 history flags above.]** Four of the six new connectors (GitHub, GitLab,
 Jira, Vercel) ask the user for a credential to authenticate to their own
 account on that service — the Data Usage table's existing "Authentication
-information: No — No accounts exist" row (line ~192, live section above)
+information row in the older live-source block (line ~192 above)
 stops being accurate once this ships and needs updating to:
 
 | Category | Collected? | Notes |
@@ -926,10 +933,12 @@ address cannot be granted — every connector's host permission has always
 been https-only, and Home Assistant is no exception), then pick up to 6
 entities to show as state chips and up to 3 eligible entities (a scene,
 script, or switch) as one-tap action buttons, in a searchable picker. The
-chips poll `/api/states` at most once a minute — the framework's shortest
-interval, because home state goes stale faster than a PR list or a coin
-price — and only while a tab showing the widget is open; there's no
-background timer of its own. **The one new kind of request:** pressing an
+entity picker makes one bulk `/api/states` request only when opened; regular
+refreshes poll each selected `/api/states/{entity_id}` at most once a minute
+— the framework's shortest interval, because home state goes stale faster
+than a PR list or a coin price — and only while a tab showing the widget is
+open. `/api/config` is connect-only, `/api/` is action-health-only, and
+there's no background timer of its own. **The one new kind of request:** pressing an
 action button sends a single command (`scene.turn_on`, `script.turn_on`,
 or `switch.toggle`, matching what was picked) to that same instance,
 carrying nothing but the one entity's id, and only in the instant of that
