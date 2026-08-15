@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
+import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
+import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { NotesPanelHandle } from './NotesPanel'
 
 const NotesPanel = lazy(() => import('./NotesPanel'))
@@ -39,9 +40,21 @@ function NotesInner({
   onOpenChange?: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<NotesPanelHandle>(null)
+  const viewportPanelRef = useRef<HTMLDivElement>(null)
+  const mapInvokerRect = useCallback(
+    (rect: DOMRectReadOnly, viewportWidth: number) =>
+      hugHorizontal(rect, NOTES_CORNER_HUG_PX, viewportWidth),
+    [],
+  )
+  const anchor = useViewportPanelAnchor({
+    open,
+    invokerRef: pillRef,
+    panelRef: viewportPanelRef,
+    preferredSize: NOTES_PANEL_SIZE,
+    mapInvokerRect,
+  })
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -64,9 +77,7 @@ function NotesInner({
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  // The panel follows the pill: measured on open (not live-tracked — the
-  // pill can't move while the panel is open today, since arrange mode closes
-  // panels).
+  // The panel follows the pill and live rendered panel size while open.
   const requestPanelClose = useCallback(() => {
     const panel = panelRef.current
     if (!panel) {
@@ -86,13 +97,6 @@ function NotesInner({
       return
     }
     if (!enabled) return
-    if (pillRef.current) {
-      const rect = pillRef.current.getBoundingClientRect()
-      const hugged = hugHorizontal(rect, NOTES_CORNER_HUG_PX, window.innerWidth)
-      setAnchor(
-        anchorPanel(hugged, NOTES_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
-      )
-    }
     setOpen(true)
   }
 
@@ -113,7 +117,12 @@ function NotesInner({
       )}
       {open && anchor && (
         <Suspense fallback={null}>
-          <NotesPanel ref={panelRef} anchor={anchor} onClose={() => setOpen(false)} />
+          <NotesPanel
+            ref={panelRef}
+            anchor={anchor}
+            onClose={() => setOpen(false)}
+            viewportRef={(node) => { viewportPanelRef.current = node }}
+          />
         </Suspense>
       )}
     </>

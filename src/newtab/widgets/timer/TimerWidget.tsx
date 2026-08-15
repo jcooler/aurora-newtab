@@ -3,8 +3,8 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
+import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import type { Settings, TimerConfig } from '../../../lib/storage/schema'
-import { anchorPanel, type PanelPlacement } from '../../../lib/layout/anchor'
 import { playChime } from './chime'
 import { initialTimer, timerReducer, type TimerAction, type TimerState } from './timerReducer'
 // The control kit (Task 61) — start/pause is the primary action, reset the
@@ -78,15 +78,21 @@ function TimerInner({
 
   const now = useNow(500)
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const [flash, setFlash] = useState(false)
   const [announcement, setAnnouncement] = useState('')
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const anchor = useViewportPanelAnchor({
+    open,
+    invokerRef: pillRef,
+    panelRef,
+    preferredSize: TIMER_PANEL_SIZE,
+  })
   const prevJustFinished = useRef<TimerState['justFinished']>(state.justFinished)
   const prevConfigKey = useRef(`${config.workMinutes}:${config.breakMinutes}`)
 
-  useFocusTrap(panelRef, open)
+  const panelReady = open && anchor !== null
+  useFocusTrap(panelRef, panelReady)
 
   // Drive the countdown from the shared 500ms clock: every tick of `now`
   // re-checks the reducer, which itself decides (using the timestamp we pass
@@ -140,7 +146,7 @@ function TimerInner({
 
   // Newest-first shared stack (src/lib/dialogStack.ts), active only while
   // the panel is open.
-  useDialogEscape(() => setOpen(false), open)
+  useDialogEscape(() => setOpen(false), panelReady)
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -187,19 +193,12 @@ function TimerInner({
   const pause = () => dispatch({ type: 'pause', now: Date.now() })
   const reset = () => dispatch({ type: 'reset', now: Date.now() })
 
-  // The panel follows the pill: measured on open (not live-tracked — the
-  // pill can't move while the panel is open today, since arrange mode closes
-  // panels), via the same anchorPanel formula every peripheral panel uses.
+  // The panel follows the pill and live rendered panel size while open, via
+  // the same anchorPanel formula every peripheral panel uses.
   const togglePanel = () => {
     if (open) {
       setOpen(false)
       return
-    }
-    if (pillRef.current) {
-      const rect = pillRef.current.getBoundingClientRect()
-      setAnchor(
-        anchorPanel(rect, TIMER_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
-      )
     }
     setOpen(true)
   }
@@ -239,7 +238,7 @@ function TimerInner({
             left: anchor.left,
             ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
           }}
-          className="z-30 flex w-64 flex-col gap-3 rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+          className="z-30 flex max-h-[calc(100dvh-1rem)] w-[min(16rem,calc(100vw-1rem))] flex-col gap-3 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
         >
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold capitalize tracking-tight">{state.mode} session</h2>
@@ -247,7 +246,7 @@ function TimerInner({
               type="button"
               aria-label="Close focus timer"
               onClick={() => setOpen(false)}
-              className="-mr-1 rounded p-1 text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+              className="-mr-1 rounded p-1 text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
             >
               ✕
             </button>

@@ -1,6 +1,7 @@
-import { Suspense, lazy, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
-import { anchorPanel, hugHorizontal, type PanelPlacement } from '../../../lib/layout/anchor'
+import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
+import { hugHorizontal } from '../../../lib/layout/anchor'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -46,8 +47,20 @@ export default function TodoWidget({
 
 function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
   const [open, setOpen] = useState(false)
-  const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const pillRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  const mapInvokerRect = useCallback(
+    (rect: DOMRectReadOnly, viewportWidth: number) =>
+      hugHorizontal(rect, TODO_CORNER_HUG_PX, viewportWidth),
+    [],
+  )
+  const anchor = useViewportPanelAnchor({
+    open,
+    invokerRef: pillRef,
+    panelRef,
+    preferredSize: TODO_PANEL_SIZE,
+    mapInvokerRect,
+  })
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own
   // `onExpandedChange` uses (see its comment for the full writeup): a ref
@@ -70,20 +83,11 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  // The panel follows the pill: measured on open (not live-tracked — the
-  // pill can't move while the panel is open today, since arrange mode closes
-  // panels).
+  // The panel follows the pill and live rendered panel size while open.
   const togglePanel = () => {
     if (open) {
       setOpen(false)
       return
-    }
-    if (pillRef.current) {
-      const rect = pillRef.current.getBoundingClientRect()
-      const hugged = hugHorizontal(rect, TODO_CORNER_HUG_PX, window.innerWidth)
-      setAnchor(
-        anchorPanel(hugged, TODO_PANEL_SIZE, { w: window.innerWidth, h: window.innerHeight }),
-      )
     }
     setOpen(true)
   }
@@ -101,7 +105,11 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
       </button>
       {open && anchor && (
         <Suspense fallback={null}>
-          <TodoPanel anchor={anchor} onClose={() => setOpen(false)} />
+          <TodoPanel
+            anchor={anchor}
+            onClose={() => setOpen(false)}
+            viewportRef={(node) => { panelRef.current = node }}
+          />
         </Suspense>
       )}
     </>

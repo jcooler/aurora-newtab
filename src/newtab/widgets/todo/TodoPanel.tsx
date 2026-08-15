@@ -87,7 +87,7 @@ function OverflowMenuList({
             onClearDone()
             onClose()
           }}
-          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-control-bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-muted motion-reduce:transition-none"
+          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-control-bg-hover hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-fg-muted max-[420px]:min-h-9 motion-reduce:transition-none"
         >
           Clear done
         </button>
@@ -97,7 +97,7 @@ function OverflowMenuList({
             onDeleteList()
             onClose()
           }}
-          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-red-400 transition-colors hover:bg-control-bg-hover hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="flex w-full cursor-pointer items-center rounded px-2 py-1.5 text-left text-sm text-red-400 transition-colors hover:bg-control-bg-hover hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 motion-reduce:transition-none"
         >
           Delete list
         </button>
@@ -127,7 +127,7 @@ function OverflowMenu({
         aria-expanded={open}
         aria-controls={open ? 'todo-overflow-menu' : undefined}
         onClick={() => setOpen((o) => !o)}
-        className="grid size-6 cursor-pointer place-items-center rounded text-base leading-none text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        className="grid size-6 cursor-pointer place-items-center rounded text-base leading-none text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
       >
         <span aria-hidden>⋯</span>
       </button>
@@ -149,9 +149,11 @@ function OverflowMenu({
 export default function TodoPanel({
   anchor,
   onClose,
+  viewportRef,
 }: {
   anchor: PanelPlacement
   onClose: () => void
+  viewportRef?: (node: HTMLDivElement | null) => void
 }) {
   const [lists] = useStoredKey('todoLists')
   const storage = useStorage()
@@ -223,7 +225,10 @@ export default function TodoPanel({
 
   return (
     <div
-      ref={panelRef}
+      ref={(node) => {
+        panelRef.current = node
+        viewportRef?.(node)
+      }}
       role="dialog"
       aria-label="Tasks"
       // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
@@ -235,7 +240,7 @@ export default function TodoPanel({
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 flex w-96 max-h-[70vh] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className="z-30 flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
       {/* Header — the active list as a bright uppercase eyebrow, the other
           lists as quieter eyebrows that switch on click (em-dash separated),
@@ -270,7 +275,7 @@ export default function TodoPanel({
                   type="button"
                   aria-current={isActive ? 'true' : undefined}
                   onClick={() => setActiveId(list.id)}
-                  className={`min-w-0 truncate text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+                  className={`min-w-0 truncate text-[11px] uppercase tracking-[0.08em] transition-colors focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 motion-reduce:transition-none ${
                     isActive ? 'font-semibold text-fg' : 'font-medium text-fg-muted hover:text-fg'
                   }`}
                 >
@@ -304,7 +309,7 @@ export default function TodoPanel({
                     setAddingList(false)
                   }
                 }}
-                className="w-24 border-b border-control-border bg-transparent text-xs text-fg outline-none transition-colors focus-visible:border-accent motion-reduce:transition-none"
+                className="w-24 border-b border-control-border bg-transparent text-xs text-fg outline-none transition-colors focus-visible:border-accent max-[420px]:h-9 motion-reduce:transition-none"
               />
             </form>
           ) : (
@@ -312,7 +317,7 @@ export default function TodoPanel({
               type="button"
               aria-label="New list"
               onClick={() => setAddingList(true)}
-              className="shrink-0 whitespace-nowrap text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+              className="shrink-0 whitespace-nowrap text-[11px] font-medium text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 motion-reduce:transition-none"
             >
               + list
             </button>
@@ -344,7 +349,7 @@ export default function TodoPanel({
           type="button"
           aria-label="Close tasks"
           onClick={onClose}
-          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
         >
           ✕
         </button>
@@ -366,7 +371,7 @@ export default function TodoPanel({
             {activeList.items.map((item, index) => (
               <li
                 key={item.id}
-                className="group relative flex h-8 items-center gap-2.5 pl-3.5 pr-2 transition-colors hover:bg-control-bg motion-reduce:transition-none"
+                className="group relative flex h-8 items-center gap-2.5 pl-3.5 pr-2 transition-colors hover:bg-control-bg max-[420px]:h-auto max-[420px]:min-h-9 motion-reduce:transition-none"
               >
                 {/* 2px leading accent bar — lights on hover AND focus-within. */}
                 <span
@@ -388,7 +393,7 @@ export default function TodoPanel({
                     activation, the alt+arrow reorder, focus and <label htmlFor>
                     association are all still the platform's, not hand-rolled;
                     the styled span is a `peer` sibling that reflects its state. */}
-                <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                <label className="relative inline-flex shrink-0 cursor-pointer items-center justify-center max-[420px]:size-9">
                   <input
                     type="checkbox"
                     id={`todo-item-${item.id}`}
@@ -437,7 +442,7 @@ export default function TodoPanel({
                 </label>
                 <label
                   htmlFor={`todo-item-${item.id}`}
-                  className={`min-w-0 flex-1 cursor-pointer truncate text-sm transition-colors motion-reduce:transition-none ${
+                  className={`min-w-0 flex-1 cursor-pointer truncate text-sm transition-colors max-[420px]:inline-flex max-[420px]:min-h-9 max-[420px]:items-center motion-reduce:transition-none ${
                     item.done ? 'text-fg-muted line-through' : 'text-fg'
                   }`}
                 >
@@ -449,7 +454,7 @@ export default function TodoPanel({
                   onClick={() =>
                     dispatch({ type: 'removeItem', listId: activeList.id, itemId: item.id })
                   }
-                  className="shrink-0 cursor-pointer rounded p-0.5 text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+                  className="shrink-0 cursor-pointer rounded p-0.5 text-fg-muted opacity-0 transition hover:text-fg focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-focus-within:opacity-100 group-hover:opacity-100 max-[420px]:grid max-[420px]:size-9 max-[420px]:place-items-center motion-reduce:transition-none"
                 >
                   ✕
                 </button>
@@ -485,12 +490,12 @@ export default function TodoPanel({
             name="text"
             type="text"
             placeholder="Add a task…"
-            className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted"
+            className="min-w-0 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-muted max-[420px]:min-h-9"
           />
           <button
             type="submit"
             aria-label="Add task"
-            className="grid h-5 min-w-6 shrink-0 cursor-pointer place-items-center rounded border border-control-border px-1 text-[11px] leading-none text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            className="grid h-5 min-w-6 shrink-0 cursor-pointer place-items-center rounded border border-control-border px-1 text-[11px] leading-none text-fg-muted transition-colors hover:border-accent hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 motion-reduce:transition-none"
           >
             ↵
           </button>

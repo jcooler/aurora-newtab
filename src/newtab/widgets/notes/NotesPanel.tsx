@@ -18,10 +18,11 @@ export interface NotesPanelHandle {
 interface NotesPanelProps {
   anchor: PanelPlacement
   onClose: () => void
+  viewportRef?: (node: HTMLDivElement | null) => void
 }
 
 const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesPanel(
-  { anchor, onClose },
+  { anchor, onClose, viewportRef },
   forwardedRef,
 ) {
   const notes = useNotesPersistence()
@@ -53,7 +54,10 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
 
   return (
     <div
-      ref={panelRef}
+      ref={(node) => {
+        panelRef.current = node
+        viewportRef?.(node)
+      }}
       role="dialog"
       aria-label="Notes"
       style={{
@@ -61,7 +65,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 flex h-64 w-80 flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className="z-30 flex h-[min(16rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
     >
       <div className="flex items-center justify-between px-3.5 pb-1 pt-2.5">
         <h2 className="text-sm font-semibold tracking-tight text-fg">Notes</h2>
@@ -102,7 +106,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
         onFocus={notes.focus}
         onBlur={notes.blur}
         onChange={(event) => notes.edit(event.currentTarget.value)}
-        className="w-full flex-1 resize-none bg-transparent px-3.5 pb-3.5 pt-1 text-sm leading-relaxed text-fg outline-none placeholder:text-fg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
+        className="min-h-9 w-full flex-1 resize-none bg-transparent px-3.5 pb-3.5 pt-1 text-sm leading-relaxed text-fg outline-none placeholder:text-fg-muted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
       />
     </div>
   )

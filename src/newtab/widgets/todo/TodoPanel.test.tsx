@@ -35,6 +35,22 @@ describe('TodoPanel', () => {
     expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
   })
 
+  it('uses the shared 8px viewport fit, one body scroll owner, and narrow 36px tool targets', async () => {
+    await renderPanel()
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.classList.contains('w-[min(24rem,calc(100vw-1rem))]')).toBe(true)
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.querySelectorAll('.overflow-y-auto')).toHaveLength(1)
+    expect((await screen.findByRole('button', { name: 'Today' })).classList.contains('max-[420px]:min-h-9')).toBe(true)
+    const newList = screen.getByRole('button', { name: 'New list' })
+    expect(newList.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    expect(newList.classList.contains('max-[420px]:min-w-9')).toBe(true)
+    expect((await screen.findByRole('button', { name: 'More actions' })).classList.contains('max-[420px]:size-9')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Close tasks' }).classList.contains('max-[420px]:size-9')).toBe(true)
+    expect((await screen.findByRole('textbox', { name: 'Add a task' })).classList.contains('max-[420px]:min-h-9')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Add task' }).classList.contains('max-[420px]:min-h-9')).toBe(true)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the panel that actually reaches this shape at Todo's default (bottom-half) pill position", async () => {
     await renderPanel({ left: 1264, bottom: 64 })
     const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
@@ -137,5 +153,7 @@ describe('TodoPanel', () => {
     const check = (await screen.findByLabelText('Water the plants')) as HTMLInputElement
     expect(check.getAttribute('type')).toBe('checkbox')
     expect(check.checked).toBe(false)
+    const textTarget = document.querySelector('label[for="todo-item-item-1"]')
+    expect(textTarget?.classList.contains('max-[420px]:min-h-9')).toBe(true)
   })
 })

@@ -48,6 +48,14 @@ describe('NotesPanel', () => {
     expect(dialog.classList.contains('bg-[#17171c]/95')).toBe(false)
   })
 
+  it('uses the shared 8px viewport fit and keeps the narrow textarea and recovery action reachable', async () => {
+    await renderPanel()
+    const dialog = screen.getByRole('dialog', { name: 'Notes' })
+    expect(dialog.classList.contains('w-[min(20rem,calc(100vw-1rem))]')).toBe(true)
+    expect(dialog.classList.contains('h-[min(16rem,calc(100dvh-1rem))]')).toBe(true)
+    expect(screen.getByRole('textbox').classList.contains('min-h-9')).toBe(true)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the shape Notes actually gets at its default (bottom-half) pill position", async () => {
     await renderPanel({ left: 16, bottom: 64 })
     const dialog = screen.getByRole('dialog', { name: 'Notes' })

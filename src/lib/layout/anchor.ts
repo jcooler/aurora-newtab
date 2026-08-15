@@ -16,6 +16,20 @@ import type { Size } from './clamp'
 export type PanelPlacement = { left: number; top: number } | { left: number; bottom: number }
 export interface HugRect { left: number; top: number; right: number; bottom: number; width: number; height: number }
 
+export const VIEWPORT_PANEL_GUTTER = 8
+
+/** Bound a rendered panel box to the viewport before its anchor is clamped.
+ *  Keeping this pure makes the CSS/measurement contract explicit: every
+ *  floating tool owns the same 8px edge gutter on both axes. */
+export function fitPanelSize(panel: Size, viewport: Size): Size {
+  const availableWidth = Math.max(0, viewport.w - VIEWPORT_PANEL_GUTTER * 2)
+  const availableHeight = Math.max(0, viewport.h - VIEWPORT_PANEL_GUTTER * 2)
+  return {
+    w: Math.min(Math.max(0, panel.w), availableWidth),
+    h: Math.min(Math.max(0, panel.h), availableHeight),
+  }
+}
+
 /** Shift a pill rect horizontally toward whichever screen edge it's actually
  *  nearer to, by `hugPx` — reproduces a design's tighter gap between a
  *  pill's own inset and its panel's corner inset (see NOTES_CORNER_HUG_PX /
@@ -57,7 +71,8 @@ export function anchorPanel(
   viewport: Size,
 ): PanelPlacement {
   const gap = 8
-  const margin = 8
+  const margin = VIEWPORT_PANEL_GUTTER
+  const fittedPanel = fitPanelSize(panel, viewport)
 
   const pillCenterX = (pillRect.left + pillRect.right) / 2
   const pillCenterY = (pillRect.top + pillRect.bottom) / 2
@@ -65,13 +80,13 @@ export function anchorPanel(
   const topHalf = pillCenterY < viewport.h / 2
   const leftHalf = pillCenterX < viewport.w / 2
 
-  const rawLeft = leftHalf ? pillRect.left : pillRect.right - panel.w
+  const rawLeft = leftHalf ? pillRect.left : pillRect.right - fittedPanel.w
   const minLeft = margin
-  const maxLeft = viewport.w - panel.w - margin
+  const maxLeft = Math.max(minLeft, viewport.w - fittedPanel.w - margin)
   const left = Math.min(Math.max(rawLeft, minLeft), maxLeft)
 
   const minOffset = margin
-  const maxOffset = viewport.h - panel.h - margin
+  const maxOffset = Math.max(minOffset, viewport.h - fittedPanel.h - margin)
 
   if (topHalf) {
     const rawTop = pillRect.bottom + gap

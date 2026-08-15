@@ -94,6 +94,40 @@ describe('TimerWidget', () => {
     heightSpy.mockRestore()
   })
 
+  it('uses the shared 8px viewport fit, vertical overflow only when required, and narrow 36px controls', async () => {
+    await renderWidget()
+    fireEvent.click(await screen.findByRole('button', { name: /Focus timer/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Focus timer' })
+    expect(dialog.classList.contains('w-[min(16rem,calc(100vw-1rem))]')).toBe(true)
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.classList.contains('overflow-y-auto')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Close focus timer' }).classList.contains('max-[420px]:size-9')).toBe(true)
+    for (const button of [
+      screen.getByRole('button', { name: 'Start' }),
+      screen.getByRole('button', { name: 'Reset' }),
+    ]) expect(button.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    for (const input of screen.getAllByRole('spinbutton')) {
+      expect(input.classList.contains('max-[420px]:h-9')).toBe(true)
+    }
+  })
+
+  it('activates the focus trap only when the asynchronously anchored panel is mounted', async () => {
+    const prior = document.createElement('button')
+    document.body.appendChild(prior)
+    prior.focus()
+    const { view } = await renderWidget()
+
+    fireEvent.click(await screen.findByRole('button', { name: /Focus timer/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Focus timer' })
+    await act(async () => {})
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    expect(document.activeElement).not.toBe(document.body)
+
+    view.unmount()
+    expect(document.activeElement).toBe(prior)
+    prior.remove()
+  })
+
   it('catches a running timer up immediately when a sleeping tab regains focus', async () => {
     vi.useFakeTimers()
     try {
