@@ -12,6 +12,29 @@ import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate, migrations } from './storage/migrations'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
+describe('Quick Link import safety (W1-P9)', () => {
+  it.each([
+    'mailto:user@example.com',
+    'javascript:payload@example.com',
+    'data:text/plain,hello',
+    'chrome://settings',
+    'file:///private.txt',
+    'https://user:password@example.com/private',
+  ])('rejects a backup containing unsafe or credential-bearing URL %s', (url) => {
+    expect(validateBackupShape({
+      ...defaults(),
+      links: [{ id: 'unsafe', title: 'Unsafe', url }],
+    })).toEqual({ ok: false, reason: 'That backup\'s "links" data is invalid.' })
+  })
+
+  it('retains a valid HTTP(S) Quick Link', () => {
+    const links = [{ id: 'safe', title: 'Safe', url: 'https://example.test/path' }]
+    const result = validateBackupShape({ ...defaults(), links })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.links).toEqual(links)
+  })
+})
+
 describe('secret-safe redaction and prepared import (W1-P4)', () => {
   it('removes every RSS capability URL without mutating the stored config', () => {
     const feeds = [

@@ -12,6 +12,7 @@ import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type Con
 import { CONNECTORS } from '../services/connectors/registry'
 import { ownedOriginPatterns } from '../services/originOwnership'
 import { migrate } from './storage/migrations'
+import { isSafeQuickLinkUrl } from './quickLinkUrl'
 
 const APP_ID = 'aurora'
 export const BACKUP_REDACTION_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.' as const
@@ -280,7 +281,14 @@ function isTodoLists(v: unknown): boolean {
 function isLinks(v: unknown): boolean {
   return (
     Array.isArray(v) &&
-    v.every((item) => isPlainObject(item) && isString(item.id) && isString(item.title) && isString(item.url))
+    v.every(
+      (item) =>
+        isPlainObject(item) &&
+        isString(item.id) &&
+        isString(item.title) &&
+        isString(item.url) &&
+        isSafeQuickLinkUrl(item.url),
+    )
   )
 }
 

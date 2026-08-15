@@ -1,4 +1,5 @@
 import { defineManifest } from '@crxjs/vite-plugin'
+import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 
 // `bookmarks` is normally an OPTIONAL permission: real users are never
 // prompted for it just to load the extension — BookmarksBar.tsx requests it
@@ -61,7 +62,7 @@ export default defineManifest((env) => ({
   manifest_version: 3,
   name: 'Aurora',
   version: '1.14.0',
-  description: 'A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.',
+  description: MANIFEST_PRIVACY_DESCRIPTION,
   // `search` (Red Argon remediation, v1.2.1): gives access to chrome.search
   // — see src/services/search.ts, the ONLY caller of chrome.search.query()
   // in this codebase. Chrome's optional-permissions allow-list (the same

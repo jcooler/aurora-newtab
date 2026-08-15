@@ -34,6 +34,7 @@ import EntityPickerDialog from './EntityPickerDialog'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
 import { btnQuiet, control, eyebrow, label, row, select, submitBtn } from './shared'
+import { LOCAL_SECRET_STORAGE_NOTICE } from '../../privacy/dataFlows'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -211,6 +212,7 @@ export default function Connectors({
     <section aria-label="Connectors" className="py-6 first:pt-0 last:pb-0">
       <div className="sticky -top-6 z-10 bg-panel pb-3">
         <h3 className={eyebrow}>Connectors</h3>
+        <p className="mb-3 text-xs text-fg-muted">{LOCAL_SECRET_STORAGE_NOTICE}</p>
         <label htmlFor="connector-search" className="sr-only">
           Search connectors
         </label>

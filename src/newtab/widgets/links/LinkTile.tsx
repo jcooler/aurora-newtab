@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { QuickLink } from '../../../lib/storage/schema'
 import { faviconUrl } from './linksLogic'
+import { isSafeQuickLinkUrl } from '../../../lib/quickLinkUrl'
 
 export default function LinkTile({
   link,
@@ -22,6 +23,7 @@ export default function LinkTile({
   onDragEnd: () => void
 }) {
   const [iconFailed, setIconFailed] = useState(false)
+  if (!isSafeQuickLinkUrl(link.url)) return null
   return (
     <div
       draggable

@@ -23,4 +23,21 @@ describe('LinkTile navigation', () => {
     expect(anchor?.getAttribute('href')).toBe('https://example.test/path')
     expect(anchor?.getAttribute('target')).toBeNull()
   })
+
+  it('renders no anchor or favicon for an unsafe legacy stored URL', () => {
+    const { container } = render(
+      <LinkTile
+        link={{ id: 'link-unsafe', title: 'Unsafe', url: 'javascript:payload@example.com' }}
+        index={0}
+        count={1}
+        onMove={vi.fn()}
+        onRemove={vi.fn()}
+        onDragStart={vi.fn()}
+        onDropOn={vi.fn()}
+        onDragEnd={vi.fn()}
+      />,
+    )
+    expect(container.querySelector('a')).toBeNull()
+    expect(container.querySelector('img')).toBeNull()
+  })
 })

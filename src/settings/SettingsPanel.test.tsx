@@ -16,6 +16,7 @@ import { APOD_ORIGINS } from '../services/apod'
 import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
 import { authState } from './sections/Connectors'
+import { LOCAL_SECRET_STORAGE_NOTICE } from '../privacy/dataFlows'
 // Imported (not hardcoded) so the About footer's version assertion below
 // can't silently drift from package.json — the same file __APP_VERSION__ is
 // itself derived from at build time (see vite.config.ts / vitest.config.ts).
@@ -298,6 +299,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     // descriptor — label, blurb, and its enable toggle.
     expect(screen.getByRole('heading', { name: 'RSS' })).toBeTruthy()
     expect(screen.getByLabelText('Enable RSS')).toBeTruthy()
+    expect(screen.getByText(LOCAL_SECRET_STORAGE_NOTICE)).toBeTruthy()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
     expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()

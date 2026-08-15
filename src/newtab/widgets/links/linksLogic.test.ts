@@ -37,8 +37,24 @@ describe('normalizeUrl', () => {
   it('rejects disallowed schemes', () => {
     expect(normalizeUrl('javascript://alert(1)')).toBeNull()
   })
+  it.each([
+    'mailto:user@example.com',
+    'javascript:payload@example.com',
+    'data:text/plain,hello',
+    'vbscript:payload',
+    'chrome://settings',
+    'file:///private.txt',
+    'https://user:password@example.com/private',
+  ])('rejects explicit unsafe schemes and embedded credentials: %s', (input) => {
+    expect(normalizeUrl(input)).toBeNull()
+    expect(addLink(seed, 'Unsafe', input)).toEqual(seed)
+  })
   it('normalizes a bare hostname', () => {
     expect(normalizeUrl('gmail.com')).toBe('https://gmail.com')
+  })
+  it('preserves bare localhost and host ports', () => {
+    expect(normalizeUrl('localhost:5173/path')).toBe('https://localhost:5173/path')
+    expect(normalizeUrl('example.com:8080/path')).toBe('https://example.com:8080/path')
   })
 })
 
