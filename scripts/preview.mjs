@@ -11568,7 +11568,7 @@ function gitlabContributionsFixture() {
 // Hold that request to observe refreshing, then fail it to observe the
 // bounded offline message. No fixture supplies either feedback element.
 {
-  const RAW_PROVIDER_ERROR = 'W2-P1 raw provider error must never reach the weather surface'
+  const CAUGHT_PROVIDER_ERROR = 'Open-Meteo request failed: HTTP 503'
   let releaseWeatherRequest
   const weatherRequestReleased = new Promise((resolveRequest) => {
     releaseWeatherRequest = resolveRequest
@@ -11578,7 +11578,7 @@ function gitlabContributionsFixture() {
     await route.fulfill({
       status: 503,
       contentType: 'application/json',
-      body: JSON.stringify({ error: RAW_PROVIDER_ERROR }),
+      body: '{}',
     })
   }
   await page.route('**/api.open-meteo.com/**', holdWeatherRequest)
@@ -11604,7 +11604,7 @@ function gitlabContributionsFixture() {
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
   }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
-  const readWeatherFeedback = () => page.evaluate(({ selector, rawProviderError }) => {
+  const readWeatherFeedback = () => page.evaluate(({ selector, caughtProviderError }) => {
     const weather = document.querySelector(selector)
     const statuses = weather?.querySelectorAll('[role="status"]') ?? []
     const status = statuses[0]
@@ -11615,9 +11615,9 @@ function gitlabContributionsFixture() {
       statusPolite: status?.getAttribute('aria-live') === 'polite',
       statusAtomic: status?.getAttribute('aria-atomic') === 'true',
       retainedFixture: text.includes('New York') && (text.includes('18Â°C') || text.includes('64Â°F')),
-      rawProviderErrorShown: text.includes(rawProviderError),
+      caughtProviderErrorShown: text.includes(caughtProviderError),
     }
-  }, { selector: weatherSel, rawProviderError: RAW_PROVIDER_ERROR })
+  }, { selector: weatherSel, caughtProviderError: CAUGHT_PROVIDER_ERROR })
   const refreshingFeedback = await readWeatherFeedback()
   releaseWeatherRequest()
   const offlineVisible = await page.waitForFunction((selector) => {
@@ -11634,13 +11634,14 @@ function gitlabContributionsFixture() {
     refreshingFeedback.statusText === 'Refreshingâ€¦' &&
     refreshingFeedback.statusPolite &&
     refreshingFeedback.statusAtomic &&
+    refreshingFeedback.retainedFixture &&
     offlineVisible &&
     offlineFeedback.statusCount === 1 &&
     offlineFeedback.statusText === 'Offline â€” showing cached' &&
     offlineFeedback.statusPolite &&
     offlineFeedback.statusAtomic &&
     offlineFeedback.retainedFixture &&
-    !offlineFeedback.rawProviderErrorShown
+    !offlineFeedback.caughtProviderErrorShown
   await page.unroute('**/api.open-meteo.com/**', holdWeatherRequest)
   await page.evaluate(async () => {
     await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
