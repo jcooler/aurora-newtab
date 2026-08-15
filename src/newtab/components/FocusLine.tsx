@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocalDay } from '../../lib/hooks/useLocalDay'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import { currentFocus, setFocusText } from './focusLogic'
@@ -6,13 +6,73 @@ import { currentFocus, setFocusText } from './focusLogic'
 export default function FocusLine() {
   const [stored, save] = useStoredKey('focus')
   const [editing, setEditing] = useState(false)
-  // Guards the submit+blur double-fire: submitting unmounts the input, whose
-  // teardown blur re-enters the stale onBlur closure and would save twice.
+  const [draft, setDraft] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const editRef = useRef<HTMLButtonElement>(null)
   const committed = useRef(false)
+  const canceled = useRef(false)
+  const restoreEditFocus = useRef(false)
+  const editorDay = useRef<string | null>(null)
   const { key: today } = useLocalDay()
-  if (stored === undefined) return null
+  const focus = stored === undefined ? null : currentFocus(stored, today)
 
-  const focus = currentFocus(stored, today)
+  useEffect(() => {
+    if (!editing) return
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [editing])
+
+  useEffect(() => {
+    if (editing || !restoreEditFocus.current) return
+    restoreEditFocus.current = false
+    editRef.current?.focus()
+  }, [editing, focus])
+
+  function beginEdit() {
+    committed.current = false
+    canceled.current = false
+    editorDay.current = today
+    setDraft(focus?.text ?? '')
+    setEditing(true)
+  }
+
+  function commitDraft(value: string, restoreFocus: boolean) {
+    if (committed.current || canceled.current) return
+    const ownerDay = editorDay.current ?? today
+    if (ownerDay !== today) {
+      canceled.current = true
+      restoreEditFocus.current = false
+      editorDay.current = null
+      setDraft('')
+      setEditing(false)
+      return
+    }
+    const next = setFocusText(value, today)
+    if (next === null) {
+      if (focus !== null) save(null)
+      committed.current = false
+      editorDay.current = null
+      setDraft('')
+      setEditing(false)
+      return
+    }
+    committed.current = true
+    if (restoreFocus && focus !== null) restoreEditFocus.current = true
+    editorDay.current = null
+    save(next)
+    setEditing(false)
+  }
+
+  function cancelEdit() {
+    if (!editing) return
+    canceled.current = true
+    restoreEditFocus.current = focus !== null
+    editorDay.current = null
+    setDraft('')
+    setEditing(false)
+  }
+
+  if (stored === undefined) return null
 
   if (!focus || editing) {
     return (
@@ -20,10 +80,7 @@ export default function FocusLine() {
         className="mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex flex-col items-center"
         onSubmit={(e) => {
           e.preventDefault()
-          committed.current = true
-          const input = new FormData(e.currentTarget).get('focus')
-          save(setFocusText(String(input ?? ''), today))
-          setEditing(false)
+          commitDraft(draft, true)
         }}
       >
         <label
@@ -33,17 +90,29 @@ export default function FocusLine() {
           What&rsquo;s your main focus today?
         </label>
         <input
+          ref={inputRef}
           id="focus-input"
           name="focus"
           autoComplete="off"
-          defaultValue={focus?.text ?? ''}
-          onBlur={(e) => {
-            if (editing && !committed.current) {
-              save(setFocusText(e.currentTarget.value, today))
-              setEditing(false)
-            }
+          value={draft}
+          onFocus={() => {
+            editorDay.current ??= today
           }}
-          className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
+          onChange={(e) => {
+            committed.current = false
+            canceled.current = false
+            editorDay.current ??= today
+            setDraft(e.currentTarget.value)
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return
+            e.preventDefault()
+            cancelEdit()
+          }}
+          onBlur={(e) => {
+            commitDraft(e.currentTarget.value, false)
+          }}
+          className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 min-h-9 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent"
         />
       </form>
     )
@@ -60,7 +129,7 @@ export default function FocusLine() {
           rather than the panel's fg-derived token. The real <input> stays
           underneath (sr-only) so keyboard toggle, focus and <label htmlFor>
           association remain the platform's; the `peer` span reflects its state. */}
-      <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+      <label className="relative inline-flex min-h-9 min-w-9 shrink-0 cursor-pointer items-center justify-center">
         <input
           id="focus-done"
           type="checkbox"
@@ -95,12 +164,10 @@ export default function FocusLine() {
       </label>
       {focus.done && <span className="text-photo text-sm text-accent">Nice.</span>}
       <button
+        ref={editRef}
         type="button"
-        onClick={() => {
-          committed.current = false
-          setEditing(true)
-        }}
-        className="text-photo text-sm text-canvas-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+        onClick={beginEdit}
+        className="text-photo inline-flex min-h-9 min-w-9 items-center justify-center text-sm text-canvas-fg-muted opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
       >
         Edit
       </button>

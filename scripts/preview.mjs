@@ -9062,7 +9062,7 @@ function gitlabContributionsFixture() {
   )
 
   console.log(
-    'SKIP: opening the real entity picker (search / caps / grouping) and successfully running a real service action through the user\'s LIVE Home Assistant instance — picker behavior is unit-tested (Task 100, EntityPickerDialog.test.tsx), while this harness cannot fetch real /api/states or prove successful live control without user-instance access or forbidden network stubs; both remain explicit headed/user-instance manual ceilings.',
+    'SKIP: verifying picker contents and a successful service action against the user\'s LIVE Home Assistant instance — W2-P2 route-backs the real picker component for deterministic Chromium structure evidence, but live user-instance contents and successful live control remain explicit headed/user-instance manual ceilings.',
   )
 
   await page.keyboard.press('Escape')
@@ -17409,6 +17409,541 @@ if (hasBookmarksPermission) {
 // location, arrange overlay above).
 await page.setViewportSize(launchViewport)
 await page.waitForTimeout(150)
+
+// W2-P2 packet aggregate. This is intentionally authored in full before any
+// packet production change and runs in a fresh extension page so later
+// Calendar/HA and Settings/Data tasks cannot rewrite its predicates to create
+// a green result. Every observation below comes from a real built component;
+// the sole network fixture is the explicitly scoped Home Assistant route.
+{
+  const aggregateName = 'W2-P2 focus, naming, boundary, and recovery semantics'
+  const checks = {
+    focus: false,
+    quickLink: false,
+    calendar: false,
+    homeAssistant: false,
+    data: false,
+    settings: false,
+    targets: false,
+  }
+  const details = {}
+  const axEvidence = {}
+  const targetMeasurements = []
+  const evidencePage = await context.newPage()
+  const touchedKeys = ['settings', 'focus', 'links', 'connectors', 'connectorSnapshots']
+  let originalTouched = null
+
+  const step = async (name, fn) => {
+    try {
+      await fn()
+    } catch (error) {
+      details[name] = { error: error instanceof Error ? error.message : String(error) }
+    }
+  }
+  const openTab = async (name) => {
+    await evidencePage.locator(`[role="tab"]:has-text("${name}")`).click()
+    await evidencePage.locator(`[role="tab"][aria-selected="true"]:has-text("${name}")`).waitFor()
+    await evidencePage.waitForTimeout(100)
+  }
+  const measureTargets = async (name, selectors) => {
+    const measured = await evidencePage.evaluate((items) => items.map(({ label, selector, text, nameIncludes, target }) => {
+      const candidates = [...document.querySelectorAll(selector)]
+      const accessibleText = (node) => {
+        const ids = `${node.getAttribute('aria-labelledby') ?? ''} ${node.getAttribute('aria-describedby') ?? ''}`
+          .trim().split(/\s+/).filter(Boolean)
+        return [node.getAttribute('aria-label') ?? '', node.textContent ?? '', ...ids.map((id) => document.getElementById(id)?.textContent ?? '')].join(' ')
+      }
+      const control = text !== undefined
+        ? candidates.find((node) => node.textContent?.trim() === text)
+        : nameIncludes !== undefined
+          ? candidates.find((node) => accessibleText(node).includes(nameIncludes))
+          : candidates[0]
+      const element = target === 'label' ? control?.closest('label') : control
+      if (!(element instanceof HTMLElement)) return { label, width: 0, height: 0, found: false }
+      const rect = element.getBoundingClientRect()
+      return { label, width: rect.width, height: rect.height, found: true }
+    }), selectors)
+    targetMeasurements.push(...measured.map((item) => ({ group: name, ...item })))
+    return measured.every((item) => item.found && item.width >= 36 && item.height >= 36)
+  }
+  const readAx = async (needles) => {
+    const session = await context.newCDPSession(evidencePage)
+    try {
+      const { nodes } = await session.send('Accessibility.getFullAXTree')
+      return nodes.flatMap((node) => {
+        const role = node.role?.value ?? null
+        const name = node.name?.value ?? ''
+        const description = node.description?.value ?? null
+        if (!needles.some((needle) => name.includes(needle) || description?.includes(needle))) return []
+        const property = (key) => node.properties?.find((item) => item.name === key)?.value?.value ?? null
+        return [{ role, name, description, focused: property('focused'), disabled: property('disabled'), busy: property('busy') }]
+      })
+    } finally {
+      await session.detach()
+    }
+  }
+
+  await context.route('https://w2-p2-home.example.test/**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.pathname === '/api/states') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        headers: { 'access-control-allow-origin': '*' },
+        body: JSON.stringify([
+          { entity_id: 'switch.porch', state: 'off', attributes: { friendly_name: 'Porch switch' } },
+          { entity_id: 'sensor.kitchen_temperature', state: '21', attributes: { friendly_name: 'Kitchen temperature', unit_of_measurement: 'Â°C' } },
+        ]),
+      })
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ message: 'API running.' }),
+    })
+  })
+
+  await step('setup', async () => {
+    await evidencePage.goto('chrome://newtab/')
+    await evidencePage.waitForSelector('time', { timeout: 10_000 })
+    originalTouched = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    await evidencePage.evaluate(async () => {
+      const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, widgets: { ...settings.widgets, links: true } },
+        focus: { text: 'Packet focus', date: today, done: false },
+        links: [],
+        connectors: { ...connectors, ics: { enabled: false }, homeassistant: { enabled: false } },
+        connectorSnapshots: {},
+      })
+    })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.evaluate(() => {
+      globalThis.__w2P2FocusWrites = []
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.focus) globalThis.__w2P2FocusWrites.push(changes.focus.newValue)
+      })
+    })
+  })
+
+  await step('focus', async () => {
+    const edit = evidencePage.getByRole('button', { name: 'Edit', exact: true })
+    const focusTargetsBefore = await measureTargets('focus', [
+      { label: 'completion', selector: '#focus-done', target: 'label' },
+      { label: 'edit', selector: 'button', text: 'Edit', target: 'self' },
+    ])
+    await edit.focus()
+    await evidencePage.keyboard.press('Enter')
+    const editor = evidencePage.locator('#focus-input')
+    await editor.waitFor()
+    const enteredWithFocus = await editor.evaluate((node) => document.activeElement === node)
+    const editorTarget = await measureTargets('focus', [
+      { label: 'editor', selector: '#focus-input', target: 'self' },
+    ])
+    await editor.fill('Draft survives rerender')
+    await evidencePage.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get('settings')
+      await globalThis.__auroraSetHarnessStorage({ settings: { ...settings, name: 'W2-P2 unrelated rerender' } })
+    })
+    await evidencePage.waitForTimeout(100)
+    const rerenderPreserved = await editor.evaluate((node) =>
+      node.value === 'Draft survives rerender' && document.activeElement === node,
+    ).catch(() => false)
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.waitForTimeout(50)
+    const escaped = await evidencePage.evaluate(async () => {
+      const { focus } = await chrome.storage.local.get('focus')
+      return {
+        editorGone: document.querySelector('#focus-input') === null,
+        editFocused: document.activeElement?.textContent?.trim() === 'Edit',
+        storedText: focus?.text ?? null,
+        writes: globalThis.__w2P2FocusWrites.length,
+      }
+    })
+    if (!escaped.editorGone) {
+      await evidencePage.reload()
+      await evidencePage.waitForSelector('time')
+    }
+    await evidencePage.getByRole('button', { name: 'Edit', exact: true }).focus()
+    await evidencePage.keyboard.press('Enter')
+    const commitEditor = evidencePage.locator('#focus-input')
+    await commitEditor.fill('Committed once')
+    const writesBeforeCommit = await evidencePage.evaluate(() => globalThis.__w2P2FocusWrites?.length ?? 0)
+    await evidencePage.keyboard.press('Enter')
+    await evidencePage.waitForTimeout(100)
+    const committed = await evidencePage.evaluate(async (before) => {
+      const { focus } = await chrome.storage.local.get('focus')
+      return {
+        storedText: focus?.text ?? null,
+        writeDelta: (globalThis.__w2P2FocusWrites?.length ?? 0) - before,
+        editFocused: document.activeElement?.textContent?.trim() === 'Edit',
+      }
+    }, writesBeforeCommit)
+    details.focus = { enteredWithFocus, rerenderPreserved, escaped, committed }
+    checks.focus = enteredWithFocus && rerenderPreserved && escaped.editorGone && escaped.editFocused &&
+      escaped.storedText === 'Packet focus' && escaped.writes === 0 && committed.storedText === 'Committed once' &&
+      committed.writeDelta === 1 && committed.editFocused
+    details.focusTargets = focusTargetsBefore && editorTarget
+  })
+
+  await step('quickLink', async () => {
+    await evidencePage.evaluate(() => chrome.storage.local.set({ links: [] }))
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    const addInvoker = evidencePage.getByRole('button', { name: 'Add quick link' })
+    const invokerTarget = await measureTargets('quick-link', [
+      { label: 'invoker', selector: 'section[aria-label="Quick links"] button[aria-label="Add quick link"]', target: 'self' },
+    ])
+    await addInvoker.focus()
+    await evidencePage.keyboard.press('Enter')
+    const urlInput = evidencePage.getByRole('textbox', { name: 'Link URL' })
+    await urlInput.fill('javascript:do-not-log-this-value')
+    const editorTargets = await measureTargets('quick-link', [
+      { label: 'title', selector: 'input[name="title"]', target: 'self' },
+      { label: 'url', selector: 'input[name="url"]', target: 'self' },
+      { label: 'submit', selector: 'section[aria-label="Quick links"] button', text: 'Add', target: 'self' },
+      { label: 'cancel', selector: 'section[aria-label="Quick links"] button', text: 'Cancel', target: 'self' },
+    ])
+    await urlInput.focus()
+    await evidencePage.keyboard.press('Enter')
+    await evidencePage.waitForTimeout(50)
+    const invalid = await evidencePage.evaluate(() => {
+      const input = document.querySelector('input[name="url"]')
+      const alerts = [...document.querySelectorAll('[role="alert"]')]
+      const describedBy = input?.getAttribute('aria-describedby')
+      return {
+        focused: document.activeElement === input,
+        invalid: input?.getAttribute('aria-invalid'),
+        describedBy,
+        totalAlerts: alerts.length,
+        matchingAlerts: alerts.filter((node) => node.textContent === 'Enter a valid address.').length,
+        matchingAlertId: alerts.find((node) => node.textContent === 'Enter a valid address.')?.id ?? null,
+        matchingAlertAtomic: alerts.find((node) => node.textContent === 'Enter a valid address.')?.getAttribute('aria-atomic') ?? null,
+        describedText: describedBy ? document.getElementById(describedBy)?.textContent ?? null : null,
+        leakedRejectedValue: document.body.textContent?.includes('javascript:do-not-log-this-value') ?? false,
+      }
+    })
+    axEvidence.focusAndQuickLink = await readAx(['Link URL', 'Enter a valid address.', 'Edit'])
+    const quickLinkAxText = JSON.stringify(axEvidence.focusAndQuickLink)
+    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-focus-link-800x600.png` })
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.waitForTimeout(50)
+    const escaped = await evidencePage.evaluate(async () => ({
+      editorGone: document.querySelector('input[name="url"]') === null,
+      invokerFocused: document.activeElement?.getAttribute('aria-label') === 'Add quick link',
+      links: (await chrome.storage.local.get('links')).links,
+    }))
+    details.quickLink = { invalid, escaped }
+    checks.quickLink = invalid.focused && invalid.invalid === 'true' && !!invalid.describedBy &&
+      invalid.totalAlerts === 1 && invalid.matchingAlerts === 1 && invalid.describedBy === invalid.matchingAlertId &&
+      invalid.matchingAlertAtomic === 'true' && invalid.describedText === 'Enter a valid address.' &&
+      !invalid.leakedRejectedValue && !quickLinkAxText.includes('javascript:do-not-log-this-value') &&
+      escaped.editorGone && escaped.invokerFocused && escaped.links.length === 0
+    details.quickLinkTargets = invokerTarget && editorTargets
+  })
+
+  await step('calendar', async () => {
+    const now = Date.now()
+    const calendarCapabilityUrls = [
+      'https://w2-p2-calendar.example.test/personal.ics',
+      'https://w2-p2-calendar.example.test/work.ics',
+    ]
+    await evidencePage.setViewportSize({ width: 1600, height: 900 })
+    await evidencePage.evaluate(async ({ now }) => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      const duplicateStart = now + 10 * 60_000
+      await globalThis.__auroraSetHarnessStorage({
+        connectors: {
+          ...connectors,
+          ics: {
+            enabled: true,
+            view: 'upcoming',
+            upcomingCount: 3,
+            meetLinks: true,
+            calendars: [
+              { name: 'Personal', url: 'https://w2-p2-calendar.example.test/personal.ics' },
+              { name: 'Work', url: 'https://w2-p2-calendar.example.test/work.ics' },
+            ],
+          },
+        },
+        connectorSnapshots: {
+          ics: {
+            fetchedAt: now,
+            data: { events: [
+              { summary: 'Opening sync', start: now + 5 * 60_000, end: now + 35 * 60_000, cal: 0, allDay: false, meetUrl: 'https://meet.example.test/opening' },
+              { summary: 'Duplicate review', start: duplicateStart, end: duplicateStart + 30 * 60_000, cal: 0, allDay: false },
+              { summary: 'Duplicate review', start: duplicateStart, end: duplicateStart + 30 * 60_000, cal: 1, allDay: false },
+            ] },
+          },
+        },
+      })
+    }, { now })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('section[aria-label="Calendar"]', { timeout: 5_000 })
+    const calendarState = await evidencePage.evaluate((capabilityUrls) => {
+      const section = document.querySelector('section[aria-label="Calendar"]')
+      if (!section) return null
+      const occurrenceCount = (text, value) => text.split(value).length - 1
+      const normalize = (value) => value.replace(/\s+/g, ' ').trim()
+      const referencedText = (element, attribute) => `${element?.getAttribute(attribute) ?? ''}`.trim().split(/\s+/)
+        .filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
+      const resolved = (element) => {
+        if (!element) return ''
+        const name = normalize(element.getAttribute('aria-label') ?? '') ||
+          normalize(referencedText(element, 'aria-labelledby')) || normalize(element.textContent ?? '')
+        return normalize(`${name} ${referencedText(element, 'aria-describedby')}`)
+      }
+      const visible = (element) => {
+        const clone = element.cloneNode(true)
+        clone.querySelectorAll('.sr-only,[aria-hidden="true"],[aria-hidden=""]').forEach((node) => node.remove())
+        return clone.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+      }
+      const headline = section.querySelector('p')
+      const rows = [...section.querySelectorAll('ul > li')]
+      const join = headline?.querySelector('a')
+      return {
+        headlineProgrammatic: resolved(headline),
+        rowProgrammatic: rows.map(resolved),
+        rowVisible: rows.map(visible),
+        joinProgrammatic: resolved(join),
+        joinRect: join ? { width: join.getBoundingClientRect().width, height: join.getBoundingClientRect().height } : null,
+        capabilityLeak: capabilityUrls.some((url) => section.outerHTML.includes(url) ||
+          resolved(headline).includes(url) || rows.some((row) => resolved(row).includes(url)) || resolved(join).includes(url)),
+        exactSources: {
+          headlinePersonal: occurrenceCount(resolved(headline), 'Personal'),
+          firstRowPersonal: occurrenceCount(resolved(rows[0]), 'Personal'),
+          firstRowWork: occurrenceCount(resolved(rows[0]), 'Work'),
+          secondRowPersonal: occurrenceCount(resolved(rows[1]), 'Personal'),
+          secondRowWork: occurrenceCount(resolved(rows[1]), 'Work'),
+          joinPersonal: occurrenceCount(resolved(join), 'Personal'),
+        },
+      }
+    }, calendarCapabilityUrls)
+    axEvidence.calendar = await readAx(['Personal', 'Work', 'Opening sync', 'Duplicate review', 'Join'])
+    const calendarAxEntry = (terms, role) => axEvidence.calendar.some((entry) => {
+      const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`
+      return (!role || entry.role === role) && terms.every((term) => exposed.includes(term))
+    })
+    const calendarAxText = JSON.stringify(axEvidence.calendar)
+    await evidencePage.setViewportSize({ width: 1600, height: 900 })
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-1600x900.png` })
+    await evidencePage.setViewportSize({ width: 2560, height: 1440 })
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-2560x1440.png` })
+    details.calendar = calendarState
+    checks.calendar = calendarState !== null && calendarState.headlineProgrammatic.includes('Opening sync') &&
+      calendarState.exactSources.headlinePersonal === 1 && calendarState.rowProgrammatic.length === 2 &&
+      calendarState.rowProgrammatic.every((text) => text.includes('Duplicate review')) &&
+      calendarState.exactSources.firstRowPersonal === 1 && calendarState.exactSources.firstRowWork === 0 &&
+      calendarState.exactSources.secondRowPersonal === 0 && calendarState.exactSources.secondRowWork === 1 &&
+      calendarState.rowVisible[0] === calendarState.rowVisible[1] && calendarState.joinProgrammatic.includes('Join') &&
+      calendarState.joinProgrammatic.includes('Opening sync') && calendarState.exactSources.joinPersonal === 1 &&
+      !calendarState.capabilityLeak && !calendarCapabilityUrls.some((url) => calendarAxText.includes(url)) &&
+      calendarAxEntry(['Opening sync', 'Personal'], 'paragraph') &&
+      calendarAxEntry(['Duplicate review', 'Personal'], 'listitem') &&
+      calendarAxEntry(['Duplicate review', 'Work'], 'listitem') &&
+      calendarAxEntry(['Join', 'Opening sync', 'Personal'], 'link') &&
+      calendarState.joinRect?.width >= 36 && calendarState.joinRect?.height >= 36
+  })
+
+  await step('homeAssistant', async () => {
+    await evidencePage.evaluate(async () => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await globalThis.__auroraSetHarnessStorage({
+        connectors: {
+          ...connectors,
+          homeassistant: {
+            enabled: true,
+            instanceUrl: 'https://w2-p2-home.example.test',
+            token: 'w2-p2-route-token',
+            locationName: 'W2-P2 routed home',
+            entities: [],
+            actions: [],
+          },
+        },
+      })
+    })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.getByRole('button', { name: 'Open settings' }).click()
+    await evidencePage.locator('[role="dialog"][aria-label="Settings"]').waitFor()
+    await openTab('Connectors')
+    const choose = evidencePage.getByRole('button', { name: 'Choose entities', exact: true })
+    await choose.click()
+    const picker = evidencePage.locator('[role="dialog"]:not([aria-label="Settings"])')
+    await picker.waitFor({ timeout: 10_000 })
+    const pickerState = await evidencePage.evaluate(() => {
+      const dialogs = [...document.querySelectorAll('[role="dialog"]')]
+      const dialog = dialogs.find((node) => node.textContent?.includes('Pick entities'))
+      if (!dialog) return null
+      const normalize = (value) => value.replace(/\s+/g, ' ').trim()
+      const referenced = (element, attribute) => `${element?.getAttribute(attribute) ?? ''}`.trim().split(/\s+/)
+        .filter(Boolean).map((id) => document.getElementById(id)).filter(Boolean)
+      const resolve = (element) => {
+        const labelled = referenced(element, 'aria-labelledby')
+        const described = referenced(element, 'aria-describedby')
+        const explicitLabel = normalize(element?.getAttribute('aria-label') ?? '')
+        const name = explicitLabel || normalize(labelled.map((node) => node.textContent ?? '').join(' ')) ||
+          normalize([...(element?.labels ?? [])].map((node) => node.textContent ?? '').join(' '))
+        return normalize(`${name} ${described.map((node) => node.textContent ?? '').join(' ')}`)
+      }
+      const heading = dialog.querySelector('h2')
+      const domainHeadings = [...dialog.querySelectorAll('h3')]
+      const groups = [...dialog.querySelectorAll('[role="group"]')]
+      const boxes = [...dialog.querySelectorAll('input[type="checkbox"]')]
+      const search = dialog.querySelector('input[type="search"]')
+      return {
+        headingText: heading?.textContent?.trim() ?? null,
+        namedByHeading: !!heading?.id && dialog.getAttribute('aria-labelledby') === heading.id,
+        domainHeadings: domainHeadings.map((node) => normalize(node.textContent ?? '')),
+        groupRelationships: groups.map((group) => {
+          const labelNodes = referenced(group, 'aria-labelledby')
+          return {
+            name: normalize(labelNodes.map((node) => node.textContent ?? '').join(' ')),
+            exactOwnHeading: labelNodes.length === 1 && labelNodes[0].tagName === 'H3' &&
+              group.parentElement?.contains(labelNodes[0]) === true,
+          }
+        }),
+        checkboxNames: boxes.map(resolve),
+        searchFocused: document.activeElement === search,
+        secretLeak: dialog.outerHTML.includes('w2-p2-route-token') ||
+          dialog.outerHTML.includes('https://w2-p2-home.example.test'),
+      }
+    })
+    const haTargets = await measureTargets('home-assistant', [
+      { label: 'search', selector: '[role="dialog"] input[type="search"]', target: 'self' },
+      { label: 'show', selector: '[role="dialog"] input[type="checkbox"]', nameIncludes: 'Show', target: 'label' },
+      { label: 'action', selector: '[role="dialog"] input[type="checkbox"]', nameIncludes: 'Action', target: 'label' },
+      { label: 'cancel', selector: '[role="dialog"] button', text: 'Cancel', target: 'self' },
+      { label: 'save', selector: '[role="dialog"] button', text: 'Save', target: 'self' },
+    ])
+    axEvidence.homeAssistant = await readAx([
+      'Pick entities', 'Sensor', 'Switch', 'Kitchen temperature', 'sensor.kitchen_temperature',
+      'Porch switch', 'switch.porch', 'Show', 'Action',
+    ])
+    const haAxCount = (role, terms) => axEvidence.homeAssistant.filter((entry) => {
+      const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`
+      return entry.role === role && terms.every((term) => exposed.includes(term))
+    }).length
+    const haAxText = JSON.stringify(axEvidence.homeAssistant)
+    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-ha-picker-800x600.png` })
+    await evidencePage.setViewportSize({ width: 1600, height: 1100 })
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-ha-picker-1600x1100.png` })
+    await evidencePage.keyboard.press('Escape')
+    await picker.waitFor({ state: 'detached', timeout: 3_000 }).catch(() => {})
+    const pickerEscape = await evidencePage.evaluate(() => ({
+      settingsOpen: !document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert'),
+      triggerFocused: document.activeElement?.textContent?.trim() === 'Choose entities',
+    }))
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.waitForTimeout(400)
+    const settingsEscape = await evidencePage.evaluate(() => ({
+      settingsClosed: document.querySelector('[role="dialog"][aria-label="Settings"]')?.hasAttribute('inert') === true,
+      gearFocused: document.activeElement?.getAttribute('aria-label') === 'Open settings',
+    }))
+    details.homeAssistant = { pickerState, pickerEscape, settingsEscape }
+    const once = (text, value) => text.split(value).length - 1 === 1
+    const exactCheckbox = (purpose, friendlyName, id) => pickerState?.checkboxNames.filter((name) =>
+      once(name, purpose) && once(name, friendlyName) && once(name, id),
+    ).length === 1
+    checks.homeAssistant = pickerState !== null && pickerState.headingText === 'Pick entities' &&
+      pickerState.namedByHeading && pickerState.domainHeadings.length === 2 &&
+      pickerState.domainHeadings.includes('Sensor') && pickerState.domainHeadings.includes('Switch') &&
+      pickerState.groupRelationships.length === 2 && pickerState.groupRelationships.every((group) =>
+        group.exactOwnHeading && pickerState.domainHeadings.includes(group.name)) &&
+      new Set(pickerState.groupRelationships.map((group) => group.name)).size === 2 &&
+      pickerState.domainHeadings.every((heading) =>
+        pickerState.groupRelationships.filter((group) => group.name === heading).length === 1) &&
+      pickerState.checkboxNames.length === 3 && exactCheckbox('Show', 'Kitchen temperature', 'sensor.kitchen_temperature') &&
+      exactCheckbox('Show', 'Porch switch', 'switch.porch') && exactCheckbox('Action', 'Porch switch', 'switch.porch') &&
+      !pickerState.secretLeak && !haAxText.includes('w2-p2-route-token') &&
+      !haAxText.includes('https://w2-p2-home.example.test') &&
+      haAxCount('dialog', ['Pick entities']) === 1 && haAxCount('heading', ['Pick entities']) === 1 &&
+      haAxCount('heading', ['Sensor']) === 1 && haAxCount('heading', ['Switch']) === 1 &&
+      haAxCount('group', ['Sensor']) === 1 && haAxCount('group', ['Switch']) === 1 &&
+      haAxCount('checkbox', ['Show', 'Kitchen temperature', 'sensor.kitchen_temperature']) === 1 &&
+      haAxCount('checkbox', ['Show', 'Porch switch', 'switch.porch']) === 1 &&
+      haAxCount('checkbox', ['Action', 'Porch switch', 'switch.porch']) === 1 &&
+      pickerState.searchFocused && pickerEscape.settingsOpen && pickerEscape.triggerFocused
+    checks.settings = settingsEscape.settingsClosed && settingsEscape.gearFocused
+    details.homeAssistantTargets = haTargets
+  })
+
+  await step('data', async () => {
+    await evidencePage.setViewportSize({ width: 2560, height: 1440 })
+    await evidencePage.getByRole('button', { name: 'Open settings' }).click()
+    await evidencePage.locator('[role="dialog"][aria-label="Settings"]:not([inert])').waitFor()
+    await openTab('Data')
+    const [download] = await Promise.all([
+      evidencePage.waitForEvent('download', { timeout: 10_000 }),
+      evidencePage.getByRole('button', { name: 'Export', exact: true }).click(),
+    ])
+    const stream = await download.createReadStream()
+    const chunks = []
+    for await (const chunk of stream) chunks.push(chunk)
+    const exportedText = Buffer.concat(chunks).toString('utf8')
+    await evidencePage.getByRole('status').filter({ hasText: 'Backup downloaded.' }).waitFor({ timeout: 2_000 }).catch(() => {})
+    const importInput = evidencePage.locator('#set-import')
+    await importInput.setInputFiles({ name: 'invalid-w2-p2.json', mimeType: 'application/json', buffer: Buffer.from('{') })
+    await evidencePage.getByRole('alert').waitFor({ timeout: 2_000 }).catch(() => {})
+    const invalid = await evidencePage.evaluate(() => {
+      const input = document.querySelector('#set-import')
+      const alert = document.querySelector('section[aria-label="Data"] [role="alert"]')
+      return {
+        alertCount: document.querySelectorAll('section[aria-label="Data"] [role="alert"]').length,
+        describedBy: input?.getAttribute('aria-describedby') ?? null,
+        alertId: alert?.id ?? null,
+        atomic: alert?.getAttribute('aria-atomic') ?? null,
+      }
+    })
+    await importInput.setInputFiles({ name: 'valid-w2-p2.json', mimeType: 'application/json', buffer: Buffer.from(exportedText) })
+    await evidencePage.getByRole('button', { name: 'Confirm restore', exact: true }).waitFor({ timeout: 3_000 })
+    const dataTargets = await measureTargets('data', [
+      { label: 'export', selector: 'section[aria-label="Data"] button', target: 'self' },
+      { label: 'import', selector: '#set-import', target: 'self' },
+      { label: 'confirm', selector: 'section[aria-label="Data"] button', text: 'Confirm restore', target: 'self' },
+      { label: 'cancel', selector: 'section[aria-label="Data"] button', text: 'Cancel', target: 'self' },
+    ])
+    const status = await evidencePage.evaluate(() => {
+      const node = [...document.querySelectorAll('section[aria-label="Data"] [role="status"]')]
+        .find((candidate) => candidate.textContent === 'Backup downloaded.')
+      return { found: !!node, live: node?.getAttribute('aria-live') ?? null, atomic: node?.getAttribute('aria-atomic') ?? null }
+    })
+    axEvidence.data = await readAx(['Backup downloaded.', 'Confirm restore', 'Cancel'])
+    await evidencePage.screenshot({ path: `${outDir}/w2-p2-data-feedback-2560x1440.png` })
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.waitForTimeout(400)
+    const restored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
+    details.data = { download: download.suggestedFilename(), status, invalid, restored }
+    checks.data = download.suggestedFilename().startsWith('aurora-backup-') && status.found &&
+      status.live === 'polite' && status.atomic === 'true' && invalid.alertCount === 1 &&
+      invalid.describedBy === invalid.alertId && invalid.atomic === 'true' && restored
+    details.dataTargets = dataTargets
+  })
+
+  await step('restore', async () => {
+    if (originalTouched) await evidencePage.evaluate((snapshot) => chrome.storage.local.set(snapshot), originalTouched)
+  })
+  await evidencePage.close()
+
+  checks.targets = details.focusTargets === true && details.quickLinkTargets === true &&
+    details.homeAssistantTargets === true && details.dataTargets === true &&
+    targetMeasurements.every((item) => item.found && item.width >= 36 && item.height >= 36)
+  console.log(`EVIDENCE: W2-P2 target rectangles (all enumerated controls require >=36x36 CSS px): ${JSON.stringify(targetMeasurements)}`)
+  console.log(`EVIDENCE: W2-P2 Chromium Accessibility.getFullAXTree (supporting Chromium AX only; not a real screen-reader run): ${JSON.stringify(axEvidence)}`)
+  console.log(`EVIDENCE: W2-P2 aggregate observations: ${JSON.stringify(details)}`)
+  console.log(
+    Object.values(checks).every(Boolean)
+      ? `PASS: ${aggregateName}`
+      : `FAIL: ${aggregateName}`,
+  )
+}
 
 console.log(
   `EVIDENCE: W2-P1 Chromium Accessibility.getFullAXTree (Chromium AX only; not a real screen-reader run): ${JSON.stringify(w2P1AxEvidence)}`,

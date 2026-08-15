@@ -1,4 +1,5 @@
-import { useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { AssertiveAlert } from '../../../components/StateFeedback'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import type { QuickLink } from '../../../lib/storage/schema'
@@ -11,12 +12,39 @@ export default function LinksWidget() {
   const storage = useStorage()
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState(false)
+  const [title, setTitle] = useState('')
+  const [url, setUrl] = useState('')
+  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const urlInputRef = useRef<HTMLInputElement>(null)
+  const restoreAddFocus = useRef(false)
+  const addErrorId = useId()
   const dragFrom = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (adding || !restoreAddFocus.current) return
+    restoreAddFocus.current = false
+    addButtonRef.current?.focus()
+  }, [adding])
 
   if (!settings?.widgets.links || links === undefined) return null
 
   const update = (fn: (l: QuickLink[]) => QuickLink[]) =>
     void storage.update('links', fn)
+
+  function openEditor() {
+    setTitle('')
+    setUrl('')
+    setAddError(false)
+    setAdding(true)
+  }
+
+  function closeEditor() {
+    restoreAddFocus.current = true
+    setAdding(false)
+    setAddError(false)
+    setTitle('')
+    setUrl('')
+  }
 
   return (
     <section
@@ -42,32 +70,55 @@ export default function LinksWidget() {
       {adding ? (
         <form
           className="flex flex-col gap-1"
+          onKeyDown={(e) => {
+            if (e.key !== 'Escape') return
+            e.preventDefault()
+            closeEditor()
+          }}
           onSubmit={(e) => {
             e.preventDefault()
-            const data = new FormData(e.currentTarget)
-            const url = String(data.get('url') ?? '').trim()
             const normalized = normalizeUrl(url)
             if (!normalized) {
               setAddError(true)
+              urlInputRef.current?.focus()
               return
             }
-            update((l) => addLink(l, String(data.get('title') ?? ''), url))
-            setAdding(false)
-            setAddError(false)
+            update((l) => addLink(l, title, url))
+            closeEditor()
           }}
         >
-          <input name="title" placeholder="Title" aria-label="Link title" autoFocus className="w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent" />
-          <input name="url" placeholder="example.com" aria-label="Link URL" className="w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent" />
-          {addError && <p className="text-xs text-fg-muted">Enter a valid address.</p>}
+          <input
+            name="title"
+            placeholder="Title"
+            aria-label="Link title"
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            className="min-h-9 w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent"
+          />
+          <input
+            ref={urlInputRef}
+            name="url"
+            placeholder="example.com"
+            aria-label="Link URL"
+            aria-invalid={addError ? 'true' : undefined}
+            aria-describedby={addError ? addErrorId : undefined}
+            value={url}
+            onChange={(e) => {
+              setUrl(e.currentTarget.value)
+              setAddError(false)
+            }}
+            className="min-h-9 w-28 border-b border-panel-border bg-transparent text-sm text-fg outline-none focus-visible:border-accent"
+          />
+          <AssertiveAlert id={addErrorId} className="text-xs text-fg-muted">
+            {addError ? 'Enter a valid address.' : null}
+          </AssertiveAlert>
           <div className="flex gap-2 text-xs">
-            <button type="submit" className="text-accent focus-visible:outline-2 focus-visible:outline-accent">Add</button>
+            <button type="submit" className="inline-flex min-h-9 min-w-9 items-center justify-center text-accent focus-visible:outline-2 focus-visible:outline-accent">Add</button>
             <button
               type="button"
-              onClick={() => {
-                setAdding(false)
-                setAddError(false)
-              }}
-              className="text-fg-muted focus-visible:outline-2 focus-visible:outline-accent"
+              onClick={closeEditor}
+              className="inline-flex min-h-9 min-w-9 items-center justify-center text-fg-muted focus-visible:outline-2 focus-visible:outline-accent"
             >
               Cancel
             </button>
@@ -75,9 +126,10 @@ export default function LinksWidget() {
         </form>
       ) : (
         <button
+          ref={addButtonRef}
           type="button"
           aria-label="Add quick link"
-          onClick={() => setAdding(true)}
+          onClick={openEditor}
           className="flex size-12 items-center justify-center rounded-panel border border-dashed border-panel-border text-xl text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
         >
           +
