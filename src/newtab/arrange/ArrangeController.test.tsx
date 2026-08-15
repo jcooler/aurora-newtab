@@ -1044,10 +1044,13 @@ describe('ArrangeController — inertness + panel closing (review fix)', () => {
     expect(await screen.findByRole('dialog', { name: 'Notes' })).toBeTruthy()
 
     vi.useFakeTimers()
-    await act(async () => {
-      engageClock()
-      await Promise.resolve()
-    })
+    engageClock()
+    // Entering arrange mode is intentionally gated on the asynchronous
+    // close-all transaction. Synchronize on the observable mode transition,
+    // rather than assuming a fixed number of Promise turns is enough for the
+    // Notes flush, dialog-stack removal, and React commit under suite load.
+    vi.useRealTimers()
+    expect(await screen.findByRole('button', { name: 'Done' })).toBeTruthy()
 
     expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
   })
