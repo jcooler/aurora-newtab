@@ -95,6 +95,14 @@ describe('code-backed privacy inventory', () => {
       const flow = CONNECTOR_DATA_FLOWS[descriptor.id]
       expect(flow.permission).toBe('optional-per-origin')
       expect(flow.transmission).toBe('provider-direct')
+      expect(flow.destinationKind).toMatch(/^(fixed|configured)-provider$/)
+      expect(flow.destinations.length).toBeGreaterThan(0)
+      expect(flow.trigger.length).toBeGreaterThan(0)
+      expect(flow.methods).toContain('GET')
+      expect(flow.sends.length).toBeGreaterThan(0)
+      expect(flow.receives.length).toBeGreaterThan(0)
+      expect(flow.cache).toBe('connectorSnapshots-excluded-from-backup')
+      expect(flow.backend).toBe('none')
       if (descriptor.auth === 'token') {
         expect(flow.account).toBe('third-party')
         expect(flow.authenticationFields).toEqual(descriptor.secretFields)
@@ -118,6 +126,25 @@ describe('code-backed privacy inventory', () => {
   it('distinguishes Aurora network requests from browser-mediated and navigation flows', () => {
     expect(Object.keys(FIXED_DATA_FLOWS)).toEqual(['weatherForecast', 'citySearch', 'reverseGeocode', 'apod'])
     expect(Object.values(FIXED_DATA_FLOWS).every((flow) => flow.transmission === 'provider-direct')).toBe(true)
+    for (const flow of Object.values(FIXED_DATA_FLOWS)) {
+      expect(flow.destinations.length).toBeGreaterThan(0)
+      expect(flow.trigger.length).toBeGreaterThan(0)
+      expect(flow.sends.length).toBeGreaterThan(0)
+      expect(flow.receives.length).toBeGreaterThan(0)
+      expect(flow.methods).toEqual(['GET'])
+      expect(flow.permission.length).toBeGreaterThan(0)
+      expect(flow.cache.length).toBeGreaterThan(0)
+      expect(flow.backend).toBe('none')
+    }
+    expect(FIXED_DATA_FLOWS.apod).toMatchObject({
+      destinations: ['api.nasa.gov', 'apod.nasa.gov'],
+      sends: ['shared NASA DEMO_KEY'],
+      receives: ['APOD metadata', 'selected image bytes'],
+      permission: 'optional-per-origin',
+      cache: 'apodCache-excluded-from-backup',
+    })
+    expect(FIXED_DATA_FLOWS.weatherForecast.sends).toEqual(['rounded coordinates'])
+    expect(FIXED_DATA_FLOWS.weatherForecast.cache).toBe('weatherCache-included-in-backup')
     expect(BROWSER_DATA_FLOWS.search.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.bookmarks.transmission).toBe('none')
     expect(BROWSER_DATA_FLOWS.favicon.transmission).toBe('browser-mediated')

@@ -45,6 +45,8 @@ describe('normalizeUrl', () => {
     'chrome://settings',
     'file:///private.txt',
     'https://user:password@example.com/private',
+    'https:example.com',
+    'https:/example.com',
   ])('rejects explicit unsafe schemes and embedded credentials: %s', (input) => {
     expect(normalizeUrl(input)).toBeNull()
     expect(addLink(seed, 'Unsafe', input)).toEqual(seed)

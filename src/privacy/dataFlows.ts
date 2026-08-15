@@ -66,25 +66,49 @@ interface ConnectorDataFlow {
   backup: 'included' | 'redacted'
   permission: 'optional-per-origin'
   transmission: 'provider-direct'
+  destinationKind: 'fixed-provider' | 'configured-provider'
+  destinations: readonly string[]
+  trigger: readonly string[]
+  methods: readonly ('GET' | 'POST')[]
+  sends: readonly string[]
+  receives: readonly string[]
+  cache: 'connectorSnapshots-excluded-from-backup'
+  backend: 'none'
   operations: readonly string[]
 }
 
+function connectorFlow(
+  details: Omit<ConnectorDataFlow, 'permission' | 'transmission' | 'cache' | 'backend'>,
+): ConnectorDataFlow {
+  return {
+    ...details,
+    permission: 'optional-per-origin',
+    transmission: 'provider-direct',
+    cache: 'connectorSnapshots-excluded-from-backup',
+    backend: 'none',
+  }
+}
+
 export const CONNECTOR_DATA_FLOWS: Record<ConnectorId, ConnectorDataFlow> = {
-  rss: { account: 'none', authenticationFields: [], capabilityFields: ['feeds'], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['GET each configured feed URL'] },
-  github: { account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['GitHub API requests for the connected account'] },
-  gitlab: { account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['GitLab API requests to the configured instance'] },
-  jira: { account: 'third-party', authenticationFields: ['apiToken'], capabilityFields: [], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['Jira API requests to the configured site'] },
-  vercel: { account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['Vercel API requests for the connected account'] },
-  crypto: { account: 'none', authenticationFields: [], capabilityFields: [], backup: 'included', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['CoinGecko public API requests'] },
-  ics: { account: 'none', authenticationFields: [], capabilityFields: ['url', 'calendars'], backup: 'redacted', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['GET each configured calendar URL'] },
-  status: { account: 'none', authenticationFields: [], capabilityFields: [], backup: 'included', permission: 'optional-per-origin', transmission: 'provider-direct', operations: ['GET selected public status endpoints'] },
-  homeassistant: {
+  rss: connectorFlow({ account: 'none', authenticationFields: [], capabilityFields: ['feeds'], backup: 'redacted', destinationKind: 'configured-provider', destinations: ['each configured RSS feed origin'], trigger: ['configured refresh interval or explicit stale refresh'], methods: ['GET'], sends: ['full capability URL as the request target'], receives: ['feed XML and linked headline metadata'], operations: ['GET each configured feed URL'] }),
+  github: connectorFlow({ account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', destinationKind: 'fixed-provider', destinations: ['api.github.com'], trigger: ['connect identity check and enabled-card refresh'], methods: ['GET'], sends: ['token and enabled account queries'], receives: ['pull requests, issues, notifications, and contribution data'], operations: ['GitHub API requests for the connected account'] }),
+  gitlab: connectorFlow({ account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', destinationKind: 'configured-provider', destinations: ['configured GitLab instance'], trigger: ['connect identity check and enabled-card refresh'], methods: ['GET'], sends: ['token, username, and enabled account queries'], receives: ['merge requests, to-dos, and contribution data'], operations: ['GitLab API requests to the configured instance'] }),
+  jira: connectorFlow({ account: 'third-party', authenticationFields: ['apiToken'], capabilityFields: [], backup: 'redacted', destinationKind: 'configured-provider', destinations: ['configured Jira Cloud site'], trigger: ['connect identity check and enabled-card refresh'], methods: ['GET'], sends: ['email, API token, and issue queries'], receives: ['assigned issue data'], operations: ['Jira API requests to the configured site'] }),
+  vercel: connectorFlow({ account: 'third-party', authenticationFields: ['token'], capabilityFields: [], backup: 'redacted', destinationKind: 'fixed-provider', destinations: ['api.vercel.com'], trigger: ['connect identity check and enabled-card refresh'], methods: ['GET'], sends: ['token and deployment queries'], receives: ['deployment data'], operations: ['Vercel API requests for the connected account'] }),
+  crypto: connectorFlow({ account: 'none', authenticationFields: [], capabilityFields: [], backup: 'included', destinationKind: 'fixed-provider', destinations: ['api.coingecko.com'], trigger: ['configured refresh interval or explicit stale refresh'], methods: ['GET'], sends: ['selected public coin identifiers'], receives: ['public price and change data'], operations: ['CoinGecko public API requests'] }),
+  ics: connectorFlow({ account: 'none', authenticationFields: [], capabilityFields: ['url', 'calendars'], backup: 'redacted', destinationKind: 'configured-provider', destinations: ['each configured calendar origin'], trigger: ['configured refresh interval or explicit stale refresh'], methods: ['GET'], sends: ['full capability URL as the request target'], receives: ['calendar event data and embedded meeting links'], operations: ['GET each configured calendar URL'] }),
+  status: connectorFlow({ account: 'none', authenticationFields: [], capabilityFields: [], backup: 'included', destinationKind: 'configured-provider', destinations: ['each selected public status origin'], trigger: ['configured refresh interval or explicit stale refresh'], methods: ['GET'], sends: ['selected public status endpoint request'], receives: ['public component and incident status'], operations: ['GET selected public status endpoints'] }),
+  homeassistant: connectorFlow({
     account: 'third-party',
     authenticationFields: ['token'],
     capabilityFields: [],
     backup: 'redacted',
-    permission: 'optional-per-origin',
-    transmission: 'provider-direct',
+    destinationKind: 'configured-provider',
+    destinations: ['configured Home Assistant instance'],
+    trigger: ['connect, explicit picker open, selected-entity refresh, or action click'],
+    methods: ['GET', 'POST'],
+    sends: ['token, selected entity identifiers, and click-selected action body'],
+    receives: ['instance identity, picker entity list, selected entity states, and action health'],
     operations: [
       'GET /api/config on connect',
       'GET /api/states in the explicit picker only',
@@ -92,14 +116,26 @@ export const CONNECTOR_DATA_FLOWS: Record<ConnectorId, ConnectorDataFlow> = {
       'GET /api/ for action-only health',
       'POST /api/services/{domain}/{service} only on an action click',
     ],
-  },
+  }),
 }
 
-export const FIXED_DATA_FLOWS = {
-  weatherForecast: { destination: 'api.open-meteo.com', transmission: 'provider-direct' as const, data: ['coordinates'] },
-  citySearch: { destination: 'geocoding-api.open-meteo.com', transmission: 'provider-direct' as const, data: ['city query'] },
-  reverseGeocode: { destination: 'api.bigdatacloud.net', transmission: 'provider-direct' as const, data: ['coordinates'] },
-  apod: { destination: 'api.nasa.gov', transmission: 'provider-direct' as const, data: ['requested date'] },
+interface FixedDataFlow {
+  destinations: readonly string[]
+  transmission: 'provider-direct'
+  trigger: readonly string[]
+  sends: readonly string[]
+  receives: readonly string[]
+  methods: readonly ['GET']
+  permission: 'not-separately-requested-by-flow' | 'optional-per-origin'
+  cache: 'none' | 'weatherCache-included-in-backup' | 'apodCache-excluded-from-backup'
+  backend: 'none'
+}
+
+export const FIXED_DATA_FLOWS: Record<'weatherForecast' | 'citySearch' | 'reverseGeocode' | 'apod', FixedDataFlow> = {
+  weatherForecast: { destinations: ['api.open-meteo.com'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and a stale or mismatched cache'], sends: ['rounded coordinates'], receives: ['current, hourly, sunrise, and sunset forecast data'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherCache-included-in-backup', backend: 'none' },
+  citySearch: { destinations: ['geocoding-api.open-meteo.com'], transmission: 'provider-direct', trigger: ['debounced active city query of at least two characters'], sends: ['city search text'], receives: ['matching place names and coordinates'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
+  reverseGeocode: { destinations: ['api.bigdatacloud.net'], transmission: 'provider-direct', trigger: ['Use my location click after Chrome supplies coordinates'], sends: ['rounded coordinates'], receives: ['place label'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
+  apod: { destinations: ['api.nasa.gov', 'apod.nasa.gov'], transmission: 'provider-direct', trigger: ['user selects APOD and the local-day cache needs a photo'], sends: ['shared NASA DEMO_KEY'], receives: ['APOD metadata', 'selected image bytes'], methods: ['GET'], permission: 'optional-per-origin', cache: 'apodCache-excluded-from-backup', backend: 'none' },
 }
 
 export const BROWSER_DATA_FLOWS = {

@@ -20,6 +20,8 @@ describe('Quick Link import safety (W1-P9)', () => {
     'chrome://settings',
     'file:///private.txt',
     'https://user:password@example.com/private',
+    'https:example.com',
+    'https:/example.com',
   ])('rejects a backup containing unsafe or credential-bearing URL %s', (url) => {
     expect(validateBackupShape({
       ...defaults(),

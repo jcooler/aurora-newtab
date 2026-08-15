@@ -40,4 +40,23 @@ describe('LinkTile navigation', () => {
     expect(container.querySelector('a')).toBeNull()
     expect(container.querySelector('img')).toBeNull()
   })
+
+  it.each(['https:example.com', 'https:/example.com'])(
+    'renders nothing for malformed stored HTTP(S) URL %s',
+    (url) => {
+      const { container } = render(
+        <LinkTile
+          link={{ id: 'link-malformed', title: 'Malformed', url }}
+          index={0}
+          count={1}
+          onMove={vi.fn()}
+          onRemove={vi.fn()}
+          onDragStart={vi.fn()}
+          onDropOn={vi.fn()}
+          onDragEnd={vi.fn()}
+        />,
+      )
+      expect(container.innerHTML).toBe('')
+    },
+  )
 })

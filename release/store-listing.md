@@ -27,12 +27,10 @@ reviewer-facing note and Jon's resubmission steps.
 
 ## Summary (132-character max, shown in search results)
 
-    A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend — everything stays on your device.
+    A calm, local-first new-tab dashboard. No Aurora account, tracking, or backend; direct provider requests only when needed.
 
-Length: 110/132 characters. Deliberately echoes `src/manifest.ts`'s own
-`description` field (also updated this release, 76/132 chars) so the
-manifest and the store summary read as the same voice, not two different
-pitches.
+This is interim source copy only; re-count and reconcile it with the built
+manifest and current dashboard limits in W6-P3 before use.
 
 ## Category
 
@@ -45,7 +43,8 @@ feature among many, not the point of the extension).
 
 > Aurora replaces the new-tab page with a local-first personal dashboard —
 > clock, weather, quick links, to-dos, a focus timer, notes, and an optional
-> bookmarks bar — with no Aurora account, no backend, and no data collection.
+> bookmarks bar — with no Aurora account, Aurora-operated backend, analytics,
+> or tracking; optional outside data goes directly to the requested provider.
 
 Every permission below exists to serve this one page. There's no secondary
 feature (e.g. no unrelated "also blocks ads" or "also tracks prices") that
@@ -54,8 +53,10 @@ would need its own justification.
 ## Detailed description
 
     Aurora is a calm, local-first new-tab dashboard. No Aurora account, no
-    backend, no tracking of any kind — everything it stores lives only on
-    your device, and the developer never sees any of it. See
+    Aurora-operated backend and no tracking of any kind. Stored settings and
+    provider responses remain local; requested network data goes directly
+    between your browser and the selected provider, never through the
+    developer. See
     aurora-newtab's PRIVACY.md for the complete, audited policy.
 
     FEATURES
@@ -95,18 +96,19 @@ would need its own justification.
     - No Aurora account, sign-up, or login. Optional connectors can use
       credentials for third-party accounts you already have.
     - No analytics, no telemetry, no crash reporting, no ad network.
-    - No backend server of any kind — there is nothing for your data to
-      be collected BY, even if we wanted to.
+    - No Aurora-operated backend server. Direct requests go only to
+      Open-Meteo, BigDataCloud, NASA, or a provider/instance you selected.
     - Everything you configure (settings, links, to-dos, notes, focus
       timer, world clocks, countdowns, your saved location, layout)
       stays in Chrome's local storage on your device. Uploaded
       background photos stay in local IndexedDB, as blobs, never
       uploaded anywhere.
-    - The only network calls Aurora ever makes are to Open-Meteo (for
-      weather and city search) and, once, to BigDataCloud (to label
-      "Use my location" with a real place name) — both free, keyless
-      services, sent only the coordinates or search text needed for
-      that one lookup. Full detail in PRIVACY.md.
+    - Fixed calls go to Open-Meteo for forecast/city search and, on "Use my
+      location," BigDataCloud for a label. Opting into NASA's photo requests
+      APOD metadata and image bytes from NASA's two hosts. Configured
+      connectors request their selected cloud or self-hosted provider
+      directly; Home Assistant alone can POST a click-selected action.
+      Full data, trigger, credential, and cache details are in PRIVACY.md.
     - Bookmarks is an OPTIONAL permission, requested only when you turn
       that widget on — never at install. Location is granted at install
       (Chrome doesn't allow it to be requested any other way) but only
@@ -185,11 +187,12 @@ it, so it has to be installed the same way `storage` and `favicon` are)
 **[Jon: read this section carefully before you tick anything — see the flag at the bottom.]**
 
 CWS's Data Usage form asks which categories of user data the item
-*collects* — Google defines "collect" as transmitting data off the user's
-device by any means, which includes calls to a third-party API, not only
-calls to the developer's own server. Aurora has no server of its own, but
-it does make three third-party network calls (Open-Meteo ×2, BigDataCloud
-×1 — see PRIVACY.md). Answering the categories accordingly:
+*collects*. This tracked table is a behavior inventory, not a verified
+current-dashboard mapping: W6-P3 must reconcile current official definitions
+and Limited Use language before anyone ticks or pastes anything. Aurora has
+no server of its own, but it sends weather/location requests, opt-in NASA
+requests, connector requests and credentials directly to the provider that
+serves the requested feature (see PRIVACY.md).
 
 | Category | Collected? | Notes |
 |---|---|---|
@@ -198,10 +201,10 @@ it does make three third-party network calls (Open-Meteo ×2, BigDataCloud
 | Financial and payment information | No | — |
 | **Authentication information** | **User/dashboard verification required in W6-P3** | Credentialed connectors send tokens directly to the selected third-party provider. Tokens remain local plaintext in `chrome.storage.local`, are stripped from backup exports, and never pass through an Aurora backend. RSS and Calendar URLs are capability secrets rather than account authentication and are also redacted. Do not paste this interim mapping into the live dashboard without current official-form reconciliation. |
 | Personal communications | No | — |
-| **Location** | **Yes — approximate location** | The `geolocation` permission is held from install (Chrome requires that — see the permission justification above), but coordinates are only ever read and sent at the moment you click "Use my location," never in the background. Rounded to ~1 km and sent to Open-Meteo (forecast) and, once per click, BigDataCloud (place-name lookup). Never sold, never used for advertising, used only to show weather for that location. |
-| Web history | No | Bookmarks are read via `chrome.bookmarks.getTree()` but never transmitted anywhere — they stay on-device, so this is a local *read*, not a *collection* under Google's definition. Same reasoning covers search: text typed into the search bar/palette is handed to `chrome.search.query()`, a browser-mediated API call, not a network request Aurora itself makes — Aurora never builds or sends the request and never learns the result. |
+| **Location** | **User/dashboard verification required in W6-P3; behavior transmits approximate location** | Chrome supplies coordinates only after "Use my location." Aurora rounds and stores them, sends them once to BigDataCloud for a place label, and sends the stored rounded coordinates to Open-Meteo on that click and later forecast refreshes while Weather is enabled. Never sold or used for advertising. |
+| Web history | **User/dashboard verification required in W6-P3** | Bookmarks stay local and search is handed to Chrome. Quick Link navigation is ordinary browser navigation. RSS/Calendar capability URLs and configured provider endpoints do leave the device as direct request targets; current official category mapping must be verified rather than inferred here. |
 | User activity | No | No clicks, keystrokes, or usage are logged or transmitted. |
-| Website content | No | — |
+| Website content | **User/dashboard verification required in W6-P3** | Connectors receive requested feed, account, calendar, status, and Home Assistant content directly from the chosen provider and cache it locally; NASA image content is received from NASA. Aurora does not relay those responses to a backend. Verify the current official form definition before submission. |
 
 Certifications (all true, tick all three):
 - [x] I do not sell or transfer user data to third parties outside of the
@@ -213,11 +216,12 @@ Certifications (all true, tick all three):
 
 **Flag for Jon:** the task brief for this listing said to write these
 answers as "collects: nothing." That's not accurate once geolocation is in
-play — the coordinates genuinely leave the device (to Open-Meteo and
-BigDataCloud) whenever a user clicks "Use my location." (The `geolocation`
+play — the coordinates genuinely leave the device: to Open-Meteo for the
+initial and later forecast refreshes, and to BigDataCloud when the user
+clicks "Use my location." (The `geolocation`
 permission itself is held from install, per Chrome's rules, but that's a
 separate question from whether the coordinates ever leave the device — they
-only do on that click.) "Collects: nothing" would be true for a build with
+continue to be used for Weather refreshes.) "Collects: nothing" would be true for a build with
 no weather widget, but Aurora ships one. I've written the table above as
 the honest answer (Location: yes, single-purpose, not sold) instead of the
 literal instruction, because an inaccurate Data Usage disclosure is a CWS

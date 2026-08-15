@@ -16,6 +16,16 @@ describe('Quick Link URL policy', () => {
   })
 
   it.each([
+    'http:example.com',
+    'https:example.com',
+    'http:/example.com',
+    'https:/example.com',
+  ])('rejects malformed explicit HTTP(S) input %s instead of storing a non-renderable value', (input) => {
+    expect(normalizeQuickLinkUrl(input)).toBeNull()
+    expect(isSafeQuickLinkUrl(input)).toBe(false)
+  })
+
+  it.each([
     ['https://example.com/path', 'https://example.com/path'],
     ['http://example.com:8080/path', 'http://example.com:8080/path'],
     ['example.com:8080/path', 'https://example.com:8080/path'],

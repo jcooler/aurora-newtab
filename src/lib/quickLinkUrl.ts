@@ -28,6 +28,7 @@ export function normalizeQuickLinkUrl(raw: string): string | null {
   } else {
     const name = scheme[1].toLowerCase()
     if (name === 'http' || name === 'https') {
+      if (!/^https?:\/\//i.test(trimmed)) return null
       candidate = trimmed
     } else {
       const rest = scheme[2]
