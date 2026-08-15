@@ -142,6 +142,34 @@ describe('EntityPickerDialog, hard caps, enforced visibly, never silently droppe
 })
 
 describe('EntityPickerDialog, dialog shell behavior', () => {
+  it('bounds the whole dialog to the viewport and gives only the entity list flexible vertical scroll ownership', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    const dialog = screen.getByRole('dialog', { name: 'Pick entities' })
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.classList.contains('overflow-hidden')).toBe(true)
+    const scrollports = dialog.querySelectorAll('.overflow-y-auto')
+    expect(scrollports).toHaveLength(1)
+    expect(scrollports[0]!.classList.contains('min-h-0')).toBe(true)
+    expect(scrollports[0]!.classList.contains('flex-1')).toBe(true)
+    expect(screen.getByRole('searchbox').classList.contains('shrink-0')).toBe(true)
+    expect(screen.getByText('Choose which entities appear as status chips or actions.').classList.contains('[@media(max-height:300px)]:hidden')).toBe(true)
+    const countId = dialog.getAttribute('aria-describedby')!.split(' ')[1]!
+    expect(document.getElementById(countId)?.classList.contains('[@media(max-height:300px)]:hidden')).toBe(true)
+  })
+
+  it('keeps the exact narrow picker target inventory at the 36px floor', () => {
+    render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={() => {}} onSave={() => {}} />)
+
+    expect(screen.getByRole('searchbox').classList.contains('h-9')).toBe(true)
+    for (const checkbox of screen.getAllByRole('checkbox')) {
+      expect(checkbox.closest('label')?.classList.contains('min-h-9')).toBe(true)
+      expect(checkbox.closest('label')?.classList.contains('min-w-9')).toBe(true)
+    }
+    expect(screen.getByRole('button', { name: 'Cancel' }).classList.contains('min-h-9')).toBe(true)
+    expect(screen.getByRole('button', { name: 'Save' }).classList.contains('min-h-9')).toBe(true)
+  })
+
   it('Escape calls onCancel via the shared dialog stack', () => {
     const onCancel = vi.fn()
     render(<EntityPickerDialog open states={STATES} entities={[]} actions={[]} onCancel={onCancel} onSave={() => {}} />)

@@ -24,6 +24,18 @@ async function renderPalette() {
   return screen.findByRole('combobox')
 }
 
+async function renderPaletteWithLink(url: string) {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  await storage.set('links', [{ id: 'long-link', title: 'Long link', url }])
+  render(
+    <StorageProvider storage={storage}>
+      <Palette onClose={vi.fn()} onOpenSettings={vi.fn()} />
+    </StorageProvider>,
+  )
+  await screen.findByRole('combobox')
+}
+
 describe('Palette — web search fallback', () => {
   afterEach(() => {
     vi.mocked(searchWeb).mockClear()
@@ -51,5 +63,53 @@ describe('Palette — web search fallback', () => {
     fireEvent.click(option)
 
     expect(searchWeb).toHaveBeenCalledWith('cats')
+  })
+})
+
+describe('Palette narrow and short viewport ownership', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
+  })
+
+  it('bounds the whole dialog, removes the fixed short-viewport offset, and gives only results flexible scroll ownership', async () => {
+    await renderPalette()
+    const dialog = screen.getByRole('dialog', { name: 'Command palette' })
+    const wrapper = dialog.parentElement!
+    const listbox = screen.getByRole('listbox', { name: 'Commands' })
+
+    expect(wrapper.classList.contains('pt-[18vh]')).toBe(true)
+    expect(wrapper.classList.contains('[@media(max-height:300px)]:p-2')).toBe(true)
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.classList.contains('flex')).toBe(true)
+    expect(dialog.classList.contains('flex-col')).toBe(true)
+    expect(dialog.querySelectorAll('.overflow-y-auto')).toHaveLength(1)
+    expect(listbox.classList.contains('min-h-0')).toBe(true)
+    expect(listbox.classList.contains('flex-1')).toBe(true)
+    expect(listbox.classList.contains('max-h-80')).toBe(true)
+    expect(listbox.classList.contains('[@media(max-height:300px)]:max-h-20')).toBe(true)
+  })
+
+  it('keeps focus on the combobox and scrolls each active descendant fully into the results owner', async () => {
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    const input = await renderPalette()
+    input.focus()
+
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+
+    expect(document.activeElement).toBe(input)
+    expect(input.getAttribute('aria-activedescendant')).toBeTruthy()
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+  })
+
+  it('lets a long valid Quick Link URL hint shrink within a bounded result width', async () => {
+    const longUrl = `https://example.com/${'unbroken'.repeat(80)}`
+    await renderPaletteWithLink(longUrl)
+
+    const hint = screen.getByText(longUrl)
+    expect(hint.classList.contains('shrink-0')).toBe(false)
+    expect(hint.classList.contains('min-w-0')).toBe(true)
+    expect(hint.classList.contains('max-w-[50%]')).toBe(true)
   })
 })

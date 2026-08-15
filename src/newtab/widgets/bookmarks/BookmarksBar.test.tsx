@@ -612,6 +612,70 @@ describe('BookmarksBar', () => {
     rectSpy.mockRestore()
   })
 
+  it('bounds height and recomputes from the unshifted baseline across resize and drill changes without drift', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+    const originalWidth = window.innerWidth
+    const originalHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { value: 320, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const rectSpy = vi.spyOn(HTMLDivElement.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: HTMLDivElement) {
+        const translate = this.style.translate
+        const xMatch = translate.match(/([+-])\s(\d+)px\)/)
+        const yMatch = this.style.transform.match(/translateY\((-?\d+)px\)/)
+        const appliedX = xMatch ? (xMatch[1] === '+' ? 1 : -1) * Number(xMatch[2]) : 0
+        const appliedY = yMatch ? Number(yMatch[1]) : 0
+        const left = 120 + appliedX
+        const top = 150 + appliedY
+        return { left, right: left + 256, top, bottom: top + 164, width: 256, height: 164, x: left, y: top, toJSON() {} } as DOMRect
+      },
+    )
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
+    expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
+    expect(dialog.style.transform).toBe('translateY(-142px)')
+
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+    })
+    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
+    expect(dialog.style.transform).toBe('translateY(-142px)')
+
+    const focused = screen.getByRole('button', { name: 'Projects' })
+    focused.focus()
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+    })
+    expect(document.activeElement).toBe(focused)
+    await act(async () => {
+      fireEvent.click(focused)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Projects bookmarks' })).toBe(dialog)
+    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
+    expect(dialog.style.transform).toBe('translateY(-142px)')
+
+    rectSpy.mockRestore()
+    Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
+    Object.defineProperty(window, 'innerHeight', { value: originalHeight, configurable: true })
+  })
+
+  it('keeps every narrow folder control at the 36px target floor', async () => {
+    await renderBar(nestedModel)
+    fireEvent.click(await screen.findByRole('button', { name: 'Work' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Projects' }))
+
+    expect(screen.getByRole('button', { name: '‹ Back' }).classList.contains('max-[420px]:min-h-9')).toBe(true)
+    const dialog = screen.getByRole('dialog', { name: 'Projects bookmarks' })
+    for (const control of screen.getAllByRole('link').filter((link) => dialog.contains(link))) {
+      expect(control.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    }
+  })
+
   it('renders no fixed-position element inside the bar; backdrop portals to <body>', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })

@@ -45,7 +45,8 @@ export default function FolderPopover({
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [stack, setStack] = useState<BookmarkFolder[]>([])
-  const [edgeShift, setEdgeShift] = useState(0)
+  const [edgeShift, setEdgeShift] = useState({ x: 0, y: 0 })
+  const appliedShiftRef = useRef({ x: 0, y: 0 })
   const top = stack[stack.length - 1]
   const currentTitle = top ? top.title : title
   const currentItems = top ? top.items : items
@@ -64,17 +65,43 @@ export default function FolderPopover({
   // nudge horizontally by the smallest amount that brings both edges back
   // within EDGE_MARGIN of the viewport.
   useLayoutEffect(() => {
-    const el = panelRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    if (rect.width === 0) return
-    let shift = 0
-    if (rect.left < EDGE_MARGIN) shift = EDGE_MARGIN - rect.left
-    else if (rect.right > window.innerWidth - EDGE_MARGIN) {
-      shift = window.innerWidth - EDGE_MARGIN - rect.right
+    let frame: number | null = null
+    const measure = () => {
+      frame = null
+      const el = panelRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      if (rect.width === 0) return
+      const applied = appliedShiftRef.current
+      const baseLeft = rect.left - applied.x
+      const baseRight = rect.right - applied.x
+      const baseTop = rect.top - applied.y
+      const baseBottom = rect.bottom - applied.y
+      let x = 0
+      let y = 0
+      if (baseLeft < EDGE_MARGIN) x = EDGE_MARGIN - baseLeft
+      else if (baseRight > window.innerWidth - EDGE_MARGIN) x = window.innerWidth - EDGE_MARGIN - baseRight
+      if (rect.height > 0) {
+        if (baseTop < EDGE_MARGIN) y = EDGE_MARGIN - baseTop
+        else if (baseBottom > window.innerHeight - EDGE_MARGIN) y = window.innerHeight - EDGE_MARGIN - baseBottom
+      }
+      appliedShiftRef.current = { x, y }
+      setEdgeShift((current) => current.x === x && current.y === y ? current : { x, y })
     }
-    setEdgeShift(shift)
-  }, [currentTitle])
+    const schedule = () => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener('resize', schedule)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(panelRef.current!)
+    return () => {
+      window.removeEventListener('resize', schedule)
+      observer?.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [currentTitle, currentItems.length, currentFolders.length])
 
   return (
     <>
@@ -109,17 +136,20 @@ export default function FolderPopover({
         // class alone controls centering, unchanged from before this effect
         // existed.
         style={
-          edgeShift
-            ? { translate: `calc(-50% ${edgeShift >= 0 ? '+' : '-'} ${Math.abs(edgeShift)}px) 0` }
+          edgeShift.x || edgeShift.y
+            ? {
+              ...(edgeShift.x ? { translate: `calc(-50% ${edgeShift.x >= 0 ? '+' : '-'} ${Math.abs(edgeShift.x)}px) 0` } : {}),
+              ...(edgeShift.y ? { transform: `translateY(${edgeShift.y}px)` } : {}),
+            }
             : undefined
         }
-        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[60vh] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[calc(100dvh-1rem)] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
           {top && (
             <button
               type="button"
               onClick={() => setStack((s) => s.slice(0, -1))}
-              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="flex w-full items-center gap-1 rounded px-2 py-1.5 text-left text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
             >
               ‹ Back
             </button>
@@ -133,7 +163,7 @@ export default function FolderPopover({
                   <button
                     type="button"
                     onClick={() => setStack((s) => [...s, folder])}
-                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
                   >
                     <FolderIcon />
                     <span className="truncate">{folder.title}</span>
@@ -144,7 +174,7 @@ export default function FolderPopover({
                 <li key={item.id}>
                   <a
                     href={item.url}
-                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                    className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9"
                   >
                     <img
                       src={faviconUrl(item.url)}

@@ -51,6 +51,143 @@ describe('TodoPanel', () => {
     expect(screen.getByRole('button', { name: 'Add task' }).classList.contains('max-[420px]:min-h-9')).toBe(true)
   })
 
+  it('keeps its nested overflow actions inside the bounded Tasks surface with their own viewport ceiling', async () => {
+    await renderPanel()
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    const menu = screen.getByLabelText('Task list actions')
+    expect(menu.parentElement?.classList.contains('relative')).toBe(false)
+    expect(menu.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(menu.classList.contains('overflow-y-auto')).toBe(true)
+    for (const action of screen.getAllByRole('button').filter((button) => menu.contains(button))) {
+      expect(action.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    }
+  })
+
+  it('portals the Tasks owner above its body catcher so pointer-hit actions execute, close, and restore trigger focus', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [
+      {
+        id: 'today',
+        name: 'Today',
+        items: [{ id: 'done-item', text: 'Already done', done: true }],
+      },
+    ])
+    render(
+      <StorageProvider storage={storage}>
+        <TodoPanel anchor={{ left: 8, top: 8 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    const trigger = await screen.findByRole('button', { name: 'More actions' })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    const action = screen.getByRole('button', { name: 'Clear done' })
+    const menu = screen.getByLabelText('Task list actions')
+    const catcher = Array.from(document.body.children).find(
+      (element) =>
+        element.getAttribute('aria-hidden') === 'true' && element.classList.contains('fixed'),
+    )
+    expect(catcher).toBeTruthy()
+
+    const zIndex = (element: Element) => {
+      const token = Array.from(element.classList).find((className) => /^z-\d+$/.test(className))
+      return token ? Number(token.slice(2)) : 0
+    }
+    // The menu and catcher must participate in the same root stacking
+    // comparison: catcher above every outside control, menu above catcher.
+    expect(dialog.parentElement).toBe(document.body)
+    expect(dialog.contains(menu)).toBe(true)
+    expect(zIndex(dialog)).toBeGreaterThan(zIndex(catcher!))
+    expect(zIndex(menu)).toBeGreaterThan(zIndex(catcher!))
+
+    fireEvent.pointerDown(action)
+    fireEvent.click(action)
+
+    await waitFor(() => expect(screen.queryByLabelText('Task list actions')).toBeNull())
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
+    await waitFor(async () =>
+      expect((await storage.get('todoLists'))[0]?.items).toHaveLength(0),
+    )
+  })
+
+  it('consumes an outside pointer click over a Tasks control, closing only the menu', async () => {
+    const onClose = vi.fn()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [{ id: 'today', name: 'Today', items: [] }])
+    render(
+      <StorageProvider storage={storage}>
+        <TodoPanel anchor={{ left: 8, top: 8 }} onClose={onClose} />
+      </StorageProvider>,
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    const trigger = await screen.findByRole('button', { name: 'More actions' })
+    fireEvent.click(trigger)
+    expect(screen.getByLabelText('Task list actions')).toBeTruthy()
+
+    const underlyingControl = screen.getByRole('button', { name: 'Close tasks' })
+    const catcher = Array.from(document.body.children).find(
+      (element) =>
+        element.getAttribute('aria-hidden') === 'true' && element.classList.contains('fixed'),
+    )!
+    const zIndex = (element: Element) => {
+      const token = Array.from(element.classList).find((className) => /^z-\d+$/.test(className))
+      return token ? Number(token.slice(2)) : 0
+    }
+    // Model the browser's root-layer hit test at the Close-tasks coordinates.
+    // The current z-20 regression selects the underlying control; the correct
+    // root-level owner selects the catcher and consumes the entire click.
+    const hitTarget = zIndex(catcher) > zIndex(dialog) ? catcher : underlyingControl
+    fireEvent.pointerDown(hitTarget)
+    fireEvent.click(hitTarget)
+
+    expect(onClose).not.toHaveBeenCalled()
+    await waitFor(() => expect(screen.queryByLabelText('Task list actions')).toBeNull())
+    expect(screen.getByRole('dialog', { name: 'Tasks' })).toBe(dialog)
+    expect(document.activeElement).toBe(trigger)
+  })
+
+  it('keeps open overflow actions inside the Tasks dialog keyboard owner and its parent Tab trap', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('todoLists', [{ id: 'today', name: 'Today', items: [] }])
+    render(
+      <StorageProvider storage={storage}>
+        <TodoPanel anchor={{ left: 8, top: 8 }} onClose={vi.fn()} />
+      </StorageProvider>,
+    )
+
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
+    const menu = screen.getByLabelText('Task list actions')
+    const firstAction = screen.getByRole('button', { name: 'Delete list' })
+
+    expect(document.activeElement).toBe(firstAction)
+    expect(dialog.contains(firstAction)).toBe(true)
+    expect(dialog.contains(menu)).toBe(true)
+
+    const focusables = Array.from(
+      dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ),
+    )
+    expect(focusables).toContain(firstAction)
+    const first = focusables[0]!
+    const last = focusables[focusables.length - 1]!
+
+    last.focus()
+    fireEvent.keyDown(last, { key: 'Tab' })
+    expect(document.activeElement).toBe(first)
+
+    first.focus()
+    fireEvent.keyDown(first, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(last)
+  })
+
   it("anchors via `bottom` (grow-up) instead of `top` when given a bottom-anchored placement — review fix I1, the panel that actually reaches this shape at Todo's default (bottom-half) pill position", async () => {
     await renderPanel({ left: 1264, bottom: 64 })
     const dialog = await screen.findByRole('dialog', { name: 'Tasks' })

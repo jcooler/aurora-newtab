@@ -208,19 +208,19 @@ export default function EntityPickerDialog({
   return createPortal(
     <>
       <div aria-hidden onClick={onCancel} className="fixed inset-0 z-[70] bg-black/30" />
-      <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4 [@media(max-height:300px)]:p-2">
         <div
           ref={dialogRef}
           role="dialog"
           aria-modal="true"
           aria-labelledby={dialogHeadingId}
           aria-describedby={`${instructionsId} ${countId}`}
-          className="pointer-events-auto flex w-full max-w-md flex-col rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+          className="pointer-events-auto flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-md flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] [@media(max-height:300px)]:p-2"
         >
-          <h2 id={dialogHeadingId} className="text-base font-medium text-fg">
+          <h2 id={dialogHeadingId} className="shrink-0 text-base font-medium text-fg">
             Pick entities
           </h2>
-          <p id={instructionsId} className="mt-1 text-xs text-fg-muted">
+          <p id={instructionsId} className="mt-1 shrink-0 text-xs text-fg-muted [@media(max-height:300px)]:hidden">
             Choose which entities appear as status chips or actions.
           </p>
           <input
@@ -230,16 +230,16 @@ export default function EntityPickerDialog({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search entities…"
-            className="mt-3 h-9 rounded-lg border border-control-border bg-control-bg px-2.5 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent"
+            className="mt-3 h-9 shrink-0 rounded-lg border border-control-border bg-control-bg px-2.5 text-sm text-fg outline-none placeholder:text-fg-muted focus-visible:border-accent focus-visible:ring-1 focus-visible:ring-accent [@media(max-height:300px)]:mt-1"
           />
 
-          <div className="mt-3 grid grid-cols-[2.25rem_2.25rem_minmax(0,1fr)] items-center gap-3 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted">
+          <div className="mt-3 grid shrink-0 grid-cols-[2.25rem_2.25rem_minmax(0,1fr)] items-center gap-3 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted [@media(max-height:300px)]:hidden">
             <span id={showHeadingId} className="text-center">Show</span>
             <span id={actionHeadingId} className="text-center">Action</span>
             <span>Entity</span>
           </div>
 
-          <div className="mt-1 max-h-96 overflow-y-auto">
+          <div className="mt-1 min-h-0 flex-1 overflow-y-auto">
             {groups.length === 0 ? (
               <p className="py-3 text-sm text-fg-muted">No matches</p>
             ) : (
@@ -291,11 +291,11 @@ export default function EntityPickerDialog({
             )}
           </div>
 
-          <p id={countId} className="mt-3 text-xs text-fg-muted">
+          <p id={countId} className="mt-3 shrink-0 text-xs text-fg-muted [@media(max-height:300px)]:hidden">
             {pickedEntityIds.size} of {MAX_CHIP_ENTITIES} chips · {pickedActionIds.size} of {MAX_ACTIONS} actions
           </p>
 
-          <div className="mt-3 flex justify-end gap-2">
+          <div className="mt-3 flex shrink-0 justify-end gap-2 [@media(max-height:300px)]:mt-1">
             <button type="button" onClick={onCancel} className={`${btnQuiet} min-h-9 min-w-9 justify-center`}>
               Cancel
             </button>

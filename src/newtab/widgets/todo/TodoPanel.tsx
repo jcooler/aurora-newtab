@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -56,29 +56,99 @@ function OverflowMenuList({
   onClearDone,
   onDeleteList,
   hasDone,
+  trigger,
+  owner,
 }: {
   onClose: () => void
   onClearDone: () => void
   onDeleteList: () => void
   hasDone: boolean
+  trigger: HTMLButtonElement
+  owner: HTMLDivElement
 }) {
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState({ left: 8, top: 8 })
   useDialogEscape(onClose)
+
+  useLayoutEffect(() => {
+    let frame: number | null = null
+    const measure = () => {
+      frame = null
+      const menu = menuRef.current
+      if (!menu) return
+      const triggerRect = trigger.getBoundingClientRect()
+      const menuRect = menu.getBoundingClientRect()
+      const width = menuRect.width || 160
+      const height = menuRect.height
+      const maxLeft = Math.max(8, window.innerWidth - 8 - width)
+      const viewportLeft = Math.min(Math.max(8, triggerRect.right - width), maxLeft)
+      const below = triggerRect.bottom + 6
+      const viewportTop =
+        height > 0 && below + height > window.innerHeight - 8
+          ? Math.max(8, triggerRect.top - 6 - height)
+          : Math.max(8, Math.min(below, window.innerHeight - 8 - height))
+      const ownerRect = owner.getBoundingClientRect()
+      const left = viewportLeft - ownerRect.left
+      const top = viewportTop - ownerRect.top
+      setPosition((current) =>
+        current.left === left && current.top === top ? current : { left, top },
+      )
+    }
+    const schedule = () => {
+      if (frame !== null) return
+      frame = window.requestAnimationFrame(measure)
+    }
+    measure()
+    window.addEventListener('resize', schedule)
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
+    observer?.observe(trigger)
+    observer?.observe(menuRef.current!)
+    return () => {
+      window.removeEventListener('resize', schedule)
+      observer?.disconnect()
+      if (frame !== null) window.cancelAnimationFrame(frame)
+    }
+  }, [owner, trigger])
+
+  useLayoutEffect(() => {
+    menuRef.current?.querySelector<HTMLButtonElement>('button:not([disabled])')?.focus()
+  }, [])
+
+  useEffect(() => {
+    const consumeOwnerClick = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Node) || !owner.contains(target) || menuRef.current?.contains(target)) return
+      event.preventDefault()
+      event.stopPropagation()
+      onClose()
+    }
+    document.addEventListener('click', consumeOwnerClick, true)
+    return () => document.removeEventListener('click', consumeOwnerClick, true)
+  }, [onClose, owner])
+
   return (
     <>
-      {/* Transparent catcher, portalled to <body> so `fixed inset-0` really
-          means the viewport (a transformed ancestor would otherwise shrink it).
-          A first outside click just dismisses — this is a menu, not a modal. */}
+      {/* The whole Tasks dialog is a body-level z-50 owner while this menu is
+          open. Its body-level z-40 catcher therefore owns every point outside
+          Tasks; the capture listener above consumes points inside Tasks but
+          outside this menu, without letting the underlying control activate. */}
       {createPortal(
-        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40" />,
+        <div
+          aria-hidden
+          onPointerDown={(event) => event.preventDefault()}
+          onClick={onClose}
+          className="fixed inset-0 z-40"
+        />,
         document.body,
       )}
-      {/* A labelled group of plain buttons (not role="menu") — Tab reaches
-          them through the panel's own focus trap, so this stays honestly
-          correct without a roving-tabindex/arrow-key menu implementation. */}
+      {/* Keep the actions as real descendants of the Tasks dialog. The parent
+          focus trap then owns one sequential Tab order, including this menu. */}
       <div
+        ref={menuRef}
         id="todo-overflow-menu"
         aria-label="Task list actions"
-        className="absolute right-0 top-full z-50 mt-1.5 min-w-40 overflow-hidden rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+        style={{ position: 'absolute', left: position.left, top: position.top }}
+        className="z-50 max-h-[calc(100dvh-1rem)] min-w-40 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
         <button
           type="button"
@@ -110,15 +180,19 @@ function OverflowMenu({
   onClearDone,
   onDeleteList,
   hasDone,
+  owner,
+  onOpenChange,
 }: {
   onClearDone: () => void
   onDeleteList: () => void
   hasDone: boolean
+  owner: HTMLDivElement
+  onOpenChange: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
   return (
-    <div className="relative shrink-0">
+    <div className="shrink-0">
       <button
         ref={triggerRef}
         type="button"
@@ -126,7 +200,12 @@ function OverflowMenu({
         aria-haspopup="true"
         aria-expanded={open}
         aria-controls={open ? 'todo-overflow-menu' : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() =>
+          setOpen((current) => {
+            onOpenChange(!current)
+            return !current
+          })
+        }
         className="grid size-6 cursor-pointer place-items-center rounded text-base leading-none text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
       >
         <span aria-hidden>⋯</span>
@@ -134,10 +213,13 @@ function OverflowMenu({
       {open && (
         <OverflowMenuList
           hasDone={hasDone}
+          trigger={triggerRef.current!}
+          owner={owner}
           onClearDone={onClearDone}
           onDeleteList={onDeleteList}
           onClose={() => {
             setOpen(false)
+            onOpenChange(false)
             triggerRef.current?.focus()
           }}
         />
@@ -160,6 +242,7 @@ export default function TodoPanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
   const [addingList, setAddingList] = useState(false)
+  const [overflowOpen, setOverflowOpen] = useState(false)
   const seeded = useRef(false)
 
   // `active` is gated on readiness (`lists !== undefined`), NOT hardcoded
@@ -223,7 +306,7 @@ export default function TodoPanel({
   const total = activeList?.items.length ?? 0
   const doneCount = activeList?.items.filter((i) => i.done).length ?? 0
 
-  return (
+  return createPortal(
     <div
       ref={(node) => {
         panelRef.current = node
@@ -240,7 +323,7 @@ export default function TodoPanel({
         left: anchor.left,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
-      className="z-30 flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className={`${overflowOpen ? 'z-50 overflow-visible' : 'z-30 overflow-hidden'} flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
     >
       {/* Header — the active list as a bright uppercase eyebrow, the other
           lists as quieter eyebrows that switch on click (em-dash separated),
@@ -340,6 +423,8 @@ export default function TodoPanel({
         {activeList && (
           <OverflowMenu
             hasDone={doneCount > 0}
+            owner={panelRef.current!}
+            onOpenChange={setOverflowOpen}
             onClearDone={() => dispatch({ type: 'clearDone', listId: activeList.id })}
             onDeleteList={() => dispatch({ type: 'removeList', listId: activeList.id })}
           />
@@ -501,6 +586,7 @@ export default function TodoPanel({
           </button>
         </form>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

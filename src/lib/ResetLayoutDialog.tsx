@@ -73,7 +73,7 @@ export default function ResetLayoutDialog({
           role="dialog"
           aria-modal="true"
           aria-label="Reset layout?"
-          className="pointer-events-auto w-full max-w-sm rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+          className="pointer-events-auto max-h-[calc(100dvh-1rem)] w-full max-w-sm overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-5 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] [@media(max-height:300px)]:p-3"
         >
           <h2 className="mb-2 text-base font-semibold">Reset layout?</h2>
           <p className="mb-4 text-sm text-fg-muted">
@@ -83,14 +83,14 @@ export default function ResetLayoutDialog({
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-full border border-panel-border px-3 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="min-h-9 rounded-full border border-panel-border px-3 py-1 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={onConfirm}
-              className="rounded-full border border-panel-border px-3 py-1 text-sm text-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent"
+              className="min-h-9 rounded-full border border-panel-border px-3 py-1 text-sm text-red-400 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-accent"
             >
               Reset layout
             </button>

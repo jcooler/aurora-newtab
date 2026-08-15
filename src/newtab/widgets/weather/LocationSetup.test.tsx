@@ -431,6 +431,7 @@ describe('LocationSetup dropdown edge clamping', () => {
   afterEach(() => {
     rectSpy.mockRestore()
     Object.defineProperty(window, 'innerWidth', { value: originalInnerWidth, configurable: true })
+    Reflect.deleteProperty(Element.prototype, 'scrollIntoView')
   })
 
   it('review fix: a second completed search while the list stays open does not un-clamp it back off-screen', async () => {
@@ -460,6 +461,56 @@ describe('LocationSetup dropdown edge clamping', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(list.style.left).toBe('-208px') // still clamped, not un-clamped back to 0
+  })
+
+  it('owns a viewport-derived height, scrolls the active descendant, and converges on resize without shift drift', async () => {
+    const originalInnerHeight = window.innerHeight
+    Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
+    const scrollIntoView = vi.fn()
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView })
+    rectSpy.mockImplementation(function (this: HTMLUListElement) {
+      const appliedLeft = parseFloat(this.style.left || '0') || 0
+      const appliedTop = Number(this.style.transform.match(/translateY\((-?\d+)px\)/)?.[1] ?? 0)
+      const baseLeft = 400
+      const baseTop = 150
+      const width = 300
+      const height = 164
+      return {
+        left: baseLeft + appliedLeft,
+        right: baseLeft + width + appliedLeft,
+        width,
+        height,
+        top: baseTop + appliedTop,
+        bottom: baseTop + height + appliedTop,
+        x: baseLeft + appliedLeft,
+        y: baseTop + appliedTop,
+        toJSON() {},
+      } as DOMRect
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ results: [dallasTX, dallasGA] })))
+    const { input } = await renderSetup()
+    fireEvent.change(input, { target: { value: 'Dallas' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+    const list = screen.getByRole('listbox')
+
+    expect(list.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
+    expect(list.style.left).toBe('-208px')
+    expect(list.style.transform).toBe('translateY(-142px)')
+
+    input.focus()
+    fireEvent.keyDown(input, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(input)
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' })
+
+    await act(async () => {
+      fireEvent(window, new Event('resize'))
+      await vi.advanceTimersByTimeAsync(20)
+    })
+    expect(list.style.left).toBe('-208px')
+    expect(list.style.transform).toBe('translateY(-142px)')
+    Object.defineProperty(window, 'innerHeight', { value: originalInnerHeight, configurable: true })
   })
 })
 
