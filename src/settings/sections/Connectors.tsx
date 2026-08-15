@@ -1,4 +1,4 @@
-import { useState, type ComponentType } from 'react'
+import { useRef, useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
@@ -1925,6 +1925,11 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
   const [pickerStates, setPickerStates] = useState<HaState[]>([])
   const [pickerLoading, setPickerLoading] = useState(false)
   const [pickerError, setPickerError] = useState<string | null>(null)
+  const chooseEntitiesRef = useRef<HTMLButtonElement>(null)
+
+  function closePicker() {
+    setPickerOpen(false)
+  }
 
   // THE PACT's settings-side write (this function's doc comment has the full
   // rationale): rebuilds the config from prev's OWN current entry — never
@@ -2040,6 +2045,7 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
                 : `${entities.length} chips · ${actions.length} actions`}
             </p>
             <button
+              ref={chooseEntitiesRef}
               type="button"
               onClick={() => void handleChooseEntities()}
               disabled={pickerLoading}
@@ -2060,9 +2066,10 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
               states={pickerStates}
               entities={entities}
               actions={actions}
-              onCancel={() => setPickerOpen(false)}
+              restoreFocusRef={chooseEntitiesRef}
+              onCancel={closePicker}
               onSave={(nextEntities, nextActions) => {
-                setPickerOpen(false)
+                closePicker()
                 void handleSaveEntities(nextEntities, nextActions)
               }}
             />

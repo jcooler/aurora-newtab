@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../lib/dialogStack'
 import { useFocusTrap } from '../../lib/hooks/useFocusTrap'
@@ -84,6 +84,7 @@ export default function EntityPickerDialog({
   actions,
   onCancel,
   onSave,
+  restoreFocusRef,
 }: {
   open: boolean
   states: HaState[]
@@ -91,8 +92,10 @@ export default function EntityPickerDialog({
   actions: HaAction[]
   onCancel: () => void
   onSave: (entities: HaEntityRef[], actions: HaAction[]) => void
+  restoreFocusRef?: RefObject<HTMLElement | null>
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const wasOpenRef = useRef(false)
   const idPrefix = useId()
   const dialogHeadingId = `${idPrefix}-heading`
   const instructionsId = `${idPrefix}-instructions`
@@ -105,6 +108,23 @@ export default function EntityPickerDialog({
 
   useFocusTrap(dialogRef, open)
   useDialogEscape(onCancel, open)
+
+  // Fetch-first callers can temporarily disable their invoker before this
+  // dialog mounts, which lets the browser move focus to BODY before the
+  // shared trap snapshots it. Keep the real caller-owned trigger explicit
+  // and restore it only after the trap's open -> closed cleanup has run.
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true
+      return
+    }
+    if (!wasOpenRef.current) return
+    wasOpenRef.current = false
+    const target = restoreFocusRef?.current
+    if (target?.isConnected && !target.hasAttribute('disabled') && target.closest('[inert]') === null) {
+      target.focus()
+    }
+  }, [open, restoreFocusRef])
 
   // Reseed on every false->true (or already-true-at-mount) transition only —
   // see the doc comment above for why entities/actions themselves aren't in

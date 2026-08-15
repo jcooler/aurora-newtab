@@ -5498,6 +5498,65 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     expect(screen.getByRole('button', { name: 'Choose entities' })).toBeTruthy()
   })
 
+  it('restores the real Choose entities trigger after async loading loses focus on every picker close path', async () => {
+    await renderWithHa(CONNECTED_HA)
+
+    async function openAfterHeldFetchLosesFocus() {
+      let resolveFetch!: (value: HaState[] | null) => void
+      vi.mocked(fetchAllStates).mockImplementationOnce(
+        () => new Promise((resolve) => {
+          resolveFetch = resolve
+        }),
+      )
+
+      const trigger = screen.getByRole('button', { name: 'Choose entities' }) as HTMLButtonElement
+      trigger.focus()
+      act(() => {
+        fireEvent.click(trigger)
+      })
+
+      const loading = screen.getByRole('button', { name: /Loading/ }) as HTMLButtonElement
+      expect(loading).toBe(trigger)
+      expect(loading.disabled).toBe(true)
+      document.body.tabIndex = -1
+      document.body.focus()
+      document.body.removeAttribute('tabindex')
+      expect(document.activeElement).toBe(document.body)
+
+      await act(async () => {
+        resolveFetch([KITCHEN_LIGHT, OFFICE_SWITCH])
+      })
+      expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search entities' }))
+      return trigger
+    }
+
+    async function expectRestored(trigger: HTMLButtonElement) {
+      await act(async () => {})
+      expect(screen.queryByRole('dialog', { name: 'Pick entities' })).toBeNull()
+      const currentTrigger = screen.getByRole('button', { name: 'Choose entities' })
+      expect(currentTrigger).toBe(trigger)
+      expect(document.body.contains(currentTrigger)).toBe(true)
+      expect(document.activeElement).toBe(currentTrigger)
+    }
+
+    let trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    const picker = screen.getByRole('dialog', { name: 'Pick entities' })
+    fireEvent.click(picker.parentElement?.previousElementSibling as HTMLElement)
+    await expectRestored(trigger)
+
+    trigger = await openAfterHeldFetchLosesFocus()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await expectRestored(trigger)
+  })
+
   it('a failed fetch (null) shows the inline alert verbatim and does NOT open the dialog', async () => {
     vi.mocked(fetchAllStates).mockResolvedValue(null)
     await renderWithHa(CONNECTED_HA)

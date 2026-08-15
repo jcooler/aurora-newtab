@@ -17430,7 +17430,11 @@ await page.waitForTimeout(150)
   const axEvidence = {}
   const targetMeasurements = []
   const evidencePage = await context.newPage()
-  const touchedKeys = ['settings', 'focus', 'links', 'connectors', 'connectorSnapshots']
+  const touchedKeys = [
+    'settings', 'focus', 'todoLists', 'links', 'timerConfig', 'photoPrefs',
+    'location', 'weatherCache', 'notes', 'worldClocks', 'countdowns', 'layout',
+    'connectors', 'connectorSnapshots', 'habits', 'apodCache',
+  ]
   let originalTouched = null
 
   const step = async (name, fn) => {
@@ -17470,17 +17474,56 @@ await page.waitForTimeout(150)
     const session = await context.newCDPSession(evidencePage)
     try {
       const { nodes } = await session.send('Accessibility.getFullAXTree')
+      const byId = new Map(nodes.map((node) => [node.nodeId, node]))
+      const textIn = (node, expected, seen = new Set()) => {
+        if (!node || seen.has(node.nodeId)) return false
+        seen.add(node.nodeId)
+        if ((node.name?.value ?? '').toLocaleLowerCase() === expected.toLocaleLowerCase()) return true
+        return (node.childIds ?? []).some((id) => textIn(byId.get(id), expected, seen))
+      }
       return nodes.flatMap((node) => {
         const role = node.role?.value ?? null
         const name = node.name?.value ?? ''
         const description = node.description?.value ?? null
-        if (!needles.some((needle) => name.includes(needle) || description?.includes(needle))) return []
+        const matchedText = needles.find((needle) => name.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) ||
+          description?.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) || textIn(node, needle))
+        if (!matchedText) return []
         const property = (key) => node.properties?.find((item) => item.name === key)?.value?.value ?? null
-        return [{ role, name, description, focused: property('focused'), disabled: property('disabled'), busy: property('busy') }]
+        return [{ role, name, description, text: matchedText, focused: property('focused'), disabled: property('disabled'), busy: property('busy') }]
       })
     } finally {
       await session.detach()
     }
+  }
+  const waitForVisualStability = async (selector) => {
+    const sample = () => evidencePage.evaluate((value) => {
+      const element = document.querySelector(value)
+      if (!(element instanceof HTMLElement)) return null
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return {
+        display: style.display,
+        visibility: style.visibility,
+        opacity: Number(style.opacity),
+        rect: [rect.x, rect.y, rect.width, rect.height].map((part) => +part.toFixed(2)),
+      }
+    }, selector)
+    await evidencePage.waitForFunction((value) => {
+      const element = document.querySelector(value)
+      if (!(element instanceof HTMLElement)) return false
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility === 'visible' && Number(style.opacity) >= 0.999 &&
+        rect.width > 0 && rect.height > 0
+    }, selector, { timeout: 5_000 })
+    const before = await sample()
+    await evidencePage.waitForTimeout(240)
+    const after = await sample()
+    if (!before || !after || after.opacity < 0.999 || after.visibility !== 'visible' || after.display === 'none' ||
+        before.rect.some((value, index) => Math.abs(value - after.rect[index]) > 0.25)) {
+      throw new Error(`visual state did not stabilize for ${selector}: ${JSON.stringify({ before, after })}`)
+    }
+    return after
   }
 
   await context.route('https://w2-p2-home.example.test/**', async (route) => {
@@ -17732,10 +17775,12 @@ await page.waitForTimeout(150)
     })
     const calendarAxText = JSON.stringify(axEvidence.calendar)
     await evidencePage.setViewportSize({ width: 1600, height: 900 })
+    const calendarVisual1600 = await waitForVisualStability('section[aria-label="Calendar"]')
     await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-1600x900.png` })
     await evidencePage.setViewportSize({ width: 2560, height: 1440 })
+    const calendarVisual2560 = await waitForVisualStability('section[aria-label="Calendar"]')
     await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-2560x1440.png` })
-    details.calendar = calendarState
+    details.calendar = { ...calendarState, visualStability: { at1600: calendarVisual1600, at2560: calendarVisual2560 } }
     checks.calendar = calendarState !== null && calendarState.headlineProgrammatic.includes('Opening sync') &&
       calendarState.exactSources.headlinePersonal === 1 && calendarState.rowProgrammatic.length === 2 &&
       calendarState.rowProgrammatic.every((text) => text.includes('Duplicate review')) &&
@@ -17816,19 +17861,19 @@ await page.waitForTimeout(150)
       }
     })
     const haTargets = await measureTargets('home-assistant', [
-      { label: 'search', selector: '[role="dialog"] input[type="search"]', target: 'self' },
-      { label: 'show', selector: '[role="dialog"] input[type="checkbox"]', nameIncludes: 'Show', target: 'label' },
-      { label: 'action', selector: '[role="dialog"] input[type="checkbox"]', nameIncludes: 'Action', target: 'label' },
-      { label: 'cancel', selector: '[role="dialog"] button', text: 'Cancel', target: 'self' },
-      { label: 'save', selector: '[role="dialog"] button', text: 'Save', target: 'self' },
+      { label: 'search', selector: '[role="dialog"][aria-labelledby] input[type="search"]', target: 'self' },
+      { label: 'show', selector: '[role="dialog"][aria-labelledby] input[type="checkbox"]', nameIncludes: 'Show', target: 'label' },
+      { label: 'action', selector: '[role="dialog"][aria-labelledby] input[type="checkbox"]', nameIncludes: 'Action', target: 'label' },
+      { label: 'cancel', selector: '[role="dialog"][aria-labelledby] button', text: 'Cancel', target: 'self' },
+      { label: 'save', selector: '[role="dialog"][aria-labelledby] button', text: 'Save', target: 'self' },
     ])
     axEvidence.homeAssistant = await readAx([
       'Pick entities', 'Sensor', 'Switch', 'Kitchen temperature', 'sensor.kitchen_temperature',
       'Porch switch', 'switch.porch', 'Show', 'Action',
     ])
     const haAxCount = (role, terms) => axEvidence.homeAssistant.filter((entry) => {
-      const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`
-      return entry.role === role && terms.every((term) => exposed.includes(term))
+      const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`.toLocaleLowerCase()
+      return entry.role === role && terms.every((term) => exposed.includes(term.toLocaleLowerCase()))
     }).length
     const haAxText = JSON.stringify(axEvidence.homeAssistant)
     await evidencePage.setViewportSize({ width: 800, height: 600 })
@@ -17880,6 +17925,12 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('button', { name: 'Open settings' }).click()
     await evidencePage.locator('[role="dialog"][aria-label="Settings"]:not([inert])').waitFor()
     await openTab('Data')
+    await evidencePage.evaluate(async () => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await globalThis.__auroraSetHarnessStorage({
+        connectors: { ...connectors, ics: { enabled: false }, homeassistant: { enabled: false } },
+      })
+    })
     const [download] = await Promise.all([
       evidencePage.waitForEvent('download', { timeout: 10_000 }),
       evidencePage.getByRole('button', { name: 'Export', exact: true }).click(),
@@ -17888,47 +17939,125 @@ await page.waitForTimeout(150)
     const chunks = []
     for await (const chunk of stream) chunks.push(chunk)
     const exportedText = Buffer.concat(chunks).toString('utf8')
-    await evidencePage.getByRole('status').filter({ hasText: 'Backup downloaded.' }).waitFor({ timeout: 2_000 }).catch(() => {})
+    await evidencePage.getByRole('status').filter({ hasText: 'Backup downloaded.' }).waitFor({ timeout: 2_000 })
+    const exportStatus = await evidencePage.evaluate(() => {
+      const section = document.querySelector('section[aria-label="Data"]')
+      const status = section?.querySelector('[role="status"]')
+      const button = [...(section?.querySelectorAll('button') ?? [])].find((candidate) => candidate.textContent?.trim() === 'Export')
+      return {
+        text: status?.textContent ?? null,
+        live: status?.getAttribute('aria-live') ?? null,
+        atomic: status?.getAttribute('aria-atomic') ?? null,
+        statusId: status?.id ?? null,
+        describedBy: button?.getAttribute('aria-describedby') ?? null,
+      }
+    })
+    axEvidence.dataExport = await readAx(['Backup downloaded.', 'Export'])
     const importInput = evidencePage.locator('#set-import')
     await importInput.setInputFiles({ name: 'invalid-w2-p2.json', mimeType: 'application/json', buffer: Buffer.from('{') })
-    await evidencePage.getByRole('alert').waitFor({ timeout: 2_000 }).catch(() => {})
+    await evidencePage.getByRole('alert').waitFor({ timeout: 2_000 })
     const invalid = await evidencePage.evaluate(() => {
       const input = document.querySelector('#set-import')
       const alert = document.querySelector('section[aria-label="Data"] [role="alert"]')
       return {
+        text: alert?.textContent ?? null,
         alertCount: document.querySelectorAll('section[aria-label="Data"] [role="alert"]').length,
         describedBy: input?.getAttribute('aria-describedby') ?? null,
         alertId: alert?.id ?? null,
         atomic: alert?.getAttribute('aria-atomic') ?? null,
       }
     })
+    axEvidence.dataInvalid = await readAx([invalid.text ?? '', 'Import backup'])
     await importInput.setInputFiles({ name: 'valid-w2-p2.json', mimeType: 'application/json', buffer: Buffer.from(exportedText) })
-    await evidencePage.getByRole('button', { name: 'Confirm restore', exact: true }).waitFor({ timeout: 3_000 })
+    const confirmRestore = evidencePage.getByRole('button', { name: 'Confirm restore', exact: true })
+    await confirmRestore.waitFor({ timeout: 3_000 })
+    const confirmation = await evidencePage.evaluate(() => {
+      const section = document.querySelector('section[aria-label="Data"]')
+      return {
+        summary: [...(section?.querySelectorAll('p') ?? [])].find((node) => node.textContent?.startsWith('Replace current data?'))?.textContent ?? null,
+        confirmPresent: [...(section?.querySelectorAll('button') ?? [])].some((node) => node.textContent?.trim() === 'Confirm restore'),
+        cancelPresent: [...(section?.querySelectorAll('button') ?? [])].some((node) => node.textContent?.trim() === 'Cancel'),
+      }
+    })
+    axEvidence.dataConfirmation = await readAx(['Replace current data?', 'Confirm restore', 'Cancel'])
     const dataTargets = await measureTargets('data', [
       { label: 'export', selector: 'section[aria-label="Data"] button', target: 'self' },
       { label: 'import', selector: '#set-import', target: 'self' },
       { label: 'confirm', selector: 'section[aria-label="Data"] button', text: 'Confirm restore', target: 'self' },
       { label: 'cancel', selector: 'section[aria-label="Data"] button', text: 'Cancel', target: 'self' },
     ])
-    const status = await evidencePage.evaluate(() => {
-      const node = [...document.querySelectorAll('section[aria-label="Data"] [role="status"]')]
-        .find((candidate) => candidate.textContent === 'Backup downloaded.')
-      return { found: !!node, live: node?.getAttribute('aria-live') ?? null, atomic: node?.getAttribute('aria-atomic') ?? null }
+    await evidencePage.evaluate((lockName) => {
+      globalThis.__w2P2StorageLockReady = false
+      globalThis.__w2P2ReleaseStorageLock = null
+      void navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+        await new Promise((resolve) => {
+          globalThis.__w2P2ReleaseStorageLock = resolve
+          globalThis.__w2P2StorageLockReady = true
+        })
+      })
+    }, 'aurora:storage:mutation:v1')
+    await evidencePage.waitForFunction(() => globalThis.__w2P2StorageLockReady === true)
+    await confirmRestore.click()
+    await evidencePage.getByRole('button', { name: 'Restoring...', exact: true }).waitFor({ timeout: 3_000 })
+    const pending = await evidencePage.evaluate(() => {
+      const section = document.querySelector('section[aria-label="Data"]')
+      const status = section?.querySelector('[role="status"]')
+      const byText = (text) => [...(section?.querySelectorAll('button') ?? [])].find((node) => node.textContent?.trim() === text)
+      const confirm = byText('Restoring...')
+      const cancel = byText('Cancel')
+      const exportButton = byText('Export')
+      const importInput = section?.querySelector('#set-import')
+      return {
+        statusText: status?.textContent ?? null,
+        statusId: status?.id ?? null,
+        live: status?.getAttribute('aria-live') ?? null,
+        atomic: status?.getAttribute('aria-atomic') ?? null,
+        confirmBusy: confirm?.getAttribute('aria-busy') ?? null,
+        confirmDisabled: confirm?.hasAttribute('disabled') ?? false,
+        confirmDescribedBy: confirm?.getAttribute('aria-describedby') ?? null,
+        cancelDisabled: cancel?.hasAttribute('disabled') ?? false,
+        cancelDescribedBy: cancel?.getAttribute('aria-describedby') ?? null,
+        exportDisabled: exportButton?.hasAttribute('disabled') ?? false,
+        importDisabled: importInput?.hasAttribute('disabled') ?? false,
+      }
     })
-    axEvidence.data = await readAx(['Backup downloaded.', 'Confirm restore', 'Cancel'])
+    axEvidence.dataPending = await readAx([pending.statusText ?? '', 'Restoring...', 'Cancel', 'Export', 'Import backup'])
     await evidencePage.screenshot({ path: `${outDir}/w2-p2-data-feedback-2560x1440.png` })
+    await evidencePage.evaluate(() => globalThis.__w2P2ReleaseStorageLock?.())
+    await evidencePage.getByRole('status').filter({ hasText: 'Backup restored.' }).waitFor({ timeout: 10_000 })
     await evidencePage.keyboard.press('Escape')
     await evidencePage.waitForTimeout(400)
     const restored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
-    details.data = { download: download.suggestedFilename(), status, invalid, restored }
-    checks.data = download.suggestedFilename().startsWith('aurora-backup-') && status.found &&
-      status.live === 'polite' && status.atomic === 'true' && invalid.alertCount === 1 &&
-      invalid.describedBy === invalid.alertId && invalid.atomic === 'true' && restored
+    const axHas = (entries, role, name, properties = {}) => entries.some((entry) =>
+      entry.role === role && `${entry.name} ${entry.text ?? ''}`.includes(name) &&
+      Object.entries(properties).every(([key, value]) => entry[key] === value))
+    details.data = { download: download.suggestedFilename(), exportStatus, invalid, confirmation, pending, restored }
+    checks.data = download.suggestedFilename().startsWith('aurora-backup-') &&
+      exportStatus.text === 'Backup downloaded.' && exportStatus.live === 'polite' && exportStatus.atomic === 'true' &&
+      exportStatus.describedBy === exportStatus.statusId &&
+      axHas(axEvidence.dataExport, 'status', 'Backup downloaded.') &&
+      axEvidence.dataExport.some((entry) => entry.role === 'button' && entry.name === 'Export' && entry.description?.includes('Backup downloaded.')) &&
+      invalid.alertCount === 1 && !!invalid.text && invalid.describedBy === invalid.alertId && invalid.atomic === 'true' &&
+      axHas(axEvidence.dataInvalid, 'alert', invalid.text) &&
+      axEvidence.dataInvalid.some((entry) => entry.name.includes('Import backup') && entry.description?.includes(invalid.text)) &&
+      confirmation.summary?.startsWith('Replace current data?') && confirmation.confirmPresent && confirmation.cancelPresent &&
+      axHas(axEvidence.dataConfirmation, 'button', 'Confirm restore') && axHas(axEvidence.dataConfirmation, 'button', 'Cancel') &&
+      pending.statusText?.includes('Restoring backup') && pending.live === 'polite' && pending.atomic === 'true' &&
+      pending.confirmBusy === 'true' && pending.confirmDisabled && pending.confirmDescribedBy === pending.statusId &&
+      pending.cancelDisabled && pending.cancelDescribedBy === pending.statusId && pending.exportDisabled && pending.importDisabled &&
+      axHas(axEvidence.dataPending, 'status', 'Restoring backup') &&
+      axHas(axEvidence.dataPending, 'button', 'Restoring...', { busy: 1, disabled: true }) &&
+      axEvidence.dataPending.some((entry) => entry.role === 'button' && entry.name === 'Restoring...' && entry.description?.includes('Restoring backup')) &&
+      axEvidence.dataPending.some((entry) => entry.role === 'button' && entry.name === 'Cancel' && entry.disabled === true && entry.description?.includes('Restoring backup')) &&
+      restored
     details.dataTargets = dataTargets
   })
 
   await step('restore', async () => {
-    if (originalTouched) await evidencePage.evaluate((snapshot) => chrome.storage.local.set(snapshot), originalTouched)
+    if (originalTouched) await evidencePage.evaluate(async ({ keys, snapshot }) => {
+      await chrome.storage.local.remove(keys)
+      await chrome.storage.local.set(snapshot)
+    }, { keys: touchedKeys, snapshot: originalTouched })
   })
   await evidencePage.close()
 
