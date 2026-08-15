@@ -118,7 +118,7 @@ export default function General({
                 input lets the swatch carry the focus ring. */}
             <label
               htmlFor="set-panel-color"
-              className="relative inline-flex size-7 cursor-pointer items-center justify-center rounded-full"
+              className="relative inline-flex size-7 cursor-pointer items-center justify-center rounded-full max-[420px]:size-9"
             >
               <input
                 ref={colorInputRef}
@@ -142,7 +142,7 @@ export default function General({
                 type="button"
                 aria-label="Reset widget color"
                 onClick={resetColor}
-                className="rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+                className="rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none max-[420px]:min-h-9 max-[420px]:min-w-9"
               >
                 Reset
               </button>

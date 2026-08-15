@@ -208,7 +208,7 @@ export default function Background({
                 void handleAddUploads(files)
               }}
               aria-describedby={galleryError ? 'bg-gallery-error' : undefined}
-              className="max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
+              className="min-w-0 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover max-[420px]:min-h-9 max-[420px]:w-full max-[420px]:max-w-full"
             />
           </div>
           {uploads.length > 0 && (
@@ -234,7 +234,7 @@ export default function Background({
                       type="button"
                       aria-label={`Remove photo ${i + 1}`}
                       onClick={() => void handleRemoveUpload(u.key)}
-                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                      className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-panel text-[10px] leading-none text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:-right-2 max-[420px]:-top-2 max-[420px]:size-9"
                     >
                       ✕
                     </button>

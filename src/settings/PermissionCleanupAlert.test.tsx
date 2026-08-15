@@ -25,4 +25,17 @@ describe('PermissionCleanupAlert', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry permission cleanup' }))
     expect(onRetry).toHaveBeenCalledOnce()
   })
+
+  it('keeps the narrow recovery action at least 36px in both dimensions', () => {
+    render(
+      <PermissionCleanupAlert
+        pendingPatterns={['https://stuck.example.com/*']}
+        onRetry={() => {}}
+        retrying={false}
+      />,
+    )
+    const retry = screen.getByRole('button', { name: 'Retry permission cleanup' })
+    expect(retry.className).toContain('max-[420px]:min-h-9')
+    expect(retry.className).toContain('max-[420px]:min-w-9')
+  })
 })

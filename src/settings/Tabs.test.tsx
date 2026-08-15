@@ -50,6 +50,32 @@ function tablist() {
 }
 
 describe('Tabs (ARIA tabs pattern)', () => {
+  it('reflows both free three-tab and premium four-tab sets as a bounded narrow grid with 36px targets', () => {
+    const { rerender } = render(<Host />)
+    const assertNarrowGrid = (expected: number) => {
+      expect(tablist().className).toContain('max-[420px]:grid')
+      expect(tablist().className).toContain('max-[420px]:grid-cols-2')
+      expect(screen.getAllByRole('tab')).toHaveLength(expected)
+      for (const item of screen.getAllByRole('tab')) {
+        expect(item.className).toContain('max-[420px]:min-h-9')
+        expect(item.className).toContain('max-[420px]:min-w-9')
+        expect(item.className).toContain('max-[420px]:w-full')
+      }
+    }
+
+    assertNarrowGrid(3)
+    rerender(
+      <Tabs
+        tabs={[...TABS, { id: 'connectors' as Id, label: 'Connectors' }]}
+        active="general"
+        onChange={() => {}}
+      >
+        <p>general content</p>
+      </Tabs>,
+    )
+    assertNarrowGrid(4)
+  })
+
   it('renders one tab per entry; only the active one is selected and a tab stop', () => {
     render(<Host />)
 

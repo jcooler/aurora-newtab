@@ -1607,12 +1607,13 @@ async function readControlStyles() {
       }
       return null
     }
-    const track = document.querySelector('#set-24h')
+    const switchControl = document.querySelector('#set-24h')
+    const track = switchControl?.querySelector('[data-switch-track]') ?? switchControl
     const input = document.querySelector('#set-name')
     return {
       trackBg: track ? parse(getComputedStyle(track).backgroundColor) : null,
       inputBorder: input ? parse(getComputedStyle(input).borderTopColor) : null,
-      switchCursor: track ? getComputedStyle(track).cursor : null,
+      switchCursor: switchControl ? getComputedStyle(switchControl).cursor : null,
     }
   })
 }
@@ -18239,6 +18240,1037 @@ await page.waitForTimeout(150)
       ? `PASS: ${aggregateName}`
       : `FAIL: ${aggregateName}`,
   )
+}
+
+// W2-P3 packet aggregate. The complete probe is deliberately frozen before
+// any W2-P3 production edit. It owns one disposable extension page, restores
+// every touched storage key, and reports one result so a surface failure cannot
+// contaminate the rest of the foreground harness or manufacture extra FAILs.
+{
+  const aggregateName = 'W2-P3 settings and tool reflow semantics'
+  const evidencePage = await context.newPage()
+  const touchedKeys = [
+    'settings', 'todoLists', 'links', 'timerConfig', 'photoPrefs', 'location',
+    'weatherCache', 'notes', 'worldClocks', 'countdowns', 'layout', 'connectors',
+    'connectorSnapshots', 'habits', 'apodCache',
+  ]
+  const observations = { checks: {}, errors: [], captures: [] }
+  const connectorFixturePatterns = [
+    'https://api.github.com/**',
+    'https://gitlab.com/**',
+    'https://yoursite.atlassian.net/**',
+    'https://api.vercel.com/**',
+    'https://api.coingecko.com/**',
+    'https://w2-p3-status.example.test/**',
+  ]
+  const abortConnectorFixtureRequest = (route) => route.abort()
+  let originalTouched = null
+  let originalPermissionHarnessFlag = null
+  let fixtureBookmarkFolderId = null
+  let uploadBackupReady = false
+
+  const recordError = (name, error) => {
+    observations.errors.push({ name, error: error instanceof Error ? error.message : String(error) })
+  }
+  const capture = async (name) => {
+    await evidencePage.screenshot({ path: `${outDir}/${name}.png` })
+    observations.captures.push(name)
+  }
+  const activeSettings = () => evidencePage.locator('[role="dialog"][aria-label="Settings"]:not([inert])')
+  const openSettings = async () => {
+    if (await activeSettings().count()) return
+    await evidencePage.getByRole('button', { name: 'Open settings', exact: true }).click()
+    await activeSettings().waitFor({ timeout: 5_000 })
+  }
+  const closeSettings = async () => {
+    if (!(await activeSettings().count())) return
+    await evidencePage.getByRole('button', { name: 'Close settings', exact: true }).click()
+    await evidencePage.waitForTimeout(180)
+  }
+  const openTab = async (name) => {
+    await evidencePage.getByRole('tab', { name, exact: true }).click()
+    await evidencePage.getByRole('tab', { name, exact: true }).waitFor()
+    await evidencePage.waitForTimeout(120)
+  }
+  const readSurface = async (selector, gutter = 0) => evidencePage.evaluate(({ selector, gutter }) => {
+    const element = document.querySelector(selector)
+    if (!(element instanceof HTMLElement)) return { found: false, selector }
+    const rect = element.getBoundingClientRect()
+    const style = getComputedStyle(element)
+    const visible = (node) => {
+      if (!(node instanceof HTMLElement)) return false
+      const nodeStyle = getComputedStyle(node)
+      const nodeRect = node.getBoundingClientRect()
+      return nodeStyle.display !== 'none' && nodeStyle.visibility !== 'hidden' && nodeRect.width > 0 && nodeRect.height > 0
+    }
+    const controls = [...element.querySelectorAll('button, input, select, textarea, a[href], [role="option"], [role="menuitem"]')].flatMap((control) => {
+      if (!(control instanceof HTMLElement)) return []
+      let target = control
+      if (control.matches('input.sr-only, input[type="checkbox"], input[type="radio"]')) {
+        const label = control.id ? element.querySelector(`label[for="${CSS.escape(control.id)}"]`) : control.closest('label')
+        if (label instanceof HTMLElement) target = label
+      }
+      if (!visible(target)) return []
+      const targetRect = target.getBoundingClientRect()
+      return [{
+        name: control.getAttribute('aria-label') || control.textContent?.trim() || control.getAttribute('placeholder') || control.id || control.tagName,
+        width: +targetRect.width.toFixed(1), height: +targetRect.height.toFixed(1),
+      }]
+    })
+    const verticalScrollports = [element, ...element.querySelectorAll('*')].filter((node) => {
+      if (!(node instanceof HTMLElement)) return false
+      const overflowY = getComputedStyle(node).overflowY
+      return /(auto|scroll)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1
+    }).length
+    return {
+      found: true,
+      selector,
+      rect: {
+        left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+        right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+        width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+      },
+      viewport: { width: innerWidth, height: innerHeight },
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      scrollHeight: element.scrollHeight,
+      clientHeight: element.clientHeight,
+      overflowX: style.overflowX,
+      overflowY: style.overflowY,
+      verticalScrollports,
+      controls,
+      allTargets: controls.length > 0 && controls.every((control) => control.width >= 36 && control.height >= 36),
+      pageContained: document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1,
+      horizontallyContained: element.scrollWidth <= element.clientWidth + 1,
+      inset: rect.left >= gutter - 1 && rect.right <= innerWidth - gutter + 1 &&
+        rect.top >= gutter - 1 && rect.bottom <= innerHeight - gutter + 1,
+    }
+  }, { selector, gutter })
+  const readSettingsTargets = async (tabName) => evidencePage.evaluate((tabName) => {
+    const drawer = document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])')
+    if (!(drawer instanceof HTMLElement)) return { tabName, found: false, controls: [] }
+    const visible = (element) => {
+      if (!(element instanceof HTMLElement)) return false
+      const style = getComputedStyle(element)
+      const rect = element.getBoundingClientRect()
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+    }
+    const controls = [...drawer.querySelectorAll('button, input, select, textarea, a[href]')].flatMap((control) => {
+      if (!(control instanceof HTMLElement)) return []
+      let target = control
+      if (control.matches('input.sr-only, input[type="checkbox"], input[type="radio"]')) {
+        const id = control.id
+        const label = id ? drawer.querySelector(`label[for="${CSS.escape(id)}"]`) : control.closest('label')
+        if (label instanceof HTMLElement) target = label
+      }
+      if (!visible(target)) return []
+      const rect = target.getBoundingClientRect()
+      return [{
+        name: control.getAttribute('aria-label') || control.textContent?.trim() || control.getAttribute('placeholder') || control.id || control.tagName,
+        width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+      }]
+    })
+    const rect = drawer.getBoundingClientRect()
+    return {
+      tabName,
+      found: true,
+      drawer: {
+        width: +rect.width.toFixed(1), clientWidth: drawer.clientWidth, scrollWidth: drawer.scrollWidth,
+        verticalScrollports: [drawer, ...drawer.querySelectorAll('*')].filter((node) => {
+          if (!(node instanceof HTMLElement)) return false
+          const overflowY = getComputedStyle(node).overflowY
+          return /(auto|scroll)/.test(overflowY) && node.scrollHeight > node.clientHeight + 1
+        }).length,
+      },
+      pageContained: document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1,
+      contained: drawer.scrollWidth <= drawer.clientWidth + 1,
+      controls,
+      allTargets: controls.length > 0 && controls.every((control) => control.width >= 36 && control.height >= 36),
+    }
+  }, tabName)
+  // Reachability must come from the browser's real sequential-focus algorithm.
+  // The old probe called focus()/scrollIntoView() itself, which could make an
+  // unreachable control look reachable. Markers below identify the expected
+  // endpoints only; every focus transition and scroll is caused by Tab or
+  // Shift+Tab.
+  const tabReachability = async (selector, { trap = true } = {}) => {
+    const inventory = await evidencePage.evaluate((selector) => {
+      const owner = document.querySelector(selector)
+      if (!(owner instanceof HTMLElement)) return { found: false, count: 0 }
+      const visible = (node) => {
+        if (!(node instanceof HTMLElement)) return false
+        const style = getComputedStyle(node)
+        const rect = node.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const items = [...owner.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]')]
+        .filter((node) => node instanceof HTMLElement && visible(node) && node.tabIndex >= 0)
+      return { found: items.length > 0, count: items.length }
+    }, selector)
+    if (!inventory.found) return { ...inventory, firstReached: false, lastReached: false }
+
+    const state = async () => evidencePage.evaluate((selector) => {
+      const owner = document.querySelector(selector)
+      const active = document.activeElement
+      if (!(owner instanceof HTMLElement) || !(active instanceof HTMLElement)) {
+        return { inside: false, isFirst: false, isLast: false, fullyVisible: false }
+      }
+      const visible = (node) => {
+        if (!(node instanceof HTMLElement)) return false
+        const style = getComputedStyle(node)
+        const rect = node.getBoundingClientRect()
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
+      }
+      const items = [...owner.querySelectorAll('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]')]
+        .filter((node) => node instanceof HTMLElement && visible(node) && node.tabIndex >= 0)
+      const activeIndex = items.indexOf(active)
+      const activeRect = active.getBoundingClientRect()
+      let fullyVisible = true
+      let current = active.parentElement
+      while (current && owner.contains(current)) {
+        const style = getComputedStyle(current)
+        if (/(auto|scroll|hidden|clip)/.test(`${style.overflowY} ${style.overflowX}`)) {
+          const rect = current.getBoundingClientRect()
+          fullyVisible &&= activeRect.top >= rect.top - 1 && activeRect.bottom <= rect.bottom + 1 &&
+            activeRect.left >= rect.left - 1 && activeRect.right <= rect.right + 1
+        }
+        if (current === owner) break
+        current = current.parentElement
+      }
+      const ownerRect = owner.getBoundingClientRect()
+      fullyVisible &&= activeRect.top >= ownerRect.top - 1 && activeRect.bottom <= ownerRect.bottom + 1 &&
+        activeRect.left >= ownerRect.left - 1 && activeRect.right <= ownerRect.right + 1
+      return {
+        inside: owner.contains(active),
+        isFirst: activeIndex === 0,
+        isLast: activeIndex === items.length - 1 && activeIndex >= 0,
+        fullyVisible,
+      }
+    }, selector)
+
+    let firstReached = false
+    let lastReached = false
+    let firstVisible = false
+    let lastVisible = false
+    let stayedInsideForward = true
+    let forwardWrap = false
+    // A tabpanel's endpoints share the drawer's modal sequence with the close
+    // control and tablist. Allow that fixed shell to be traversed too; the
+    // earlier count+2 ceiling could stop before a real endpoint on dense tabs.
+    const traversalLimit = inventory.count + 16
+    for (let index = 0; index < traversalLimit; index += 1) {
+      await evidencePage.keyboard.press('Tab')
+      const current = await state()
+      if (trap) stayedInsideForward &&= current.inside
+      if (current.isFirst) {
+        if (lastReached) forwardWrap = true
+        firstReached = true
+        firstVisible ||= current.fullyVisible
+      }
+      if (current.isLast) {
+        lastReached = true
+        lastVisible ||= current.fullyVisible
+      }
+    }
+
+    let stayedInsideBackward = true
+    let backwardWrap = false
+    for (let index = 0; index < traversalLimit; index += 1) {
+      await evidencePage.keyboard.press('Shift+Tab')
+      const current = await state()
+      if (trap) stayedInsideBackward &&= current.inside
+      if (current.isLast && firstReached) backwardWrap = true
+      if (current.isFirst) {
+        firstReached = true
+        firstVisible ||= current.fullyVisible
+      }
+      if (current.isLast) {
+        lastReached = true
+        lastVisible ||= current.fullyVisible
+      }
+    }
+    return {
+      found: true,
+      count: inventory.count,
+      firstReached,
+      lastReached,
+      firstVisible,
+      lastVisible,
+      stayedInsideForward,
+      stayedInsideBackward,
+      forwardWrap: trap ? forwardWrap : true,
+      backwardWrap: trap ? backwardWrap : true,
+    }
+  }
+  const tabReachabilityOk = (value) => value?.found && value.firstReached && value.lastReached &&
+    value.firstVisible && value.lastVisible && value.stayedInsideForward && value.stayedInsideBackward &&
+    value.forwardWrap && value.backwardWrap
+  const activeDescendantState = async (inputSelector, ownerSelector) => evidencePage.evaluate(({ inputSelector, ownerSelector }) => {
+    const input = document.querySelector(inputSelector)
+    const owner = document.querySelector(ownerSelector)
+    if (!(input instanceof HTMLElement) || !(owner instanceof HTMLElement)) return { found: false }
+    const id = input.getAttribute('aria-activedescendant')
+    const option = id ? document.getElementById(id) : null
+    if (!(option instanceof HTMLElement)) return { found: false, inputFocused: document.activeElement === input }
+    const rect = option.getBoundingClientRect()
+    const ownerRect = owner.getBoundingClientRect()
+    return {
+      found: true,
+      id,
+      inputFocused: document.activeElement === input,
+      visible: rect.top >= ownerRect.top - 1 && rect.bottom <= ownerRect.bottom + 1 &&
+        rect.left >= ownerRect.left - 1 && rect.right <= ownerRect.right + 1,
+    }
+  }, { inputSelector, ownerSelector })
+  const rectMatches = (actual, expected) => actual && Object.entries(expected)
+    .every(([key, value]) => Math.abs(actual[key] - value) <= 1)
+  const clickOutsideSurface = async (selector, { backdrop = false } = {}) => {
+    const point = await evidencePage.evaluate(({ selector, backdrop }) => {
+      const surface = document.querySelector(selector)
+      if (!(surface instanceof HTMLElement)) return null
+      const rect = surface.getBoundingClientRect()
+      const candidates = []
+      for (let y = 6; y < innerHeight; y += 18) {
+        for (let x = 6; x < innerWidth; x += 18) candidates.push({ x, y })
+      }
+      for (const candidate of candidates) {
+        if (candidate.x >= rect.left && candidate.x <= rect.right && candidate.y >= rect.top && candidate.y <= rect.bottom) continue
+        const target = document.elementFromPoint(candidate.x, candidate.y)
+        if (!(target instanceof HTMLElement) || surface.contains(target)) continue
+        const catcher = target.closest('[aria-hidden].fixed')
+        const interactive = target.closest('button, a[href], input, select, textarea, [role="option"], [role="tab"]')
+        if (backdrop ? !catcher : !!catcher || !!interactive) continue
+        return {
+          ...candidate,
+          target: target.tagName,
+          catcher: catcher instanceof HTMLElement,
+          inside: surface.contains(target),
+        }
+      }
+      return null
+    }, { selector, backdrop })
+    if (!point) throw new Error(`No genuine ${backdrop ? 'backdrop' : 'non-interactive'} outside pointer point for ${selector}`)
+    await evidencePage.mouse.click(point.x, point.y)
+    await evidencePage.waitForTimeout(50)
+    return point
+  }
+  const surfaceFocusState = async (selector) => evidencePage.evaluate((selector) => {
+    const surface = document.querySelector(selector)
+    const active = document.activeElement
+    return {
+      surfaceOpen: surface instanceof HTMLElement && !surface.hidden,
+      focusInside: surface instanceof HTMLElement && active instanceof HTMLElement && surface.contains(active),
+      focusKey: active instanceof HTMLElement
+        ? [active.tagName, active.id, active.getAttribute('aria-label') ?? '', active.textContent?.trim() ?? ''].join('|')
+        : '',
+    }
+  }, selector)
+
+  await context.route('https://w2-p3-home.example.test/**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (path === '/api/states') {
+      const entities = Array.from({ length: 14 }, (_, index) => ({
+        entity_id: `sensor.w2_p3_${index}`,
+        state: `${index}`,
+        attributes: { friendly_name: `Very long W2-P3 entity name ${index}` },
+      }))
+      await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(entities) })
+      return
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify({ message: 'API running.' }) })
+  })
+  for (const pattern of connectorFixturePatterns) {
+    await context.route(pattern, abortConnectorFixtureRequest)
+  }
+  await context.route('https://geocoding-api.open-meteo.com/**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify({ results: Array.from({ length: 12 }, (_, index) => ({
+        id: index + 1, name: `W2-P3 exceptionally long city result ${index}`,
+        latitude: 40 + index / 100, longitude: -73 - index / 100,
+        admin1: 'Long regional subdivision', country: 'Test country',
+      })) }),
+    })
+  })
+  await context.route('https://api.open-meteo.com/**', async (route) => {
+    const day = new Date().toISOString().slice(0, 10)
+    const times = Array.from({ length: 12 }, (_, index) => `${day}T${String(8 + index).padStart(2, '0')}:00`)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      headers: { 'access-control-allow-origin': '*' },
+      body: JSON.stringify({
+        current: {
+          temperature_2m: 18,
+          apparent_temperature: 17,
+          weather_code: 1,
+          wind_speed_10m: 8,
+          relative_humidity_2m: 55,
+          is_day: 1,
+        },
+        hourly: {
+          time: times,
+          temperature_2m: times.map(() => 18),
+          precipitation_probability: times.map(() => 0),
+          weather_code: times.map(() => 1),
+          is_day: times.map(() => 1),
+        },
+        daily: { sunrise: [`${day}T06:00`], sunset: [`${day}T20:00`] },
+      }),
+    })
+  })
+
+  try {
+    await evidencePage.goto('chrome://newtab/')
+    await evidencePage.waitForSelector('time', { timeout: 10_000 })
+    originalTouched = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    uploadBackupReady = await evidencePage.evaluate(async () => {
+      const request = (operation) => new Promise((resolve, reject) => {
+        operation.onsuccess = () => resolve(operation.result)
+        operation.onerror = () => reject(operation.error)
+      })
+      const open = (name, version, upgrade) => new Promise((resolve, reject) => {
+        const operation = indexedDB.open(name, version)
+        operation.onupgradeneeded = () => upgrade?.(operation.result)
+        operation.onsuccess = () => resolve(operation.result)
+        operation.onerror = () => reject(operation.error)
+      })
+      const source = await open('aurora', 2, (db) => {
+        if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos')
+      })
+      const backup = await open('aurora-w2-p3-upload-backup', 1, (db) => db.createObjectStore('photos'))
+      const sourceStore = source.transaction('photos', 'readonly').objectStore('photos')
+      const [keys, values] = await Promise.all([request(sourceStore.getAllKeys()), request(sourceStore.getAll())])
+      await new Promise((resolve, reject) => {
+        const transaction = backup.transaction('photos', 'readwrite')
+        const store = transaction.objectStore('photos')
+        store.clear()
+        keys.forEach((key, index) => store.put(values[index], key))
+        transaction.oncomplete = resolve
+        transaction.onerror = () => reject(transaction.error)
+      })
+      await new Promise((resolve, reject) => {
+        const transaction = source.transaction('photos', 'readwrite')
+        const store = transaction.objectStore('photos')
+        store.clear()
+        store.put({ blob: new Blob(['w2-p3-upload'], { type: 'image/png' }) }, 'photo:w2-p3-deterministic')
+        transaction.oncomplete = resolve
+        transaction.onerror = () => reject(transaction.error)
+      })
+      source.close()
+      backup.close()
+      return true
+    })
+    fixtureBookmarkFolderId = await evidencePage.evaluate(async () => {
+      if (!chrome.bookmarks) throw new Error('W2-P3 preview contract requires chrome.bookmarks')
+      const folder = await chrome.bookmarks.create({ parentId: '1', title: 'W2-P3 evidence folder' })
+      for (let index = 0; index < 12; index += 1) {
+        await chrome.bookmarks.create({
+          parentId: folder.id,
+          title: `W2-P3 long bookmark ${String(index + 1).padStart(2, '0')}`,
+          url: `https://example.com/w2-p3/${index + 1}`,
+        })
+      }
+      return folder.id
+    })
+    originalPermissionHarnessFlag = await evidencePage.evaluate((flagKey) => sessionStorage.getItem(flagKey), PERMISSIONS_HARNESS_FLAG)
+    await evidencePage.evaluate((flagKey) => {
+      sessionStorage.setItem(flagKey, JSON.stringify({ held: [] }))
+    }, PERMISSIONS_HARNESS_FLAG)
+    await evidencePage.evaluate(async () => {
+      const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+      await globalThis.__auroraSetHarnessStorage({
+        settings: {
+          ...settings,
+          name: 'A very long W2-P3 profile name',
+          panelColor: '#0a0a0a',
+          widgets: { ...settings.widgets, notes: true, todo: true, timer: true, weather: true, links: true, clocks: true, countdown: true, habits: true },
+        },
+        notes: { text: 'W2-P3 notes content\n'.repeat(18), updatedAt: Date.now() },
+        todoLists: [{ id: 'w2-p3-list', name: 'W2-P3 long task list', items: Array.from({ length: 12 }, (_, index) => ({ id: `w2-p3-item-${index}`, text: `Long task item ${index}`, done: index % 3 === 0 })) }],
+        timerConfig: { workMinutes: 25, breakMinutes: 5 },
+        photoPrefs: { mode: 'upload', index: 0, lastRotated: '', uploadedAt: '2026-08-15T00:00:00.000Z' },
+        worldClocks: [{ zone: 'America/Argentina/Buenos_Aires', label: 'Buenos Aires' }, { zone: 'Asia/Tokyo', label: 'Tokyo' }],
+        countdowns: [{ id: 'w2-p3-countdown', name: 'A very long countdown name', date: '2030-12-31' }],
+        habits: Array.from({ length: 6 }, (_, index) => ({
+          id: `w2-p3-habit-${index}`,
+          name: `Long habit ${index}`,
+          createdAt: Date.now() + index,
+          log: [],
+        })),
+        location: { lat: 40.7128, lon: -74.006, label: 'A very long W2-P3 weather location', manual: true },
+        weatherCache: null,
+        layout: {},
+        connectors: {
+          ...connectors,
+          github: { enabled: true },
+          gitlab: { enabled: true },
+          jira: { enabled: true },
+          vercel: { enabled: true },
+          status: { enabled: true, services: [{ name: 'W2-P3 cleanup target', url: 'https://w2-p3-status.example.test/api/v2/status.json' }] },
+          ics: { enabled: true, calendars: [] },
+          rss: { enabled: true, feeds: [], shownCount: 5 },
+          crypto: { enabled: true, coins: [] },
+          homeassistant: { enabled: true },
+        },
+        connectorSnapshots: {},
+      })
+    })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.waitForFunction(() => {
+      const control = globalThis.__auroraPermissionsHarnessControl
+      if (!control) return false
+      const listeners = control.snapshot().listeners
+      return listeners.added === 1 && listeners.removed === 1
+    }, undefined, { timeout: 5_000 })
+
+    // Settings: freeze all four tabs, every current section, exact narrow
+    // padding/sticky inverse, all visible targets, and three tall captures.
+    await evidencePage.setViewportSize({ width: 320, height: 812 })
+    await openSettings()
+    const settingsTabs = {}
+    await evidencePage.getByRole('tab', { name: 'General', exact: true }).click()
+    await evidencePage.keyboard.press('End')
+    settingsTabs.end = await evidencePage.evaluate(() => ({
+      selected: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim(),
+      focused: document.activeElement?.textContent?.trim(),
+    }))
+    await evidencePage.keyboard.press('Home')
+    settingsTabs.home = await evidencePage.evaluate(() => ({
+      selected: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim(),
+      focused: document.activeElement?.textContent?.trim(),
+    }))
+    await evidencePage.keyboard.press('ArrowRight')
+    settingsTabs.arrow = await evidencePage.evaluate(() => ({
+      selected: document.querySelector('[role="tab"][aria-selected="true"]')?.textContent?.trim(),
+      focused: document.activeElement?.textContent?.trim(),
+    }))
+    const settingsRows = []
+    let settingsNarrowStyle = null
+    let settingsFixtureInventory = {}
+    for (const tab of ['General', 'Widgets', 'Connectors', 'Data']) {
+      await openTab(tab)
+      const row = await readSettingsTargets(tab)
+      row.keyboard = await tabReachability('[role="tabpanel"]', { trap: false })
+      settingsRows.push(row)
+      if (tab === 'General') {
+        settingsFixtureInventory = await evidencePage.evaluate(() => ({
+          backgroundUpload: document.querySelector('#set-bg-file') instanceof HTMLInputElement,
+          weather: [...document.querySelectorAll('button')].some((button) => button.textContent?.includes('W2-P3 weather location')),
+        }))
+        await capture('w2-p3-settings-general-320x812')
+      }
+      if (tab === 'Connectors') {
+        settingsFixtureInventory = {
+          ...settingsFixtureInventory,
+          ...await evidencePage.evaluate(() => ({
+          connectorCards: document.querySelectorAll('[id^="connector-"][id$="-enabled"]').length,
+          enabledConnectorCards: [...document.querySelectorAll('[id^="connector-"][id$="-enabled"]')]
+            .filter((control) => control.getAttribute('role') === 'switch' && control.getAttribute('aria-checked') === 'true').length,
+          tokenForms: ['github', 'gitlab', 'jira', 'vercel', 'homeassistant'].filter((id) =>
+            document.querySelector(`.rounded-xl:has(#connector-${id}-enabled) form`) instanceof HTMLFormElement
+          ),
+          rssAdd: document.querySelector('#connector-rss-add') instanceof HTMLInputElement,
+          icsAdd: document.querySelector('#connector-ics-url') instanceof HTMLInputElement,
+          statusAdd: document.querySelector('#connector-status-url') instanceof HTMLInputElement,
+          cryptoConditional: document.querySelector('.rounded-xl:has(#connector-crypto-enabled) input') instanceof HTMLInputElement,
+          statusExistingRemove: [...document.querySelectorAll('button')]
+            .some((button) => button.getAttribute('aria-label') === 'Remove W2-P3 cleanup target'),
+          })),
+        }
+        settingsNarrowStyle = await evidencePage.evaluate(() => {
+          const drawer = document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])')
+          const sticky = document.querySelector('section[aria-label="Connectors"] > div.sticky')
+          if (!(drawer instanceof HTMLElement) || !(sticky instanceof HTMLElement)) return null
+          const drawerStyle = getComputedStyle(drawer)
+          return {
+            paddingLeft: drawerStyle.paddingLeft,
+            paddingRight: drawerStyle.paddingRight,
+            stickyTop: getComputedStyle(sticky).top,
+          }
+        })
+        await evidencePage.setViewportSize({ width: 320, height: 568 })
+        await capture('w2-p3-settings-connectors-320x568')
+        await evidencePage.setViewportSize({ width: 320, height: 812 })
+
+        const cleanupPattern = 'https://w2-p3-status.example.test/*'
+        await evidencePage.evaluate((pattern) => {
+          globalThis.__auroraPermissionsHarnessControl.setHeld([pattern])
+          globalThis.__auroraPermissionsHarnessControl.failOneRemove(pattern)
+        }, cleanupPattern)
+        await evidencePage.getByRole('button', { name: 'Remove W2-P3 cleanup target', exact: true }).click()
+        await evidencePage.getByRole('button', { name: 'Retry permission cleanup', exact: true }).waitFor({ timeout: 5_000 })
+        observations.checks.permissionCleanup = await readSurface('[role="alert"]')
+      }
+      if (tab === 'Data') {
+        await evidencePage.setViewportSize({ width: 320, height: 568 })
+        await capture('w2-p3-settings-data-320x568')
+        await evidencePage.setViewportSize({ width: 320, height: 812 })
+      }
+    }
+    await openTab('General')
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await capture('w2-p3-settings-short-320x180')
+    const settingsShort = await readSettingsTargets('General@320x180')
+    settingsShort.keyboard = await tabReachability('[role="tabpanel"]', { trap: false })
+    const settingsTrap = await tabReachability('[role="dialog"][aria-label="Settings"]:not([inert])')
+    await evidencePage.keyboard.press('Escape')
+    await activeSettings().waitFor({ state: 'hidden' })
+    const settingsEscapeRestored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
+    observations.checks.settings = {
+      rows: settingsRows,
+      short: settingsShort,
+      tabs: settingsTabs,
+      narrowStyle: settingsNarrowStyle,
+      trap: settingsTrap,
+      escapeRestored: settingsEscapeRestored,
+    }
+    observations.checks.settingsFixtureInventory = settingsFixtureInventory
+
+    // Anchored tools: open at desktop, resize without reopening, and freeze all
+    // narrow/short and ordinary/large captures.
+    await evidencePage.setViewportSize({ width: 1280, height: 720 })
+    await evidencePage.getByRole('button', { name: 'Notes', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor()
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.waitForTimeout(160)
+    await capture('w2-p3-notes-320x180')
+    observations.checks.notes = await readSurface('[role="dialog"][aria-label="Notes"]', 7)
+    observations.checks.notes.keyboard = await tabReachability('[role="dialog"][aria-label="Notes"]')
+    const notesFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
+    const notesOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Notes"]')
+    const notesFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
+    observations.checks.notes.outside = {
+      point: notesOutsidePoint,
+      panelPreserved: notesFocusAfterOutside.surfaceOpen,
+      focusOwnedBefore: notesFocusBeforeOutside.focusInside,
+      focusOwnedAfter: notesFocusAfterOutside.focusInside,
+      invokerNotRestored: !notesFocusAfterOutside.focusKey.endsWith('|Notes'),
+    }
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.notes.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Notes')
+
+    await evidencePage.setViewportSize({ width: 1280, height: 720 })
+    await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.setViewportSize({ width: 320, height: 568 })
+    await evidencePage.waitForTimeout(160)
+    await capture('w2-p3-tasks-320x568')
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.waitForTimeout(160)
+    const moreActions = evidencePage.getByRole('button', { name: 'More actions', exact: true })
+    await moreActions.focus()
+    await evidencePage.keyboard.press('Enter')
+    await capture('w2-p3-tasks-short-320x180')
+    observations.checks.tasks = {
+      panel: await readSurface('[role="dialog"][aria-label="Tasks"]', 7),
+      menu: await readSurface('[aria-label="Task list actions"]', 7),
+    }
+    observations.checks.tasks.panel.keyboard = await tabReachability('[role="dialog"][aria-label="Tasks"]')
+    observations.checks.tasks.menu.keyboard = await tabReachability('[aria-label="Task list actions"]', { trap: false })
+    const menuOutsidePoint = await clickOutsideSurface('[aria-label="Task list actions"]', { backdrop: true })
+    observations.checks.tasks.outsideMenu = await evidencePage.evaluate((point) => ({
+      point,
+      menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
+      triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
+      panelOpen: !!document.querySelector('[role="dialog"][aria-label="Tasks"]'),
+    }), menuOutsidePoint)
+    const tasksFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Tasks"]')
+    const tasksOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Tasks"]')
+    const tasksFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Tasks"]')
+    observations.checks.tasks.outsidePanel = {
+      point: tasksOutsidePoint,
+      panelPreserved: tasksFocusAfterOutside.surfaceOpen,
+      focusOwnedBefore: tasksFocusBeforeOutside.focusInside,
+      focusOwnedAfter: tasksFocusAfterOutside.focusInside,
+      invokerNotRestored: !tasksFocusAfterOutside.focusKey.endsWith('|Tasks'),
+    }
+    await moreActions.focus()
+    await evidencePage.keyboard.press('Enter')
+    await evidencePage.locator('[aria-label="Task list actions"]').waitFor()
+    await evidencePage.keyboard.press('Escape')
+    observations.checks.tasks.newestFirst = await evidencePage.evaluate(() => ({
+      menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
+      triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
+      panelOpen: !!document.querySelector('[role="dialog"][aria-label="Tasks"]'),
+    }))
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.tasks.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Tasks')
+
+    await evidencePage.setViewportSize({ width: 1280, height: 720 })
+    await evidencePage.locator('button[aria-label^="Focus timer:"]').click()
+    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor()
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.waitForTimeout(160)
+    await capture('w2-p3-timer-320x180')
+    observations.checks.timer = await readSurface('[role="dialog"][aria-label="Focus timer"]', 7)
+    observations.checks.timer.keyboard = await tabReachability('[role="dialog"][aria-label="Focus timer"]')
+    const timerFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Focus timer"]')
+    const timerOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Focus timer"]')
+    const timerFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Focus timer"]')
+    observations.checks.timer.outside = {
+      point: timerOutsidePoint,
+      panelPreserved: timerFocusAfterOutside.surfaceOpen,
+      focusOwnedBefore: timerFocusBeforeOutside.focusInside,
+      focusOwnedAfter: timerFocusAfterOutside.focusInside,
+      invokerNotRestored: !timerFocusAfterOutside.focusKey.includes('|Focus timer:'),
+    }
+    await evidencePage.keyboard.press('Escape')
+    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.timer.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label')?.startsWith('Focus timer:'))
+
+    // Current dialogs and popovers. Each is exercised at 320x180; companion
+    // captures use 320x568 where useful, and ordinary placement is also frozen.
+    await evidencePage.evaluate(async () => {
+      const { connectors } = await chrome.storage.local.get('connectors')
+      await globalThis.__auroraSetHarnessStorage({
+        connectors: {
+          ...connectors,
+          homeassistant: {
+            enabled: true,
+            instanceUrl: 'https://w2-p3-home.example.test',
+            token: 'w2-p3-token',
+            locationName: 'W2-P3 Home',
+            entities: [],
+            actions: [],
+          },
+        },
+        connectorSnapshots: {},
+      })
+    })
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    await openSettings()
+    await openTab('Connectors')
+    await evidencePage.getByRole('button', { name: 'Choose entities', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Pick entities', exact: true }).waitFor({ timeout: 10_000 })
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await capture('w2-p3-picker-320x180')
+    observations.checks.picker = await readSurface('[role="dialog"][aria-labelledby][aria-describedby]', 7)
+    observations.checks.picker.keyboard = await tabReachability('[role="dialog"][aria-labelledby][aria-describedby]')
+    const pickerOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-labelledby][aria-describedby]', { backdrop: true })
+    await evidencePage.getByRole('dialog', { name: 'Pick entities', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.picker.outside = await evidencePage.evaluate((point) => ({
+      point,
+      pickerClosed: !document.querySelector('[role="dialog"][aria-labelledby][aria-describedby]'),
+      settingsOpen: !!document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])'),
+      invokerFocused: document.activeElement?.textContent?.trim() === 'Choose entities',
+    }), pickerOutsidePoint)
+    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    await evidencePage.getByRole('button', { name: 'Choose entities', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Pick entities', exact: true }).waitFor({ timeout: 10_000 })
+    await evidencePage.keyboard.press('Escape')
+    observations.checks.picker.escape = await evidencePage.evaluate(() => ({
+      pickerClosed: !document.querySelector('[role="dialog"][aria-labelledby][aria-describedby]'),
+      settingsOpen: !!document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])'),
+      invokerFocused: document.activeElement?.textContent?.trim() === 'Choose entities',
+    }))
+    await evidencePage.keyboard.press('Escape')
+    await activeSettings().waitFor({ state: 'hidden' })
+
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.keyboard.press('Control+KeyK')
+    await evidencePage.getByRole('dialog', { name: 'Command palette', exact: true }).waitFor()
+    const paletteInput = '[role="combobox"][aria-controls="palette-listbox"]'
+    const paletteFirst = await activeDescendantState(paletteInput, '#palette-listbox')
+    for (let index = 0; index < 24; index += 1) await evidencePage.keyboard.press('ArrowDown')
+    const paletteLast = await activeDescendantState(paletteInput, '#palette-listbox')
+    await capture('w2-p3-palette-320x180')
+    observations.checks.palette = await readSurface('[role="dialog"][aria-label="Command palette"]', 7)
+    observations.checks.palette.activeDescendants = { first: paletteFirst, last: paletteLast }
+    observations.checks.palette.keyboard = await tabReachability('[role="dialog"][aria-label="Command palette"]')
+    const paletteOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Command palette"]', { backdrop: true })
+    await evidencePage.getByRole('dialog', { name: 'Command palette', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.palette.outside = await evidencePage.evaluate((point) => ({
+      point,
+      paletteClosed: !document.querySelector('[role="dialog"][aria-label="Command palette"]'),
+      priorFocusRestored: document.activeElement?.getAttribute('aria-label') === 'Open settings',
+    }), paletteOutsidePoint)
+    await evidencePage.keyboard.press('Control+KeyK')
+    await evidencePage.getByRole('dialog', { name: 'Command palette', exact: true }).waitFor()
+    await evidencePage.keyboard.press('Escape')
+    observations.checks.palette.escapeRestored = await evidencePage.evaluate(() =>
+      !document.querySelector('[role="dialog"][aria-label="Command palette"]') &&
+      document.activeElement?.getAttribute('aria-label') === 'Open settings'
+    )
+
+    await evidencePage.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null, weatherCache: null }))
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
+    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    const locationInput = evidencePage.getByRole('combobox', { name: 'Search for a city', exact: true })
+    await locationInput.fill('long')
+    await evidencePage.getByRole('listbox', { name: 'City suggestions', exact: true }).waitFor({ timeout: 5_000 })
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.keyboard.press('ArrowDown')
+    const locationFirst = await activeDescendantState('[role="combobox"][aria-controls="location-listbox"]', '#location-listbox')
+    for (let index = 0; index < 16; index += 1) await evidencePage.keyboard.press('ArrowDown')
+    const locationLast = await activeDescendantState('[role="combobox"][aria-controls="location-listbox"]', '#location-listbox')
+    await capture('w2-p3-location-320x180')
+    observations.checks.location = await readSurface('[role="listbox"][aria-label="City suggestions"]', 7)
+    observations.checks.location.activeDescendants = { first: locationFirst, last: locationLast }
+    const locationBeforeOutside = await evidencePage.evaluate(() => {
+      const input = document.querySelector('[role="combobox"][aria-controls="location-listbox"]')
+      return {
+        inputFocused: document.activeElement === input,
+        activeDescendant: input?.getAttribute('aria-activedescendant'),
+      }
+    })
+    const locationOutsidePoint = await clickOutsideSurface('[role="listbox"][aria-label="City suggestions"]')
+    observations.checks.location.outside = await evidencePage.evaluate(({ point, before }) => {
+      const input = document.querySelector('[role="combobox"][aria-controls="location-listbox"]')
+      const list = document.querySelector('#location-listbox')
+      return {
+        point,
+        listPreserved: list instanceof HTMLElement && !list.hidden,
+        inputFocusBefore: before.inputFocused,
+        inputFocusAfter: document.activeElement === input,
+        activeDescendantPreserved: !!before.activeDescendant && input?.getAttribute('aria-activedescendant') === before.activeDescendant,
+      }
+    }, { point: locationOutsidePoint, before: locationBeforeOutside })
+    await evidencePage.keyboard.press('Escape')
+
+    if (!(await evidencePage.getByRole('navigation', { name: 'Bookmarks bar', exact: true }).count())) {
+      throw new Error('W2-P3 preview contract requires the bookmarks permission and both bookmark captures')
+    }
+    await evidencePage.setViewportSize({ width: 320, height: 568 })
+    const folder = evidencePage.locator('nav[aria-label="Bookmarks bar"] button[title="More bookmarks"]')
+    const folderInvokerTitle = await folder.getAttribute('title')
+    await folder.click()
+    await evidencePage.locator('[role="dialog"][aria-label$=" bookmarks"]').waitFor()
+    await evidencePage.getByRole('button', { name: 'W2-P3 evidence folder', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor()
+    await capture('w2-p3-bookmarks-320x568')
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
+    await evidencePage.waitForTimeout(160)
+    await capture('w2-p3-bookmarks-short-320x180')
+    observations.checks.folder = await readSurface('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', 7)
+    observations.checks.folder.keyboard = await tabReachability('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', { trap: false })
+    const folderOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]', { backdrop: true })
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.folder.outside = await evidencePage.evaluate(({ point, title }) => ({
+      point,
+      folderClosed: !document.querySelector('[role="dialog"][aria-label="W2-P3 evidence folder bookmarks"]'),
+      invokerFocused: document.activeElement?.getAttribute('title') === title,
+    }), { point: folderOutsidePoint, title: folderInvokerTitle })
+    await folder.click()
+    await evidencePage.locator('[role="dialog"][aria-label$=" bookmarks"]').waitFor()
+    await evidencePage.getByRole('button', { name: 'W2-P3 evidence folder', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true }).waitFor()
+    await evidencePage.keyboard.press('Escape')
+    observations.checks.folder.escapeRestored = await evidencePage.evaluate((title) =>
+      document.activeElement?.getAttribute('title') === title,
+    folderInvokerTitle)
+
+    await openSettings()
+    await openTab('Widgets')
+    await evidencePage.getByRole('button', { name: 'Reset layout', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Reset layout?', exact: true }).waitFor()
+    observations.checks.reset = await readSurface('[role="dialog"][aria-label="Reset layout?"]', 7)
+    observations.checks.reset.keyboard = await tabReachability('[role="dialog"][aria-label="Reset layout?"]')
+    const resetOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Reset layout?"]', { backdrop: true })
+    await evidencePage.getByRole('dialog', { name: 'Reset layout?', exact: true }).waitFor({ state: 'hidden' })
+    observations.checks.reset.outside = await evidencePage.evaluate((point) => ({
+      point,
+      resetClosed: !document.querySelector('[role="dialog"][aria-label="Reset layout?"]'),
+      settingsOpen: !!document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])'),
+      invokerFocused: document.activeElement?.textContent?.trim() === 'Reset layout',
+    }), resetOutsidePoint)
+    await evidencePage.getByRole('button', { name: 'Reset layout', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Reset layout?', exact: true }).waitFor()
+    await evidencePage.keyboard.press('Escape')
+    observations.checks.reset.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Reset layout')
+    await evidencePage.keyboard.press('Escape')
+
+    await evidencePage.setViewportSize({ width: 1280, height: 720 })
+    await openSettings()
+    await openTab('Connectors')
+    await evidencePage.waitForTimeout(350)
+    await capture('w2-p3-standard-settings-1280x720')
+    observations.checks.standard = await readSurface('[role="dialog"][aria-label="Settings"]:not([inert])')
+    observations.checks.standard.style = await evidencePage.evaluate(() => {
+      const drawer = document.querySelector('[role="dialog"][aria-label="Settings"]:not([inert])')
+      const sticky = document.querySelector('section[aria-label="Connectors"] > div.sticky')
+      if (!(drawer instanceof HTMLElement) || !(sticky instanceof HTMLElement)) return null
+      const style = getComputedStyle(drawer)
+      return { paddingLeft: style.paddingLeft, paddingRight: style.paddingRight, stickyTop: getComputedStyle(sticky).top }
+    })
+    await evidencePage.mouse.click(8, 8)
+    await activeSettings().waitFor({ state: 'hidden' })
+    observations.checks.standard.outsideRestored = await evidencePage.evaluate(() =>
+      document.activeElement?.getAttribute('aria-label') === 'Open settings'
+    )
+    await evidencePage.setViewportSize({ width: 2560, height: 1440 })
+    await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.waitForTimeout(100)
+    await capture('w2-p3-large-tools-2560x1440')
+    observations.checks.large = await readSurface('[role="dialog"][aria-label="Tasks"]', 7)
+    await evidencePage.keyboard.press('Escape')
+  } catch (error) {
+    recordError('aggregate', error)
+  } finally {
+    try {
+      if (fixtureBookmarkFolderId) {
+        await evidencePage.evaluate((id) => chrome.bookmarks.removeTree(id), fixtureBookmarkFolderId)
+      }
+      if (uploadBackupReady) {
+        await evidencePage.evaluate(async () => {
+          const request = (operation) => new Promise((resolve, reject) => {
+            operation.onsuccess = () => resolve(operation.result)
+            operation.onerror = () => reject(operation.error)
+          })
+          const open = (name, version, upgrade) => new Promise((resolve, reject) => {
+            const operation = indexedDB.open(name, version)
+            operation.onupgradeneeded = () => upgrade?.(operation.result)
+            operation.onsuccess = () => resolve(operation.result)
+            operation.onerror = () => reject(operation.error)
+          })
+          const source = await open('aurora', 2, (db) => {
+            if (!db.objectStoreNames.contains('photos')) db.createObjectStore('photos')
+          })
+          const backup = await open('aurora-w2-p3-upload-backup', 1, (db) => db.createObjectStore('photos'))
+          const backupStore = backup.transaction('photos', 'readonly').objectStore('photos')
+          const [keys, values] = await Promise.all([request(backupStore.getAllKeys()), request(backupStore.getAll())])
+          await new Promise((resolve, reject) => {
+            const transaction = source.transaction('photos', 'readwrite')
+            const store = transaction.objectStore('photos')
+            store.clear()
+            keys.forEach((key, index) => store.put(values[index], key))
+            transaction.oncomplete = resolve
+            transaction.onerror = () => reject(transaction.error)
+          })
+          source.close()
+          backup.close()
+          await new Promise((resolve, reject) => {
+            const operation = indexedDB.deleteDatabase('aurora-w2-p3-upload-backup')
+            operation.onsuccess = resolve
+            operation.onerror = () => reject(operation.error)
+          })
+        })
+      }
+      if (originalTouched) {
+        await evidencePage.evaluate(async ({ keys, snapshot }) => {
+          await chrome.storage.local.remove(keys)
+          await chrome.storage.local.set(snapshot)
+        }, { keys: touchedKeys, snapshot: originalTouched })
+      }
+      await evidencePage.evaluate(({ flagKey, original }) => {
+        if (original === null) sessionStorage.removeItem(flagKey)
+        else sessionStorage.setItem(flagKey, original)
+      }, { flagKey: PERMISSIONS_HARNESS_FLAG, original: originalPermissionHarnessFlag })
+    } catch (error) {
+      recordError('restore', error)
+    }
+    await evidencePage.close().catch((error) => recordError('close', error))
+    await context.unroute('https://w2-p3-home.example.test/**').catch((error) => recordError('unroute-home', error))
+    await context.unroute('https://geocoding-api.open-meteo.com/**').catch((error) => recordError('unroute-geocoding', error))
+    await context.unroute('https://api.open-meteo.com/**').catch((error) => recordError('unroute-weather', error))
+    for (const pattern of connectorFixturePatterns) {
+      await context.unroute(pattern, abortConnectorFixtureRequest).catch((error) => recordError(`unroute-${pattern}`, error))
+    }
+  }
+
+  const settingsChecks = observations.checks.settings
+  const bounded = ['notes', 'tasks', 'timer', 'picker', 'palette', 'location', 'reset']
+    .every((name) => {
+      const value = observations.checks[name]
+      const surfaces = value?.panel ? [value.panel, value.menu] : [value]
+      return surfaces.filter(Boolean).every((surface) => surface.found && surface.pageContained && surface.horizontallyContained && surface.inset && surface.allTargets)
+    })
+  const settingsOk = settingsChecks?.rows?.length === 4 &&
+    [...settingsChecks.rows, settingsChecks.short].every((row) =>
+      row.found && row.pageContained && row.contained && row.allTargets && tabReachabilityOk(row.keyboard)
+    ) &&
+    settingsChecks.short.drawer.verticalScrollports === 1 &&
+    tabReachabilityOk(settingsChecks.trap) &&
+    settingsChecks.tabs.end.selected === 'Data' && settingsChecks.tabs.end.focused === 'Data' &&
+    settingsChecks.tabs.home.selected === 'General' && settingsChecks.tabs.home.focused === 'General' &&
+    settingsChecks.tabs.arrow.selected === 'Widgets' && settingsChecks.tabs.arrow.focused === 'Widgets' &&
+    settingsChecks.narrowStyle?.paddingLeft === '12px' && settingsChecks.narrowStyle?.paddingRight === '12px' &&
+    settingsChecks.narrowStyle?.stickyTop === '-12px' && settingsChecks.escapeRestored
+  const fixture = observations.checks.settingsFixtureInventory
+  const settingsFixturesOk = fixture?.backgroundUpload && fixture.weather &&
+    fixture.connectorCards === 9 && fixture.enabledConnectorCards === 9 &&
+    JSON.stringify(fixture.tokenForms) === JSON.stringify(['github', 'gitlab', 'jira', 'vercel', 'homeassistant']) &&
+    fixture.rssAdd && fixture.icsAdd && fixture.statusAdd && fixture.cryptoConditional && fixture.statusExistingRemove &&
+    observations.checks.permissionCleanup?.found && observations.checks.permissionCleanup.allTargets
+  const keyboardOk = ['notes', 'timer', 'picker', 'palette', 'reset'].every((name) =>
+    tabReachabilityOk(observations.checks[name]?.keyboard)
+  ) && tabReachabilityOk(observations.checks.tasks?.panel?.keyboard) &&
+    tabReachabilityOk(observations.checks.tasks?.menu?.keyboard) &&
+    tabReachabilityOk(observations.checks.folder?.keyboard)
+  const closeOk = observations.checks.notes?.escapeRestored && observations.checks.timer?.escapeRestored &&
+    observations.checks.tasks?.escapeRestored && observations.checks.tasks?.newestFirst?.menuClosed &&
+    observations.checks.tasks?.newestFirst?.triggerFocused && observations.checks.tasks?.newestFirst?.panelOpen &&
+    observations.checks.picker?.escape?.pickerClosed && observations.checks.picker?.escape?.settingsOpen &&
+    observations.checks.picker?.escape?.invokerFocused && observations.checks.reset?.escapeRestored &&
+    observations.checks.folder?.escapeRestored && observations.checks.palette?.escapeRestored &&
+    observations.checks.standard?.outsideRestored
+  const outsideLifecycleOk = ['notes', 'timer'].every((name) => {
+    const outside = observations.checks[name]?.outside
+    return outside?.point && outside.panelPreserved && outside.focusOwnedBefore && outside.invokerNotRestored
+  }) && observations.checks.tasks?.outsideMenu?.point &&
+    observations.checks.tasks.outsideMenu.menuClosed && observations.checks.tasks.outsideMenu.triggerFocused &&
+    observations.checks.tasks.outsideMenu.panelOpen && observations.checks.tasks?.outsidePanel?.point &&
+    observations.checks.tasks.outsidePanel.panelPreserved && observations.checks.tasks.outsidePanel.focusOwnedBefore &&
+    observations.checks.tasks.outsidePanel.invokerNotRestored && observations.checks.picker?.outside?.point &&
+    observations.checks.picker.outside.pickerClosed && observations.checks.picker.outside.settingsOpen &&
+    observations.checks.picker.outside.invokerFocused && observations.checks.palette?.outside?.point &&
+    observations.checks.palette.outside.paletteClosed && observations.checks.palette.outside.priorFocusRestored &&
+    observations.checks.location?.outside?.point && observations.checks.location.outside.listPreserved &&
+    observations.checks.location.outside.inputFocusBefore && !observations.checks.location.outside.inputFocusAfter &&
+    observations.checks.location.outside.activeDescendantPreserved &&
+    observations.checks.folder?.outside?.point && observations.checks.folder.outside.folderClosed &&
+    observations.checks.folder.outside.invokerFocused && observations.checks.reset?.outside?.point &&
+    observations.checks.reset.outside.resetClosed && observations.checks.reset.outside.settingsOpen &&
+    observations.checks.reset.outside.invokerFocused
+  const compositeOk = ['palette', 'location'].every((name) => {
+    const active = observations.checks[name]?.activeDescendants
+    return active?.first?.found && active.first.inputFocused && active.first.visible &&
+      active?.last?.found && active.last.inputFocused && active.last.visible && active.first.id !== active.last.id
+  })
+  const singleScrollOwnerOk = ['notes', 'tasks', 'timer', 'picker', 'palette', 'location', 'folder'].every((name) => {
+    const value = observations.checks[name]
+    const surface = value?.panel ?? value
+    return surface?.verticalScrollports === 1
+  })
+  const folderOk = observations.checks.folder?.found && observations.checks.folder.pageContained &&
+    observations.checks.folder.horizontallyContained && observations.checks.folder.inset && observations.checks.folder.allTargets
+  const ordinaryOk = observations.checks.standard?.horizontallyContained &&
+    observations.checks.standard.style?.paddingLeft === '24px' &&
+    observations.checks.standard.style?.paddingRight === '24px' &&
+    observations.checks.standard.style?.stickyTop === '-24px' &&
+    rectMatches(observations.checks.standard.rect, { left: 896, top: 0, right: 1280, bottom: 720, width: 384, height: 720 }) &&
+    observations.checks.large?.inset &&
+    rectMatches(observations.checks.large.rect, { left: 2160, top: 894, right: 2544, bottom: 1378, width: 384, height: 484 })
+  const capturesOk = JSON.stringify(observations.captures) === JSON.stringify([
+    'w2-p3-settings-general-320x812',
+    'w2-p3-settings-connectors-320x568',
+    'w2-p3-settings-data-320x568',
+    'w2-p3-settings-short-320x180',
+    'w2-p3-notes-320x180',
+    'w2-p3-tasks-320x568',
+    'w2-p3-tasks-short-320x180',
+    'w2-p3-timer-320x180',
+    'w2-p3-picker-320x180',
+    'w2-p3-palette-320x180',
+    'w2-p3-location-320x180',
+    'w2-p3-bookmarks-320x568',
+    'w2-p3-bookmarks-short-320x180',
+    'w2-p3-standard-settings-1280x720',
+    'w2-p3-large-tools-2560x1440',
+  ])
+  const ok = observations.errors.length === 0 && settingsOk && settingsFixturesOk && bounded && keyboardOk &&
+    closeOk && outsideLifecycleOk && compositeOk && singleScrollOwnerOk && folderOk && capturesOk && ordinaryOk
+  console.log(`EVIDENCE: W2-P3 immutable reflow observations: ${JSON.stringify(observations)}`)
+  console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
 }
 
 console.log(

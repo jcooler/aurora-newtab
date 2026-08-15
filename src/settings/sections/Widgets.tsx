@@ -187,7 +187,7 @@ export default function Widgets({
                 type="button"
                 aria-label={`Remove ${h.name}`}
                 onClick={() => updateHabits((list) => list.filter((x) => x.id !== h.id))}
-                className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
               >
                 ✕
               </button>

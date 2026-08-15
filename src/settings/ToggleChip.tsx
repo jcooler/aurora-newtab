@@ -24,7 +24,7 @@ export default function ToggleChip({
       type="button"
       aria-pressed={on}
       onClick={onClick}
-      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+      className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none max-[420px]:min-h-9 max-[420px]:min-w-9 ${
         on
           ? 'border-accent/40 bg-[rgba(125,211,252,0.14)] text-fg'
           : 'border-control-border bg-control-bg text-fg-muted hover:bg-control-bg-hover hover:text-fg'

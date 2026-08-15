@@ -210,7 +210,7 @@ export default function Connectors({
 
   return (
     <section aria-label="Connectors" className="py-6 first:pt-0 last:pb-0">
-      <div className="sticky -top-6 z-10 bg-panel pb-3">
+      <div className="sticky -top-6 z-10 bg-panel pb-3 max-[420px]:-top-3">
         <h3 className={eyebrow}>Connectors</h3>
         <p className="mb-3 text-xs text-fg-muted">{LOCAL_SECRET_STORAGE_NOTICE}</p>
         <label htmlFor="connector-search" className="sr-only">
@@ -468,7 +468,7 @@ function RssBody({ config, storage, reportPendingCleanup }: BodyProps) {
               type="button"
               aria-label={`Remove ${url}`}
               onClick={() => void handleRemoveFeed(url)}
-              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>
@@ -1182,7 +1182,7 @@ function CryptoBody({ config, storage, reportPendingCleanup }: BodyProps) {
           <button
             type="button"
             onClick={() => void handleClear()}
-            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            className="shrink-0 text-sm text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
           >
             Clear
           </button>
@@ -1438,7 +1438,7 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
               // documents for every OTHER button class in this control kit.
               // RssBody's identical Remove button (above) carries the same
               // gap; out of scope for this ics-only wave, left as found.
-              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>
@@ -1782,7 +1782,7 @@ function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
               type="button"
               aria-label={`Remove ${s.name}`}
               onClick={() => void handleRemove(s.url)}
-              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="shrink-0 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>

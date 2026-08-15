@@ -42,7 +42,7 @@ export default function Drawer({
         aria-modal="true"
         aria-label={title}
         inert={!open} // off-screen drawer must not stay in the tab order
-        className={`fixed inset-y-0 right-0 z-50 w-96 max-w-full overflow-y-auto border-l border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none ${
+        className={`fixed inset-y-0 right-0 z-50 w-96 max-w-full overflow-y-auto border-l border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -52,7 +52,7 @@ export default function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Close settings"
-            className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+            className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
           >
             ✕
           </button>

@@ -210,7 +210,7 @@ export default function Data({
           onChange={(event) => void handleImportChange(event)}
           disabled={exportPending || restorePending}
           aria-describedby={alertOwner === 'import' ? alertId : undefined}
-          className="min-h-9 min-w-9 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover"
+          className="min-h-9 min-w-9 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover max-[420px]:w-full max-[420px]:max-w-full"
         />
       </div>
       <AssertiveAlert id={alertId} className="text-xs text-fg-muted">

@@ -77,7 +77,7 @@ export default function WorldClocks({
               type="button"
               aria-label={`Remove ${wc.label}`}
               onClick={() => updateWorldClocks((list) => list.filter((_, j) => j !== i))}
-              className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
             >
               ✕
             </button>

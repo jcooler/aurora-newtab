@@ -267,6 +267,26 @@ function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
 }
 
 describe('SettingsPanel tabs (General / Widgets / Data)', () => {
+  it('applies the shared narrow row/control contract without changing ordinary control height', async () => {
+    await renderPanel()
+    const name = screen.getByLabelText('Your name')
+    expect(name.className).toContain('h-8')
+    expect(name.className).toContain('min-w-0')
+    expect(name.className).toContain('max-w-full')
+    expect(name.className).toContain('max-[420px]:h-9')
+    expect(name.className).toContain('max-[420px]:w-full')
+    expect(name.parentElement?.className).toContain('max-[420px]:flex-col')
+    expect(name.parentElement?.className).toContain('max-[420px]:items-stretch')
+  })
+
+  it('keeps the Connectors sticky search inverse to ordinary and narrow Drawer padding', async () => {
+    await renderPanel()
+    openTab('Connectors')
+    const sticky = screen.getByLabelText('Search connectors').parentElement
+    expect(sticky?.className).toContain('-top-6')
+    expect(sticky?.className).toContain('max-[420px]:-top-3')
+  })
+
   it('opens on General, showing its own sections and nothing from the other tabs', async () => {
     await renderPanel()
 

@@ -16,7 +16,7 @@ export default function PermissionCleanupAlert({
         type="button"
         onClick={onRetry}
         disabled={retrying}
-        className="mt-2 rounded px-2 py-1 text-accent hover:text-fg disabled:opacity-50"
+        className="mt-2 rounded px-2 py-1 text-accent hover:text-fg disabled:opacity-50 max-[420px]:min-h-9 max-[420px]:min-w-9"
       >
         Retry permission cleanup
       </button>
