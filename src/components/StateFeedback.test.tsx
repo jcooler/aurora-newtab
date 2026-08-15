@@ -5,13 +5,13 @@ import { AssertiveAlert, PoliteStatus, ResourceFeedback } from './StateFeedback'
 
 describe('PoliteStatus', () => {
   it('keeps one atomic polite region mounted as content changes and clears', () => {
-    const view = render(<PoliteStatus id="save-feedback" className="feedback">Savingâ€¦</PoliteStatus>)
+    const view = render(<PoliteStatus id="save-feedback" className="feedback">{'Saving\u2026'}</PoliteStatus>)
     const status = screen.getByRole('status')
     expect(status.getAttribute('id')).toBe('save-feedback')
     expect(status.getAttribute('class')).toBe('feedback')
     expect(status.getAttribute('aria-live')).toBe('polite')
     expect(status.getAttribute('aria-atomic')).toBe('true')
-    expect(status.textContent).toBe('Savingâ€¦')
+    expect(status.textContent).toBe('Saving\u2026')
 
     view.rerender(<PoliteStatus id="save-feedback" className="feedback">Saved</PoliteStatus>)
     expect(screen.getByRole('status')).toBe(status)
@@ -25,12 +25,12 @@ describe('PoliteStatus', () => {
 
 describe('AssertiveAlert', () => {
   it('renders one atomic alert only while literal error content exists', () => {
-    const view = render(<AssertiveAlert id="save-error">Couldnâ€™t save.</AssertiveAlert>)
+    const view = render(<AssertiveAlert id="save-error">{'Couldn\u2019t save.'}</AssertiveAlert>)
     const alert = screen.getByRole('alert')
     expect(alert.getAttribute('id')).toBe('save-error')
     expect(alert.getAttribute('aria-atomic')).toBe('true')
     expect(alert.getAttribute('aria-live')).toBeNull()
-    expect(alert.textContent).toBe('Couldnâ€™t save.')
+    expect(alert.textContent).toBe('Couldn\u2019t save.')
 
     view.rerender(<AssertiveAlert id="save-error">{null}</AssertiveAlert>)
     expect(screen.queryByRole('alert')).toBeNull()
@@ -39,9 +39,9 @@ describe('AssertiveAlert', () => {
   it('keeps separate polite status and assertive error content free of duplicates', () => {
     render(
       <div>
-        <PoliteStatus id="save-status">Savingâ€¦</PoliteStatus>
+        <PoliteStatus id="save-status">{'Saving\u2026'}</PoliteStatus>
         <AssertiveAlert id="save-error">
-          <><span>Couldnâ€™t save.</span> <button type="button">Retry save</button></>
+          <><span>{'Couldn\u2019t save.'}</span> <button type="button">Retry save</button></>
         </AssertiveAlert>
       </div>,
     )
@@ -49,27 +49,27 @@ describe('AssertiveAlert', () => {
     const alert = screen.getByRole('alert')
     expect(screen.queryAllByRole('status')).toHaveLength(1)
     expect(screen.queryAllByRole('alert')).toHaveLength(1)
-    expect(status.textContent).toBe('Savingâ€¦')
-    expect(status.textContent).not.toContain('Couldnâ€™t save.')
-    expect(alert.textContent).toContain('Couldnâ€™t save.')
+    expect(status.textContent).toBe('Saving\u2026')
+    expect(status.textContent).not.toContain('Couldn\u2019t save.')
+    expect(alert.textContent).toContain('Couldn\u2019t save.')
     expect(alert.textContent).toContain('Retry save')
   })
 })
 
 describe('ResourceFeedback', () => {
   const copy = {
-    loading: 'Loading weatherâ€¦',
-    refreshing: 'Refreshingâ€¦',
+    loading: 'Loading weather\u2026',
+    refreshing: 'Refreshing\u2026',
     stale: 'Updated a while ago',
-    offline: 'Offline â€” showing cached',
+    offline: 'Offline \u2014 showing cached',
     unavailable: <><span>Weather unavailable.</span> <button type="button">Retry</button></>,
   }
 
   it.each([
-    ['loading for a no-data pending resource', { operation: 'pending', freshness: 'unknown', hasData: false }, 'status', 'Loading weatherâ€¦'],
-    ['refreshing for a cached pending resource', { operation: 'pending', freshness: 'stale', hasData: true }, 'status', 'Refreshingâ€¦'],
+    ['loading for a no-data pending resource', { operation: 'pending', freshness: 'unknown', hasData: false }, 'status', 'Loading weather\u2026'],
+    ['refreshing for a cached pending resource', { operation: 'pending', freshness: 'stale', hasData: true }, 'status', 'Refreshing\u2026'],
     ['an alert for a no-data error', { operation: 'error', freshness: 'unknown', hasData: false }, 'alert', 'Weather unavailable.'],
-    ['offline for a cached error', { operation: 'error', freshness: 'fresh', hasData: true }, 'status', 'Offline â€” showing cached'],
+    ['offline for a cached error', { operation: 'error', freshness: 'fresh', hasData: true }, 'status', 'Offline \u2014 showing cached'],
     ['stale for an idle stale resource', { operation: 'idle', freshness: 'stale', hasData: true }, 'status', 'Updated a while ago'],
     ['stale for a successful stale resource', { operation: 'success', freshness: 'stale', hasData: true }, 'status', 'Updated a while ago'],
   ] as const)('%s', (_name, state, role, text) => {

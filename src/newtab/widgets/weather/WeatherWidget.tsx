@@ -261,7 +261,7 @@ export default function WeatherWidget({
               disabled={loading}
               aria-busy={loading || undefined}
               aria-describedby={feedbackId}
-              className="mt-3 cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
+              className="mt-3 inline-flex min-h-9 cursor-pointer items-center text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
             >
               Refresh
             </button>
@@ -487,7 +487,7 @@ export default function WeatherWidget({
                     disabled={loading}
                     aria-busy={loading || undefined}
                     aria-describedby={feedbackId}
-                    className="cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
+                    className="inline-flex min-h-9 cursor-pointer items-center text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
                   >
                     Refresh
                   </button>

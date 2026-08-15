@@ -11639,17 +11639,79 @@ function gitlabContributionsFixture() {
 // bounded offline message. No fixture supplies either feedback element.
 {
   const CAUGHT_PROVIDER_ERROR = 'Open-Meteo request failed: HTTP 503'
-  let releaseWeatherRequest
-  const weatherRequestReleased = new Promise((resolveRequest) => {
-    releaseWeatherRequest = resolveRequest
-  })
-  const holdWeatherRequest = async (route) => {
-    await weatherRequestReleased
-    await route.fulfill({
-      status: 503,
-      contentType: 'application/json',
-      body: '{}',
+  const weatherPayload = (tempC) => {
+    const day = new Date().toISOString().slice(0, 10)
+    const times = Array.from({ length: 12 }, (_, index) => `${day}T${String(8 + index).padStart(2, '0')}:00`)
+    return {
+      current: {
+        temperature_2m: tempC,
+        apparent_temperature: tempC - 1,
+        weather_code: 1,
+        wind_speed_10m: 8,
+        relative_humidity_2m: 55,
+        is_day: 1,
+      },
+      hourly: {
+        time: times,
+        temperature_2m: times.map(() => tempC),
+        precipitation_probability: times.map(() => 0),
+        weather_code: times.map(() => 1),
+        is_day: times.map(() => 1),
+      },
+      daily: { sunrise: [`${day}T06:00`], sunset: [`${day}T20:00`] },
+    }
+  }
+  const deferredRelease = () => {
+    let release
+    const released = new Promise((resolveRelease) => {
+      release = resolveRelease
     })
+    return { released, release }
+  }
+  const automaticFailure = deferredRelease()
+  const cachedRetrySuccess = deferredRelease()
+  const noDataRetrySuccess = deferredRelease()
+  let weatherRoutePhase = 'automatic-failure'
+  const weatherRequestCounts = {
+    automaticFailure: 0,
+    cachedRetrySuccess: 0,
+    noDataAutomaticFailure: 0,
+    noDataRetrySuccess: 0,
+  }
+  const holdWeatherRequest = async (route) => {
+    const phase = weatherRoutePhase
+    if (phase === 'automatic-failure') {
+      weatherRequestCounts.automaticFailure += 1
+      await automaticFailure.released
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+      return
+    }
+    if (phase === 'cached-retry-success') {
+      weatherRequestCounts.cachedRetrySuccess += 1
+      await cachedRetrySuccess.released
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(weatherPayload(24)),
+      })
+      return
+    }
+    if (phase === 'no-data-automatic-failure') {
+      weatherRequestCounts.noDataAutomaticFailure += 1
+      await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+      return
+    }
+    if (phase === 'no-data-retry-success') {
+      weatherRequestCounts.noDataRetrySuccess += 1
+      await noDataRetrySuccess.released
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(weatherPayload(22)),
+      })
+      return
+    }
+    await route.abort()
   }
   await page.route('**/api.open-meteo.com/**', holdWeatherRequest)
   await page.evaluate(async () => {
@@ -11693,13 +11755,15 @@ function gitlabContributionsFixture() {
   w2P1AxEvidence.weather = {
     refreshing: await captureW2P1AxEvidence(page, { statuses: ['Refreshing…'] }),
     offline: null,
+    cachedRetry: null,
+    noDataRetry: null,
   }
   await page.setViewportSize({ width: 800, height: 600 })
   await page.focus(weatherToggle)
   await page.waitForTimeout(100)
   await page.screenshot({ path: `${outDir}/w2-p1-weather-freshness-800x600.png` })
   console.log('captured w2-p1-weather-freshness-800x600.png (real held stale-cache refresh: polite Refreshing status)')
-  releaseWeatherRequest()
+  automaticFailure.release()
   const offlineVisible = await page.waitForFunction((selector) => {
     const weather = document.querySelector(selector)
     const status = weather?.querySelector('[role="status"]')
@@ -11721,6 +11785,129 @@ function gitlabContributionsFixture() {
     await page.screenshot({ path: `${outDir}/${capture.file}` })
     console.log(`captured ${capture.file} (real routed failure: polite Offline — showing cached status)`)
   }
+
+  const refreshControl = () => page.locator(weatherSel).getByRole('button', { name: 'Refresh', exact: true })
+  const readRefreshGeometry = (refresh) => refresh.evaluate((button) => {
+    const rect = button.getBoundingClientRect()
+    return {
+      height: rect.height,
+      width: rect.width,
+      minHeight: getComputedStyle(button).minHeight,
+      nestedButton: button.parentElement?.closest('button') !== null || button.querySelector('button') !== null,
+    }
+  })
+  const activateRefreshWithNativeEnter = async (expectedStatus) => {
+    const refresh = refreshControl()
+    await refresh.waitFor({ state: 'visible' })
+    const originalHandle = await refresh.elementHandle()
+    await refresh.focus()
+    const focused = await refresh.evaluate((button) => document.activeElement === button)
+    await page.keyboard.press('Enter')
+    const pendingVisible = await page.waitForFunction(({ selector, text }) => {
+      const weather = document.querySelector(selector)
+      const refreshButton = [...(weather?.querySelectorAll('button') ?? [])]
+        .find((button) => button.textContent?.trim() === 'Refresh')
+      const describedBy = refreshButton?.getAttribute('aria-describedby')
+      const description = describedBy ? document.getElementById(describedBy) : null
+      return refreshButton instanceof HTMLButtonElement &&
+        refreshButton.disabled &&
+        refreshButton.getAttribute('aria-busy') === 'true' &&
+        description?.getAttribute('role') === 'status' &&
+        description.textContent?.trim() === text
+    }, { selector: weatherSel, text: expectedStatus }, { timeout: 2_000 }).then(() => true).catch(() => false)
+    const pending = refreshControl()
+    const pendingHandle = await pending.elementHandle()
+    const sameControl = originalHandle !== null && pendingHandle !== null
+      ? await pendingHandle.evaluate((after, before) => after === before, originalHandle)
+      : false
+    const pendingContract = await pending.evaluate((button, text) => {
+      const describedBy = button.getAttribute('aria-describedby')
+      const description = describedBy ? document.getElementById(describedBy) : null
+      return {
+        disabled: button.disabled,
+        busy: button.getAttribute('aria-busy') === 'true',
+        described: description?.getAttribute('role') === 'status' && description.textContent?.trim() === text,
+      }
+    }, expectedStatus)
+    return {
+      focused,
+      pendingVisible,
+      sameControl,
+      disabled: pendingContract.disabled,
+      busy: pendingContract.busy,
+      described: pendingContract.described,
+    }
+  }
+  const readWeatherSuccess = async ({ tempC, metricText, imperialText }) => {
+    const stored = await page.evaluate(() => chrome.storage.local.get('weatherCache').then((value) => value.weatherCache))
+    const rendered = await page.locator(weatherSel).evaluate((weather, copy) => {
+      const text = weather.textContent ?? ''
+      const status = weather.querySelector('[role="status"]')
+      const refresh = [...weather.querySelectorAll('button')]
+        .find((button) => button.textContent?.trim() === 'Refresh')
+      return {
+        expectedTemperature: text.includes(copy.metricText) || text.includes(copy.imperialText),
+        quiet: (status?.textContent?.trim() ?? '') === '',
+        noAlert: weather.querySelector('[role="alert"]') === null,
+        noRefresh: refresh === undefined,
+      }
+    }, { metricText, imperialText })
+    return {
+      stored: stored?.current?.tempC === tempC,
+      ...rendered,
+    }
+  }
+
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.locator(weatherToggle).click()
+  const cachedRefresh = refreshControl()
+  await cachedRefresh.waitFor({ state: 'visible' })
+  const cachedGeometry = await readRefreshGeometry(cachedRefresh)
+  await cachedRefresh.focus()
+  await page.waitForTimeout(100)
+  await page.screenshot({ path: `${outDir}/w2-p1-weather-cached-recovery-1600x900.png` })
+  console.log('captured w2-p1-weather-cached-recovery-1600x900.png (expanded cached failure with focused Refresh recovery control)')
+  weatherRoutePhase = 'cached-retry-success'
+  const cachedKeyboard = await activateRefreshWithNativeEnter('Refreshing…')
+  w2P1AxEvidence.weather.cachedRetry = await captureW2P1AxEvidence(page, {
+    statuses: ['Refreshing…'],
+    buttons: ['Refresh'],
+  })
+  cachedRetrySuccess.release()
+  await page.waitForFunction(() => chrome.storage.local.get('weatherCache').then(
+    ({ weatherCache }) => weatherCache?.current?.tempC === 24,
+  ), { timeout: 2_000 })
+  const cachedSuccess = await readWeatherSuccess({ tempC: 24, metricText: '24°C', imperialText: '75°F' })
+
+  weatherRoutePhase = 'no-data-automatic-failure'
+  await page.evaluate(async () => {
+    await globalThis.__auroraSetHarnessStorage({ weatherCache: null })
+  })
+  await page.setViewportSize({ width: 800, height: 600 })
+  await page.reload()
+  await page.waitForSelector('time')
+  const noDataErrorVisible = await page.locator(weatherSel).getByRole('alert')
+    .filter({ hasText: 'Weather unavailable. Try again.' })
+    .waitFor({ timeout: 2_000 }).then(() => true).catch(() => false)
+  const noDataRefresh = refreshControl()
+  await noDataRefresh.waitFor({ state: 'visible' })
+  const noDataGeometry = await readRefreshGeometry(noDataRefresh)
+  await noDataRefresh.focus()
+  await page.waitForTimeout(100)
+  await page.screenshot({ path: `${outDir}/w2-p1-weather-no-data-recovery-800x600.png` })
+  console.log('captured w2-p1-weather-no-data-recovery-800x600.png (no-data failure with focused Refresh recovery control)')
+  weatherRoutePhase = 'no-data-retry-success'
+  const noDataKeyboard = await activateRefreshWithNativeEnter('Loading weather…')
+  w2P1AxEvidence.weather.noDataRetry = await captureW2P1AxEvidence(page, {
+    statuses: ['Loading weather…'],
+    buttons: ['Refresh'],
+  })
+  noDataRetrySuccess.release()
+  await page.waitForFunction(() => chrome.storage.local.get('weatherCache').then(
+    ({ weatherCache }) => weatherCache?.current?.tempC === 22,
+  ), { timeout: 2_000 })
+  const noDataSuccess = await readWeatherSuccess({ tempC: 22, metricText: '22°C', imperialText: '72°F' })
+
   if (weatherEvidenceViewport) await page.setViewportSize(weatherEvidenceViewport)
   w2P1FeedbackContract.weather =
     refreshingVisible &&
@@ -11735,7 +11922,40 @@ function gitlabContributionsFixture() {
     offlineFeedback.statusPolite &&
     offlineFeedback.statusAtomic &&
     offlineFeedback.retainedFixture &&
-    !offlineFeedback.caughtProviderErrorShown
+    !offlineFeedback.caughtProviderErrorShown &&
+    cachedGeometry.height >= 36 &&
+    cachedGeometry.width > 0 &&
+    !cachedGeometry.nestedButton &&
+    cachedKeyboard.focused &&
+    cachedKeyboard.pendingVisible &&
+    cachedKeyboard.sameControl &&
+    cachedKeyboard.disabled &&
+    cachedKeyboard.busy &&
+    cachedKeyboard.described &&
+    cachedSuccess.stored &&
+    cachedSuccess.expectedTemperature &&
+    cachedSuccess.quiet &&
+    cachedSuccess.noAlert &&
+    cachedSuccess.noRefresh &&
+    noDataErrorVisible &&
+    noDataGeometry.height >= 36 &&
+    noDataGeometry.width > 0 &&
+    !noDataGeometry.nestedButton &&
+    noDataKeyboard.focused &&
+    noDataKeyboard.pendingVisible &&
+    noDataKeyboard.sameControl &&
+    noDataKeyboard.disabled &&
+    noDataKeyboard.busy &&
+    noDataKeyboard.described &&
+    noDataSuccess.stored &&
+    noDataSuccess.expectedTemperature &&
+    noDataSuccess.quiet &&
+    noDataSuccess.noAlert &&
+    noDataSuccess.noRefresh &&
+    weatherRequestCounts.automaticFailure >= 1 &&
+    weatherRequestCounts.cachedRetrySuccess === 1 &&
+    weatherRequestCounts.noDataAutomaticFailure >= 1 &&
+    weatherRequestCounts.noDataRetrySuccess === 1
   await page.unroute('**/api.open-meteo.com/**', holdWeatherRequest)
   await page.evaluate(async () => {
     await globalThis.__auroraSetHarnessStorage({ weatherCache: null })

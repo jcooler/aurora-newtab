@@ -42,6 +42,7 @@ async function controlledStorage() {
     storage,
     base,
     writes,
+    heldCount: () => held.length,
     deferNext: () => { next = 'defer' as const },
     rejectNext: () => { next = 'reject' as const },
     release: async () => {
@@ -151,6 +152,51 @@ describe('useNotesPersistence', () => {
       feedback: { operation: 'success', retainedError: false },
     })
     expect((await control.storage.get('notes')).text).toBe('Newest retry')
+  })
+
+  it('keeps retry pending across a newer edit and clears the retained error only after the latest revision saves', async () => {
+    const control = await controlledStorage()
+    await control.storage.set('notes', { text: 'Old', updatedAt: 1 })
+    control.rejectNext()
+    const { result } = renderHook(() => useNotesPersistence(), { wrapper: wrapper(control.storage) })
+    await act(async () => {})
+
+    act(() => result.current.edit('Failed retry revision'))
+    await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+    expect(result.current.feedback).toEqual({ operation: 'error', retainedError: true })
+
+    control.deferNext()
+    let retry!: Promise<boolean>
+    act(() => { retry = result.current.retry() })
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: true })
+    await act(async () => {
+      for (let attempts = 0; control.heldCount() === 0 && attempts < 10; attempts += 1) {
+        await Promise.resolve()
+      }
+    })
+    expect(control.heldCount()).toBe(1)
+
+    act(() => result.current.edit('Latest while retry is held'))
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: true })
+
+    control.deferNext()
+    await act(async () => {
+      await control.release()
+      await Promise.resolve()
+    })
+    expect(control.writes).toHaveLength(4)
+    expect((control.writes[3].notes as { text: string }).text).toBe('Latest while retry is held')
+    expect(result.current.feedback).toEqual({ operation: 'pending', retainedError: true })
+    expect((await control.storage.get('notes')).text).toBe('Failed retry revision')
+
+    let ok = false
+    await act(async () => {
+      await control.release()
+      ok = await retry
+    })
+    expect(ok).toBe(true)
+    expect(result.current.feedback).toEqual({ operation: 'success', retainedError: false })
+    expect((await control.storage.get('notes')).text).toBe('Latest while retry is held')
   })
 
   it('shares concurrent forced flushes and returns false without clearing a rejected draft', async () => {

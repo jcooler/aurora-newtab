@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
@@ -9,6 +9,8 @@ import { weatherRequestIdentity } from '../../../services/weather/identity'
 import WeatherWidget from './WeatherWidget'
 
 const NEW_YORK: StoredLocation = { lat: 40.71, lon: -74.01, label: 'New York', manual: true }
+
+afterEach(() => vi.restoreAllMocks())
 
 // 12 hours starting 9 AM, one (index 3) with a notable rain chance — mirrors
 // the shape openMeteoProvider actually produces (12 fetch_hours, see
@@ -80,10 +82,8 @@ function weatherResponse(tempC: number): Response {
   )
 }
 
-async function activateWithKeyboard(button: HTMLButtonElement) {
+async function activateWithModeledNativeClick(button: HTMLButtonElement) {
   button.focus()
-  fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' })
-  fireEvent.keyUp(button, { key: 'Enter', code: 'Enter' })
   fireEvent.click(button)
 }
 
@@ -483,7 +483,7 @@ describe('WeatherWidget stale data', () => {
     fetchSpy.mockRestore()
   })
 
-  it('uses bounded alert copy and keeps the named no-data Refresh control associated while keyboard retry is pending', async () => {
+  it('uses bounded alert copy and keeps a 36px named no-data Refresh control associated while retry is pending', async () => {
     let resolveRetry!: (value: Response) => void
     const retry = new Promise<Response>((resolve) => {
       resolveRetry = resolve
@@ -499,9 +499,11 @@ describe('WeatherWidget stale data', () => {
     expect(screen.queryByText('private provider detail')).toBeNull()
     const refresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
     expect(refresh.disabled).toBe(false)
+    expect(refresh.classList.contains('min-h-9')).toBe(true)
+    expect(refresh.closest('button')).toBe(refresh)
 
     await act(async () => {
-      await activateWithKeyboard(refresh)
+      await activateWithModeledNativeClick(refresh)
     })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
     const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
@@ -522,7 +524,7 @@ describe('WeatherWidget stale data', () => {
     fetchSpy.mockRestore()
   })
 
-  it('announces cached retry politely inside the one collapsed toggle status and retains cached content', async () => {
+  it('keeps a 36px cached Refresh control and announces retry politely inside the one collapsed toggle status', async () => {
     let resolveRetry!: (value: Response) => void
     const retry = new Promise<Response>((resolve) => {
       resolveRetry = resolve
@@ -542,9 +544,11 @@ describe('WeatherWidget stale data', () => {
     await expandPanel()
     const refresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
     expect(refresh.disabled).toBe(false)
+    expect(refresh.classList.contains('min-h-9')).toBe(true)
+    expect(refresh.closest('button')).toBe(refresh)
 
     await act(async () => {
-      await activateWithKeyboard(refresh)
+      await activateWithModeledNativeClick(refresh)
     })
     expect(fetchSpy).toHaveBeenCalledTimes(2)
     const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement

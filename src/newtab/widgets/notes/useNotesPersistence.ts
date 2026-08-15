@@ -195,7 +195,9 @@ export function useNotesPersistence(): NotesPersistence {
     setText(value)
     setDirty(true)
     setFeedback({
-      operation: errorRef.current ? 'error' : 'pending',
+      operation: errorRef.current && !savePromiseRef.current && !drainPromiseRef.current
+        ? 'error'
+        : 'pending',
       retainedError: errorRef.current,
     })
     if (savedTimerRef.current !== null) {
