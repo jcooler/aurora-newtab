@@ -10,6 +10,7 @@ import { useStorage } from '../../lib/storage/context'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import { useLongPress } from './useLongPress'
+import { WIDGET_REGISTRY_BY_ID } from '../widgetRegistry'
 
 const NUDGE_PX = 8
 const NUDGE_PX_FINE = 1
@@ -17,35 +18,6 @@ const NUDGE_PX_FINE = 1
 // — corrected synchronously (before the browser paints) by the anchor effect
 // below, so the exact numbers here are never actually visible on screen.
 const INITIAL_PILL_SIZE: Size = { w: 200, h: 48 }
-
-const BLOCK_LABELS: Record<BlockId, string> = {
-  clock: 'Clock',
-  greeting: 'Greeting',
-  worldClocks: 'World clocks',
-  countdown: 'Countdown',
-  search: 'Search',
-  focus: 'Focus',
-  links: 'Links',
-  quote: 'Quote',
-  weather: 'Weather',
-  timer: 'Timer',
-  tasks: 'Tasks',
-  notes: 'Notes',
-  bookmarks: 'Bookmarks',
-  rss: 'Headlines',
-  github: 'GitHub',
-  gitlab: 'GitLab',
-  jira: 'Jira',
-  vercel: 'Deploys',
-  crypto: 'Crypto',
-  ics: 'Calendar',
-  status: 'Service status',
-  habits: 'Habits',
-  monthCal: 'Month',
-  sun: 'Sun times',
-  moon: 'Moon phase',
-  homeassistant: 'Home Assistant',
-}
 
 interface DragState {
   blockId: BlockId
@@ -418,7 +390,7 @@ export default function ArrangeController({
     const selector =
       pending === 'first'
         ? 'button[aria-label^="Move "]'
-        : `button[aria-label="Move ${BLOCK_LABELS[pending]}"]`
+        : `button[aria-label="Move ${WIDGET_REGISTRY_BY_ID[pending].label}"]`
     const target = overlay.querySelector<HTMLButtonElement>(selector)
     if (!target) return // outlines for this entry haven't rendered yet — try again once rects/drag update
     target.focus()
@@ -590,7 +562,7 @@ export default function ArrangeController({
           <button
             key={id}
             type="button"
-            aria-label={`Move ${BLOCK_LABELS[id]}`}
+            aria-label={`Move ${WIDGET_REGISTRY_BY_ID[id].label}`}
             onPointerDown={(e) => handleOutlinePointerDown(id, e)}
             onKeyDown={(e) => handleOutlineKeyDown(id, e)}
             style={{

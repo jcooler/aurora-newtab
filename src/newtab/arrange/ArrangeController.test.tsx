@@ -818,7 +818,7 @@ describe('ArrangeController', () => {
       expect(onDraftChange).toHaveBeenLastCalledWith({})
     })
 
-    it('every visible block gets an accessible "Move {label}" outline button (Tab/Shift-Tab order is just DOM order)', async () => {
+    it('every visible block gets the registry-owned accessible "Move {label}" outline button', async () => {
       // A DEDICATED fixture (not the shared one, which only ever renders
       // clock+greeting) with a `data-block-id` div for every id RECT_DATA
       // defines a non-zero rect for — review fix: the previous version of
@@ -831,11 +831,27 @@ describe('ArrangeController', () => {
       const storage = createStorage(memoryDriver())
       await storage.init()
       const onDraftChange = vi.fn()
-      const labeledIds = ['clock', 'greeting', 'worldClocks', 'tasks', 'bookmarks', 'notes', 'weather'] as const
+      const labels = [
+        ['clock', 'Clock'], ['greeting', 'Greeting'], ['worldClocks', 'World clocks'],
+        ['countdown', 'Countdown'], ['search', 'Search'], ['focus', 'Focus'], ['links', 'Links'],
+        ['quote', 'Quote'], ['weather', 'Weather'], ['timer', 'Timer'], ['tasks', 'Tasks'],
+        ['notes', 'Notes'], ['bookmarks', 'Bookmarks'], ['rss', 'Headlines'], ['github', 'GitHub'],
+        ['gitlab', 'GitLab'], ['jira', 'Jira'], ['vercel', 'Deploys'], ['crypto', 'Crypto'],
+        ['ics', 'Calendar'], ['habits', 'Habits'], ['monthCal', 'Month'], ['sun', 'Sun times'],
+        ['moon', 'Moon phase'], ['status', 'Service status'], ['homeassistant', 'Home Assistant'],
+      ] as const
+      vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        const index = labels.findIndex(([id]) => id === this.getAttribute('data-block-id'))
+        return index >= 0
+          ? domRect({ left: 10 + index * 3, top: 10 + index * 2, width: 100, height: 40 })
+          : domRect({ left: 0, top: 0, width: 0, height: 0 })
+      })
       function LabelsFixture() {
         return (
           <>
-            {labeledIds.map((id) => (
+            {labels.map(([id]) => (
               <div key={id} data-block-id={id}>
                 <span>{id} content</span>
               </div>
@@ -863,13 +879,9 @@ describe('ArrangeController', () => {
       // Using the SAME human labels/casing convention as Settings' Widgets
       // section where they overlap (e.g. weather -> "Weather", notes ->
       // "Notes") — every one of these buttons must actually be IN THE DOM.
-      expect(screen.getByRole('button', { name: 'Move Clock' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move Greeting' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move World clocks' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move Tasks' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move Bookmarks' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move Notes' })).toBeTruthy()
-      expect(screen.getByRole('button', { name: 'Move Weather' })).toBeTruthy()
+      for (const [, label] of labels) {
+        expect(screen.getByRole('button', { name: `Move ${label}` })).toBeTruthy()
+      }
     })
   })
 
