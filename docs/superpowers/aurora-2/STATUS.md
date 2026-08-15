@@ -3,16 +3,16 @@
 **Updated:** 2026-08-15<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 2 — Accessibility, recovery states, and narrow reflow<br>
-**Last verified packet:** `W2-P2` - Focus, naming, boundary, and error recovery<br>
-**Next packet:** `W2-P3` - Settings and tool reflow; Not started, no plan
+**Current wave:** Wave 3 — Adaptive Stage foundation<br>
+**Last verified packet:** `W2-P3` - Settings and tool reflow<br>
+**Next packet:** `W3-P1` - Layout V2 schema and migration; Not started, no plan
 
 ## Packet envelope
 
-- **Acceptance:** Focus and Quick Link editors preserve committed state, cancel without writes, expose associated errors, and restore focus; repeated Calendar content is source-named programmatically; the Home Assistant picker exposes named domain relationships and restores its invoker across every close path; DrawerBoundary retries only after reopen; backup/restore transitions are announced without moving async ownership.
-- **Implemented files:** Focus/Quick Link editor semantics and geometry, Calendar source naming, Home Assistant picker relationships and invoker-owned restoration, DrawerBoundary reopen reset, Data operation feedback, and causal built-extension target/AX/screenshot evidence. W2-P3 narrow reflow remains outside the packet.
-- **Test scope:** Exact editor write/focus paths, source relationships, picker naming/focus, boundary reopen recovery, Data status/alert/pending semantics, 36px targets and collision-free Focus geometry, targeted/full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground harness.
-- **Visual scope:** Six exact Focus/Quick Link, Calendar, Home Assistant picker, and Data feedback captures inspected at original resolution for readable non-color-only feedback, focus, clipping, target geometry, and stable rendered state. Chromium AX evidence is not a real screen-reader session.
+- **Acceptance:** Existing Settings, tool, dialog, and popover surfaces are horizontally contained at 320 CSS px; every short 320x180 state retains reachable controls, one owned scrollport, correct composite focus/active-descendant behavior, and exact touched-target floors; anchored panels recompute from current invoker and rendered boxes without focus loss or ordinary-layout drift.
+- **Implemented files:** Narrow Settings reflow and target inventory; shared 8px viewport-fit/resize owner; bounded Notes, Tasks, Timer, picker, Palette, Location, Folder, Todo overflow, and Reset surfaces; complete causal built-extension geometry, keyboard, lifecycle, screenshot, and hit-test evidence. Storage, connector, Weather, Notes, Todo, and Timer authorities remain unchanged.
+- **Test scope:** Exact 320x180/tall/ordinary/large containment, current rendered-box growth/shrink, resize generations and cleanup, single-scroll ownership, real Tab/Shift+Tab and composite Arrow paths, focus/Escape/outside/restoration, target geometry, full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground harness.
+- **Visual scope:** Fifteen exact W2-P3 captures inspected at original resolution for clipping, collision, text/focus/non-color feedback, composite foreground ownership, short-state scrolling, and ordinary/large parity. Automated CSS-viewport and Chromium evidence does not prove native Chrome 400% zoom, Windows scaling/mixed DPI, or a real screen-reader session.
 
 ## Last completed commits
 
@@ -76,8 +76,26 @@
 - `5449fc7cde652cca6a8ffeaa3880321e9ebfd791` - DrawerBoundary reopen recovery and Data export/import/restore feedback.
 - `5db8dc44121fd9bece4cf670d8d04d9d337de3c3` - bounded whole-packet review fixes for async picker focus restoration and causal/stable browser evidence.
 - `1fdaf0c9c8192b10b53d732b552aa656f1ca23a3` - packet-local Focus prompt geometry regression fix; verified W2-P2 implementation head.
+- `b51674f9b356363790c4ec83f72f67bba9c62610` - independently reviewed executable W2-P3 plan (`docs: plan W2-P3 narrow reflow`).
+- `461319d1c52b96bdc8271b61f86f3d5f27210557` - narrow Settings reflow, complete packet browser contract, exact target inventory, and reviewed lifecycle evidence.
+- `135d1305f4042878c81e84d33ed6da803efdf560` - 8px viewport-fit math, current rendered-panel resize ownership, and bounded Notes/Tasks/Timer surfaces.
+- `ce285f0de67ab2feeb6ad60fd29f7573e8af6aac` - bounded picker, Palette, Location, Folder, Reset, and reviewed body-portalled Tasks overflow behavior.
+- `ced5e1cfc068426a8856b40bca8c22bd544b7e17` - whole-review fixes for the General endpoint, complete 320x180 evidence matrix, and non-occluded Location/Weather composite.
+- `64675d245df08d126ab5610b807931ac47320b8e` - final resize/active-descendant ownership race fix; verified W2-P3 implementation head.
 
 ## Latest verification
+
+- W2-P3 literal plan-focused gate at `64675d2` - exit 0; 21 files / 475 tests passed. The reviewed plan command contains 21 literal paths.
+- `npx tsc --noEmit` at `64675d2` - exit 0.
+- `npm test` at `64675d2` - exit 0; 119 files / 1,998 tests passed.
+- `npm run build` and `npm run build:preview` at `64675d2` - exit 0; both transformed 179 modules.
+- Production scan for `__auroraStorageHarness`, `__auroraPermissionsHarnessApi`, `__auroraBackupHarness`, and `__auroraRestoreHarness` - expected exit 1; no forbidden preview bridge matched in `dist`.
+- `npm audit --omit=dev` and `npm audit --include=dev` - exit 0; zero vulnerabilities.
+- Fresh clean-isolated foreground `node scripts/preview.mjs` at exact `64675d2` - process exit 0; exactly 454 PASS / 0 FAIL / 3 SKIP, exactly one `PASS: W2-P3 settings and tool reflow semantics`, zero named FAIL, exact 15 captures, and evidence errors `[]`.
+- All fifteen W2-P3 captures were inspected at original resolution. Narrow Settings, Notes recovery, Tasks/Todo, Timer, picker, Palette, Location, and Folder states are contained and legible; corrected Location active option is visible/topmost inside its single scrollport; ordinary Settings is exactly 896,0-1280,720 and large Tasks exactly 2160,894-2544,1378.
+- Initial whole review found 0 Critical / 3 Important gaps: the General Remove endpoint was focused but offscreen, the Location composite was occluded, and the 320x180 evidence matrix was incomplete. Separate RED-first fixes plus a final causal Location resize/active-descendant race fix ended with the same reviewer `Ready`, I1-I3 Addressed, and 0 new Critical / 0 new Important.
+- The user's exploratory global `--canvas-fg-muted` white override was discarded with approval because it affected unrelated muted UI and broke a Focus appearance contract. W5-P4 now owns a targeted Focus-prompt contrast treatment over arbitrary photo backgrounds with representative contrast/screenshot evidence.
+- Native Chrome 400% zoom, Windows scaling/mixed-DPI moves, and real screen-reader behavior remain explicit W6-P2/manual ceilings. No Store, release, manifest-version, or V1 action occurred.
 
 - W2-P2 exact targeted suite at `1fdaf0c` - exit 0; 16 files / 661 tests passed.
 - `npx tsc --noEmit` at `1fdaf0c` - exit 0.
@@ -227,13 +245,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W2-P2`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P3.
+- None expected after `docs: checkpoint W2-P3`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W3-P1.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W2-P3` - Settings and tool reflow
-- **Plan:** None. Create it just in time from the master specification, verified W2-P2 semantics, current Settings/tool/dialog/popover layout seams, and the W2-P3 320 CSS px / 400% zoom acceptance boundary.
-- **State:** Not started. Write and independently review the executable W2-P3 plan before any W2-P3 implementation.
+- **Packet:** `W3-P1` - Layout V2 schema and migration
+- **Plan:** None. Create it just in time from the master specification, verified W2-P3 reflow/geometry contracts, current layout persistence and backup/migration seams, and the W3-P1 versioned profile/placement/rollback acceptance boundary.
+- **State:** Not started. Write and independently review the executable W3-P1 plan before any W3-P1 implementation.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -245,9 +263,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W2-P3
-Verified W2-P2 implementation SHA: 1fdaf0c9c8192b10b53d732b552aa656f1ca23a3
-Expected next checkpoint subject: docs: checkpoint W2-P3
+Starting packet: W3-P1
+Verified W2-P3 implementation SHA: 64675d245df08d126ab5610b807931ac47320b8e
+Expected next checkpoint subject: docs: checkpoint W3-P1
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
