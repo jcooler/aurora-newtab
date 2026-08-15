@@ -3,6 +3,7 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import { openMeteoProvider } from '../../../services/weather/openMeteo'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
+import { resourceStateOf } from '../../../lib/asyncState'
 
 const MAX_AGE_MS = 30 * 60 * 1000
 
@@ -166,12 +167,22 @@ export function useWeather() {
     return () => document.removeEventListener('visibilitychange', onVisibilityChange)
   }, [coordinateError, currentIdentity, matchingSnapshot, refresh])
 
-  const stale = !!matchingSnapshot && Date.now() - matchingSnapshot.fetchedAt >= MAX_AGE_MS
+  const now = Date.now()
+  const state = resourceStateOf({
+    hasData: matchingSnapshot !== null,
+    fetchedAt: matchingSnapshot?.fetchedAt ?? null,
+    ttlMs: MAX_AGE_MS,
+    pending: loading,
+    error: coordinateError ?? error,
+    now,
+  })
+  const stale = state.freshness === 'stale'
   return {
     snapshot: matchingSnapshot,
     stale,
     loading,
     error: coordinateError ?? error,
     refresh,
+    state,
   }
 }

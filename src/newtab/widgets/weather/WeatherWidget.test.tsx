@@ -63,6 +63,30 @@ async function expandPanel() {
   })
 }
 
+function weatherResponse(tempC: number): Response {
+  return new Response(
+    JSON.stringify({
+      current: {
+        temperature_2m: tempC,
+        apparent_temperature: tempC,
+        weather_code: 0,
+        wind_speed_10m: 5,
+        relative_humidity_2m: 50,
+        is_day: 1,
+      },
+      hourly: { time: [], temperature_2m: [], precipitation_probability: [], weather_code: [], is_day: [] },
+    }),
+    { status: 200 },
+  )
+}
+
+async function activateWithKeyboard(button: HTMLButtonElement) {
+  button.focus()
+  fireEvent.keyDown(button, { key: 'Enter', code: 'Enter' })
+  fireEvent.keyUp(button, { key: 'Enter', code: 'Enter' })
+  fireEvent.click(button)
+}
+
 describe('WeatherWidget collapsed chip', () => {
   it('shows current temp and location without any expanded content', async () => {
     await renderWidget()
@@ -440,7 +464,7 @@ describe('WeatherWidget full-forecast link', () => {
 })
 
 describe('WeatherWidget stale data', () => {
-  it('reports staleness inside the chip and offers refresh only once expanded', async () => {
+  it('announces a pending stale refresh inside the chip and offers Refresh only once expanded', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(
       () => new Promise<Response>(() => {}),
     )
@@ -451,10 +475,92 @@ describe('WeatherWidget stale data', () => {
     // even in this state (the old markup put a second button here).
     const section = screen.getByRole('region', { name: 'Weather' })
     expect(section.querySelectorAll('button')).toHaveLength(1)
-    expect(toggle().textContent).toContain('Updated a while ago')
+    expect(toggle().textContent).toContain('Refreshing…')
 
     await expandPanel()
-    expect(screen.getByRole('button', { name: /refresh/i })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy()
+    view.unmount()
+    fetchSpy.mockRestore()
+  })
+
+  it('uses bounded alert copy and keeps the named no-data Refresh control associated while keyboard retry is pending', async () => {
+    let resolveRetry!: (value: Response) => void
+    const retry = new Promise<Response>((resolve) => {
+      resolveRetry = resolve
+    })
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('private provider detail'))
+      .mockReturnValueOnce(retry)
+    const { view } = await renderWidget({ snapshot: null })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toBe('Weather unavailable. Try again.')
+    expect(screen.queryByText('private provider detail')).toBeNull()
+    const refresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
+    expect(refresh.disabled).toBe(false)
+
+    await act(async () => {
+      await activateWithKeyboard(refresh)
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
+    expect(pendingRefresh).toBe(refresh)
+    expect(pendingRefresh.disabled).toBe(true)
+    expect(pendingRefresh.getAttribute('aria-busy')).toBe('true')
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Loading weather\u2026')
+    expect(pendingRefresh.getAttribute('aria-describedby')).toBe(status.id)
+
+    await act(async () => {
+      resolveRetry(weatherResponse(22))
+      await retry
+    })
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getByText('22\u00b0')).toBeTruthy()
+    view.unmount()
+    fetchSpy.mockRestore()
+  })
+
+  it('announces cached retry politely inside the one collapsed toggle status and retains cached content', async () => {
+    let resolveRetry!: (value: Response) => void
+    const retry = new Promise<Response>((resolve) => {
+      resolveRetry = resolve
+    })
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new Error('private provider detail'))
+      .mockReturnValueOnce(retry)
+    const { view } = await renderWidget({
+      snapshot: makeSnapshot({ fetchedAt: Date.now() - 60 * 60 * 1000 }),
+    })
+
+    const offline = await screen.findByRole('status')
+    expect(offline.textContent).toBe('Offline \u2014 showing cached')
+    expect(screen.queryByText('private provider detail')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Weather' }).querySelectorAll('[role="status"]')).toHaveLength(1)
+    await expandPanel()
+    const refresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
+    expect(refresh.disabled).toBe(false)
+
+    await act(async () => {
+      await activateWithKeyboard(refresh)
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
+    expect(pendingRefresh).toBe(refresh)
+    expect(pendingRefresh.disabled).toBe(true)
+    expect(pendingRefresh.getAttribute('aria-busy')).toBe('true')
+    const status = screen.getByRole('status')
+    expect(status.textContent).toBe('Refreshing\u2026')
+    expect(pendingRefresh.getAttribute('aria-describedby')).toBe(status.id)
+    expect(screen.getByTitle('Partly cloudy · New York')).toBeTruthy()
+
+    await act(async () => {
+      resolveRetry(weatherResponse(24))
+      await retry
+    })
+    expect(openToggle().textContent).toContain('24\u00b0')
     view.unmount()
     fetchSpy.mockRestore()
   })

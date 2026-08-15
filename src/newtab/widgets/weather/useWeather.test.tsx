@@ -104,6 +104,54 @@ afterEach(() => {
 })
 
 describe('useWeather identity and request generations', () => {
+  it('exports literal semantic state for loading, freshness, offline data, no-data failure, and retry', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-14T12:00:00Z'))
+
+    const noData = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(noData.promise)
+    const first = await renderProbe({ location: TEXAS, cache: null })
+    expect(latest?.state).toEqual({ operation: 'pending', freshness: 'unknown', hasData: false })
+
+    await act(async () => {
+      noData.reject(new Error('provider detail'))
+      await noData.promise.catch(() => undefined)
+    })
+    expect(latest?.state).toEqual({ operation: 'error', freshness: 'unknown', hasData: false })
+    first.unmount()
+
+    fetchSnapshot.mockReset()
+    const fresh = await renderProbe({ location: TEXAS, cache: snapshotFor(TEXAS, 21) })
+    expect(latest?.state).toEqual({ operation: 'success', freshness: 'fresh', hasData: true })
+    fresh.unmount()
+
+    const staleRequest = deferred<WeatherSnapshot>()
+    const retry = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReset().mockReturnValueOnce(staleRequest.promise).mockReturnValueOnce(retry.promise)
+    const stale = await renderProbe({
+      location: TEXAS,
+      cache: snapshotFor(TEXAS, 21, { fetchedAt: Date.now() - MAX_AGE_MS }),
+    })
+    expect(latest?.state).toEqual({ operation: 'pending', freshness: 'stale', hasData: true })
+
+    await act(async () => {
+      staleRequest.reject(new Error('offline'))
+      await staleRequest.promise.catch(() => undefined)
+    })
+    expect(latest?.state).toEqual({ operation: 'error', freshness: 'stale', hasData: true })
+
+    await act(async () => {
+      void latest?.refresh()
+    })
+    expect(latest?.state).toEqual({ operation: 'pending', freshness: 'stale', hasData: true })
+    await act(async () => {
+      retry.resolve(snapshotFor(TEXAS, 23))
+      await retry.promise
+    })
+    expect(latest?.state).toEqual({ operation: 'success', freshness: 'fresh', hasData: true })
+    stale.unmount()
+  })
+
   it('suppresses legacy and same-label/different-coordinate caches immediately', async () => {
     const pending = deferred<WeatherSnapshot>()
     fetchSnapshot.mockReturnValue(pending.promise)

@@ -78,7 +78,7 @@ function Probe({
   runtimeScope?: unknown
   isData?: (value: unknown) => value is string
 }) {
-  const { data, fetchedAt, refreshing, lastError } = useConnectorSnapshot(
+  const { data, fetchedAt, refreshing, lastError, state } = useConnectorSnapshot(
     'rss',
     config,
     refresh,
@@ -92,6 +92,9 @@ function Probe({
       <li>{'fetchedAt:' + (fetchedAt ?? 'null')}</li>
       <li>{'refreshing:' + refreshing}</li>
       <li>{'error:' + (lastError ?? 'null')}</li>
+      <li>{'operation:' + state.operation}</li>
+      <li>{'freshness:' + state.freshness}</li>
+      <li>{'hasData:' + state.hasData}</li>
     </ul>
   )
 }
@@ -126,6 +129,83 @@ function mount(
 }
 
 describe('useConnectorSnapshot', () => {
+  it('exports literal semantic state for no data, freshness boundaries, retained failures, and retries', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-14T12:00:00Z'))
+
+    const noDataStorage = await freshStorage()
+    const initial = deferred<string>()
+    const noDataView = mount(noDataStorage, () => initial.promise, 1_000)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByText('operation:pending')).toBeTruthy()
+    expect(screen.getByText('freshness:unknown')).toBeTruthy()
+    expect(screen.getByText('hasData:false')).toBeTruthy()
+    await act(async () => {
+      initial.reject(new Error('unavailable'))
+      await initial.promise.catch(() => undefined)
+    })
+    expect(screen.getByText('operation:error')).toBeTruthy()
+    expect(screen.getByText('freshness:unknown')).toBeTruthy()
+    expect(screen.getByText('hasData:false')).toBeTruthy()
+    noDataView.unmount()
+
+    const freshStorageInstance = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'fresh-cache',
+    })
+    const freshView = mount(freshStorageInstance, () => Promise.resolve('unused'), 1_000)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByText('operation:success')).toBeTruthy()
+    expect(screen.getByText('freshness:fresh')).toBeTruthy()
+    expect(screen.getByText('hasData:true')).toBeTruthy()
+    freshView.unmount()
+
+    const cachedStorage = await freshStorage(configA, {
+      fetchedAt: Date.now() - 1_000,
+      data: 'cached-data',
+    })
+    const first = deferred<string>()
+    const second = deferred<string>()
+    const refresh = vi
+      .fn<(_: string | null) => Promise<string>>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise)
+    mount(cachedStorage, refresh, 1_000)
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(screen.getByText('operation:pending')).toBeTruthy()
+    expect(screen.getByText('freshness:stale')).toBeTruthy()
+    expect(screen.getByText('hasData:true')).toBeTruthy()
+
+    await act(async () => {
+      first.reject(new Error('offline'))
+      await first.promise.catch(() => undefined)
+    })
+    expect(screen.getByText('operation:error')).toBeTruthy()
+    expect(screen.getByText('freshness:stale')).toBeTruthy()
+    expect(screen.getByText('hasData:true')).toBeTruthy()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000)
+    })
+    expect(screen.getByText('operation:pending')).toBeTruthy()
+    expect(screen.getByText('freshness:stale')).toBeTruthy()
+    expect(screen.getByText('hasData:true')).toBeTruthy()
+
+    await act(async () => {
+      second.reject(new Error('offline again'))
+      await second.promise.catch(() => undefined)
+    })
+  })
+
   it('fresh mount with no snapshot: refresh runs once and the result is written with a fetchedAt', async () => {
     const storage = await freshStorage()
     const refresh = vi.fn(() => Promise.resolve('fresh-data'))

@@ -7,6 +7,7 @@ import {
   canonicalConnectorRuntimeScope,
   connectorSnapshotScope,
 } from '../../services/connectors/snapshotIdentity'
+import { resourceStateOf, type AsyncResourceState } from '../asyncState'
 
 const inFlight = new Map<string, Promise<unknown>>()
 const latestConfigKeys = new Map<ConnectorId, string>()
@@ -49,6 +50,7 @@ export function useConnectorSnapshot<T>(
   fetchedAt: number | null
   refreshing: boolean
   lastError: string | null
+  state: AsyncResourceState
 } {
   const storage = useStorage()
   const runtimeKey = runtimeScope === undefined ? '' : canonicalConnectorRuntimeScope(runtimeScope)
@@ -245,10 +247,19 @@ export function useConnectorSnapshot<T>(
   }, [id, storage, configKey, ttlMs])
 
   const current = state.configKey === configKey ? state : EMPTY_STATE
+  const now = Date.now()
   return {
     data: current.data,
     fetchedAt: current.fetchedAt,
     refreshing: current.refreshing,
     lastError: current.lastError,
+    state: resourceStateOf({
+      hasData: current.data !== null,
+      fetchedAt: current.fetchedAt,
+      ttlMs,
+      pending: current.refreshing,
+      error: current.lastError,
+      now,
+    }),
   }
 }

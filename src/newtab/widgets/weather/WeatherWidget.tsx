@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
+import { ResourceFeedback } from '../../../components/StateFeedback'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
@@ -43,8 +44,15 @@ export default function WeatherWidget({
 }: { onExpandedChange?: (expanded: boolean) => void } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
-  const { snapshot, stale, loading, error, refresh } = useWeather()
+  const { snapshot, stale, loading, error, refresh, state } = useWeather()
   const [expanded, setExpanded] = useState(false)
+  const [retrying, setRetrying] = useState(false)
+  const feedbackId = useId()
+
+  const requestRefresh = () => {
+    setRetrying(true)
+    void refresh().finally(() => setRetrying(false))
+  }
 
   // Mirrors BookmarksBar's own `onPopoverOpenChange` idiom (App.tsx): a ref
   // keeps this always calling the LATEST callback (never a stale closure
@@ -235,9 +243,30 @@ export default function WeatherWidget({
         </div>
       )}
       {location && !snapshot && (
-        <p className="p-4 text-sm text-fg-muted">
-          {error ?? (loading ? 'Loading weather…' : 'No data yet.')}
-        </p>
+        <div className="p-4 text-sm text-fg-muted">
+          <ResourceFeedback
+            state={state}
+            loading={'Loading weather\u2026'}
+            refreshing={'Refreshing\u2026'}
+            stale="Updated a while ago"
+            offline={'Offline \u2014 showing cached'}
+            unavailable="Weather unavailable. Try again."
+            id={feedbackId}
+          />
+          {state.operation === 'idle' && <p>No data yet.</p>}
+          {(state.operation === 'error' || retrying) && (
+            <button
+              type="button"
+              onClick={requestRefresh}
+              disabled={loading}
+              aria-busy={loading || undefined}
+              aria-describedby={feedbackId}
+              className="mt-3 cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
+            >
+              Refresh
+            </button>
+          )}
+        </div>
       )}
       {location && snapshot && (
         <>
@@ -309,11 +338,16 @@ export default function WeatherWidget({
               <Chevron expanded={expanded} />
             </span>
             {callout && <span className="text-sm text-accent">{callout}</span>}
-            {(stale || error) && (
-              <span className="text-xs text-fg-muted">
-                {error ? 'Offline — showing cached' : 'Updated a while ago'}
-              </span>
-            )}
+            <ResourceFeedback
+              state={state}
+              loading={'Loading weather\u2026'}
+              refreshing={'Refreshing\u2026'}
+              stale="Updated a while ago"
+              offline={'Offline \u2014 showing cached'}
+              unavailable="Weather unavailable. Try again."
+              id={feedbackId}
+              className="text-xs text-fg-muted"
+            />
           </button>
 
           {expanded && (
@@ -446,13 +480,16 @@ export default function WeatherWidget({
               </dl>
 
               <div className="mt-3 short:mt-2 xshort:mt-2 flex items-center justify-between gap-3">
-                {stale || error ? (
+                {stale || error || retrying ? (
                   <button
                     type="button"
-                    onClick={() => void refresh()}
-                    className="cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                    onClick={requestRefresh}
+                    disabled={loading}
+                    aria-busy={loading || undefined}
+                    aria-describedby={feedbackId}
+                    className="cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
                   >
-                    {loading ? 'Refreshing…' : 'Refresh'}
+                    Refresh
                   </button>
                 ) : (
                   <span />
