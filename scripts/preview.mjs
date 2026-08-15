@@ -412,6 +412,49 @@ const w2P1FeedbackContract = {
   homeAssistant: false,
   weather: false,
 }
+const w2P1AxEvidence = {
+  notes: null,
+  homeAssistant: null,
+  weather: null,
+}
+const captureW2P1AxEvidence = async (targetPage, { statuses = [], alerts = [], buttons = [] }) => {
+  const session = await context.newCDPSession(targetPage)
+  try {
+    const { nodes } = await session.send('Accessibility.getFullAXTree')
+    const byId = new Map(nodes.map((node) => [node.nodeId, node]))
+    const roleOf = (node) => node?.role?.value ?? null
+    const nameOf = (node) => node?.name?.value ?? null
+    const propertyOf = (node, name) =>
+      node?.properties?.find((property) => property.name === name)?.value?.value ?? null
+    const textIn = (node, expected, seen = new Set()) => {
+      if (!node || seen.has(node.nodeId)) return false
+      seen.add(node.nodeId)
+      if (nameOf(node) === expected) return true
+      return (node.childIds ?? []).some((id) => textIn(byId.get(id), expected, seen))
+    }
+    const textRole = (role, text) => {
+      const node = nodes.find((candidate) => roleOf(candidate) === role && textIn(candidate, text))
+      return node ? { role: roleOf(node), text } : null
+    }
+    const buttonRole = (name) => {
+      const node = nodes.find((candidate) => roleOf(candidate) === 'button' && nameOf(candidate) === name)
+      return node ? {
+        role: roleOf(node),
+        name: nameOf(node),
+        description: node.description?.value ?? null,
+        disabled: propertyOf(node, 'disabled'),
+        busy: propertyOf(node, 'busy'),
+      } : null
+    }
+    return {
+      statuses: statuses.map((text) => textRole('status', text)),
+      alerts: alerts.map((text) => textRole('alert', text)),
+      buttons: buttons.map(buttonRole),
+    }
+  } finally {
+    await session.detach()
+  }
+}
 const setHarnessConnectorViews = (id, views) => page.evaluate(
   async ({ connectorId, nextViews }) => {
     const { connectors = {}, connectorSnapshots = {} } = await chrome.storage.local.get([
@@ -2457,6 +2500,28 @@ try {
     const focused = await notesProofPage.evaluate((button) => document.activeElement === button, retryHandle)
     await notesProofPage.keyboard.press('Enter')
     await waitForHeldNote()
+    w2P1AxEvidence.notes = await captureW2P1AxEvidence(notesProofPage, {
+      statuses: ['Saving…'],
+      alerts: ['Couldn’t save. Your note is still here.'],
+      buttons: ['Retry save'],
+    })
+    const originalViewport = notesProofPage.viewportSize()
+    const captures = [
+      { width: 800, height: 600, file: 'w2-p1-async-feedback-800x600.png' },
+      { width: 1600, height: 1100, file: 'w2-p1-async-feedback-1600x1100.png' },
+      { width: 2560, height: 1440, file: 'w2-p1-async-feedback-2560x1440.png' },
+    ]
+    try {
+      for (const capture of captures) {
+        await notesProofPage.setViewportSize({ width: capture.width, height: capture.height })
+        await notesProofPage.getByRole('button', { name: 'Notes' }).focus()
+        await notesProofPage.waitForTimeout(100)
+        await notesProofPage.screenshot({ path: `${outDir}/${capture.file}` })
+        console.log(`captured ${capture.file} (real held Notes retry: Saving status + retained alert + busy Retry)`)
+      }
+    } finally {
+      if (originalViewport) await notesProofPage.setViewportSize(originalViewport)
+    }
     await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
     await notesDialog.getByRole('status').filter({ hasText: 'Saved' }).waitFor()
     return focused
@@ -2515,14 +2580,14 @@ try {
       oneAlert: alerts.length === 1,
       alertAtomic: alert?.getAttribute('aria-atomic') === 'true',
       retryNamedAndEnabled: retry instanceof HTMLButtonElement && retry.textContent?.trim() === 'Retry save' && !retry.disabled,
-      duplicatedFailure: status?.textContent?.includes('Couldnâ€™t save. Your note is still here.') ?? false,
+      duplicatedFailure: status?.textContent?.includes('Couldn’t save. Your note is still here.') ?? false,
     }
   })
   w2P1FeedbackContract.notes =
     pendingStatusContract.oneStatus &&
     pendingStatusContract.polite &&
     pendingStatusContract.atomic &&
-    pendingStatusContract.text === 'Savingâ€¦' &&
+    pendingStatusContract.text === 'Saving…' &&
     savedStatusContract.stable &&
     savedStatusContract.polite &&
     savedStatusContract.atomic &&
@@ -8574,6 +8639,11 @@ function gitlabContributionsFixture() {
     visualPending.siblings[0]?.feedbackRole === 'status' &&
     visualPending.siblings[0]?.feedbackText === VISUAL_PENDING_TEXT &&
     visualPending.siblings[0]?.feedbackVisible === true
+  w2P1AxEvidence.homeAssistant = await captureW2P1AxEvidence(page, {
+    statuses: [VISUAL_PENDING_TEXT],
+    alerts: [ERROR_TEXT],
+    buttons: ['Run Porch plug', 'Run Movie night'],
+  })
   await page.screenshot({ path: `${outDir}/ha-action-error.png` })
   console.log('captured ha-action-error.png (1600x1100 — focused enabled Porch plug retry + complete error alert alongside a genuinely disabled/pending Movie night action)')
 
@@ -11600,7 +11670,7 @@ function gitlabContributionsFixture() {
   const refreshingVisible = await page.waitForFunction((selector) => {
     const weather = document.querySelector(selector)
     const status = weather?.querySelector('[role="status"]')
-    return status?.textContent?.trim() === 'Refreshingâ€¦' &&
+    return status?.textContent?.trim() === 'Refreshing…' &&
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
   }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
@@ -11614,30 +11684,54 @@ function gitlabContributionsFixture() {
       statusText: status?.textContent?.trim() ?? null,
       statusPolite: status?.getAttribute('aria-live') === 'polite',
       statusAtomic: status?.getAttribute('aria-atomic') === 'true',
-      retainedFixture: text.includes('New York') && (text.includes('18Â°C') || text.includes('64Â°F')),
+      retainedFixture: text.includes('New York') && (text.includes('18°C') || text.includes('64°F')),
       caughtProviderErrorShown: text.includes(caughtProviderError),
     }
   }, { selector: weatherSel, caughtProviderError: CAUGHT_PROVIDER_ERROR })
   const refreshingFeedback = await readWeatherFeedback()
+  const weatherEvidenceViewport = page.viewportSize()
+  w2P1AxEvidence.weather = {
+    refreshing: await captureW2P1AxEvidence(page, { statuses: ['Refreshing…'] }),
+    offline: null,
+  }
+  await page.setViewportSize({ width: 800, height: 600 })
+  await page.focus(weatherToggle)
+  await page.waitForTimeout(100)
+  await page.screenshot({ path: `${outDir}/w2-p1-weather-freshness-800x600.png` })
+  console.log('captured w2-p1-weather-freshness-800x600.png (real held stale-cache refresh: polite Refreshing status)')
   releaseWeatherRequest()
   const offlineVisible = await page.waitForFunction((selector) => {
     const weather = document.querySelector(selector)
     const status = weather?.querySelector('[role="status"]')
-    return status?.textContent?.trim() === 'Offline â€” showing cached' &&
+    return status?.textContent?.trim() === 'Offline — showing cached' &&
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
   }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
   const offlineFeedback = await readWeatherFeedback()
+  w2P1AxEvidence.weather.offline = await captureW2P1AxEvidence(page, {
+    statuses: ['Offline — showing cached'],
+  })
+  for (const capture of [
+    { width: 1600, height: 900, file: 'w2-p1-weather-freshness-1600x900.png' },
+    { width: 2560, height: 1440, file: 'w2-p1-weather-freshness-2560x1440.png' },
+  ]) {
+    await page.setViewportSize({ width: capture.width, height: capture.height })
+    await page.focus(weatherToggle)
+    await page.waitForTimeout(100)
+    await page.screenshot({ path: `${outDir}/${capture.file}` })
+    console.log(`captured ${capture.file} (real routed failure: polite Offline — showing cached status)`)
+  }
+  if (weatherEvidenceViewport) await page.setViewportSize(weatherEvidenceViewport)
   w2P1FeedbackContract.weather =
     refreshingVisible &&
     refreshingFeedback.statusCount === 1 &&
-    refreshingFeedback.statusText === 'Refreshingâ€¦' &&
+    refreshingFeedback.statusText === 'Refreshing…' &&
     refreshingFeedback.statusPolite &&
     refreshingFeedback.statusAtomic &&
     refreshingFeedback.retainedFixture &&
     offlineVisible &&
     offlineFeedback.statusCount === 1 &&
-    offlineFeedback.statusText === 'Offline â€” showing cached' &&
+    offlineFeedback.statusText === 'Offline — showing cached' &&
     offlineFeedback.statusPolite &&
     offlineFeedback.statusAtomic &&
     offlineFeedback.retainedFixture &&
@@ -17096,6 +17190,9 @@ if (hasBookmarksPermission) {
 await page.setViewportSize(launchViewport)
 await page.waitForTimeout(150)
 
+console.log(
+  `EVIDENCE: W2-P1 Chromium Accessibility.getFullAXTree (Chromium AX only; not a real screen-reader run): ${JSON.stringify(w2P1AxEvidence)}`,
+)
 const w2P1FeedbackOk =
   w2P1FeedbackContract.notes &&
   w2P1FeedbackContract.homeAssistant &&
