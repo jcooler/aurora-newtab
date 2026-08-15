@@ -194,19 +194,25 @@
 
 - None expected after `docs: checkpoint W1-P9`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W2-P1.
 
-## Single next packet
+## Continuous remaining-work protocol
 
 - **Packet:** `W2-P1` - Shared async/freshness state primitives
 - **Plan:** Not yet created; create it just in time from the master specification, verified Wave 1 contracts, current duplicated pending/success/error/freshness semantics, accessibility announcements, and the W2 acceptance boundary.
-- **State:** Not started. The next fresh task should write and independently review the executable W2-P1 plan before any W2-P1 implementation; this W1-P9 task stops at the packet boundary.
+- **State:** Not started. Write and independently review the executable W2-P1 plan before any W2-P1 implementation.
+- After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
+- Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
+- Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
+- Pause only for a genuine blocker, a material decision requiring new authority, required user/manual evidence, an explicit handoff request, or the W6-P5 Store approval boundary. W6-P5 must stop before any upload, submission, publication, rollout, or live-listing change unless contemporaneous explicit approval is received.
+- Historical packet plans remain evidence; their previous handoff wording does not override the newer continuous-run protocol.
 
-## Continuation seed
+## Single continuous-run seed
 
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Next plan: create just-in-time W2-P1 shared async/freshness state primitives plan
-Packet ID: W2-P1
+Starting packet: W2-P1
 Verified W1-P9 implementation SHA: 34f89600f24c7be203854bdbaf348932ab1831f0
 Expected next checkpoint subject: docs: checkpoint W2-P1
+Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
+Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```

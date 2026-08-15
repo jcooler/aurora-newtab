@@ -336,6 +336,10 @@ The approved V1 listing remains live while 2.0 is reviewed. No external Store mu
 
 ## 16. Delivery discipline
 
-The roadmap in `docs/superpowers/aurora-2/ROADMAP.md` is authoritative for packet state. Each packet freezes an envelope, follows TDD, runs a bounded independent review and fix round, commits verified implementation, updates the durable ledgers in a dedicated checkpoint commit, verifies a clean worktree, and stops at the packet boundary.
+The roadmap in `docs/superpowers/aurora-2/ROADMAP.md` is authoritative for packet state. Each packet freezes an envelope, follows TDD, runs a bounded independent review and fix round, commits verified implementation, updates the durable ledgers in a dedicated checkpoint commit, pushes, and verifies local/upstream equality plus clean target and protected-original worktrees.
+
+Packet boundaries are internal safety checkpoints, not mandatory session stops. After a packet is Verified, the same continuous run re-reads the current specification and ledgers, revalidates repository state, creates and independently reviews the next just-in-time plan, and proceeds automatically to the next Not started roadmap packet. Do not generate a continuation prompt per packet. Historical packet plans remain evidence; their handoff wording does not override this program-level protocol for future work.
+
+Pause only when explicit user approval or manual evidence is required for acceptance, a material architecture decision needs new authority, repository provenance or cleanliness fails, a genuine blocker prevents safe progress, the user requests a handoff, or the remaining program is complete. Wave 6 dashboard verification may require user input, and W6-P5 remains an explicit hard stop before any upload, submission, rollout, publication, or live Chrome Web Store listing change. Context compaction is not a stop condition: resume from durable repository state. When a new-session handoff is requested, generate one continuation prompt covering the whole remaining roadmap rather than a single packet.
 
 The repository—not chat history—is the program memory.
