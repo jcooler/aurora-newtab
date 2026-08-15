@@ -19717,6 +19717,351 @@ await page.waitForTimeout(150)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
 }
 
+// W3-P2 packet aggregate. This complete fixture, viewport matrix, predicate
+// set, result line, and teardown are frozen before any Adaptive Stage
+// production edit. All fallible checks reduce to one result. The disposable
+// page restores the exact all-key preimage under the storage authority, resets
+// its viewport, closes, and crosses the shared lock before reporting.
+{
+  const aggregateName = 'W3-P2 profile engine, registry, BoardItem, and semantic grid semantics'
+  const evidencePage = await context.newPage()
+  const storageLock = 'aurora:storage:mutation:v1'
+  const versionKey = 'aurora:version'
+  const dataKeys = [
+    'settings', 'focus', 'todoLists', 'links', 'timerConfig', 'photoPrefs',
+    'location', 'weatherCache', 'notes', 'worldClocks', 'countdowns', 'layout',
+    'connectors', 'connectorSnapshots', 'habits', 'apodCache',
+  ]
+  const touchedKeys = [...dataKeys, versionKey]
+  const originalViewport = evidencePage.viewportSize() ?? { width: 1600, height: 900 }
+  const connectorIds = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant']
+  const allBlockIds = [
+    'clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links',
+    'quote', 'weather', 'timer', 'tasks', 'notes', 'bookmarks', 'rss', 'github',
+    'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'habits', 'monthCal', 'sun',
+    'moon', 'status', 'homeassistant',
+  ]
+  const profileCases = [
+    { width: 800, height: 600, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 800, height: 599, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 1200, height: 600, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 599, height: 800, profile: 'compact', sublayout: 'compact-narrow', density: 'compact' },
+    { width: 600, height: 800, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 320, height: 800, profile: 'compact', sublayout: 'compact-narrow', density: 'compact' },
+    { width: 900, height: 700, profile: 'standard', sublayout: 'standard', density: 'balanced' },
+    { width: 1600, height: 900, profile: 'standard', sublayout: 'standard', density: 'spacious' },
+    { width: 2560, height: 1440, profile: 'display', sublayout: 'display', density: 'spacious' },
+    { width: 1600, height: 700, profile: 'ultrawide', sublayout: 'ultrawide', density: 'balanced' },
+    { width: 3440, height: 1440, profile: 'ultrawide', sublayout: 'ultrawide', density: 'spacious' },
+  ]
+  const densityTokens = {
+    compact: { gap: 12, inset: 12, track: 64, target: 36 },
+    balanced: { gap: 16, inset: 16, track: 80, target: 36 },
+    spacious: { gap: 24, inset: 24, track: 96, target: 44 },
+  }
+  const stageCapacities = {
+    'compact-wide': {
+      compact: { day: [2, 2], now: [2, 3], pulse: [2, 2] },
+      balanced: { day: [2, 1], now: [2, 3], pulse: [2, 1] },
+      spacious: { day: [1, 1], now: [2, 2], pulse: [1, 1] },
+    },
+    'compact-narrow': {
+      compact: { day: [1, 2], now: [2, 2], pulse: [1, 2] },
+      balanced: { day: [1, 1], now: [2, 2], pulse: [1, 1] },
+      spacious: { day: [1, 1], now: [2, 1], pulse: [1, 1] },
+    },
+    standard: {
+      compact: { day: [3, 6], now: [4, 5], pulse: [3, 6] },
+      balanced: { day: [2, 5], now: [4, 4], pulse: [2, 5] },
+      spacious: { day: [2, 4], now: [4, 4], pulse: [2, 4] },
+    },
+    display: {
+      compact: { day: [4, 7], now: [6, 6], pulse: [4, 7] },
+      balanced: { day: [4, 6], now: [6, 5], pulse: [4, 6] },
+      spacious: { day: [3, 5], now: [6, 5], pulse: [3, 5] },
+    },
+    ultrawide: {
+      compact: { day: [5, 6], now: [6, 6], pulse: [5, 6] },
+      balanced: { day: [4, 6], now: [6, 5], pulse: [4, 6] },
+      spacious: { day: [4, 5], now: [6, 5], pulse: [4, 5] },
+    },
+  }
+  const observations = {
+    sparse: [], dense: null, manualDensity: null, override: null,
+    cleanup: { restored: false, viewportRestored: false, pageClosed: false, lockCrossed: false },
+    capturedErrors: [], errors: [],
+  }
+  let originalPreimage = null
+  let captureEvidenceErrors = false
+  const onEvidenceConsole = (message) => {
+    if (captureEvidenceErrors && message.type() === 'error') observations.capturedErrors.push(`console: ${message.text()}`)
+  }
+  const onEvidencePageError = (error) => {
+    if (captureEvidenceErrors) observations.capturedErrors.push(`page: ${String(error)}`)
+  }
+  evidencePage.on('console', onEvidenceConsole)
+  evidencePage.on('pageerror', onEvidencePageError)
+
+  const canonicalize = (value) => {
+    if (Array.isArray(value)) return value.map(canonicalize)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
+    }
+    return value
+  }
+  const exact = (actual, expected) =>
+    JSON.stringify(canonicalize(actual)) === JSON.stringify(canonicalize(expected))
+  const waitForStage = async () => {
+    await evidencePage.waitForSelector('time')
+    await evidencePage.waitForTimeout(100)
+  }
+  const probe = async ({ width, height, profile, sublayout }, expectedDensity) => {
+    await evidencePage.setViewportSize({ width, height })
+    await evidencePage.waitForTimeout(100)
+    return evidencePage.evaluate(({ profile, sublayout, expectedDensity, tokens, capacities, allBlockIds }) => {
+      const root = document.documentElement
+      const main = document.querySelector('main[data-adaptive-stage]')
+      const items = [...document.querySelectorAll('[data-block-id][data-stage-zone]')]
+      const dock = document.querySelector('[data-stage-zone-container="dock"]')
+      const rootStyle = getComputedStyle(root)
+      const itemRows = items.map((node) => {
+        const rect = node.getBoundingClientRect()
+        const style = getComputedStyle(node)
+        const parent = node.closest('[data-stage-zone-container]')
+        const parentRect = parent?.getBoundingClientRect() ?? null
+        return {
+          id: node.getAttribute('data-block-id'),
+          zone: node.getAttribute('data-stage-zone'),
+          dockReason: node.getAttribute('data-stage-dock-reason'),
+          parentZone: parent?.getAttribute('data-stage-zone-container') ?? null,
+          profile: node.getAttribute('data-stage-profile'),
+          variant: node.getAttribute('data-stage-variant'),
+          priority: node.getAttribute('data-stage-priority'),
+          rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+          spans: [style.getPropertyValue('--board-col-span').trim(), style.getPropertyValue('--board-row-span').trim()],
+          containerType: style.containerType,
+          transform: style.transform,
+          containedInParent: Boolean(parentRect) && rect.left >= parentRect.left - 0.5 &&
+            rect.top >= parentRect.top - 0.5 && rect.bottom <= parentRect.bottom + 0.5 &&
+            (node.getAttribute('data-stage-zone') === 'dock' || rect.right <= parentRect.right + 0.5),
+        }
+      })
+      const ids = itemRows.map((row) => row.id)
+      const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
+      const overlaps = []
+      for (let i = 0; i < itemRows.length; i += 1) {
+        for (let j = i + 1; j < itemRows.length; j += 1) {
+          const a = itemRows[i]
+          const b = itemRows[j]
+          if (a.zone !== b.zone || a.zone === 'dock') continue
+          if (a.rect.left < b.rect.right - 0.5 && a.rect.right > b.rect.left + 0.5 &&
+              a.rect.top < b.rect.bottom - 0.5 && a.rect.bottom > b.rect.top + 0.5) {
+            overlaps.push([a.id, b.id])
+          }
+        }
+      }
+      const resolved = root.dataset.stageDensity
+      const token = tokens[resolved]
+      const px = (name) => Number.parseFloat(rootStyle.getPropertyValue(name))
+      const finiteBoardContained = itemRows.filter((row) => row.zone !== 'dock').every((row) =>
+        row.rect.left >= -0.5 && row.rect.right <= innerWidth + 0.5 &&
+          row.rect.top >= -0.5 && row.rect.bottom <= innerHeight + 0.5) &&
+        itemRows.every((row) => row.parentZone === row.zone && row.containedInParent)
+      const noPageHorizontalScroll = document.documentElement.scrollWidth <= innerWidth + 1 &&
+        document.body.scrollWidth <= innerWidth + 1 && (!main || main.scrollWidth <= main.clientWidth + 1)
+      const noVerticalScroll =
+        document.documentElement.scrollHeight <= innerHeight + 1 && document.body.scrollHeight <= innerHeight + 1 &&
+        (!main || main.scrollHeight <= main.clientHeight + 1)
+      const finiteGeometry = itemRows.every((row) => row.spans.every((span) => /^\d+$/.test(span))) &&
+        finiteBoardContained && noPageHorizontalScroll && noVerticalScroll
+      const dockRows = itemRows.filter((row) => row.zone === 'dock')
+      const dockReasons = ['pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock']
+      const expectedCapacity = capacities[sublayout]?.[resolved]
+      const stageCapacityExact = Boolean(expectedCapacity) &&
+        px('--stage-day-cols') === expectedCapacity.day[0] && px('--stage-day-rows') === expectedCapacity.day[1] &&
+        px('--stage-now-cols') === expectedCapacity.now[0] && px('--stage-now-rows') === expectedCapacity.now[1] &&
+        px('--stage-pulse-cols') === expectedCapacity.pulse[0] && px('--stage-pulse-rows') === expectedCapacity.pulse[1]
+      return {
+        expected: { profile, sublayout, density: expectedDensity },
+        actual: {
+          profile: root.dataset.stageProfile,
+          cssProfile: rootStyle.getPropertyValue('--stage-css-profile').trim(),
+          density: resolved,
+          sublayout: main?.getAttribute('data-stage-sublayout') ?? null,
+        },
+        rootOwned: Boolean(main) && root.dataset.stageProfile === profile &&
+          rootStyle.getPropertyValue('--stage-gap').trim() !== '' &&
+          rootStyle.getPropertyValue('--stage-day-cols').trim() !== '',
+        tokenExact: Boolean(token) && px('--stage-gap') === token.gap && px('--stage-inset') === token.inset &&
+          px('--stage-track-min') === token.track && px('--stage-control-target') === token.target,
+        stageCapacityExact,
+        profileExact: root.dataset.stageProfile === profile &&
+          rootStyle.getPropertyValue('--stage-css-profile').trim() === profile &&
+          main?.getAttribute('data-stage-sublayout') === sublayout,
+        densityExact: resolved === expectedDensity,
+        unique: duplicates.length === 0,
+        exactlyOnceClock: ids.filter((id) => id === 'clock').length === 1,
+        clockProtected: itemRows.find((row) => row.id === 'clock')?.zone === 'now',
+        semanticWrappers: itemRows.length > 0 && itemRows.every((row) =>
+          allBlockIds.includes(row.id) && row.profile === profile && row.variant && row.priority &&
+          row.containerType === 'inline-size' && row.transform === 'none'),
+        finiteBoardContained,
+        noPageHorizontalScroll,
+        noVerticalScroll,
+        finiteGeometry,
+        noOverlap: overlaps.length === 0,
+        noRootTransform: rootStyle.transform === 'none' && (!main || getComputedStyle(main).transform === 'none'),
+        dockPresent: Boolean(dock),
+        dockReachable: Boolean(dock) && ['auto', 'scroll'].includes(getComputedStyle(dock).overflowX),
+        dockZoneParentExact: dockRows.every((row) => row.parentZone === 'dock'),
+        dockReasonExact: dockRows.every((row) => dockReasons.includes(row.dockReason)) &&
+          itemRows.filter((row) => row.zone !== 'dock').every((row) => row.dockReason === null),
+        dock: dockRows.map(({ id, dockReason, parentZone }) => ({ id, dockReason, parentZone })),
+        ids, duplicates, overlaps,
+      }
+    }, { profile, sublayout, expectedDensity, tokens: densityTokens, capacities: stageCapacities, allBlockIds })
+  }
+  const probeOk = (row) => row.rootOwned && row.tokenExact && row.profileExact && row.densityExact &&
+    row.stageCapacityExact && row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
+    row.noOverlap && row.noRootTransform && row.dockPresent && row.dockReachable && row.dockZoneParentExact && row.dockReasonExact
+
+  try {
+    await evidencePage.goto('chrome://newtab/')
+    await waitForStage()
+    originalPreimage = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    const sparseBase = await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get(['settings', 'layout', 'connectors'])
+      const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, false]))
+      const settings = { ...current.settings, widgets, layoutDensity: 'auto' }
+      await chrome.storage.local.set({ settings, layout: { version: 2, profiles: {} }, connectors: {} })
+      return settings
+    })
+    captureEvidenceErrors = true
+    await evidencePage.reload()
+    await waitForStage()
+    for (const row of profileCases) {
+      observations.sparse.push(await probe(row, row.density))
+    }
+
+    await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get(['settings'])
+      const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, true]))
+      // Every connector is enabled but intentionally incomplete, so the
+      // registry must retain its wrapper while the existing renderer stays in
+      // setup/empty state and cannot leak this harness into provider traffic.
+      const connectors = {
+        rss: { enabled: true, feeds: [], shownCount: 5 },
+        github: { enabled: true, token: '', username: '' },
+        gitlab: { enabled: true, token: '', instanceUrl: '', username: '' },
+        jira: { enabled: true, email: '', apiToken: '', site: '', displayName: '' },
+        vercel: { enabled: true, token: '', username: '' },
+        crypto: { enabled: true, coins: [] },
+        ics: { enabled: true, calendars: [] },
+        status: { enabled: true, services: [] },
+        homeassistant: { enabled: true },
+      }
+      await chrome.storage.local.set({
+        settings: { ...current.settings, widgets, layoutDensity: 'auto' },
+        layout: { version: 2, profiles: {} },
+        connectors,
+      })
+    })
+    await evidencePage.reload()
+    await waitForStage()
+    const denseProbe = await probe(profileCases[0], 'compact')
+    const expectedDock = [
+      ['timer', 'priority-dock'], ['tasks', 'priority-dock'], ['notes', 'priority-dock'],
+      ['countdown', 'overflow-dock'], ['sun', 'eligible-dock'],
+      ['moon', 'eligible-dock'], ['search', 'overflow-dock'], ['vercel', 'eligible-dock'],
+      ['focus', 'overflow-dock'], ['homeassistant', 'eligible-dock'], ['quote', 'eligible-dock'],
+      ['links', 'eligible-dock'], ['rss', 'eligible-dock'],
+      ['crypto', 'eligible-dock'], ['habits', 'eligible-dock'], ['bookmarks', 'eligible-dock'],
+    ].map(([id, dockReason]) => ({ id, dockReason, parentZone: 'dock' }))
+    observations.dense = {
+      probe: denseProbe,
+      allActiveExactlyOnce: allBlockIds.every((id) => denseProbe.ids.filter((value) => value === id).length === 1),
+      connectorsExactlyOnce: connectorIds.every((id) => denseProbe.ids.filter((value) => value === id).length === 1),
+      hasDock: denseProbe.dock.length > 0,
+      dockOrderReasonsAndParentsExact: exact(denseProbe.dock, expectedDock),
+    }
+
+    await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({ settings: { ...current.settings, layoutDensity: 'balanced' } })
+    })
+    await evidencePage.reload()
+    await waitForStage()
+    observations.manualDensity = await probe(profileCases[7], 'balanced')
+
+    await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({
+        settings: { ...current.settings, layoutDensity: 'compact' },
+        layout: { version: 2, profiles: { standard: { weather: {
+          zone: 'pulse', order: 99, colSpan: 1, rowSpan: 1,
+          variant: 'compact', priority: 'pinned', locked: true,
+        } } } },
+      })
+    })
+    await evidencePage.reload()
+    await waitForStage()
+    const overrideProbe = await probe(profileCases[7], 'compact')
+    observations.override = {
+      probe: overrideProbe,
+      weatherZone: await evidencePage.locator('[data-block-id="weather"]').getAttribute('data-stage-zone'),
+      weatherLockedStillAllocatedOnce: overrideProbe.ids.filter((id) => id === 'weather').length === 1,
+    }
+    observations.fixture = { sparseBase, profileCases }
+  } catch (error) {
+    observations.errors.push(error instanceof Error ? error.message : String(error))
+  } finally {
+    captureEvidenceErrors = false
+    evidencePage.off('console', onEvidenceConsole)
+    evidencePage.off('pageerror', onEvidencePageError)
+    try {
+      if (originalPreimage) {
+        observations.cleanup.restored = await evidencePage.evaluate(async ({ keys, snapshot, lockName }) =>
+          navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+            const missing = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+            if (missing.length > 0) await chrome.storage.local.remove(missing)
+            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+            return JSON.stringify(await chrome.storage.local.get(keys)) === JSON.stringify(snapshot)
+          }), { keys: touchedKeys, snapshot: originalPreimage, lockName: storageLock })
+      }
+    } catch (error) {
+      observations.errors.push(`restore: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    try {
+      await evidencePage.setViewportSize(originalViewport)
+      observations.cleanup.viewportRestored = exact(evidencePage.viewportSize(), originalViewport)
+    } catch (error) {
+      observations.errors.push(`viewport: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    await evidencePage.close().then(
+      () => { observations.cleanup.pageClosed = true },
+      (error) => observations.errors.push(`close: ${error instanceof Error ? error.message : String(error)}`),
+    )
+    try {
+      await page.evaluate((lockName) => navigator.locks.request(lockName, { mode: 'exclusive' }, () => undefined), storageLock)
+      observations.cleanup.lockCrossed = true
+    } catch (error) {
+      observations.errors.push(`lock: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const ok = observations.errors.length === 0 && observations.capturedErrors.length === 0 &&
+    observations.sparse.length === profileCases.length &&
+    observations.sparse.every(probeOk) && probeOk(observations.dense?.probe) &&
+    observations.dense?.allActiveExactlyOnce && observations.dense.connectorsExactlyOnce && observations.dense.hasDock &&
+    observations.dense.dockOrderReasonsAndParentsExact &&
+    probeOk(observations.manualDensity) && probeOk(observations.override?.probe) &&
+    observations.override.weatherZone === 'pulse' && observations.override.weatherLockedStillAllocatedOnce &&
+    observations.cleanup.restored && observations.cleanup.viewportRestored && observations.cleanup.pageClosed &&
+    observations.cleanup.lockCrossed
+  console.log(`EVIDENCE: W3-P2 immutable Adaptive Stage observations: ${JSON.stringify(observations)}`)
+  console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
+}
+
 console.log(
   `EVIDENCE: W2-P1 Chromium Accessibility.getFullAXTree (Chromium AX only; not a real screen-reader run): ${JSON.stringify(w2P1AxEvidence)}`,
 )

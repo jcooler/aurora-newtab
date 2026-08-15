@@ -21,6 +21,10 @@ export type Zone = (typeof ZONES)[number]
 export const PRIORITIES = ['pinned', 'automatic', 'dock'] as const
 export type Priority = (typeof PRIORITIES)[number]
 
+export const LAYOUT_DENSITY_PREFERENCES = ['auto', 'compact', 'balanced', 'spacious'] as const
+export type LayoutDensityPreference = (typeof LAYOUT_DENSITY_PREFERENCES)[number]
+export type ResolvedLayoutDensity = Exclude<LayoutDensityPreference, 'auto'>
+
 export interface Placement {
   zone: Zone
   order: number
