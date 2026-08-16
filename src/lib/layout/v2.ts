@@ -179,6 +179,25 @@ export function normalizeProfilePlacements(
   return normalizeZones(profile, new Set(ZONES))
 }
 
+/** Replace one semantic profile without materializing source defaults or
+ * touching another profile/legacy provenance. W3-P3 Save uses this inside
+ * the existing storage authority. */
+export function withProfileOverrides(
+  layout: LayoutV2,
+  profile: LayoutProfile,
+  overrides: Partial<Record<BlockId, Placement>>,
+): LayoutV2 {
+  const profiles = cloneProfiles(layout)
+  const normalized = normalizeProfilePlacements(overrides)
+  if (Object.keys(normalized).length > 0) profiles[profile] = normalized
+  else delete profiles[profile]
+  return {
+    version: 2,
+    profiles,
+    ...(layout.legacy ? { legacy: validateLegacyLayout(layout.legacy) } : {}),
+  }
+}
+
 export function withLegacyBlockPosition(layout: LayoutV2, blockId: BlockId, pos: BlockPos): LayoutV2 {
   if (!BLOCK_ID_SET.has(blockId) || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
     throw new LegacyLayoutValidationError()

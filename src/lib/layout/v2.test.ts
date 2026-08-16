@@ -17,6 +17,7 @@ import {
   normalizeProfilePlacements,
   validateLegacyLayout,
   withLegacyBlockPosition,
+  withProfileOverrides,
 } from './v2'
 
 const placement = (overrides: Partial<Placement> = {}): Placement => ({
@@ -27,6 +28,43 @@ const placement = (overrides: Partial<Placement> = {}): Placement => ({
   variant: 'standard',
   priority: 'pinned',
   ...overrides,
+})
+
+describe('semantic profile replacement', () => {
+  it('replaces only one normalized profile and preserves legacy plus other profiles', () => {
+    const source: LayoutV2 = {
+      version: 2,
+      profiles: {
+        compact: { clock: placement({ zone: 'now', order: 4 }) },
+        standard: { weather: placement({ zone: 'day', order: 8 }) },
+      },
+      legacy: { clock: { x: 50, y: 40 } },
+    }
+    const before = structuredClone(source)
+    const result = withProfileOverrides(source, 'standard', {
+      greeting: placement({ zone: 'now', order: 9 }),
+      clock: placement({ zone: 'now', order: 3, locked: true }),
+    })
+
+    expect(source).toEqual(before)
+    expect(result.legacy).toEqual(source.legacy)
+    expect(result.profiles.compact).toEqual(source.profiles.compact)
+    expect(result.profiles.standard?.clock).toMatchObject({ order: 0, locked: true })
+    expect(result.profiles.standard?.greeting?.order).toBe(1)
+  })
+
+  it('removes only the reset profile instead of persisting source defaults', () => {
+    const result = withProfileOverrides({
+      version: 2,
+      profiles: {
+        standard: { weather: placement() },
+        display: { clock: placement({ zone: 'now' }) },
+      },
+    }, 'standard', {})
+
+    expect(result.profiles.standard).toBeUndefined()
+    expect(result.profiles.display).toBeTruthy()
+  })
 })
 
 describe('Layout V2 domains and defaults', () => {
