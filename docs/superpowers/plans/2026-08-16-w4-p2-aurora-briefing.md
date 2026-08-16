@@ -24,11 +24,11 @@
 - Create: `src/lib/briefing.ts`
 - Create: `src/lib/briefing.test.ts`
 
-- [ ] Add RED tests for fixed signal priority: next active/upcoming Calendar item, incomplete Tasks count, then likely Rain.
-- [ ] Add RED tests for deterministic Compact/Standard/Display budgets: 1/2/3 segments with total character ceilings and an ellipsis when the final admitted segment must be shortened.
-- [ ] Add RED tests for stable tie-breaking, current/expired events, all-day wording, zero-task omission, rain threshold/hour formatting, empty fallback, malformed input rejection, and omission of URL/token/capability fields.
-- [ ] Implement pure `collectBriefingSignals` and `formatBriefing` functions with explicit inputs and no time, storage, network, locale, or random reads inside the module.
-- [ ] Run the focused pure tests, then commit `feat(briefing): add deterministic local synthesis`.
+- [x] Add RED tests for fixed signal priority: next active/upcoming Calendar item, incomplete Tasks count, then likely Rain.
+- [x] Add RED tests for deterministic Compact/Standard/Display budgets: 1/2/3 segments with total character ceilings and an ellipsis when the final admitted segment must be shortened.
+- [x] Add RED tests for stable tie-breaking, current/expired events, all-day wording, zero-task omission, rain threshold/hour formatting, empty fallback, malformed input rejection, and omission of URL/token/capability fields.
+- [x] Implement pure `collectBriefingSignals` and `formatBriefing` functions with explicit inputs and no time, storage, network, locale, or random reads inside the module.
+- [x] Run the focused pure tests, then commit `feat(briefing): add deterministic local synthesis`.
 
 ### Task 2: Read only valid locally held inputs and render in Now
 
@@ -38,11 +38,11 @@
 - Modify: `src/newtab/components/Greeting.tsx`
 - Modify: `src/newtab/components/Greeting.test.tsx`
 
-- [ ] Add RED component tests proving the visible sentence comes only from hydrated local storage and updates on storage/minute changes without initiating any fetch.
-- [ ] Accept Calendar data only when ICS is enabled, structurally valid, fresh under its existing TTL, and scoped to the current config/timezone; compute scope locally without refreshing. Accept Weather only when its request identity matches the current location and its existing 30-minute freshness boundary. Count incomplete Tasks locally.
-- [ ] Render Compact, Standard, and Display sentence variants from the same signal snapshot; keep exactly one visible/programmatic sentence per active profile and use an ordinary polite text paragraph, not a live region that re-announces every minute.
-- [ ] Place Briefing after Greeting inside the existing Greeting BoardItem so semantic Now order becomes Clock, Greeting/Briefing, Search, Focus without changing registry identity, footprints, Stage capacity, or allocation.
-- [ ] Run focused component/Greeting tests, then commit `feat(briefing): render local Now summary`.
+- [x] Add RED component tests proving the visible sentence comes only from hydrated local storage and updates on storage/minute changes without initiating any fetch.
+- [x] Accept Calendar data only when ICS is enabled, structurally valid, fresh under its existing TTL, and scoped to the current config/timezone; compute scope locally without refreshing. Accept Weather only when its request identity matches the current location and its existing 30-minute freshness boundary. Count incomplete Tasks locally.
+- [x] Render Compact, Standard, and Display sentence variants from the same signal snapshot; keep exactly one visible/programmatic sentence per active profile and use an ordinary polite text paragraph, not a live region that re-announces every minute.
+- [x] Place Briefing after Greeting inside the existing Greeting BoardItem so semantic Now order becomes Clock, Greeting/Briefing, Search, Focus without changing registry identity, footprints, Stage capacity, or allocation.
+- [x] Run focused component/Greeting tests, then commit `feat(briefing): render local Now summary`.
 
 ### Task 3: Fit the terse sentence across profiles
 
@@ -51,10 +51,10 @@
 - Modify: `src/newtab/dayNowPresentation.test.ts`
 - Modify: `src/newtab/App.test.tsx`
 
-- [ ] Style Briefing as one secondary photo-legible line beneath Greeting; Compact shows the one-segment budget, Standard the two-segment budget, and Display/Ultrawide the three-segment budget.
-- [ ] Preserve the established Greeting width caps, Clock prominence, Search/Focus targets, reduced-motion behavior, no root scaling, no viewport-percentage positioning, and no whole-widget height hides.
-- [ ] Add source/DOM guards proving Briefing has no registry/schema/network/storage identity and cannot duplicate or displace BoardItems.
-- [ ] Run the focused Briefing/Greeting/App/CSS tests and TypeScript, then commit `style(briefing): fit the Now hierarchy`.
+- [x] Style Briefing as one secondary photo-legible line beneath Greeting; Compact shows the one-segment budget, Standard the two-segment budget, and Display/Ultrawide the three-segment budget.
+- [x] Preserve the established Greeting width caps, Clock prominence, Search/Focus targets, reduced-motion behavior, no root scaling, no viewport-percentage positioning, and no whole-widget height hides.
+- [x] Add source/DOM guards proving Briefing has no registry/schema/network/storage identity and cannot duplicate or displace BoardItems.
+- [x] Run the focused Briefing/Greeting/App/CSS tests and TypeScript, then commit `style(briefing): fit the Now hierarchy`.
 
 ### Task 4: Bounded review, evidence, and checkpoint
 
@@ -64,10 +64,10 @@
 - Modify: `docs/superpowers/aurora-2/STATUS.md`
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 
-- [ ] Run one implementation review against only the explicit W4-P2 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
-- [ ] Run one focused built-extension replay at Compact 800x600, Standard 1600x900, and Display 2560x1440. Prove exact 1/2/3 segment priority/truncation, local cache identity/freshness gates, one visible/programmatic sentence, unchanged BoardItem ownership/order, no clipping, no network request attributable to Briefing, restored teardown, and zero runtime errors.
-- [ ] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
-- [ ] Inspect the three required captures once, mark W4-P2 Verified, record exact gates and A2-D028, commit `docs: checkpoint W4-P2`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
+- [x] Run one implementation review against only the explicit W4-P2 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
+- [x] Run one focused built-extension replay at Compact 800x600, Standard 1600x900, and Display 2560x1440. Prove exact 1/2/3 segment priority/truncation, local cache identity/freshness gates, one visible/programmatic sentence, unchanged BoardItem ownership/order, no clipping, no network request attributable to Briefing, restored teardown, and zero runtime errors.
+- [x] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
+- [x] Inspect the three required captures once, mark W4-P2 Verified, record exact gates and A2-D028, commit `docs: checkpoint W4-P2`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
 - [ ] Begin W4-P3 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of done

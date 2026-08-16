@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
-**Last verified packet:** `W4-P1` - Day and Now zones<br>
-**Next packet:** `W4-P2` - Aurora Briefing; Planned, focused RED tests next
+**Last verified packet:** `W4-P2` - Aurora Briefing<br>
+**Next packet:** `W4-P3` - Work Pulse variants; just-in-time plan next
 
 ## Packet envelope
 
-- **Acceptance:** Give sparse Day useful responsive date context, preserve the frozen Clock/Greeting/Search/Focus semantic hierarchy, and add useful expanded date detail without changing Stage geometry, registry/schema, storage, privacy, permissions, or Store state.
-- **Implemented files:** Added deterministic compact/long local-date formatting and a render-only empty-Day `DayContext`; added an accessible secondary long date to expanded Clock variants; refined Day and Now presentation while keeping planner capacity and registry identity frozen; added focused Chromium evidence and corrected legacy clock probes to read the established `<time>` source.
-- **Test scope:** Focused RED/green clock/component/App/CSS guards; one implementation review and one Important accessibility fix/rereview; one final unit/build set; one focused Compact/Standard/Display replay; one actual full-harness selector-family fix and one permitted rerun.
-- **Visual scope:** Compact 800x600 sparse Day, Standard 1600x900 populated Day, and Display 2560x1440 populated Day captures were inspected once. Compact retains Clock/Greeting in Now and Search/Focus in Dock under frozen capacity while the combined semantic order stays exact; Standard/Display keep all four in Now and expose the expanded date. No Critical/Important visual issue remains.
+- **Acceptance:** Render one terse deterministic Briefing in Now from already-held current Calendar, Tasks, and Weather data, with fixed priority and responsive budgets, while preserving privacy and all frozen schema/registry/allocation/storage/network/permission/Store contracts.
+- **Implemented files:** Added the pure `briefing` signal collector/formatter and a render-only `AuroraBriefing` component under Greeting. Calendar and Weather inputs require exact current scope/identity and freshness; only safe event fields enter synthesis. Compact/Standard/Display expose 1/2/3-signal sentences without a new BoardItem or refresh owner.
+- **Test scope:** Focused RED/green pure/component/source guards; one bounded implementation review and one related geometry stabilization/rereview cycle; one final unit/build set; one focused built-extension replay; one full browser run and its single permitted rerun. The rerun's sole adjacent Compact containment failure was fixed and proven with targeted 600x800/320x800 replays; no third full run was performed.
+- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once; the corrected Compact 600x800 and 320x800 family was inspected after the final causal fix. One sentence is visible per profile, the Display copy fits, Compact Greeting/Briefing paint remains contained, and no Critical/Important visual issue remains.
 
 ## Last completed commits
 
@@ -100,8 +100,20 @@
 - `9f206da` - executable W4-P1 Day/Now plan with frozen schema, registry, capacity, storage, privacy, permission, and Store boundaries.
 - `6d87137`, `9561074`, and `05669b8` - responsive sparse Day context, calm photo-forward Now presentation, expanded date detail, and the bounded-review accessibility fix.
 - `089886e`, `5c33afb`, and `7acb851` - focused W4-P1 browser proof, frozen Compact-capacity evidence alignment, and causal full-harness Clock selector correction; verified W4-P1 implementation head.
+- `8277845` - executable W4-P2 Aurora Briefing plan with local-only synthesis and frozen schema/registry/allocation/network boundaries.
+- `5ec2f4a` and `4a66a50` - pure deterministic Calendar/Tasks/Rain synthesis and render-only Greeting integration.
+- `c6c95c2`, `5258e2a`, and `e656263` - responsive text fitting, focused Chromium evidence, and bounded Compact Greeting containment corrections; verified W4-P2 implementation head.
 
 ## Latest verification
+
+- W4-P2 focused pure/component/source development gates passed: final combined set 3 files / 15 tests plus the final source guard 1 file / 4 tests; TypeScript exited 0.
+- Final `npm test` after implementation stabilized - exit 0; 131 files / 2,218 tests passed. Final `npx tsc --noEmit` also exited 0.
+- Final `npm run build` and `npm run build:preview` - exit 0; both transformed 185 modules. The production bridge scan returned the expected no-match result with no forbidden preview symbol output.
+- Focused `node scripts/preview-w4-p2.mjs` - exit 0 with `PASS: W4-P2 Aurora Briefing semantics`; Compact/Standard/Display expose exact 1/2/3-signal text, one visible sentence, current local cache use, existing Greeting ownership, no clipping, no Briefing network request, restored teardown, and `runtimeErrors: []`. The final actual-failure replay also proves Greeting/Briefing containment at 600x800 and 320x800.
+- The full browser harness first run reached 455 PASS / 2 FAIL / 3 SKIP. Both failures belonged to one Compact Greeting paint-containment family introduced by the new wrapper. After the causal selector fix, the single permitted rerun reached 456 PASS / 1 FAIL / 3 SKIP and exposed the same family at the adjacent 600px edge. The final bounded typography correction passed the focused 600x800 and 320x800 replay; the full harness was not run a third time, per pragmatic-delivery policy.
+- Required captures under `C:\Users\SickT\Documents\Codex\2026-08-16\change-aurora-execution-to-pragmatic-delivery\outputs\w4-p2\` were inspected. The corrected 600x800 and 320x800 Compact captures were also inspected after the causal fix.
+- One bounded implementation review plus its related fix/rereview cycle found and corrected the Display summary's second CSS truncation and Compact Greeting selector regression. No Critical or Important issue remains open. Minor/cosmetic observations did not reopen the packet.
+- No schema, registry, profile threshold, capacity, allocation, migration, stored-data, permission, privacy, production-network, Aurora V1, or Store contract changed.
 
 - W4-P1 focused development gates passed after RED: final focused set 6 files / 46 tests, the accessibility fix set 4 files / 37 tests, and TypeScript exited 0.
 - Final `npm test` after implementation stabilized - exit 0; 129 files / 2,206 tests passed. `npx tsc --noEmit` also exited 0.
@@ -311,13 +323,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W4-P1`. If `git status --short` is non-empty at continuation, reconcile it before W4-P2 production work.
+- None expected after `docs: checkpoint W4-P2`. If `git status --short` is non-empty at continuation, reconcile it before W4-P3 production work.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W4-P2` - Aurora Briefing
-- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p2-aurora-briefing.md`.
-- **State:** Planned; focused RED tests are next. Scope is local-only deterministic Calendar/Tasks/Weather synthesis with fixed priority/truncation and no new network dependency; do not absorb W4-P3 connector variants, W4-P4 Dock redesign, or W4-P5 launcher/content work.
+- **Packet:** `W4-P3` - Work Pulse variants
+- **Plan:** Create just in time from the written W4-P3 acceptance criteria.
+- **State:** W4-P2 Verified; W4-P3 plan is next. Scope is attention-first Compact/Standard/Expanded connector forms and healthy-state quietness; do not absorb W4-P4 Dock redesign or W4-P5 launcher/content work.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -329,9 +341,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W4-P2
-Verified W4-P1 implementation SHA: 7acb851
-Expected next checkpoint subject: docs: checkpoint W4-P2
+Starting packet: W4-P3
+Verified W4-P2 implementation SHA: e656263
+Expected next checkpoint subject: docs: checkpoint W4-P3
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
