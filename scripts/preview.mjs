@@ -14559,7 +14559,7 @@ function gitlabContributionsFixture() {
   // would defeat the entire point of this block.
   const forcing = await page.evaluate(
     ({ cSel, wSel }) => {
-      const clockText = document.querySelector(cSel)?.textContent ?? null
+      const clockText = document.querySelector(`${cSel} time`)?.textContent ?? null
       const chipText = document.querySelector(wSel)?.textContent ?? ''
       return {
         clockText,
@@ -16378,7 +16378,7 @@ function gitlabContributionsFixture() {
   // sweep that silently measured a 1-digit clock would be the exact time-of-day
   // blind spot this wave exists to remove.
   const sweepClockText = await page.evaluate(
-    () => document.querySelector('[data-block-id="clock"]')?.textContent ?? null,
+    () => document.querySelector('[data-block-id="clock"] time')?.textContent ?? null,
   )
   console.log(
     sweepClockText === '10:44'
@@ -18840,7 +18840,7 @@ function gitlabContributionsFixture() {
   // 6-row month loop's own `forcedOk` above, the bookmarks worst-case
   // block's own count assertions): a probe that silently measured the WRONG
   // state would be worse than no probe at all.
-  const clockText = await page.evaluate((sel) => document.querySelector(sel)?.textContent ?? null, clockSel)
+  const clockText = await page.evaluate((sel) => document.querySelector(`${sel} time`)?.textContent ?? null, clockSel)
   const clockForcedOk = clockText === '10:44'
   console.log(
     clockForcedOk
