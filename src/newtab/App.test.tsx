@@ -70,6 +70,8 @@ describe('App — Adaptive Stage composition', () => {
     const nowIds = [...screen.getByRole('region', { name: 'Now' }).querySelectorAll<HTMLElement>(':scope > [data-block-id]')]
       .map((node) => node.dataset.blockId)
     expect(nowIds).toEqual(['clock', 'greeting', 'search', 'focus', 'links'])
+    expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(1)
+    expect(document.querySelector('[data-aurora-briefing]')?.closest('[data-block-id]')?.getAttribute('data-block-id')).toBe('greeting')
   })
 
   it('renders each active registry ID exactly once on the board or in the Dock', async () => {

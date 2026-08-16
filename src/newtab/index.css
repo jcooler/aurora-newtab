@@ -1123,6 +1123,49 @@ select > option {
   display: block;
 }
 
+/* Greeting and Briefing share the existing Greeting BoardItem. Briefing is
+   render-only local synthesis, so it receives no registry identity, track, or
+   planner capacity and cannot displace the frozen Now allocations. */
+.aurora-greeting {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.aurora-briefing {
+  min-width: 0;
+  max-width: min(100%, 44rem);
+  margin-top: 6px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.aurora-briefing p {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aurora-briefing [data-briefing-standard],
+.aurora-briefing [data-briefing-display] {
+  display: none;
+}
+:root[data-stage-profile="standard"] .aurora-briefing [data-briefing-compact] {
+  display: none;
+}
+:root[data-stage-profile="standard"] .aurora-briefing [data-briefing-standard] {
+  display: block;
+}
+:root:is([data-stage-profile="display"], [data-stage-profile="ultrawide"]) .aurora-briefing [data-briefing-compact] {
+  display: none;
+}
+:root:is([data-stage-profile="display"], [data-stage-profile="ultrawide"]) .aurora-briefing [data-briefing-display] {
+  display: block;
+}
+
 /* Closed Bookmarks remains in the normal grid stacking order. Elevation is
    reserved for its live popover; otherwise the wrapper's full allocation can
    intercept controls that paint in another semantic zone. */

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import appSource from './App.tsx?raw'
 import clockSource from './components/Clock.tsx?raw'
+import briefingSource from './components/AuroraBriefing.tsx?raw'
 import dayContextSource from './components/DayContext.tsx?raw'
+import greetingSource from './components/Greeting.tsx?raw'
 import indexCss from './index.css?raw'
 import registrySource from './widgetRegistry.ts?raw'
 
@@ -24,5 +26,15 @@ describe('W4-P1 Day and Now presentation boundary', () => {
     expect(indexCss).not.toMatch(/\.adaptive-stage\s*\{[^}]*transform:/)
     expect(indexCss).not.toMatch(/\[data-block-id="(?:clock|greeting|search|focus)"\][^{]*\{[^}]*display:\s*none/)
     expect(appSource).not.toMatch(/(?:left|top):\s*[^,}]*%/)
+  })
+
+  it('keeps Aurora Briefing local, render-only, and profile-budgeted inside Greeting', () => {
+    expect(greetingSource).toContain('<AuroraBriefing />')
+    expect(briefingSource).not.toMatch(/\bfetch\s*\(/)
+    expect(briefingSource).not.toContain("storage.set")
+    expect(registrySource).not.toContain("id: 'briefing'")
+    expect(indexCss).toMatch(/\.aurora-briefing \[data-briefing-standard\],[\s\S]*?display: none;/)
+    expect(indexCss).toMatch(/data-stage-profile="standard"[\s\S]*?data-briefing-standard[^}]+display: block;/)
+    expect(indexCss).toMatch(/data-stage-profile="display"[\s\S]*?data-briefing-display[^}]+display: block;/)
   })
 })
