@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { resolveStageDensity, type Density, type StageAllocation, type ViewportSize } from '../lib/layout/adaptiveStage'
-import type { BlockId, Layout } from '../lib/layout/types'
+import type { BlockId } from '../lib/layout/types'
 import { applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
 import Background from './components/Background'
 import BoardItem from './components/BoardItem'
-import PositionedBlock from './components/PositionedBlock'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
 import ArrangeController from './arrange/ArrangeController'
-import { DraftLayoutContext } from './arrange/draftLayout'
+import type { ArrangePreview } from './arrange/draftLayout'
 import { selectActiveWidgetRegistry, WIDGET_REGISTRY_BY_ID } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useAdaptiveStageViewport } from './useAdaptiveStageViewport'
@@ -31,7 +30,7 @@ export default function App() {
   const [layout] = useStoredKey('layout')
   const [connectors] = useStoredKey('connectors')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [draft, setDraft] = useState<Layout>({})
+  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
   const [arranging, setArranging] = useState(false)
   const [arrangeSignal, setArrangeSignal] = useState(0)
   const [weatherExpanded, setWeatherExpanded] = useState(false)
@@ -79,27 +78,33 @@ export default function App() {
       : size.width >= 1600 && size.width / size.height >= 2.1
         ? 'ultrawide'
         : size.width >= 2200 && size.height >= 1100 ? 'display' : 'standard'
+    const overrides = arrangePreview?.profile === profile
+      ? arrangePreview.overrides
+      : layout.profiles[profile]
     return resolveStageDensity({
       preference: settings.layoutDensity,
       viewport: size,
       profile,
       entries: activeEntries,
-      overrides: layout.profiles[profile],
+      overrides,
       dockBlockSizes: DOCK_BLOCK_SIZES,
     }).density
-  }, [activeEntries, layout, settings, stageInputsReady]))
+  }, [activeEntries, arrangePreview, layout, settings, stageInputsReady]))
 
   const resolution = useMemo(() => {
     if (!stageInputsReady || !settings || !layout) return null
+    const overrides = arrangePreview?.profile === viewport.profile
+      ? arrangePreview.overrides
+      : layout.profiles[viewport.profile]
     return resolveStageDensity({
       preference: settings.layoutDensity,
       viewport,
       profile: viewport.profile,
       entries: activeEntries,
-      overrides: layout.profiles[viewport.profile],
+      overrides,
       dockBlockSizes: DOCK_BLOCK_SIZES,
     })
-  }, [activeEntries, layout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
+  }, [activeEntries, arrangePreview, layout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
 
   if (!stageInputsReady || !settings || !photoPrefs || !layout || !connectors || !resolution) return null
 
@@ -124,13 +129,6 @@ export default function App() {
     const entry = WIDGET_REGISTRY_BY_ID[allocation.id]
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
     const child = <Renderer {...rendererProps} />
-    if (draft[entry.id]) {
-      return (
-        <PositionedBlock key={entry.id} id={entry.id} pos={layout.legacy?.[entry.id]}>
-          <WidgetBoundary name={entry.label}>{child}</WidgetBoundary>
-        </PositionedBlock>
-      )
-    }
     return (
       <BoardItem
         key={entry.id}
@@ -156,8 +154,7 @@ export default function App() {
       )).join(',')}
       className="adaptive-stage text-fg"
     >
-      <DraftLayoutContext.Provider value={draft}>
-        <div className="contents" inert={arranging}>
+      <div className="contents" inert={arranging}>
           <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
           <div className="adaptive-stage__grid">
             {ZONES.map((zone) => {
@@ -233,9 +230,15 @@ export default function App() {
           <WidgetBoundary name="palette">
             <PaletteHost onOpenSettings={() => setSettingsOpen(true)} arranging={arranging} />
           </WidgetBoundary>
-        </div>
-        <ArrangeController onDraftChange={setDraft} onModeChange={setArranging} openSignal={arrangeSignal} />
-      </DraftLayoutContext.Provider>
+      </div>
+      <ArrangeController
+        profile={viewport.profile}
+        layout={layout}
+        entries={activeEntries}
+        onPreviewChange={setArrangePreview}
+        onModeChange={setArranging}
+        openSignal={arrangeSignal}
+      />
     </main>
   )
 }

@@ -265,9 +265,34 @@ describe('App — Adaptive Stage composition', () => {
     fireEvent.click(gear)
     fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
-    expect(await screen.findByRole('button', { name: 'Move Clock' })).toBe(document.activeElement)
-    fireEvent.click(screen.getByRole('button', { name: 'Done' }))
+    expect(await screen.findByRole('button', { name: 'Edit Weather' })).toBe(document.activeElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(document.activeElement).toBe(gear)
+  })
+
+  it('replans from the semantic Arrange preview and restores the exact stored profile on Cancel', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const active = this.hasAttribute('data-block-id')
+      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
+    })
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const stored = await storage.get('layout')
+    await renderApp(storage)
+    const weather = () => document.querySelector<HTMLElement>('[data-block-id="weather"]')!
+    const before = weather().dataset.stageVariant
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Weather' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
+    expect(weather().dataset.stageVariant).toBe('compact')
+    expect(await storage.get('layout')).toEqual(stored)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(weather().dataset.stageVariant).toBe(before)
+    expect(await storage.get('layout')).toEqual(stored)
   })
 
   it('Reset layout preserves a manual density choice', async () => {
