@@ -20535,6 +20535,7 @@ await page.waitForTimeout(150)
       const rows = [...section.querySelectorAll('ul > li')]
       const join = headline?.querySelector('a')
       return {
+        variant: section.closest('[data-block-id="ics"]')?.getAttribute('data-stage-variant') ?? null,
         headlineProgrammatic: resolved(headline),
         rowProgrammatic: rows.map(resolved),
         rowVisible: rows.map(visible),
@@ -20577,12 +20578,17 @@ await page.waitForTimeout(150)
       expanded: expandedCalendar,
       visualStability: { at1600: calendarVisual1600, at2560: calendarVisual2560 },
     }
-    checks.calendar = calendarState !== null && calendarState.headlineProgrammatic.includes('Opening sync') &&
-      calendarState.exactSources.headlinePersonal === 1 && calendarState.rowProgrammatic.length === 2 &&
+    const compactRowsOk = calendarState?.variant === 'compact' && calendarState.rowProgrammatic.length === 0 &&
+      calendarState.rowVisible.length === 0 && calendarState.exactSources.firstRowPersonal === 0 &&
+      calendarState.exactSources.firstRowWork === 0 && calendarState.exactSources.secondRowPersonal === 0 &&
+      calendarState.exactSources.secondRowWork === 0
+    const fullerRowsOk = calendarState?.variant !== 'compact' && calendarState?.rowProgrammatic.length === 2 &&
       calendarState.rowProgrammatic.every((text) => text.includes('Duplicate review')) &&
       calendarState.exactSources.firstRowPersonal === 1 && calendarState.exactSources.firstRowWork === 0 &&
       calendarState.exactSources.secondRowPersonal === 0 && calendarState.exactSources.secondRowWork === 1 &&
-      calendarState.rowVisible[0] === calendarState.rowVisible[1] && calendarState.joinProgrammatic.includes('Join') &&
+      calendarState.rowVisible[0] === calendarState.rowVisible[1]
+    checks.calendar = calendarState !== null && calendarState.headlineProgrammatic.includes('Opening sync') &&
+      calendarState.exactSources.headlinePersonal === 1 && (compactRowsOk || fullerRowsOk) && calendarState.joinProgrammatic.includes('Join') &&
       calendarState.joinProgrammatic.includes('Opening sync') && calendarState.exactSources.joinPersonal === 1 &&
       !calendarState.capabilityLeak && !calendarCapabilityUrls.some((url) => calendarAxText.includes(url)) &&
       axEntryIncludes(compactCalendarAx, ['Opening sync', 'Personal'], 'paragraph') &&
@@ -22699,7 +22705,7 @@ await page.waitForTimeout(150)
           row.width >= token.target - 0.5 && row.height >= token.target - 0.5))
       )
       const dockRows = itemRows.filter((row) => row.zone === 'dock')
-      const persistentTargets = ['Open settings', 'New background photo'].map((name) => {
+      const persistentTargets = ['Open settings', 'Open utility tray', 'New background photo'].map((name) => {
         const target = document.querySelector(`button[aria-label="${name}"]`)
         if (!(target instanceof HTMLElement)) return { name, found: false, width: 0, height: 0 }
         const rect = target.getBoundingClientRect()
