@@ -21,6 +21,7 @@ import sharp from 'sharp'
 const dist = resolve('dist')
 const outDir = resolve('screenshots')
 const w3P2OutDir = 'C:/Users/SickT/Documents/Codex/2026-08-14/continue-aurora-2-continuously-through-all/outputs/w3-p2'
+const w3P3OutDir = 'C:/Users/SickT/Documents/Codex/2026-08-16/change-aurora-execution-to-pragmatic-delivery/outputs/w3-p3'
 const profileDir = resolve('.playwright-profile')
 const headed = process.argv.includes('--headed')
 
@@ -67,6 +68,7 @@ const weatherRequestIdentityFixture = (lat, lon) =>
 rmSync(profileDir, { recursive: true, force: true }) // fresh storage every run
 mkdirSync(outDir, { recursive: true })
 mkdirSync(w3P2OutDir, { recursive: true })
+mkdirSync(w3P3OutDir, { recursive: true })
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium', // full build in new-headless mode: extensions supported
@@ -22947,11 +22949,11 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('button', { name: 'Open settings' }).click()
     await evidencePage.getByRole('tab', { name: 'Widgets' }).click()
     await evidencePage.getByRole('button', { name: 'Arrange layout' }).click()
-    const moveClock = evidencePage.getByRole('button', { name: 'Move Clock' })
-    await moveClock.waitFor()
-    const entryFocused = await moveClock.evaluate((node) => document.activeElement === node)
-    const done = evidencePage.getByRole('button', { name: 'Done' })
-    await done.focus()
+    const editWeather = evidencePage.getByRole('button', { name: 'Edit Weather' })
+    await editWeather.waitFor()
+    const entryFocused = await editWeather.evaluate((node) => document.activeElement === node)
+    const cancel = evidencePage.getByRole('button', { name: 'Cancel' })
+    await cancel.focus()
     await evidencePage.keyboard.press('Enter')
     await evidencePage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
     observations.arrangeFocusRestoration = {
@@ -23079,6 +23081,264 @@ await page.waitForTimeout(150)
     observations.cleanup.restored && observations.cleanup.viewportRestored && observations.cleanup.pageClosed &&
     observations.cleanup.lockCrossed
   console.log(`EVIDENCE: W3-P2 immutable Adaptive Stage observations: ${JSON.stringify(observations)}`)
+  console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
+}
+
+// W3-P3 packet aggregate. One canonical Standard editing session proves the
+// semantic draft contract; Compact and Display are bounded visual witnesses,
+// not an exhaustive cross-product matrix.
+{
+  const aggregateName = 'W3-P3 semantic Arrange/profile editor semantics'
+  const evidencePage = await context.newPage()
+  const storageLock = 'aurora:storage:mutation:v1'
+  const touchedKeys = ['settings', 'layout']
+  const originalViewport = evidencePage.viewportSize() ?? { width: 1600, height: 900 }
+  const observations = {
+    entry: null,
+    preview: null,
+    cancel: null,
+    copyResetUndo: null,
+    save: null,
+    compact: null,
+    large: null,
+    captures: [],
+    capturedErrors: [],
+    errors: [],
+    cleanup: { restored: false, viewportRestored: false, pageClosed: false, lockCrossed: false },
+  }
+  let originalPreimage = null
+  let fixtureLayout = null
+  let captureErrors = false
+  const onConsole = (message) => {
+    if (captureErrors && message.type() === 'error') observations.capturedErrors.push(`console: ${message.text()}`)
+  }
+  const onPageError = (error) => {
+    if (captureErrors) observations.capturedErrors.push(`page: ${String(error)}`)
+  }
+  evidencePage.on('console', onConsole)
+  evidencePage.on('pageerror', onPageError)
+
+  const canonicalize = (value) => {
+    if (Array.isArray(value)) return value.map(canonicalize)
+    if (value && typeof value === 'object') {
+      return Object.fromEntries(Object.keys(value).sort().map((key) => [key, canonicalize(value[key])]))
+    }
+    return value
+  }
+  const exact = (actual, expected) =>
+    JSON.stringify(canonicalize(actual)) === JSON.stringify(canonicalize(expected))
+  const waitForStage = async () => {
+    await evidencePage.waitForSelector('main[data-adaptive-stage]')
+    await evidencePage.waitForTimeout(100)
+  }
+  const openEditor = async () => {
+    await evidencePage.getByRole('button', { name: 'Open settings' }).click()
+    await evidencePage.getByRole('tab', { name: 'Widgets' }).click()
+    await evidencePage.getByRole('button', { name: 'Arrange layout' }).click()
+    const dialog = evidencePage.getByRole('dialog', { name: /Arrange .* profile/ })
+    await dialog.waitFor()
+    return dialog
+  }
+  const profileCapture = async (width, height, name) => {
+    await evidencePage.setViewportSize({ width, height })
+    await evidencePage.reload()
+    await waitForStage()
+    const dialog = await openEditor()
+    const geometry = await dialog.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      const controls = [...node.querySelectorAll('button:not([disabled]),select:not([disabled])')]
+        .filter((control) => control instanceof HTMLElement && control.getClientRects().length > 0)
+        .map((control) => {
+          const box = control.getBoundingClientRect()
+          return { width: box.width, height: box.height }
+        })
+      return {
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        bounded: rect.left >= -1 && rect.top >= -1 && rect.right <= innerWidth + 1 && rect.bottom <= innerHeight + 1,
+        targets: controls.length,
+        targetFloor: controls.every((box) => box.height >= 35.5),
+        horizontalPageClip: document.documentElement.scrollWidth > innerWidth + 1 || document.body.scrollWidth > innerWidth + 1,
+      }
+    })
+    await evidencePage.screenshot({ path: `${w3P3OutDir}/${name}` })
+    observations.captures.push(name)
+    await evidencePage.getByRole('button', { name: 'Cancel' }).click()
+    return geometry
+  }
+
+  try {
+    await evidencePage.goto('chrome://newtab/')
+    await waitForStage()
+    originalPreimage = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    fixtureLayout = {
+      version: 2,
+      profiles: {
+        compact: {
+          weather: { zone: 'day', order: 7, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' },
+        },
+        standard: {},
+        display: {
+          habits: { zone: 'now', order: 12, colSpan: 2, rowSpan: 2, variant: 'standard', priority: 'automatic' },
+        },
+      },
+      legacy: { weather: { x: 14, y: 22 }, habits: { x: 55, y: 48 } },
+    }
+    await evidencePage.evaluate(async (layout) => {
+      const current = await chrome.storage.local.get('settings')
+      const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, false]))
+      Object.assign(widgets, { weather: true, habits: true, monthCal: true })
+      await chrome.storage.local.set({
+        settings: { ...current.settings, widgets, layoutDensity: 'balanced' },
+        layout,
+      })
+    }, fixtureLayout)
+    captureErrors = true
+    await evidencePage.setViewportSize({ width: 1600, height: 900 })
+    await evidencePage.reload()
+    await waitForStage()
+    const beforeSession = await evidencePage.evaluate(() => chrome.storage.local.get('layout'))
+    const dialog = await openEditor()
+    const editWeather = evidencePage.getByRole('button', { name: 'Edit Weather' })
+    await editWeather.waitFor()
+    observations.entry = {
+      profile: await dialog.getAttribute('aria-label'),
+      focused: await editWeather.evaluate((node) => document.activeElement === node),
+      underlyingInert: await evidencePage.locator('main[data-adaptive-stage] > .contents').evaluate((node) => node.hasAttribute('inert')),
+    }
+
+    const weatherBefore = await evidencePage.locator('[data-block-id="weather"]').evaluate((node) => ({
+      zone: node.getAttribute('data-stage-zone'),
+      variant: node.getAttribute('data-stage-variant'),
+      priority: node.getAttribute('data-stage-priority'),
+      rect: node.getBoundingClientRect().toJSON(),
+    }))
+    await editWeather.press('ArrowDown')
+    await evidencePage.getByRole('button', { name: 'Edit Habits' }).click()
+    const habitsRegion = evidencePage.getByRole('region', { name: 'Habits placement' })
+    await habitsRegion.getByRole('button', { name: 'Move to Day' }).click()
+    await habitsRegion.getByRole('button', { name: 'Compact' }).click()
+    await habitsRegion.getByRole('button', { name: 'Pinned' }).click()
+    await habitsRegion.getByRole('button', { name: 'Wider' }).click()
+    const wideSpan = await evidencePage.locator('[data-block-id="habits"]').evaluate((node) => getComputedStyle(node).getPropertyValue('--board-col-span').trim())
+    await evidencePage.getByRole('button', { name: 'Undo' }).click()
+    const undoneSpan = await evidencePage.locator('[data-block-id="habits"]').evaluate((node) => getComputedStyle(node).getPropertyValue('--board-col-span').trim())
+    await habitsRegion.getByRole('button', { name: 'Lock placement' }).click()
+    const locked = await habitsRegion.locator('fieldset').isDisabled()
+    await habitsRegion.getByRole('button', { name: 'Unlock placement' }).click()
+    const storageDuringPreview = await evidencePage.evaluate(() => chrome.storage.local.get('layout'))
+    const habitsPreview = await evidencePage.locator('[data-block-id="habits"]').evaluate((node) => ({
+      zone: node.getAttribute('data-stage-zone'),
+      variant: node.getAttribute('data-stage-variant'),
+      priority: node.getAttribute('data-stage-priority'),
+    }))
+    await evidencePage.screenshot({ path: `${w3P3OutDir}/w3-p3-standard-editor-1600x900.png` })
+    observations.captures.push('w3-p3-standard-editor-1600x900.png')
+    observations.preview = {
+      weatherBefore,
+      habitsPreview,
+      wideSpan,
+      undoneSpan,
+      locked,
+      storageUnchanged: exact(storageDuringPreview, beforeSession),
+      controls: {
+        zone: await habitsRegion.getByRole('button', { name: 'Move to Day' }).count(),
+        order: await habitsRegion.getByRole('button', { name: 'Move earlier' }).count(),
+        variant: await habitsRegion.getByRole('button', { name: 'Compact' }).count(),
+        priority: await habitsRegion.getByRole('button', { name: 'Pinned' }).count(),
+        resize: await habitsRegion.getByRole('button', { name: 'Wider' }).count(),
+      },
+    }
+    await evidencePage.getByRole('button', { name: 'Cancel' }).click()
+    await evidencePage.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
+    const afterCancel = await evidencePage.evaluate(() => chrome.storage.local.get('layout'))
+    observations.cancel = {
+      exactStorage: exact(afterCancel, beforeSession),
+      habitsZoneRestored: await evidencePage.locator('[data-block-id="habits"]').getAttribute('data-stage-zone'),
+      gearFocused: await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings'),
+    }
+
+    await openEditor()
+    await evidencePage.getByRole('button', { name: 'Copy profile' }).click()
+    const copiedWeather = await evidencePage.locator('[data-block-id="weather"]').evaluate((node) => ({
+      variant: node.getAttribute('data-stage-variant'),
+      priority: node.getAttribute('data-stage-priority'),
+    }))
+    await evidencePage.getByRole('button', { name: 'Reset profile' }).click()
+    const resetWeatherPriority = await evidencePage.locator('[data-block-id="weather"]').getAttribute('data-stage-priority')
+    await evidencePage.getByRole('button', { name: 'Undo' }).click()
+    const undoWeatherPriority = await evidencePage.locator('[data-block-id="weather"]').getAttribute('data-stage-priority')
+    observations.copyResetUndo = { copiedWeather, resetWeatherPriority, undoWeatherPriority }
+    await evidencePage.getByRole('button', { name: 'Save' }).click()
+    await evidencePage.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
+    const saved = await evidencePage.evaluate(() => chrome.storage.local.get('layout'))
+    observations.save = {
+      activeCopied: saved.layout.profiles.standard?.weather?.priority === 'pinned' && saved.layout.profiles.standard?.weather?.variant === 'compact',
+      compactPreserved: exact(saved.layout.profiles.compact, fixtureLayout.profiles.compact),
+      displayPreserved: exact(saved.layout.profiles.display, fixtureLayout.profiles.display),
+      legacyPreserved: exact(saved.layout.legacy, fixtureLayout.legacy),
+      normalizedOrders: Object.values(saved.layout.profiles.standard ?? {}).every((placement) => Number.isInteger(placement.order) && placement.order >= 0),
+      gearFocused: await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings'),
+    }
+
+    observations.compact = await profileCapture(800, 600, 'w3-p3-compact-editor-800x600.png')
+    observations.large = await profileCapture(2560, 1440, 'w3-p3-display-editor-2560x1440.png')
+  } catch (error) {
+    observations.errors.push(error instanceof Error ? error.message : String(error))
+  } finally {
+    captureErrors = false
+    evidencePage.off('console', onConsole)
+    evidencePage.off('pageerror', onPageError)
+    try {
+      if (originalPreimage) {
+        observations.cleanup.restored = await evidencePage.evaluate(async ({ keys, snapshot, lockName }) =>
+          navigator.locks.request(lockName, { mode: 'exclusive' }, async () => {
+            const missing = keys.filter((key) => !Object.prototype.hasOwnProperty.call(snapshot, key))
+            if (missing.length > 0) await chrome.storage.local.remove(missing)
+            if (Object.keys(snapshot).length > 0) await chrome.storage.local.set(snapshot)
+            const restored = await chrome.storage.local.get(keys)
+            return JSON.stringify(restored) === JSON.stringify(snapshot)
+          }), { keys: touchedKeys, snapshot: originalPreimage, lockName: storageLock })
+      }
+    } catch (error) {
+      observations.errors.push(`restore: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    try {
+      await evidencePage.setViewportSize(originalViewport)
+      observations.cleanup.viewportRestored = exact(evidencePage.viewportSize(), originalViewport)
+    } catch (error) {
+      observations.errors.push(`viewport: ${error instanceof Error ? error.message : String(error)}`)
+    }
+    await evidencePage.close().then(
+      () => { observations.cleanup.pageClosed = true },
+      (error) => observations.errors.push(`close: ${error instanceof Error ? error.message : String(error)}`),
+    )
+    try {
+      await page.evaluate((lockName) => navigator.locks.request(lockName, { mode: 'exclusive' }, () => undefined), storageLock)
+      observations.cleanup.lockCrossed = true
+    } catch (error) {
+      observations.errors.push(`lock: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  const controlsPresent = observations.preview && Object.values(observations.preview.controls).every((count) => count === 1)
+  const ok = observations.errors.length === 0 && observations.capturedErrors.length === 0 &&
+    observations.entry?.profile === 'Arrange Standard profile' && observations.entry.focused && observations.entry.underlyingInert &&
+    observations.preview?.habitsPreview.zone === 'day' && observations.preview.habitsPreview.variant === 'compact' &&
+    observations.preview.habitsPreview.priority === 'pinned' && observations.preview.wideSpan === '2' &&
+    observations.preview.undoneSpan === '1' && observations.preview.locked && observations.preview.storageUnchanged && controlsPresent &&
+    observations.cancel?.exactStorage && observations.cancel.habitsZoneRestored === 'now' && observations.cancel.gearFocused &&
+    observations.copyResetUndo?.copiedWeather.priority === 'pinned' && observations.copyResetUndo.copiedWeather.variant === 'compact' &&
+    observations.copyResetUndo.resetWeatherPriority === 'automatic' && observations.copyResetUndo.undoWeatherPriority === 'pinned' &&
+    observations.save?.activeCopied && observations.save.compactPreserved && observations.save.displayPreserved &&
+    observations.save.legacyPreserved && observations.save.normalizedOrders && observations.save.gearFocused &&
+    observations.compact?.bounded && observations.compact.targetFloor && !observations.compact.horizontalPageClip &&
+    observations.large?.bounded && observations.large.targetFloor && !observations.large.horizontalPageClip &&
+    observations.captures.length === 3 && observations.cleanup.restored && observations.cleanup.viewportRestored &&
+    observations.cleanup.pageClosed && observations.cleanup.lockCrossed
+  console.log(`EVIDENCE: W3-P3 semantic editor observations: ${JSON.stringify(observations)}`)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
 }
 
