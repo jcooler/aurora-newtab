@@ -24,9 +24,9 @@
 - Create: `src/newtab/widgets/shared/WorkPulseSummary.tsx`
 - Create: `src/newtab/widgets/shared/WorkPulseSummary.test.tsx`
 
-- [ ] Add RED tests for a named primary value, quiet/attention/critical/unknown tones, optional metadata, no live-region churn, and no false button/link affordance.
-- [ ] Implement a render-only summary primitive with explicit data hooks and fixed accessible text; keep ordinary glance text at least 14 CSS px and metadata at 12 CSS px.
-- [ ] Run the focused primitive tests and commit `feat(pulse): add shared attention summary`.
+- [x] Add RED tests for a named primary value, quiet/attention/critical/unknown tones, optional metadata, no live-region churn, and no false button/link affordance.
+- [x] Implement a render-only summary primitive with explicit data hooks and fixed accessible text; keep ordinary glance text at least 14 CSS px and metadata at 12 CSS px.
+- [x] Run the focused primitive tests and commit `feat(pulse): add shared attention summary`.
 
 ### Task 2: Make forge and deployment connectors attention-first
 
