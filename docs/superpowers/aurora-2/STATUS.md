@@ -3,16 +3,16 @@
 **Updated:** 2026-08-16<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 4 — Information hierarchy and variants<br>
-**Last verified packet:** `W4-P4` - Signal Dock and connector survival<br>
-**Next packet:** `W4-P5` - Launcher shelf and remaining content variants; plan next
+**Current wave:** Wave 5 - Utility Tray<br>
+**Last verified packet:** `W4-P5` - Launcher shelf and remaining content variants<br>
+**Next packet:** `W5-P1` - Responsive Utility Tray shell; plan next
 
 ## Packet envelope
 
-- **Acceptance:** Represent every enabled connector exactly once across constrained and dense profiles; when allocated to Signal Dock, preserve compact identity, truthful state/fallback, a useful current primary value, and a keyboard-operable path to the existing detail without changing frozen allocation, registry, schema, storage, privacy, permission, network, or Store contracts.
-- **Implemented files:** Added one shared `SignalDockEntry` around the existing single connector renderer only for Dock allocations; App owns one open connector ID and clears stale state after reallocation. Connector Dock geometry now uses a 14rem condensed floor, 14px text, 36px disclosure, inert closed detail, readable held values, and one bounded active-work surface. The final causal fix removes a legacy high-specificity Vercel detail line from Compact Work Pulse instead of masking escaped paint.
-- **Test scope:** Focused RED/green component, App, sizing, source, and built-extension work; one implementation review and one fix/rereview cycle; one final unit/type/build/bridge sequence; one full browser run and its single permitted rerun. The rerun exited 0 and cleared the genuine Vercel containment family. Two historical Status pixel samples and one stale W3-P2 aggregate-report predicate are Minor evidence debt because the underlying semantic ownership, paint, collision, runtime-error, and cleanup observations are green; they do not demonstrate a W4-P4 acceptance failure.
-- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once. All nine connectors remain meaningful in the horizontal Dock; narrower profiles intentionally scroll, keyboard focus reveals remote entries, and Display shows the complete row.
+- **Acceptance:** Consolidate Bookmarks and Quick Links into a launcher shelf and provide Compact/Standard/Expanded content progression for Calendar, RSS, Home Assistant, and Weather without changing frozen planning, registry, schema, storage, privacy, permission, network, or Store contracts.
+- **Implemented files:** Added a render-only adjacent-launcher resolver/shelf, passed the existing allocation variant through the renderer boundary, bounded Calendar/RSS/Home Assistant rows/actions, and made Expanded Weather reveal its held forecast while resetting correctly when the planner changes variant. No new request, persisted field, provider, permission, or registry identity was added.
+- **Test scope:** Focused RED/green component/App/browser work; one implementation review and one Important fix/rereview; one final unit/type/build/bridge sequence; one full browser run and its single permitted rerun. Focused proof is green. The rerun's remaining failures were stale harness assumptions about direct zone children, fixed full-detail fixtures, and hidden pixel coordinates; their source assertions were corrected without a third full run and are Minor evidence debt only.
+- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once. The shelf is content-sized at Standard/Display, exact launcher IDs remain singly mounted, and the four content families visibly progress at their assigned variant.
 
 ## Last completed commits
 
@@ -109,8 +109,17 @@
 - `5227110` - executable W4-P4 Signal Dock and connector-survival plan with frozen schema, registry, allocation, storage, privacy, permission, network, and Store boundaries.
 - `4481358`, `c90fd94`, and `f441149` - one shared Dock-only connector disclosure, condensed connector geometry/presentation, and exact nine-connector built-extension survival/operation proof.
 - `049be58` - bounded fix/rereview correction that yields the legacy Compact Vercel detail line and aligns stale fencepost reporting with Signal Dock survival; verified W4-P4 implementation head.
+- `e1167ca`, `58d3d1a`, and `a1ee6d7` - adjacent launcher shelf composition plus Calendar/RSS/Home Assistant/Weather content variants.
+- `4b8c714` and `250c1c3` - content-sized launcher surface and the bounded-review Weather variant-transition fix.
+- `6656182` - full-harness alignment for render-only launcher ancestry and exact content-variant fixtures; verified W4-P5 implementation head.
 
 ## Latest verification
+
+- W4-P5 focused development and rereview gates passed: the stabilized component/App set passed 5 files / 140 tests plus TypeScript; the focused built-extension replay passed Compact 800x600, Standard 1600x900, and Display 2560x1440 with one content-sized shelf where eligible, exact launcher identities, exact Calendar/RSS/Home Assistant budgets, Expanded Weather trend, safe links, keyboard focus restoration, no page clip, exact cleanup, zero external requests, and zero runtime errors.
+- The one final `npm test` run passed 136 files / 2,244 tests. Final TypeScript, production build, and preview build exited 0; both builds transformed 188 modules. The production preview-bridge scan returned the expected no-match result.
+- The full browser harness was run once, then rerun once after its actual stale content-variant/direct-parent family was corrected. The permitted rerun confirmed the corrected rollover, RSS, launcher-aware semantic ownership, Home Assistant expanded action fixture, and downstream interaction flows. Later failures were additional stale detailed-Calendar fixtures, hidden Status pixel coordinates, and the same direct-parent assumption in the frozen W3-P2 aggregate; `6656182` corrected those harness assertions without a third full run. They are Minor evidence debt pending the next scheduled harness and do not demonstrate security/privacy risk, stored-data loss, broken core functionality, or failure of a W4-P5 acceptance criterion.
+- Required captures under `C:\Users\SickT\Documents\Codex\2026-08-16\change-aurora-execution-to-pragmatic-delivery\outputs\w4-p5\` were inspected once. The initial oversized shelf was the only focused visual acceptance failure; `4b8c714` made Standard and Display shelves content-sized, and the focused replay passed after the correction.
+- One implementation review found one Important issue: Weather remained expanded after a Display-to-Standard/Compact variant transition. `250c1c3` added the failing transition regression and fixed it; the single focused rereview returned Ready with 0 Critical / 0 Important open. No schema, registry, profile threshold, capacity, migration, stored-data, permission, privacy, production-network, protected-checkout, or Store contract changed.
 
 - W4-P4 focused development gates passed: the stabilized component/App/sizing/presentation set passed 5 files / 47 tests plus TypeScript; the final Vercel cascade regression test passed 1 file / 3 tests. `node --check scripts/preview.mjs` exited 0.
 - The one final `npm test` run passed 135 files / 2,235 tests. Final `npx tsc --noEmit`, production build, and preview build exited 0; both builds transformed 187 modules. The production bridge scan returned the expected clean no-match result.
@@ -348,9 +357,9 @@
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W4-P5` - Launcher shelf and remaining content variants
-- **Plan:** Create just in time after the W4-P4 checkpoint and clean/upstream proof.
-- **State:** Not started. Scope is the written launcher consolidation plus RSS/Home Assistant/Calendar/Weather expanded content acceptance; do not absorb W5 Utility Tray work or change frozen schema/registry/allocation/storage/privacy/permission/Store contracts.
+- **Packet:** `W5-P1` - Responsive Utility Tray shell
+- **Plan:** Create just in time after the W4-P5 checkpoint and clean/upstream proof.
+- **State:** Not started. Scope is the written desktop-modeless/narrow-modal Utility Tray shell acceptance only; do not absorb W5-P2 tool integration or change frozen schema/registry/allocation/storage/privacy/permission/Store contracts.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
