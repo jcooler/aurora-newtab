@@ -261,6 +261,7 @@ export default function App() {
         entry={entry}
         allocation={allocation}
         profile={viewport.profile}
+        placement={allocation.zone === 'dock' ? 'planned' : 'flow'}
         className={openById[entry.id] ? (entry.id === 'bookmarks' ? 'z-50' : 'z-30') : ''}
       >
         {child}

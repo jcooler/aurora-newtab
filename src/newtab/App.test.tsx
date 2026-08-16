@@ -145,6 +145,21 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelector('[data-block-id="notes"]')?.getAttribute('data-stage-zone')).toBe('dock')
   })
 
+  it('flows finite canvas zones from semantic order without explicit planner start lines', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, username: '' } })
+    await renderApp(storage)
+
+    for (const id of ['weather', 'clock', 'github']) {
+      const item = document.querySelector<HTMLElement>(`[data-block-id="${id}"]`)!
+      expect(item.style.gridColumn).toMatch(/^span \d+$/)
+      expect(item.style.gridRow).toMatch(/^span \d+$/)
+    }
+    expect(document.querySelectorAll('[data-block-id="notes"]')).toHaveLength(1)
+    expect(document.querySelector<HTMLElement>('[data-block-id="notes"]')!.style.gridColumn).toBe('span 1')
+  })
+
   it('publishes finite Dock geometry with inline container ownership and explicit sizing', async () => {
     await renderApp()
     const dock = screen.getByRole('region', { name: 'Signal Dock' })

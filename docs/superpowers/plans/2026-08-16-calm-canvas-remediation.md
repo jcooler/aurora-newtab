@@ -33,7 +33,7 @@
 - Consumes: existing `StageAllocation` and `WidgetRegistryEntry` values.
 - Produces: `placement?: 'planned' | 'flow'` on `BoardItem`; `planned` remains the default and `flow` retains finite spans while omitting explicit planner start lines.
 
-- [ ] **Step 1: Write the failing component test**
+- [x] **Step 1: Write the failing component test**
 
 Add a test proving the production change that would break Calm Canvas: a flow item accidentally restoring explicit `colStart` or `rowStart`.
 
@@ -52,13 +52,13 @@ it('flows from planner order while retaining its finite planner spans', () => {
 })
 ```
 
-- [ ] **Step 2: Run the focused test and observe RED**
+- [x] **Step 2: Run the focused test and observe RED**
 
 Run: `npm test -- src/newtab/components/BoardItem.test.tsx`
 
 Expected: TypeScript/Vitest fails because `placement` is not a `BoardItem` prop.
 
-- [ ] **Step 3: Implement the minimal placement seam**
+- [x] **Step 3: Implement the minimal placement seam**
 
 Add the prop and choose starts only in planned mode:
 
@@ -82,7 +82,7 @@ const gridPlacement = placement === 'flow' || !allocation.rect
 
 Keep Dock sizing and every existing data attribute unchanged.
 
-- [ ] **Step 4: Observe component GREEN, then write the failing App integration assertion**
+- [x] **Step 4: Observe component GREEN, then write the failing App integration assertion**
 
 Run: `npm test -- src/newtab/components/BoardItem.test.tsx`
 
@@ -92,7 +92,7 @@ Run: `npm test -- src/newtab/App.test.tsx -t "flows finite canvas zones"`
 
 Expected: FAIL because `App` still publishes explicit planner start lines.
 
-- [ ] **Step 5: Pass flow placement from App and run the focused set**
+- [x] **Step 5: Pass flow placement from App and run the focused set**
 
 Pass `placement="flow"` from `App` for non-Dock allocations, then run:
 
@@ -100,7 +100,7 @@ Run: `npm test -- src/newtab/components/BoardItem.test.tsx src/newtab/App.test.t
 
 Expected: both files pass without warnings.
 
-- [ ] **Step 6: Commit Task 1**
+- [x] **Step 6: Commit Task 1**
 
 ```text
 git add src/newtab/components/BoardItem.tsx src/newtab/components/BoardItem.test.tsx src/newtab/App.tsx src/newtab/App.test.tsx

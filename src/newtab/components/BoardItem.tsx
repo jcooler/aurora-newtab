@@ -8,6 +8,7 @@ interface BoardItemProps {
   entry: WidgetRegistryEntry
   allocation: StageAllocation
   profile: LayoutProfile
+  placement?: 'planned' | 'flow'
   className?: string
   children: ReactNode
 }
@@ -69,6 +70,7 @@ export default function BoardItem({
   entry,
   allocation,
   profile,
+  placement = 'planned',
   className = '',
   children,
 }: BoardItemProps) {
@@ -85,7 +87,7 @@ export default function BoardItem({
     ...(allocation.zone === 'dock' ? {
       inlineSize: dockInlineSize(colSpan, entry.id, allocation.variant, entry.availability.kind === 'connector'),
     } : {}),
-    ...(allocation.rect ? {
+    ...(placement === 'planned' && allocation.rect ? {
       gridColumn: `${finiteSpan(allocation.rect.colStart)} / span ${colSpan}`,
       gridRow: `${finiteSpan(allocation.rect.rowStart)} / span ${rowSpan}`,
     } : {

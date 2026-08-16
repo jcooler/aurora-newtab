@@ -54,6 +54,19 @@ describe('BoardItem', () => {
     expect(screen.getByRole('button', { name: 'Weather action' })).toBeTruthy()
   })
 
+  it('flows from planner order while retaining its finite planner spans', () => {
+    render(
+      <BoardItem entry={weather} allocation={allocation()} profile="standard" placement="flow">
+        content
+      </BoardItem>,
+    )
+    const item = document.querySelector('[data-block-id="weather"]') as HTMLElement
+    expect(item.style.getPropertyValue('--board-col-span')).toBe('2')
+    expect(item.style.getPropertyValue('--board-row-span')).toBe('2')
+    expect(item.style.gridColumn).toBe('span 2')
+    expect(item.style.gridRow).toBe('span 2')
+  })
+
   it('keeps malformed board/Dock span inputs finite with inline container ownership and explicit Dock sizing', () => {
     const { rerender } = render(
       <BoardItem entry={weather} allocation={allocation({ zone: 'dock', colSpan: Infinity, rowSpan: NaN, rect: null })} profile="compact">
