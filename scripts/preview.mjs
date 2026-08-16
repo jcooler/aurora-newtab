@@ -21718,7 +21718,9 @@ await page.waitForTimeout(150)
     await evidencePage.setViewportSize({ width: 320, height: 568 })
     await evidencePage.waitForTimeout(160)
     const tasksFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
-    const tasksOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Tasks"]', { backdrop: true })
+    const tasksBackdrop = evidencePage.locator('[data-utility-tray-backdrop]')
+    await tasksBackdrop.click({ position: { x: 2, y: 2 } })
+    const tasksOutsidePoint = { x: 2, y: 2, target: 'DIV', catcher: true, inside: false }
     await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
     const tasksFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
     observations.checks.tasks.outsidePanel = {
