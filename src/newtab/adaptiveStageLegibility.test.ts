@@ -22,6 +22,13 @@ function lastDeclarationBlock(selector: string): string {
 }
 
 describe('Adaptive Stage compact legibility contract', () => {
+  it('sizes every persistent stage action from the resolved control target', () => {
+    expect(indexCss).toMatch(/\.adaptive-stage \.settings-gear,\s*\.adaptive-stage \.utility-tray-trigger,\s*\.adaptive-stage button\[aria-label="New background photo"\]\s*\{/)
+    const declarations = declarationBlock('.adaptive-stage button[aria-label="New background photo"]')
+    expect(declarations).toMatch(/inline-size:\s*var\(--stage-control-target\)\s*;/)
+    expect(declarations).toMatch(/block-size:\s*var\(--stage-control-target\)\s*;/)
+  })
+
   it('sizes the Stage grid to the padded viewport content box without intrinsic growth', () => {
     const declarations = declarationBlock('.adaptive-stage__grid')
     expect(declarations).toMatch(/height:\s*calc\(100dvh - var\(--stage-inset\) - var\(--stage-inset\)\)\s*;/)

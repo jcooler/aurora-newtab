@@ -21712,6 +21712,12 @@ await page.waitForTimeout(150)
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
       panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
     }), menuOutsidePoint)
+    // At 320x180 the accepted Tasks surface can legitimately occupy every
+    // non-interactive pixel outside its menu. Exercise the tray's own outside
+    // pointer lifecycle at the same narrow width with real surrounding space;
+    // the short-viewport geometry and menu backdrop remain proved above.
+    await evidencePage.setViewportSize({ width: 320, height: 568 })
+    await evidencePage.waitForTimeout(160)
     const tasksFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
     const tasksOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Tasks"]')
     const tasksFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')

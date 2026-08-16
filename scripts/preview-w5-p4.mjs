@@ -90,6 +90,14 @@ try {
   await page.waitForSelector('main[data-adaptive-stage]')
   for (const photo of representativePhotos) await showPhoto(photo)
 
+  const utilityTrigger = page.getByRole('button', { name: 'Open utility tray' })
+  const utilityTriggerBox = await utilityTrigger.boundingBox()
+  const stageTarget = await page.locator('main[data-adaptive-stage]').evaluate((node) =>
+    Number.parseFloat(getComputedStyle(node).getPropertyValue('--stage-control-target')))
+  assert(utilityTriggerBox && utilityTriggerBox.width >= stageTarget - 0.5 && utilityTriggerBox.height >= stageTarget - 0.5,
+    `Utility Tray trigger is ${utilityTriggerBox?.width ?? 0}x${utilityTriggerBox?.height ?? 0}; expected ${stageTarget}`)
+  evidence.targets.utilityTrigger = utilityTriggerBox
+
   await page.getByRole('button', { name: 'Open settings' }).click()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await settings.waitFor()

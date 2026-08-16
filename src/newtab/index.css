@@ -2381,6 +2381,7 @@ select > option {
 .board-item[data-stage-variant="compact"][data-block-id="bookmarks"] [data-chip-mark] { display: block; }
 
 .adaptive-stage .settings-gear,
+.adaptive-stage .utility-tray-trigger,
 .adaptive-stage button[aria-label="New background photo"] {
   box-sizing: border-box;
   display: grid;
