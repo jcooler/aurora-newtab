@@ -4,14 +4,14 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
-**Last verified packet:** `W5-P4` - Visual/motion system convergence<br>
-**Current packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA; replay implementation active
+**Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
+**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; JIT plan next
 
 ## Packet envelope
 
-- **Acceptance:** Execute the written named viewport/state/zoom matrix, inspect required screenshots in bounded batches, verify keyboard/core accessibility, and state hardware/manual ceilings explicitly.
-- **Implementation scope:** JIT planning only; W6-P2 may add bounded QA fixtures/reports and fix demonstrated Critical/Important responsive or core-accessibility defects. No schema, migration, registry, storage, privacy, permission, connector, packaging, policy, dashboard, or Store change.
-- **Remaining gates:** Run the one-shot named-gap/zoom-equivalent replay, map and inspect three bounded capture batches, record hardware/manual ceilings, perform one review/fix cycle only if needed, checkpoint, and continue to W6-P3.
+- **Acceptance:** Check current official Chrome/Google policy, verify the live Aurora V1 version/dashboard answers with the user, and reconcile privacy, Data Usage, and listing source without Store mutation.
+- **Implementation scope:** Official-source research, read-only V1/dashboard evidence, and repository policy/listing reconciliation only. No upload, submission, rollout, Store state change, schema, registry, migration, stored-data, permission, or product behavior change.
+- **Remaining gates:** Create the JIT W6-P3 plan, verify current official policy from primary sources, prepare exact live-dashboard questions/evidence, reconcile tracked disclosure sources, review once, checkpoint, and continue to W6-P4 unless manual dashboard evidence is required.
 
 ## Previous packet envelope
 
@@ -123,6 +123,10 @@
 - `44e05c0` - existing-owner Tasks, Notes, Timer, Home Assistant action, and background-refresh integration with guarded Notes lifecycle and focused browser proof.
 
 ## Latest verification
+
+- W6-P2 covered every named viewport/state plus 100/125/150/200/400% CSS-space reflow once and inspected the required captures in three bounded batches. The packaged replay passed overflow, 36/44px targets, keyboard focus/restoration, reduced motion, Chromium AX naming, touch taps, cleanup, and zero runtime errors.
+- One Important compact Weather setup collision at 200/400% was fixed in `7c51e78`; focused evidence passed 3 files / 78 tests and the final source contract passed 21/21. One implementation review/rereview returned Ready with 0 Critical / 0 Important open.
+- Final evidence passed 137 files / 2,264 tests, clean 189-module production/preview builds, and a clean production bridge scan. The full pass and its one permitted rerun printed 455 PASS / 2 FAIL / 3 SKIP because the legacy W2-P3 generic point-scanner could not discover the intentional Compact modal backdrop and aborted before cleanup, cascading into W3-P2. Direct focused backdrop evidence and component tests remain green; `cf3d212` source-corrected the selector without a prohibited third run. This is Minor evidence debt, not a product failure. Native zoom, mixed-DPI, real screen readers, physical hardware, native permission prompts, and live services remain explicit manual ceilings in `W6-P2-QA-MATRIX.md`.
 
 - W6-P1 completed four first-run focused matrices: migration/stored-data 7 files / 317 tests; permission/secret recovery 7 / 219; offline/stale/error/persistence 13 / 190; civil-time/open-tab recovery 6 / 94. This is 820 executed assertions and 690 unique assertions because backup validation intentionally belongs to two families.
 - The unchanged W5-P4 full gate was reused instead of repeated. The bounded W6-P1 review returned Ready with no Critical, Important, or Minor product finding; no fix/rereview and no product/test code change was required. Exact results and retained manual ceilings are in `W6-P1-QA-MATRIX.md`.
