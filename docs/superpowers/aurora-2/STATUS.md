@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 5 - Utility Tray<br>
-**Last verified packet:** `W5-P1` - Responsive Utility Tray shell<br>
-**Next packet:** `W5-P2` - Working-tool integration; just-in-time planning next
+**Last verified packet:** `W5-P2` - Working-tool integration<br>
+**Next packet:** `W5-P3` - Settings workspace and connector cards; just-in-time planning next
 
 ## Packet envelope
 
-- **Acceptance:** Desktop Utility Tray is anchored/modeless without focus trapping or background inertness. Compact derives a true modal bottom sheet with backdrop, inert dashboard, focus trap, Escape/backdrop dismissal, and exact invoker restoration.
-- **Implemented files:** Added one render-only `UtilityTray`, persistent App invoker, profile-derived modality, modal-only dashboard inertness, and focused built-extension replay. W5-P2 tool content remains untouched; no registry, schema, planner, storage, migration, privacy, permission, network, or Store contract changed.
-- **Test scope:** Focused RED/green component/App coverage passed 2 files / 30 tests after the backdrop regression; TypeScript and focused Chromium passed. One implementation review returned Ready with no Critical/Important finding. The final unit suite passed 137 files / 2,250 tests; production/preview builds transformed 189 modules; bridge scan was clean. The full harness plus its one rerun corrected the new persistent-target inventory; one stale W2-P2 Compact Calendar row assertion was source-corrected without a third full run and is Minor evidence debt only.
-- **Visual scope:** Compact 800x600 modal and Standard 1600x900 modeless captures were inspected once. Both trays stay viewport-contained without page clipping; Compact visibly dims the inert dashboard and Standard remains an anchored working surface.
+- **Acceptance:** One selected Tray tool exposes Tasks, Notes, Timer, Home Assistant actions, or background refresh. A running timer remains represented after detail closure and the tools remain coherent in the accepted responsive shell.
+- **Implemented files:** Added controlled tool navigation/host and existing-owner portals for all five written families. Notes save guards now cover close, switching, Settings, Arrange, and external disable. No registry, schema, planner, storage, migration, privacy, permission, connector identity, or Store contract changed.
+- **Test scope:** Focused development passed 9 files / 133 tests plus the protected-disable regression and TypeScript. The focused built-extension replay passed representative Tasks/Notes/Timer/refresh operations, single-detail selection, timer survival, responsive modality, focus restoration, cleanup, and zero runtime errors. One review found one Important Notes guard edge; the fix/rereview returned Ready. Final unit evidence passed 137 files / 2,254 tests; production/preview builds transformed 189 modules; bridge scan was clean.
+- **Visual scope:** Compact 800x600 and Standard 1600x900 working-tool captures were inspected once. The full harness and its one rerun were exhausted by stale standalone-tool selectors; the remaining implicit-region selector was source-corrected without a third run and is Minor evidence debt only.
 
 ## Last completed commits
 
@@ -114,6 +114,7 @@
 - `6656182` - full-harness alignment for render-only launcher ancestry and exact content-variant fixtures; verified W4-P5 implementation head.
 - `e762699` and `8b36bac` - responsive Utility Tray shell plus the exact backdrop-dismissal focus-restoration fix and focused browser proof.
 - `e7b3c5f` - final harness alignment for the W5-P1 persistent control and accepted Compact Calendar content budget; verified W5-P1 implementation head.
+- `44e05c0` - existing-owner Tasks, Notes, Timer, Home Assistant action, and background-refresh integration with guarded Notes lifecycle and focused browser proof.
 
 ## Latest verification
 
