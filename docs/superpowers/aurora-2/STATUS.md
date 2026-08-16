@@ -1,18 +1,18 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-15<br>
+**Updated:** 2026-08-16<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 3 — Adaptive Stage foundation<br>
-**Last verified packet:** `W3-P1` - Layout V2 schema and migration<br>
-**Next packet:** `W3-P2` - Profile engine, registry, BoardItem, and semantic grid; Not started, no plan
+**Last verified packet:** `W3-P2` - Profile engine, registry, BoardItem, and semantic grid<br>
+**Next packet:** `W3-P3` - Arrange/profile editor; Not started, no plan
 
 ## Packet envelope
 
-- **Acceptance:** Schema v10 stores valid source-default-free Layout V2 envelopes; every valid legacy percentage layout is preserved exactly and mapped deterministically into Compact, Standard, Display, and Ultrawide overrides; startup migration and old/current backup restore validate before mutation and verify target or rollback under the shared authority; current percentage rendering and Arrange behavior remain compatible without entering W3-P2 profile/grid work.
-- **Implemented files:** Pure Layout V2 types, validators, semantic-anchor mapper, collision normalizer, and compatibility helpers; v9-to-v10 migration; verified fresh/existing startup initialization and rollback; v1-v10 backup cleanup/restore support; App/Arrange/Settings compatibility seams; causal immutable extension migration/backup evidence. W2-P3 reflow and every Wave 1 authority remain unchanged.
-- **Test scope:** Pure mapping/validation determinism and immutability, all-profile preservation, insertion-order independence, authority-held target verification/rollback/contention/retry, old/current backup matrices, compatibility merge/reset behavior, full Vitest, TypeScript, production/preview builds, bridge isolation, audits, and the complete foreground extension harness.
-- **Visual scope:** W3-P1 intentionally changes no pixels. Controller inspection at original resolution confirmed the representative generated board and rail captures remain geometrically unchanged; numeric browser evidence independently proved exact representative legacy centers. The Focus prompt contrast concern visible on some backgrounds remains assigned to W5-P4.
+- **Acceptance:** Compact, Standard, Display, and Ultrawide selection; Auto Fit and manual density; deterministic exactly-once allocation from a source-owned registry; failure-isolated container-aware BoardItem rendering; semantic Day, Now, Pulse, and Dock grids; no root scaling; schema-v11 density persistence; and a temporary migration-safe multi-entry Arrange bridge.
+- **Implemented files:** Pure profile/density/allocation engine; schema-v11 migration, strict backup handling, and live-density repair; exact 26-entry registry and exhaustive renderers; BoardItem and safe WidgetBoundary; semantic App grids and viewport ownership; calibrated finite Dock sizing; compact/standard/expanded widget adaptations; and the retained W3-P3/W3-P4 legacy Arrange bridge. Frozen Layout V2 data and all prior storage/privacy authorities remain intact.
+- **Test scope:** Focused red/green profile, allocation, registry, migration, backup, storage, BoardItem, viewport, App, Arrange, widget, and geometry coverage; one stable full unit/build/browser gate; 234-profile Dock calibration; exact W3-P2 browser aggregate; production preview-bridge isolation; and clean teardown/error evidence.
+- **Visual scope:** Six required Compact, Standard, Display, Ultrawide, dense-Dock, and narrow-keyboard captures were inspected at original resolution. Semantic zones, text, controls, focus, Dock reachability, and widget containment are intact. Automated CSS-pixel and Chromium AX/keyboard evidence does not claim native 400% zoom, mixed-DPI, or a real screen-reader pass.
 
 ## Last completed commits
 
@@ -88,8 +88,20 @@
 - `a760fff8714bc0ac044448c39f38988d3635689b` - App, Arrange, reset, and old/current backup compatibility seams.
 - `255a05f442900aac3cd10c1adc6408dc1bbab38c` and `be6ae5dc26da713c1bb7dd4c1dde906f12c76c0e` - separate full-suite timing fixes found only by controller-owned closeout attempts.
 - `925438f890de62d5540221b86b53330f2dd0a5a1` - reviewed v10/V2 browser-fixture alignment; verified W3-P1 implementation head.
+- `d77717c2f3662aabda0811d2e10be6d22f03660d` - reviewed executable W3-P2 Adaptive Stage registry plan.
+- `ef26d73`, `cdaf9f6`, `170d05a`, and `648b7b2` - pure profile engine, schema-v11 density persistence, source registry/BoardItem, and semantic Adaptive Stage rendering.
+- `b29ec6c`, `9952f7f`, and `ad79a523c81e51b593b7b57b9ba5cd45492873aa` - bounded review fixes and final accessibility/geometry/calibration gate fixes; verified W3-P2 implementation head.
 
 ## Latest verification
+
+- W3-P2 focused red/green tests covered the final Timer Dock boundary, Month compact labelling/rows, Quote clamping, Sun compact content, Vercel finite geometry, and exact full-composition regressions.
+- Final `npm test` after implementation stabilized - exit 0; 129 files / 2,254 tests passed.
+- Final `npm run build` and `npm run build:preview` - exit 0; both transformed 186 modules. The production bridge scan returned the expected exact `rg` exit 1 with no forbidden preview symbol output.
+- The 234-profile Dock calibration completed successfully. One canonical final browser run identified three genuine geometry/timing families; their bounded fixes were followed by the single permitted full rerun.
+- Final `node scripts/preview.mjs` rerun - harness process exit 0; exactly 456 `PASS:` / 0 `FAIL:` / 3 `SKIP:`, including `PASS: W3-P2 profile engine, registry, BoardItem, and semantic grid semantics`. Cleanup restored page, viewport, storage, and locks; captured page/console errors are empty.
+- Fresh durable captures are under `C:\Users\SickT\Documents\Codex\2026-08-14\continue-aurora-2-continuously-through-all\outputs\w3-p2\`: `w3-p2-compact-800x600.png`, `w3-p2-compact-320x800-keyboard.png`, `w3-p2-standard-1600x900.png`, `w3-p2-display-2560x1440.png`, `w3-p2-ultrawide-3440x1440.png`, and `w3-p2-compact-dense-dock.png`. All six passed original-resolution inspection.
+- One bounded implementation review and one fix/rereview cycle ended Ready with 0 Critical and 0 Important findings open. Minor follow-up only: rationalize stale pre-Adaptive-Stage evidence naming/explanatory comments and cosmetic edge cases when their owning packet is scheduled; they do not fail a W3-P2 acceptance criterion.
+- The temporary multi-entry legacy Arrange bridge remains deliberately present for W3-P3 and is not a W3-P2 defect. The three SKIPs remain the existing live Home Assistant/user-instance and native NASA permission ceilings. Native zoom, mixed-DPI, and real screen-reader evidence remain W6-P2/manual. No Store or Aurora V1 action occurred.
 
 - W3-P1 literal targeted gate at `925438f` - exit 0; 11 files / 590 tests passed.
 - `npx tsc --noEmit` at `925438f` - exit 0.
@@ -263,13 +275,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W3-P1`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W3-P2.
+- None expected after `docs: checkpoint W3-P2`. If `git status --short` is non-empty at continuation, stop and reconcile before planning W3-P3.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W3-P2` - Profile engine, registry, BoardItem, and semantic grid
-- **Plan:** None. Create it just in time from the master specification, verified W3-P1 Layout V2/schema/migration contracts, current registry and viewport code, and the W3-P2 profile-selection/render/capacity acceptance boundary.
-- **State:** Not started. Write and independently review the executable W3-P2 plan before any W3-P2 implementation.
+- **Packet:** `W3-P3` - Arrange/profile editor
+- **Plan:** None. Create it just in time from the master specification, verified W3-P2 profile/density/registry/allocation contracts, current temporary Arrange bridge, and the W3-P3 edit/save/cancel/undo/reset/copy/keyboard acceptance boundary.
+- **State:** Not started. Discover current implementation seams and write the executable W3-P3 plan before W3-P3 production work.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -281,9 +293,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W3-P2
-Verified W3-P1 implementation SHA: 925438f890de62d5540221b86b53330f2dd0a5a1
-Expected next checkpoint subject: docs: checkpoint W3-P2
+Starting packet: W3-P3
+Verified W3-P2 implementation SHA: ad79a523c81e51b593b7b57b9ba5cd45492873aa
+Expected next checkpoint subject: docs: checkpoint W3-P3
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
