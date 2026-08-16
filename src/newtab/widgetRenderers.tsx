@@ -26,8 +26,10 @@ import TodoWidget from './widgets/todo/TodoWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import WeatherWidget from './widgets/weather/WeatherWidget'
 import { WIDGET_REGISTRY, type WidgetRendererKey } from './widgetRegistry'
+import type { WidgetVariant } from '../lib/layout/types'
 
 export interface WidgetRendererProps {
+  stageVariant?: WidgetVariant
   onWeatherExpandedChange?: (open: boolean) => void
   onBookmarksPopoverOpenChange?: (open: boolean) => void
   onNotesOpenChange?: (open: boolean) => void
@@ -39,7 +41,7 @@ export type WidgetRenderer = ComponentType<WidgetRendererProps>
 
 const RENDERERS = {
   weather: ({ onWeatherExpandedChange }) => <WeatherWidget onExpandedChange={onWeatherExpandedChange} />,
-  ics: () => <CalendarWidget />,
+  ics: ({ stageVariant }) => <CalendarWidget stageVariant={stageVariant} />,
   monthCal: () => <MonthCalWidget />,
   sun: () => <SunWidget />,
   moon: () => <MoonWidget />,
@@ -58,8 +60,8 @@ const RENDERERS = {
   gitlab: () => <GitlabWidget />,
   jira: () => <JiraWidget />,
   vercel: () => <VercelWidget />,
-  homeassistant: () => <HomeAssistantWidget />,
-  rss: () => <RssWidget />,
+  homeassistant: ({ stageVariant }) => <HomeAssistantWidget stageVariant={stageVariant} />,
+  rss: ({ stageVariant }) => <RssWidget stageVariant={stageVariant} />,
   crypto: () => <CryptoWidget />,
   timer: ({ onTimerOpenChange }) => <TimerWidget onOpenChange={onTimerOpenChange} />,
   tasks: ({ onTasksOpenChange }) => <TodoWidget onOpenChange={onTasksOpenChange} />,

@@ -2,8 +2,17 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchHeadlines, type Headline } from '../../../services/connectors/rss'
 import type { RssConfig } from '../../../services/connectors/types'
+import type { WidgetVariant } from '../../../lib/layout/types'
 
-export default function RssWidget() {
+const RSS_VARIANT_ROWS: Readonly<Record<WidgetVariant, number>> = {
+  compact: 2,
+  standard: 6,
+  expanded: 8,
+}
+
+export default function RssWidget({
+  stageVariant = 'standard',
+}: { stageVariant?: WidgetVariant } = {}) {
   // Gate BEFORE the snapshot hook exists — same shape as WorldClocks/Notes.
   // The one useStoredKey read runs unconditionally every render (Rules of
   // Hooks stay satisfied), but a disabled connector, or an enabled one with no
@@ -23,7 +32,7 @@ export default function RssWidget() {
   // legally restore { rss: { enabled: true } } with no feeds array at all.
   // The type says feeds: string[]; storage doesn't promise it.
   if (!rss?.enabled || !Array.isArray(rss.feeds) || rss.feeds.length === 0) return null
-  return <RssInner rss={rss} />
+  return <RssInner rss={rss} stageVariant={stageVariant} />
 }
 
 // Short-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
@@ -56,7 +65,7 @@ const RSS_SHORT_ROWS = 4
 // only one row cap ever applies at a time.
 const RSS_MID_ROWS = 8
 
-function RssInner({ rss }: { rss: RssConfig }) {
+function RssInner({ rss, stageVariant }: { rss: RssConfig; stageVariant: WidgetVariant }) {
   const { feeds, shownCount } = rss
   // Stale-while-refreshing by construction: the hook returns the cached
   // snapshot immediately and refreshes in the background once per mount. A
@@ -70,7 +79,7 @@ function RssInner({ rss }: { rss: RssConfig }) {
   // Cap at shownCount here too, not just in the service: a snapshot written
   // under a larger shownCount that the user later lowered must honor the
   // current setting without waiting for the next refresh.
-  const headlines = (data ?? []).slice(0, shownCount)
+  const headlines = (data ?? []).slice(0, Math.min(shownCount, RSS_VARIANT_ROWS[stageVariant]))
   if (headlines.length === 0) return null
 
   return (

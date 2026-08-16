@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import type { WidgetVariant } from '../../../lib/layout/types'
 vi.mock('../../../services/connectors/rss', async (importActual) => {
   const actual = await importActual<typeof import('../../../services/connectors/rss')>()
   return { ...actual, fetchHeadlines: vi.fn(actual.fetchHeadlines) }
@@ -52,10 +53,10 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'expanded') {
   return render(
     <StorageProvider storage={storage}>
-      <RssWidget />
+      <RssWidget stageVariant={stageVariant} />
     </StorageProvider>,
   )
 }
@@ -174,6 +175,30 @@ describe('RssWidget', () => {
     expect(rows[3].classList.contains('short:hidden')).toBe(false)
     expect(rows[4].classList.contains('short:hidden')).toBe(true)
     expect(rows[7].classList.contains('short:hidden')).toBe(true)
+  })
+
+  it('progresses from prioritized headlines to a fuller configured feed by allocation variant', async () => {
+    const eight: Headline[] = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => ({
+      source: `Src ${i}`,
+      title: `Variant ${i} headline`,
+      url: `https://example.com/variant-${i}`,
+      publishedAt: 50 - i,
+    }))
+    const storage = await seededStorage(
+      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
+      eight,
+    )
+    const view = mount(storage, 'compact')
+    await screen.findByText('Variant 0 headline')
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(2)
+
+    view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="standard" /></StorageProvider>)
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(6)
+
+    view.rerender(<StorageProvider storage={storage}><RssWidget stageVariant="expanded" /></StorageProvider>)
+    expect([...document.querySelectorAll('section[aria-label="Headlines"] li a')].map((row) => row.getAttribute('href'))).toEqual(
+      eight.map(({ url }) => url),
+    )
   })
 
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {

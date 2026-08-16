@@ -4,6 +4,7 @@ import { act, render, screen } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import type { WidgetVariant } from '../../../lib/layout/types'
 import type { IcsData, IcsEvent } from '../../../services/connectors/ics'
 import type { IcsConfig } from '../../../services/connectors/types'
 import { connectorSnapshotScope } from '../../../services/connectors/snapshotIdentity'
@@ -125,10 +126,10 @@ async function seededStorage(config: IcsConfig, data: IcsData | null): Promise<A
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard') {
   return render(
     <StorageProvider storage={storage}>
-      <CalendarWidget />
+      <CalendarWidget stageVariant={stageVariant} />
     </StorageProvider>,
   )
 }
@@ -159,6 +160,33 @@ describe('CalendarWidget', () => {
     expect(screen.getByText('16:00 1:1 with Sam')).toBeTruthy()
     // Capped at 2 rows AND scoped to today: tomorrow's event appears nowhere.
     expect(screen.queryByText(/Kickoff/)).toBeNull()
+  })
+
+  it('progresses from next event to today to a fuller agenda by allocation variant', async () => {
+    const events = [
+      EVENT_NEXT,
+      EVENT_B,
+      EVENT_C,
+      ev('Planning', new Date(2026, 7, 7, 17, 0).getTime(), new Date(2026, 7, 7, 17, 30).getTime()),
+      ev('Wrap-up', new Date(2026, 7, 7, 18, 0).getTime(), new Date(2026, 7, 7, 18, 30).getTime()),
+      ev('Dinner', new Date(2026, 7, 7, 19, 0).getTime(), new Date(2026, 7, 7, 19, 30).getTime()),
+    ]
+    const storage = await seededStorage(CONNECTED, { events })
+    const view = mount(storage, 'compact')
+    await act(async () => {})
+    expect(document.querySelectorAll('section[aria-label="Calendar"] li')).toHaveLength(0)
+
+    view.rerender(<StorageProvider storage={storage}><CalendarWidget stageVariant="standard" /></StorageProvider>)
+    expect(document.querySelectorAll('section[aria-label="Calendar"] li')).toHaveLength(2)
+
+    view.rerender(<StorageProvider storage={storage}><CalendarWidget stageVariant="expanded" /></StorageProvider>)
+    expect([...document.querySelectorAll('section[aria-label="Calendar"] li')].map((row) => row.textContent)).toEqual([
+      '14:00 Design review',
+      '16:00 1:1 with Sam',
+      '17:00 Planning',
+      '18:00 Wrap-up',
+      '19:00 Dinner',
+    ])
   })
 
   it('an all-day event renders "All day · {summary}" and sorts before a same-day timed row, without ever becoming the headline', async () => {

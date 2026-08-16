@@ -140,7 +140,7 @@ export default function App() {
   const renderAllocation = (allocation: StageAllocation) => {
     const entry = WIDGET_REGISTRY_BY_ID[allocation.id]
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
-    const renderer = <Renderer {...rendererProps} />
+    const renderer = <Renderer {...rendererProps} stageVariant={allocation.variant} />
     const child = allocation.zone === 'dock' && entry.availability.kind === 'connector' ? (
       <SignalDockEntry
         entry={entry}

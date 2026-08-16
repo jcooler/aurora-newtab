@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import type { WidgetVariant } from '../../../lib/layout/types'
 import { __resetInFlight } from '../../../lib/hooks/useConnectorSnapshot'
 import type {
   HaAction,
@@ -128,10 +129,10 @@ async function legacyV1Scope(config: HomeAssistantConfig): Promise<string> {
   return `homeassistant:v1:${hex}`
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'standard') {
   return render(
     <StorageProvider storage={storage}>
-      <HomeAssistantWidget />
+      <HomeAssistantWidget stageVariant={stageVariant} />
     </StorageProvider>,
   )
 }
@@ -352,6 +353,46 @@ describe('HomeAssistantWidget — anti-staleness, all-or-nothing (plan-pinned ru
 })
 
 describe('HomeAssistantWidget — DOM contract', () => {
+  it('progresses from summary states to compact controls to controls plus detail', async () => {
+    const states = Array.from({ length: 6 }, (_, index): HaState => ({
+      id: `sensor.room_${index + 1}`,
+      friendlyName: `Room ${index + 1}`,
+      state: String(20 + index),
+      unit: '°C',
+      domain: 'sensor',
+    }))
+    const entities = states.map(({ id, friendlyName }) => ({ id, name: friendlyName }))
+    const actions = Array.from({ length: 3 }, (_, index): HaAction => ({
+      id: `scene.mode_${index + 1}`,
+      name: `Mode ${index + 1}`,
+      domain: 'scene',
+    }))
+    const config = { ...CONNECTED, entities, actions }
+    const storage = await seededStorage(config, { entities: states })
+    const view = mount(storage, 'compact')
+    await screen.findByText('Room 1 20°C')
+    expect(document.querySelectorAll('section[aria-label="Home Assistant"] li')).toHaveLength(2)
+    expect(screen.queryByRole('button', { name: /Run Mode/ })).toBeNull()
+
+    view.rerender(<StorageProvider storage={storage}><HomeAssistantWidget stageVariant="standard" /></StorageProvider>)
+    expect(document.querySelectorAll('section[aria-label="Home Assistant"] li')).toHaveLength(4)
+    expect(screen.getAllByRole('button', { name: /Run Mode/ })).toHaveLength(2)
+
+    view.rerender(<StorageProvider storage={storage}><HomeAssistantWidget stageVariant="expanded" /></StorageProvider>)
+    expect(document.querySelectorAll('section[aria-label="Home Assistant"] li')).toHaveLength(6)
+    expect(screen.getAllByRole('button', { name: /Run Mode/ })).toHaveLength(3)
+  })
+
+  it('keeps one useful action in Compact when no entity state exists', async () => {
+    const storage = await seededStorage(
+      { ...CONNECTED, entities: [], actions: [ACTIONS[0], EVENING_ACTION] },
+      { entities: [] },
+    )
+    mount(storage, 'compact')
+    expect(await screen.findByRole('button', { name: 'Run Movie night' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Run Evening routine' })).toBeNull()
+  })
+
   it('renders section[aria-label="Home Assistant"] at w-80', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

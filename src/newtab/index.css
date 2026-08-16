@@ -2160,7 +2160,6 @@ select > option {
    mounted and larger variants retain progressively more detail. */
 .adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="links"] > section > div:nth-of-type(n + 7),
 .adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 6),
-.adaptive-stage .board-item:not([data-stage-variant="compact"]):not(.board-item--dock)[data-block-id="rss"] li:nth-child(n + 7),
 .adaptive-stage .board-item:not([data-stage-variant="compact"]):not(.board-item--dock):is(
   [data-block-id="github"],
   [data-block-id="gitlab"]

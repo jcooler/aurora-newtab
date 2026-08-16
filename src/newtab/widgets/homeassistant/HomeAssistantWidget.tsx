@@ -15,6 +15,13 @@ import {
   type HomeAssistantData,
 } from '../../../services/connectors/homeassistant'
 import type { ConnectorConfig } from '../../../services/connectors/types'
+import type { WidgetVariant } from '../../../lib/layout/types'
+
+const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
+  compact: { states: 2, actions: 0 },
+  standard: { states: 4, actions: 2 },
+  expanded: { states: 6, actions: 3 },
+}
 
 // The Home Assistant widget — Task 102 (W3-SP5), the ninth connector's board
 // face: up to MAX_CHIP_ENTITIES=6 state chips and up to MAX_ACTIONS=3
@@ -87,7 +94,9 @@ export function chipCopy(s: HaState): string {
   return `${s.friendlyName} ${s.state}${s.unit ?? ''}`
 }
 
-export default function HomeAssistantWidget() {
+export default function HomeAssistantWidget({
+  stageVariant = 'standard',
+}: { stageVariant?: WidgetVariant } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (StatusWidget.tsx's own doc comment): the one useStoredKey read runs
   // every render (Rules of Hooks stay satisfied), but a disabled/unconnected
@@ -119,6 +128,7 @@ export default function HomeAssistantWidget() {
       token={ha.token}
       picked={picked}
       actions={actions}
+      stageVariant={stageVariant}
     />
   )
 }
@@ -129,12 +139,14 @@ function HomeAssistantInner({
   token,
   picked,
   actions,
+  stageVariant,
 }: {
   config: HomeAssistantConfig
   instanceUrl: string
   token: string
   picked: HaEntityRef[]
   actions: HaAction[]
+  stageVariant: WidgetVariant
 }) {
   // NO prev arg, by design (plan-pinned ruling 2, this file's header
   // comment): fetchHomeAssistant itself takes no `prev` parameter at all
@@ -166,6 +178,13 @@ function HomeAssistantInner({
   // when NEITHER would leave anything visible.
   if (chips.length === 0 && actions.length === 0) return null
 
+  const limits = HA_VARIANT_LIMITS[stageVariant]
+  const visibleChips = chips.slice(0, limits.states)
+  // An action-only Compact allocation still needs one useful operation;
+  // when current states exist, Compact stays a passive summary as specified.
+  const actionLimit = stageVariant === 'compact' && chips.length === 0 ? 1 : limits.actions
+  const visibleActions = actions.slice(0, actionLimit)
+
   return (
     // A slim floating card, not a panel — no bg-panel-solid/rounded-2xl/
     // shadow-lg (unlike GithubWidget/GitlabWidget/JiraWidget/VercelWidget in
@@ -174,10 +193,10 @@ function HomeAssistantInner({
     // stacked above it in this column (ics/rss/vercel), not for a shared
     // surface. Left-aligned (this column's own `items-start`), not
     // text-center (unlike the bottom band's centered strips).
-    <section aria-label="Home Assistant" className="w-80 text-fg">
-      {chips.length > 0 && (
+    <section aria-label="Home Assistant" data-ha-content-variant={stageVariant} className="w-80 text-fg">
+      {visibleChips.length > 0 && (
         <ul className="flex flex-wrap gap-x-3 gap-y-1">
-          {chips.map((s) => (
+          {visibleChips.map((s) => (
             // Photo-floating text — `-canvas-` ink (StatusWidget.tsx:134-151's
             // own "the trap": a panel-adaptive `text-fg` here would silently
             // re-tint toward black under a light panelColor pick, since this
@@ -191,9 +210,9 @@ function HomeAssistantInner({
           ))}
         </ul>
       )}
-      {actions.length > 0 && (
-        <div className={`flex flex-wrap gap-2${chips.length > 0 ? ' mt-2' : ''}`}>
-          {actions.map((a) => (
+      {visibleActions.length > 0 && (
+        <div className={`flex flex-wrap gap-2${visibleChips.length > 0 ? ' mt-2' : ''}`}>
+          {visibleActions.map((a) => (
             <ActionButton
               key={a.id}
               action={a}

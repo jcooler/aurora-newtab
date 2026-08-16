@@ -13,6 +13,7 @@ import {
   type IcsEvent,
 } from '../../../services/connectors/ics'
 import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
+import type { WidgetVariant } from '../../../lib/layout/types'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -38,9 +39,15 @@ import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 // collision probe actually measures clear (see App.tsx's own comment on the
 // ics PositionedBlock for the measured numbers). Arrange mode still lets a
 // user drag this anywhere they prefer.
-const MAX_AGENDA_ROWS = 2
+const CALENDAR_ROW_LIMIT: Readonly<Record<WidgetVariant, number>> = {
+  compact: 0,
+  standard: 2,
+  expanded: 5,
+}
 
-export default function CalendarWidget() {
+export default function CalendarWidget({
+  stageVariant = 'standard',
+}: { stageVariant?: WidgetVariant } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (RssWidget/CryptoWidget's own doc comments): the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled
@@ -86,6 +93,7 @@ export default function CalendarWidget() {
       view={view}
       upcomingCount={upcomingCount}
       meetLinks={meetLinks}
+      stageVariant={stageVariant}
     />
   )
 }
@@ -96,6 +104,7 @@ function CalendarInner({
   view,
   upcomingCount,
   meetLinks,
+  stageVariant,
 }: {
   config: IcsConfig
   calendars: IcsCalendar[]
@@ -109,6 +118,7 @@ function CalendarInner({
   // meetLinks prop through the normal parent-rerender path (useStoredKey's
   // connectors subscription), no remount required.
   meetLinks: boolean
+  stageVariant: WidgetVariant
 }) {
   const localDay = useLocalDay()
   // Re-render cadence: reuses the app's existing minute-scale time source
@@ -139,7 +149,15 @@ function CalendarInner({
   if (!data) return null
 
   const nowMs = now.getTime()
-  const { next, rows } = selectAgenda(data.events, nowMs, view, upcomingCount, calendars.length, localDay.timeZone)
+  const { next, rows } = selectAgenda(
+    data.events,
+    nowMs,
+    view,
+    upcomingCount,
+    calendars.length,
+    localDay.timeZone,
+    CALENDAR_ROW_LIMIT[stageVariant],
+  )
 
   // Single-calendar rule (spec): with exactly one configured calendar, no
   // dots render anywhere — the color-coding only earns its keep once there's
@@ -336,6 +354,7 @@ function selectAgenda(
   upcomingCount: number,
   calendarCount: number,
   timeZone: string,
+  rowLimit: number,
 ): { next: IcsEvent | null; rows: IcsEvent[] } {
   const upcoming = events.filter((ev) => ev.end > now)
   const timed = upcoming.filter((ev) => !isAllDay(ev))
@@ -343,18 +362,18 @@ function selectAgenda(
   if (!next) return { next: null, rows: [] }
 
   const others = upcoming.filter((ev) => ev !== next)
-  if (view === 'upcoming') return { next, rows: others.slice(0, upcomingCount) }
+  if (view === 'upcoming') return { next, rows: rowLimit === 0 ? [] : others.slice(0, upcomingCount) }
   if (view === 'per-calendar') {
     const rows: IcsEvent[] = []
     for (let i = 0; i < calendarCount; i++) {
       const first = others.find((ev) => ev.cal === i)
       if (first) rows.push(first)
     }
-    return { next, rows }
+    return { next, rows: rowLimit === 0 ? [] : rows }
   }
   return {
     next,
-    rows: others.filter((ev) => eventStartsBeforeLocalDayEnd(ev.start, now, timeZone)).slice(0, MAX_AGENDA_ROWS),
+    rows: others.filter((ev) => eventStartsBeforeLocalDayEnd(ev.start, now, timeZone)).slice(0, rowLimit),
   }
 }
 
