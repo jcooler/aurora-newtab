@@ -8,6 +8,7 @@ import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
 import Background from './components/Background'
 import BoardItem from './components/BoardItem'
+import DayContext from './components/DayContext'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
 import ArrangeController from './arrange/ArrangeController'
@@ -204,6 +205,7 @@ export default function App() {
                     }
                   } : undefined}
                 >
+                  {zone === 'day' && allocations.length === 0 ? <DayContext /> : null}
                   {allocations.map(renderAllocation)}
                 </section>
               )

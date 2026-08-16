@@ -29,6 +29,22 @@ describe('Clock restoration sampling', () => {
   })
 })
 
+describe('Clock large-display detail', () => {
+  it('publishes a secondary long-date detail from the same clock sample', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 7, 16, 11, 33))
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const { container } = render(<StorageProvider storage={storage}><Clock /></StorageProvider>)
+    await act(async () => {})
+
+    const detail = container.querySelector('[data-clock-date]')
+    expect(detail?.textContent).toBe('Sunday, August 16')
+    expect(detail?.getAttribute('aria-hidden')).toBe('true')
+    vi.useRealTimers()
+  })
+})
+
 describe('index.css — .text-photo utility', () => {
   it('is defined via @utility, with both the tight contact shadow and the soft ambient one', () => {
     expect(indexCss).toMatch(/@utility text-photo\s*\{/)

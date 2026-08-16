@@ -39,6 +39,39 @@ describe('App — Adaptive Stage composition', () => {
     }
   })
 
+  it('shows render-only date context only when Day has no semantic allocation', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const settings = defaults().settings
+    const widgetsOff = Object.fromEntries(
+      Object.keys(settings.widgets).map((key) => [key, false]),
+    ) as unknown as typeof settings.widgets
+    await storage.set('settings', {
+      ...settings,
+      widgets: widgetsOff,
+    })
+    await storage.set('connectors', {})
+    await renderApp(storage)
+
+    const day = screen.getByRole('region', { name: 'Day' })
+    expect(day.querySelector('[data-day-context]')).toBeTruthy()
+    expect(day.querySelectorAll(':scope > [data-block-id]')).toHaveLength(0)
+    expect(document.querySelector('[data-block-id="day-context"]')).toBeNull()
+
+    await act(async () => {
+      await storage.set('settings', { ...settings, widgets: { ...widgetsOff, weather: true } })
+    })
+    expect(day.querySelector('[data-day-context]')).toBeNull()
+    expect(day.querySelectorAll(':scope > [data-block-id]')).toHaveLength(1)
+  })
+
+  it('keeps the source-default Now hierarchy in semantic order', async () => {
+    await renderApp()
+    const nowIds = [...screen.getByRole('region', { name: 'Now' }).querySelectorAll<HTMLElement>(':scope > [data-block-id]')]
+      .map((node) => node.dataset.blockId)
+    expect(nowIds).toEqual(['clock', 'greeting', 'search', 'focus', 'links'])
+  })
+
   it('renders each active registry ID exactly once on the board or in the Dock', async () => {
     await renderApp()
     for (const id of ['clock', 'greeting', 'focus', 'weather', 'search', 'links', 'tasks', 'notes']) {

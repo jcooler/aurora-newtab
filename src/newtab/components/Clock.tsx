@@ -1,4 +1,4 @@
-import { formatClock } from '../../lib/clock'
+import { formatClock, formatDayContext } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 
@@ -7,8 +7,9 @@ export default function Clock() {
   const now = useNow()
   if (!settings) return null
   return (
-    <time
-      dateTime={now.toISOString()}
+    <div data-clock-face="" className="clock-face">
+      <time
+        dateTime={now.toISOString()}
       // The scale term is `min(12vw, 20vh)`, not `12vw` alone — the old
       // width-only clamp() rendered ~160px tall at the owner's ~1420x437
       // short-wide window (12vw already exceeded the 10rem ceiling there) and
@@ -45,9 +46,13 @@ export default function Clock() {
       // an inherited ~12px with `color: var(--clock-font)` quietly doing
       // nothing (an invalid color, dropped) — found by this fix's own
       // measurement probe, not by inspection.
-      className="text-photo text-canvas-fg font-display text-[length:var(--clock-font)] font-medium tabular-nums tracking-[-0.02em]"
-    >
-      {formatClock(now, settings.use24Hour)}
-    </time>
+        className="text-photo text-canvas-fg font-display text-[length:var(--clock-font)] font-medium tabular-nums tracking-[-0.02em]"
+      >
+        {formatClock(now, settings.use24Hour)}
+      </time>
+      <span data-clock-date="" aria-hidden="true" className="text-photo text-canvas-fg-muted">
+        {formatDayContext(now, 'long')}
+      </span>
+    </div>
   )
 }
