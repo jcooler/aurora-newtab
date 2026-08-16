@@ -5,13 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; manual live-dashboard evidence required
+**Current packet:** Release-blocking Calm Canvas visual remediation; V1-first direction approved and written specification awaiting owner review
 
 ## Packet envelope
 
-- **Acceptance:** Check current official Chrome/Google policy, verify the live Aurora V1 version/dashboard answers with the user, and reconcile privacy, Data Usage, and listing source without Store mutation.
-- **Implementation scope:** Official-source research, read-only V1/dashboard evidence, and repository policy/listing reconciliation only. No upload, submission, rollout, Store state change, schema, registry, migration, stored-data, permission, or product behavior change.
-- **Remaining gates:** Receive the user's read-only live item version and Store listing/Privacy practices values, complete the field-by-field comparison, perform the one final acceptance review, checkpoint/push, and continue to W6-P4. No dashboard mutation is authorized.
+- **Acceptance:** Replace the visually unacceptable stretched Adaptive Stage composition with the owner-approved V1-first Calm Canvas while preserving frozen data, migration, registry, profile, density, capacity, accessibility, privacy, permission, and Store boundaries.
+- **Implementation scope:** Centered Now anchor; content-sized Day and Work Pulse clusters; compact launcher and bottom surfaces; focused responsive/visual evidence. No Store action, schema change, migration change, registry identity change, stored-data rewrite, permission change, credential/capability handling change, or protected-original mutation.
+- **Remaining gates:** Owner review of `docs/superpowers/specs/2026-08-16-aurora-2-calm-canvas-remediation-design.md`; executable plan; RED-first implementation; six focused real-browser visual witnesses; one review/fix-rereview cycle; final gates once; checkpoint/push. W6-P3 dashboard reconciliation resumes afterward.
 
 ## Previous packet envelope
 
