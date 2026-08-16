@@ -2129,6 +2129,16 @@ select > option {
 .stage-zone--pulse .board-item[data-stage-variant="expanded"] [data-work-pulse-detail] {
   display: block;
 }
+.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="standard"] [data-work-pulse-status-dots],
+.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="expanded"] [data-work-pulse-status-dots] {
+  /* Status has no expanded registry footprint. Keep its configured service
+     identity visible in Standard without weakening Compact's summary-only
+     contract. */
+  display: flex;
+}
+.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="standard"] [data-work-pulse-rows] {
+  display: block;
+}
 
 /* Focus's form is the finite BoardItem child, but its input owns the legacy
    w-72 width. Cap that nested control to the semantic allocation; the Dock's

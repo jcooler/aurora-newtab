@@ -32,6 +32,9 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="standard"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="expanded"[^}]+data-work-pulse-detail[\s\S]*?display: block;/)
+    expect(statusSource).toContain('data-work-pulse-status-dots')
+    expect(css).toMatch(/data-block-id="status"[^}]+data-stage-variant="standard"[^}]+data-work-pulse-status-dots[\s\S]*?display: flex;/)
+    expect(css).toMatch(/data-block-id="status"[^}]+data-stage-variant="standard"[^}]+data-work-pulse-rows[\s\S]*?display: block;/)
   })
 
   it('uses the existing Pulse zone as one shared surface without changing geometry authority', () => {

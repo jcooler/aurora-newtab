@@ -123,7 +123,7 @@ function StatusInner({
         tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
         metadata={`${rows.length} services`}
       />
-      <div data-work-pulse-detail className="flex justify-center gap-2">
+      <div data-work-pulse-detail data-work-pulse-status-dots className="flex justify-center gap-2">
         {rows.map((s, i) => (
           <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
         ))}
