@@ -3,15 +3,15 @@
 **Updated:** 2026-08-16<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 5 - Utility Tray<br>
-**Last verified packet:** `W5-P3` - Settings workspace and connector cards<br>
-**Current packet:** `W5-P4` - Visual/motion system convergence; implementation active
+**Current wave:** Wave 6 - Full product QA and Store release candidate<br>
+**Last verified packet:** `W5-P4` - Visual/motion system convergence<br>
+**Current packet:** `W6-P1` - Migration, regression, offline/stale/error QA; planning active
 
 ## Packet envelope
 
-- **Acceptance:** Converge shared surfaces, typography, spacing, state, routine targets, and restrained/reduced motion; give the empty Focus prompt a local background-independent contrast treatment over representative packaged photos without changing global muted text.
-- **Implementation scope:** Theme/index visual tokens, existing Focus prompt presentation, shared Settings control shells, and only the observed reduced-motion omissions. No schema, migration, registry, planner, storage, permission, privacy, backup, connector, or Store change.
-- **Remaining gates:** Focused RED/green unit and built-extension evidence, one implementation review and at most one Critical/Important fix/rereview, then one final unit/TypeScript/build/bridge/full-browser gate and checkpoint proof.
+- **Acceptance:** Complete the written automated migration, regression, offline/stale/error, and recovery matrix with every accepted finding tracked.
+- **Implementation scope:** JIT planning from the frozen Wave 6 acceptance and existing ledgers. Preserve schema/registry contracts and correct only demonstrated Critical/Important product failures; record Minor evidence/cosmetic debt without reopening verified packets.
+- **Remaining gates:** Freeze the W6-P1 matrix, run each required automated/recovery family once with focused diagnosis for actual failures, perform one implementation review/fix cycle if code changes are required, checkpoint, and continue to W6-P2.
 
 ## Previous packet envelope
 
@@ -123,6 +123,10 @@
 - `44e05c0` - existing-owner Tasks, Notes, Timer, Home Assistant action, and background-refresh integration with guarded Notes lifecycle and focused browser proof.
 
 ## Latest verification
+
+- W5-P4 focused development passed 6 files / 280 tests. The packaged Chromium replay proved an opaque local Focus prompt surface at 18.04:1 across bright, dark, and detailed packaged photos, 44px spacious persistent controls, 36px Settings controls, 14px ordinary and 12px metadata type floors, opaque Settings/Tray work surfaces, reduced-motion convergence, exact cleanup, and zero runtime errors. All three required captures were inspected once.
+- One implementation review returned Ready with 0 Critical / 0 Important findings. The final unit gate passed 137 files / 2,262 tests; production and preview builds transformed 189 modules; TypeScript and the production bridge scan were clean.
+- The first full browser run exposed two actual families: the Utility Tray invoker stayed at 36px under the spacious 44px Stage token, and a W2-P3 320x180 panel-level outside-point probe demanded empty space that the accepted fitted Tasks surface legitimately did not have. `a83f6ad` added the persistent target and retained 320x180 menu/geometry coverage while moving only the panel-level outside-pointer check to 320x568. The single permitted full rerun completed at 457 PASS / 0 FAIL / 3 SKIP. No third run or documentation-triggered gate was performed.
 
 - W5-P1 focused development passed 2 files / 30 tests plus TypeScript. `scripts/preview-w5-p1.mjs` passed Standard 1600x900 modeless and Compact 800x600 modal behavior with free/trapped focus as appropriate, outside/Escape/backdrop dismissal, exact restoration, containment, dashboard isolation only in Compact, clean teardown, and zero runtime errors. Both captures were inspected once.
 - The focused replay's first run found one genuine backdrop focus-restoration failure. `8b36bac` moved dismissal to the completed click and added its failing regression; the single focused rerun passed. One implementation review then returned Ready with 0 Critical / 0 Important findings, so no additional review was launched.
@@ -367,13 +371,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W5-P1`. If `git status --short` is non-empty at continuation, reconcile it before W5-P2 production work.
+- None expected after `docs: checkpoint W5-P4`. If `git status --short` is non-empty during W6-P1, reconcile only generated evidence or packet-owned changes.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W5-P2` - Working-tool integration
-- **Plan:** Create just in time after the W5-P1 checkpoint/equality proof.
-- **State:** Not started; begin immediately after W5-P1 push/equality proof. Preserve frozen schema/registry/allocation/storage/privacy/permission/Store contracts and integrate only the written working-tool acceptance.
+- **Packet:** `W6-P1` - Migration, regression, offline/stale/error QA
+- **Plan:** Create just in time after the W5-P4 checkpoint/equality proof.
+- **State:** Planning active. Preserve frozen schema/registry/allocation/storage/privacy/permission/Store contracts; execute the written QA/recovery matrix once and fix only demonstrated blocking failures.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.

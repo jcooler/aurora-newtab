@@ -62,5 +62,5 @@
 - Modify: this plan
 
 - [x] Run one implementation review against the written acceptance; it returned Ready with no Critical or Important defect, so no fix/rereview cycle was opened.
-- [ ] Run the full unit suite, TypeScript/production build, production bridge scan, preview build, and full browser harness once after implementation stabilizes; rerun only the actually failing family once if required.
-- [ ] Update ledgers, checkpoint/push, prove clean/upstream equality and protected checkout integrity, then begin W6-P1 automatically.
+- [x] Run the full unit suite, TypeScript/production build, production bridge scan, preview build, and full browser harness once after implementation stabilizes; rerun only the actually failing family once if required.
+- [x] Update ledgers, checkpoint/push, prove clean/upstream equality and protected checkout integrity, then begin W6-P1 automatically.
