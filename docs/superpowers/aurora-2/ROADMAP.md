@@ -131,7 +131,7 @@ Defects in components scheduled for replacement retain open acceptance contracts
 
 | Packet | State | Depends on | Acceptance summary | Plan | Finishing commit |
 |---|---|---|---|---|---|
-| W4-P1 Day and Now zones | Not started | W3-P4 | Responsive day context, protected clock/greeting/search/focus hierarchy, larger displays add detail | Create just in time | — |
+| W4-P1 Day and Now zones | Planned | W3-P4 | Responsive day context, protected clock/greeting/search/focus hierarchy, larger displays add detail | [`2026-08-16-w4-p1-day-now-zones.md`](../plans/2026-08-16-w4-p1-day-now-zones.md) | — |
 | W4-P2 Aurora Briefing | Not started | W4-P1 | Deterministic privacy-preserving synthesis with priority/truncation and no new network dependency | Create just in time | — |
 | W4-P3 Work Pulse variants | Not started | W4-P2 | Attention-first compact/standard/expanded connector forms and healthy-state quietness | Create just in time | — |
 | W4-P4 Signal Dock and connector survival | Not started | W4-P3 | Every enabled connector represented across constrained/dense profiles; meaningful operable dock entries | Create just in time | — |

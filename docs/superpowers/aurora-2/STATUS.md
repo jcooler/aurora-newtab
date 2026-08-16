@@ -5,7 +5,7 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
 **Last verified packet:** `W3-P4` - Legacy retirement gate<br>
-**Next packet:** `W4-P1` - Day and Now zones; Not started, no plan
+**Next packet:** `W4-P1` - Day and Now zones; Planned, implementation active
 
 ## Packet envelope
 
@@ -304,8 +304,8 @@
 ## Continuous remaining-work protocol
 
 - **Packet:** `W4-P1` - Day and Now zones
-- **Plan:** None. Create it just in time from the master specification and the verified W3 semantic Stage/editor/retirement contracts.
-- **State:** Not started. Implement responsive Day context and the protected Clock/Greeting/Search/Focus hierarchy; larger displays add useful detail without changing the frozen registry/schema, storage/privacy/permission authorities, or W4-P2 Briefing ownership.
+- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p1-day-now-zones.md`.
+- **State:** Planned; focused RED tests and implementation are next. Scope is responsive sparse/populated Day context, the frozen Clock/Greeting/Search/Focus hierarchy, and useful large-display date detail without registry/schema, allocation, storage/privacy/permission, or later-W4 scope changes.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
