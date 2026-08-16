@@ -28,6 +28,7 @@ const DOCK_COMPAT_INLINE_FLOORS: Readonly<Partial<Record<WidgetRegistryEntry['id
   moon: '12.5rem',
   habits: '12.5rem',
   monthCal: '12.5rem',
+  quote: '14rem',
   greeting: '12rem',
   rss: '18rem',
   // Canonical five-coin standard content paints 557.33px wide at the 14px

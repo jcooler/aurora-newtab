@@ -925,36 +925,26 @@ select > option {
   position: relative;
   display: grid;
   width: 100%;
-  /* Percentage height can transfer the Dock's max-content contribution back
-     into this grid through the display:contents provider wrapper. Resolve the
-     exact padded viewport content box directly so a geometry-fit plan never
-     creates an accidental Stage scrollport. The two explicit overflow modes
-     below still switch this to height:auto for owned vertical reachability. */
   height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
   min-height: 0;
   min-width: 0;
   gap: var(--stage-gap);
-  grid-template-columns: minmax(0, 2fr) minmax(0, 4fr) minmax(0, 2fr);
+  grid-template-columns:
+    minmax(0, clamp(15rem, 22vw, 28rem))
+    minmax(20rem, 1fr)
+    minmax(0, clamp(15rem, 22vw, 28rem));
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas: "day now pulse" "dock dock dock";
-}
-
-:root[data-stage-profile="display"] .adaptive-stage__grid {
-  grid-template-columns: minmax(0, 3fr) minmax(0, 6fr) minmax(0, 3fr);
-}
-
-:root[data-stage-profile="ultrawide"] .adaptive-stage__grid {
-  grid-template-columns: minmax(0, 4fr) minmax(0, 6fr) minmax(0, 4fr);
+  align-items: start;
 }
 
 :root[data-stage-profile="compact"] .adaptive-stage__grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-:root[data-stage-profile="compact"] [data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr) auto;
-  grid-template-areas: "now now" "day pulse" "dock dock";
+  height: auto;
+  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(4, max-content);
+  grid-template-areas: "now" "day" "pulse" "dock";
+  align-content: start;
 }
 
 /* Pinned allocations are the one sanctioned source of implicit finite-zone
@@ -963,6 +953,7 @@ select > option {
    underneath them. Automatic plans retain the viewport-filling 1fr tracks. */
 .adaptive-stage[data-stage-pinned-overflow="true"] .adaptive-stage__grid {
   height: auto;
+  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
   grid-template-rows: max-content auto;
 }
 
@@ -971,51 +962,68 @@ select > option {
    or allowed to paint underneath the max-content Dock. */
 .adaptive-stage[data-stage-viewport-overflow="true"] .adaptive-stage__grid {
   height: auto;
+  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
   grid-template-rows: max-content var(--stage-dock-block-size);
 }
 
 :root[data-stage-profile="compact"] .adaptive-stage[data-stage-pinned-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
-  grid-template-rows: max-content max-content auto;
+  grid-template-rows: repeat(4, max-content);
 }
 
 :root[data-stage-profile="compact"] .adaptive-stage[data-stage-viewport-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
-  grid-template-rows: max-content max-content var(--stage-dock-block-size);
+  grid-template-rows: repeat(3, max-content) var(--stage-dock-block-size);
 }
 
 .stage-zone {
   display: grid;
+  box-sizing: border-box;
   min-width: 0;
   min-height: 0;
   gap: var(--stage-gap);
-  padding: 0;
+  padding: 8px;
   border: 1px solid var(--glance-border);
   border-radius: var(--radius-panel);
   background: var(--glance-surface);
   box-shadow: var(--glance-highlight);
   align-content: start;
-  grid-auto-rows: minmax(var(--stage-track-min), 1fr);
+  align-self: start;
+  height: max-content;
+  grid-auto-flow: row;
+  grid-auto-rows: minmax(max(var(--stage-control-target), 56px), auto);
 }
 
 .stage-zone--day {
   grid-area: day;
   grid-template-columns: repeat(var(--stage-day-cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--stage-day-rows), minmax(var(--stage-track-min), 1fr));
   /* Day is one coherent glance surface. Its BoardItems supply content
      hierarchy inside the shared region instead of each allocation receiving
-     another zone-level frame. Geometry remains exactly planner-owned. */
+     another zone-level frame. Empty planner rows no longer become paint. */
   background: var(--glance-surface-day);
 }
 .stage-zone--now {
   grid-area: now;
-  grid-template-columns: repeat(var(--stage-now-cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--stage-now-rows), minmax(var(--stage-track-min), 1fr));
+  width: min(100%, 48rem);
+  justify-self: center;
+  grid-template-columns: minmax(0, 1fr);
   align-content: safe center;
+  align-self: safe center;
+  padding: 0;
+  text-align: center;
   /* Now is the photo-forward hero, not a second framed card. The localized
      wash protects the Clock/Greeting/Search/Focus hierarchy without changing
-     tracks, capacity, padding, hit testing, or the root transform contract. */
+     planner identity, hit testing, or the root transform contract. */
   border-color: transparent;
   background: radial-gradient(ellipse at center, rgb(3 7 18 / 0.2), transparent 72%);
   box-shadow: none;
+}
+.stage-zone--now > .board-item,
+.stage-zone--now > [data-launcher-shelf] {
+  grid-column: 1 / -1 !important;
+  width: 100%;
+}
+.stage-zone--now .board-item[data-block-id="clock"] {
+  justify-self: center;
+  text-align: center;
 }
 
 /* Links and Bookmarks remain two planner-owned BoardItems, but when their
@@ -1042,12 +1050,22 @@ select > option {
   margin: 0;
   align-content: center;
 }
-.stage-zone--pulse { grid-area: pulse; grid-template-columns: repeat(var(--stage-pulse-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--stage-pulse-rows), minmax(var(--stage-track-min), 1fr)); }
+.stage-zone--pulse {
+  grid-area: pulse;
+  grid-template-columns: repeat(var(--stage-pulse-cols), minmax(0, 1fr));
+}
+.stage-zone--pulse:empty,
+.stage-zone--dock:empty {
+  display: none;
+}
 .stage-zone--dock {
   grid-area: dock;
   grid-auto-flow: column;
   grid-template-rows: minmax(var(--stage-track-min), auto);
   min-block-size: var(--stage-dock-block-size);
+  width: max-content;
+  max-width: 100%;
+  justify-self: center;
   /* A constrained scroll container resolves implicit minmax(..., max-content)
      tracks to their minimum before overflowing grid items contribute their
      intrinsic width. Publish the planner's normalized Dock span count and
@@ -1056,7 +1074,7 @@ select > option {
   grid-template-columns: repeat(var(--stage-dock-track-count), max-content);
   grid-auto-columns: minmax(var(--stage-track-min), max-content);
   overflow-x: auto;
-  padding-inline: max(var(--stage-inset), 56px);
+  padding-inline: 8px;
   overscroll-behavior-inline: contain;
   scrollbar-width: thin;
   /* The Dock is the owned horizontal scrollport. A backdrop-filter here
@@ -1765,6 +1783,10 @@ select > option {
   width: 16px;
   height: 16px;
 }
+.stage-zone--now .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div,
+.stage-zone--now .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > span {
+  width: 80px;
+}
 
 /* Compact Board bookmarks are a three-chip launcher. Dock bookmarks retain
    the full intrinsic row and its horizontal scroller. */
@@ -1782,6 +1804,13 @@ select > option {
 .board-item:not(.board-item--dock)[data-block-id="search"] input {
   width: 100%;
   max-width: 100%;
+}
+.stage-zone--now .board-item:not(.board-item--dock)[data-block-id="search"] form {
+  display: flex;
+  justify-content: center;
+}
+.stage-zone--now .board-item:not(.board-item--dock)[data-block-id="search"] input {
+  width: min(100%, 32rem);
 }
 
 /* Three toggles are a useful habit glance and fit the 1x1 compact allocation;

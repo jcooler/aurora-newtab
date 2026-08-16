@@ -118,7 +118,7 @@ git commit -m "refactor(stage): add content-flow board placement"
 - Consumes: the `flow` placement seam and existing root `data-stage-profile`, density variables, zone variables, overflow markers, and Dock interaction ownership.
 - Produces: symmetric content-sized edge clusters, a viewport-centered Now anchor, and a shrink-wrapped Dock.
 
-- [ ] **Step 1: Write the RED browser composition probe**
+- [x] **Step 1: Write the RED browser composition probe**
 
 Create a one-shot packaged-extension probe with a seeded sparse 1600x900 fixture and owner-like dense 2012x1397 fixture. Its page evaluation returns literal geometry for `main`, Clock, all four zone surfaces, every allocated item, and root overflow. Assert:
 
@@ -136,7 +136,7 @@ assert(!geometry.documentOverflowX, `document overflow: ${JSON.stringify(geometr
 
 Capture a screenshot on failure.
 
-- [ ] **Step 2: Build preview and observe RED against the stretched shell**
+- [x] **Step 2: Build preview and observe RED against the stretched shell**
 
 Run: `npm run build:preview`
 
@@ -144,7 +144,7 @@ Run: `node scripts/preview-calm-canvas.mjs --focused`
 
 Expected: the old Day, Work Pulse, and Dock envelope assertions fail.
 
-- [ ] **Step 3: Implement the overlay and content-sized zone CSS**
+- [x] **Step 3: Implement the overlay and content-sized zone CSS**
 
 Replace the stretched shell rules with this responsibility split:
 
@@ -192,13 +192,13 @@ Replace the stretched shell rules with this responsibility split:
 
 Retain the established glance tokens, launcher surface, Signal Dock scroll/focus rules, Utility Tray, and Settings owners. Add profile-specific overrides: Compact becomes one column in `Now`, `Day`, `Pulse`, `Dock` order with Stage-owned vertical scrolling; Display and Ultrawide keep equal edge-column widths capped at readable measures.
 
-- [ ] **Step 4: Run focused component and CSS-legibility tests**
+- [x] **Step 4: Run focused component and CSS-legibility tests**
 
 Run: `npm test -- src/newtab/components/BoardItem.test.tsx src/newtab/App.test.tsx src/newtab/adaptiveStageLegibility.test.ts`
 
 Fix only assertions whose explicit presentation expectation changed; do not alter planner, registry, capacity, schema, migration, privacy, or permission tests.
 
-- [ ] **Step 5: Rebuild preview and run the focused browser replay once**
+- [x] **Step 5: Rebuild preview and run the focused browser replay once**
 
 Run: `npm run build:preview`
 
@@ -206,7 +206,7 @@ Run: `node scripts/preview-calm-canvas.mjs --focused`
 
 Expected: sparse 1600x900 and dense 2012x1397 pass centering, content envelope, collision, overflow, target, and runtime-error assertions. Inspect both screenshots at original resolution.
 
-- [ ] **Step 6: Commit Task 2**
+- [x] **Step 6: Commit Task 2**
 
 ```text
 git add src/newtab/index.css src/newtab/App.test.tsx scripts/preview-calm-canvas.mjs

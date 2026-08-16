@@ -21,6 +21,7 @@ const links = WIDGET_REGISTRY.find((row) => row.id === 'links')!
 const bookmarks = WIDGET_REGISTRY.find((row) => row.id === 'bookmarks')!
 const monthCal = WIDGET_REGISTRY.find((row) => row.id === 'monthCal')!
 const greeting = WIDGET_REGISTRY.find((row) => row.id === 'greeting')!
+const quote = WIDGET_REGISTRY.find((row) => row.id === 'quote')!
 const rss = WIDGET_REGISTRY.find((row) => row.id === 'rss')!
 const crypto = WIDGET_REGISTRY.find((row) => row.id === 'crypto')!
 const ics = WIDGET_REGISTRY.find((row) => row.id === 'ics')!
@@ -186,6 +187,16 @@ describe('BoardItem', () => {
     )
     const item = document.querySelector('[data-block-id="greeting"]') as HTMLElement
     expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 12rem)')
+  })
+
+  it('keeps a Docked quote at a readable line measure', () => {
+    render(
+      <BoardItem entry={quote} allocation={allocation({ id: 'quote', zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="standard">
+        content
+      </BoardItem>,
+    )
+    const item = document.querySelector('[data-block-id="quote"]') as HTMLElement
+    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 14rem)')
   })
 
   it.each([
