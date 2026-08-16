@@ -150,7 +150,7 @@ Defects in components scheduled for replacement retain open acceptance contracts
 
 | Packet | State | Depends on | Acceptance summary | Plan | Finishing commit |
 |---|---|---|---|---|---|
-| W6-P1 Migration, regression, offline/stale/error QA | Not started | W5-P4 | Complete automated and recovery matrix, no accepted finding untracked | Create just in time | — |
+| W6-P1 Migration, regression, offline/stale/error QA | Planned | W5-P4 | Complete automated and recovery matrix, no accepted finding untracked | [`2026-08-16-w6-p1-migration-regression-recovery-qa.md`](../plans/2026-08-16-w6-p1-migration-regression-recovery-qa.md) | — |
 | W6-P2 Responsive, mixed-DPI, zoom, keyboard, and accessibility QA | Not started | W6-P1 | Full named viewport/state/zoom matrix, screenshots personally inspected in batches, hardware limits explicit | Create just in time | — |
 | W6-P3 Official policy and dashboard reconciliation | Not started | W6-P2 | Current official Chrome/Google policy checked; live V1 version/dashboard answers verified with user; privacy/Data Usage/listing mutually consistent | Create just in time | — |
 | W6-P4 2.0.0 package and release dossier | Not started | W6-P3 | Minimal ZIP inspected and hashed; current screenshots/listing/release notes/checklist staged; exact manual submission copy | Create just in time | — |

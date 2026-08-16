@@ -5,13 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W5-P4` - Visual/motion system convergence<br>
-**Current packet:** `W6-P1` - Migration, regression, offline/stale/error QA; planning active
+**Current packet:** `W6-P1` - Migration, regression, offline/stale/error QA; matrix execution active
 
 ## Packet envelope
 
 - **Acceptance:** Complete the written automated migration, regression, offline/stale/error, and recovery matrix with every accepted finding tracked.
 - **Implementation scope:** JIT planning from the frozen Wave 6 acceptance and existing ledgers. Preserve schema/registry contracts and correct only demonstrated Critical/Important product failures; record Minor evidence/cosmetic debt without reopening verified packets.
-- **Remaining gates:** Freeze the W6-P1 matrix, run each required automated/recovery family once with focused diagnosis for actual failures, perform one implementation review/fix cycle if code changes are required, checkpoint, and continue to W6-P2.
+- **Remaining gates:** Run the four focused automated/recovery families once, record and classify findings, perform one implementation review/fix cycle only if product code changes are required, checkpoint, and continue to W6-P2.
 
 ## Previous packet envelope
 
