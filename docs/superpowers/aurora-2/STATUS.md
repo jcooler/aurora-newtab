@@ -5,7 +5,7 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; JIT plan next
+**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; policy research active
 
 ## Packet envelope
 
