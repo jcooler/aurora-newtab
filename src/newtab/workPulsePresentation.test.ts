@@ -30,6 +30,8 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
   it('progressively reveals summary, rows, and detail from Compact through Expanded', () => {
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-rows[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
+    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-metadata[\s\S]*?display: none;/)
+    expect(css).toMatch(/data-block-id="vercel"[^}]+data-stage-variant="compact"[^}]+> section[\s\S]*?overflow: hidden;/)
     expect(css).toMatch(/data-stage-variant="standard"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="expanded"[^}]+data-work-pulse-detail[\s\S]*?display: block;/)
     expect(statusSource).toContain('data-work-pulse-status-dots')
@@ -39,7 +41,8 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
 
   it('uses the existing Pulse zone as one shared surface without changing geometry authority', () => {
     expect(css).toMatch(/\.stage-zone--pulse\s*\{[^}]+grid-area: pulse;/)
-    expect(css).toMatch(/\.stage-zone--pulse \.board-item > section\s*\{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/)
+    expect(css).toMatch(/\.stage-zone--pulse \.board-item:is\([\s\S]*?\) > section\s*\{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/)
+    expect(css).not.toMatch(/\.stage-zone--pulse\s*\{[^}]*padding:/)
     expect(css).not.toMatch(/\.stage-zone--pulse[^}]+(?:position:\s*(?:absolute|fixed)|transform:\s*scale|\bvh\b|\bvw\b)/)
   })
 })

@@ -95,6 +95,26 @@ const seed = async (kind) => {
         },
       },
     }
+  } else if (kind === 'vercel-attention') {
+    const vercel = {
+      enabled: true,
+      token: 'focused-browser-fixture-token',
+      username: 'aurora-fixture',
+      views: { deployments: true, statusSummary: true },
+    }
+    connectors = { vercel }
+    connectorSnapshots = {
+      vercel: {
+        scope: await scopeOf('vercel', vercel),
+        fetchedAt: fixedNow,
+        data: { deployments: Array.from({ length: 5 }, (_, index) => ({
+          project: `aurora-${index + 1}`,
+          state: index === 0 ? 'ERROR' : 'READY',
+          url: `https://vercel.com/aurora/deployment-${index + 1}`,
+          createdAt: fixedNow - index * 60_000,
+        })) },
+      },
+    }
   } else {
     widgets.status = true
     const status = {
@@ -124,9 +144,15 @@ const seed = async (kind) => {
     }
   }
 
-  const layout = kind.startsWith('status-standard')
-    ? { version: 2, profiles: { standard: { status: {
-        zone: 'pulse', order: 0, colSpan: 2, rowSpan: 1, variant: 'standard', priority: 'automatic',
+  const forcedVariant = kind.startsWith('status-standard')
+    ? { id: 'status', variant: 'standard', colSpan: 2 }
+    : kind === 'vercel-attention'
+      ? { id: 'vercel', variant: 'compact', colSpan: 1 }
+      : null
+  const layout = forcedVariant
+    ? { version: 2, profiles: { standard: { [forcedVariant.id]: {
+        zone: 'pulse', order: 0, colSpan: forcedVariant.colSpan, rowSpan: 1,
+        variant: forcedVariant.variant, priority: 'automatic',
       } } } }
     : { version: 2, profiles: {} }
   await chrome.storage.local.set({
@@ -180,6 +206,7 @@ const observe = () => page.evaluate(() => {
     visibleRows: rows.filter(visible).length,
     visibleDetails: details.filter(visible).length,
     statusDotsDisplay: statusDots ? getComputedStyle(statusDots).display : null,
+    sectionOverflow: section instanceof HTMLElement ? getComputedStyle(section).overflow : null,
     sectionContained: contained(section, item),
     pulseSurfaceCount: document.querySelectorAll('.stage-zone--pulse').length,
     safeLinks: links.every((link) => link.getAttribute('target') === '_blank' && link.getAttribute('rel') === 'noopener noreferrer'),
@@ -220,6 +247,9 @@ try {
   evidence.statusAttentionStandard = await capture({
     width: 1600, height: 900, kind: 'status-standard-attention', value: '1 service issue',
   })
+  evidence.vercelCompact = await capture({
+    width: 1600, height: 864, kind: 'vercel-attention', value: '1 failure',
+  })
 
   const { compact, standard, display } = evidence.captures
   assert(compact.profile === 'compact' && compact.variant === 'compact', `compact: wrong profile/variant ${compact.profile}/${compact.variant}`)
@@ -231,6 +261,9 @@ try {
   assert(display.blockId === 'github' && display.visibleRows > 0 && display.visibleDetails > 0, 'display: expanded supporting detail missing')
   assert(evidence.healthy.summaryTone === 'quiet' && evidence.healthy.statusDotsDisplay === 'flex', 'healthy status did not stay quiet or retain service identity')
   assert(evidence.statusAttentionStandard.visibleRows > 0 && evidence.statusAttentionStandard.statusDotsDisplay === 'flex', 'standard status did not promote its prioritized trouble row')
+  assert(evidence.vercelCompact.variant === 'compact' && evidence.vercelCompact.visibleRows === 0 &&
+    evidence.vercelCompact.sectionContained && evidence.vercelCompact.sectionOverflow === 'hidden',
+  'compact Vercel did not clip dormant legacy paint to its finite summary allocation')
   for (const [profile, observation] of Object.entries(evidence.captures)) {
     assert(observation.sectionContained, `${profile}: connector escaped its allocation`)
     assert(observation.pulseSurfaceCount === 1, `${profile}: Pulse surface duplicated`)

@@ -2081,10 +2081,15 @@ select > option {
    normalize the child surfaces and progressively reveal already-rendered
    anatomy. Dock presentation remains untouched for W4-P4. */
 .stage-zone--pulse {
-  padding: var(--stage-gap);
   background: linear-gradient(150deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.2));
 }
-.stage-zone--pulse .board-item > section {
+.stage-zone--pulse .board-item:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"],
+  [data-block-id="vercel"],
+  [data-block-id="status"]
+) > section {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -2097,7 +2102,13 @@ select > option {
   box-shadow: none;
   text-align: left;
 }
-.stage-zone--pulse .board-item > section > :first-child {
+.stage-zone--pulse .board-item:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"],
+  [data-block-id="vercel"],
+  [data-block-id="status"]
+) > section > :first-child {
   margin-top: 0;
 }
 .stage-zone--pulse [data-work-pulse-summary] {
@@ -2122,6 +2133,15 @@ select > option {
 }
 .stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-summary] {
   margin-bottom: 0;
+}
+.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-metadata] {
+  display: none;
+}
+.stage-zone--pulse .board-item[data-block-id="vercel"][data-stage-variant="compact"] > section {
+  /* Compact exposes no deployment links. Clip the legacy card's dormant
+     intrinsic height/shadow to the finite summary allocation; Standard and
+     Expanded keep visible focus outlines untouched. */
+  overflow: hidden;
 }
 .stage-zone--pulse .board-item[data-stage-variant="standard"] [data-work-pulse-detail] {
   display: none;

@@ -717,8 +717,7 @@ async function adaptiveContributionCardState(targetPage, id, label) {
     const section = wrapper?.querySelector(`section[aria-label="${accessibleName}"]`)
     const header = section?.querySelector('h2')
     const graph = section?.querySelector('[role="img"]')
-    const summary = [...(section?.querySelectorAll('p') ?? [])].find((row) =>
-      /contributions/.test(row.textContent ?? '') && /day streak/.test(row.textContent ?? ''))
+    const summary = section?.querySelector('[data-work-pulse-summary]')
     const quietLine = [...(section?.querySelectorAll('p') ?? [])].find((row) =>
       /No PRs waiting on you/.test(row.textContent ?? ''))
     const links = [...(section?.querySelectorAll('a[href]') ?? [])]
@@ -738,13 +737,13 @@ async function adaptiveContributionCardState(targetPage, id, label) {
   }, { blockId: id, accessibleName: label })
 }
 
-function compactContributionGlanceOk(state, { requireAction = true } = {}) {
+function compactContributionGlanceOk(state) {
   const ownedZone = state.zone === 'pulse' || (state.zone === 'dock' && [
     'pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock',
   ].includes(state.dockReason))
   return state.wrapperCount === 1 && state.variant === 'compact' && ownedZone &&
     state.sectionVisible && state.headerVisible && !state.graphVisible && state.summaryVisible &&
-    (!requireAction || state.visibleActionLinks >= 1)
+    state.visibleActionLinks === 0
 }
 
 async function adaptiveConnectorCardState(targetPage, id, label) {
@@ -767,6 +766,7 @@ async function adaptiveConnectorCardState(targetPage, id, label) {
       dockReason: wrapper?.getAttribute('data-stage-dock-reason') ?? null,
       sectionVisible: visible(section),
       headerVisible: visible(section?.querySelector('h2')),
+      summaryVisible: visible(section?.querySelector('[data-work-pulse-summary]')),
       visibleActionLinks: links.filter(visible).length,
       totalActionLinks: links.length,
     }
@@ -811,7 +811,7 @@ function compactConnectorActionableOk(state) {
     'pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock',
   ].includes(state.dockReason))
   return state.wrapperCount === 1 && state.variant === 'compact' && ownedZone &&
-    state.sectionVisible && state.headerVisible && state.visibleActionLinks >= 1
+    state.sectionVisible && state.headerVisible && state.summaryVisible && state.visibleActionLinks === 0
 }
 
 async function tasksControlReachable(targetPage) {
@@ -5773,6 +5773,8 @@ function gitlabContributionsFixture() {
   const graph = await page.evaluate((s) => {
     const sec = document.querySelector(s)
     if (!sec) return null
+    const visible = (node) => node instanceof HTMLElement && node.getBoundingClientRect().height > 0 &&
+      getComputedStyle(node).display !== 'none'
     const img = sec.querySelector('[role="img"]')
     if (!img) return { imgFound: false }
     const cells = [...img.children]
@@ -5802,7 +5804,13 @@ function gitlabContributionsFixture() {
     // No false affordance: a heatmap cell is NOT a pointer; a row link IS.
     const cellCursor = filled[0] ? getComputedStyle(filled[0]).cursor : null
     const rowCursor = firstRow ? getComputedStyle(firstRow).cursor : null
-    return { imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText, level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor }
+    return {
+      imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText,
+      level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor,
+      variant: sec.closest('[data-stage-variant]')?.getAttribute('data-stage-variant') ?? null,
+      graphVisible: visible(img), rowVisible: visible(firstRow),
+      pulseSummaryVisible: visible(sec.querySelector('[data-work-pulse-summary]')),
+    }
   }, githubSel)
 
   const parseRgb = (str) => {
@@ -5831,10 +5839,14 @@ function gitlabContributionsFixture() {
       : `FAIL: a level-4 heatmap cell's accent is within tolerance of rgb(${ACCENT_RGB.join(', ')}) (got ${graph?.level4Bg}, count ${graph?.level4Count})`,
   )
 
-  const composeOk = graph !== null && graph.rowTop !== null && graph.imgTop < graph.rowTop
+  const composeOk = graph !== null && (graph.variant === 'compact'
+    ? !graph.graphVisible && !graph.rowVisible && graph.pulseSummaryVisible
+    : graph.rowTop !== null && graph.imgTop < graph.rowTop)
   console.log(
     composeOk
-      ? `PASS: the composed card puts the graph ABOVE the PR/issue rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
+      ? graph.variant === 'compact'
+        ? 'PASS: Compact GitHub yields away graph and rows while retaining its primary Work Pulse summary'
+        : `PASS: the composed card puts the graph ABOVE the PR/issue rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
       : `FAIL: the composed card puts the graph ABOVE the PR/issue rows (${JSON.stringify({ imgTop: graph?.imgTop, rowTop: graph?.rowTop })})`,
   )
 
@@ -7088,6 +7100,8 @@ function gitlabContributionsFixture() {
   const graph = await page.evaluate((s) => {
     const sec = document.querySelector(s)
     if (!sec) return null
+    const visible = (node) => node instanceof HTMLElement && node.getBoundingClientRect().height > 0 &&
+      getComputedStyle(node).display !== 'none'
     const img = sec.querySelector('[role="img"]')
     if (!img) return { imgFound: false }
     const cells = [...img.children]
@@ -7113,7 +7127,13 @@ function gitlabContributionsFixture() {
     const rowTop = firstRow ? +firstRow.getBoundingClientRect().top.toFixed(1) : null
     const cellCursor = filled[0] ? getComputedStyle(filled[0]).cursor : null
     const rowCursor = firstRow ? getComputedStyle(firstRow).cursor : null
-    return { imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText, level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor }
+    return {
+      imgFound: true, totalCells: cells.length, filled: filled.length, tickCount, statText,
+      level4Bg, level4Count, imgTop, rowTop, cellCursor, rowCursor,
+      variant: sec.closest('[data-stage-variant]')?.getAttribute('data-stage-variant') ?? null,
+      graphVisible: visible(img), rowVisible: visible(firstRow),
+      pulseSummaryVisible: visible(sec.querySelector('[data-work-pulse-summary]')),
+    }
   }, gitlabSel)
 
   const parseRgb = (str) => {
@@ -7140,10 +7160,14 @@ function gitlabContributionsFixture() {
       ? `PASS: a level-4 heatmap cell (count ${graph.level4Count}) computes to the accent at full alpha — rgb(${l4.join(', ')}) within tolerance of rgb(${ACCENT_RGB.join(', ')})`
       : `FAIL: a level-4 heatmap cell's accent is within tolerance of rgb(${ACCENT_RGB.join(', ')}) (got ${graph?.level4Bg}, count ${graph?.level4Count})`,
   )
-  const composeOk = graph !== null && graph.rowTop !== null && graph.imgTop < graph.rowTop
+  const composeOk = graph !== null && (graph.variant === 'compact'
+    ? !graph.graphVisible && !graph.rowVisible && graph.pulseSummaryVisible
+    : graph.rowTop !== null && graph.imgTop < graph.rowTop)
   console.log(
     composeOk
-      ? `PASS: the composed gitlab card puts the graph ABOVE the MR rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
+      ? graph.variant === 'compact'
+        ? 'PASS: Compact GitLab yields away graph and rows while retaining its primary Work Pulse summary'
+        : `PASS: the composed gitlab card puts the graph ABOVE the MR rows (graph top ${graph.imgTop} < first row top ${graph.rowTop})`
       : `FAIL: the composed gitlab card puts the graph ABOVE the MR rows (${JSON.stringify({ imgTop: graph?.imgTop, rowTop: graph?.rowTop })})`,
   )
   const cursorOk = graph !== null && graph.cellCursor !== 'pointer' && graph.rowCursor === 'pointer'
@@ -9568,17 +9592,17 @@ function gitlabContributionsFixture() {
   const vercelCompactState = await adaptiveConnectorCardState(page, 'vercel', 'Vercel')
   const vercelCompactSemantic = await adaptiveStagePredecessor(page, ['vercel'])
   const vercelCompactSummaryVisible = await page.evaluate(() => {
-    const summary = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"] > p')
+    const summary = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"] [data-work-pulse-summary]')
     return summary instanceof HTMLElement && summary.getBoundingClientRect().height > 0 &&
-      /ready/.test(summary.textContent ?? '')
+      /failure/.test(summary.textContent ?? '')
   })
   const vercelExpandedProof = await proveExpandedVercelVariant(page)
   const hiddenAt864 = compactConnectorActionableOk(vercelCompactState) &&
-    vercelCompactState.visibleActionLinks === 1 && vercelCompactState.totalActionLinks === 5 &&
+    vercelCompactState.visibleActionLinks === 0 && vercelCompactState.totalActionLinks === 5 &&
     vercelCompactSemantic.targetsOk && vercelCompactSummaryVisible && vercelExpandedProof.ok
   console.log(
     hiddenAt864
-      ? 'PASS: vercel whole-card hide at 864h has an exact Adaptive Stage successor: one compact owned card keeps its status summary and deployment action visible, while expanded retains the full composition'
+      ? 'PASS: Vercel Compact keeps its primary failure summary and yields deployment rows, while Expanded retains the full composition'
       : `FAIL: vercel whole-card hide at 864h Adaptive Stage successor (${JSON.stringify({ compact: vercelCompactState, semantic: vercelCompactSemantic, summaryVisible: vercelCompactSummaryVisible, expanded: vercelExpandedProof })})`,
   )
   await page.setViewportSize({ width: 1600, height: 900 })
@@ -10115,7 +10139,11 @@ function gitlabContributionsFixture() {
       return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null
     }
     return {
+      variant: sec.closest('[data-stage-variant]')?.getAttribute('data-stage-variant') ?? null,
+      pulseSummary: sec.querySelector('[data-work-pulse-value]')?.textContent ?? null,
+      pulseTone: sec.querySelector('[data-work-pulse-summary]')?.getAttribute('data-work-pulse-tone') ?? null,
       dotCount: dots.length,
+      dotDisplay: dots.map((dot) => getComputedStyle(dot).display),
       titles: dots.map((d) => d.getAttribute('title')),
       classes: dots.map((d) => d.className),
       cursors: [...new Set(dots.map((d) => getComputedStyle(d).cursor))],
@@ -10140,15 +10168,20 @@ function gitlabContributionsFixture() {
   // here) PLUS `text-photo` — the house shadow for text floating directly
   // on the background photo (index.css's own `@utility text-photo`), which
   // this line never had before this fix round.
-  const troubleOk =
+  const troubleAnatomyOk =
     widget !== null &&
     JSON.stringify(widget.troubleLines) === JSON.stringify(EXPECTED_TROUBLE) &&
     widget.troubleClasses.every((c) => c.includes('text-red-400')) &&
-    widget.troubleClasses.every((c) => c.includes('text-photo')) &&
-    widget.troubleDisplay.every((d) => d === 'block')
+    widget.troubleClasses.every((c) => c.includes('text-photo'))
+  const troubleOk = troubleAnatomyOk && (widget.variant === 'compact'
+    ? widget.pulseSummary === '3 service issues' && widget.pulseTone === 'critical' &&
+      widget.troubleDisplay.every((d) => d === 'none')
+    : widget.troubleDisplay.every((d) => d === 'block'))
   console.log(
     troubleOk
-      ? `PASS: exactly 3 trouble lines, worst-first (critical, major, minor) — ${JSON.stringify(widget.troubleLines)} — despite a configured order that goes minor->major->critical (Cloudflare, npm, Discord), proving the sort; all in the danger tone (text-red-400) with the photo-floating text shadow (text-photo), computed-visible at this >=1042h height`
+      ? widget.variant === 'compact'
+        ? `PASS: Compact Status promotes ${widget.pulseSummary} in the critical tone and yields its ${widget.troubleLines.length} supporting trouble lines`
+        : `PASS: exactly 3 trouble lines, worst-first (critical, major, minor) — ${JSON.stringify(widget.troubleLines)} — despite a configured order that goes minor->major->critical (Cloudflare, npm, Discord), proving the sort; all in the danger tone (text-red-400) with the photo-floating text shadow (text-photo), computed-visible at this >=1042h height`
       : `FAIL: worst-first trouble lines (${JSON.stringify(widget?.troubleLines)}, classes ${JSON.stringify(widget?.troubleClasses)}, display ${JSON.stringify(widget?.troubleDisplay)})`,
   )
 
@@ -10195,10 +10228,14 @@ function gitlabContributionsFixture() {
   // per-element screenshot).
   const EMERALD_400 = [0, 212, 146]
   const emeraldPx = widget?.emeraldCenter ? await clipMean(widget.emeraldCenter) : null
-  const emeraldOk = !!emeraldPx && emeraldPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
+  const emeraldOk = widget?.variant === 'compact'
+    ? widget.dotDisplay.every((display) => display === 'none')
+    : !!emeraldPx && emeraldPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
   console.log(
     emeraldOk
-      ? `PASS: pixel-sampled the GitHub (none) dot at its rendered center — rgb(${emeraldPx.join(', ')}) within tolerance of this build's measured emerald-400 rgb(${EMERALD_400.join(', ')})`
+      ? widget?.variant === 'compact'
+        ? 'PASS: Compact Status yields service dots after promoting its primary summary'
+        : `PASS: pixel-sampled the GitHub (none) dot at its rendered center — rgb(${emeraldPx.join(', ')}) within tolerance of this build's measured emerald-400 rgb(${EMERALD_400.join(', ')})`
       : `FAIL: the emerald dot's sampled pixel (${JSON.stringify(emeraldPx)}, expected near rgb(${EMERALD_400.join(', ')}))`,
   )
   // The gray (unknown) dot is `bg-canvas-fg-muted/40` (FIX ROUND: was
@@ -10230,10 +10267,14 @@ function gitlabContributionsFixture() {
     document.documentElement.style.background = ''
   }, bgLayerSel)
   const desaturated = (px) => Math.max(...px) - Math.min(...px) <= 10
-  const grayOk = !!grayPx && desaturated(grayPx) && !grayPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
+  const grayOk = widget?.variant === 'compact'
+    ? widget.dotDisplay.every((display) => display === 'none')
+    : !!grayPx && desaturated(grayPx) && !grayPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
   console.log(
     grayOk
-      ? `PASS: pixel-sampled the Sentry (unknown) dot at its rendered center, backdrop neutralized to solid black — rgb(${grayPx.join(', ')}), a genuinely desaturated gray (spread ${Math.max(...grayPx) - Math.min(...grayPx)}), distinct from emerald`
+      ? widget?.variant === 'compact'
+        ? 'PASS: Compact Status keeps the unknown-service color detail out of its summary-only anatomy'
+        : `PASS: pixel-sampled the Sentry (unknown) dot at its rendered center, backdrop neutralized to solid black — rgb(${grayPx.join(', ')}), a genuinely desaturated gray (spread ${Math.max(...grayPx) - Math.min(...grayPx)}), distinct from emerald`
       : `FAIL: the gray dot's sampled pixel over a neutralized black backdrop (${JSON.stringify(grayPx)}) should be desaturated and distinct from emerald`,
   )
 
