@@ -326,13 +326,42 @@ describe('TokenConnectForm origin transactions', () => {
 })
 
 describe('TokenConnectForm connected state', () => {
+  it('keeps setup credentials collapsed until the user explicitly starts setup', async () => {
+    await renderForm({ initiallyCollapsed: true })
+
+    expect(screen.queryByLabelText('Personal access token')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Set up connection' }))
+    expect(document.activeElement).toBe(screen.getByLabelText('Personal access token'))
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Set up connection' }))
+  })
+
+  it('shows required reconnect fields immediately', async () => {
+    await renderForm({ initiallyCollapsed: false })
+    expect(screen.getByLabelText('Personal access token')).toBeTruthy()
+  })
+
   it('replaces the form with Disconnect without repeating the card-shell identity', async () => {
     await renderForm({ connectedAs: 'octocat' })
 
     expect(screen.queryByText(/octocat/)).toBeNull()
     expect(screen.queryByLabelText('Personal access token')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Connect' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit connection' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Disconnect' })).toBeTruthy()
+  })
+
+  it('reveals blank credential fields only after connected users choose Edit connection', async () => {
+    await renderForm({ connectedAs: 'octocat' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit connection' }))
+    const token = screen.getByLabelText('Personal access token') as HTMLInputElement
+    expect(token.value).toBe('')
+    expect(document.activeElement).toBe(token)
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Edit connection' }))
   })
 
   it('renders connected extras before Disconnect and delegates the removal callback', async () => {

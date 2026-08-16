@@ -16,7 +16,7 @@ import { ensureBookmarksPermission } from '../services/bookmarks'
 import { APOD_ORIGINS } from '../services/apod'
 import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
-import { authState } from './sections/Connectors'
+import { authState, connectorCardState } from './sections/Connectors'
 import { LOCAL_SECRET_STORAGE_NOTICE } from '../privacy/dataFlows'
 // Imported (not hardcoded) so the About footer's version assertion below
 // can't silently drift from package.json — the same file __APP_VERSION__ is
@@ -5363,7 +5363,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
 
   afterEach(() => vi.restoreAllMocks())
 
-  async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false) {
+  async function renderWithHa(ha?: HomeAssistantConfig, seedSnapshot = false, revealSetup = true) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (ha) await storage.set('connectors', { homeassistant: ha })
@@ -5379,6 +5379,8 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    const setup = screen.queryByRole('button', { name: 'Set up connection' })
+    if (setup && revealSetup) fireEvent.click(setup)
     return storage
   }
 
@@ -5458,6 +5460,14 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     })
   })
 
+  it('keeps fresh Home Assistant credentials hidden until setup is requested', async () => {
+    await renderWithHa({ enabled: true }, false, false)
+    expect(screen.getByText('Setup needed')).toBeTruthy()
+    expect(screen.queryByLabelText('Long-lived access token')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Set up connection' }))
+    expect(screen.getByLabelText('Long-lived access token')).toBeTruthy()
+  })
+
   it('disconnecting and reconnecting the identical account rotates the snapshot epoch', async () => {
     vi.spyOn(globalThis.crypto, 'randomUUID')
       .mockReturnValueOnce('00000000-0000-4000-8000-000000000201')
@@ -5487,6 +5497,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     await act(async () => {
       fireEvent.click(screen.getByLabelText('Enable Home Assistant'))
     })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up connection' }))
     await screen.findByLabelText('Instance URL')
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Instance URL'), {
@@ -5875,6 +5886,27 @@ describe('authState (Connectors.tsx card auth-state helper)', () => {
     const noneDescriptor: ConnectorDescriptor<GithubConfig> = { ...tokenDescriptor, auth: 'none' }
     const config: GithubConfig = { enabled: true, token: 't', username: 'jon' }
     expect(authState(noneDescriptor as ConnectorDescriptor, config)).toBe('none')
+  })
+
+  it('derives state-first labels without exposing secret values', () => {
+    const connected: GithubConfig = { enabled: true, token: 'never-render-this', username: 'jon' }
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, undefined)).toEqual({
+      state: 'off',
+      label: 'Off',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, { enabled: true } as GithubConfig)).toEqual({
+      state: 'setup',
+      label: 'Setup needed',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, { ...connected, token: '' })).toEqual({
+      state: 'reconnect',
+      label: 'Reconnect needed',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, connected)).toEqual({
+      state: 'connected',
+      label: 'Connected as jon',
+    })
+    expect(connectorCardState(tokenDescriptor as ConnectorDescriptor, connected).label).not.toContain('never-render-this')
   })
 })
 

@@ -1,11 +1,11 @@
-import { useId, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import type { AuroraStorage } from '../../lib/storage'
 import {
   releaseUnownedOrigins,
   runOriginTransaction,
   type OriginTransactionResult,
 } from '../../services/permissionTransactions'
-import { control, submitBtn } from './shared'
+import { btnQuiet, control, submitBtn } from './shared'
 
 export interface TokenField {
   id: string
@@ -20,10 +20,10 @@ export interface TokenDisconnectResult {
   transaction: OriginTransactionResult<void>
 }
 
-/** The one card body every token connector (Tasks 48-51) renders: a small
- *  form of labelled fields plus a Connect button, OR — once `connectedAs` is
- *  set — a connected row with a Disconnect button in place of the form (the
- *  form does NOT own the enable toggle; that stays the card shell's). House
+/** The one card body every token connector (Tasks 48-51) renders: an explicit
+ *  setup/edit disclosure around labelled fields plus a Connect button, OR —
+ *  once `connectedAs` is set — connected extras with Edit and Disconnect
+ *  actions (the form does NOT own the enable toggle; that stays the card shell's). House
  *  styling matches Connectors.tsx's RSS body: `control` for inputs, the
  *  shared `label` class, text-accent for the primary action, and a single
  *  `role="alert"` paragraph for every inline error (validation, denied
@@ -41,8 +41,11 @@ export function TokenConnectForm(props: {
   validate(values: Record<string, string>): Promise<{ ok: true; identity: string } | { ok: false; message: string }>
   /** Persist the validated config (called once, after validate ok). */
   onConnected(values: Record<string, string>, identity: string): Promise<void>
-  /** Present when already connected -> renders Disconnect instead of the form. */
+  /** Present when already connected -> renders Edit/Disconnect instead of the form. */
   connectedAs: string | null
+  /** Hide a first-time setup form until the user explicitly asks to configure it.
+   * Reconnect callers leave this false so stripped-secret recovery remains immediate. */
+  initiallyCollapsed?: boolean
   /** Attempts the authoritative config removal and returns both its lifecycle
    * outcome and the canonical origins captured from the removed config. */
   onDisconnect(): Promise<TokenDisconnectResult>
@@ -65,6 +68,7 @@ export function TokenConnectForm(props: {
     validate,
     onConnected,
     connectedAs,
+    initiallyCollapsed = false,
     onDisconnect,
     storage,
     reportPendingCleanup,
@@ -84,6 +88,38 @@ export function TokenConnectForm(props: {
   )
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
+  const [revealed, setRevealed] = useState(() => connectedAs === null && !initiallyCollapsed)
+  const firstFieldRef = useRef<HTMLInputElement>(null)
+  const setupButtonRef = useRef<HTMLButtonElement>(null)
+  const editButtonRef = useRef<HTMLButtonElement>(null)
+  const focusFieldAfterRevealRef = useRef(false)
+  const restoreDisclosureFocusRef = useRef(false)
+
+  useEffect(() => {
+    if (revealed && focusFieldAfterRevealRef.current) {
+      focusFieldAfterRevealRef.current = false
+      firstFieldRef.current?.focus()
+    } else if (!revealed && restoreDisclosureFocusRef.current) {
+      restoreDisclosureFocusRef.current = false
+      ;(connectedAs === null ? setupButtonRef.current : editButtonRef.current)?.focus()
+    }
+  }, [connectedAs, revealed])
+
+  function revealCredentials() {
+    focusFieldAfterRevealRef.current = true
+    setRevealed(true)
+  }
+
+  function resetAndCollapse() {
+    setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+    setError(null)
+    setRevealed(false)
+  }
+
+  function cancelAndCollapse() {
+    restoreDisclosureFocusRef.current = true
+    resetAndCollapse()
+  }
 
   async function handleDisconnect() {
     let result: TokenDisconnectResult
@@ -110,7 +146,7 @@ export function TokenConnectForm(props: {
     }
   }
 
-  if (connectedAs !== null) {
+  if (!revealed && connectedAs !== null) {
     // `connectedAs` still SELECTS this connected branch, but the identity itself
     // is shown by the card SHELL's authState-driven chip (Connectors.tsx) — the
     // single source of that indicator, and the only one present in the
@@ -119,19 +155,34 @@ export function TokenConnectForm(props: {
     return (
       <div className="mt-3 flex flex-col gap-3 border-t border-hairline pt-3">
         {connectedExtras}
-        <button
-          type="button"
-          onClick={() => void handleDisconnect()}
-          aria-describedby={error ? `${uid}-error` : undefined}
-          className={`${submitBtn} self-start`}
-        >
-          Disconnect
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button ref={editButtonRef} type="button" onClick={revealCredentials} className={submitBtn}>
+            Edit connection
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleDisconnect()}
+            aria-describedby={error ? `${uid}-error` : undefined}
+            className={submitBtn}
+          >
+            Disconnect
+          </button>
+        </div>
         {error && (
           <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">
             {error}
           </p>
         )}
+      </div>
+    )
+  }
+
+  if (!revealed) {
+    return (
+      <div className="mt-3 border-t border-hairline pt-3">
+        <button ref={setupButtonRef} type="button" onClick={revealCredentials} className={submitBtn}>
+          Set up connection
+        </button>
       </div>
     )
   }
@@ -184,7 +235,10 @@ export function TokenConnectForm(props: {
       if ('pendingCleanup' in transaction && transaction.pendingCleanup.length > 0) {
         reportPendingCleanup(transaction.pendingCleanup)
       }
-      if (transaction.status === 'committed') return
+      if (transaction.status === 'committed') {
+        resetAndCollapse()
+        return
+      }
       if (transaction.status === 'aborted') {
         setError(transaction.message)
         return
@@ -208,12 +262,13 @@ export function TokenConnectForm(props: {
       className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3"
       onSubmit={(e) => void handleConnect(e)}
     >
-      {fields.map((field) => (
+      {fields.map((field, index) => (
         <div key={field.id}>
           <label htmlFor={`${uid}-${field.id}`} className="sr-only">
             {field.label}
           </label>
           <input
+            ref={index === 0 ? firstFieldRef : undefined}
             id={`${uid}-${field.id}`}
             type={field.type}
             placeholder={field.placeholder}
@@ -230,9 +285,14 @@ export function TokenConnectForm(props: {
         </div>
       ))}
 
-      <button type="submit" disabled={connecting} className={`${submitBtn} self-start`}>
-        {connectLabel}
-      </button>
+      <div className="flex flex-wrap gap-3">
+        <button type="submit" disabled={connecting} className={submitBtn}>
+          {connectLabel}
+        </button>
+        <button type="button" disabled={connecting} onClick={cancelAndCollapse} className={btnQuiet}>
+          Cancel
+        </button>
+      </div>
 
       {error && (
         <p id={`${uid}-error`} role="alert" className="text-xs text-fg-muted">

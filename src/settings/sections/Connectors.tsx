@@ -136,6 +136,30 @@ export function authState(
   return secretMissing ? 'reconnect' : 'connected'
 }
 
+export type ConnectorCardState = 'off' | 'setup' | 'reconnect' | 'connected' | 'ready'
+
+/** Configuration health shown before card details. This deliberately derives
+ * from the frozen descriptor/config contract only: it does not inspect secret
+ * values beyond presence and never treats an unrelated cached snapshot as
+ * proof that the current connection is healthy. */
+export function connectorCardState(
+  descriptor: ConnectorDescriptor,
+  config: ConnectorConfig | undefined,
+): { state: ConnectorCardState; label: string } {
+  if (!config?.enabled) return { state: 'off', label: 'Off' }
+  if (descriptor.auth === 'none') return { state: 'ready', label: 'Ready' }
+
+  const auth = authState(descriptor, config)
+  if (auth === 'reconnect') return { state: 'reconnect', label: 'Reconnect needed' }
+  if (auth === 'unconfigured') return { state: 'setup', label: 'Setup needed' }
+
+  const identity = descriptor.identityField ? config[descriptor.identityField] : undefined
+  return {
+    state: 'connected',
+    label: `Connected ${descriptor.identityPhrase ?? 'as'} ${String(identity)}`,
+  }
+}
+
 /** The Connectors tab body: one card per registered connector, under a search
  *  box that narrows the catalog and (query empty) groups it — Task 80
  *  (W3-SP1). The card SHELL itself is untouched (label/blurb/auth-state +
@@ -283,33 +307,26 @@ function ConnectorCard({
   reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const enabled = !!config?.enabled
-  const state = authState(descriptor, config)
-  const identity = descriptor.identityField ? config?.[descriptor.identityField] : undefined
+  const cardState = connectorCardState(descriptor, config)
   const Body = BODY_COMPONENTS[descriptor.id]
+  const stateTone =
+    cardState.state === 'connected' || cardState.state === 'ready'
+      ? 'text-emerald-400'
+      : cardState.state === 'reconnect'
+        ? 'text-amber-300'
+        : 'text-fg-muted'
 
   return (
     <div className="mt-3 rounded-xl border border-control-border p-3 first:mt-0">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-fg">{descriptor.label}</h4>
+          <p className={`text-xs font-medium ${stateTone}`} data-connector-state={cardState.state}>
+            {cardState.label}
+          </p>
           <p className="text-xs text-fg-muted">{descriptor.blurb}</p>
-          {/* Status chip: 'token'-auth connectors only (types.ts's
-              identityField doc comment states the connected/reconnect rule
-              authState implements). Quiet-chip idiom, same as the On/Off
-              span below — text-xs, tinted by state, no pill/border. */}
-          {descriptor.auth === 'token' && state === 'connected' && (
-            <p className="text-xs text-emerald-400">
-              Connected {descriptor.identityPhrase ?? 'as'} {String(identity)}
-            </p>
-          )}
-          {descriptor.auth === 'token' && state === 'reconnect' && (
-            <p className="text-xs text-fg-muted">Reconnect needed</p>
-          )}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <span className={`text-xs ${enabled ? 'text-accent' : 'text-fg-muted'}`}>
-            {enabled ? 'On' : 'Off'}
-          </span>
           <label htmlFor={`connector-${descriptor.id}-enabled`} className="sr-only">
             Enable {descriptor.label}
           </label>
@@ -610,6 +627,7 @@ function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={github?.token === undefined && github?.username === undefined}
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -746,6 +764,9 @@ function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={
+        gitlab?.token === undefined && gitlab?.username === undefined && gitlab?.instanceUrl === undefined
+      }
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -893,6 +914,12 @@ function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={
+        jira?.apiToken === undefined &&
+        jira?.displayName === undefined &&
+        jira?.site === undefined &&
+        jira?.email === undefined
+      }
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -1003,6 +1030,7 @@ function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
         })
       }}
       connectedAs={connectedAs}
+      initiallyCollapsed={vercel?.token === undefined && vercel?.username === undefined}
       connectedExtras={
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
@@ -2037,6 +2065,9 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
           })
         }}
         connectedAs={connectedAs}
+        initiallyCollapsed={
+          ha?.token === undefined && ha?.locationName === undefined && ha?.instanceUrl === undefined
+        }
         connectedExtras={
           <div>
             <p className="text-xs text-fg-muted">

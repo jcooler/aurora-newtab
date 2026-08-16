@@ -1,4 +1,25 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+
+const ROOMY_SETTINGS = '(min-width: 900px)'
+
+function useRoomySettings() {
+  const [roomy, setRoomy] = useState(() =>
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(ROOMY_SETTINGS).matches
+      : false,
+  )
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const query = window.matchMedia(ROOMY_SETTINGS)
+    const update = (event: MediaQueryListEvent | MediaQueryList) => setRoomy(event.matches)
+    update(query)
+    query.addEventListener?.('change', update)
+    return () => query.removeEventListener?.('change', update)
+  }, [])
+
+  return roomy
+}
 
 /** The Settings drawer's tab bar and its one live panel.
  *
@@ -8,14 +29,10 @@ import { useRef, type ReactNode } from 'react'
  *  dialog, …) don't run while it isn't on screen — the same "don't render
  *  what isn't shown" rule the rest of the app follows.
  *
- *  Keyboard: the APG tabs pattern with AUTOMATIC activation — Left/Right (with
- *  wrap) and Home/End both move focus and select, the same "arrows apply the
- *  choice immediately" convention the theme radiogroup already uses
- *  (General.tsx). Roving tabindex means only the selected tab is a Tab stop.
- *  Down/Up are deliberately NOT aliased onto Left/Right the way the theme
- *  radiogroup aliases them: APG reserves the vertical arrows for a VERTICAL
- *  tablist, and this bar sits at the top of a scrollable drawer whose content
- *  those keys belong to. */
+ *  Keyboard: the APG tabs pattern with AUTOMATIC activation. The reflowed
+ *  horizontal list uses Left/Right; the roomy vertical rail uses Up/Down;
+ *  Home/End work in both. Roving tabindex means only the selected tab is a
+ *  Tab stop. */
 export default function Tabs<T extends string>({
   tabs,
   active,
@@ -28,15 +45,26 @@ export default function Tabs<T extends string>({
   children: ReactNode
 }) {
   const listRef = useRef<HTMLDivElement>(null)
+  const roomy = useRoomySettings()
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const currentIndex = tabs.findIndex((t) => t.id === active)
     let nextIndex: number
     switch (e.key) {
       case 'ArrowRight':
+        if (roomy) return
         nextIndex = (currentIndex + 1 + tabs.length) % tabs.length
         break
       case 'ArrowLeft':
+        if (roomy) return
+        nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
+        break
+      case 'ArrowDown':
+        if (!roomy) return
+        nextIndex = (currentIndex + 1 + tabs.length) % tabs.length
+        break
+      case 'ArrowUp':
+        if (!roomy) return
         nextIndex = (currentIndex - 1 + tabs.length) % tabs.length
         break
       case 'Home':
@@ -58,13 +86,14 @@ export default function Tabs<T extends string>({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 min-[900px]:grid min-[900px]:grid-cols-[12rem_minmax(0,1fr)] min-[900px]:items-start">
       <div
         role="tablist"
         aria-label="Settings sections"
+        aria-orientation={roomy ? 'vertical' : 'horizontal'}
         ref={listRef}
         onKeyDown={onKeyDown}
-        className="flex gap-1 border-b border-panel-border max-[420px]:grid max-[420px]:grid-cols-2"
+        className="flex gap-1 border-b border-panel-border max-[420px]:grid max-[420px]:grid-cols-2 min-[900px]:sticky min-[900px]:top-0 min-[900px]:flex-col min-[900px]:border-r min-[900px]:border-b-0 min-[900px]:pr-4"
       >
         {tabs.map((t) => {
           const selected = t.id === active
@@ -87,7 +116,7 @@ export default function Tabs<T extends string>({
               // preflight sets `button { cursor: default }` — the inverted
               // affordance already fixed on the weather chip and the bookmarks
               // chips, and these are the drawer's primary navigation.
-              className={`-mb-px cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 max-[420px]:w-full ${
+              className={`-mb-px cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9 max-[420px]:w-full min-[900px]:mb-0 min-[900px]:w-full min-[900px]:border-b-0 min-[900px]:border-l-2 min-[900px]:text-left ${
                 selected
                   ? 'border-accent text-fg'
                   : 'border-transparent text-fg-muted hover:text-fg'
@@ -107,7 +136,7 @@ export default function Tabs<T extends string>({
         role="tabpanel"
         id={`settings-tabpanel-${active}`}
         aria-labelledby={`settings-tab-${active}`}
-        className="flex flex-col divide-y divide-hairline"
+        className="min-w-0 flex flex-col divide-y divide-hairline"
       >
         {children}
       </div>

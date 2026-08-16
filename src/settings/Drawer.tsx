@@ -42,7 +42,7 @@ export default function Drawer({
         aria-modal="true"
         aria-label={title}
         inert={!open} // off-screen drawer must not stay in the tab order
-        className={`fixed inset-y-0 right-0 z-50 w-96 max-w-full overflow-y-auto border-l border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 ${
+        className={`fixed inset-0 z-50 w-full max-w-none overflow-y-auto border-0 border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 min-[900px]:inset-y-4 min-[900px]:right-4 min-[900px]:left-auto min-[900px]:w-[calc(100vw-2rem)] min-[900px]:max-w-5xl min-[900px]:rounded-2xl min-[900px]:border ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >

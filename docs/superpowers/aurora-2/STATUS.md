@@ -5,9 +5,15 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 5 - Utility Tray<br>
 **Last verified packet:** `W5-P2` - Working-tool integration<br>
-**Next packet:** `W5-P3` - Settings workspace and connector cards; just-in-time planning next
+**Current packet:** `W5-P3` - Settings workspace and connector cards; implementation active
 
 ## Packet envelope
+
+- **Acceptance:** Responsive Settings navigation, state-first connector cards, and credential fields revealed only for explicit setup/edit or reconnect.
+- **Implementation scope:** Existing Drawer/Tabs/Connectors/TokenConnectForm owners only; no schema, migration, registry, permission, privacy, backup, or Store changes.
+- **Remaining gates:** Focused tests/browser replay, one review and at most one fix/rereview, then one final unit/TypeScript/build/bridge/full-browser gate and checkpoint proof.
+
+## Previous packet envelope
 
 - **Acceptance:** One selected Tray tool exposes Tasks, Notes, Timer, Home Assistant actions, or background refresh. A running timer remains represented after detail closure and the tools remain coherent in the accepted responsive shell.
 - **Implemented files:** Added controlled tool navigation/host and existing-owner portals for all five written families. Notes save guards now cover close, switching, Settings, Arrange, and external disable. No registry, schema, planner, storage, migration, privacy, permission, connector identity, or Store contract changed.

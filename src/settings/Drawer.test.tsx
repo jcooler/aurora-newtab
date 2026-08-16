@@ -12,7 +12,11 @@ describe('Drawer narrow reflow', () => {
     expect(classes).not.toContain('overflow-x-auto')
     expect(classes).toContain('p-6')
     expect(classes).toContain('max-[420px]:p-3')
-    expect(classes).toContain('max-w-full')
+    expect(classes).toContain('w-full')
+    expect(classes).toContain('max-w-none')
+    expect(classes).toContain('min-[900px]:max-w-5xl')
+    expect(classes).toContain('min-[900px]:w-[calc(100vw-2rem)]')
+    expect(classes).toContain('min-[900px]:rounded-2xl')
   })
 
   it('gives the narrow close control the local 36px target floor without changing ordinary padding', () => {

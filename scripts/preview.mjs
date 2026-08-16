@@ -4938,7 +4938,7 @@ try {
   await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectPending())
   await notesProofPage.getByRole('alert').waitFor()
-  const noArrangeOnFailure = (await notesProofPage.getByRole('dialog', { name: 'Settings' }).count()) === 0
+  const noArrangeOnFailure = await notesProofPage.getByRole('dialog', { name: 'Settings' }).evaluate((drawer) => drawer.hasAttribute('inert'))
     && (await notesProofPage.locator('[data-arrange-overlay]').count()) === 0
     && await notesProofPage.getByRole('region', { name: 'Notes' }).isVisible()
     && await notesProofPage.evaluate(() => !document.querySelector('[data-arrange-overlay]'))
@@ -11358,21 +11358,28 @@ function gitlabContributionsFixture() {
   await page.keyboard.press('Backspace')
   await page.waitForTimeout(150)
 
-  // Enable the connector — a plain toggle, no permission gesture rides on it
-  // (Connectors.tsx's own doc comment on the Switch) — renders the
-  // DISCONNECTED form.
+  // Enable the connector — a plain toggle, no permission gesture rides on it.
+  // W5-P3 keeps first-time credential fields collapsed until explicit setup.
   await page.click('#connector-homeassistant-enabled')
   await page.waitForTimeout(150)
   const haCardSel = '.rounded-xl:has(#connector-homeassistant-enabled)'
   await page.waitForSelector(haCardSel)
 
-  // Probe 2 — the DISCONNECTED form's own DOM contract (Task 101-102's
-  // pinned copy, verbatim): the https-only helper text (disconnected only —
-  // Connectors.tsx's own comment says it's dropped once connected), and the
-  // two sr-only-labelled fields TokenConnectForm renders (a `useId()`-
-  // prefixed id, so found by <label> text + placeholder, not a static id).
+  // Probe 2 — W5-P3 state-first setup: Setup needed and the explicit action
+  // precede credential fields. Activating setup reveals the existing helper
+  // and two sr-only-labelled fields without prefilling a stored secret.
   const HELPER_TEXT =
     'Requires https. Nabu Casa cloud URLs and reverse-proxied instances work; plain http://homeassistant.local:8123 cannot be granted.'
+  const collapsedSetup = await page.evaluate((sel) => {
+    const card = document.querySelector(sel)
+    if (!card) return null
+    return {
+      state: card.querySelector('[data-connector-state]')?.textContent?.trim() ?? null,
+      setupButton: [...card.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Set up connection'),
+      credentialInputs: card.querySelectorAll('input[placeholder="https://your-home.ui.nabu.casa"],input[placeholder="eyJ…"]').length,
+    }
+  }, haCardSel)
+  await page.click(`${haCardSel} button:text-is("Set up connection")`)
   const disconnectedForm = await page.evaluate((sel) => {
     const card = document.querySelector(sel)
     if (!card) return null
@@ -11386,18 +11393,23 @@ function gitlabContributionsFixture() {
       helperText: helper?.textContent ?? null,
       urlInputType: urlInput?.getAttribute('type') ?? null,
       tokenInputType: tokenInput?.getAttribute('type') ?? null,
+      firstFieldFocused: document.activeElement === urlInput,
     }
   }, haCardSel)
   const disconnectedOk =
+    collapsedSetup?.state === 'Setup needed' &&
+    collapsedSetup?.setupButton === true &&
+    collapsedSetup?.credentialInputs === 0 &&
     disconnectedForm?.hasInstanceUrlLabel === true &&
     disconnectedForm?.hasTokenLabel === true &&
     disconnectedForm?.helperText === HELPER_TEXT &&
     disconnectedForm?.urlInputType === 'text' &&
-    disconnectedForm?.tokenInputType === 'password'
+    disconnectedForm?.tokenInputType === 'password' &&
+    disconnectedForm?.firstFieldFocused === true
   console.log(
     disconnectedOk
-      ? 'PASS: the disconnected card renders the https helper text verbatim, plus both labelled fields (Instance URL / Long-lived access token) with the pinned placeholders'
-      : `FAIL: disconnected card DOM contract (${JSON.stringify(disconnectedForm)})`,
+      ? 'PASS: the state-first Home Assistant card hides credentials until explicit setup, then reveals and focuses both labelled fields without prefill'
+      : `FAIL: disconnected card DOM contract (${JSON.stringify({ collapsedSetup, disconnectedForm })})`,
   )
 
   // Probe 3 — the connect gesture is CEILINGED like every token connector
@@ -11689,6 +11701,7 @@ function gitlabContributionsFixture() {
       await reloadWithAdapter()
       await openMatrixTab('Connectors', '#connector-homeassistant-enabled')
       const haCard = '.rounded-xl:has(#connector-homeassistant-enabled)'
+      await page.click(`${haCard} button:text-is("Set up connection")`)
       await page.fill(`${haCard} input[placeholder="https://your-home.ui.nabu.casa"]`, HA_URL)
       await page.fill(`${haCard} input[type="password"]`, 'preview-invalid-token')
       await clearPermissionLog()
@@ -17645,7 +17658,9 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   // NEXT probe starts from a clean idle-panel state.
   const panelOcclusionCheck = async (pillSel, dialogLabel, cardSel, cardName) => {
     await page.click(pillSel)
-    await page.waitForSelector(`[role="region"][aria-label="${dialogLabel}"]`)
+    await page.waitForSelector(dialogLabel === 'Focus timer'
+      ? 'section[aria-label="Focus timer"]'
+      : `[role="region"][aria-label="${dialogLabel}"]`)
     const panelSel = '[data-utility-tray]'
     await page.waitForSelector(panelSel)
     await page.waitForTimeout(200)

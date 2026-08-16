@@ -49,7 +49,47 @@ function tablist() {
   return screen.getByRole('tablist')
 }
 
+function setRoomy(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: vi.fn(() => ({
+      matches,
+      media: '(min-width: 900px)',
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  })
+}
+
 describe('Tabs (ARIA tabs pattern)', () => {
+  it('uses vertical navigation and vertical arrow keys on roomy screens', () => {
+    setRoomy(true)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe('vertical')
+    expect(tablist().className).toContain('min-[900px]:flex-col')
+    fireEvent.keyDown(tablist(), { key: 'ArrowDown' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tab('Widgets'))
+    fireEvent.keyDown(tablist(), { key: 'ArrowUp' })
+    expect(attr(tab('General'), 'aria-selected')).toBe('true')
+  })
+
+  it('keeps horizontal navigation and horizontal arrow keys on reflowed screens', () => {
+    setRoomy(false)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe('horizontal')
+    fireEvent.keyDown(tablist(), { key: 'ArrowRight' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    fireEvent.keyDown(tablist(), { key: 'ArrowDown' })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+  })
+
   it('reflows both free three-tab and premium four-tab sets as a bounded narrow grid with 36px targets', () => {
     const { rerender } = render(<Host />)
     const assertNarrowGrid = (expected: number) => {
