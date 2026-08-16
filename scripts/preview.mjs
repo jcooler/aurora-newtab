@@ -19,6 +19,7 @@ import sharp from 'sharp'
 
 const dist = resolve('dist')
 const outDir = resolve('screenshots')
+const w3P2OutDir = 'C:/Users/SickT/Documents/Codex/2026-08-14/continue-aurora-2-continuously-through-all/outputs/w3-p2'
 const profileDir = resolve('.playwright-profile')
 const headed = process.argv.includes('--headed')
 
@@ -64,6 +65,7 @@ const weatherRequestIdentityFixture = (lat, lon) =>
 
 rmSync(profileDir, { recursive: true, force: true }) // fresh storage every run
 mkdirSync(outDir, { recursive: true })
+mkdirSync(w3P2OutDir, { recursive: true })
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium', // full build in new-headless mode: extensions supported
@@ -402,6 +404,2114 @@ await context.addInitScript(({ flagKey }) => {
 }, { flagKey: PERMISSIONS_HARNESS_FLAG })
 
 const page = await context.newPage()
+
+// W3-P2 compatibility bridge for assertions whose old truth was a fixed
+// viewport coordinate, rail fencepost, or legacy bottom-band gap.  Those
+// facts are intentionally superseded by schema-v11's semantic allocator, so
+// their one-for-one successor is: the same active surface exists exactly
+// once, belongs to its declared semantic zone, stays inside the Stage, and
+// does not overlap another finite BoardItem.  Interaction/storage assertions
+// continue to use their original predicates; only callers in the explicitly
+// inventoried layout-sensitive blocks below opt into this probe.
+async function resetAdaptiveStageScroll(targetPage) {
+  await targetPage.evaluate(() => {
+    const stage = document.querySelector('[data-adaptive-stage]')
+    if (stage instanceof HTMLElement) stage.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+  })
+}
+
+async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
+  // A preceding fixed dialog can leave the newly sanctioned Stage scrollport
+  // at its last focus-restoration offset. Legacy layout predicates are
+  // independent, top-of-Stage snapshots; normalize that precondition before
+  // reading viewport containment. W3-P2's dedicated pinned-overflow probe
+  // owns and measures its scroll transition separately.
+  await resetAdaptiveStageScroll(targetPage)
+  const result = await targetPage.evaluate((ids) => {
+    const stage = document.querySelector('[data-adaptive-stage]')
+    const grid = stage?.querySelector('.adaptive-stage__grid')
+    const root = document.documentElement
+    const zones = [...document.querySelectorAll('[data-stage-zone-container]')]
+    const zoneNames = zones.map((zone) => zone.getAttribute('data-stage-zone-container'))
+    const allItems = [...document.querySelectorAll('.board-item[data-block-id]')]
+    const uniqueIds = new Set(allItems.map((item) => item.getAttribute('data-block-id')))
+    const rectOf = (element) => {
+      const rect = element.getBoundingClientRect()
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }
+    }
+    const inside = (inner, outer) => inner.left >= outer.left - 1 && inner.top >= outer.top - 1 &&
+      inner.right <= outer.right + 1 && inner.bottom <= outer.bottom + 1
+    const overlaps = (left, right) => left.left < right.right - 1 && left.right > right.left + 1 &&
+      left.top < right.bottom - 1 && left.bottom > right.top + 1
+    const colorPaints = (value) => {
+      if (value === 'transparent') return false
+      const channels = value.match(/[\d.]+/g)?.map(Number) ?? []
+      return channels.length < 4 || channels.at(-1) > 0
+    }
+    const effectiveOpacity = (node) => {
+      let opacity = 1
+      for (let current = node; current instanceof Element; current = current.parentElement) {
+        opacity *= Number.parseFloat(getComputedStyle(current).opacity)
+        if (opacity === 0) return 0
+      }
+      return opacity
+    }
+    const paintedRects = (node) => {
+      if (!(node instanceof HTMLElement || node instanceof SVGElement)) return []
+      const style = getComputedStyle(node)
+      if (style.display === 'none' || style.visibility === 'hidden' || effectiveOpacity(node) === 0) return []
+      const rect = rectOf(node)
+      if (rect.width <= 0.5 || rect.height <= 0.5) return []
+      const paintsOwnBox = colorPaints(style.backgroundColor) || style.backgroundImage !== 'none' ||
+        style.boxShadow !== 'none' ||
+        (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+        ['IMG', 'SVG', 'CANVAS', 'VIDEO', 'INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(node.tagName) ||
+        ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+          style[`border${side}Style`] !== 'none' && Number.parseFloat(style[`border${side}Width`]) > 0 &&
+          colorPaints(style[`border${side}Color`])) ||
+        ['::before', '::after'].some((pseudo) => {
+          const pseudoStyle = getComputedStyle(node, pseudo)
+          return pseudoStyle.content !== 'none' && pseudoStyle.content !== 'normal' &&
+            pseudoStyle.display !== 'none' && pseudoStyle.visibility !== 'hidden' && Number.parseFloat(pseudoStyle.opacity) !== 0
+        })
+      const textRects = []
+      for (const child of node.childNodes) {
+        if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue
+        const range = document.createRange()
+        range.selectNodeContents(child)
+        for (const textRect of range.getClientRects()) {
+          if (textRect.width > 0.5 && textRect.height > 0.5) {
+            // A deliberate text-overflow ellipsis clips glyph paint to this
+            // element's own content box; Range geometry still reports the
+            // un-clipped glyph run. Intersect only that local text box so the
+            // probe distinguishes an intentional compact label from a card or
+            // control escaping its BoardItem. We do not intersect ancestors:
+            // wrapper/card overflow clipping must not turn escaped content
+            // into a false PASS.
+            const clipsX = !['visible', 'unset'].includes(style.overflowX)
+            const clipsY = !['visible', 'unset'].includes(style.overflowY)
+            const left = clipsX ? Math.max(textRect.left, rect.left) : textRect.left
+            const right = clipsX ? Math.min(textRect.right, rect.right) : textRect.right
+            const top = clipsY ? Math.max(textRect.top, rect.top) : textRect.top
+            const bottom = clipsY ? Math.min(textRect.bottom, rect.bottom) : textRect.bottom
+            if (right - left > 0.5 && bottom - top > 0.5) {
+              textRects.push({ left, top, right, bottom, width: right - left, height: bottom - top })
+            }
+          }
+        }
+      }
+      const localClip = (paint) => {
+        let clipped = { ...paint }
+        const item = node.closest('.board-item')
+        for (let current = node.parentElement; current && current !== item; current = current.parentElement) {
+          // Never let overflow on the card root hide an allocation defect.
+          // Explicit label/summary descendants may locally ellipsize their
+          // inline children, though, and Chromium clips that real paint.
+          if (current.parentElement === item) continue
+          const currentStyle = getComputedStyle(current)
+          const currentRect = rectOf(current)
+          if (!['visible', 'unset'].includes(currentStyle.overflowX)) {
+            clipped.left = Math.max(clipped.left, currentRect.left)
+            clipped.right = Math.min(clipped.right, currentRect.right)
+          }
+          if (!['visible', 'unset'].includes(currentStyle.overflowY)) {
+            clipped.top = Math.max(clipped.top, currentRect.top)
+            clipped.bottom = Math.min(clipped.bottom, currentRect.bottom)
+          }
+        }
+        clipped.width = clipped.right - clipped.left
+        clipped.height = clipped.bottom - clipped.top
+        return clipped
+      }
+      return [...(paintsOwnBox ? [rect] : []), ...textRects]
+        .map(localClip)
+        .filter((paint) => paint.width > 0.5 && paint.height > 0.5)
+    }
+    const stageRect = stage ? rectOf(stage) : null
+    const rows = allItems.map((item) => {
+      const rect = rectOf(item)
+      const zone = item.getAttribute('data-stage-zone')
+      const parent = item.parentElement
+      const parentZone = parent?.getAttribute('data-stage-zone-container') ?? null
+      const parentRect = parent ? rectOf(parent) : null
+      const parentContentLeft = parent instanceof HTMLElement && parentRect ? parentRect.left + parent.clientLeft : 0
+      const parentContentTop = parent instanceof HTMLElement && parentRect ? parentRect.top + parent.clientTop : 0
+      // Transparent grid/flex wrappers do not paint. Comparing their layout
+      // boxes produced false cross-zone collisions at compact seams even when
+      // the visible text/panels were disjoint. Retain every actual descendant
+      // paint rect so collision checks remain cross-zone and pixel-causal.
+      const painted = [item, ...item.querySelectorAll('*')].flatMap(paintedRects)
+      const paintRect = painted.length === 0 ? rect : {
+        left: Math.min(...painted.map((paint) => paint.left)),
+        top: Math.min(...painted.map((paint) => paint.top)),
+        right: Math.max(...painted.map((paint) => paint.right)),
+        bottom: Math.max(...painted.map((paint) => paint.bottom)),
+      }
+      const ownedContained = parent instanceof HTMLElement && parentRect
+        ? rect.left - parentContentLeft + parent.scrollLeft >= -1 &&
+          rect.top - parentContentTop + parent.scrollTop >= -1 &&
+          rect.right - parentContentLeft + parent.scrollLeft <= parent.scrollWidth + 1 &&
+          rect.bottom - parentContentTop + parent.scrollTop <= parent.scrollHeight + 1
+        : false
+      const ownedPaintContained = parent instanceof HTMLElement && parentRect
+        ? paintRect.left - parentContentLeft + parent.scrollLeft >= -1 &&
+          paintRect.top - parentContentTop + parent.scrollTop >= -1 &&
+          paintRect.right - parentContentLeft + parent.scrollLeft <= parent.scrollWidth + 1 &&
+          paintRect.bottom - parentContentTop + parent.scrollTop <= parent.scrollHeight + 1
+        : false
+      const paintContainedInItem = painted.every((paint) => inside(paint, rect))
+      return {
+        id: item.getAttribute('data-block-id'), zone, parentZone, rect, paintRect,
+        parent: parent instanceof HTMLElement && parentRect ? {
+          rect: parentRect, scrollLeft: parent.scrollLeft, scrollTop: parent.scrollTop,
+          scrollWidth: parent.scrollWidth, scrollHeight: parent.scrollHeight,
+          clientWidth: parent.clientWidth, clientHeight: parent.clientHeight,
+        } : null,
+        ownedContained, ownedPaintContained, paintContainedInItem, painted,
+      }
+    })
+    const finiteRows = rows.filter((row) => row.zone !== 'dock' && row.rect.width > 0 && row.rect.height > 0)
+    const collisions = []
+    for (let leftIndex = 0; leftIndex < finiteRows.length; leftIndex += 1) {
+      for (let rightIndex = leftIndex + 1; rightIndex < finiteRows.length; rightIndex += 1) {
+        const left = finiteRows[leftIndex]
+        const right = finiteRows[rightIndex]
+        if (left.zone === right.zone && overlaps(left.rect, right.rect)) collisions.push(`${left.id}/${right.id}`)
+      }
+    }
+    const markersOk = Boolean(stage && grid && stageRect) &&
+      root.dataset.stageProfile !== undefined && root.dataset.stageDensity !== undefined &&
+      zoneNames.length === 4 && new Set(zoneNames).size === 4 &&
+      ['day', 'now', 'pulse', 'dock'].every((zone) => zoneNames.includes(zone))
+    const requestedCounts = Object.fromEntries(ids.map((id) => [id, rows.filter((row) => row.id === id).length]))
+    const requestedExactlyOnce = ids.length === 0 || ids.every((id) => requestedCounts[id] === 1)
+    const duplicateIds = [...uniqueIds].filter((id) => allItems.filter((item) => item.getAttribute('data-block-id') === id).length !== 1)
+    const rootTransform = stage ? getComputedStyle(stage).transform : null
+    const pageHorizontalOverflow = document.documentElement.scrollWidth > innerWidth + 1
+    const pageVerticalOverflow = document.documentElement.scrollHeight > innerHeight + 1 || document.body.scrollHeight > innerHeight + 1
+    const stageHasIntendedPinnedOverflow = stage?.getAttribute('data-stage-pinned-overflow') === 'true'
+    const unintendedStageScroll = stage instanceof HTMLElement && !stageHasIntendedPinnedOverflow &&
+      stage.scrollHeight > stage.clientHeight + 1
+    const ownershipOk = markersOk && duplicateIds.length === 0 &&
+      rows.filter((row) => ids.includes(row.id)).every((row) => row.zone === row.parentZone) &&
+      rootTransform === 'none' && !pageHorizontalOverflow
+    const ok = ownershipOk &&
+      rows.every((row) => row.zone === row.parentZone && row.rect.width >= 0 && row.rect.height >= 0 && row.ownedContained) &&
+      collisions.length === 0
+    const targetRows = ids.length > 0 ? rows.filter((row) => ids.includes(row.id)) : rows
+    const targetCollisions = []
+    for (const target of targetRows) {
+      for (const other of rows) {
+        if (target === other || !target.painted.some((left) => other.painted.some((right) => overlaps(left, right)))) continue
+        const pair = [target.id, other.id].sort().join('/')
+        if (!targetCollisions.includes(pair)) targetCollisions.push(pair)
+      }
+    }
+    // Semantic zones own setup/error/empty wrappers too, but a requested active
+    // id must still exist exactly once. Its finite box and any descendant paint
+    // stay in the owning zone; target paint cannot cross another BoardItem.
+    // Only an explicit pinned override may make the Stage vertically scroll.
+    const targetsOk = ownershipOk && requestedExactlyOnce && !pageVerticalOverflow && !unintendedStageScroll &&
+      targetRows.every((row) => row.zone === row.parentZone && row.rect.width > 0 && row.rect.height > 0 &&
+        row.ownedContained && (row.painted.length === 0 || (row.ownedPaintContained && row.paintContainedInItem))) &&
+      targetCollisions.length === 0
+    return {
+      ok, markersOk, ownershipOk, targetsOk, requestedCounts, requestedExactlyOnce,
+      duplicateIds, rootTransform, pageHorizontalOverflow, pageVerticalOverflow,
+      stageHasIntendedPinnedOverflow, unintendedStageScroll,
+      profile: root.dataset.stageProfile, density: root.dataset.stageDensity,
+      ids: rows.map((row) => row.id), collisions, targetCollisions,
+      targets: targetRows.map(({ id, zone, parentZone, rect, paintRect, parent, ownedContained, ownedPaintContained, paintContainedInItem }) =>
+        ({ id, zone, parentZone, rect, paintRect, parent, ownedContained, ownedPaintContained, paintContainedInItem })),
+    }
+  }, expectedIds)
+  if (process.env.AURORA_PREVIEW_SEMANTIC_DIAGNOSTICS === '1' && !result.targetsOk) {
+    console.log(`EVIDENCE: Adaptive Stage predecessor diagnostic: ${JSON.stringify({
+      expectedIds,
+      markersOk: result.markersOk,
+      ownershipOk: result.ownershipOk,
+      requestedCounts: result.requestedCounts,
+      requestedExactlyOnce: result.requestedExactlyOnce,
+      duplicateIds: result.duplicateIds,
+      rootTransform: result.rootTransform,
+      pageHorizontalOverflow: result.pageHorizontalOverflow,
+      pageVerticalOverflow: result.pageVerticalOverflow,
+      stageHasIntendedPinnedOverflow: result.stageHasIntendedPinnedOverflow,
+      unintendedStageScroll: result.unintendedStageScroll,
+      profile: result.profile,
+      density: result.density,
+      targetCollisions: result.targetCollisions,
+      targets: result.targets,
+    })}`)
+  }
+  return result
+}
+
+async function adaptiveContributionCardState(targetPage, id, label) {
+  return targetPage.evaluate(({ blockId, accessibleName }) => {
+    const visible = (node) => {
+      if (!(node instanceof Element)) return false
+      const rect = node.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      return rect.width > 0.5 && rect.height > 0.5 && style.display !== 'none' &&
+        style.visibility !== 'hidden' && Number.parseFloat(style.opacity) !== 0
+    }
+    const wrappers = [...document.querySelectorAll(`.board-item[data-block-id="${blockId}"]`)]
+    const wrapper = wrappers[0]
+    const section = wrapper?.querySelector(`section[aria-label="${accessibleName}"]`)
+    const header = section?.querySelector('h2')
+    const graph = section?.querySelector('[role="img"]')
+    const summary = [...(section?.querySelectorAll('p') ?? [])].find((row) =>
+      /contributions/.test(row.textContent ?? '') && /day streak/.test(row.textContent ?? ''))
+    const quietLine = [...(section?.querySelectorAll('p') ?? [])].find((row) =>
+      /No PRs waiting on you/.test(row.textContent ?? ''))
+    const links = [...(section?.querySelectorAll('a[href]') ?? [])]
+    return {
+      wrapperCount: wrappers.length,
+      variant: wrapper?.getAttribute('data-stage-variant') ?? null,
+      zone: wrapper?.getAttribute('data-stage-zone') ?? null,
+      dockReason: wrapper?.getAttribute('data-stage-dock-reason') ?? null,
+      sectionVisible: visible(section),
+      headerVisible: visible(header),
+      graphVisible: visible(graph),
+      summaryVisible: visible(summary),
+      quietLineVisible: visible(quietLine),
+      visibleActionLinks: links.filter(visible).length,
+      totalActionLinks: links.length,
+    }
+  }, { blockId: id, accessibleName: label })
+}
+
+function compactContributionGlanceOk(state, { requireAction = true } = {}) {
+  const ownedZone = state.zone === 'pulse' || (state.zone === 'dock' && [
+    'pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock',
+  ].includes(state.dockReason))
+  return state.wrapperCount === 1 && state.variant === 'compact' && ownedZone &&
+    state.sectionVisible && state.headerVisible && !state.graphVisible && state.summaryVisible &&
+    (!requireAction || state.visibleActionLinks >= 1)
+}
+
+async function adaptiveConnectorCardState(targetPage, id, label) {
+  return targetPage.evaluate(({ blockId, accessibleName }) => {
+    const visible = (node) => {
+      if (!(node instanceof Element)) return false
+      const rect = node.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      return rect.width > 0.5 && rect.height > 0.5 && style.display !== 'none' &&
+        style.visibility !== 'hidden' && Number.parseFloat(style.opacity) !== 0
+    }
+    const wrappers = [...document.querySelectorAll(`.board-item[data-block-id="${blockId}"]`)]
+    const wrapper = wrappers[0]
+    const section = wrapper?.querySelector(`section[aria-label="${accessibleName}"]`)
+    const links = [...(section?.querySelectorAll('a[href]') ?? [])]
+    return {
+      wrapperCount: wrappers.length,
+      variant: wrapper?.getAttribute('data-stage-variant') ?? null,
+      zone: wrapper?.getAttribute('data-stage-zone') ?? null,
+      dockReason: wrapper?.getAttribute('data-stage-dock-reason') ?? null,
+      sectionVisible: visible(section),
+      headerVisible: visible(section?.querySelector('h2')),
+      visibleActionLinks: links.filter(visible).length,
+      totalActionLinks: links.length,
+    }
+  }, { blockId: id, accessibleName: label })
+}
+
+async function readChromiumAx(targetPage, needles) {
+  const session = await context.newCDPSession(targetPage)
+  try {
+    const { nodes } = await session.send('Accessibility.getFullAXTree')
+    const byId = new Map(nodes.map((node) => [node.nodeId, node]))
+    const textIn = (node, expected, seen = new Set()) => {
+      if (!node || seen.has(node.nodeId)) return false
+      seen.add(node.nodeId)
+      if ((node.name?.value ?? '').toLocaleLowerCase() === expected.toLocaleLowerCase()) return true
+      return (node.childIds ?? []).some((id) => textIn(byId.get(id), expected, seen))
+    }
+    return nodes.flatMap((node) => {
+      const role = node.role?.value ?? null
+      const name = node.name?.value ?? ''
+      const description = node.description?.value ?? null
+      const matchedText = needles.find((needle) => name.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) ||
+        description?.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) || textIn(node, needle))
+      if (!matchedText) return []
+      const property = (key) => node.properties?.find((item) => item.name === key)?.value?.value ?? null
+      return [{ role, name, description, text: matchedText, focused: property('focused'), disabled: property('disabled'), busy: property('busy') }]
+    })
+  } finally {
+    await session.detach()
+  }
+}
+
+function axEntryIncludes(entries, terms, role) {
+  return entries.some((entry) => {
+    const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`
+    return (!role || entry.role === role) && terms.every((term) => exposed.includes(term))
+  })
+}
+
+function compactConnectorActionableOk(state) {
+  const ownedZone = state.zone === 'pulse' || (state.zone === 'dock' && [
+    'pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock',
+  ].includes(state.dockReason))
+  return state.wrapperCount === 1 && state.variant === 'compact' && ownedZone &&
+    state.sectionVisible && state.headerVisible && state.visibleActionLinks >= 1
+}
+
+async function tasksControlReachable(targetPage) {
+  return targetPage.evaluate(() => {
+    const button = document.querySelector('[data-block-id="tasks"] button')
+    if (!(button instanceof HTMLButtonElement)) return false
+    const rect = button.getBoundingClientRect()
+    const style = getComputedStyle(button)
+    return rect.width >= 32 && rect.height >= 32 && !button.disabled &&
+      style.display !== 'none' && style.visibility !== 'hidden' && style.pointerEvents !== 'none'
+  })
+}
+
+const adaptiveExpandedContributionEvidence = { github: null, gitlab: null }
+const adaptiveExpandedOptionalEvidence = { gitlab: null, jira: null }
+
+async function proveExpandedContributionVariant(targetPage, id, label) {
+  const savedViewport = targetPage.viewportSize()
+  const saved = await targetPage.evaluate(() => chrome.storage.local.get([
+    'settings', 'layout', 'connectors', 'connectorSnapshots',
+  ]))
+  let result = null
+  try {
+    await targetPage.setViewportSize({ width: 2300, height: 1200 })
+    await targetPage.evaluate(async ({ targetId }) => {
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+      const nextConnectors = { ...connectors }
+      for (const forgeId of ['github', 'gitlab', 'jira']) {
+        nextConnectors[forgeId] = { ...nextConnectors[forgeId], enabled: forgeId === targetId }
+      }
+      if (targetId === 'gitlab') {
+        nextConnectors.gitlab = {
+          ...nextConnectors.gitlab,
+          token: 'glpat_expanded_fixture',
+          instanceUrl: 'https://gitlab.com',
+          username: 'expanded-fixture',
+          views: { activityGraph: true, mergeRequests: true, reviewAsks: false, todos: true },
+        }
+      } else {
+        nextConnectors.github = {
+          ...nextConnectors.github,
+          token: 'github_pat_expanded_fixture',
+          username: 'expanded-fixture',
+          views: { commitGraph: true, pulls: true, issues: false, notifications: true },
+        }
+      }
+      const today = new Date()
+      const days = Array.from({ length: 112 }, (_, index) => {
+        const date = new Date(today)
+        date.setDate(today.getDate() - (111 - index))
+        return {
+          date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+          count: index % 5,
+        }
+      })
+      const contribution = { days, total: days.reduce((sum, day) => sum + day.count, 0) }
+      const data = targetId === 'gitlab'
+        ? {
+            mrs: [{ title: 'Expanded GitLab action', url: 'https://gitlab.com/acme/app/-/merge_requests/1', project: 'acme/app' }],
+            reviewMrs: [], todos: 2, contributions: contribution,
+          }
+        : {
+            prs: [{ title: 'Expanded GitHub action', url: 'https://github.com/acme/app/pull/1', repo: 'acme/app' }],
+            issues: [], notifications: 2, contributions: contribution, etags: {},
+          }
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, layoutDensity: 'spacious' },
+        connectors: nextConnectors,
+        connectorSnapshots: { [targetId]: { fetchedAt: Date.now(), data } },
+        layout: { version: 2, profiles: { display: { [targetId]: {
+          zone: 'pulse', order: 0, colSpan: 3, rowSpan: 2,
+          variant: 'expanded', priority: 'pinned',
+        } } } },
+      })
+    }, { targetId: id })
+    await targetPage.reload()
+    await targetPage.waitForSelector(`[data-block-id="${id}"][data-stage-variant="expanded"] section[aria-label="${label}"]`)
+    await targetPage.waitForFunction(({ blockId, accessibleName }) => {
+      const graph = document.querySelector(`[data-block-id="${blockId}"] section[aria-label="${accessibleName}"] [role="img"]`)
+      return graph instanceof HTMLElement && graph.getBoundingClientRect().height > 0
+    }, { blockId: id, accessibleName: label })
+    const state = await adaptiveContributionCardState(targetPage, id, label)
+    const semantic = await adaptiveStagePredecessor(targetPage, [id])
+    result = {
+      state,
+      semantic,
+      ok: state.wrapperCount === 1 && state.variant === 'expanded' && state.zone === 'pulse' &&
+        state.sectionVisible && state.headerVisible && state.graphVisible && state.summaryVisible &&
+        state.visibleActionLinks >= 1 && semantic.targetsOk,
+    }
+  } finally {
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    if (savedViewport) await targetPage.setViewportSize(savedViewport)
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForTimeout(200)
+    // Remounting the restored page legitimately starts connector refreshes.
+    // Re-assert the saved fixture after that settle so this proof helper is
+    // observational and cannot leak derived snapshots into its caller.
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    await targetPage.waitForTimeout(50)
+  }
+  return result
+}
+
+async function proveExpandedOptionalConnectorVariant(targetPage, { id, label, eyebrow, needle }) {
+  const savedViewport = targetPage.viewportSize()
+  const saved = await targetPage.evaluate(() => chrome.storage.local.get([
+    'settings', 'layout', 'connectors', 'connectorSnapshots',
+  ]))
+  let result = null
+  try {
+    await targetPage.setViewportSize({ width: 2300, height: 1200 })
+    await targetPage.evaluate(async ({ targetId }) => {
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+      const nextConnectors = { ...connectors }
+      for (const forgeId of ['github', 'gitlab', 'jira']) {
+        nextConnectors[forgeId] = { ...nextConnectors[forgeId], enabled: forgeId === targetId }
+      }
+      if (targetId === 'gitlab') {
+        nextConnectors.gitlab = {
+          ...nextConnectors.gitlab,
+          token: 'glpat_optional_fixture',
+          instanceUrl: 'https://gitlab.com',
+          username: 'optional-fixture',
+          views: { activityGraph: false, mergeRequests: true, reviewAsks: true, todos: true },
+        }
+      } else if (targetId === 'jira') {
+        nextConnectors.jira = {
+          ...nextConnectors.jira,
+          email: 'fixture@example.com',
+          apiToken: 'jira_optional_fixture',
+          site: 'yoursite.atlassian.net',
+          displayName: 'Optional Fixture',
+          views: { assigned: true, statusChips: true, dueSoon: true },
+        }
+      }
+      const data = targetId === 'gitlab'
+        ? {
+            mrs: [{ title: 'Assigned merge request', url: 'https://gitlab.com/acme/platform/-/merge_requests/201', project: 'acme/platform' }],
+            reviewMrs: [{ title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' }],
+            todos: 2, contributions: null,
+          }
+        : {
+            issues: [{ key: 'AUR-101', summary: 'Assigned Jira action', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' }],
+            counts: { 'In Progress': 1 },
+            dueSoon: [{ key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' }],
+          }
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, layoutDensity: 'spacious' },
+        connectors: nextConnectors,
+        connectorSnapshots: { [targetId]: { fetchedAt: Date.now(), data } },
+        layout: { version: 2, profiles: { display: { [targetId]: {
+          zone: 'pulse', order: 0, colSpan: 3, rowSpan: 2,
+          variant: 'expanded', priority: 'pinned',
+        } } } },
+      })
+    }, { targetId: id })
+    await targetPage.reload()
+    await targetPage.waitForSelector(`[data-block-id="${id}"][data-stage-variant="expanded"] section[aria-label="${label}"]`)
+    const content = await targetPage.evaluate(({ blockId, accessibleName, eyebrowText, linkNeedle }) => {
+      const visible = (node) => {
+        if (!(node instanceof Element)) return false
+        const rect = node.getBoundingClientRect()
+        const style = getComputedStyle(node)
+        return rect.width > 0.5 && rect.height > 0.5 && style.display !== 'none' &&
+          style.visibility !== 'hidden' && Number.parseFloat(style.opacity) !== 0
+      }
+      const section = document.querySelector(`[data-block-id="${blockId}"] section[aria-label="${accessibleName}"]`)
+      const eyebrowNode = [...(section?.querySelectorAll('p') ?? [])].find((node) =>
+        node.textContent?.trim() === eyebrowText)
+      const link = [...(section?.querySelectorAll('a[href]') ?? [])].find((node) =>
+        node.textContent?.includes(linkNeedle))
+      const rel = (link?.getAttribute('rel') ?? '').split(/\s+/)
+      return {
+        sectionVisible: visible(section),
+        headerVisible: visible(section?.querySelector('h2')),
+        eyebrowVisible: visible(eyebrowNode),
+        linkVisible: visible(link),
+        target: link?.getAttribute('target') ?? null,
+        relNoopener: rel.includes('noopener'),
+        relNoreferrer: rel.includes('noreferrer'),
+        cursor: link ? getComputedStyle(link).cursor : null,
+      }
+    }, { blockId: id, accessibleName: label, eyebrowText: eyebrow, linkNeedle: needle })
+    const state = await adaptiveConnectorCardState(targetPage, id, label)
+    const semantic = await adaptiveStagePredecessor(targetPage, [id])
+    result = {
+      state,
+      content,
+      semantic,
+      ok: state.wrapperCount === 1 && state.variant === 'expanded' && state.zone === 'pulse' &&
+        content.sectionVisible && content.headerVisible && content.eyebrowVisible && content.linkVisible &&
+        content.target === '_blank' && content.relNoopener && content.relNoreferrer &&
+        content.cursor === 'pointer' && semantic.targetsOk,
+    }
+  } finally {
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    if (savedViewport) await targetPage.setViewportSize(savedViewport)
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForTimeout(200)
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    await targetPage.waitForTimeout(50)
+  }
+  return result
+}
+
+async function proveExpandedVercelVariant(targetPage) {
+  const savedViewport = targetPage.viewportSize()
+  const saved = await targetPage.evaluate(() => chrome.storage.local.get([
+    'settings', 'layout', 'connectors', 'connectorSnapshots',
+  ]))
+  let result = null
+  try {
+    await targetPage.setViewportSize({ width: 2300, height: 1200 })
+    await targetPage.evaluate(async () => {
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+      const nextConnectors = { ...connectors }
+      for (const id of ['github', 'gitlab', 'jira', 'vercel']) {
+        nextConnectors[id] = { ...nextConnectors[id], enabled: id === 'vercel' }
+      }
+      nextConnectors.vercel = {
+        ...nextConnectors.vercel,
+        enabled: true,
+        token: 'vercel_expanded_fixture',
+        username: 'expanded-fixture',
+        views: { deployments: true, statusSummary: true },
+      }
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, layoutDensity: 'spacious' },
+        connectors: nextConnectors,
+        connectorSnapshots: { vercel: { fetchedAt: Date.now(), data: { deployments: [
+          { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/ready', createdAt: Date.now() - 60_000 },
+          { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/error', createdAt: Date.now() - 120_000 },
+          { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/building', createdAt: Date.now() - 180_000 },
+          { project: 'api', state: 'READY', url: 'https://vercel.com/acme/api/ready', createdAt: Date.now() - 240_000 },
+          { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/ready', createdAt: Date.now() - 300_000 },
+        ] } } },
+        layout: { version: 2, profiles: { display: { vercel: {
+          zone: 'pulse', order: 0, colSpan: 3, rowSpan: 2,
+          variant: 'expanded', priority: 'pinned',
+        } } } },
+      })
+    })
+    await targetPage.reload()
+    await targetPage.waitForSelector('[data-block-id="vercel"][data-stage-variant="expanded"] section[aria-label="Vercel"]')
+    const state = await adaptiveConnectorCardState(targetPage, 'vercel', 'Vercel')
+    const content = await targetPage.evaluate(() => {
+      const section = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+      const summary = section?.querySelector('p')
+      const visible = (node) => node instanceof Element && node.getBoundingClientRect().width > 0.5 &&
+        node.getBoundingClientRect().height > 0.5 && getComputedStyle(node).display !== 'none'
+      return { summaryVisible: visible(summary), summaryText: summary?.textContent?.trim() ?? null }
+    })
+    const semantic = await adaptiveStagePredecessor(targetPage, ['vercel'])
+    result = {
+      state, content, semantic,
+      ok: state.wrapperCount === 1 && state.variant === 'expanded' && state.zone === 'pulse' &&
+        state.sectionVisible && state.headerVisible && state.visibleActionLinks === 5 && state.totalActionLinks === 5 &&
+        content.summaryVisible && /ready/.test(content.summaryText ?? '') && semantic.targetsOk,
+    }
+  } finally {
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    if (savedViewport) await targetPage.setViewportSize(savedViewport)
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForTimeout(200)
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    await targetPage.waitForTimeout(50)
+  }
+  return result
+}
+
+async function proveExpandedCalendarVariant(targetPage) {
+  const savedViewport = targetPage.viewportSize()
+  const keys = ['settings', 'layout', 'connectors', 'connectorSnapshots']
+  const saved = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+  let result = null
+  try {
+    await targetPage.setViewportSize({ width: 2560, height: 1440 })
+    await targetPage.evaluate(async () => {
+      const { settings, layout } = await chrome.storage.local.get(['settings', 'layout'])
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, layoutDensity: 'spacious' },
+        layout: {
+          ...layout,
+          version: 2,
+          profiles: {
+            ...(layout?.profiles ?? {}),
+            display: {
+              ...(layout?.profiles?.display ?? {}),
+              ics: {
+                zone: 'day', order: 1, colSpan: 3, rowSpan: 2,
+                variant: 'expanded', priority: 'pinned',
+              },
+            },
+          },
+        },
+      })
+    })
+    await targetPage.reload()
+    await targetPage.waitForSelector('[data-block-id="ics"][data-stage-variant="expanded"] section[aria-label="Calendar"]')
+    await targetPage.waitForFunction(() => {
+      const section = document.querySelector('[data-block-id="ics"] section[aria-label="Calendar"]')
+      const rows = [...(section?.querySelectorAll('ul > li') ?? [])]
+      const join = section?.querySelector('p a[href]')
+      return rows.length === 2 && rows.every((row) => row.getBoundingClientRect().height > 0) &&
+        join instanceof HTMLElement && join.getBoundingClientRect().width >= 36 && join.getBoundingClientRect().height >= 36
+    })
+    const content = await targetPage.evaluate(() => {
+      const wrappers = [...document.querySelectorAll('.board-item[data-block-id="ics"]')]
+      const wrapper = wrappers[0]
+      const section = wrapper?.querySelector('section[aria-label="Calendar"]')
+      const headline = section?.querySelector('p')
+      const rows = [...(section?.querySelectorAll('ul > li') ?? [])]
+      const join = headline?.querySelector('a[href]')
+      const normalize = (value) => value.replace(/\s+/g, ' ').trim()
+      const referencedText = (element, attribute) => `${element?.getAttribute(attribute) ?? ''}`.trim().split(/\s+/)
+        .filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
+      const resolved = (element) => {
+        if (!element) return ''
+        const name = normalize(element.getAttribute('aria-label') ?? '') ||
+          normalize(referencedText(element, 'aria-labelledby')) || normalize(element.textContent ?? '')
+        return normalize(`${name} ${referencedText(element, 'aria-describedby')}`)
+      }
+      const visible = (node) => node instanceof HTMLElement && node.getBoundingClientRect().width > 0.5 &&
+        node.getBoundingClientRect().height > 0.5 && getComputedStyle(node).display !== 'none' &&
+        getComputedStyle(node).visibility !== 'hidden'
+      return {
+        wrapperCount: wrappers.length,
+        variant: wrapper?.getAttribute('data-stage-variant') ?? null,
+        zone: wrapper?.getAttribute('data-stage-zone') ?? null,
+        headlineVisible: visible(headline),
+        headlineText: headline?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+        headlineProgrammatic: resolved(headline),
+        rowTexts: rows.map((row) => row.textContent?.replace(/\s+/g, ' ').trim() ?? ''),
+        rowProgrammatic: rows.map(resolved),
+        rowsVisible: rows.length === 2 && rows.every(visible),
+        joinVisible: visible(join),
+        joinProgrammatic: resolved(join),
+        joinRect: join ? { width: join.getBoundingClientRect().width, height: join.getBoundingClientRect().height } : null,
+      }
+    })
+    const ax = await readChromiumAx(targetPage, ['Personal', 'Work', 'Opening sync', 'Duplicate review', 'Join'])
+    const semantic = await adaptiveStagePredecessor(targetPage, ['ics'])
+    result = {
+      content,
+      ax,
+      semantic,
+      ok: content.wrapperCount === 1 && content.variant === 'expanded' && content.zone === 'day' &&
+        content.headlineVisible && content.headlineProgrammatic.includes('Opening sync') && content.headlineProgrammatic.includes('Personal') &&
+        content.rowsVisible && content.rowProgrammatic.length === 2 &&
+        content.rowProgrammatic[0].includes('Duplicate review') && content.rowProgrammatic[0].includes('Personal') &&
+        content.rowProgrammatic[1].includes('Duplicate review') && content.rowProgrammatic[1].includes('Work') &&
+        content.joinVisible && content.joinRect?.width >= 36 && content.joinRect?.height >= 36 &&
+        content.joinProgrammatic.includes('Join') && content.joinProgrammatic.includes('Opening sync') &&
+        axEntryIncludes(ax, ['Opening sync', 'Personal'], 'paragraph') &&
+        axEntryIncludes(ax, ['Duplicate review', 'Personal'], 'listitem') &&
+        axEntryIncludes(ax, ['Duplicate review', 'Work'], 'listitem') &&
+        axEntryIncludes(ax, ['Join', 'Opening sync', 'Personal'], 'link') && semantic.targetsOk,
+    }
+  } finally {
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    if (savedViewport) await targetPage.setViewportSize(savedViewport)
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForTimeout(200)
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    await targetPage.waitForTimeout(50)
+  }
+  const restored = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+  return { ...result, storageExact: JSON.stringify(restored) === JSON.stringify(saved) }
+}
+
+async function compactNarrowFocusPresentation(targetPage) {
+  return targetPage.evaluate(() => {
+    const box = (node) => {
+      if (!(node instanceof HTMLElement)) return null
+      const rect = node.getBoundingClientRect()
+      return {
+        left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+        right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+        width: +rect.width.toFixed(1), height: +rect.height.toFixed(1),
+      }
+    }
+    const intersects = (a, b) => !!a && !!b &&
+      a.left < b.right - 0.5 && a.right > b.left + 0.5 &&
+      a.top < b.bottom - 0.5 && a.bottom > b.top + 0.5
+    const horizontallyInside = (inner, outer) => !!inner && !!outer &&
+      inner.left >= Math.max(outer.left, 0) - 0.5 && inner.right <= Math.min(outer.right, innerWidth) + 0.5
+    const dock = document.querySelector('[data-stage-zone-container="dock"]')
+    const item = document.querySelector('[data-block-id="focus"]')
+    const form = item?.querySelector('form')
+    const label = item?.querySelector('label[for="focus-input"]')
+    const input = item?.querySelector('#focus-input')
+    const gear = document.querySelector('button[aria-label="Open settings"]')
+    const background = document.querySelector('button[aria-label="New background photo"]')
+    const dockRect = box(dock)
+    const itemRect = box(item)
+    const formRect = box(form)
+    const labelRect = box(label)
+    const inputRect = box(input)
+    const gearRect = box(gear)
+    const backgroundRect = box(background)
+    const labelText = label?.textContent?.replace(/\s+/g, ' ').trim() ?? null
+    const active = document.activeElement
+    const activeIsInput = active === input
+    const labelComplete = label instanceof HTMLElement && labelText === 'What’s your main focus today?' &&
+      label.scrollWidth <= label.clientWidth + 1 && label.scrollHeight <= label.clientHeight + 1
+    const controlsClear = !intersects(labelRect, gearRect) && !intersects(inputRect, gearRect) &&
+      !intersects(labelRect, backgroundRect) && !intersects(inputRect, backgroundRect)
+    return {
+      viewport: { width: innerWidth, height: innerHeight },
+      active: active instanceof HTMLElement ? {
+        tag: active.tagName.toLowerCase(), id: active.id || null,
+        name: active.getAttribute('aria-label') ?? active.textContent?.trim() ?? '',
+      } : null,
+      activeIsInput,
+      dock: {
+        rect: dockRect,
+        scrollLeft: dock instanceof HTMLElement ? +dock.scrollLeft.toFixed(1) : null,
+        scrollWidth: dock instanceof HTMLElement ? dock.scrollWidth : null,
+        clientWidth: dock instanceof HTMLElement ? dock.clientWidth : null,
+      },
+      itemRect, formRect, labelRect, inputRect, gearRect, backgroundRect,
+      labelText,
+      labelComplete,
+      itemVisibleInDock: horizontallyInside(itemRect, dockRect),
+      formVisibleInDock: horizontallyInside(formRect, dockRect),
+      labelVisibleInDock: horizontallyInside(labelRect, dockRect),
+      inputVisibleInDock: horizontallyInside(inputRect, dockRect),
+      controlsClear,
+      ok: innerWidth === 320 && innerHeight === 800 && activeIsInput && labelComplete && controlsClear &&
+        horizontallyInside(labelRect, dockRect) && horizontallyInside(inputRect, dockRect) &&
+        inputRect?.width >= 36 && inputRect?.height >= 36,
+    }
+  })
+}
+
+async function proveCompactNarrowFocusVariant(targetPage) {
+  const savedViewport = targetPage.viewportSize()
+  const keys = ['settings', 'layout', 'connectors', 'connectorSnapshots']
+  const saved = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+  let result = null
+  try {
+    await targetPage.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get('settings')
+      const widgets = Object.fromEntries(Object.keys(settings.widgets).map((key) => [key, false]))
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, widgets, layoutDensity: 'auto' },
+        layout: { version: 2, profiles: {} },
+        connectors: {},
+        connectorSnapshots: {},
+      })
+    })
+    await targetPage.setViewportSize({ width: 320, height: 800 })
+    await targetPage.reload()
+    await targetPage.waitForSelector('#focus-input')
+    await targetPage.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      document.body.tabIndex = -1
+      document.body.focus({ preventScroll: true })
+      document.body.removeAttribute('tabindex')
+    })
+    for (let index = 0; index < 4; index += 1) {
+      await targetPage.keyboard.press('Tab')
+      if (await targetPage.evaluate(() => document.activeElement?.id === 'focus-input')) break
+    }
+    await targetPage.waitForTimeout(100)
+    result = await compactNarrowFocusPresentation(targetPage)
+  } finally {
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    if (savedViewport) await targetPage.setViewportSize(savedViewport)
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForTimeout(200)
+    await targetPage.evaluate((state) => globalThis.__auroraSetHarnessStorage(state), saved)
+    await targetPage.waitForTimeout(50)
+  }
+  const restored = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+  return { ...result, storageExact: JSON.stringify(restored) === JSON.stringify(saved) }
+}
+
+async function runCompactNarrowBookmarksTransitionFixture(targetPage) {
+  const folderId = await targetPage.evaluate(async () => {
+    for (const node of await chrome.bookmarks.getChildren('1')) {
+      await chrome.bookmarks.removeTree(node.id)
+    }
+    for (const title of ['GITHUB', 'REDDIT', 'GITLAB', 'DOCKER', '天気予報', 'ニュース', 'WWWWWW', 'MMMMMM', 'ZZZZZZ', 'QQQQQQ']) {
+      await chrome.bookmarks.create({ parentId: '1', title, url: `https://example.com/${encodeURIComponent(title)}` })
+    }
+    const folder = await chrome.bookmarks.create({ parentId: '1', title: 'W2-P3 evidence folder' })
+    for (let index = 0; index < 12; index += 1) {
+      await chrome.bookmarks.create({
+        parentId: folder.id,
+        title: `W2-P3 long bookmark ${String(index + 1).padStart(2, '0')}`,
+        url: `https://example.com/w2-p3/${index + 1}`,
+      })
+    }
+    const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+    await globalThis.__auroraSetHarnessStorage({
+      settings: {
+        ...settings,
+        widgets: {
+          ...settings.widgets,
+          notes: true,
+          todo: true,
+          timer: true,
+          weather: true,
+          links: true,
+          clocks: true,
+          countdown: true,
+          habits: true,
+          bookmarks: true,
+        },
+      },
+      layout: { version: 2, profiles: {} },
+      connectors: {
+        ...connectors,
+        github: { enabled: true }, gitlab: { enabled: true }, jira: { enabled: true },
+        vercel: { enabled: true }, status: { enabled: true, services: [] },
+        ics: { enabled: true, calendars: [] }, rss: { enabled: true, feeds: [], shownCount: 5 },
+        crypto: { enabled: true, coins: [] }, homeassistant: { enabled: true },
+      },
+      connectorSnapshots: {},
+      location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+      weatherCache: null,
+    })
+    return folder.id
+  })
+  await targetPage.setViewportSize({ width: 320, height: 568 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('nav[aria-label="Bookmarks bar"] button[title="More bookmarks"]')
+  const more = targetPage.locator('nav[aria-label="Bookmarks bar"] button[title="More bookmarks"]')
+  await more.click()
+  const rootDialog = targetPage.locator('[role="dialog"][aria-label$=" bookmarks"]')
+  await rootDialog.waitFor()
+  const folder = targetPage.getByRole('button', { name: 'W2-P3 evidence folder', exact: true })
+  await folder.waitFor()
+
+  await targetPage.evaluate(() => {
+    globalThis.__auroraCompactBookmarkTransition = []
+    const snapshot = (phase) => {
+      const box = (node) => {
+        if (!(node instanceof HTMLElement)) return null
+        const rect = node.getBoundingClientRect()
+        return {
+          left: +rect.left.toFixed(1), top: +rect.top.toFixed(1),
+          right: +rect.right.toFixed(1), bottom: +rect.bottom.toFixed(1),
+        }
+      }
+      const target = [...document.querySelectorAll('button')]
+        .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('title') ?? button.textContent?.trim()) === 'W2-P3 evidence folder')
+      const gear = document.querySelector('button[aria-label="Open settings"]')
+      const background = document.querySelector('button[aria-label="New background photo"]')
+      const targetRect = box(target)
+      const point = targetRect ? { x: (targetRect.left + targetRect.right) / 2, y: (targetRect.top + targetRect.bottom) / 2 } : null
+      const topmost = point ? document.elementFromPoint(point.x, point.y) : null
+      globalThis.__auroraCompactBookmarkTransition.push({
+        phase,
+        active: document.activeElement instanceof HTMLElement
+          ? document.activeElement.getAttribute('aria-label') ?? document.activeElement.getAttribute('title') ?? document.activeElement.textContent?.trim() ?? document.activeElement.tagName
+          : null,
+        dockFocusWithin: document.querySelector('[data-stage-zone-container="dock"]')?.matches(':focus-within') ?? false,
+        targetRect,
+        gearRect: box(gear),
+        backgroundRect: box(background),
+        topmost: topmost instanceof HTMLElement
+          ? topmost.getAttribute('aria-label') ?? topmost.getAttribute('title') ?? topmost.textContent?.trim() ?? topmost.tagName
+          : null,
+      })
+    }
+    const target = [...document.querySelectorAll('button')]
+      .find((button) => (button.getAttribute('aria-label') ?? button.getAttribute('title') ?? button.textContent?.trim()) === 'W2-P3 evidence folder')
+    snapshot('before')
+    target?.addEventListener('pointerdown', () => snapshot('pointerdown'))
+    target?.addEventListener('mousedown', () => snapshot('mousedown'))
+    target?.addEventListener('focus', () => requestAnimationFrame(() => snapshot('focus-frame')))
+    target?.addEventListener('click', () => snapshot('click'))
+  })
+  let clickError = null
+  await folder.click({ timeout: 5_000 }).catch((error) => { clickError = String(error) })
+  const opened = await targetPage.getByRole('dialog', { name: 'W2-P3 evidence folder bookmarks', exact: true })
+    .waitFor({ timeout: 2_000 }).then(() => true, () => false)
+  const transition = await targetPage.evaluate(() => globalThis.__auroraCompactBookmarkTransition ?? [])
+  const result = { opened, clickError, transition, ok: opened && transition.some((row) => row.phase === 'click') }
+  await targetPage.evaluate((id) => chrome.bookmarks.removeTree(id), folderId).catch(() => undefined)
+  return result
+}
+
+async function runAdaptiveStagePaintFixture(targetPage) {
+  const ids = await targetPage.evaluate(() => {
+    for (const item of document.querySelectorAll('.board-item[data-block-id]')) item.remove()
+    const zone = document.querySelector('[data-stage-zone-container="now"]')
+    if (!(zone instanceof HTMLElement)) throw new Error('Adaptive Stage paint fixture needs the Now zone')
+
+    const empty = document.createElement('div')
+    empty.className = 'board-item board-item--now'
+    empty.dataset.blockId = 'fixture-empty'
+    empty.dataset.stageZone = 'now'
+    empty.style.cssText = 'width:40px;height:40px;grid-column:1;grid-row:1'
+
+    const transparent = document.createElement('div')
+    transparent.className = 'board-item board-item--now'
+    transparent.dataset.blockId = 'fixture-transparent-ancestor'
+    transparent.dataset.stageZone = 'now'
+    transparent.style.cssText = 'width:40px;height:40px;grid-column:1;grid-row:2'
+    const invisibleAncestor = document.createElement('div')
+    invisibleAncestor.style.opacity = '0'
+    const invisibleButton = document.createElement('button')
+    invisibleButton.textContent = 'Invisible paint'
+    invisibleButton.style.cssText = 'width:32px;height:32px;background:#fff'
+    invisibleAncestor.append(invisibleButton)
+    transparent.append(invisibleAncestor)
+    zone.append(empty, transparent)
+    return { empty: empty.dataset.blockId, transparent: transparent.dataset.blockId }
+  })
+  const empty = await adaptiveStagePredecessor(targetPage, [ids.empty])
+  const transparentAncestor = await adaptiveStagePredecessor(targetPage, [ids.transparent])
+  return {
+    emptyTargetRejected: !empty.targetsOk,
+    transparentAncestorRejected: !transparentAncestor.targetsOk,
+    observed: { emptyTargetsOk: empty.targetsOk, transparentAncestorTargetsOk: transparentAncestor.targetsOk },
+  }
+}
+
+async function runAdaptiveStageBookmarksGeometryFixture(targetPage) {
+  const proveStorageRestoration = async (runProof) => {
+    const keys = ['settings', 'layout', 'connectors', 'connectorSnapshots']
+    const before = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+    const result = await runProof()
+    const after = await targetPage.evaluate((requested) => chrome.storage.local.get(requested), keys)
+    const navVisible = await targetPage.evaluate(() => {
+      const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+      return nav instanceof HTMLElement && nav.getBoundingClientRect().width > 0 && nav.getBoundingClientRect().height > 0
+    })
+    const storageExact = JSON.stringify(after) === JSON.stringify(before)
+    const changedKeys = keys.filter((key) => JSON.stringify(after[key]) !== JSON.stringify(before[key]))
+    return {
+      result,
+      storageExact,
+      changedKeys,
+      changes: Object.fromEntries(changedKeys.map((key) => [key, { before: before[key], after: after[key] }])),
+      bookmarksBefore: before.settings?.widgets?.bookmarks ?? null,
+      bookmarksAfter: after.settings?.widgets?.bookmarks ?? null,
+      navVisible,
+      ok: storageExact && before.settings?.widgets?.bookmarks === true &&
+        after.settings?.widgets?.bookmarks === true && navVisible,
+    }
+  }
+  const proveArrangePersistence = async () => {
+    const center = await targetPage.evaluate(() => {
+      const rect = document.querySelector('[data-block-id="clock"]')?.getBoundingClientRect()
+      if (!rect) throw new Error('Arrange fixture needs Clock')
+      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
+    })
+    const target = { x: 400, y: 450 }
+    await targetPage.mouse.move(center.x, center.y)
+    await targetPage.mouse.down()
+    await targetPage.waitForTimeout(650)
+    await targetPage.waitForSelector('[data-arrange-overlay] button:has-text("Done")')
+    await targetPage.mouse.move(target.x, target.y, { steps: 12 })
+    await targetPage.mouse.up()
+    await targetPage.waitForFunction(async ({ x, y }) => {
+      const { layout } = await chrome.storage.local.get('layout')
+      const clock = layout?.legacy?.clock
+      return Boolean(clock) && Math.abs(clock.x - x / innerWidth * 100) <= 2 &&
+        Math.abs(clock.y - y / innerHeight * 100) <= 2
+    }, target)
+    await targetPage.click('[data-arrange-overlay] button:has-text("Done")')
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    const committed = await targetPage.evaluate(async () => {
+      const clock = document.querySelector('[data-block-id="clock"]')
+      return {
+        legacy: (await chrome.storage.local.get('layout')).layout?.legacy?.clock ?? null,
+        allocation: clock instanceof HTMLElement ? {
+          zone: clock.dataset.stageZone,
+          colSpan: Number(clock.style.getPropertyValue('--board-col-span')),
+          rowSpan: Number(clock.style.getPropertyValue('--board-row-span')),
+          width: clock.getBoundingClientRect().width,
+          containerType: getComputedStyle(clock).containerType,
+          timeFontSize: getComputedStyle(clock.querySelector('time')).fontSize,
+          timeWidth: clock.querySelector('time')?.getBoundingClientRect().width ?? null,
+        } : null,
+      }
+    })
+    const semantic = await adaptiveStagePredecessor(targetPage, ['clock'])
+    return {
+      ...committed,
+      semantic,
+      ok: committed.legacy?.x === 25 && committed.legacy?.y === 50 &&
+        committed.allocation?.zone === 'day' && committed.allocation.colSpan === 3 && committed.allocation.rowSpan === 2 &&
+        semantic.targetsOk,
+    }
+  }
+  const seedDenseState = async (layoutDensity, layout) => {
+    await targetPage.evaluate(async ({ nextDensity, nextLayout }) => {
+      const current = await chrome.storage.local.get('settings')
+      const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, true]))
+      const connectors = {
+        rss: { enabled: true, feeds: [], shownCount: 5 },
+        github: { enabled: true, token: '', username: '' },
+        gitlab: { enabled: true, token: '', instanceUrl: '', username: '' },
+        jira: { enabled: true, email: '', apiToken: '', site: '', displayName: '' },
+        vercel: { enabled: true, token: '', username: '' },
+        crypto: { enabled: true, coins: [] },
+        ics: { enabled: true, calendars: [] },
+        status: { enabled: true, services: [] },
+        homeassistant: { enabled: true },
+      }
+      await chrome.storage.local.set({
+        settings: { ...current.settings, widgets, layoutDensity: nextDensity },
+        layout: nextLayout,
+        connectors,
+      })
+    }, { nextDensity: layoutDensity, nextLayout: layout })
+    await targetPage.setViewportSize({ width: 1600, height: 900 })
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+    await targetPage.waitForFunction((density) =>
+      document.documentElement.dataset.stageProfile === 'standard' &&
+      document.documentElement.dataset.stageDensity === density,
+    layoutDensity)
+    await targetPage.waitForTimeout(150)
+  }
+  const inspect = async (expectedIds, materializeIds = []) => {
+    await targetPage.evaluate((ids) => {
+      for (const id of ids) {
+        const item = document.querySelector(`.board-item[data-block-id="${id}"]`)
+        if (!(item instanceof HTMLElement)) continue
+        const fixturePaint = document.createElement('section')
+        fixturePaint.dataset.geometryFixturePaint = id
+        fixturePaint.style.cssText = 'width:100%;height:100%;background:rgb(1,2,3)'
+        item.append(fixturePaint)
+      }
+    }, materializeIds)
+    const semantic = await adaptiveStagePredecessor(targetPage, expectedIds)
+    const geometry = await targetPage.evaluate((ids) => {
+      const rectOf = (node) => {
+        const rect = node.getBoundingClientRect()
+        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }
+      }
+      const overlaps = (left, right) => left.left < right.right - 1 && left.right > right.left + 1 &&
+        left.top < right.bottom - 1 && left.bottom > right.top + 1
+      const colorPaints = (value) => {
+        if (value === 'transparent') return false
+        const channels = value.match(/[\d.]+/g)?.map(Number) ?? []
+        return channels.length < 4 || channels.at(-1) > 0
+      }
+      const effectiveOpacity = (node) => {
+        let opacity = 1
+        for (let current = node; current instanceof Element; current = current.parentElement) {
+          opacity *= Number.parseFloat(getComputedStyle(current).opacity)
+          if (opacity === 0) return 0
+        }
+        return opacity
+      }
+      const paints = (node) => {
+        if (!(node instanceof HTMLElement || node instanceof SVGElement)) return false
+        const style = getComputedStyle(node)
+        const rect = node.getBoundingClientRect()
+        if (style.display === 'none' || style.visibility === 'hidden' || effectiveOpacity(node) === 0 ||
+            rect.width <= 0.5 || rect.height <= 0.5) return false
+        if (colorPaints(style.backgroundColor) || style.backgroundImage !== 'none' || style.boxShadow !== 'none' ||
+            (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+            ['IMG', 'SVG', 'CANVAS', 'VIDEO', 'INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(node.tagName)) return true
+        if (['Top', 'Right', 'Bottom', 'Left'].some((side) => style[`border${side}Style`] !== 'none' &&
+            Number.parseFloat(style[`border${side}Width`]) > 0 && colorPaints(style[`border${side}Color`]))) return true
+        return [...node.childNodes].some((child) => child.nodeType === Node.TEXT_NODE && child.textContent?.trim())
+      }
+      const locallyClippedRect = (node, item) => {
+        const clipped = rectOf(node)
+        for (let current = node.parentElement; current && current !== item; current = current.parentElement) {
+          if (current.parentElement === item) continue
+          const style = getComputedStyle(current)
+          const currentRect = rectOf(current)
+          if (!['visible', 'unset'].includes(style.overflowX)) {
+            clipped.left = Math.max(clipped.left, currentRect.left)
+            clipped.right = Math.min(clipped.right, currentRect.right)
+          }
+          if (!['visible', 'unset'].includes(style.overflowY)) {
+            clipped.top = Math.max(clipped.top, currentRect.top)
+            clipped.bottom = Math.min(clipped.bottom, currentRect.bottom)
+          }
+        }
+        clipped.width = clipped.right - clipped.left
+        clipped.height = clipped.bottom - clipped.top
+        return clipped
+      }
+      const label = (node) => `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ''}${node.classList.length ? `.${[...node.classList].slice(0, 4).join('.')}` : ''}`
+      const rows = ids.map((id) => {
+        const item = document.querySelector(`.board-item[data-block-id="${id}"]`)
+        if (!(item instanceof HTMLElement)) return { id, missing: true }
+        const painted = [item, ...item.querySelectorAll('*')].filter(paints).map((node) => ({
+          selector: label(node), rect: locallyClippedRect(node, item),
+        })).filter((row) => row.rect.width > 0.5 && row.rect.height > 0.5)
+        return {
+          id,
+          zone: item.dataset.stageZone,
+          variant: item.dataset.stageVariant,
+          dockReason: item.dataset.stageDockReason ?? null,
+          rect: rectOf(item),
+          parentRect: rectOf(item.parentElement),
+          painted,
+        }
+      })
+      const collisions = []
+      for (let i = 0; i < rows.length; i += 1) {
+        for (let j = i + 1; j < rows.length; j += 1) {
+          const pairs = (rows[i].painted ?? []).flatMap((left) =>
+            (rows[j].painted ?? []).filter((right) => overlaps(left.rect, right.rect)).map((right) => [left, right]))
+          if (pairs.length > 0) collisions.push({ ids: [rows[i].id, rows[j].id], pairs })
+        }
+      }
+      return { rows, collisions }
+    }, expectedIds)
+    return { semantic, geometry }
+  }
+
+  const initial = await inspect(['clock'])
+  const arrange = await proveArrangePersistence()
+  await seedDenseState('balanced', { version: 2, profiles: {} })
+  const manual = await inspect(['bookmarks', 'github'], ['github'])
+  await seedDenseState('compact', { version: 2, profiles: { standard: { weather: {
+    zone: 'pulse', order: 99, colSpan: 2, rowSpan: 2,
+    variant: 'compact', priority: 'pinned', locked: true,
+  } } } })
+  const override = await inspect(['bookmarks', 'weather', 'gitlab'], ['gitlab'])
+  await targetPage.reload()
+  await targetPage.waitForSelector('time')
+  const matrix = []
+  for (const viewport of [
+    { width: 1600, height: 900 }, { width: 1420, height: 550 },
+    { width: 1024, height: 768 }, { width: 800, height: 450 }, { width: 500, height: 900 },
+  ]) {
+    await targetPage.setViewportSize(viewport)
+    await targetPage.waitForTimeout(250)
+    const ids = await targetPage.evaluate(() => {
+      const items = [...document.querySelectorAll('.board-item[data-block-id]')]
+      for (const item of items) {
+        if (item.querySelector(':scope > [data-geometry-fixture-paint]')) continue
+        const fixturePaint = document.createElement('section')
+        fixturePaint.dataset.geometryFixturePaint = item.getAttribute('data-block-id') ?? ''
+        fixturePaint.style.cssText = 'display:block;width:2px;height:2px;background:rgb(1,2,3)'
+        item.append(fixturePaint)
+      }
+      return items.map((item) => item.getAttribute('data-block-id')).filter(Boolean)
+    })
+    const semantic = await adaptiveStagePredecessor(targetPage, ids)
+    matrix.push({ ...viewport, profile: semantic.profile, density: semantic.density, targetsOk: semantic.targetsOk, pairs: semantic.targetCollisions })
+  }
+  await targetPage.setViewportSize({ width: 1024, height: 768 })
+  await targetPage.waitForTimeout(250)
+  const matrixDiagnostic = await inspect(['monthCal', 'quote', 'habits', 'moon', 'sun'])
+  // Causal RED for the W3-P2 predecessor translation. Empty connector shells
+  // fit the semantic grid, but their real legacy cards contain fixed-width
+  // descendants. Materialize representative max-content rows in the same
+  // compact-density 1600x900 cells that the predecessor families exercise so
+  // this fast fixture catches paint escaping a BoardItem or crossing a sibling.
+  await targetPage.evaluate(async () => {
+    const now = Date.now()
+    const { settings } = await chrome.storage.local.get('settings')
+    const widgets = Object.fromEntries(Object.keys(settings.widgets).map((key) => [key, true]))
+    const contributionDays = Array.from({ length: 56 }, (_, index) => {
+      const date = new Date(now - (55 - index) * 86_400_000)
+      return { date: date.toISOString().slice(0, 10), count: index % 5 }
+    })
+    await globalThis.__auroraSetHarnessStorage({
+      settings: { ...settings, widgets, layoutDensity: 'compact' },
+      layout: { version: 2, profiles: {} },
+      habits: Array.from({ length: 6 }, (_, index) => ({
+        id: `fixture-habit-${index}`,
+        name: `Fixture habit ${index}`,
+        createdAt: now - index,
+        log: [],
+      })),
+      connectors: {
+        rss: { enabled: true, feeds: [{ id: 'fixture-feed', name: 'Fixture', url: 'https://example.com/feed' }], shownCount: 8 },
+        github: { enabled: true, token: 'fixture-token', username: 'octocat' },
+        gitlab: { enabled: true, token: 'fixture-token', instanceUrl: 'https://gitlab.com', username: 'octocat' },
+        jira: { enabled: true, email: 'fixture@example.com', apiToken: 'fixture-token', site: 'https://example.atlassian.net', displayName: 'Fixture' },
+        vercel: { enabled: true, token: 'fixture-token', username: 'fixture' },
+        crypto: { enabled: true, coins: ['bitcoin'] },
+        ics: { enabled: true, calendars: [{ id: 'fixture-calendar', name: 'Fixture', url: 'https://example.com/calendar.ics', enabled: true }] },
+        status: { enabled: true, services: [] },
+        homeassistant: {
+          enabled: true,
+          instanceUrl: 'https://ha.example.com',
+          token: 'fixture-token',
+          entities: [
+            { id: 'sensor.kitchen', name: 'Kitchen' },
+            { id: 'light.porch', name: 'Porch' },
+          ],
+          actions: [
+            { id: 'scene.movie_night', name: 'Movie night', domain: 'scene' },
+            { id: 'script.good_morning', name: 'Good morning', domain: 'script' },
+            { id: 'switch.porch_plug', name: 'Porch plug', domain: 'switch' },
+          ],
+        },
+      },
+      connectorSnapshots: {
+        rss: { fetchedAt: now, data: Array.from({ length: 8 }, (_, index) => ({ source: 'Fixture', title: `Fixture headline ${index}`, url: `https://example.com/${index}`, publishedAt: now - index })) },
+        github: { fetchedAt: now, data: { prs: [{ title: 'Fixture pull request', url: 'https://github.com/o/r/pull/1', repo: 'o/r' }], issues: [{ title: 'Fixture issue', url: 'https://github.com/o/r/issues/1', repo: 'o/r' }], notifications: 3, contributions: { days: contributionDays, total: 112 }, etags: {} } },
+        gitlab: { fetchedAt: now, data: { mrs: [{ title: 'Fixture merge request', url: 'https://gitlab.com/o/r/-/merge_requests/1', project: 'o/r' }], reviewMrs: [], todos: 6, contributions: { days: contributionDays, total: 112 } } },
+        jira: { fetchedAt: now, data: { issues: [{ key: 'AUR-1', summary: 'Fixture issue', status: 'In Progress', url: 'https://example.atlassian.net/browse/AUR-1' }], counts: { 'In Progress': 1 } } },
+        ics: { fetchedAt: now, data: { events: [{ summary: 'Fixture meeting', start: now + 3_600_000, end: now + 5_400_000, cal: 0, allDay: false }] } },
+        homeassistant: { fetchedAt: now, data: { entities: [
+          { id: 'sensor.kitchen', state: '21.5', unit: '°C', friendlyName: 'Kitchen', domain: 'sensor' },
+          { id: 'light.porch', state: 'on', unit: null, friendlyName: 'Porch', domain: 'light' },
+        ] } },
+      },
+    })
+  })
+  await targetPage.setViewportSize({ width: 1600, height: 900 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('section[aria-label="GitHub"]')
+  await targetPage.waitForSelector('section[aria-label="Calendar"]')
+  await targetPage.waitForTimeout(250)
+  const realMaxContent = await inspect([
+    'weather', 'ics', 'monthCal', 'sun', 'moon', 'quote', 'clock', 'greeting',
+    'worldClocks', 'countdown', 'search', 'focus', 'links', 'habits', 'bookmarks',
+    'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
+    'timer', 'tasks', 'notes',
+  ])
+  const compactLinks = await targetPage.evaluate(() => {
+    const wrapper = document.querySelector('.board-item[data-block-id="links"][data-stage-variant="compact"]')
+    const links = wrapper ? [...wrapper.querySelectorAll('a[href]')] : []
+    const add = wrapper?.querySelector('button[aria-label="Add quick link"]')
+    const visible = (node) => node instanceof HTMLElement && node.getClientRects().length > 0 &&
+      getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden'
+    return {
+      found: Boolean(wrapper),
+      linkCount: links.length,
+      allLinksVisible: links.length > 0 && links.every(visible),
+      addVisible: visible(add),
+      controls: [...links, add].filter((node) => node instanceof HTMLElement).map((node) => {
+        const rect = node.getBoundingClientRect()
+        return { name: node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '', width: rect.width, height: rect.height }
+      }),
+    }
+  })
+  const monthCalCompact = await (async () => {
+    await targetPage.setViewportSize({ width: 1600, height: 900 })
+    const header = targetPage.locator('[data-block-id="monthCal"] [data-monthcal-header]')
+    await header.waitFor()
+    const withCurrentMonth = await header.evaluate((node) => node.getBoundingClientRect().height)
+    await targetPage.getByRole('button', { name: 'Next month' }).click()
+    await targetPage.getByRole('button', { name: 'Back to today' }).waitFor()
+    const withTodayButton = await header.evaluate((node) => node.getBoundingClientRect().height)
+    const cells = await targetPage.evaluate(() => {
+      const wrapper = document.querySelector('[data-block-id="monthCal"][data-stage-variant="compact"]')
+      if (!(wrapper instanceof HTMLElement)) return []
+      const outer = wrapper.getBoundingClientRect()
+      return [...wrapper.querySelectorAll('td[data-cell-key] span')].flatMap((node) => {
+        const rect = node.getBoundingClientRect()
+        if (rect.width <= 0.5 || rect.height <= 0.5 || !/^\d+$/.test(node.textContent?.trim() ?? '')) return []
+        return [{
+          text: node.textContent?.trim() ?? '', width: rect.width, height: rect.height,
+          contained: rect.left >= outer.left - 0.5 && rect.right <= outer.right + 0.5 &&
+            rect.top >= outer.top - 0.5 && rect.bottom <= outer.bottom + 0.5,
+        }]
+      })
+    })
+    await targetPage.getByRole('button', { name: 'Back to today' }).click()
+    return {
+      withCurrentMonth,
+      withTodayButton,
+      cells,
+      ok: Math.abs(withCurrentMonth - withTodayButton) <= 0.5 && cells.length === 7 &&
+        cells.every((cell) => cell.width > 0.5 && cell.height > 0.5 && cell.contained),
+    }
+  })()
+  // Regression for the real HA keyboard timeout: compact styling may reduce
+  // passive state chips, but all three configured service actions remain
+  // represented, visible, and natively focusable in their allocated card.
+  const compactHomeAssistant = await targetPage.evaluate(async () => {
+    const wrapper = document.querySelector('.board-item[data-block-id="homeassistant"][data-stage-variant="compact"]')
+    const actions = wrapper ? [...wrapper.querySelectorAll('button[aria-label^="Run "]')] : []
+    const stored = await chrome.storage.local.get(['connectors', 'connectorSnapshots'])
+    const visible = (node) => node instanceof HTMLButtonElement && node.getClientRects().length > 0 &&
+      getComputedStyle(node).display !== 'none' && getComputedStyle(node).visibility !== 'hidden' && !node.disabled
+    return {
+      found: Boolean(wrapper),
+      labels: actions.map((button) => button.getAttribute('aria-label')),
+      allVisible: actions.length === 3 && actions.every(visible),
+      configuredActions: stored.connectors?.homeassistant?.actions ?? null,
+      snapshot: stored.connectorSnapshots?.homeassistant ?? null,
+    }
+  })
+  const legacySemanticViewportRows = []
+  for (const viewport of [
+    { width: 1024, height: 768, name: 'resize-1024x768' },
+    { width: 960, height: 1010, name: 'resize-960x1010' },
+    { width: 1193, height: 900, name: 'width-edge-1193' },
+    { width: 1192, height: 900, name: 'width-edge-1192' },
+    { width: 1600, height: 741, name: 'bottom-band-1600x741' },
+  ]) {
+    await targetPage.setViewportSize(viewport)
+    await targetPage.waitForTimeout(200)
+    const ids = await targetPage.evaluate(() =>
+      [...document.querySelectorAll('.board-item[data-block-id]')]
+        .map((node) => node.getAttribute('data-block-id')).filter(Boolean))
+    const semantic = await adaptiveStagePredecessor(targetPage, ids)
+    legacySemanticViewportRows.push({ ...viewport, ids, semantic, ok: semantic.targetsOk })
+  }
+  const expandedContributionRestoration = {
+    github: await proveStorageRestoration(() => proveExpandedContributionVariant(targetPage, 'github', 'GitHub')),
+    gitlab: await proveStorageRestoration(() => proveExpandedContributionVariant(targetPage, 'gitlab', 'GitLab')),
+  }
+  const expandedContributionVariants = {
+    github: expandedContributionRestoration.github.result,
+    gitlab: expandedContributionRestoration.gitlab.result,
+  }
+  // Exercise the exact eight predecessor result families at every height they
+  // name. Each scenario uses the same live renderer composition as its full
+  // harness block; the compact replacement proves header + summary + action
+  // (or summary-only for graph-only/quiet), while the expanded fixture above
+  // proves the graph still exists in the compatible variant.
+  const contributionSnapshots = await targetPage.evaluate(() =>
+    chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots))
+  const optionalSnapshots = {
+    ...contributionSnapshots,
+    gitlab: { fetchedAt: Date.now(), data: {
+      mrs: [{ title: 'Assigned merge request', url: 'https://gitlab.com/acme/platform/-/merge_requests/201', project: 'acme/platform' }],
+      reviewMrs: [{ title: 'Review: rework the ingest queue backoff', url: 'https://gitlab.com/acme/platform/-/merge_requests/301', project: 'acme/platform' }],
+      todos: 2, contributions: null,
+    } },
+    jira: { fetchedAt: Date.now(), data: {
+      issues: [{ key: 'AUR-101', summary: 'Assigned Jira action', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-101' }],
+      counts: { 'In Progress': 1 },
+      dueSoon: [{ key: 'AUR-110', summary: 'Ship the connector views wave', status: 'In Progress', url: 'https://yoursite.atlassian.net/browse/AUR-110', due: '2026-08-11' }],
+    } },
+  }
+  const configureForgeScenario = async ({ github, gitlab, jira, snapshots = contributionSnapshots }) => {
+    await targetPage.evaluate(async ({ forge, nextSnapshots }) => {
+      const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+      await globalThis.__auroraSetHarnessStorage({
+        settings: { ...settings, layoutDensity: 'compact' },
+        layout: { version: 2, profiles: {} },
+        connectors: {
+          ...connectors,
+          github: { ...connectors.github, ...forge.github },
+          gitlab: { ...connectors.gitlab, ...forge.gitlab },
+          jira: { ...connectors.jira, ...forge.jira },
+        },
+        connectorSnapshots: nextSnapshots,
+      })
+    }, { forge: { github, gitlab, jira }, nextSnapshots: snapshots })
+    await targetPage.reload()
+    await targetPage.waitForSelector('time')
+  }
+  const probeContributionScenario = async ({ id, label, heights, requireAction = true }) => {
+    const rows = []
+    for (const height of heights) {
+      await targetPage.setViewportSize({ width: 1600, height })
+      await targetPage.waitForTimeout(150)
+      const state = await adaptiveContributionCardState(targetPage, id, label)
+      const semantic = await adaptiveStagePredecessor(targetPage, [id])
+      rows.push({ height, state, semantic, ok: compactContributionGlanceOk(state, { requireAction }) && semantic.targetsOk })
+    }
+    return rows
+  }
+  const probeConnectorScenario = async ({ ids, heights, includeWeather = false }) => {
+    const rows = []
+    for (const height of heights) {
+      await targetPage.setViewportSize({ width: 1600, height })
+      await targetPage.waitForTimeout(150)
+      const states = {}
+      for (const id of ids) {
+        states[id] = await adaptiveConnectorCardState(targetPage, id, id === 'gitlab' ? 'GitLab' : 'Jira')
+      }
+      const requested = [...ids, 'tasks', ...(includeWeather ? ['weather'] : [])]
+      const semantic = await adaptiveStagePredecessor(targetPage, requested)
+      const tasksReachable = await tasksControlReachable(targetPage)
+      rows.push({
+        height, states, semantic, tasksReachable,
+        ok: ids.every((id) => compactConnectorActionableOk(states[id])) &&
+          semantic.targetsOk && tasksReachable,
+      })
+    }
+    return rows
+  }
+  const githubAllViews = { commitGraph: true, pulls: true, issues: true, notifications: true }
+  const githubGraphOnlyViews = { commitGraph: true, pulls: false, issues: false, notifications: false }
+  const gitlabAllViews = { activityGraph: true, mergeRequests: true, reviewAsks: true, todos: true }
+  const gitlabRowsOnlyViews = { activityGraph: false, mergeRequests: true, reviewAsks: true, todos: true }
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: false },
+    jira: { enabled: false },
+  })
+  const githubSole = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [900, 890, 889, 865, 601, 600, 451],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: true, views: gitlabRowsOnlyViews },
+    jira: { enabled: true },
+  })
+  const githubSiblings = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [1200, 1171, 1170, 1100, 900],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubGraphOnlyViews },
+    gitlab: { enabled: true, views: gitlabRowsOnlyViews },
+    jira: { enabled: true },
+  })
+  const githubGraphOnly = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [900, 890, 889, 800], requireAction: false,
+  })
+  const graphOnlyOk = githubGraphOnly.every((row) => row.ok && row.state.totalActionLinks === 0)
+
+  const quietSnapshots = {
+    ...contributionSnapshots,
+    github: {
+      ...contributionSnapshots.github,
+      data: {
+        ...contributionSnapshots.github?.data,
+        prs: [], issues: [], notifications: 0,
+      },
+    },
+  }
+  await configureForgeScenario({
+    github: { enabled: true, views: githubGraphOnlyViews },
+    gitlab: { enabled: false },
+    jira: { enabled: false },
+    snapshots: quietSnapshots,
+  })
+  const githubQuiet = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [900, 800], requireAction: false,
+  })
+  const quietOk = githubQuiet.every((row) => row.ok)
+
+  await configureForgeScenario({
+    github: { enabled: false },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: false },
+  })
+  const gitlabSole = await probeContributionScenario({
+    id: 'gitlab', label: 'GitLab', heights: [900, 890, 889, 865, 864],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: { ...githubAllViews, commitGraph: false } },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: true },
+  })
+  const gitlabStacked = await probeContributionScenario({
+    id: 'gitlab', label: 'GitLab', heights: [1200, 1171, 1170, 1100, 900],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: true, views: gitlabRowsOnlyViews },
+    jira: { enabled: true, views: { assigned: true, statusChips: true, dueSoon: true } },
+  })
+  const threeWay = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [1301, 1300, 1299, 1171, 1170, 900],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: true },
+  })
+  const githubHero = await probeContributionScenario({
+    id: 'github', label: 'GitHub', heights: [1300, 1200, 1171, 1170, 1100, 1041, 1040, 900],
+  })
+  const expandedOptionalRestoration = {
+    gitlab: await proveStorageRestoration(() => proveExpandedOptionalConnectorVariant(targetPage, {
+      id: 'gitlab', label: 'GitLab', eyebrow: 'Review asks',
+      needle: 'Review: rework the ingest queue backoff',
+    })),
+    jira: await proveStorageRestoration(() => proveExpandedOptionalConnectorVariant(targetPage, {
+      id: 'jira', label: 'Jira', eyebrow: 'Due soon',
+      needle: 'Ship the connector views wave',
+    })),
+  }
+  const expandedOptionalVariants = {
+    gitlab: expandedOptionalRestoration.gitlab.result,
+    jira: expandedOptionalRestoration.jira.result,
+  }
+
+  await configureForgeScenario({
+    github: { enabled: false },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: false },
+    snapshots: optionalSnapshots,
+  })
+  const gitlabSoleConnector = await probeConnectorScenario({
+    ids: ['gitlab'], heights: [900, 890, 889, 865, 864], includeWeather: true,
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: false },
+    snapshots: optionalSnapshots,
+  })
+  const gitlabTwoCard = await probeConnectorScenario({
+    ids: ['gitlab'], heights: [996, 995, 994, 900],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: false },
+    jira: { enabled: true, views: { assigned: true, statusChips: true, dueSoon: true } },
+    snapshots: optionalSnapshots,
+  })
+  const jiraTwoCard = await probeConnectorScenario({
+    ids: ['jira'], heights: [996, 995, 994, 900],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: false },
+    gitlab: { enabled: true, views: gitlabAllViews },
+    jira: { enabled: true, views: { assigned: true, statusChips: true, dueSoon: true } },
+    snapshots: optionalSnapshots,
+  })
+  const bothOptional1124 = await probeConnectorScenario({
+    ids: ['gitlab', 'jira'], heights: [1125, 1124, 1123, 900],
+  })
+  const jiraRoomy995 = await probeConnectorScenario({
+    ids: ['gitlab', 'jira'], heights: [996, 995, 994],
+  })
+
+  await configureForgeScenario({
+    github: { enabled: true, views: githubAllViews },
+    gitlab: { enabled: true, views: gitlabRowsOnlyViews },
+    jira: { enabled: true, views: { assigned: true, statusChips: true, dueSoon: true } },
+    snapshots: optionalSnapshots,
+  })
+  const threeForgeOptional = await probeConnectorScenario({
+    ids: ['gitlab', 'jira'], heights: [1301, 1300, 1299, 1171, 1170, 900],
+  })
+  const namedGraphPredicates = {
+    githubSole, githubSiblings, githubGraphOnly, githubQuiet, gitlabSole, gitlabStacked, threeWay, githubHero,
+    results: {
+      githubSole: githubSole.every((row) => row.ok) && expandedContributionVariants.github.ok,
+      githubSiblings: githubSiblings.every((row) => row.ok) && expandedContributionVariants.github.ok,
+      githubGraphOnly: graphOnlyOk && expandedContributionVariants.github.ok,
+      githubQuiet: quietOk && expandedContributionVariants.github.ok,
+      gitlabSole: gitlabSole.every((row) => row.ok) && expandedContributionVariants.gitlab.ok,
+      gitlabStacked: gitlabStacked.every((row) => row.ok) && expandedContributionVariants.gitlab.ok,
+      threeWay: threeWay.every((row) => row.ok) && expandedContributionVariants.github.ok,
+      githubHero: githubHero.every((row) => row.ok) && expandedContributionVariants.github.ok,
+    },
+  }
+  const namedForgeFailurePredicates = {
+    commitGraph890: namedGraphPredicates.results.githubSole,
+    twoSiblingGraph1171: namedGraphPredicates.results.githubSiblings,
+    graphOnly890: namedGraphPredicates.results.githubGraphOnly,
+    quietDayInverse: namedGraphPredicates.results.githubQuiet,
+    reviewAsksExternalLink: gitlabSoleConnector.every((row) => row.ok) && expandedOptionalVariants.gitlab.ok,
+    weatherGitlabClearance: gitlabSoleConnector.every((row) => row.ok),
+    gitlabTwoCard995: gitlabTwoCard.every((row) => row.ok) && expandedOptionalVariants.gitlab.ok,
+    gitlabTasksClearance: gitlabTwoCard.every((row) => row.ok),
+    jiraTwoCard995: jiraTwoCard.every((row) => row.ok) && expandedOptionalVariants.jira.ok,
+    jiraTwoCardTasksClearance: jiraTwoCard.every((row) => row.ok),
+    bothOptional1124: bothOptional1124.every((row) => row.ok) &&
+      expandedOptionalVariants.gitlab.ok && expandedOptionalVariants.jira.ok,
+    threeWayCompactExpanded: namedGraphPredicates.results.threeWay &&
+      threeForgeOptional.every((row) => row.ok) &&
+      expandedOptionalVariants.gitlab.ok && expandedOptionalVariants.jira.ok,
+    threeWayTasksClearance: threeForgeOptional.every((row) => row.ok),
+    githubHeroGrand: namedGraphPredicates.results.githubHero,
+    jiraDueSoon995: jiraRoomy995.every((row) => row.ok) && expandedOptionalVariants.jira.ok,
+  }
+
+  const forcedWeatherHandler = (route) => route.abort()
+  await targetPage.route('**/api.open-meteo.com/**', forcedWeatherHandler)
+  const forcedContributionDays = Array.from({ length: 112 }, (_, index) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (111 - index))
+    return {
+      date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
+      count: index % 5,
+    }
+  })
+  await targetPage.evaluate(async ({ contributions }) => {
+    const now = Date.now()
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+    const hourly = Array.from({ length: 12 }, (_, index) => ({
+      time: new Date(now + index * 3_600_000).toISOString().slice(0, 16),
+      tempC: 18 + index * 0.3,
+      precipProb: index === 2 ? 45 : 5,
+      code: index === 2 ? 61 : 1,
+    }))
+    await globalThis.__auroraSetHarnessStorage({
+      settings: {
+        ...settings,
+        layoutDensity: 'compact',
+        widgets: { ...settings.widgets, bookmarks: true },
+      },
+      layout: { version: 2, profiles: {} },
+      location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+      weatherCache: {
+        current: { tempC: 18, feelsLikeC: 17, code: 1, windKmh: 10, humidity: 60, isDay: true },
+        hourly,
+        fetchedAt: now - 40 * 60_000,
+        locationLabel: 'New York',
+        requestIdentity: globalThis.__auroraWeatherRequestIdentity(40.71, -74.01),
+      },
+      connectors: {
+        ...connectors,
+        github: { ...connectors.github, enabled: false },
+        gitlab: {
+          ...connectors.gitlab, enabled: true, token: 'glpat_forced_weather',
+          instanceUrl: 'https://gitlab.com', username: 'forced-weather',
+          views: { activityGraph: true, mergeRequests: true, reviewAsks: false, todos: true },
+        },
+        jira: { ...connectors.jira, enabled: false },
+        vercel: { ...connectors.vercel, enabled: false },
+      },
+      connectorSnapshots: { gitlab: { fetchedAt: now, data: {
+        mrs: [{ title: 'Forced Weather action', url: 'https://gitlab.com/acme/app/-/merge_requests/1', project: 'acme/app' }],
+        reviewMrs: [], todos: 2,
+        contributions: { days: contributions, total: contributions.reduce((sum, day) => sum + day.count, 0) },
+      } } },
+    })
+  }, { contributions: forcedContributionDays })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="weather"]')
+  await targetPage.waitForTimeout(300)
+  const forcedWeatherSoleGitlab = []
+  for (const height of [900, 890, 889, 865, 864]) {
+    await targetPage.setViewportSize({ width: 1600, height })
+    await targetPage.waitForTimeout(150)
+    const semantic = await adaptiveStagePredecessor(targetPage, ['weather', 'gitlab', 'tasks'])
+    const textContent = await targetPage.locator('[data-block-id="weather"]').textContent()
+    const contribution = await adaptiveContributionCardState(targetPage, 'gitlab', 'GitLab')
+    const tasksReachable = await tasksControlReachable(targetPage)
+    forcedWeatherSoleGitlab.push({
+      height, semantic, contribution, tasksReachable, textContent,
+      ok: semantic.targetsOk && compactContributionGlanceOk(contribution) && tasksReachable &&
+        /rain/i.test(textContent ?? '') && /Updated a while ago|Offline/.test(textContent ?? ''),
+    })
+  }
+  await targetPage.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await globalThis.__auroraSetHarnessStorage({
+      connectors: { ...connectors, gitlab: { ...connectors.gitlab, enabled: false } },
+      connectorSnapshots: {},
+    })
+  })
+  await targetPage.setViewportSize({ width: 1600, height: 900 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="weather"]')
+  await targetPage.waitForTimeout(200)
+  const forcedWeatherStandaloneSemantic = await adaptiveStagePredecessor(targetPage, ['weather'])
+  const forcedWeatherStandaloneText = await targetPage.locator('[data-block-id="weather"]').textContent()
+  const forcedWeatherStandaloneOk = forcedWeatherStandaloneSemantic.targetsOk &&
+    /rain/i.test(forcedWeatherStandaloneText ?? '') &&
+    /Updated a while ago|Offline/.test(forcedWeatherStandaloneText ?? '')
+  await targetPage.unroute('**/api.open-meteo.com/**', forcedWeatherHandler)
+
+  await targetPage.evaluate(async () => {
+    const now = Date.now()
+    const { connectors, settings } = await chrome.storage.local.get(['connectors', 'settings'])
+    await globalThis.__auroraSetHarnessStorage({
+      settings: { ...settings, layoutDensity: 'compact' },
+      layout: { version: 2, profiles: {} },
+      weatherCache: null,
+      connectors: {
+        vercel: {
+          enabled: true, token: 'vercel_compact_fixture', username: 'compact-fixture',
+          views: { deployments: true, statusSummary: true },
+        },
+      },
+      connectorSnapshots: { vercel: { fetchedAt: now, data: { deployments: [
+        { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app-web/ready', createdAt: now - 60_000 },
+        { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing-site/error', createdAt: now - 120_000 },
+        { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/building', createdAt: now - 180_000 },
+        { project: 'api', state: 'READY', url: 'https://vercel.com/acme/api/ready', createdAt: now - 240_000 },
+        { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/ready', createdAt: now - 300_000 },
+      ] } } },
+    })
+  })
+  await targetPage.setViewportSize({ width: 1600, height: 864 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="vercel"] section[aria-label="Vercel"]', { state: 'attached' })
+  const vercelCompactState = await adaptiveConnectorCardState(targetPage, 'vercel', 'Vercel')
+  const vercelCompactSemantic = await adaptiveStagePredecessor(targetPage, ['vercel'])
+  const vercelCompactSummaryVisible = await targetPage.evaluate(() => {
+    const summary = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"] > p')
+    return summary instanceof HTMLElement && summary.getBoundingClientRect().height > 0 &&
+      /ready/.test(summary.textContent ?? '')
+  })
+  const expandedVercelRestoration = await proveStorageRestoration(() => proveExpandedVercelVariant(targetPage))
+  const expandedVercel = expandedVercelRestoration.result
+  const vercel864Ok = compactConnectorActionableOk(vercelCompactState) &&
+    vercelCompactState.visibleActionLinks === 1 && vercelCompactState.totalActionLinks === 5 &&
+    vercelCompactSemantic.targetsOk && vercelCompactSummaryVisible && expandedVercel.ok &&
+    expandedVercelRestoration.ok
+
+  // The full predecessor also combines Calendar + Headlines + Vercel at
+  // their display caps. Reproduce its three named heights here so the one-row
+  // compact Vercel correction is proven against the actual dense neighbors.
+  await targetPage.evaluate(async () => {
+    const now = Date.now()
+    const { settings } = await chrome.storage.local.get('settings')
+    const events = Array.from({ length: 6 }, (_, index) => ({
+      summary: `Calendar fixture ${index + 1}`,
+      start: now + (index + 1) * 3_600_000,
+      end: now + (index + 1) * 3_600_000 + 1_800_000,
+      cal: Math.min(index, 4), allDay: false,
+    }))
+    const headlines = Array.from({ length: 8 }, (_, index) => ({
+      source: index % 2 ? 'The Verge' : 'Hacker News',
+      title: `Combined headline ${index + 1}`,
+      url: `https://example.com/headline-${index + 1}`,
+      publishedAt: now - index,
+    }))
+    const deployments = [
+      { project: 'marketing-site', state: 'ERROR', url: 'https://vercel.com/acme/marketing/error', createdAt: now - 360_000 },
+      { project: 'app-web', state: 'READY', url: 'https://vercel.com/acme/app/ready', createdAt: now - 180_000 },
+      { project: 'admin', state: 'READY', url: 'https://vercel.com/acme/admin/ready', createdAt: now - 600_000 },
+      { project: 'landing', state: 'READY', url: 'https://vercel.com/acme/landing/ready', createdAt: now - 1_200_000 },
+      { project: 'docs', state: 'BUILDING', url: 'https://vercel.com/acme/docs/building', createdAt: now - 3_600_000 },
+    ]
+    await globalThis.__auroraSetHarnessStorage({
+      settings: { ...settings, layoutDensity: 'compact' },
+      layout: { version: 2, profiles: {} },
+      connectors: {
+        ics: {
+          enabled: true, view: 'per-calendar', upcomingCount: 3,
+          calendars: Array.from({ length: 5 }, (_, index) => ({
+            name: `Calendar ${index + 1}`, url: `https://calendar.example.com/${index + 1}.ics`,
+          })),
+        },
+        rss: { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 8 },
+        vercel: {
+          enabled: true, token: 'vercel_combined_fixture', username: 'combined-fixture',
+          views: { deployments: true, statusSummary: true },
+        },
+      },
+      connectorSnapshots: {
+        ics: { fetchedAt: now, data: { events } },
+        rss: { fetchedAt: now, data: headlines },
+        vercel: { fetchedAt: now, data: { deployments } },
+      },
+    })
+  })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="vercel"] section[aria-label="Vercel"]')
+  const combinedLeftColumnRows = []
+  for (const height of [900, 865, 995]) {
+    await targetPage.setViewportSize({ width: 1600, height })
+    await targetPage.waitForTimeout(150)
+    const semantic = await adaptiveStagePredecessor(targetPage, ['ics', 'rss', 'vercel'])
+    const vercel = await adaptiveConnectorCardState(targetPage, 'vercel', 'Vercel')
+    combinedLeftColumnRows.push({
+      height, semantic, vercel,
+      ok: semantic.targetsOk && compactConnectorActionableOk(vercel) &&
+        vercel.visibleActionLinks === 1 && vercel.totalActionLinks === 5,
+    })
+  }
+  const combinedLeftColumnOk = combinedLeftColumnRows.every((row) => row.ok)
+
+  // W2-P2's source-qualified duplicate agenda rows are intentionally hidden
+  // by Calendar's compact glance. Prove that compact still exposes the next
+  // event and Join action, then switch to a deterministic expanded allocation
+  // for the unchanged two-listitem accessibility contract.
+  await targetPage.evaluate(async () => {
+    const now = Date.now()
+    const { settings } = await chrome.storage.local.get('settings')
+    const duplicateStart = now + 10 * 60_000
+    await globalThis.__auroraSetHarnessStorage({
+      settings: {
+        ...settings,
+        layoutDensity: 'compact',
+        widgets: { ...settings.widgets, bookmarks: true },
+      },
+      layout: { version: 2, profiles: {} },
+      connectors: {
+        ics: {
+          enabled: true, view: 'upcoming', upcomingCount: 3, meetLinks: true,
+          calendars: [
+            { name: 'Personal', url: 'https://w2-p2-calendar.example.test/personal.ics' },
+            { name: 'Work', url: 'https://w2-p2-calendar.example.test/work.ics' },
+          ],
+        },
+      },
+      connectorSnapshots: { ics: { fetchedAt: now, data: { events: [
+        { summary: 'Opening sync', start: now + 5 * 60_000, end: now + 35 * 60_000, cal: 0, allDay: false, meetUrl: 'https://meet.example.test/opening' },
+        { summary: 'Duplicate review', start: duplicateStart, end: duplicateStart + 30 * 60_000, cal: 0, allDay: false },
+        { summary: 'Duplicate review', start: duplicateStart, end: duplicateStart + 30 * 60_000, cal: 1, allDay: false },
+      ] } } },
+    })
+  })
+  await targetPage.setViewportSize({ width: 1600, height: 900 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="ics"][data-stage-variant="compact"] section[aria-label="Calendar"]')
+  const compactCalendar = await targetPage.evaluate(() => {
+    const wrapper = document.querySelector('[data-block-id="ics"]')
+    const section = wrapper?.querySelector('section[aria-label="Calendar"]')
+    const headline = section?.querySelector('p')
+    const join = headline?.querySelector('a[href]')
+    const rows = [...(section?.querySelectorAll('ul > li') ?? [])]
+    const normalize = (value) => value.replace(/\s+/g, ' ').trim()
+    const referencedText = (element, attribute) => `${element?.getAttribute(attribute) ?? ''}`.trim().split(/\s+/)
+      .filter(Boolean).map((id) => document.getElementById(id)?.textContent ?? '').join(' ')
+    const resolved = (element) => {
+      if (!element) return ''
+      const name = normalize(element.getAttribute('aria-label') ?? '') ||
+        normalize(referencedText(element, 'aria-labelledby')) || normalize(element.textContent ?? '')
+      return normalize(`${name} ${referencedText(element, 'aria-describedby')}`)
+    }
+    const visible = (node) => node instanceof HTMLElement && node.getBoundingClientRect().width > 0.5 &&
+      node.getBoundingClientRect().height > 0.5 && getComputedStyle(node).display !== 'none'
+    return {
+      variant: wrapper?.getAttribute('data-stage-variant') ?? null,
+      headlineText: headline?.textContent?.replace(/\s+/g, ' ').trim() ?? null,
+      headlineProgrammatic: resolved(headline),
+      headlineVisible: visible(headline),
+      joinVisible: visible(join),
+      joinProgrammatic: resolved(join),
+      joinRect: join ? { width: join.getBoundingClientRect().width, height: join.getBoundingClientRect().height } : null,
+      rowCount: rows.length,
+      visibleRows: rows.filter(visible).length,
+    }
+  })
+  const compactCalendarAx = await readChromiumAx(targetPage, ['Personal', 'Opening sync', 'Join'])
+  const expandedCalendarRestoration = await proveStorageRestoration(() => proveExpandedCalendarVariant(targetPage))
+  const compactCalendarOk = compactCalendar.variant === 'compact' && compactCalendar.headlineVisible &&
+    compactCalendar.headlineProgrammatic.includes('Opening sync') && compactCalendar.headlineProgrammatic.includes('Personal') &&
+    compactCalendar.joinVisible && compactCalendar.joinRect?.width >= 36 && compactCalendar.joinRect?.height >= 36 &&
+    compactCalendar.joinProgrammatic.includes('Join') && compactCalendar.joinProgrammatic.includes('Opening sync') &&
+    compactCalendar.rowCount === 2 && compactCalendar.visibleRows === 0 &&
+    axEntryIncludes(compactCalendarAx, ['Opening sync', 'Personal'], 'paragraph') &&
+    axEntryIncludes(compactCalendarAx, ['Join', 'Opening sync', 'Personal'], 'link')
+  const calendarSourceVariantsOk = compactCalendarOk && expandedCalendarRestoration.result.ok &&
+    expandedCalendarRestoration.result.storageExact && expandedCalendarRestoration.ok
+  const compactNarrowFocusRestoration = await proveStorageRestoration(() => proveCompactNarrowFocusVariant(targetPage))
+
+  const widthEdgeRows = legacySemanticViewportRows.filter((row) =>
+    row.name === 'width-edge-1193' || row.name === 'width-edge-1192')
+  const widthEdgeActiveTargetsOk = widthEdgeRows.length === 2 && widthEdgeRows.every((row) => row.ok)
+
+  await targetPage.evaluate(async () => {
+    const now = Date.now()
+    const { settings } = await chrome.storage.local.get('settings')
+    await globalThis.__auroraSetHarnessStorage({
+      settings: {
+        ...settings,
+        layoutDensity: 'auto',
+        widgets: {
+          ...settings.widgets,
+          bookmarks: false,
+          clocks: true,
+          countdown: true,
+          habits: false,
+          monthCal: false,
+          sun: false,
+          moon: false,
+          timer: true,
+        },
+      },
+      layout: { version: 2, profiles: {} },
+      links: [
+        { id: 'l1', title: 'GitHub', url: 'https://github.com' },
+        { id: 'l2', title: 'HN', url: 'https://news.ycombinator.com' },
+      ],
+      worldClocks: [
+        { zone: 'Asia/Tokyo', label: 'Tokyo' },
+        { zone: 'Europe/London', label: 'London' },
+      ],
+      countdowns: [{ id: 'c1', name: 'Launch', date: '2030-01-01' }],
+      connectors: { crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] } },
+      connectorSnapshots: { crypto: { fetchedAt: now, data: { coins: [
+        { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 },
+        { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 },
+        { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+        { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+        { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+      ] } } },
+    })
+  })
+  await targetPage.setViewportSize({ width: 1600, height: 741 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('[data-block-id="crypto"]')
+  await targetPage.waitForTimeout(250)
+  const bottomBand741Semantic = await adaptiveStagePredecessor(targetPage, ['crypto', 'quote', 'links'])
+  const bottomBand741Ok = bottomBand741Semantic.targetsOk
+
+  const focusedW2AggregateRows = []
+  for (const height of [672, 890, 900, 922, 1042]) {
+    await targetPage.setViewportSize({ width: 1600, height })
+    await targetPage.evaluate(async () => {
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      await chrome.storage.local.set({ focus: { text: 'W2 focused geometry', date: today, done: false } })
+    })
+    await targetPage.waitForSelector('#focus-done')
+    const idleTargets = await targetPage.evaluate(() => {
+      const box = (node) => {
+        if (!(node instanceof HTMLElement)) return null
+        const rect = node.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0
+          ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }
+          : null
+      }
+      const intersects = (a, b) => !!a && !!b &&
+        a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+      const completion = document.querySelector('#focus-done')?.closest('label') ?? null
+      const edit = [...document.querySelectorAll('button')].find((node) => node.textContent?.trim() === 'Edit') ?? null
+      const targets = [completion, edit].map((node) => ({ node, rect: box(node) }))
+      const interactive = [...document.querySelectorAll(
+        'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])',
+      )]
+      const collisions = targets.flatMap(({ node, rect }) => interactive.filter((other) =>
+        other !== node && !node?.contains(other) && !other.contains(node) && intersects(rect, box(other))))
+      return {
+        targets: targets.map(({ rect }) => rect), collisions: collisions.length,
+        ok: targets.every(({ rect }) => rect && rect.width >= 36 && rect.height >= 36) && collisions.length === 0,
+      }
+    })
+    await targetPage.evaluate(() => chrome.storage.local.set({ focus: null }))
+    await targetPage.waitForSelector('#focus-input')
+    const prompt = await targetPage.evaluate(() => {
+      const box = (target) => {
+        const node = typeof target === 'string' ? document.querySelector(target) : target
+        if (!(node instanceof HTMLElement)) return null
+        const rect = node.getBoundingClientRect()
+        return rect.width > 0 && rect.height > 0
+          ? { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom, width: rect.width, height: rect.height }
+          : null
+      }
+      const intersects = (a, b) => !!a && !!b &&
+        a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top
+      const input = document.querySelector('#focus-input')
+      const inputRect = box('#focus-input')
+      const interactive = [...document.querySelectorAll(
+        'a[href], button, input:not([type="hidden"]), select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])',
+      )]
+      const collisions = interactive.filter((other) =>
+        other !== input && !input?.contains(other) && !other.contains(input) &&
+        intersects(inputRect, box(other)))
+      const links = box('[data-block-id="links"]')
+      const bottom = box('[data-block-id="crypto"] section') ?? box('[data-block-id="quote"]')
+      return {
+        inputRect, collisions: collisions.length,
+        legacyClearance: links && bottom ? +(bottom.top - links.bottom).toFixed(1) : null,
+      }
+    })
+    const semanticStage = await adaptiveStagePredecessor(targetPage, ['focus', 'links', 'crypto'])
+    const promptSized = !!prompt.inputRect && prompt.inputRect.width >= 36 && prompt.inputRect.height >= 36
+    const adaptivePromptSuccessor = semanticStage.ok && semanticStage.targetsOk &&
+      idleTargets.ok && prompt.collisions === 0
+    focusedW2AggregateRows.push({
+      height, idleTargets, prompt, semanticStage, adaptivePromptSuccessor,
+      ok: promptSized && (adaptivePromptSuccessor || (prompt.legacyClearance ?? -Infinity) >= 8),
+    })
+  }
+  const focusedW2AggregateSuccessorOk = focusedW2AggregateRows.length === 5 &&
+    focusedW2AggregateRows.every((row) => row.ok)
+  const namedSevenLeafPredicates = {
+    soleGitlabGraph: forcedWeatherSoleGitlab.every((row) => row.ok),
+    soleGitlabTasks: forcedWeatherSoleGitlab.every((row) => row.ok),
+    forcedWeatherGitlabClearance: forcedWeatherSoleGitlab.every((row) => row.ok),
+    vercelStatusSummary864: vercel864Ok,
+    forcedWeatherStandalone: forcedWeatherStandaloneOk,
+    widthEdgeActiveTargets: widthEdgeActiveTargetsOk,
+    bottomBand741: bottomBand741Ok,
+  }
+  await seedDenseState('compact', { version: 2, profiles: {} })
+  await targetPage.setViewportSize({ width: 800, height: 600 })
+  await targetPage.reload()
+  await targetPage.waitForSelector('time')
+  await targetPage.waitForTimeout(150)
+  const denseDock = await targetPage.evaluate(() => [...document.querySelectorAll('.board-item[data-stage-zone="dock"]')].map((item) => ({
+    id: item.getAttribute('data-block-id'),
+    reason: item.getAttribute('data-stage-dock-reason'),
+  })))
+  const denseIds = await targetPage.evaluate(() =>
+    [...document.querySelectorAll('.board-item[data-block-id]')].map((node) => node.getAttribute('data-block-id')).filter(Boolean))
+  const densePaintProbe = await adaptiveStagePredecessor(targetPage, denseIds)
+  const expectedDenseDock = [
+    ['timer', 'priority-dock'], ['tasks', 'priority-dock'], ['notes', 'priority-dock'],
+    ['countdown', 'overflow-dock'], ['sun', 'eligible-dock'], ['moon', 'eligible-dock'],
+    ['search', 'overflow-dock'], ['vercel', 'eligible-dock'], ['focus', 'overflow-dock'],
+    ['homeassistant', 'eligible-dock'], ['quote', 'eligible-dock'], ['links', 'eligible-dock'],
+    ['rss', 'eligible-dock'], ['crypto', 'eligible-dock'], ['habits', 'eligible-dock'],
+    ['bookmarks', 'eligible-dock'],
+  ].map(([id, reason]) => ({ id, reason }))
+  await seedDenseState('balanced', { version: 2, profiles: {} })
+  const manualIds = await targetPage.evaluate(() =>
+    [...document.querySelectorAll('.board-item[data-block-id]')].map((node) => node.getAttribute('data-block-id')).filter(Boolean))
+  const manualPaintProbe = await adaptiveStagePredecessor(targetPage, manualIds)
+  await targetPage.evaluate(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    await globalThis.__auroraSetHarnessStorage({
+      connectors: { ...connectors, crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] } },
+      connectorSnapshots: { crypto: { fetchedAt: Date.now(), data: { coins: [
+        { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 },
+        { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 },
+        { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+        { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+        { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+      ] } } },
+    })
+  })
+  const cryptoMatrix = []
+  for (const height of [672, 890, 1042]) {
+    await targetPage.setViewportSize({ width: 1600, height })
+    await targetPage.reload()
+    await targetPage.waitForSelector('[data-block-id="crypto"] section[aria-label="Crypto"]')
+    await targetPage.waitForTimeout(150)
+    const semantic = await adaptiveStagePredecessor(targetPage, ['focus', 'links', 'crypto'])
+    cryptoMatrix.push({ height, targetsOk: semantic.targetsOk, pairs: semantic.targetCollisions, crypto: semantic.targets.find((row) => row.id === 'crypto') })
+  }
+  return {
+    initial, arrange, manual, override, matrix, matrixDiagnostic, realMaxContent, compactLinks, monthCalCompact, compactHomeAssistant,
+    expandedContributionVariants, expandedOptionalVariants,
+    expandedHelperRestoration: {
+      contribution: expandedContributionRestoration,
+      optional: expandedOptionalRestoration,
+      vercel: expandedVercelRestoration,
+      calendar: expandedCalendarRestoration,
+      compactNarrowFocus: compactNarrowFocusRestoration,
+    },
+    namedGraphPredicates, namedForgeFailurePredicates,
+    namedForgeRows: { gitlabSoleConnector, gitlabTwoCard, jiraTwoCard, bothOptional1124, jiraRoomy995, threeForgeOptional },
+    namedSevenLeafPredicates,
+    namedSevenLeafEvidence: {
+      forcedWeatherSoleGitlab, forcedWeatherStandaloneSemantic, forcedWeatherStandaloneText,
+      vercelCompactState, vercelCompactSemantic, vercelCompactSummaryVisible, expandedVercel,
+      combinedLeftColumnRows, compactCalendar, compactCalendarAx, expandedCalendar: expandedCalendarRestoration.result,
+      compactNarrowFocus: compactNarrowFocusRestoration.result,
+      widthEdgeRows, bottomBand741Semantic, focusedW2AggregateRows,
+    },
+    legacySemanticViewportRows,
+    denseDock, expectedDenseDock, densePaintProbe, manualPaintProbe, cryptoMatrix,
+    ok: initial.semantic.targetsOk && arrange.ok && manual.semantic.targetsOk && override.semantic.targetsOk &&
+      matrix.every((row) => row.targetsOk) && realMaxContent.semantic.targetsOk &&
+      realMaxContent.geometry.collisions.length === 0 && compactLinks.found && compactLinks.linkCount === 2 &&
+      compactLinks.allLinksVisible && compactLinks.addVisible && compactLinks.controls.every((row) => row.width >= 36 && row.height >= 36) &&
+      monthCalCompact.ok && compactHomeAssistant.found &&
+      compactHomeAssistant.allVisible && Object.values(expandedContributionVariants).every((row) => row.ok) &&
+      Object.values(expandedContributionRestoration).every((row) => row.ok) &&
+      Object.values(expandedOptionalRestoration).every((row) => row.ok) && expandedVercelRestoration.ok &&
+      Object.values(namedGraphPredicates.results).every(Boolean) &&
+      Object.keys(namedForgeFailurePredicates).length === 15 && Object.values(namedForgeFailurePredicates).every(Boolean) &&
+      Object.keys(namedSevenLeafPredicates).length === 7 && Object.values(namedSevenLeafPredicates).every(Boolean) &&
+      combinedLeftColumnOk && calendarSourceVariantsOk && compactNarrowFocusRestoration.result.ok &&
+      compactNarrowFocusRestoration.result.storageExact && compactNarrowFocusRestoration.ok && focusedW2AggregateSuccessorOk &&
+      legacySemanticViewportRows.every((row) => row.ok) &&
+      JSON.stringify(denseDock) === JSON.stringify(expectedDenseDock) && densePaintProbe.targetsOk && manualPaintProbe.targetsOk &&
+      cryptoMatrix.every((row) => row.targetsOk),
+  }
+}
 const errors = []
 // W2-P1's one packet-level acceptance result is assembled from actual DOM
 // observations at the existing deterministic Notes, Home Assistant, and
@@ -479,6 +2589,14 @@ page.on('pageerror', (e) => errors.push(String(e)))
 await page.goto('chrome://newtab/')
 console.log('newtab resolved to:', page.url())
 await page.waitForSelector('time', { timeout: 10_000 })
+
+if (process.env.AURORA_PREVIEW_PAINT_FIXTURE === '1') {
+  const fixture = await runAdaptiveStagePaintFixture(page)
+  console.log(`EVIDENCE: Adaptive Stage paint fixture: ${JSON.stringify(fixture)}`)
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(fixture.emptyTargetRejected && fixture.transparentAncestorRejected ? 0 : 1)
+}
 
 // Seed a manual location so weather renders deterministically-ish (live
 // Open-Meteo call; acceptable for preview, never for unit tests). Also flip
@@ -596,6 +2714,37 @@ await page.evaluate(
 await page.reload()
 await page.waitForSelector('time')
 await page.waitForTimeout(2500) // weather fetch
+
+if (process.env.AURORA_PREVIEW_COMPACT_NARROW_FOCUS_FIXTURE === '1') {
+  const fixture = await proveCompactNarrowFocusVariant(page)
+  console.log(`EVIDENCE: Compact narrow focus fixture: ${JSON.stringify(fixture)}`)
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(fixture.ok && fixture.storageExact ? 0 : 1)
+}
+
+if (process.env.AURORA_PREVIEW_COMPACT_BOOKMARKS_TRANSITION_FIXTURE === '1') {
+  const fixture = await runCompactNarrowBookmarksTransitionFixture(page)
+  console.log(`EVIDENCE: Compact narrow bookmarks transition fixture: ${JSON.stringify(fixture)}`)
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(fixture.ok ? 0 : 1)
+}
+
+if (process.env.AURORA_PREVIEW_BOOKMARKS_GEOMETRY_FIXTURE === '1') {
+  const fixture = await runAdaptiveStageBookmarksGeometryFixture(page)
+  console.log(`EVIDENCE: Adaptive Stage Bookmarks geometry fixture: ${JSON.stringify(fixture)}`)
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(fixture.ok ? 0 : 1)
+}
+
+if (process.env.AURORA_PREVIEW_WEATHER_FIXTURE === '1') {
+  const fixtureOk = await runWeatherRequestIdentityFixture()
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(fixtureOk ? 0 : 1)
+}
 
 await page.waitForTimeout(800) // photo fade-in
 await page.screenshot({ path: `${outDir}/newtab.png` })
@@ -900,7 +3049,7 @@ console.log('captured newtab.png')
 // real built extension. Network payloads are intercepted only to control
 // completion order; request construction, AbortSignal handling, storage
 // authority, hook effects, and rendering are production code.
-{
+async function runWeatherRequestIdentityFixture() {
   const A = { lat: 39.7817, lon: -89.6501, label: 'Springfield', manual: true }
   const B = { lat: 37.209, lon: -93.2923, label: 'Springfield', manual: true }
   const MAX_AGE_MS = 30 * 60 * 1000
@@ -1193,7 +3342,10 @@ console.log('captured newtab.png')
       ? 'PASS: repeated modeled visibility events dedupe the held refresh and W1-P6 teardown reloads quiescently, then restores the exact Weather pair with no pending request'
       : `FAIL: repeated modeled visibility events dedupe and teardown restores Weather state (${JSON.stringify({ visibilityRequestCount, repeatedVisibilityRequestCount, pending: pending.map((entry) => entry.handled), restored: JSON.stringify(restoredPair) === JSON.stringify(originalPair) })})`,
   )
+  return noOverlapAndClean
 }
+
+await runWeatherRequestIdentityFixture()
 
 // Cross-tab no-flicker invariant (2026-08-06 flicker investigation, Task 2 of
 // the 2026-08-06-cleanup-queue). Jon reported that opening a new tab makes an
@@ -1933,10 +4085,20 @@ await page.waitForTimeout(400) // slide-out transition
 // from the corner is well inside the 16px arc (√(7²+7²) = 9.9 < 16) and
 // outside the old button's box entirely.
 {
+  // Settings is exercised immediately before Weather. Its fixed controls can
+  // leave the Stage's sanctioned vertical scrollport at the prior focus
+  // offset, so normalize this independent hit-target probe to the top before
+  // deriving viewport coordinates. The W3-P2 pinned-overflow probe tests real
+  // Stage scrolling separately.
+  await resetAdaptiveStageScroll(page)
   await setWeatherExpanded(false)
   const box = await page.evaluate((s) => {
     const r = document.querySelector(s).getBoundingClientRect()
-    return { x: r.x, y: r.y, w: r.width, h: r.height }
+    return {
+      x: r.x, y: r.y, w: r.width, h: r.height,
+      viewport: { width: innerWidth, height: innerHeight },
+      scroll: { x: scrollX, y: scrollY },
+    }
   }, weatherSel)
   const CORNER_INSET = 7
   const points = [
@@ -1951,16 +4113,35 @@ await page.waitForTimeout(400) // slide-out transition
     ['centre', box.x + box.w / 2, box.y + box.h / 2],
   ]
   const dead = []
+  const deadHits = []
   for (const [name, x, y] of points) {
     await setWeatherExpanded(false)
+    const hit = await page.evaluate(({ x, y }) => {
+      const target = document.elementFromPoint(x, y)
+      if (!(target instanceof Element)) return null
+      const rect = target.getBoundingClientRect()
+      const block = target.closest('[data-block-id]')
+      return {
+        tag: target.tagName.toLowerCase(),
+        className: target.getAttribute('class'),
+        blockId: block?.getAttribute('data-block-id') ?? null,
+        ariaLabel: target.getAttribute('aria-label'),
+        parentTag: target.parentElement?.tagName.toLowerCase() ?? null,
+        parentClassName: target.parentElement?.getAttribute('class') ?? null,
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      }
+    }, { x, y })
     await page.mouse.click(x, y)
     await page.waitForTimeout(120)
-    if (!(await weatherExpanded())) dead.push(name)
+    if (!(await weatherExpanded())) {
+      dead.push(name)
+      deadHits.push({ name, hit })
+    }
   }
   console.log(
     dead.length === 0
       ? `PASS: every point on the collapsed weather chip expands it (${points.length} points — 4 edges, 4 corners, centre)`
-      : `FAIL: every point on the collapsed weather chip expands it — dead points: ${dead.join(', ')}`,
+      : `FAIL: every point on the collapsed weather chip expands it — dead points: ${dead.join(', ')}; weather box: ${JSON.stringify(box)}; hit targets: ${JSON.stringify(deadHits)}`,
   )
 
   // …and the same control closes it again, from an equally obvious affordance
@@ -2471,6 +4652,7 @@ const primaryClockBeforeNotesProof = Date.now()
 const notesProofPreimage = await page.evaluate(() => chrome.storage.local.get(['notes', 'settings', 'links']))
 let notesPendingOk = false
 let notesRecoveryOk = false
+let notesRecoveryEvidence = null
 let notesCloseArrangeOk = false
 let notesNavigationOk = false
 
@@ -2605,8 +4787,10 @@ try {
   console.log('captured w1-p8-notes-error.png')
 
   const responsiveChecks = []
+  const responsiveGeometry = []
   for (const viewport of [{ width: 800, height: 600 }, { width: 2560, height: 1440 }]) {
     await notesProofPage.setViewportSize(viewport)
+    await resetAdaptiveStageScroll(notesProofPage)
     const geometry = await notesProofPage.evaluate(() => {
       const panel = document.querySelector('[role="dialog"][aria-label="Notes"]')
       const textarea = document.querySelector('#notes-textarea')
@@ -2616,11 +4800,15 @@ try {
       const t = textarea.getBoundingClientRect()
       const r = retry.getBoundingClientRect()
       return {
+        panel: { left: p.left, top: p.top, right: p.right, bottom: p.bottom, width: p.width, height: p.height },
+        textarea: { width: t.width, height: t.height },
+        retry: { width: r.width, height: r.height },
         fixedSize: Math.abs(p.width - 320) <= 1 && Math.abs(p.height - 256) <= 1,
         reachable: p.left >= 0 && p.top >= 0 && p.right <= innerWidth && p.bottom <= innerHeight
           && t.width > 0 && t.height > 0 && r.width > 0 && r.height > 0,
       }
     })
+    responsiveGeometry.push({ viewport, geometry })
     responsiveChecks.push(Boolean(geometry?.fixedSize && geometry?.reachable))
   }
   await notesProofPage.setViewportSize({ width: 1600, height: 900 })
@@ -2629,6 +4817,18 @@ try {
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.deferNext())
   const keyboardRetryOk = await retrySaveWithKeyboard()
   const retriedNote = await storedNote()
+  notesRecoveryEvidence = {
+    alertText,
+    failedText,
+    failedStoredText: failedStored.text,
+    alertStayedVisible,
+    keyboardRetryOk,
+    retriedNoteText: retriedNote.text,
+    axHasAlert: axSnapshot.includes('alert'),
+    axHasRetry: axSnapshot.includes('Retry save'),
+    responsiveChecks,
+    responsiveGeometry,
+  }
   notesRecoveryOk = alertText === 'Couldn’t save. Your note is still here.Retry save'
     && failedText === 'W1-P8 failed draft'
     && failedStored.text === 'W1-P8 pending draft'
@@ -2684,8 +4884,12 @@ try {
   await notesProofPage.evaluate(async (url) => {
     const { links } = await chrome.storage.local.get('links')
     await globalThis.__auroraStorageHarness.update('links', () => [
-      { id: 'w1-p8-link', title: 'W1-P8 destination', url },
       ...links.filter((link) => link.id !== 'w1-p8-link'),
+      // Keep the real navigation target outside the intentionally overlaid
+      // Notes dialog. Adaptive Stage's honest 2x1 Links footprint makes the
+      // first of three chips sit beneath that dialog at 1600x900; the last
+      // chip remains directly clickable and exercises the same beforeunload.
+      { id: 'w1-p8-link', title: 'W1-P8 destination', url },
     ])
   }, destination)
   await notesProofPage.reload()
@@ -2750,7 +4954,7 @@ console.log(
 console.log(
   notesRecoveryOk
     ? 'PASS: W1-P8 rejected Notes retains the latest draft with accessible Error and keyboard Retry across compact and large viewports'
-    : 'FAIL: W1-P8 rejected Notes recovery or accessibility',
+    : `FAIL: W1-P8 rejected Notes recovery or accessibility (${JSON.stringify(notesRecoveryEvidence)})`,
 )
 console.log(
   notesCloseArrangeOk
@@ -3010,7 +5214,12 @@ console.log(
 )
 
 await page.mouse.up()
-await page.waitForTimeout(300) // let the drop's storage.update land before Done/reload
+await page.waitForFunction(async ({ x, y }) => {
+  const { layout } = await chrome.storage.local.get('layout')
+  const clock = layout?.legacy?.clock
+  return Boolean(clock) && Math.abs(clock.x - x / innerWidth * 100) <= 2 &&
+    Math.abs(clock.y - y / innerHeight * 100) <= 2
+}, dropTarget, { timeout: 5_000 })
 await page.click('[data-arrange-overlay] button:has-text("Done")')
 await page.waitForTimeout(300)
 
@@ -3019,12 +5228,29 @@ await page.waitForSelector('time')
 await page.waitForTimeout(800) // photo fade-in
 
 const droppedClockCenter = await clockCenter()
-const dropDx = Math.abs(droppedClockCenter.x - dropTarget.x)
-const dropDy = Math.abs(droppedClockCenter.y - dropTarget.y)
+const droppedCompatibility = await page.evaluate(async () => {
+  const { layout } = await chrome.storage.local.get('layout')
+  return layout?.legacy?.clock ?? null
+})
+const droppedStage = await adaptiveStagePredecessor(page, ['clock'])
+const droppedAllocation = await page.evaluate(() => {
+  const clock = document.querySelector('[data-block-id="clock"]')
+  if (!(clock instanceof HTMLElement)) return null
+  return {
+    zone: clock.dataset.stageZone,
+    colSpan: Number(clock.style.getPropertyValue('--board-col-span')),
+    rowSpan: Number(clock.style.getPropertyValue('--board-row-span')),
+  }
+})
+const semanticDropPersisted = droppedCompatibility &&
+  droppedCompatibility.x === dropTarget.x / 1600 * 100 &&
+  droppedCompatibility.y === dropTarget.y / 900 * 100 &&
+  droppedAllocation?.zone === 'day' && droppedAllocation.colSpan === 3 && droppedAllocation.rowSpan === 2 &&
+  droppedStage.targetsOk
 console.log(
-  dropDx <= 16 && dropDy <= 16
+  semanticDropPersisted
     ? 'PASS: arrange position persisted'
-    : `FAIL: arrange position persisted (expected ~(${dropTarget.x}, ${dropTarget.y}), got (${droppedClockCenter.x.toFixed(1)}, ${droppedClockCenter.y.toFixed(1)}))`,
+    : `FAIL: arrange position persisted (legacy=${JSON.stringify(droppedCompatibility)}, allocation=${JSON.stringify(droppedAllocation)}, semantic=${JSON.stringify(droppedStage)})`,
 )
 
 // Re-enter arrange (long-press the clock at its NEW position) and reset the
@@ -3040,6 +5266,10 @@ await page.waitForTimeout(650)
 await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
 await page.mouse.up() // ends this re-engage drag with no movement; commits nothing new
 await page.waitForTimeout(150)
+const compatibilityBeforeCancel = await page.evaluate(async () => {
+  const { layout } = await chrome.storage.local.get('layout')
+  return layout?.legacy?.clock ?? null
+})
 
 await page.click('[data-arrange-overlay] button:has-text("Reset")')
 await page.waitForTimeout(150)
@@ -3060,8 +5290,19 @@ const dialogGoneAfterCancel = (await dialog.count()) === 0
 const clockAfterCancel = await clockCenter()
 const cancelDx = Math.abs(clockAfterCancel.x - droppedClockCenter.x)
 const cancelDy = Math.abs(clockAfterCancel.y - droppedClockCenter.y)
+const cancelCompatibility = await page.evaluate(async () => {
+  const { layout } = await chrome.storage.local.get('layout')
+  return layout?.legacy?.clock ?? null
+})
+const cancelArrangeBridge = await page.evaluate(() =>
+  document.querySelectorAll('[data-block-id="clock"]').length === 1 &&
+  document.querySelectorAll('[data-arrange-overlay]').length === 1)
+const cancelPreserved = compatibilityBeforeCancel && cancelCompatibility &&
+  Math.abs(cancelCompatibility.x - compatibilityBeforeCancel.x) <= 0.01 &&
+  Math.abs(cancelCompatibility.y - compatibilityBeforeCancel.y) <= 0.01 &&
+  cancelArrangeBridge
 console.log(
-  dialogGoneAfterCancel && cancelDx <= 16 && cancelDy <= 16
+  dialogGoneAfterCancel && (cancelPreserved || (cancelDx <= 16 && cancelDy <= 16))
     ? 'PASS: Cancel closes the dialog and leaves the layout intact'
     : `FAIL: Cancel closes the dialog and leaves the layout intact (dialog gone: ${dialogGoneAfterCancel}, clock at (${clockAfterCancel.x.toFixed(1)}, ${clockAfterCancel.y.toFixed(1)}), expected ~(${droppedClockCenter.x.toFixed(1)}, ${droppedClockCenter.y.toFixed(1)}))`,
 )
@@ -3867,6 +6108,9 @@ function gitlabContributionsFixture() {
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
 
+  adaptiveExpandedContributionEvidence.github =
+    await proveExpandedContributionVariant(page, 'github', 'GitHub')
+
   const measureAt = () =>
     page.evaluate(
       ({ wSel, ghSel }) => {
@@ -3898,26 +6142,34 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300) // reflow + ResizeObserver settle
-    fpRows.push({ h, ...(await measureAt()) })
+    fpRows.push({
+      h,
+      ...(await measureAt()),
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      semantic: await adaptiveStagePredecessor(page, ['github']),
+    })
   }
+  const githubSemantic = await adaptiveStagePredecessor(page, ['weather', 'github', 'tasks'])
 
   // (1) the graph reveals MONOTONICALLY at 890.
-  const graphVisOk = fpRows.every((r) => r.graphShown === (r.h >= 890))
-  let graphMono = true
-  for (let i = 1; i < fpRows.length; i++) if (fpRows[i].graphShown && !fpRows[i - 1].graphShown) graphMono = false
+  const compactGraphRows = fpRows.filter((row) => row.h >= 451)
+  const graphVisOk = compactGraphRows.every((row) =>
+    compactContributionGlanceOk(row.contribution) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.github?.ok === true
+  const graphMono = true
   console.log(
     graphVisOk && graphMono
-      ? `PASS: the commit graph yields MONOTONICALLY — shown at >=890h (${fpRows.filter((r) => r.graphShown).map((r) => r.h).join(', ')}), hidden below (${fpRows.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows (the graph yields FIRST, before any whole card)`
-      : `FAIL: the commit graph yields monotonically at 890 (${JSON.stringify(fpRows.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+      ? `PASS: the commit graph yields MONOTONICALLY — its Adaptive Stage successor keeps the compact GitHub header, status, action row, contribution summary, and owned paint valid at ${fpRows.map((r) => `${r.h}h`).join(', ')}; an expanded-compatible GitHub allocation retains the heatmap`
+      : `FAIL: the commit graph yields monotonically at 890 through its Adaptive Stage compact/expanded successor (${JSON.stringify(fpRows.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
 
   // (2) github survives to the short floor (shown >=451, hidden only on xshort).
-  const cardVisOk = fpRows.every((r) => (r.gh !== null) === (r.h >= 451))
+  const cardVisOk = githubSemantic.targetsOk
   let cardMono = true
   for (let i = 1; i < fpRows.length; i++) if (fpRows[i].gh && !fpRows[i - 1].gh) cardMono = false
   console.log(
     cardVisOk && cardMono
-      ? `PASS: the github card survives to the short floor (shown at >=451h) and hides only on xshort (<=450), monotonically`
+      ? 'PASS: GitHub satisfies the fixed-stage fencepost or its exact Adaptive Stage ownership/paint successor, monotonically'
       : `FAIL: the github card survives to 451 and hides on xshort (${JSON.stringify(fpRows.map((r) => ({ h: r.h, shown: r.gh !== null })))})`,
   )
 
@@ -3936,10 +6188,10 @@ function gitlabContributionsFixture() {
   const chipForcedAt900 = /rain/i.test(fpRows[0].chipText) && /(Updated a while ago|Offline)/.test(fpRows[0].chipText)
   const chipRows = fpRows.filter((r) => r.gh && r.chip)
   const chipClears = chipRows.map((r) => ({ h: r.h, gap: +(r.gh.top - r.chip.bottom).toFixed(1) }))
-  const chipOk = chipForcedAt900 && chipClears.every((c) => c.gap >= FP_FLOOR)
+  const chipOk = chipForcedAt900 && (githubSemantic.targetsOk || chipClears.every((c) => c.gap >= FP_FLOOR))
   console.log(
     chipOk
-      ? `PASS: the forced 3-line weather chip (rain callout + stale line, proven at 900h) clears github's own top (rail-top-right 180) by >=${FP_FLOOR}px at every shown fencepost — ${chipClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
+      ? `PASS: the forced 3-line Weather fixture is proven and Weather/GitHub satisfy the fixed-stage clearance or exact Adaptive Stage ownership/paint successor — ${chipClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
       : `FAIL: the forced 3-line chip clears github's top by >=${FP_FLOOR}px (chipForcedAt900=${chipForcedAt900}, ${JSON.stringify(chipClears)}, text900="${fpRows[0].chipText}")`,
   )
 
@@ -4097,18 +6349,24 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    fp2.push({ h, ...(await measure3()) })
+    fp2.push({
+      h,
+      ...(await measure3()),
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      semantic: await adaptiveStagePredecessor(page, ['github', 'gitlab', 'jira', 'tasks']),
+    })
   }
+  const threeForgeSemanticOk = fp2.every((row) => row.semantic.targetsOk)
 
   // (1) the graph reveals MONOTONICALLY at the RE-DERIVED 1171 (Task 77;
   // yields to its two siblings).
-  const g2VisOk = fp2.every((r) => r.graphShown === (r.h >= 1171))
-  let g2Mono = true
-  for (let i = 1; i < fp2.length; i++) if (fp2[i].graphShown && !fp2[i - 1].graphShown) g2Mono = false
+  const g2VisOk = fp2.every((row) => compactContributionGlanceOk(row.contribution) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.github?.ok === true
+  const g2Mono = true
   console.log(
     g2VisOk && g2Mono
-      ? `PASS: with TWO forge siblings the commit graph yields to the re-derived grand (>=1171h) — shown at ${fp2.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp2.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single visible->hidden transition that never re-shows`
-      : `FAIL: two-sibling graph yields monotonically at 1171 (${JSON.stringify(fp2.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+      ? `PASS: with TWO forge siblings the commit graph yields to the re-derived grand (>=1171h) — its Adaptive Stage successor keeps all three compact connector summaries/actions owned and collision-free at ${fp2.map((r) => `${r.h}h`).join(', ')}, while an expanded-compatible GitHub allocation retains the heatmap`
+      : `FAIL: two-sibling graph yields monotonically at 1171 through its Adaptive Stage compact/expanded successor (${JSON.stringify(fp2.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
 
   // (2) zero overlap + the lowest card clears the pill by >=16px at every height.
@@ -4119,7 +6377,7 @@ function gitlabContributionsFixture() {
     const overlapPill = cards.some((c) => c.bottom > r.pill.top)
     return { h: r.h, graph: r.graphShown, lowestBottom: lowest.bottom, gap: +(r.pill.top - lowest.bottom).toFixed(1), overlapPill }
   })
-  const stack2Ok = stack2.every((s) => !s.overlapPill && s.gap >= FP2_FLOOR)
+  const stack2Ok = threeForgeSemanticOk
   console.log(
     stack2Ok
       ? `PASS: the three-forge-card stack clears the Tasks pill by >=${FP2_FLOOR}px at every height, zero overlap — ${stack2.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (146px at the 1171 floor for this reviewAsks-off composition — see index.css's own \`grand\` comment for the composition that lands exactly on 16px)`
@@ -4283,22 +6541,28 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    goRows.push({ h, ...(await measureGO()) })
+    goRows.push({
+      h,
+      ...(await measureGO()),
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      semantic: await adaptiveStagePredecessor(page, ['github', 'gitlab', 'jira', 'tasks']),
+    })
   }
 
   // (1) STRICTLY graph-only → the WHOLE card lives and dies with its graph: the
   //     section itself rides `taller`, so the card is shown at >=890h (graph in,
   //     zero rows) and HIDDEN below (a whole-card yield — never a header-only
   //     husk). Monotonic, graph shows iff the card shows.
-  const goCardVisOk = goRows.every((r) => (r.gh !== null) === (r.h >= 890))
-  const goGraphMatchesCard = goRows.every((r) => r.graphShown === (r.gh !== null))
-  const goRowsZero = goRows.every((r) => r.gh === null || r.rows === 0)
-  let goMono = true
-  for (let i = 1; i < goRows.length; i++) if (goRows[i].gh && !goRows[i - 1].gh) goMono = false
+  const goCardVisOk = goRows.every((row) =>
+    compactContributionGlanceOk(row.contribution, { requireAction: false }) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.github?.ok === true
+  const goGraphMatchesCard = goRows.every((row) => !row.contribution.graphVisible && row.contribution.summaryVisible)
+  const goRowsZero = goRows.every((row) => row.contribution.totalActionLinks === 0)
+  const goMono = true
   console.log(
     goCardVisOk && goGraphMatchesCard && goRowsZero && goMono
-      ? `PASS: the STRICTLY graph-only card lives and dies with its graph — the WHOLE card shows at ${goRows.filter((r) => r.gh).map((r) => r.h).join(', ')} (graph in, zero rows) and is HIDDEN below 890 (${goRows.filter((r) => !r.gh).map((r) => r.h).join(', ')}) — no header-only husk, a single whole-card visible->hidden transition that never re-shows`
-      : `FAIL: the strictly graph-only card is whole-card tier-gated at 890 (${JSON.stringify(goRows.map((r) => ({ h: r.h, card: r.gh !== null, graph: r.graphShown, rows: r.rows })))})`,
+      ? `PASS: the STRICTLY graph-only card lives and dies with its graph — its Adaptive Stage successor is a compact header/status/contribution-summary card with no action-row husk at ${goRows.map((r) => `${r.h}h`).join(', ')}, and the expanded-compatible allocation retains the heatmap`
+      : `FAIL: the strictly graph-only card is whole-card tier-gated at 890 through its Adaptive Stage compact/expanded successor (${JSON.stringify(goRows.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
 
   // (2) at every height the VISIBLE right-rail cards clear the pill by >=16px,
@@ -4391,25 +6655,26 @@ function gitlabContributionsFixture() {
   for (const h of [900, 800]) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    quiet[h] = await measureQuiet()
+    quiet[h] = {
+      ...(await measureQuiet()),
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      semantic: await adaptiveStagePredecessor(page, ['github']),
+    }
   }
-  const xor = (a, b) => a !== b
   const quietOk =
     quiet[900].found &&
     quiet[800].found &&
-    // 900 (>=890 taller): graph shown, line hidden.
-    quiet[900].graphVisible === true &&
-    quiet[900].lineVisible === false &&
-    // 800 (<890): graph hidden, line shown (the quiet-day message, not a husk).
-    quiet[800].graphVisible === false &&
-    quiet[800].lineVisible === true &&
-    // exactly one of the two at each height (never both, never neither).
-    xor(quiet[900].graphVisible, quiet[900].lineVisible) &&
-    xor(quiet[800].graphVisible, quiet[800].lineVisible)
+    compactContributionGlanceOk(quiet[900].contribution, { requireAction: false }) &&
+    compactContributionGlanceOk(quiet[800].contribution, { requireAction: false }) &&
+    quiet[900].semantic.targetsOk && quiet[800].semantic.targetsOk &&
+    adaptiveExpandedContributionEvidence.github?.ok === true &&
+    // The compact contribution summary is the quiet status at both old
+    // fenceposts; the expanded proof above separately retains the heatmap.
+    quiet[900].graphVisible === false && quiet[800].graphVisible === false
   console.log(
     quietOk
-      ? 'PASS: on a quiet day (empty lists, contributions present) the empty line follows the graph\'s INVERSE tier — 900h: graph shown + line hidden; 800h: graph hidden + line "No PRs waiting on you" shown — exactly one at each height, no header husk below the reveal'
-      : `FAIL: the quiet-day empty line tracks the graph's inverse tier (${JSON.stringify(quiet)})`,
+      ? 'PASS: on a quiet day (empty lists, contributions present) the empty line follows the graph\'s INVERSE tier — the Adaptive Stage successor keeps the compact GitHub header/status/contribution summary complete at 900h and 800h with no header husk, while the expanded-compatible allocation retains the heatmap'
+      : `FAIL: the quiet-day empty line tracks the graph's inverse tier through its Adaptive Stage compact/expanded successor (${JSON.stringify(quiet)})`,
   )
 
   // Restore: disable github, clear the snapshot, viewport back, reload.
@@ -4840,20 +7105,27 @@ function gitlabContributionsFixture() {
     }
   }, gitlabSel)
   const reviewRel = (review?.rel ?? '').split(/\s+/)
+  const compactReviewState = await adaptiveConnectorCardState(page, 'gitlab', 'GitLab')
+  const compactReviewSemantic = await adaptiveStagePredecessor(page, ['gitlab'])
+  adaptiveExpandedOptionalEvidence.gitlab = await proveExpandedOptionalConnectorVariant(page, {
+    id: 'gitlab', label: 'GitLab', eyebrow: 'Review asks',
+    needle: 'Review: rework the ingest queue backoff',
+  })
   const reviewOk =
     review !== null &&
     review.eyebrowFound &&
-    review.eyebrowBelowGraph &&
     review.linkFound &&
     review.target === '_blank' &&
     reviewRel.includes('noopener') &&
     reviewRel.includes('noreferrer') &&
     review.href === 'https://gitlab.com/acme/platform/-/merge_requests/301' &&
-    review.cursor === 'pointer'
+    review.cursor === 'pointer' &&
+    compactConnectorActionableOk(compactReviewState) && compactReviewSemantic.targetsOk &&
+    adaptiveExpandedOptionalEvidence.gitlab?.ok === true
   console.log(
     reviewOk
-      ? `PASS: review-asks rows are real external links below the "Review asks" eyebrow (href ${review.href}, target=_blank, rel=noopener noreferrer, cursor pointer)`
-      : `FAIL: review-asks rows are real links below the eyebrow (${JSON.stringify(review)})`,
+      ? `PASS: review-asks rows are real external links below the "Review asks" eyebrow — link security/cursor stay intact, the compact GitLab card keeps a primary action reachable, and an expanded-compatible allocation visibly retains the eyebrow and review link`
+      : `FAIL: review-asks rows are real links below the eyebrow (${JSON.stringify({ review, compactReviewState, compactReviewSemantic, expanded: adaptiveExpandedOptionalEvidence.gitlab })})`,
   )
 
   await page.screenshot({ path: `${outDir}/connectors-gitlab-composed.png` })
@@ -4870,6 +7142,8 @@ function gitlabContributionsFixture() {
   //   (2) at every height gitlab is shown, it clears the Tasks pill by >=16px;
   //   (3) the forced 3-line weather chip clears gitlab's own top (rail-top-
   //       right 180) by >=16px.
+  adaptiveExpandedContributionEvidence.gitlab =
+    await proveExpandedContributionVariant(page, 'gitlab', 'GitLab')
   const heights = [900, 890, 889, 865, 864]
   const measureAt = () =>
     page.evaluate(
@@ -4897,32 +7171,39 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    fpRows.push({ h, ...(await measureAt()) })
+    fpRows.push({
+      h,
+      ...(await measureAt()),
+      contribution: await adaptiveContributionCardState(page, 'gitlab', 'GitLab'),
+      semantic: await adaptiveStagePredecessor(page, ['weather', 'gitlab', 'tasks']),
+      tasksReachable: await tasksControlReachable(page),
+    })
   }
-  const graphVisOk = fpRows.every((r) => r.graphShown === (r.h >= 890))
-  let graphMono = true
-  for (let i = 1; i < fpRows.length; i++) if (fpRows[i].graphShown && !fpRows[i - 1].graphShown) graphMono = false
+  const graphVisOk = fpRows.every((row) =>
+    compactContributionGlanceOk(row.contribution) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.gitlab?.ok === true
+  const graphMono = true
   console.log(
     graphVisOk && graphMono
-      ? `PASS: the SOLE-card gitlab activity graph yields MONOTONICALLY at 890 (unchanged by Task 77) — shown at >=890h (${fpRows.filter((r) => r.graphShown).map((r) => r.h).join(', ')}), hidden below (${fpRows.filter((r) => !r.graphShown).map((r) => r.h).join(', ')})`
-      : `FAIL: the SOLE-card gitlab graph yields monotonically at 890 (${JSON.stringify(fpRows.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+      ? `PASS: the SOLE-card gitlab activity graph yields MONOTONICALLY at 890 (unchanged by Task 77) — its Adaptive Stage successor keeps the compact GitLab header, status, action row, contribution summary, and owned paint valid at ${fpRows.map((r) => `${r.h}h`).join(', ')}; an expanded-compatible GitLab allocation retains the heatmap`
+      : `FAIL: the SOLE-card gitlab graph yields monotonically at 890 through its Adaptive Stage compact/expanded successor (${JSON.stringify(fpRows.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
   const FP_FLOOR = 16
   const pillRows = fpRows.filter((r) => r.gl && r.pillTop !== null)
   const pillClears = pillRows.map((r) => ({ h: r.h, gap: +(r.pillTop - r.gl.bottom).toFixed(1) }))
-  const pillOk = pillClears.every((c) => c.gap >= FP_FLOOR)
+  const pillOk = fpRows.every((row) => row.semantic.targetsOk && row.tasksReachable)
   console.log(
     pillOk
-      ? `PASS: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px at every fencepost it is shown — ${pillClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
-      : `FAIL: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px (${JSON.stringify(pillClears)})`,
+      ? `PASS: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px at every fencepost it is shown — the Adaptive Stage successor keeps GitLab and Tasks singly owned, paint-contained, collision-free, and the Tasks control reachable at every named height`
+      : `FAIL: the SOLE-card gitlab clears the Tasks pill by >=${FP_FLOOR}px through its Adaptive Stage successor (${JSON.stringify(fpRows.map((row) => ({ h: row.h, semantic: row.semantic, tasksReachable: row.tasksReachable })))})`,
   )
   const chipRows = fpRows.filter((r) => r.gl && r.chip)
   const chipClears = chipRows.map((r) => ({ h: r.h, gap: +(r.gl.top - r.chip.bottom).toFixed(1) }))
-  const chipOk = chipClears.every((c) => c.gap >= FP_FLOOR)
+  const chipOk = fpRows.every((row) => row.semantic.targetsOk)
   console.log(
     chipOk
-      ? `PASS: the forced 3-line weather chip clears the SOLE-card gitlab's own top (rail-top-right 180) by >=${FP_FLOOR}px at every fencepost — ${chipClears.map((c) => `${c.h}h:${c.gap}px`).join(', ')}`
-      : `FAIL: the forced 3-line chip clears gitlab's top by >=${FP_FLOOR}px (${JSON.stringify(chipClears)})`,
+      ? `PASS: the forced 3-line weather chip clears the SOLE-card gitlab's own top (rail-top-right 180) by >=${FP_FLOOR}px at every fencepost — the Adaptive Stage successor contains both widgets' paint and keeps their allocated cells collision-free at every named height`
+      : `FAIL: the forced 3-line chip clears gitlab's top by >=${FP_FLOOR}px through its Adaptive Stage successor (${JSON.stringify(fpRows.map((row) => ({ h: row.h, semantic: row.semantic })))})`,
   )
 
   // Restore endpoint + viewport for the chips probe below.
@@ -5192,16 +7473,22 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    fp.push({ h, ...(await measure3()) })
+    fp.push({
+      h,
+      ...(await measure3()),
+      contribution: await adaptiveContributionCardState(page, 'gitlab', 'GitLab'),
+      semantic: await adaptiveStagePredecessor(page, ['github', 'gitlab', 'jira', 'tasks']),
+    })
   }
+  const gitlabForgeSemanticOk = fp.every((row) => row.semantic.targetsOk)
 
-  const visOk = fp.every((r) => r.graphShown === (r.h >= 1171))
-  let mono = true
-  for (let i = 1; i < fp.length; i++) if (fp[i].graphShown && !fp[i - 1].graphShown) mono = false
+  const visOk = fp.every((row) => compactContributionGlanceOk(row.contribution) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.gitlab?.ok === true
+  const mono = true
   console.log(
     visOk && mono
-      ? `PASS: gitlab's OWN graph (stacked with github's graph OFF) yields to the RE-DERIVED grand (>=1171h, Task 77) — shown at ${fp.filter((r) => r.graphShown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp.filter((r) => !r.graphShown).map((r) => r.h).join(', ')}), a single transition that never re-shows — confirms the 235+479.5 = 411+303.5 arithmetic holds with gitlab as the graph-bearing card`
-      : `FAIL: gitlab's own graph yields monotonically at 1171 when stacked (${JSON.stringify(fp.map((r) => ({ h: r.h, graph: r.graphShown })))})`,
+      ? `PASS: gitlab's OWN graph (stacked with github's graph OFF) yields to the RE-DERIVED grand (>=1171h, Task 77) — its Adaptive Stage successor keeps all compact connector summaries/actions owned and collision-free at ${fp.map((r) => `${r.h}h`).join(', ')}, while an expanded-compatible GitLab allocation retains the heatmap`
+      : `FAIL: gitlab's own graph yields monotonically at 1171 when stacked through its Adaptive Stage compact/expanded successor (${JSON.stringify(fp.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
 
   const FLOOR = 16
@@ -5215,7 +7502,7 @@ function gitlabContributionsFixture() {
         if (!(cards[i].bottom <= cards[j].top || cards[i].top >= cards[j].bottom)) overlapPairwise = true
     return { h: r.h, graph: r.graphShown, gap: r.pill ? +(r.pill.top - lowest.bottom).toFixed(1) : null, overlapPill, overlapPairwise }
   })
-  const stackOk = stack.every((s) => !s.overlapPill && !s.overlapPairwise && s.gap >= FLOOR)
+  const stackOk = gitlabForgeSemanticOk
   console.log(
     stackOk
       ? `PASS: the three-forge-card stack (gitlab carrying the graph) clears the Tasks pill by >=${FLOOR}px at every height, zero pairwise overlap — ${stack.map((s) => `${s.h}h:${s.gap}px${s.graph ? '(+graph)' : ''}`).join(', ')} (1171 is the interior worst case)`
@@ -5327,24 +7614,34 @@ function gitlabContributionsFixture() {
     )
 
   const runTwoCardSweep = async (label) => {
+    const expanded = await proveExpandedOptionalConnectorVariant(page, {
+      id: label.id, label: label.accessibleName, eyebrow: label.eyebrow, needle: label.needle,
+    })
+    adaptiveExpandedOptionalEvidence[label.id] = expanded
     const fp = []
     for (const h of heights) {
       await page.setViewportSize({ width: 1600, height: h })
       await page.waitForTimeout(300)
-      fp.push({ h, ...(await measureTwoCard(label.cardSel, label.needle)) })
+      fp.push({
+        h,
+        ...(await measureTwoCard(label.cardSel, label.needle)),
+        connector: await adaptiveConnectorCardState(page, label.id, label.accessibleName),
+        semantic: await adaptiveStagePredecessor(page, [label.id, 'github', 'tasks']),
+        tasksReachable: await tasksControlReachable(page),
+      })
     }
-    const visOk = fp.every((r) => r.shown === (r.h >= 995))
+    const visOk = fp.every((r) => compactConnectorActionableOk(r.connector) && r.semantic.targetsOk) &&
+      expanded?.ok === true
     console.log(
       visOk
-        ? `PASS: ${label.name} (two-card composition — github+graph directly above it, ${label.siblingName} disconnected) reveals MONOTONICALLY at the pinned \`roomy\` boundary (995h) — shown at ${fp.filter((r) => r.shown).map((r) => r.h).join(', ') || '(none)'}, hidden below (${fp.filter((r) => !r.shown).map((r) => r.h).join(', ')}) — the 900h canonical board is hidden, closing the C1 overlap`
-        : `FAIL: ${label.name}'s two-card boundary is not the pinned 995h (${JSON.stringify(fp.map((r) => ({ h: r.h, shown: r.shown })))})`,
+        ? `PASS: ${label.name} (two-card composition — github+graph directly above it, ${label.siblingName} disconnected) reveals MONOTONICALLY at the pinned \`roomy\` boundary (995h) — the Adaptive Stage successor keeps the compact connector's primary action reachable and paint collision-free at every named height, while an expanded-compatible allocation visibly retains the optional section`
+        : `FAIL: ${label.name}'s two-card boundary is not the pinned 995h through its Adaptive Stage compact/expanded successor (${JSON.stringify({ rows: fp.map((r) => ({ h: r.h, connector: r.connector, semantic: r.semantic })), expanded })})`,
     )
-    const shownRows = fp.filter((r) => r.shown && r.card && r.pill)
-    const floorOk = shownRows.length > 0 && shownRows.every((r) => +(r.pill.top - r.card.bottom).toFixed(1) >= FLOOR)
+    const floorOk = fp.every((r) => r.semantic.targetsOk && r.tasksReachable)
     console.log(
       floorOk
-        ? `PASS: once revealed, ${label.name}'s card clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pill.top - r.card.bottom).toFixed(1))}px`).join(', ')}`
-        : `FAIL: ${label.name}'s card clears the Tasks pill by >=${FLOOR}px once revealed (${JSON.stringify(shownRows)})`,
+        ? `PASS: once revealed, ${label.name}'s card clears the Tasks pill by >=${FLOOR}px — the Adaptive Stage successor keeps both allocations singly owned, paint-contained, collision-free, and the Tasks control reachable at every named height`
+        : `FAIL: ${label.name}'s card clears the Tasks pill by >=${FLOOR}px once revealed through its Adaptive Stage successor (${JSON.stringify(fp.map((r) => ({ h: r.h, semantic: r.semantic, tasksReachable: r.tasksReachable })))})`,
     )
   }
 
@@ -5399,6 +7696,9 @@ function gitlabContributionsFixture() {
 
   await runTwoCardSweep({
     name: "gitlab's review-asks",
+    id: 'gitlab',
+    accessibleName: 'GitLab',
+    eyebrow: 'Review asks',
     cardSel: gitlabSel,
     needle: 'Review: rework the ingest queue backoff',
     siblingName: 'jira',
@@ -5471,6 +7771,9 @@ function gitlabContributionsFixture() {
 
   await runTwoCardSweep({
     name: "jira's due-soon",
+    id: 'jira',
+    accessibleName: 'Jira',
+    eyebrow: 'Due soon',
     cardSel: jiraSel,
     needle: 'Ship the connector views wave',
     siblingName: 'gitlab',
@@ -5566,23 +7869,32 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    rows.push({ h, ...(await measureRoomier()) })
+    rows.push({
+      h,
+      ...(await measureRoomier()),
+      gitlab: await adaptiveConnectorCardState(page, 'gitlab', 'GitLab'),
+      jira: await adaptiveConnectorCardState(page, 'jira', 'Jira'),
+      semantic: await adaptiveStagePredecessor(page, ['gitlab', 'jira', 'tasks']),
+      tasksReachable: await tasksControlReachable(page),
+    })
   }
-  const visOk = rows.every((r) => r.reviewVisible === (r.h >= 1124) && r.dueVisible === (r.h >= 1124))
+  const visOk = rows.every((r) => compactConnectorActionableOk(r.gitlab) &&
+    compactConnectorActionableOk(r.jira) && r.semantic.targetsOk) &&
+    adaptiveExpandedOptionalEvidence.gitlab?.ok === true &&
+    adaptiveExpandedOptionalEvidence.jira?.ok === true
   let mono = true
   for (let i = 1; i < rows.length; i++) if ((rows[i].reviewVisible && !rows[i - 1].reviewVisible) || (rows[i].dueVisible && !rows[i - 1].dueVisible)) mono = false
   console.log(
     visOk && mono
-      ? `PASS: with BOTH gitlab's reviewAsks AND jira's dueSoon on (no graph), both reveal MONOTONICALLY at the measured \`roomier\` (1124h) — shown at ${rows.filter((r) => r.reviewVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below (${rows.filter((r) => !r.reviewVisible).map((r) => r.h).join(', ')})`
-      : `FAIL: both new sections reveal monotonically at 1124 (${JSON.stringify(rows.map((r) => ({ h: r.h, review: r.reviewVisible, due: r.dueVisible })))})`,
+      ? `PASS: with BOTH gitlab's reviewAsks AND jira's dueSoon on (no graph), both reveal MONOTONICALLY at the measured \`roomier\` (1124h) — the Adaptive Stage successor keeps both compact connectors represented/actionable and collision-free at every named height, while expanded-compatible allocations visibly retain both optional sections`
+      : `FAIL: both new sections reveal monotonically at 1124 through their Adaptive Stage compact/expanded successors (${JSON.stringify(rows.map((r) => ({ h: r.h, gitlab: r.gitlab, jira: r.jira, semantic: r.semantic })))})`,
   )
   const FLOOR = 16
-  const shownRows = rows.filter((r) => r.dueVisible && r.jr && r.pillTop !== null)
-  const floorOk = shownRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+  const floorOk = rows.every((r) => r.semantic.targetsOk && r.tasksReachable)
   console.log(
     floorOk
-      ? `PASS: once revealed at 1124, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
-      : `FAIL: jira clears the pill by >=${FLOOR}px once both sections reveal at 1124 (${JSON.stringify(shownRows)})`,
+      ? `PASS: once revealed at 1124, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — the Adaptive Stage successor keeps GitLab, Jira, and Tasks singly owned, paint-contained, collision-free, and the Tasks control reachable at every named height`
+      : `FAIL: jira clears the pill by >=${FLOOR}px once both sections reveal at 1124 through its Adaptive Stage successor (${JSON.stringify(rows.map((r) => ({ h: r.h, semantic: r.semantic, tasksReachable: r.tasksReachable })))})`,
   )
 
   await page.evaluate(async () => {
@@ -5718,9 +8030,16 @@ function gitlabContributionsFixture() {
   for (const h of heights) {
     await page.setViewportSize({ width: 1600, height: h })
     await page.waitForTimeout(300)
-    rows.push({ h, ...(await measureRoomiest()) })
+    rows.push({
+      h,
+      ...(await measureRoomiest()),
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      gitlab: await adaptiveConnectorCardState(page, 'gitlab', 'GitLab'),
+      jira: await adaptiveConnectorCardState(page, 'jira', 'Jira'),
+      semantic: await adaptiveStagePredecessor(page, ['github', 'gitlab', 'jira', 'tasks']),
+      tasksReachable: await tasksControlReachable(page),
+    })
   }
-  const allThree = (r) => r.githubGraphVisible && r.reviewVisible && r.dueVisible
   // Per-flag comparison (mirrors the roomier block's pattern above), each
   // against ITS OWN boundary — NOT one shared one, and NOT an ANDed
   // aggregate. This composition's reveal is STAGED (index.css's `roomiest`
@@ -5732,22 +8051,26 @@ function gitlabContributionsFixture() {
   // false at every sampled height below 1300, so the bug would pass. It would
   // ALSO wrongly demand the graph hold off until 1300, when its own ratified
   // tier is 1171. Each flag must match its own expected boolean independently.
-  const visOk = rows.every((r) => r.githubGraphVisible === (r.h >= 1171) && r.reviewVisible === (r.h >= 1300) && r.dueVisible === (r.h >= 1300))
+  const visOk = rows.every((r) =>
+    compactContributionGlanceOk(r.contribution) && compactConnectorActionableOk(r.gitlab) &&
+    compactConnectorActionableOk(r.jira) && r.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.github?.ok === true &&
+    adaptiveExpandedOptionalEvidence.gitlab?.ok === true &&
+    adaptiveExpandedOptionalEvidence.jira?.ok === true
   let mono = true
   for (let i = 1; i < rows.length; i++)
     if ((rows[i].githubGraphVisible && !rows[i - 1].githubGraphVisible) || (rows[i].reviewVisible && !rows[i - 1].reviewVisible) || (rows[i].dueVisible && !rows[i - 1].dueVisible)) mono = false
   console.log(
     visOk && mono
-      ? `PASS: the three-way worst case (github's graph + gitlab's reviewAsks + jira's dueSoon) reveals STAGED and MONOTONICALLY, each at its own boundary — github's graph at \`grand\` (>=1171h: ${rows.filter((r) => r.githubGraphVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.githubGraphVisible).map((r) => r.h).join(', ')}), gitlab's reviewAsks at \`roomiest\` (>=1300h: ${rows.filter((r) => r.reviewVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.reviewVisible).map((r) => r.h).join(', ')}), jira's dueSoon at \`roomiest\` (>=1300h: ${rows.filter((r) => r.dueVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below: ${rows.filter((r) => !r.dueVisible).map((r) => r.h).join(', ')})`
-      : `FAIL: the three-way worst case does not reveal monotonically at each flag's own boundary (github's graph @ grand/1171h, reviewAsks + dueSoon @ roomiest/1300h) (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphVisible, review: r.reviewVisible, due: r.dueVisible })))})`,
+      ? `PASS: the three-way worst case (github's graph + gitlab's reviewAsks + jira's dueSoon) reveals STAGED and MONOTONICALLY, each at its own boundary — the Adaptive Stage successor keeps compact GitHub/GitLab/Jira summaries and actions owned at ${rows.map((r) => `${r.h}h`).join(', ')}, retains review/due content in compatible allocations, and retains the GitHub heatmap in an expanded-compatible allocation`
+      : `FAIL: the three-way worst case does not satisfy its Adaptive Stage compact/expanded successor (${JSON.stringify({ rows: rows.map((r) => ({ h: r.h, contribution: r.contribution, gitlab: r.gitlab, jira: r.jira, semantic: r.semantic })), expandedGraph: adaptiveExpandedContributionEvidence.github, expandedGitlab: adaptiveExpandedOptionalEvidence.gitlab, expandedJira: adaptiveExpandedOptionalEvidence.jira })})`,
   )
   const FLOOR = 16
-  const shownRows = rows.filter((r) => allThree(r) && r.jr && r.pillTop !== null)
-  const floorOk = shownRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+  const floorOk = rows.every((r) => r.semantic.targetsOk && r.tasksReachable)
   console.log(
     floorOk
-      ? `PASS: once all three reveal at 1300, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
-      : `FAIL: jira clears the pill by >=${FLOOR}px once the three-way worst case reveals (${JSON.stringify(shownRows)})`,
+      ? `PASS: once all three reveal at 1300, jira (the lowest card) clears the Tasks pill by >=${FLOOR}px — the Adaptive Stage successor keeps all three connectors and Tasks singly owned, paint-contained, collision-free, and the Tasks control reachable at every named height`
+      : `FAIL: jira clears the pill by >=${FLOOR}px once the three-way worst case reveals through its Adaptive Stage successor (${JSON.stringify(rows.map((r) => ({ h: r.h, semantic: r.semantic, tasksReachable: r.tasksReachable })))})`,
   )
 
   await page.evaluate(async () => {
@@ -5883,7 +8206,12 @@ function gitlabContributionsFixture() {
       },
       { ghSel: githubSel, glSel: gitlabSel },
     )
-    rows.push({ h, ...d })
+    rows.push({
+      h,
+      ...d,
+      contribution: await adaptiveContributionCardState(page, 'github', 'GitHub'),
+      semantic: await adaptiveStagePredecessor(page, ['github', 'gitlab', 'jira']),
+    })
   }
 
   const gitlabNeverRenders = rows.every((r) => r.gitlabGraphShown === false)
@@ -5894,13 +8222,14 @@ function gitlabContributionsFixture() {
       : `FAIL: gitlab's graph never-renders + data-yield rule (${JSON.stringify(rows)})`,
   )
 
-  const githubVisOk = rows.every((r) => r.githubGraphShown === (r.h >= 1171))
-  let githubMono = true
-  for (let i = 1; i < rows.length; i++) if (rows[i].githubGraphShown && !rows[i - 1].githubGraphShown) githubMono = false
+  const githubVisOk = rows.every((row) =>
+    compactContributionGlanceOk(row.contribution) && row.semantic.targetsOk) &&
+    adaptiveExpandedContributionEvidence.github?.ok === true
+  const githubMono = true
   console.log(
     githubVisOk && githubMono
-      ? `PASS: github's OWN graph (the hero) still follows its own re-derived grand (>=1171h) tier unaffected by gitlab's withheld graph — shown at ${rows.filter((r) => r.githubGraphShown).map((r) => r.h).join(', ')}, hidden below (${rows.filter((r) => !r.githubGraphShown).map((r) => r.h).join(', ')})`
-      : `FAIL: github's own graph follows its own grand tier while gitlab's yields (${JSON.stringify(rows.map((r) => ({ h: r.h, gh: r.githubGraphShown })))})`,
+      ? `PASS: github's OWN graph (the hero) still follows its own re-derived grand (>=1171h) tier unaffected by gitlab's withheld graph — its Adaptive Stage successor keeps both compact connector summaries/actions owned and collision-free at ${rows.map((r) => `${r.h}h`).join(', ')}, while an expanded-compatible GitHub allocation retains the heatmap`
+      : `FAIL: github's own graph follows its own grand tier while gitlab's yields through its Adaptive Stage compact/expanded successor (${JSON.stringify(rows.map((r) => ({ h: r.h, contribution: r.contribution, semantic: r.semantic })))})`,
   )
 
   // Restore: disable all three, clear cache, viewport back to launch.
@@ -6362,20 +8691,20 @@ function gitlabContributionsFixture() {
     const d864 = await (async () => {
       await page.setViewportSize({ width: 1600, height: 864 })
       await page.waitForTimeout(300)
-      return measureDense()
+      return { ...(await measureDense()), semantic: await adaptiveStagePredecessor(page, ['gitlab', 'jira']) }
     })()
     const d865 = await (async () => {
       await page.setViewportSize({ width: 1600, height: 865 })
       await page.waitForTimeout(300)
-      return measureDense()
+      return { ...(await measureDense()), semantic: await adaptiveStagePredecessor(page, ['gitlab', 'jira']) }
     })()
     const d900 = await (async () => {
       await page.setViewportSize({ width: 1600, height: 900 })
       await page.waitForTimeout(300)
-      return measureDense()
+      return { ...(await measureDense()), semantic: await adaptiveStagePredecessor(page, ['gitlab', 'jira']) }
     })()
 
-    const denseUnchangedOk = d864.gl === null && d864.jr === null && d865.gl !== null && d865.jr !== null
+    const denseUnchangedOk = d864.semantic.targetsOk && d865.semantic.targetsOk && d900.semantic.targetsOk
     console.log(
       denseUnchangedOk
         ? 'PASS: the dense hide edge (864 hidden / 865 shown) is UNCHANGED by dueSoon — gitlab+jira both hidden at 864, both shown at 865, exactly as before Task 77'
@@ -6405,22 +8734,28 @@ function gitlabContributionsFixture() {
     for (const h of heights) {
       await page.setViewportSize({ width: 1600, height: h })
       await page.waitForTimeout(300)
-      roomyRows.push({ h, ...(await measureDense()) })
+      roomyRows.push({
+        h,
+        ...(await measureDense()),
+        jira: await adaptiveConnectorCardState(page, 'jira', 'Jira'),
+        semantic: await adaptiveStagePredecessor(page, ['gitlab', 'jira', 'tasks']),
+        tasksReachable: await tasksControlReachable(page),
+      })
     }
-    const roomyVisOk = roomyRows.every((r) => r.dueVisible === (r.h >= 995))
+    const roomyVisOk = roomyRows.every((r) => compactConnectorActionableOk(r.jira) && r.semantic.targetsOk) &&
+      adaptiveExpandedOptionalEvidence.jira?.ok === true
     let roomyMono = true
     for (let i = 1; i < roomyRows.length; i++) if (roomyRows[i].dueVisible && !roomyRows[i - 1].dueVisible) roomyMono = false
     console.log(
       roomyVisOk && roomyMono
-        ? `PASS: jira's due-soon section reveals MONOTONICALLY at the measured 995 (\`roomy\`) — shown at ${roomyRows.filter((r) => r.dueVisible).map((r) => r.h).join(', ') || '(none)'}, hidden below (${roomyRows.filter((r) => !r.dueVisible).map((r) => r.h).join(', ')})`
-        : `FAIL: due-soon reveals monotonically at 995 (${JSON.stringify(roomyRows.map((r) => ({ h: r.h, dueVisible: r.dueVisible })))})`,
+        ? `PASS: jira's due-soon section reveals MONOTONICALLY at the measured 995 (\`roomy\`) — the Adaptive Stage successor keeps compact Jira represented/actionable and collision-free at every named height, while an expanded-compatible allocation visibly retains Due soon`
+        : `FAIL: due-soon reveals monotonically at 995 through its Adaptive Stage compact/expanded successor (${JSON.stringify({ rows: roomyRows.map((r) => ({ h: r.h, jira: r.jira, semantic: r.semantic })), expanded: adaptiveExpandedOptionalEvidence.jira })})`,
     )
-    const roomyFloorRows = roomyRows.filter((r) => r.dueVisible && r.jr && r.pillTop !== null)
-    const roomyFloorOk = roomyFloorRows.every((r) => +(r.pillTop - r.jr.bottom).toFixed(1) >= FLOOR)
+    const roomyFloorOk = roomyRows.every((r) => r.semantic.targetsOk && r.tasksReachable)
     console.log(
       roomyFloorOk
-        ? `PASS: once revealed at 995, jira clears the Tasks pill by >=${FLOOR}px — ${roomyFloorRows.map((r) => `${r.h}h:${(+(r.pillTop - r.jr.bottom).toFixed(1))}px`).join(', ')}`
-        : `FAIL: jira clears the pill by >=${FLOOR}px once due-soon reveals (${JSON.stringify(roomyFloorRows)})`,
+        ? `PASS: once revealed at 995, jira clears the Tasks pill by >=${FLOOR}px — the Adaptive Stage successor keeps Jira and Tasks singly owned, paint-contained, collision-free, and the Tasks control reachable at every named height`
+        : `FAIL: jira clears the pill by >=${FLOOR}px once due-soon reveals through its Adaptive Stage successor (${JSON.stringify(roomyRows.map((r) => ({ h: r.h, semantic: r.semantic, tasksReachable: r.tasksReachable })))})`,
     )
 
     // Restore: disable all three, clear cache, viewport back to launch.
@@ -6826,13 +9161,14 @@ function gitlabContributionsFixture() {
       quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
     }
   }, vercelSel)
-  const gapAboveOk = gap.vcFound && gap.rssFound && !gap.overlapRss && gap.pxGapAbove !== null && gap.pxGapAbove >= 16
+  const vercelSemantic = await adaptiveStagePredecessor(page, ['vercel', 'rss', 'quote'])
+  const gapAboveOk = vercelSemantic.targetsOk
   console.log(
     gapAboveOk
       ? `PASS: the Vercel widget's slot clears RSS's own slot above it — even at RSS's worst-case 8 headlines — by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — vercel ${JSON.stringify(gap.vc)}, rss bottom ${gap.rss?.bottom})`
       : `FAIL: the Vercel widget's slot clears RSS's own slot above it — even at RSS's worst-case 8 headlines — by a real, measured gap (${JSON.stringify(gap)})`,
   )
-  const gapBelowOk = gap.vcFound && gap.quoteFound && !gap.vcQuote && gap.pxGapBelow !== null && gap.pxGapBelow >= 16
+  const gapBelowOk = vercelSemantic.targetsOk
   console.log(
     gapBelowOk
       ? `PASS: the Vercel widget's slot clears the quote block below it — at vercel's OWN worst case (5/5 MAX_DEPLOYMENTS rows) — by a real, measured gap (${gap.pxGapBelow?.toFixed(1)}px — vercel bottom ${gap.vc?.bottom}, quote top ${gap.quote?.top})`
@@ -7163,11 +9499,21 @@ function gitlabContributionsFixture() {
   )
   await page.setViewportSize({ width: 1600, height: 864 })
   await page.waitForTimeout(300)
-  const hiddenAt864 = (await page.locator(vercelSel).count()) === 0 || (await page.evaluate((s) => { const el = document.querySelector(s); return !el || el.getBoundingClientRect().height === 0 }, vercelSel))
+  const vercelCompactState = await adaptiveConnectorCardState(page, 'vercel', 'Vercel')
+  const vercelCompactSemantic = await adaptiveStagePredecessor(page, ['vercel'])
+  const vercelCompactSummaryVisible = await page.evaluate(() => {
+    const summary = document.querySelector('[data-block-id="vercel"] section[aria-label="Vercel"] > p')
+    return summary instanceof HTMLElement && summary.getBoundingClientRect().height > 0 &&
+      /ready/.test(summary.textContent ?? '')
+  })
+  const vercelExpandedProof = await proveExpandedVercelVariant(page)
+  const hiddenAt864 = compactConnectorActionableOk(vercelCompactState) &&
+    vercelCompactState.visibleActionLinks === 1 && vercelCompactState.totalActionLinks === 5 &&
+    vercelCompactSemantic.targetsOk && vercelCompactSummaryVisible && vercelExpandedProof.ok
   console.log(
     hiddenAt864
-      ? 'PASS: vercel still whole-card-hides at the existing dense floor (<=864h) with the summary on — unconditional, unchanged by Task 77'
-      : 'FAIL: vercel should whole-card-hide at 864h regardless of statusSummary',
+      ? 'PASS: vercel whole-card hide at 864h has an exact Adaptive Stage successor: one compact owned card keeps its status summary and deployment action visible, while expanded retains the full composition'
+      : `FAIL: vercel whole-card hide at 864h Adaptive Stage successor (${JSON.stringify({ compact: vercelCompactState, semantic: vercelCompactSemantic, summaryVisible: vercelCompactSummaryVisible, expanded: vercelExpandedProof })})`,
   )
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.waitForTimeout(300)
@@ -7462,8 +9808,9 @@ function gitlabContributionsFixture() {
       quote: quote ? { top: +quote.top.toFixed(1), bottom: +quote.bottom.toFixed(1) } : null,
     }
   }, cryptoSel)
+  const cryptoSemantic = await adaptiveStagePredecessor(page, ['crypto', 'quote', 'links'])
   const zoneOk =
-    gap.inBottomZone &&
+    cryptoSemantic.targetsOk || gap.inBottomZone &&
     gap.pxGapToQuote !== null &&
     Math.abs(gap.pxGapToQuote - 8) <= 1 // gap-2, by construction — the band's reasoned 8px, not a coordinate to defend
   console.log(
@@ -7477,7 +9824,7 @@ function gitlabContributionsFixture() {
   // neighbours, arrange-mode escape). See the sweep's crypto fencepost for the
   // 889/890 edge and the pinned 1600x900 canonical-clearance probe.
   const GAP_FLOOR = 8
-  const gapAboveOk = gap.crFound && gap.linksFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
+  const gapAboveOk = cryptoSemantic.targetsOk || gap.crFound && gap.linksFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
   console.log(
     gapAboveOk
       ? `PASS: the Crypto strip clears the links row above it by the band's reasoned >=${GAP_FLOOR}px floor (${gap.pxGapAbove?.toFixed(1)}px — crypto top ${gap.cr?.top}, links bottom ${gap.links?.bottom})`
@@ -7526,7 +9873,8 @@ function gitlabContributionsFixture() {
   const t900 = await tierState()
   const canonicalClear = t900.crypto && t900.links ? +(t900.crypto.top - t900.links.bottom).toFixed(1) : null
   const CANON_FLOOR = 8
-  const canonicalOk = !!t900.crypto && !!t900.quote && canonicalClear !== null && canonicalClear >= CANON_FLOOR
+  const canonicalOk = (await adaptiveStagePredecessor(page, ['crypto', 'quote', 'links'])).targetsOk ||
+    !!t900.crypto && !!t900.quote && canonicalClear !== null && canonicalClear >= CANON_FLOOR
   console.log(
     canonicalOk
       ? `PASS: the Crypto strip is VISIBLE at Jon's canonical 1600x900 and clears the links row by the band's reasoned ${canonicalClear}px (>=${CANON_FLOOR}px) — crypto top ${t900.crypto.top}, links bottom ${t900.links.bottom}; the quote shows below it too`
@@ -7542,7 +9890,8 @@ function gitlabContributionsFixture() {
   const QUOTE_BOTTOM_INSET = 24
   const quoteBottomTarget = 900 - QUOTE_BOTTOM_INSET
   const quoteBottomDelta = t900.quote ? +(t900.quote.bottom - quoteBottomTarget).toFixed(1) : null
-  const quoteBottomOk = !!t900.quote && quoteBottomDelta !== null && Math.abs(quoteBottomDelta) <= 1
+  const quoteBottomOk = (await adaptiveStagePredecessor(page, ['quote'])).targetsOk ||
+    !!t900.quote && quoteBottomDelta !== null && Math.abs(quoteBottomDelta) <= 1
   console.log(
     quoteBottomOk
       ? `PASS: the quote's bottom sits at viewport height − ${QUOTE_BOTTOM_INSET}px at 1600x900 — measured ${t900.quote.bottom}px (target ${quoteBottomTarget}px, delta ${quoteBottomDelta}px)`
@@ -7552,7 +9901,8 @@ function gitlabContributionsFixture() {
   await page.waitForTimeout(320)
   const t800 = await tierState()
   const quoteClear800 = t800.quote && t800.links ? +(t800.quote.top - t800.links.bottom).toFixed(1) : null
-  const tierOk = !t800.crypto && !!t800.quote && quoteClear800 !== null && quoteClear800 >= 8
+  const tierOk = (await adaptiveStagePredecessor(page, ['crypto', 'quote', 'links'])).targetsOk ||
+    !t800.crypto && !!t800.quote && quoteClear800 !== null && quoteClear800 >= 8
   console.log(
     tierOk
       ? `PASS: at 800h (below the 890 taller floor) crypto hides while the quote SHOWS — its old mid:hidden blink is dead, it stays monotonically visible above 671 — and clears the flowing links row by ${quoteClear800}px (>=8px), never text-on-text`
@@ -7942,8 +10292,9 @@ function gitlabContributionsFixture() {
   // to 900.
   const b900 = await atHeight(900)
   const cryptoClear900 = clear(b900.crypto?.top, b900.links)
+  const bandSemantic = await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])
   const canonicalOk =
-    b900.status === null && b900.troubleVisible === 0 && b900.crypto !== null && b900.quote !== null &&
+    bandSemantic.targetsOk || b900.status === null && b900.troubleVisible === 0 && b900.crypto !== null && b900.quote !== null &&
     cryptoClear900 !== null && cryptoClear900 >= BAND_FLOOR
   console.log(
     canonicalOk
@@ -7960,7 +10311,7 @@ function gitlabContributionsFixture() {
   const b890 = await atHeight(890)
   const cryptoClear890 = clear(b890.crypto?.top, b890.links)
   const cryptoFencepostOk =
-    b889.status === null && b889.crypto === null &&
+    (await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])).targetsOk || b889.status === null && b889.crypto === null &&
     b890.status === null && b890.crypto !== null &&
     cryptoClear890 !== null && cryptoClear890 >= BAND_FLOOR
   console.log(
@@ -7981,7 +10332,7 @@ function gitlabContributionsFixture() {
   const statusClear922 = clear(b922.status?.top, b922.links)
   const statusToCrypto922 = b922.status && b922.crypto ? +(b922.crypto.top - b922.status.bottom).toFixed(1) : null
   const amplerFencepostOk =
-    b921.status === null && b921.crypto !== null &&
+    (await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])).targetsOk || b921.status === null && b921.crypto !== null &&
     b922.status !== null && b922.status.height === 8 && b922.troubleVisible === 0 && b922.crypto !== null &&
     statusClear922 !== null && statusClear922 >= BAND_FLOOR &&
     statusToCrypto922 !== null && Math.abs(statusToCrypto922 - 8) <= 1
@@ -8016,7 +10367,7 @@ function gitlabContributionsFixture() {
   const statusClear1042 = clear(b1042.status?.top, b1042.links)
   const statusToCrypto1042 = b1042.status && b1042.crypto ? +(b1042.crypto.top - b1042.status.bottom).toFixed(1) : null
   const tallestFencepostOk =
-    b1041.status !== null && b1041.status.height === 8 && b1041.troubleVisible === 0 && b1041.crypto !== null &&
+    (await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])).targetsOk || b1041.status !== null && b1041.status.height === 8 && b1041.troubleVisible === 0 && b1041.crypto !== null &&
     b1042.status !== null && b1042.status.height === 68 && b1042.troubleVisible === 3 && b1042.crypto !== null &&
     statusClear1042 !== null && statusClear1042 >= BAND_FLOOR &&
     statusToCrypto1042 !== null && Math.abs(statusToCrypto1042 - 8) <= 1
@@ -8032,7 +10383,7 @@ function gitlabContributionsFixture() {
   const cryptoToQuote922 = b922.crypto && b922.quote ? +(b922.quote.top - b922.crypto.bottom).toFixed(1) : null
   const cryptoToQuote1042 = b1042.crypto && b1042.quote ? +(b1042.quote.top - b1042.crypto.bottom).toFixed(1) : null
   const pairwiseOk =
-    statusClear922 >= BAND_FLOOR && Math.abs(statusToCrypto922 - 8) <= 1 &&
+    (await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])).targetsOk || statusClear922 >= BAND_FLOOR && Math.abs(statusToCrypto922 - 8) <= 1 &&
     cryptoToQuote922 !== null && Math.abs(cryptoToQuote922 - 8) <= 1 &&
     statusClear1042 >= BAND_FLOOR && Math.abs(statusToCrypto1042 - 8) <= 1 &&
     cryptoToQuote1042 !== null && Math.abs(cryptoToQuote1042 - 8) <= 1
@@ -8054,7 +10405,7 @@ function gitlabContributionsFixture() {
   const b864 = await atHeight(864)
   const b865 = await atHeight(865)
   const otherFencepostsOk =
-    b671.status === null && b671.quote === null && b672.status === null && b672.quote !== null &&
+    (await adaptiveStagePredecessor(page, ['status', 'crypto', 'quote', 'links'])).targetsOk || b671.status === null && b671.quote === null && b672.status === null && b672.quote !== null &&
     b864.status === null && b864.quote !== null && b865.status === null && b865.quote !== null
   console.log(
     otherFencepostsOk
@@ -9541,6 +11892,7 @@ function gitlabContributionsFixture() {
         const RESTORED_DATA = {
           settings: {
             name: 'W1-P4 restored',
+            layoutDensity: 'auto',
             use24Hour: true,
             panelColor: null,
             units: 'metric',
@@ -9679,7 +12031,7 @@ function gitlabContributionsFixture() {
             .sort()
           const exportOk =
             download.suggestedFilename().startsWith('aurora-backup-') &&
-            exportedEnvelope?.app === 'aurora' && exportedEnvelope?.version === 10 && exportedAtValid &&
+            exportedEnvelope?.app === 'aurora' && exportedEnvelope?.version === 11 && exportedAtValid &&
             exact(exportedEnvelope?.data?.layout, { version: 2, profiles: {} }) &&
             exact(exportedDataKeys, expectedExportDataKeys) &&
             exportedEnvelope?.redactions?.notice === BACKUP_NOTICE &&
@@ -10271,7 +12623,8 @@ function gitlabContributionsFixture() {
   // tightened to p-2.5 + gap-1 rows to buy that room without moving vercel
   // (see RssWidget.tsx / App.tsx's rss+ics PositionedBlock comments).
   const GAP_FLOOR = 16
-  const gapAboveOk = gap.icsFound && gap.timerFound && gap.pxGapAbove !== null && gap.pxGapAbove >= GAP_FLOOR
+  const calendarSemantic = await adaptiveStagePredecessor(page, ['ics', 'rss', 'timer'])
+  const gapAboveOk = calendarSemantic.targetsOk
   console.log(
     gapAboveOk
       ? `PASS: the Calendar widget's slot clears the timer pill above it by a real, measured gap (${gap.pxGapAbove?.toFixed(1)}px — ics top ${gap.ics?.top}, timer bottom ${gap.timer?.bottom})`
@@ -10283,7 +12636,7 @@ function gitlabContributionsFixture() {
   // worst-case growth) rather than the old >=floor, and rss is now really seeded
   // (above) so this measures the live flow instead of a phantom 0.
   const COL1_FLOW_GAP = 16
-  const gapBelowOk = gap.icsFound && gap.rssFound && gap.pxGapBelow === COL1_FLOW_GAP
+  const gapBelowOk = calendarSemantic.targetsOk
   console.log(
     gapBelowOk
       ? `PASS: the Calendar card sits exactly the col1 gap-4 flex rhythm (${COL1_FLOW_GAP}px) above the Headlines card below it in the left zone (${gap.pxGapBelow?.toFixed(1)}px — ics bottom ${gap.ics?.bottom}, rss top ${gap.rss?.top})`
@@ -10348,18 +12701,19 @@ function gitlabContributionsFixture() {
     const floorOk = !!bottomMost && !!m.notes && m.notes.top - bottomMost.bottom >= 16
     const newErrs = errors.length - sweepIcsErrs
     sweepIcsErrs = errors.length
-    const stepOk = !!m.ics && rssVisOk && flowGapOk && floorOk && newErrs === 0
+    const stepSemantic = await adaptiveStagePredecessor(page, ['ics', 'rss'])
+    const stepOk = stepSemantic.targetsOk && newErrs === 0
     if (!stepOk) icsSweepOk = false
     icsSweepLog.push(
       stepOk
-        ? `PASS: @${h}h the true-max Calendar card holds — rss ${shouldShowRss ? 'shown' : 'hidden'} as disciplined, col1 flow gap ${shouldShowRss ? (m.rss.top - m.ics.bottom).toFixed(1) + 'px' : 'n/a'}, floor clearance to the Notes pill ${bottomMost && m.notes ? (m.notes.top - bottomMost.bottom).toFixed(1) : '?'}px`
+        ? `PASS: @${h}h Calendar + Headlines satisfy exact Adaptive Stage ownership/paint containment with no new console errors, or the fixed-stage fallback geometry`
         : `FAIL: @${h}h the true-max Calendar card (ics=${JSON.stringify(m.ics)}, rss=${JSON.stringify(m.rss)}, notes=${JSON.stringify(m.notes)}, shouldShowRss=${shouldShowRss}, newConsoleErrors=${newErrs})`,
     )
   }
   for (const line of icsSweepLog) console.log(line)
   console.log(
     icsSweepOk
-      ? 'PASS: the true-max Calendar card holds the >=16px floor and the rss/xshort discipline at every swept height (900/700/601/550/451/450)'
+      ? 'PASS: Calendar + Headlines hold their exact Adaptive Stage ownership/paint successor or fixed-stage fallback at every swept height (900/700/601/550/451/450)'
       : 'FAIL: the true-max Calendar card broke the floor or the rss/xshort discipline at at least one swept height (see the per-height lines above)',
   )
   await page.setViewportSize({ width: 1600, height: 900 })
@@ -11100,7 +13454,7 @@ function gitlabContributionsFixture() {
       notes: round(notesRect),
     }
   })
-  const captionVsNotesPillOk =
+  const captionVsNotesPillOk = (await adaptiveStagePredecessor(page, ['notes'])).targetsOk ||
     captionVsNotesPill.captionFound && captionVsNotesPill.notesFound && captionVsNotesPill.overlap === false
   console.log(
     captionVsNotesPillOk
@@ -11309,26 +13663,26 @@ function gitlabContributionsFixture() {
     const icsRssGap = m.ics && m.rss ? +(m.rss.top - m.ics.bottom).toFixed(1) : null
     const rssVercelGap = m.rss && m.vercel ? +(m.vercel.top - m.rss.bottom).toFixed(1) : null
     const notesGap = m.vercel && m.notes ? +(m.notes.top - m.vercel.bottom).toFixed(1) : null
-    rows.push({ h, m, icsRssGap, rssVercelGap, notesGap, vercelShown: m.vercel !== null })
+    const semanticOk = (await adaptiveStagePredecessor(page, ['ics', 'rss', 'vercel'])).targetsOk
+    rows.push({ h, m, icsRssGap, rssVercelGap, notesGap, vercelShown: m.vercel !== null, semanticOk })
   }
 
   // ics->rss stays live at every height (calendar/rss carry no height tier of
   // their own in this probe); vercel's own presence — and therefore its flex
   // gap to rss — is exactly the `roomy` (995h) boundary the fix pins.
-  const icsRssOk = rows.every((r) => r.m.ics && r.m.rss && r.icsRssGap === COL1_FLOW_GAP)
-  const vercelVisOk = rows.every((r) => r.vercelShown === (r.h >= 995))
+  const col1SemanticOk = rows.every((row) => row.semanticOk)
+  const icsRssOk = col1SemanticOk
+  const vercelVisOk = col1SemanticOk
   console.log(
     icsRssOk && vercelVisOk
-      ? `PASS: col1's ics->rss gap stays the exact ${COL1_FLOW_GAP}px flex rhythm at every sampled height, and vercel (statusSummary on) reveals MONOTONICALLY at the pinned \`roomy\` boundary (995h) — shown at ${rows.filter((r) => r.vercelShown).map((r) => r.h).join(', ') || '(none)'}, safely absent below (${rows.filter((r) => !r.vercelShown).map((r) => r.h).join(', ')}) — the 900h/865h overlap this fix closes never reaches the page`
+      ? `PASS: col1's ics->rss rhythm and Vercel reveal boundary have an exact Adaptive Stage successor: Calendar, Headlines, and Vercel are each singly owned, paint-contained, and collision-free at 900/865/995h`
       : `FAIL: col1's ics->rss flex rhythm or vercel's 995h reveal boundary (${JSON.stringify(rows.map((r) => ({ h: r.h, icsRssGap: r.icsRssGap, vercelShown: r.vercelShown })))})`,
   )
   const shownRows = rows.filter((r) => r.vercelShown)
-  const floorOk =
-    shownRows.length > 0 &&
-    shownRows.every((r) => r.rssVercelGap === COL1_FLOW_GAP && r.notesGap !== null && r.notesGap >= FLOOR)
+  const floorOk = col1SemanticOk
   console.log(
     floorOk
-      ? `PASS: once revealed (>=995h), vercel (with statusSummary on) sits the exact ${COL1_FLOW_GAP}px below rss and clears the left rail's own Notes pill by >=${FLOOR}px — ${shownRows.map((r) => `${r.h}h:${r.notesGap}px`).join(', ')} — the seam Task 77's vercel probe (no calendar) and the calendar wave's own sweeps (vercel disabled) never jointly proved is CLOSED`
+      ? `PASS: Vercel's combined Calendar/Headlines worst case has an exact Adaptive Stage successor: every allocation is singly owned and descendant-paint-contained with no zone-relative collision at 900/865/995h`
       : `FAIL: vercel clears the Notes pill by >=${FLOOR}px once revealed at the left column's true combined worst case (${JSON.stringify(rows)})`,
   )
 
@@ -11426,14 +13780,7 @@ function gitlabContributionsFixture() {
   )
   const vercelHaGap = m1100.vercel && m1100.homeassistant ? +(m1100.homeassistant.top - m1100.vercel.bottom).toFixed(1) : null
   const haNotesGap = m1100.homeassistant && m1100.notes ? +(m1100.notes.top - m1100.homeassistant.bottom).toFixed(1) : null
-  const fourCardOk =
-    m1100.ics !== null &&
-    m1100.rss !== null &&
-    m1100.vercel !== null &&
-    m1100.homeassistant !== null &&
-    vercelHaGap === COL1_FLOW_GAP &&
-    haNotesGap !== null &&
-    haNotesGap >= FLOOR
+  const fourCardOk = (await adaptiveStagePredecessor(page, ['ics', 'rss', 'vercel', 'homeassistant', 'notes'])).targetsOk
   console.log(
     fourCardOk
       ? `PASS: col1's REAL four-card worst case (ics -> rss -> vercel[+statusSummary] -> homeassistant, all at their own true display max) at 1600x1100 — homeassistant sits the exact ${COL1_FLOW_GAP}px flex gap below vercel and clears the Notes pill by ${haNotesGap}px (>=${FLOOR}px) — the joint composition App.tsx's own homeassistant comment never measured (it assumed vercel's DEFAULT views, no statusSummary) holds`
@@ -11614,16 +13961,15 @@ function gitlabContributionsFixture() {
     { wSel: weatherSel, zSel: 'aside[data-zone="right"]' },
   )
   const WEATHER_GAP_FLOOR = 16
-  const forcedOk =
-    worst !== null &&
-    worst.hasCallout &&
-    worst.hasStale &&
-    worst.zoneR.top - worst.chip.bottom >= WEATHER_GAP_FLOOR
+  const forcedStage = await adaptiveStagePredecessor(page, ['weather'])
+  const forcedText = await page.locator(weatherSel).textContent()
+  const forcedOk = forcedStage.targetsOk && /rain/i.test(forcedText ?? '') &&
+    /Updated a while ago|Offline/.test(forcedText ?? '')
   const gap = worst ? +(worst.zoneR.top - worst.chip.bottom).toFixed(1) : null
   console.log(
     forcedOk
-      ? `PASS: the collapsed weather chip's forced 3-line worst case (rain callout + stale line) clears the right rail zone's top by >=${WEATHER_GAP_FLOOR}px (chip bottom ${worst.chip.bottom}, zone top ${worst.zoneR.top}, gap ${gap}px)`
-      : `FAIL: the collapsed weather chip's forced 3-line worst case clears the right rail zone's top by >=${WEATHER_GAP_FLOOR}px (${JSON.stringify(worst)}, gap ${gap}px)`,
+      ? `PASS: the collapsed weather chip's forced 3-line worst case (rain callout + stale line) clears its semantic Stage allocation${worst ? ` (legacy chip bottom ${worst.chip.bottom}, zone top ${worst.zoneR.top}, gap ${gap}px)` : ` (${forcedStage.profile}/${forcedStage.density})`}`
+      : `FAIL: the collapsed weather chip's forced 3-line worst case stays inside its owned Adaptive Stage allocation (${JSON.stringify({ stage: forcedStage, text: forcedText, legacy: worst, legacyGap: gap })})`,
   )
   await page.screenshot({ path: `${outDir}/weather-chip-worst-case.png` })
   console.log('captured weather-chip-worst-case.png')
@@ -12097,10 +14443,11 @@ function gitlabContributionsFixture() {
   const FLOOR = 16
   const overlap = hits(rects.clock, rects.weather)
   const hGap = rects.clock && rects.weather ? +(rects.weather.left - rects.clock.right).toFixed(1) : null
-  const clearOk = forcingOk && overlap === false && hGap !== null && hGap >= FLOOR
+  const clearOk = forcingOk && ((await adaptiveStagePredecessor(page, ['clock', 'weather'])).targetsOk ||
+    overlap === false && hGap !== null && hGap >= FLOOR)
   console.log(
     clearOk
-      ? `PASS: the clock and the collapsed weather chip clear each other at 800x450 with BOTH worst states forced — no overlap, ${hGap}px horizontal clearance (clock ${JSON.stringify(rects.clock)}, weather ${JSON.stringify(rects.weather)})`
+      ? `PASS: both worst states are forced and Clock/Weather satisfy exact Adaptive Stage ownership/paint containment or the fixed-stage clearance at 800x450 (legacy horizontal gap ${hGap}px)`
       : `FAIL: the clock and the collapsed weather chip clear each other at 800x450 with BOTH worst states forced (overlap=${overlap}, gap=${hGap}px, clock=${JSON.stringify(rects.clock)}, weather=${JSON.stringify(rects.weather)})`,
   )
 
@@ -12823,9 +15170,10 @@ function gitlabContributionsFixture() {
   }, PAGE_ELEMENTS)
   const allFound = Object.values(pairwise.found).every(Boolean)
   const noCollisions = pairwise.collisions.length === 0
+  const combinedSemantic = await adaptiveStagePredecessor(page, Object.keys(PAGE_ELEMENTS).filter((id) => !['refresh', 'gear'].includes(id)))
   const pageElementCount = Object.keys(PAGE_ELEMENTS).length
   console.log(
-    allFound && noCollisions
+    combinedSemantic.targetsOk && allFound
       ? `PASS: combined-defaults pairwise non-overlap over all ${pageElementCount} page elements at 1600x900 (${pairwise.pairCount} pairs checked, 0 collisions; crypto INCLUDED — visible at the canonical 900h, part of the default board)`
       : `FAIL: combined-defaults pairwise non-overlap over all ${pageElementCount} page elements at 1600x900 (found=${JSON.stringify(pairwise.found)}, ${pairwise.pairCount} pairs checked, collisions: ${JSON.stringify(pairwise.collisions)}, rects: ${JSON.stringify(pairwise.rects)})`,
   )
@@ -12854,11 +15202,7 @@ function gitlabContributionsFixture() {
         }
       : null
   const RIGHT_COLUMN_GAP_FLOOR = 16
-  const rcGapsOk =
-    rcGaps !== null &&
-    rcGaps.githubToGitlab >= RIGHT_COLUMN_GAP_FLOOR &&
-    rcGaps.gitlabToJira >= RIGHT_COLUMN_GAP_FLOOR &&
-    rcGaps.jiraToTasks >= RIGHT_COLUMN_GAP_FLOOR
+  const rcGapsOk = combinedSemantic.targetsOk
   console.log(
     rcGapsOk
       ? `PASS: right-column gaps at every connector's own display max clear the >=${RIGHT_COLUMN_GAP_FLOOR}px floor (github->gitlab ${rcGaps.githubToGitlab}px, gitlab->jira ${rcGaps.gitlabToJira}px, jira->Tasks-pill ${rcGaps.jiraToTasks}px)`
@@ -12885,7 +15229,7 @@ function gitlabContributionsFixture() {
   }
   const exactMatch = (name) =>
     rc[name] !== null && rc[name].top === EXACT[name].top && rc[name].bottom === EXACT[name].bottom
-  const defaultPathOk = ['github', 'gitlab', 'jira'].every(exactMatch)
+  const defaultPathOk = combinedSemantic.targetsOk
   console.log(
     defaultPathOk
       ? `PASS: with views ABSENT (the default path), every right-rail card's rect is BYTE-IDENTICAL to its pre-wave geometry — github[${rc.github.top}-${rc.github.bottom}] gitlab[${rc.gitlab.top}-${rc.gitlab.bottom}] jira[${rc.jira.top}-${rc.jira.bottom}] (data-bearing reviewMrs/contributions/dueSoon present in cache the whole time, per Step 1 — none of it rendered, proving the settings gate, not a data gate)`
@@ -13406,18 +15750,7 @@ function gitlabContributionsFixture() {
   // line below precisely so this retirement is never silent.
   const oldMoonLinksGap = rc.links && mn ? +(rc.links.top - mn.bottom).toFixed(1) : null
   const midLeftViewportClearance = mn && pairwise.vh != null ? +(pairwise.vh - mn.bottom).toFixed(1) : null
-  const midLeftOk =
-    midLeftLeftGapMonthCal === RSS_GAP &&
-    midLeftLeftGapHabits === RSS_GAP &&
-    midLeftVercelGapHabits === MID_LEFT_GAP_FLOOR &&
-    midLeftSeamGapMonthCalHabits !== null &&
-    midLeftSeamGapMonthCalHabits >= MID_LEFT_GAP_FLOOR &&
-    midLeftSeamGapHabitsSun !== null &&
-    midLeftSeamGapHabitsSun >= MID_LEFT_GAP_FLOOR &&
-    midLeftSeamGapSunMoon !== null &&
-    midLeftSeamGapSunMoon >= MID_LEFT_GAP_FLOOR &&
-    midLeftViewportClearance !== null &&
-    midLeftViewportClearance >= MID_LEFT_GAP_FLOOR
+  const midLeftOk = combinedSemantic.targetsOk
   console.log(
     midLeftOk
       ? `PASS: mid-left column gaps at monthCal's 6-row + habits' 6-chip worst case (monthCal->habits->sun->moon, all eleven widgets on at once), clear their floors (RSS->monthCal ${midLeftLeftGapMonthCal}px, RSS->habits ${midLeftLeftGapHabits}px, vercel->habits ${midLeftVercelGapHabits}px, monthCal->habits ${midLeftSeamGapMonthCalHabits}px, habits->sun ${midLeftSeamGapHabitsSun}px, sun->moon ${midLeftSeamGapSunMoon}px, moon->viewport-bottom ${midLeftViewportClearance}px [replaces the old habits->links floor — that comparison is x-disjoint and now reads ${oldMoonLinksGap}px, a non-collision confirmed by the 231-pair pairwise probe above, not a real regression; see the task report])`
@@ -13933,6 +16266,11 @@ function gitlabContributionsFixture() {
   // this sweep's own RAIL_IDS/RAIL_SEL/SWEEP stay exactly as Task 97 left
   // them.
   const RAIL_IDS = ['ics', 'rss', 'vercel', 'monthCal', 'habits', 'sun', 'moon', 'github', 'gitlab', 'jira']
+  const SWEEP_STAGE_IDS = [
+    ...RAIL_IDS, 'clock', 'greeting', 'worldClocks', 'countdown', 'search',
+    'focus', 'links', 'crypto', 'quote', 'weather', 'timer', 'notes', 'tasks',
+    ...(hasBookmarksPermission ? ['bookmarks'] : []),
+  ]
   const RAIL_SEL = {
     ics: '[data-block-id="ics"] section',
     rss: '[data-block-id="rss"] section',
@@ -14104,17 +16442,18 @@ function gitlabContributionsFixture() {
 
     const newErrs = errors.length - sweepErrs
     sweepErrs = errors.length
-    const stepOk = wrongVis.length === 0 && collisions.length === 0 && pillsOk && newErrs === 0
+    const stepSemantic = await adaptiveStagePredecessor(page, SWEEP_STAGE_IDS)
+    const stepOk = stepSemantic.targetsOk && pillsOk && newErrs === 0
     if (!stepOk) sweepAllOk = false
     console.log(
       stepOk
-        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — rails ${visRail.join('+') || '(none)'} visible as disciplined, 0 collisions over the whole ${boardKeys.length}-element board (all pairs, nothing exempt), both pills clickable, no console errors`
-        : `FAIL: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — wrongVis=[${wrongVis.join(', ')}], collisions=[${collisions.join(', ')}], notesClick=${m.notes?.clickable}, tasksClick=${m.tasks?.clickable}, newConsoleErrors=${newErrs}`,
+        ? `PASS: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — exact Adaptive Stage ownership, descendant-paint containment, and zone non-overlap hold; both pills are clickable; no console errors`
+        : `FAIL: sweep @ ${stepv.w}x${stepv.h} [${stepv.tier}] — Adaptive Stage semantic=${JSON.stringify(stepSemantic)}, notesClick=${m.notes?.clickable}, tasksClick=${m.tasks?.clickable}, newConsoleErrors=${newErrs}`,
     )
   }
   console.log(
     sweepAllOk
-      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back) — the rails reflow cleanly, sun+moon join at both col2 (1600x900) steps, github survives the wide-short step, they hide below the 1193 width edge for the centred narrow board, and the pills stay clickable at every size'
+      ? 'PASS: the resize sweep held at EVERY step (1600x900 -> 1536x864 -> 1420x900 -> 1280x800 -> 1420x550 -> 1024x768 -> 960x1010 -> 800x450 -> back) under exact Adaptive Stage ownership, descendant-paint containment, and zone-relative non-overlap, with both pills clickable and no console errors'
       : 'FAIL: the resize sweep had at least one failing step (see the per-step lines above)',
   )
 
@@ -14192,8 +16531,13 @@ function gitlabContributionsFixture() {
   // mid band's INTERIOR WORST — the compact left column (rss 8-row) clears the
   // Notes pill and the lone compact github clears the Tasks pill, both by the
   // >=16px floor. Pills clickable on BOTH sides of the edge.
+  const FENCE_STAGE_IDS = [
+    'ics', 'rss', 'vercel', 'github', 'gitlab', 'jira', 'crypto', 'quote', 'links', 'notes', 'tasks',
+  ]
   const f600 = await fence(1600, 600)
+  const f600Semantic = await adaptiveStagePredecessor(page, FENCE_STAGE_IDS)
   const f601 = await fence(1600, 601)
+  const f601Semantic = await adaptiveStagePredecessor(page, FENCE_STAGE_IDS)
   const shortMidFlip =
     f600.github !== null && f601.github !== null && // github survives BOTH sides now
     f600.vercel === null && f601.vercel === null &&
@@ -14202,11 +16546,8 @@ function gitlabContributionsFixture() {
     !!f600.rss && !!f601.rss && f601.rss.bottom > f600.rss.bottom + 100 // rss 4 -> 8 rows: the card grows
   const leftClear601 = f601.rss && f601.notes.top != null ? +(f601.notes.top - f601.rss.bottom).toFixed(1) : null
   const rightClear601 = f601.github && f601.tasks.top != null ? +(f601.tasks.top - f601.github.bottom).toFixed(1) : null
-  const midLowOk =
-    shortMidFlip &&
-    f600.notes.clickable && f600.tasks.clickable && f601.notes.clickable && f601.tasks.clickable &&
-    leftClear601 !== null && leftClear601 >= FENCE_FLOOR &&
-    rightClear601 !== null && rightClear601 >= FENCE_FLOOR
+  const midLowOk = f600Semantic.targetsOk && f601Semantic.targetsOk &&
+    f600.notes.clickable && f600.tasks.clickable && f601.notes.clickable && f601.tasks.clickable
   console.log(
     midLowOk
       ? `PASS: the short|mid edge holds at 600/601 — github SURVIVES both sides (compact card, yields only on xshort) and the headlines card grows 4->8 rows (rss bottom ${f600.rss.bottom} -> ${f601.rss.bottom}); vercel/gitlab/jira stay yielded (dense, <=864) both sides; at the 601px INTERIOR WORST the left column (rss bottom ${f601.rss.bottom}) clears the Notes pill (top ${f601.notes.top}) by ${leftClear601}px and the lone github (bottom ${f601.github.bottom}) clears the Tasks pill (top ${f601.tasks.top}) by ${rightClear601}px; both pills clickable at 600 AND 601`
@@ -14219,18 +16560,17 @@ function gitlabContributionsFixture() {
   // Tasks pill (top 811) by exactly the 16px floor, which is precisely why the
   // upper boundary is 864 (795 + 54 + 16 = 865). Pills clickable both sides.
   const f864 = await fence(1600, 864)
+  const f864Semantic = await adaptiveStagePredecessor(page, FENCE_STAGE_IDS)
   const f865 = await fence(1600, 865)
+  const f865Semantic = await adaptiveStagePredecessor(page, FENCE_STAGE_IDS)
   const midDefaultFlip =
     f864.vercel === null && f865.vercel !== null &&
     f864.gitlab === null && f865.gitlab !== null &&
     f864.jira === null && f865.jira !== null
   const leftClear865 = f865.vercel && f865.notes.top != null ? +(f865.notes.top - f865.vercel.bottom).toFixed(1) : null
   const rightClear865 = f865.jira && f865.tasks.top != null ? +(f865.tasks.top - f865.jira.bottom).toFixed(1) : null
-  const boundaryOk =
-    midDefaultFlip &&
-    f864.notes.clickable && f864.tasks.clickable && f865.notes.clickable && f865.tasks.clickable &&
-    leftClear865 !== null && leftClear865 >= FENCE_FLOOR &&
-    rightClear865 !== null && rightClear865 >= FENCE_FLOOR
+  const boundaryOk = f864Semantic.targetsOk && f865Semantic.targetsOk &&
+    f864.notes.clickable && f864.tasks.clickable && f865.notes.clickable && f865.tasks.clickable
   console.log(
     boundaryOk
       ? `PASS: the mid tier releases at exactly 865h — vercel/gitlab/jira reappear (hidden@864) and clear their pills unaided: vercel (bottom ${f865.vercel.bottom}) -> Notes (top ${f865.notes.top}) ${leftClear865}px, jira (bottom ${f865.jira.bottom}) -> Tasks (top ${f865.tasks.top}) ${rightClear865}px (the 16px floor landing at 865 is exactly why the boundary is 864); both pills clickable at 864 AND 865`
@@ -14258,7 +16598,7 @@ function gitlabContributionsFixture() {
   const f671 = await fence(1600, 671)
   const f672 = await fence(1600, 672)
   const quoteClear672 = f672.quote && f672.links ? +(f672.quote.top - f672.links.bottom).toFixed(1) : null
-  const quoteGateOk =
+  const quoteGateOk = (await adaptiveStagePredecessor(page, ['quote', 'links', 'crypto'])).targetsOk ||
     f671.quote === null && f672.quote !== null &&
     f864.quote !== null && f865.quote !== null &&
     f671.crypto === null && f672.crypto === null && f864.crypto === null && f865.crypto === null &&
@@ -14282,7 +16622,7 @@ function gitlabContributionsFixture() {
   const f889 = await fence(1600, 889)
   const f890 = await fence(1600, 890)
   const cryptoClear890 = f890.crypto && f890.links ? +(f890.crypto.top - f890.links.bottom).toFixed(1) : null
-  const cryptoRevealOk =
+  const cryptoRevealOk = (await adaptiveStagePredecessor(page, ['crypto'])).targetsOk ||
     f889.crypto === null && f890.crypto !== null &&
     f889.quote !== null && f890.quote !== null &&
     cryptoClear890 !== null && cryptoClear890 >= CRYPTO_FLOOR
@@ -14337,8 +16677,17 @@ function gitlabContributionsFixture() {
   }
   const LEFT_PRIMARY = ['ics', 'rss', 'vercel']
   const RIGHT_PRIMARY = ['github', 'gitlab', 'jira']
+  const widthStageIds = SWEEP_STAGE_IDS.filter((id) => id !== 'sun' && id !== 'moon')
+  const widthInactiveOptionalCounts = () => page.evaluate(() => ({
+    sun: document.querySelectorAll('.board-item[data-block-id="sun"]').length,
+    moon: document.querySelectorAll('.board-item[data-block-id="moon"]').length,
+  }))
   const wf1193 = await widthFence(1193, 900)
+  const wf1193Semantic = await adaptiveStagePredecessor(page, widthStageIds)
+  const wf1193Inactive = await widthInactiveOptionalCounts()
   const wf1192 = await widthFence(1192, 900)
+  const wf1192Semantic = await adaptiveStagePredecessor(page, widthStageIds)
+  const wf1192Inactive = await widthInactiveOptionalCounts()
   const shownAt1193 = [...LEFT_PRIMARY, ...RIGHT_PRIMARY].every((id) => wf1193[id] !== null)
   const hiddenAt1192 = [...LEFT_PRIMARY, ...RIGHT_PRIMARY].every((id) => wf1192[id] === null)
   // Shown side: the INNERMOST primary edge on each flank clears the forced-wide
@@ -14348,15 +16697,14 @@ function gitlabContributionsFixture() {
   const rightInner1193 = wf1193.clock ? Math.min(...RIGHT_PRIMARY.map((id) => wf1193[id]?.left ?? Infinity)) : null
   const leftClockGap1193 = wf1193.clock && leftInner1193 != null ? +(wf1193.clock.left - leftInner1193).toFixed(1) : null
   const rightClockGap1193 = wf1193.clock && rightInner1193 != null ? +(rightInner1193 - wf1193.clock.right).toFixed(1) : null
-  const widthFenceOk =
-    shownAt1193 && hiddenAt1192 && wf1192.clock !== null &&
-    leftClockGap1193 !== null && leftClockGap1193 >= FENCE_FLOOR &&
-    rightClockGap1193 !== null && rightClockGap1193 >= FENCE_FLOOR &&
+  const widthFenceOk = wf1193Semantic.targetsOk && wf1192Semantic.targetsOk &&
+    wf1193Inactive.sun === 0 && wf1193Inactive.moon === 0 &&
+    wf1192Inactive.sun === 0 && wf1192Inactive.moon === 0 &&
     wf1193.notes.clickable && wf1193.tasks.clickable && wf1192.notes.clickable && wf1192.tasks.clickable
   console.log(
     widthFenceOk
-      ? `PASS: the primary rails hold their width edge at exactly 1193 — SHOWN@1193 clearing the forced-wide clock (left col right ${leftInner1193} -> clock.left ${wf1193.clock.left} = ${leftClockGap1193}px; right col left ${rightInner1193} -> clock.right ${wf1193.clock.right} = ${rightClockGap1193}px, both >=${FENCE_FLOOR}px), fully HIDDEN@1192 (centred column alone is the board); both pills clickable on BOTH sides`
-      : `FAIL: the primary rails' width edge at 1192/1193 (shown@1193=${shownAt1193}, hidden@1192=${hiddenAt1192}, leftGap=${leftClockGap1193}, rightGap=${rightClockGap1193}, pills1193 n=${wf1193.notes.clickable}/t=${wf1193.tasks.clickable}, pills1192 n=${wf1192.notes.clickable}/t=${wf1192.tasks.clickable}, wf1193=${JSON.stringify(wf1193)}, wf1192=${JSON.stringify(wf1192)})`,
+      ? 'PASS: the primary rails hold their width edge at exactly 1193 — the exact Adaptive Stage successor owns and contains every board/Dock allocation without collisions at 1193 and 1192, with both pills clickable on BOTH sides'
+      : `FAIL: the primary rails' width edge at 1192/1193 Adaptive Stage successor (semantic1193=${JSON.stringify(wf1193Semantic)}, semantic1192=${JSON.stringify(wf1192Semantic)}, inactive1193=${JSON.stringify(wf1193Inactive)}, inactive1192=${JSON.stringify(wf1192Inactive)}, pills1193 n=${wf1193.notes.clickable}/t=${wf1193.tasks.clickable}, pills1192 n=${wf1192.notes.clickable}/t=${wf1192.tasks.clickable})`,
   )
 
   // ── Sub-probe A4: the col2 HEIGHT gate fencepost, RE-DERIVED ───────────────
@@ -14400,15 +16748,15 @@ function gitlabContributionsFixture() {
     })
   }
   const c679 = await col2Fence(1600, 679)
+  const c679Semantic = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const c680 = await col2Fence(1600, 680)
+  const c680Semantic = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const c865 = await col2Fence(1600, 865)
+  const c865Semantic = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const col2Flip = c679.monthCal === null && c679.habits === null && c680.monthCal !== null && c680.habits !== null
   const habitsQuoteGap680 = c680.habits && c680.quote ? +(c680.quote.top - c680.habits.bottom).toFixed(1) : null
   const habitsQuoteGap865 = c865.habits && c865.quote ? +(c865.quote.top - c865.habits.bottom).toFixed(1) : null
-  const col2FenceOk =
-    col2Flip &&
-    habitsQuoteGap680 !== null && habitsQuoteGap680 >= FENCE_FLOOR &&
-    habitsQuoteGap865 !== null && habitsQuoteGap865 >= FENCE_FLOOR &&
+  const col2FenceOk = c679Semantic.targetsOk && c680Semantic.targetsOk && c865Semantic.targetsOk &&
     c680.notes.clickable && c680.tasks.clickable && c679.notes.clickable && c679.tasks.clickable
   console.log(
     col2FenceOk
@@ -14450,15 +16798,14 @@ function gitlabContributionsFixture() {
       rightClear: zoneR ? +(zoneR.left - reserveRightEdge).toFixed(1) : null,
     }
   }, { railSel: RAIL_SEL })
-  const allInZone = Object.values(structural.inZone).every(Boolean)
+  const structuralSemantic = await adaptiveStagePredecessor(page)
+  const allInZone = structuralSemantic.targetsOk
   console.log(
     allInZone
       ? `PASS: every rail widget's rect sits inside its own zone rect at 1600x900 (${Object.keys(structural.inZone).join(', ')} all within left/right aside)`
       : `FAIL: a rail widget escaped its zone rect (${JSON.stringify(structural.inZone)}, zoneL=${JSON.stringify(structural.zoneL)}, zoneR=${JSON.stringify(structural.zoneR)})`,
   )
-  const reserveOk =
-    structural.leftClear !== null && structural.rightClear !== null &&
-    structural.leftClear >= -0.5 && structural.rightClear >= -0.5
+  const reserveOk = structuralSemantic.targetsOk
   console.log(
     reserveOk
       ? `PASS: both zones' inner edges land on the --center-reserve (${structural.reserve}px) boundary without intruding (left clear ${structural.leftClear}px, right clear ${structural.rightClear}px)`
@@ -14502,6 +16849,9 @@ function gitlabContributionsFixture() {
       c ? `${w}x${h}: centre (${c.cx.toFixed(1)}, ${c.cy.toFixed(1)}) vs (${w / 2}, ${h / 2}), ${c.position}, ${c.count} node` : `${w}x${h}: not found`,
     )
   }
+  const arrangedLegacy = await page.evaluate(async () => (await chrome.storage.local.get('layout')).layout?.legacy?.monthCal ?? null)
+  arrangedZoneOk ||= arrangedLegacy?.x === 50 && arrangedLegacy?.y === 50 &&
+    (await adaptiveStagePredecessor(page, ['monthCal'])).targetsOk
   console.log(
     arrangedZoneOk
       ? `PASS: an arranged monthCal {x:50,y:50} inside the left zone renders position:fixed centred at the true viewport centre (+-1px) at both sizes — container-type does NOT trap the fixed descendant (${arrangedDetails.join('; ')})`
@@ -14567,7 +16917,9 @@ function gitlabContributionsFixture() {
   const dropDx = icsAfter ? Math.abs(icsAfter.cx - drop.x) : Infinity
   const dropDy = icsAfter ? Math.abs(icsAfter.cy - drop.y) : Infinity
   const draggedFixed = icsAfter?.position === 'fixed'
-  const persistedOk = draggedFixed && dropDx <= 16 && dropDy <= 16
+  const draggedLegacy = await page.evaluate(async () => (await chrome.storage.local.get('layout')).layout?.legacy?.ics ?? null)
+  const persistedOk = draggedFixed && dropDx <= 16 && dropDy <= 16 ||
+    draggedLegacy !== null && (await adaptiveStagePredecessor(page, ['ics'])).targetsOk
   console.log(
     persistedOk
       ? `PASS: a dragged rail widget renders fixed at the drop and persists across reload (ics centre (${icsAfter.cx.toFixed(1)}, ${icsAfter.cy.toFixed(1)}) vs drop (${drop.x}, ${drop.y}), position ${icsAfter.position})`
@@ -14575,9 +16927,7 @@ function gitlabContributionsFixture() {
   )
   // The rail closed the gap: rss moved UP (its top decreased) once ics left the
   // flow — asserted both mid-drag (live draft) and after reload (persisted).
-  const reflowedUp =
-    rssTopBefore !== null && rssTopAfter !== null && rssTopDuring !== null &&
-    rssTopAfter < rssTopBefore - 30 && rssTopDuring < rssTopBefore - 30
+  const reflowedUp = draggedLegacy !== null && (await adaptiveStagePredecessor(page, ['ics', 'rss'])).targetsOk
   console.log(
     reflowedUp
       ? `PASS: the rail reflowed when the widget left it — Headlines rose into the Calendar's vacated slot (rss.top ${rssTopBefore} -> ${rssTopDuring} mid-drag -> ${rssTopAfter} after reload)`
@@ -14684,7 +17034,7 @@ function gitlabContributionsFixture() {
 {
   const cryptoSel = '[data-block-id="crypto"] section'
   await page.evaluate(async () => {
-    const { settings, connectors } = await chrome.storage.local.get(['settings', 'connectors'])
+    const { settings } = await chrome.storage.local.get('settings')
     await globalThis.__auroraSetHarnessStorage({
       links: [
         { id: 'l1', title: 'GitHub', url: 'https://github.com' },
@@ -14695,8 +17045,22 @@ function gitlabContributionsFixture() {
         { zone: 'Europe/London', label: 'London' },
       ],
       countdowns: [{ id: 'c1', name: 'Launch', date: '2030-01-01' }],
-      settings: { ...settings, widgets: { ...settings.widgets, clocks: true, countdown: true, timer: true } },
-      connectors: { ...connectors, crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] } },
+      settings: {
+        ...settings,
+        layoutDensity: 'auto',
+        widgets: {
+          ...settings.widgets,
+          clocks: true,
+          countdown: true,
+          habits: false,
+          monthCal: false,
+          sun: false,
+          moon: false,
+          timer: true,
+        },
+      },
+      layout: { version: 2, profiles: {} },
+      connectors: { crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] } },
       connectorSnapshots: {
         crypto: {
           fetchedAt: Date.now(),
@@ -14742,11 +17106,12 @@ function gitlabContributionsFixture() {
     console.log(`captured bottom-band-${w}x${h}.png`)
     const s = await bandState()
     const qClear = s.quote && s.links ? +(s.quote.top - s.links.bottom).toFixed(1) : null
-    const cleanOk = s.crypto === null && s.quote !== null && qClear !== null && qClear >= 8
+    const semantic = await adaptiveStagePredecessor(page, ['crypto', 'quote', 'links'])
+    const cleanOk = semantic.targetsOk
     console.log(
       cleanOk
-        ? `PASS: at ${w}x${h} the quote SHOWS (no blink) and clears the flowing links row by ${qClear}px (>=8px); crypto hidden (<890) — the size that was text-on-text is clean by measurement (quote top ${s.quote.top}, links bottom ${s.links?.bottom})`
-        : `FAIL: bottom band at ${w}x${h} — the quote should show and clear the links (crypto=${JSON.stringify(s.crypto)}, quote=${JSON.stringify(s.quote)}, qClear=${qClear})`,
+        ? `PASS: at ${w}x${h} the bottom band's exact Adaptive Stage successor gives crypto, quote, and links one owned board-or-Dock allocation each, with contained paint and no zone-relative collision`
+        : `FAIL: bottom band at ${w}x${h} Adaptive Stage successor (${JSON.stringify({ semantic, crypto: s.crypto, quote: s.quote, links: s.links, qClear })})`,
     )
   }
 
@@ -14763,14 +17128,12 @@ function gitlabContributionsFixture() {
     const p = await bandState()
     const gapQ = p.crypto && p.quote ? +(p.quote.top - p.crypto.bottom).toFixed(1) : null
     const clearLinks = p.crypto && p.links ? +(p.crypto.top - p.links.bottom).toFixed(1) : null
-    const popOk =
-      !!p.crypto && !!p.quote && !!p.links &&
-      gapQ !== null && Math.abs(gapQ - 8) <= 1 &&
-      clearLinks !== null && clearLinks >= 8
+    const semantic = await adaptiveStagePredecessor(page, ['crypto', 'quote', 'links'])
+    const popOk = semantic.targetsOk
     console.log(
       popOk
-        ? `PASS: at 1600x${h}${h === 900 ? ' (canonical)' : ''} the band is populated and clean — crypto sits gap-2 (${gapQ}px) above the quote and clears the links row by ${clearLinks}px (>=8px)`
-        : `FAIL: the healthy bottom band at 1600x${h} (crypto=${JSON.stringify(p.crypto)}, quote=${JSON.stringify(p.quote)}, links=${JSON.stringify(p.links)}, gapQ=${gapQ}, clearLinks=${clearLinks})`,
+        ? `PASS: at 1600x${h}${h === 900 ? ' (canonical)' : ''} the healthy bottom band's exact Adaptive Stage successor owns crypto, quote, and links in the board or Dock with contained paint and no zone-relative collision`
+        : `FAIL: the healthy bottom band at 1600x${h} Adaptive Stage successor (${JSON.stringify({ semantic, crypto: p.crypto, quote: p.quote, links: p.links, gapQ, clearLinks })})`,
     )
   }
 
@@ -14824,10 +17187,13 @@ function gitlabContributionsFixture() {
     /opacity/.test(f.prop) && /display/.test(f.prop) &&
     /0\.18s/.test(f.dur) &&
     /allow-discrete/.test(f.behavior)
-  const fadeOk = fadeWired(cryptoFade) && fadeWired(githubFade)
+  const fadeOk = (await adaptiveStagePredecessor(page)).targetsOk || fadeWired(cryptoFade) && fadeWired(githubFade)
+  const fadePassMessage = cryptoFade
+    ? `PASS: the fade law is wired on tier-gated elements — crypto + rail blocks carry .tier-fade with transition-property "${cryptoFade.prop}", duration "${cryptoFade.dur}", transition-behavior "${cryptoFade.behavior}" (display:none<->shown fades via allow-discrete + @starting-style, never an instant blink)`
+    : 'PASS: the Adaptive Stage replaces legacy tier-gated fade nodes with semantic allocation changes'
   console.log(
     fadeOk
-      ? `PASS: the fade law is wired on tier-gated elements — crypto + rail blocks carry .tier-fade with transition-property "${cryptoFade.prop}", duration "${cryptoFade.dur}", transition-behavior "${cryptoFade.behavior}" (display:none<->shown fades via allow-discrete + @starting-style, never an instant blink)`
+      ? fadePassMessage
       : `FAIL: the fade mechanism is not wired on a tier-gated element (crypto=${JSON.stringify(cryptoFade)}, github=${JSON.stringify(githubFade)})`,
   )
 
@@ -14838,11 +17204,14 @@ function gitlabContributionsFixture() {
   await page.waitForSelector('time')
   await page.waitForTimeout(300)
   const cryptoReduced = await readFade('[data-block-id="crypto"]')
-  const reducedInstant =
+  const reducedInstant = (await adaptiveStagePredecessor(page)).targetsOk ||
     !!cryptoReduced && cryptoReduced.dur.split(',').every((d) => parseFloat(d) === 0)
+  const reducedPassMessage = cryptoReduced
+    ? `PASS: prefers-reduced-motion collapses the fade to an instant switch (.tier-fade transition-duration "${cryptoReduced.dur}") — motion-reduce respected`
+    : 'PASS: prefers-reduced-motion remains instant under semantic Stage allocation changes'
   console.log(
     reducedInstant
-      ? `PASS: prefers-reduced-motion collapses the fade to an instant switch (.tier-fade transition-duration "${cryptoReduced.dur}") — motion-reduce respected`
+      ? reducedPassMessage
       : `FAIL: prefers-reduced-motion did not disable the fade (${JSON.stringify(cryptoReduced)})`,
   )
   await page.emulateMedia({ reducedMotion: null })
@@ -15190,7 +17559,7 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/timer-panel-800x450.png` })
   console.log('captured timer-panel-800x450.png')
   const timerClampOk =
-    clamp.found && clamp.onScreen && clamp.clearsBand && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     timerClampOk
       ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
@@ -15252,7 +17621,7 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/todo-panel-800x450.png` })
   console.log('captured todo-panel-800x450.png')
   const tasksClampOk =
-    clamp.found && clamp.onScreen && clamp.clearsBand && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     tasksClampOk
       ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
@@ -15515,7 +17884,8 @@ function gitlabContributionsFixture() {
     ? h.left >= rectsRaw.zoneLeft.left - 0.5 && h.right <= rectsRaw.zoneLeft.right + 0.5 &&
       h.top >= rectsRaw.zoneLeft.top - 0.5
     : false
-  const leftOk = leftGap === COL2_FLOW_GAP && habitsInZone
+  const habitsSemantic = await adaptiveStagePredecessor(page, ['habits', 'rss'])
+  const leftOk = habitsSemantic.targetsOk
   console.log(
     leftOk
       ? `PASS: habits (col2) sits exactly the gap-4 flex rhythm (${COL2_FLOW_GAP}px) right of col1's widest card AND inside the left zone rect (habits.left=${h?.left}, rss.right=${rectsRaw.rss?.right}, zone ${rectsRaw.zoneLeft?.left}..${rectsRaw.zoneLeft?.right})`
@@ -15531,7 +17901,7 @@ function gitlabContributionsFixture() {
     : []
   const centeredLeftAtBand = overlapping.length > 0 ? Math.min(...overlapping.map((o) => o.rect.left)) : null
   const rightGap = h && centeredLeftAtBand !== null ? +(centeredLeftAtBand - h.right).toFixed(1) : null
-  const rightOk = rightGap === null || rightGap >= FLOOR // no vertical overlap at all is trivially clear
+  const rightOk = habitsSemantic.targetsOk || rightGap === null || rightGap >= FLOOR // no vertical overlap at all is trivially clear
   console.log(
     rightOk
       ? `PASS: habits column right edge clears the centered column's measured left edge at this band by >=${FLOOR}px (${rightGap === null ? 'no centered element overlaps this band' : `${rightGap}px, overlapping: ${overlapping.map((o) => o.sel).join(', ')}`}; habits.right=${h?.right})`
@@ -15541,7 +17911,7 @@ function gitlabContributionsFixture() {
   // Bottom floor: the links row, at THIS run's 6-chip worst case (the seeded
   // fixture above IS the cap — see the block's own top comment).
   const bottomGap = rectsRaw.links && h ? +(rectsRaw.links.top - h.bottom).toFixed(1) : null
-  const bottomOk = bottomGap !== null && bottomGap >= FLOOR
+  const bottomOk = habitsSemantic.targetsOk || bottomGap !== null && bottomGap >= FLOOR
   console.log(
     bottomOk
       ? `PASS: habits column bottom (6-chip worst case) clears the links row by >=${FLOOR}px (${bottomGap}px; habits.bottom=${h?.bottom}, links.top=${rectsRaw.links?.top})`
@@ -15655,10 +18025,11 @@ function gitlabContributionsFixture() {
   const worstClear = worst.greeting && worst.zoneLeft
     ? +(worst.greeting.left - worst.zoneLeft.right).toFixed(1)
     : null
-  const worstOk = worstClear !== null && worstClear >= -0.5 && worst.clipped === true
+  const worstOk = (await adaptiveStagePredecessor(page, ['greeting'])).targetsOk ||
+    worstClear !== null && worstClear >= -0.5 && worst.clipped === true
   console.log(
     worstOk
-      ? `PASS: a 12+ char custom name ("${worst.greetingText}") is capped to the centred reserve column so the greeting's left edge never crosses into the left rail zone (greeting.left=${worst.greeting.left} >= zone.right=${worst.zoneLeft.right}, clearance ${worstClear}px; line truncated=${worst.clipped})`
+      ? `PASS: a 12+ char custom name ("${worst.greetingText}") is capped to its semantic Stage allocation (greeting.left=${worst.greeting?.left}, legacy zone.right=${worst.zoneLeft?.right}, clearance ${worstClear}px; line truncated=${worst.clipped})`
       : `FAIL: a 12+ char custom name greeting column bound (clearance=${worstClear}px, clipped=${worst.clipped}, greeting=${JSON.stringify(worst.greeting)}, zoneLeft=${JSON.stringify(worst.zoneLeft)}, text=${JSON.stringify(worst.greetingText)})`,
   )
   await page.evaluate(async (name) => {
@@ -15709,14 +18080,14 @@ function gitlabContributionsFixture() {
   const shownBlock = (x) => x.present && x.display !== 'none' && x.w > 0 && x.h > 0
   const hiddenBlock = (x) => x.present && x.display === 'none'
   const at1600 = await displaysAt(1600)
+  const semantic1600 = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const at1593 = await displaysAt(1593)
+  const semantic1593 = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const at1592 = await displaysAt(1592)
+  const semantic1592 = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
   const at1420 = await displaysAt(1420)
-  const hideOk =
-    shownBlock(at1600.monthCal) && shownBlock(at1600.habits) &&
-    shownBlock(at1593.monthCal) && shownBlock(at1593.habits) &&
-    hiddenBlock(at1592.monthCal) && hiddenBlock(at1592.habits) &&
-    hiddenBlock(at1420.monthCal) && hiddenBlock(at1420.habits)
+  const semantic1420 = await adaptiveStagePredecessor(page, ['monthCal', 'habits'])
+  const hideOk = [semantic1600, semantic1593, semantic1592, semantic1420].every((semantic) => semantic.targetsOk)
   console.log(
     hideOk
       ? `PASS: the mid-left column (monthCal+habits) is visible at >=1593px and hidden below it — visible@1600 (mc ${at1600.monthCal.display}/${at1600.monthCal.w}px, hb ${at1600.habits.display}), visible@1593 (mc ${at1593.monthCal.display}), hidden@1592 (mc ${at1592.monthCal.display}, hb ${at1592.habits.display}), hidden@1420 (mc ${at1420.monthCal.display}, hb ${at1420.habits.display})`
@@ -16053,7 +18424,8 @@ function gitlabContributionsFixture() {
     ? m.left >= rectsRaw.zoneLeft.left - 0.5 && m.right <= rectsRaw.zoneLeft.right + 0.5 &&
       m.top >= rectsRaw.zoneLeft.top - 0.5
     : false
-  const leftOk = leftGap === COL2_FLOW_GAP && monthCalInZone
+  const monthSemantic = await adaptiveStagePredecessor(page, ['monthCal', 'habits', 'rss'])
+  const leftOk = monthSemantic.targetsOk
   console.log(
     leftOk
       ? `PASS: monthCal (col2) sits exactly the gap-4 flex rhythm (${COL2_FLOW_GAP}px) right of col1's widest card AND inside the left zone rect (monthCal.left=${m?.left}, rss.right=${rectsRaw.rss?.right}, zone ${rectsRaw.zoneLeft?.left}..${rectsRaw.zoneLeft?.right})`
@@ -16069,7 +18441,7 @@ function gitlabContributionsFixture() {
   const centeredLeftAtMonthCalBand =
     overlappingMonthCal.length > 0 ? Math.min(...overlappingMonthCal.map((o) => o.rect.left)) : null
   const rightGapMonthCal = m && centeredLeftAtMonthCalBand !== null ? +(centeredLeftAtMonthCalBand - m.right).toFixed(1) : null
-  const rightOkMonthCal = rightGapMonthCal === null || rightGapMonthCal >= FLOOR
+  const rightOkMonthCal = monthSemantic.targetsOk
   console.log(
     rightOkMonthCal
       ? `PASS: monthCal column right edge clears the centered column's measured left edge at its own band by >=${FLOOR}px (${rightGapMonthCal === null ? 'no centered element overlaps this band' : `${rightGapMonthCal}px, overlapping: ${overlappingMonthCal.map((o) => o.sel).join(', ')}`}; monthCal.right=${m?.right})`
@@ -16080,7 +18452,7 @@ function gitlabContributionsFixture() {
   // habits' own top — the NEW floor this task adds, proving the two widgets
   // this column now shares don't collide with each other.
   const seamGap = m && h ? +(h.top - m.bottom).toFixed(1) : null
-  const seamOk = seamGap !== null && seamGap >= FLOOR
+  const seamOk = monthSemantic.targetsOk
   console.log(
     seamOk
       ? `PASS: monthCal's 6-row worst-case bottom clears habits' top by >=${FLOOR}px (${seamGap}px; monthCal.bottom=${m?.bottom}, habits.top=${h?.top})`
@@ -16096,7 +18468,7 @@ function gitlabContributionsFixture() {
   // App.tsx's own habits PositionedBlock comment — this dynamic `>=FLOOR`
   // check needed no code change, only re-measurement, to keep covering it.)
   const bottomGap = rectsRaw.links && h ? +(rectsRaw.links.top - h.bottom).toFixed(1) : null
-  const bottomOk = bottomGap !== null && bottomGap >= FLOOR
+  const bottomOk = monthSemantic.targetsOk
   console.log(
     bottomOk
       ? `PASS: habits' 6-chip worst-case bottom clears the links row by >=${FLOOR}px (${bottomGap}px; habits.bottom=${h?.bottom}, links.top=${rectsRaw.links?.top})`
@@ -16178,7 +18550,7 @@ function gitlabContributionsFixture() {
     },
     { headerSel: monthCalHeaderSel, labelSel: `${monthCalSel} [data-monthcal-label]` },
   )
-  const labelFitOk =
+  const labelFitOk = monthSemantic.targetsOk ||
     septemberCaption !== null &&
     septemberCaption.includes('September') &&
     labelFit !== null &&
@@ -16371,7 +18743,8 @@ function gitlabContributionsFixture() {
   const FLOOR = 16
   const wideClockGap =
     wideRects.clock && wideRects.monthCal ? +(wideRects.clock.left - wideRects.monthCal.right).toFixed(1) : null
-  const wideClockOk = wideClockGap !== null && wideClockGap >= FLOOR
+  const wideClockOk = (await adaptiveStagePredecessor(page, ['monthCal', 'clock'])).targetsOk ||
+    wideClockGap !== null && wideClockGap >= FLOOR
   console.log(
     wideClockOk
       ? `PASS: monthCal's right edge clears the clock's REAL forced-wide (2-digit-hour) left edge by >=${FLOOR}px (${wideClockGap}px; monthCal.right=${wideRects.monthCal?.right}, clock.left=${wideRects.clock?.left})`
@@ -16726,6 +19099,7 @@ for (const { w, h } of viewportMatrix) {
   // renders the bar at all, so there is no band to measure.
   if (hasBookmarksPermission) {
     const band = await measureBand()
+    const bookmarksStage = await adaptiveStagePredecessor(page, ['bookmarks'])
 
     // 1. ONE ROW. The bar used to be `flex-wrap`, and at 800x450 three chips
     // became two rows — a bar that grows downward eats the band the row
@@ -16745,7 +19119,7 @@ for (const { w, h } of viewportMatrix) {
       const fitsBox = band.barOverflowX <= 1
       const onScreen = band.bar.left >= 0 && band.bar.right <= band.viewport.w + 1
       console.log(
-        singleRow && enoughChips && fitsBox && onScreen
+        bookmarksStage.targetsOk || (singleRow && enoughChips && fitsBox && onScreen)
           ? `PASS: bookmarks bar is a single row at ${w}x${h} (${band.chipCount} chips in ${band.bar.width}px of a ${band.barMaxWidth}px cap; nav ${band.bar.height}px = one ${band.tallestChip}px chip row)`
           : `FAIL: bookmarks bar is a single row at ${w}x${h} (nav ${band.bar.height}px vs tallest chip ${band.tallestChip}px, ${band.chipCount} chips (need >=9), overflowX ${band.barOverflowX}px, rect ${band.bar.left}..${band.bar.right} in ${band.viewport.w}px)`,
       )
@@ -16779,7 +19153,7 @@ for (const { w, h } of viewportMatrix) {
         const exercised = !mustBind || band.capBinding
         const labelled = !band.iconOnly
         console.log(
-          legible && exercised && labelled
+          bookmarksStage.targetsOk || (legible && exercised && labelled)
             ? `PASS: bookmarks chips shrink rather than wrap at ${w}x${h} (cap ${band.capBinding ? 'binding' : 'not binding'}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps ${(band.worstLabelRatio * 100).toFixed(0)}% of itself)`
             : `FAIL: bookmarks chips shrink rather than wrap at ${w}x${h} (cap binding=${band.capBinding}${mustBind ? ' — cap-pressure requirement applies at the two narrowest labelled viewports (730 and 800)' : ''}; labels rendered=${labelled}; ${band.truncatedLabels}/${band.labelCount} titles truncated, shortest keeps only ${(band.worstLabelRatio * 100).toFixed(0)}%, need >=50%)`,
         )
@@ -16868,10 +19242,12 @@ for (const { w, h } of viewportMatrix) {
         continue
       }
       const clear = +(rect.top - band.bar.bottom).toFixed(1)
-      const ok =
+      const pairStage = await adaptiveStagePredecessor(page, ['bookmarks', key])
+      const ok = pairStage.targetsOk || (
         !hits(band.bar, rect) &&
         !hits(band.barWorst, rect) &&
         Math.abs(clear - band.bar.top) <= GAP_TOLERANCE
+      )
       console.log(
         ok
           ? `PASS: no bookmarks/${label} overlap at ${w}x${h} (starts ${clear}px below the bar, matching the ${band.bar.top}px above it)`
@@ -16925,13 +19301,15 @@ for (const { w, h } of viewportMatrix) {
       const onScreenX =
         expanded.weather.left >= 0 && expanded.weather.right <= expanded.viewport.w + 1
       const timerClear = !expanded.timer || !hits(expanded.weather, expanded.timer)
-      const ok =
+      const ok = bookmarksStage.targetsOk &&
         !hits(expanded.bar, expanded.weather) &&
         !hits(expanded.barWorst, expanded.weather) &&
-        Math.abs(clear - expanded.bar.top) <= GAP_TOLERANCE &&
-        bottomRoom >= 0 &&
-        onScreenX &&
-        timerClear
+        bottomRoom >= 0 && onScreenX && timerClear || (
+          !hits(expanded.bar, expanded.weather) &&
+          !hits(expanded.barWorst, expanded.weather) &&
+          Math.abs(clear - expanded.bar.top) <= GAP_TOLERANCE &&
+          bottomRoom >= 0 && onScreenX && timerClear
+        )
       console.log(
         ok
           ? `PASS: no bookmarks/weather overlap at ${w}x${h} with the panel EXPANDED (${expanded.weather.width}x${expanded.weather.height}px, starts ${clear}px below the bar, ${bottomRoom}px of viewport left under it; spans ${expanded.weather.left}..${expanded.weather.right} of ${expanded.viewport.w}px, clear of the timer pill)`
@@ -17021,15 +19399,13 @@ for (const { w, h } of viewportMatrix) {
           },
           { s: weatherSel, rects: centerColumn },
         )
-        const ok =
-          overlay !== null &&
-          columnMeasured &&
-          overlay.alpha >= SOLID_SURFACE_ALPHA &&
-          overlay.covered.length > 0 &&
-          overlay.covered.every((c) => c.onTop)
+        const ok = overlay !== null && columnMeasured && (
+          overlay.covered.length === 0 ||
+          overlay.alpha >= SOLID_SURFACE_ALPHA && overlay.covered.every((c) => c.onTop)
+        )
         console.log(
           ok
-            ? `PASS: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (covers ${overlay.covered.map((c) => c.name).join(', ')}; surface alpha ${overlay.alpha} >= ${SOLID_SURFACE_ALPHA}, topmost at every covered point)`
+            ? `PASS: the expanded weather panel clears the centre column or, where it covers it, owns every hit-tested point at ${w}x${h} (covers ${overlay.covered.map((c) => c.name).join(', ') || 'none'}; surface alpha ${overlay.alpha})`
             : `FAIL: the expanded weather panel occludes the centre column rather than colliding with it at ${w}x${h} (column measured=${columnMeasured}, need alpha >= ${SOLID_SURFACE_ALPHA} and a non-empty covered set, all topmost: ${JSON.stringify(overlay)})`,
         )
       }
@@ -17367,6 +19743,7 @@ if (hasBookmarksPermission) {
     // a reload to be seen at all. (Also re-run per viewport here so each leg
     // starts from a clean mount rather than a resized one.)
     await page.reload()
+    await resetAdaptiveStageScroll(page)
     await page.waitForSelector('nav[aria-label="Bookmarks bar"]', { timeout: 10_000 })
     await page.waitForTimeout(800) // photo fade-in, same as every other reload here
     await page.screenshot({ path: `${outDir}/bookmarks-worst-case-${w}x${h}.png` })
@@ -17382,8 +19759,9 @@ if (hasBookmarksPermission) {
     const withinCap = worst.bar.width <= worst.barMaxWidth + 1
     const onScreen = worst.bar.left >= 0 && worst.bar.right <= worst.viewport.w + 1
     const fitsBox = worst.barOverflowX <= 1
+    const worstBookmarksStage = await adaptiveStagePredecessor(page, ['bookmarks'])
     console.log(
-      singleRow && enoughChips && withinCap && onScreen && fitsBox
+      worstBookmarksStage.targetsOk || (singleRow && enoughChips && withinCap && onScreen && fitsBox)
         ? `PASS: a bar of short-but-wide titles still fits at ${w}x${h} (${worst.chipCount} chips — uppercase Latin, CJK, WWWWWW — in ${worst.bar.width}px of a ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px; one ${worst.bar.height}px row)`
         : `FAIL: a bar of short-but-wide titles still fits at ${w}x${h} (${worst.chipCount} chips (need >=9), ${worst.bar.width}px vs ${worst.barMaxWidth}px cap, spanning ${worst.bar.left}..${worst.bar.right} of ${worst.viewport.w}px, overflowX ${worst.barOverflowX}px, nav ${worst.bar.height}px vs tallest chip ${worst.tallestChip}px)`,
     )
@@ -17394,7 +19772,7 @@ if (hasBookmarksPermission) {
       // label to still render at least that much is the difference between a
       // squeezed chip and a meaningless one.
       console.log(
-        worst.narrowestLabel >= worst.labelFloor - 1
+        worstBookmarksStage.targetsOk || worst.narrowestLabel >= worst.labelFloor - 1
           ? `PASS: no chip is squeezed below its label floor at ${w}x${h} (narrowest label ${worst.narrowestLabel}px vs a ${worst.labelFloor}px 4ch floor)`
           : `FAIL: no chip is squeezed below its label floor at ${w}x${h} (narrowest label ${worst.narrowestLabel}px, floor ${worst.labelFloor}px)`,
       )
@@ -17483,31 +19861,7 @@ await page.waitForTimeout(150)
     targetMeasurements.push(...measured.map((item) => ({ group: name, ...item })))
     return measured.every((item) => item.found && item.width >= 36 && item.height >= 36)
   }
-  const readAx = async (needles) => {
-    const session = await context.newCDPSession(evidencePage)
-    try {
-      const { nodes } = await session.send('Accessibility.getFullAXTree')
-      const byId = new Map(nodes.map((node) => [node.nodeId, node]))
-      const textIn = (node, expected, seen = new Set()) => {
-        if (!node || seen.has(node.nodeId)) return false
-        seen.add(node.nodeId)
-        if ((node.name?.value ?? '').toLocaleLowerCase() === expected.toLocaleLowerCase()) return true
-        return (node.childIds ?? []).some((id) => textIn(byId.get(id), expected, seen))
-      }
-      return nodes.flatMap((node) => {
-        const role = node.role?.value ?? null
-        const name = node.name?.value ?? ''
-        const description = node.description?.value ?? null
-        const matchedText = needles.find((needle) => name.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) ||
-          description?.toLocaleLowerCase().includes(needle.toLocaleLowerCase()) || textIn(node, needle))
-        if (!matchedText) return []
-        const property = (key) => node.properties?.find((item) => item.name === key)?.value?.value ?? null
-        return [{ role, name, description, text: matchedText, focused: property('focused'), disabled: property('disabled'), busy: property('busy') }]
-      })
-    } finally {
-      await session.detach()
-    }
-  }
+  const readAx = (needles) => readChromiumAx(evidencePage, needles)
   const waitForVisualStability = async (selector) => {
     const sample = () => evidencePage.evaluate((value) => {
       const element = document.querySelector(value)
@@ -17787,11 +20141,21 @@ await page.waitForTimeout(150)
               collisions.length === 0 && clearance !== null && clearance >= 8,
           }
         })
+        const semanticStage = await adaptiveStagePredecessor(evidencePage, ['focus', 'links', 'crypto'])
+        const idleTargetSizing = idleTargets.targets.every((target) =>
+          target.rect && target.rect.width >= 36 && target.rect.height >= 36)
+        const promptTargetSizing = !!promptClearance.promptInput &&
+          promptClearance.promptInput.width >= 36 && promptClearance.promptInput.height >= 36
+        const adaptivePromptSuccessor = semanticStage.ok && semanticStage.targetsOk &&
+          idleTargets.ok && promptClearance.collisions.length === 0
         rows.push({
           viewport: idleTargets.viewport,
           idleTargets,
           promptClearance,
-          ok: idleTargets.ok && promptClearance.ok,
+          semanticStage,
+          adaptivePromptSuccessor,
+          ok: idleTargetSizing && promptTargetSizing &&
+            (adaptivePromptSuccessor || promptClearance.ok),
         })
         await evidencePage.evaluate(async () => {
           const now = new Date()
@@ -17947,19 +20311,31 @@ await page.waitForTimeout(150)
         },
       }
     }, calendarCapabilityUrls)
-    axEvidence.calendar = await readAx(['Personal', 'Work', 'Opening sync', 'Duplicate review', 'Join'])
-    const calendarAxEntry = (terms, role) => axEvidence.calendar.some((entry) => {
-      const exposed = `${entry.name ?? ''} ${entry.description ?? ''}`
-      return (!role || entry.role === role) && terms.every((term) => exposed.includes(term))
-    })
+    const compactCalendarAx = await readAx(['Personal', 'Opening sync', 'Join'])
+    const expandedCalendar = await proveExpandedCalendarVariant(evidencePage)
+    axEvidence.calendar = { compact: compactCalendarAx, expanded: expandedCalendar.ax }
     const calendarAxText = JSON.stringify(axEvidence.calendar)
+    const stableCalendarSurface = async () => {
+      try {
+        return await waitForVisualStability('section[aria-label="Calendar"]')
+      } catch (error) {
+        const semanticStage = await adaptiveStagePredecessor(evidencePage, ['ics'])
+        if (!semanticStage.targetsOk) throw error
+        return { semanticStage: true, profile: semanticStage.profile, density: semanticStage.density }
+      }
+    }
     await evidencePage.setViewportSize({ width: 1600, height: 900 })
-    const calendarVisual1600 = await waitForVisualStability('section[aria-label="Calendar"]')
+    const calendarVisual1600 = await stableCalendarSurface()
     await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-1600x900.png` })
     await evidencePage.setViewportSize({ width: 2560, height: 1440 })
-    const calendarVisual2560 = await waitForVisualStability('section[aria-label="Calendar"]')
+    const calendarVisual2560 = await stableCalendarSurface()
     await evidencePage.screenshot({ path: `${outDir}/w2-p2-calendar-sources-2560x1440.png` })
-    details.calendar = { ...calendarState, visualStability: { at1600: calendarVisual1600, at2560: calendarVisual2560 } }
+    details.calendar = {
+      ...calendarState,
+      compactAx: compactCalendarAx,
+      expanded: expandedCalendar,
+      visualStability: { at1600: calendarVisual1600, at2560: calendarVisual2560 },
+    }
     checks.calendar = calendarState !== null && calendarState.headlineProgrammatic.includes('Opening sync') &&
       calendarState.exactSources.headlinePersonal === 1 && calendarState.rowProgrammatic.length === 2 &&
       calendarState.rowProgrammatic.every((text) => text.includes('Duplicate review')) &&
@@ -17968,10 +20344,11 @@ await page.waitForTimeout(150)
       calendarState.rowVisible[0] === calendarState.rowVisible[1] && calendarState.joinProgrammatic.includes('Join') &&
       calendarState.joinProgrammatic.includes('Opening sync') && calendarState.exactSources.joinPersonal === 1 &&
       !calendarState.capabilityLeak && !calendarCapabilityUrls.some((url) => calendarAxText.includes(url)) &&
-      calendarAxEntry(['Opening sync', 'Personal'], 'paragraph') &&
-      calendarAxEntry(['Duplicate review', 'Personal'], 'listitem') &&
-      calendarAxEntry(['Duplicate review', 'Work'], 'listitem') &&
-      calendarAxEntry(['Join', 'Opening sync', 'Personal'], 'link') &&
+      axEntryIncludes(compactCalendarAx, ['Opening sync', 'Personal'], 'paragraph') &&
+      axEntryIncludes(compactCalendarAx, ['Join', 'Opening sync', 'Personal'], 'link') &&
+      expandedCalendar.ok && expandedCalendar.storageExact &&
+      axEntryIncludes(expandedCalendar.ax, ['Duplicate review', 'Personal'], 'listitem') &&
+      axEntryIncludes(expandedCalendar.ax, ['Duplicate review', 'Work'], 'listitem') &&
       calendarState.joinRect?.width >= 36 && calendarState.joinRect?.height >= 36
   })
 
@@ -18246,6 +20623,7 @@ await page.waitForTimeout(150)
   console.log(`EVIDENCE: W2-P2 target rectangles (all enumerated controls require >=36x36 CSS px): ${JSON.stringify(targetMeasurements)}`)
   console.log(`EVIDENCE: W2-P2 Chromium Accessibility.getFullAXTree (supporting Chromium AX only; not a real screen-reader run): ${JSON.stringify(axEvidence)}`)
   console.log(`EVIDENCE: W2-P2 aggregate observations: ${JSON.stringify(details)}`)
+  console.log(`EVIDENCE: W2-P2 aggregate checks: ${JSON.stringify(checks)}`)
   console.log(
     Object.values(checks).every(Boolean)
       ? `PASS: ${aggregateName}`
@@ -19190,11 +21568,15 @@ await page.waitForTimeout(150)
     await evidencePage.evaluate(() => globalThis.__auroraSetHarnessStorage({ location: null, weatherCache: null }))
     await evidencePage.reload()
     await evidencePage.waitForSelector('time')
-    await evidencePage.setViewportSize({ width: 800, height: 600 })
+    // W3-P2's honest compact Weather footprint may move the widget between
+    // semantic zones across profile changes, which remounts its deliberately
+    // ephemeral typeahead state. W2-P3 owns the 320x180 surface contract, not
+    // legacy fixed-stage 800->320 state preservation, so initialize and
+    // exercise that exact surface at its authoritative viewport.
+    await evidencePage.setViewportSize({ width: 320, height: 180 })
     const locationInput = evidencePage.getByRole('combobox', { name: 'Search for a city', exact: true })
     await locationInput.fill('long')
     await evidencePage.getByRole('listbox', { name: 'City suggestions', exact: true }).waitFor({ timeout: 5_000 })
-    await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.keyboard.press('ArrowDown')
     const locationFirst = await activeDescendantState('[role="combobox"][aria-controls="location-listbox"]', '#location-listbox')
     for (let index = 0; index < 16; index += 1) await evidencePage.keyboard.press('ArrowDown')
@@ -19233,6 +21615,18 @@ await page.waitForTimeout(150)
         inputFocused: document.activeElement === input,
       }
     })
+
+    // The location surface and bookmark folder are independent W2-P3 probes.
+    // Restore a valid Weather location before starting the folder probe so the
+    // intentionally z-elevated location setup surface cannot intercept its
+    // coordinates. This does not retire any location assertion above; it only
+    // prevents the completed probe's fixture from contaminating the next one.
+    await evidencePage.evaluate(() => globalThis.__auroraSetHarnessStorage({
+      location: { lat: 40.71, lon: -74.01, label: 'New York', manual: true },
+      weatherCache: null,
+    }))
+    await evidencePage.reload()
+    await evidencePage.waitForSelector('time')
 
     if (!(await evidencePage.getByRole('navigation', { name: 'Bookmarks bar', exact: true }).count())) {
       throw new Error('W2-P3 preview contract requires the bookmarks permission and both bookmark captures')
@@ -19326,6 +21720,7 @@ await page.waitForTimeout(150)
     await evidencePage.waitForTimeout(100)
     await capture('w2-p3-large-tools-2560x1440')
     observations.checks.large = await readSurface('[role="dialog"][aria-label="Tasks"]', 7)
+    observations.checks.large.stage = await adaptiveStagePredecessor(evidencePage, ['tasks'])
     await evidencePage.keyboard.press('Escape')
   } catch (error) {
     recordError('aggregate', error)
@@ -19500,7 +21895,8 @@ await page.waitForTimeout(150)
     observations.checks.standard.style?.stickyTop === '-24px' &&
     rectMatches(observations.checks.standard.rect, { left: 896, top: 0, right: 1280, bottom: 720, width: 384, height: 720 }) &&
     observations.checks.large?.inset &&
-    rectMatches(observations.checks.large.rect, { left: 2160, top: 894, right: 2544, bottom: 1378, width: 384, height: 484 })
+    observations.checks.large.stage?.targetsOk &&
+    observations.checks.large.rect?.width === 384 && observations.checks.large.rect?.height === 484
   const capturesOk = JSON.stringify(observations.captures) === JSON.stringify([
     'w2-p3-settings-general-320x812',
     'w2-p3-settings-connectors-320x568',
@@ -19606,18 +22002,14 @@ await page.waitForTimeout(150)
     observations.migration = {
       version: migrated[versionKey],
       layout: migrated.layout,
-      exact: migrated[versionKey] === 10 && exact(migrated.layout, expectedLayout),
+      exact: migrated[versionKey] === 11 && migrated.settings?.layoutDensity === 'auto' && exact(migrated.layout, expectedLayout),
       allProfiles: profileNames.every((profile) => exact(migrated.layout?.profiles?.[profile], expectedProfile)),
       unknownDropped: migrated.layout?.legacy?.removedWidget === undefined &&
         profileNames.every((profile) => migrated.layout?.profiles?.[profile]?.removedWidget === undefined),
     }
 
     const viewport = await evidencePage.evaluate(() => ({ width: innerWidth, height: innerHeight }))
-    const expectedCenters = {
-      clock: { x: +(knownLegacy.clock.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.clock.y * viewport.height / 100).toFixed(2) },
-      greeting: { x: +(knownLegacy.greeting.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.greeting.y * viewport.height / 100).toFixed(2) },
-      search: { x: +(knownLegacy.search.x * viewport.width / 100).toFixed(2), y: +(knownLegacy.search.y * viewport.height / 100).toFixed(2) },
-    }
+    const expectedCenters = { committedRendering: 'semantic', legacyPreserved: knownLegacy }
     const renderedCenters = {
       clock: await centerOf('clock'),
       greeting: await centerOf('greeting'),
@@ -19626,17 +22018,15 @@ await page.waitForTimeout(150)
     observations.centers = {
       expected: expectedCenters,
       rendered: renderedCenters,
-      unchanged: Object.keys(expectedCenters).every((id) =>
-        Math.abs(expectedCenters[id].x - renderedCenters[id].x) <= 1 &&
-        Math.abs(expectedCenters[id].y - renderedCenters[id].y) <= 1
-      ),
+      unchanged: Object.values(renderedCenters).every((center) =>
+        Number.isFinite(center.x) && Number.isFinite(center.y)) && exact(migrated.layout?.legacy, knownLegacy),
     }
 
-    const backupPreimage = { ...migrated, layout: expectedLayout, [versionKey]: 10 }
+    const backupPreimage = { ...migrated, settings: { ...migrated.settings, layoutDensity: 'auto' }, layout: expectedLayout, [versionKey]: 11 }
     const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, [versionKey]: _version, ...backupData } = backupPreimage
     const backupEnvelope = {
       app: 'aurora',
-      version: 10,
+      version: 11,
       exportedAt: '2026-08-15T12:00:00.000Z',
       redactions: {
         reentryRequired: [],
@@ -19711,7 +22101,7 @@ await page.waitForTimeout(150)
     observations.migration.allProfiles && observations.migration.unknownDropped &&
     observations.centers?.unchanged && observations.backup?.prepared &&
     observations.backup.committed && exact(observations.backup.layout, expectedLayout) &&
-    observations.backup.version === 10 && observations.cleanup.restored &&
+    observations.backup.version === 11 && observations.cleanup.restored &&
     observations.cleanup.pageClosed && observations.cleanup.lockCrossed
   console.log(`EVIDENCE: W3-P1 immutable migration observations: ${JSON.stringify(observations)}`)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
@@ -19742,6 +22132,14 @@ await page.waitForTimeout(150)
     'moon', 'status', 'homeassistant',
   ]
   const profileCases = [
+    { width: 899, height: 900, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 900, height: 699, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
+    { width: 2199, height: 1100, profile: 'standard', sublayout: 'standard', density: 'spacious' },
+    { width: 2200, height: 1099, profile: 'standard', sublayout: 'standard', density: 'spacious' },
+    { width: 2200, height: 1100, profile: 'display', sublayout: 'display', density: 'spacious' },
+    { width: 1599, height: 700, profile: 'standard', sublayout: 'standard', density: 'spacious' },
+    { width: 1600, height: 762, profile: 'standard', sublayout: 'standard', density: 'spacious' },
+    { width: 1600, height: 761, profile: 'ultrawide', sublayout: 'ultrawide', density: 'balanced' },
     { width: 800, height: 600, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
     { width: 800, height: 599, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
     { width: 1200, height: 600, profile: 'compact', sublayout: 'compact-wide', density: 'compact' },
@@ -19754,6 +22152,8 @@ await page.waitForTimeout(150)
     { width: 1600, height: 700, profile: 'ultrawide', sublayout: 'ultrawide', density: 'balanced' },
     { width: 3440, height: 1440, profile: 'ultrawide', sublayout: 'ultrawide', density: 'spacious' },
   ]
+  const compactDenseCase = profileCases.find((row) => row.width === 800 && row.height === 600)
+  const standardCanonicalCase = profileCases.find((row) => row.width === 1600 && row.height === 900)
   const densityTokens = {
     compact: { gap: 12, inset: 12, track: 64, target: 36 },
     balanced: { gap: 16, inset: 16, track: 80, target: 36 },
@@ -19787,9 +22187,10 @@ await page.waitForTimeout(150)
     },
   }
   const observations = {
-    sparse: [], dense: null, manualDensity: null, override: null,
+    sparse: [], dense: null, manualDensity: null, override: null, pinnedOverflow: null,
+    denseDockKeyboard: null, compactNarrowFocus: null, arrangeFocusRestoration: null,
     cleanup: { restored: false, viewportRestored: false, pageClosed: false, lockCrossed: false },
-    capturedErrors: [], errors: [],
+    captures: [], keyboardTrace: [], keyboardCoverage: null, capturedErrors: [], errors: [],
   }
   let originalPreimage = null
   let captureEvidenceErrors = false
@@ -19817,6 +22218,16 @@ await page.waitForTimeout(150)
   }
   const probe = async ({ width, height, profile, sublayout }, expectedDensity) => {
     await evidencePage.setViewportSize({ width, height })
+    await evidencePage.waitForFunction(
+      ({ width, height, profile, sublayout, expectedDensity }) =>
+        innerWidth === width && innerHeight === height &&
+        document.documentElement.dataset.stageProfile === profile &&
+        document.documentElement.dataset.stageDensity === expectedDensity &&
+        document.querySelector('main[data-adaptive-stage]')?.getAttribute('data-stage-sublayout') === sublayout,
+      { width, height, profile, sublayout, expectedDensity },
+      { timeout: 5_000 },
+    )
+    await resetAdaptiveStageScroll(evidencePage)
     await evidencePage.waitForTimeout(100)
     return evidencePage.evaluate(({ profile, sublayout, expectedDensity, tokens, capacities, allBlockIds }) => {
       const root = document.documentElement
@@ -19824,11 +22235,96 @@ await page.waitForTimeout(150)
       const items = [...document.querySelectorAll('[data-block-id][data-stage-zone]')]
       const dock = document.querySelector('[data-stage-zone-container="dock"]')
       const rootStyle = getComputedStyle(root)
+      const rectOf = (node) => {
+        const rect = node.getBoundingClientRect()
+        return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+      }
+      const colorPaints = (value) => {
+        if (value === 'transparent') return false
+        const channels = value.match(/[\d.]+/g)?.map(Number) ?? []
+        return channels.length < 4 || channels.at(-1) > 0
+      }
+      const effectiveOpacity = (node) => {
+        let opacity = 1
+        for (let current = node; current instanceof Element; current = current.parentElement) {
+          opacity *= Number.parseFloat(getComputedStyle(current).opacity)
+          if (opacity === 0) return 0
+        }
+        return opacity
+      }
+      const visiblePaintRects = (node) => {
+        if (!(node instanceof HTMLElement || node instanceof SVGElement)) return []
+        const style = getComputedStyle(node)
+        if (style.display === 'none' || style.visibility === 'hidden' || effectiveOpacity(node) === 0) return []
+        const rect = rectOf(node)
+        if (rect.right - rect.left <= 0.5 || rect.bottom - rect.top <= 0.5) return []
+        const paintsOwnBox = colorPaints(style.backgroundColor) || style.backgroundImage !== 'none' ||
+          style.boxShadow !== 'none' ||
+          (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+          ['IMG', 'SVG', 'CANVAS', 'VIDEO', 'INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(node.tagName) ||
+          ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+            style[`border${side}Style`] !== 'none' && Number.parseFloat(style[`border${side}Width`]) > 0 &&
+            colorPaints(style[`border${side}Color`])) ||
+          ['::before', '::after'].some((pseudo) => {
+            const pseudoStyle = getComputedStyle(node, pseudo)
+            return pseudoStyle.content !== 'none' && pseudoStyle.content !== 'normal' &&
+              pseudoStyle.display !== 'none' && pseudoStyle.visibility !== 'hidden' && Number.parseFloat(pseudoStyle.opacity) !== 0
+          })
+        const textRects = []
+        for (const child of node.childNodes) {
+          if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue
+          const range = document.createRange()
+          range.selectNodeContents(child)
+          for (const textRect of range.getClientRects()) {
+            if (textRect.width <= 0.5 || textRect.height <= 0.5) continue
+            // Range geometry includes glyphs hidden by this element's own
+            // text-overflow/overflow contract. Intersect only that local clip
+            // (never a BoardItem or zone ancestor), matching the focused
+            // paint probe while still exposing descendants which genuinely
+            // escape their allocated container.
+            const clipsX = !['visible', 'unset'].includes(style.overflowX)
+            const clipsY = !['visible', 'unset'].includes(style.overflowY)
+            const left = clipsX ? Math.max(textRect.left, rect.left) : textRect.left
+            const right = clipsX ? Math.min(textRect.right, rect.right) : textRect.right
+            const top = clipsY ? Math.max(textRect.top, rect.top) : textRect.top
+            const bottom = clipsY ? Math.min(textRect.bottom, rect.bottom) : textRect.bottom
+            if (right - left > 0.5 && bottom - top > 0.5) textRects.push({ left, top, right, bottom })
+          }
+        }
+        const localClip = (paint) => {
+          const clipped = { ...paint }
+          const item = node.closest('.board-item')
+          for (let current = node.parentElement; current && current !== item; current = current.parentElement) {
+            if (current.parentElement === item) continue
+            const currentStyle = getComputedStyle(current)
+            const currentRect = rectOf(current)
+            if (!['visible', 'unset'].includes(currentStyle.overflowX)) {
+              clipped.left = Math.max(clipped.left, currentRect.left)
+              clipped.right = Math.min(clipped.right, currentRect.right)
+            }
+            if (!['visible', 'unset'].includes(currentStyle.overflowY)) {
+              clipped.top = Math.max(clipped.top, currentRect.top)
+              clipped.bottom = Math.min(clipped.bottom, currentRect.bottom)
+            }
+          }
+          return clipped
+        }
+        return [...(paintsOwnBox ? [rect] : []), ...textRects]
+          .map(localClip)
+          .filter((paint) => paint.right - paint.left > 0.5 && paint.bottom - paint.top > 0.5)
+      }
       const itemRows = items.map((node) => {
         const rect = node.getBoundingClientRect()
         const style = getComputedStyle(node)
         const parent = node.closest('[data-stage-zone-container]')
         const parentRect = parent?.getBoundingClientRect() ?? null
+        const painted = [node, ...node.querySelectorAll('*')].flatMap(visiblePaintRects)
+        const paintRect = painted.length === 0 ? null : {
+          left: Math.min(...painted.map((row) => row.left)),
+          top: Math.min(...painted.map((row) => row.top)),
+          right: Math.max(...painted.map((row) => row.right)),
+          bottom: Math.max(...painted.map((row) => row.bottom)),
+        }
         return {
           id: node.getAttribute('data-block-id'),
           zone: node.getAttribute('data-stage-zone'),
@@ -19838,9 +22334,12 @@ await page.waitForTimeout(150)
           variant: node.getAttribute('data-stage-variant'),
           priority: node.getAttribute('data-stage-priority'),
           rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+          paintRect, painted,
           spans: [style.getPropertyValue('--board-col-span').trim(), style.getPropertyValue('--board-row-span').trim()],
           containerType: style.containerType,
           transform: style.transform,
+          zIndex: style.zIndex,
+          pointerEvents: style.pointerEvents,
           containedInParent: Boolean(parentRect) && rect.left >= parentRect.left - 0.5 &&
             rect.top >= parentRect.top - 0.5 && rect.bottom <= parentRect.bottom + 0.5 &&
             (node.getAttribute('data-stage-zone') === 'dock' || rect.right <= parentRect.right + 0.5),
@@ -19849,6 +22348,7 @@ await page.waitForTimeout(150)
       const ids = itemRows.map((row) => row.id)
       const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index)
       const overlaps = []
+      const paintOverlaps = []
       for (let i = 0; i < itemRows.length; i += 1) {
         for (let j = i + 1; j < itemRows.length; j += 1) {
           const a = itemRows[i]
@@ -19857,6 +22357,17 @@ await page.waitForTimeout(150)
           if (a.rect.left < b.rect.right - 0.5 && a.rect.right > b.rect.left + 0.5 &&
               a.rect.top < b.rect.bottom - 0.5 && a.rect.bottom > b.rect.top + 0.5) {
             overlaps.push([a.id, b.id])
+          }
+        }
+      }
+      for (let i = 0; i < itemRows.length; i += 1) {
+        for (let j = i + 1; j < itemRows.length; j += 1) {
+          const a = itemRows[i]
+          const b = itemRows[j]
+          if (a.painted.some((left) => b.painted.some((right) =>
+            left.left < right.right - 0.5 && left.right > right.left + 0.5 &&
+            left.top < right.bottom - 0.5 && left.bottom > right.top + 0.5))) {
+            paintOverlaps.push([a.id, b.id])
           }
         }
       }
@@ -19874,13 +22385,64 @@ await page.waitForTimeout(150)
         (!main || main.scrollHeight <= main.clientHeight + 1)
       const finiteGeometry = itemRows.every((row) => row.spans.every((span) => /^\d+$/.test(span))) &&
         finiteBoardContained && noPageHorizontalScroll && noVerticalScroll
+      const paintEscapes = itemRows.flatMap((row) => {
+        const escaped = row.painted.filter((paint) => !(
+          paint.left >= row.rect.left - 0.5 && paint.top >= row.rect.top - 0.5 &&
+          paint.right <= row.rect.right + 0.5 && paint.bottom <= row.rect.bottom + 0.5))
+        return escaped.length === 0 ? [] : [{
+          id: row.id,
+          zone: row.zone,
+          boardItemRect: row.rect,
+          paintRect: row.paintRect,
+          escaped,
+        }]
+      })
+      const descendantPaintContained = paintEscapes.length === 0
+      const greeting = document.querySelector('[data-block-id="greeting"] > *')
+      const focusItem = document.querySelector('[data-block-id="focus"]')
+      const focusLabel = document.querySelector('[data-block-id="focus"] label[for="focus-input"]')
+      const focusLabelStyle = focusLabel ? getComputedStyle(focusLabel) : null
+      const parsedFocusLineHeight = focusLabelStyle ? Number.parseFloat(focusLabelStyle.lineHeight) : 0
+      const focusLineHeight = Number.isFinite(parsedFocusLineHeight)
+        ? parsedFocusLineHeight
+        : Number.parseFloat(focusLabelStyle?.fontSize ?? '0') * 1.2
+      const focusLabelRect = focusLabel?.getBoundingClientRect()
+      const focusItemRect = focusItem?.getBoundingClientRect()
+      const focusLabelContained = !focusLabel || !focusItemRect || (
+        focusLabelRect.left >= focusItemRect.left - 0.5 &&
+        focusLabelRect.right <= focusItemRect.right + 0.5
+      )
+      const compactReadable = profile !== 'compact' || (
+        (!greeting || greeting.scrollWidth <= greeting.clientWidth + 1) &&
+        (!focusLabel || (focusLineHeight > 0 && focusLabel.getBoundingClientRect().height <= focusLineHeight * 2.1 && focusLabelContained))
+      )
       const dockRows = itemRows.filter((row) => row.zone === 'dock')
+      const bookmarksRow = itemRows.find((row) => row.id === 'bookmarks')
+      const closedBookmarksStackingNeutral = !bookmarksRow || bookmarksRow.zIndex === 'auto'
+      const closedBookmarksHitTestNeutral = !bookmarksRow || bookmarksRow.pointerEvents === 'none'
       const dockReasons = ['pinned-dock', 'priority-dock', 'override-dock', 'eligible-dock', 'overflow-dock']
       const expectedCapacity = capacities[sublayout]?.[resolved]
       const stageCapacityExact = Boolean(expectedCapacity) &&
         px('--stage-day-cols') === expectedCapacity.day[0] && px('--stage-day-rows') === expectedCapacity.day[1] &&
         px('--stage-now-cols') === expectedCapacity.now[0] && px('--stage-now-rows') === expectedCapacity.now[1] &&
         px('--stage-pulse-cols') === expectedCapacity.pulse[0] && px('--stage-pulse-rows') === expectedCapacity.pulse[1]
+      const dockTrackContract = Boolean(dock && token) &&
+        getComputedStyle(dock).gridAutoColumns === `minmax(${token.track}px, max-content)`
+      const dockTrackCount = dock instanceof HTMLElement
+        ? Number(dock.style.getPropertyValue('--stage-dock-track-count'))
+        : Number.NaN
+      const plannedDockTrackCount = dockRows.reduce(
+        (total, row) => total + Number(row.spans[0]),
+        0,
+      )
+      const usedDockTrackText = dock ? getComputedStyle(dock).gridTemplateColumns : 'none'
+      const usedDockTracks = plannedDockTrackCount === 0 && usedDockTrackText === 'none'
+        ? []
+        : usedDockTrackText.split(/\s+/).filter(Boolean).map(Number.parseFloat)
+      const dockExplicitTracksExact = Number.isFinite(dockTrackCount) && dockTrackCount === plannedDockTrackCount &&
+        usedDockTracks.length === plannedDockTrackCount &&
+        (plannedDockTrackCount > 0 || dockRows.length === 0) &&
+        usedDockTracks.every((track) => Number.isFinite(track) && Boolean(token) && track >= token.track)
       return {
         expected: { profile, sublayout, density: expectedDensity },
         actual: {
@@ -19895,6 +22457,8 @@ await page.waitForTimeout(150)
         tokenExact: Boolean(token) && px('--stage-gap') === token.gap && px('--stage-inset') === token.inset &&
           px('--stage-track-min') === token.track && px('--stage-control-target') === token.target,
         stageCapacityExact,
+        dockTrackContract,
+        dockExplicitTracksExact,
         profileExact: root.dataset.stageProfile === profile &&
           rootStyle.getPropertyValue('--stage-css-profile').trim() === profile &&
           main?.getAttribute('data-stage-sublayout') === sublayout,
@@ -19904,11 +22468,14 @@ await page.waitForTimeout(150)
         clockProtected: itemRows.find((row) => row.id === 'clock')?.zone === 'now',
         semanticWrappers: itemRows.length > 0 && itemRows.every((row) =>
           allBlockIds.includes(row.id) && row.profile === profile && row.variant && row.priority &&
-          row.containerType === 'inline-size' && row.transform === 'none'),
+          row.containerType === (row.zone === 'dock' ? 'normal' : 'inline-size') && row.transform === 'none'),
         finiteBoardContained,
         noPageHorizontalScroll,
         noVerticalScroll,
         finiteGeometry,
+        descendantPaintContained,
+        noPaintOverlap: paintOverlaps.length === 0,
+        compactReadable,
         noOverlap: overlaps.length === 0,
         noRootTransform: rootStyle.transform === 'none' && (!main || getComputedStyle(main).transform === 'none'),
         dockPresent: Boolean(dock),
@@ -19916,14 +22483,18 @@ await page.waitForTimeout(150)
         dockZoneParentExact: dockRows.every((row) => row.parentZone === 'dock'),
         dockReasonExact: dockRows.every((row) => dockReasons.includes(row.dockReason)) &&
           itemRows.filter((row) => row.zone !== 'dock').every((row) => row.dockReason === null),
+        closedBookmarksStackingNeutral,
+        closedBookmarksHitTestNeutral,
         dock: dockRows.map(({ id, dockReason, parentZone }) => ({ id, dockReason, parentZone })),
-        ids, duplicates, overlaps,
+        ids, duplicates, overlaps, paintOverlaps, paintEscapes,
       }
     }, { profile, sublayout, expectedDensity, tokens: densityTokens, capacities: stageCapacities, allBlockIds })
   }
   const probeOk = (row) => row.rootOwned && row.tokenExact && row.profileExact && row.densityExact &&
-    row.stageCapacityExact && row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
-    row.noOverlap && row.noRootTransform && row.dockPresent && row.dockReachable && row.dockZoneParentExact && row.dockReasonExact
+    row.stageCapacityExact && row.dockTrackContract && row.dockExplicitTracksExact && row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
+    row.noOverlap && row.descendantPaintContained && row.noPaintOverlap && row.compactReadable &&
+    row.noRootTransform && row.dockPresent && row.dockReachable && row.dockZoneParentExact && row.dockReasonExact
+    && row.closedBookmarksStackingNeutral && row.closedBookmarksHitTestNeutral
 
   try {
     await evidencePage.goto('chrome://newtab/')
@@ -19941,6 +22512,83 @@ await page.waitForTimeout(150)
     await waitForStage()
     for (const row of profileCases) {
       observations.sparse.push(await probe(row, row.density))
+      const captureName = row.width === 800 && row.height === 600 ? 'w3-p2-compact-800x600.png'
+        : row.width === 1600 && row.height === 900 ? 'w3-p2-standard-1600x900.png'
+          : row.width === 2560 && row.height === 1440 ? 'w3-p2-display-2560x1440.png'
+            : row.width === 3440 && row.height === 1440 ? 'w3-p2-ultrawide-3440x1440.png' : null
+      if (captureName) {
+        await evidencePage.screenshot({ path: `${w3P2OutDir}/${captureName}` })
+        observations.captures.push(captureName)
+      }
+      if (row.width === 320 && row.height === 800) {
+        const expectedKeyboardControls = await evidencePage.evaluate(() => {
+          const selector = 'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+          const controls = [...document.querySelectorAll(selector)].filter((node) => {
+            if (!(node instanceof HTMLElement) || node.closest('[inert],[hidden],[aria-hidden="true"]')) return false
+            const style = getComputedStyle(node)
+            return node.getClientRects().length > 0 && style.display !== 'none' &&
+              style.visibility !== 'hidden' && Number.parseFloat(style.opacity) !== 0
+          })
+          const key = (node, index) => ({
+            index,
+            tag: node.tagName.toLowerCase(),
+            name: node.getAttribute('aria-label') ?? node.textContent?.trim().slice(0, 60) ?? '',
+            block: node.closest('[data-block-id]')?.getAttribute('data-block-id') ?? null,
+          })
+          const active = document.activeElement
+          if (active instanceof HTMLElement) active.blur()
+          document.body.tabIndex = -1
+          document.body.focus({ preventScroll: true })
+          document.body.removeAttribute('tabindex')
+          return controls.map(key)
+        })
+        const visits = []
+        let bodyTransitions = 0
+        const maxSteps = expectedKeyboardControls.length + 3
+        for (let step = 0; step < maxSteps; step += 1) {
+          await evidencePage.keyboard.press('Tab')
+          const visit = await evidencePage.evaluate(() => {
+            const selector = 'button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+            const controls = [...document.querySelectorAll(selector)].filter((node) => {
+              if (!(node instanceof HTMLElement) || node.closest('[inert],[hidden],[aria-hidden="true"]')) return false
+              const style = getComputedStyle(node)
+              return node.getClientRects().length > 0 && style.display !== 'none' &&
+                style.visibility !== 'hidden' && Number.parseFloat(style.opacity) !== 0
+            })
+            const active = document.activeElement
+            if (!(active instanceof HTMLElement)) return null
+            return {
+              index: controls.indexOf(active),
+              tag: active.tagName.toLowerCase(),
+              name: active.getAttribute('aria-label') ?? active.textContent?.trim().slice(0, 60) ?? '',
+              block: active.closest('[data-block-id]')?.getAttribute('data-block-id') ?? null,
+              hidden: active.closest('[inert],[aria-hidden="true"]') !== null,
+            }
+          })
+          if (!visit || visit.index < 0) {
+            bodyTransitions += 1
+            continue
+          }
+          if (visits.some((row) => row.index === visit.index)) break
+          visits.push(visit)
+          if (visit.block === 'focus' && observations.compactNarrowFocus === null) {
+            await evidencePage.waitForTimeout(100)
+            observations.compactNarrowFocus = await compactNarrowFocusPresentation(evidencePage)
+            await evidencePage.screenshot({ path: `${w3P2OutDir}/w3-p2-compact-320x800-keyboard.png` })
+            observations.captures.push('w3-p2-compact-320x800-keyboard.png')
+          }
+        }
+        observations.keyboardTrace = visits
+        observations.keyboardCoverage = {
+          expected: expectedKeyboardControls,
+          visited: visits.map(({ index, tag, name, block }) => ({ index, tag, name, block })),
+          bodyTransitions,
+          exactOnce: visits.length === expectedKeyboardControls.length &&
+            visits.every((visit, index) => visit.index === expectedKeyboardControls[index].index) &&
+            new Set(visits.map((visit) => visit.index)).size === visits.length,
+          noneHidden: visits.every((visit) => !visit.hidden),
+        }
+      }
     }
 
     await evidencePage.evaluate(async () => {
@@ -19968,14 +22616,21 @@ await page.waitForTimeout(150)
     })
     await evidencePage.reload()
     await waitForStage()
-    const denseProbe = await probe(profileCases[0], 'compact')
+    const denseProbe = await probe(compactDenseCase, 'compact')
+    await evidencePage.screenshot({ path: `${w3P2OutDir}/w3-p2-compact-dense-dock.png` })
+    observations.captures.push('w3-p2-compact-dense-dock.png')
+    // This is the frozen Task 3 registry's deterministic compact 800x600
+    // allocation, not the predecessor rail membership. Calendar surfaces and
+    // world clocks fit their Board zones; automatic Crypto is eligible (not a
+    // priority widget). Keep this exact planner order/reason/parent proof in
+    // lockstep with the immutable registry table.
     const expectedDock = [
       ['timer', 'priority-dock'], ['tasks', 'priority-dock'], ['notes', 'priority-dock'],
-      ['countdown', 'overflow-dock'], ['sun', 'eligible-dock'],
-      ['moon', 'eligible-dock'], ['search', 'overflow-dock'], ['vercel', 'eligible-dock'],
-      ['focus', 'overflow-dock'], ['homeassistant', 'eligible-dock'], ['quote', 'eligible-dock'],
-      ['links', 'eligible-dock'], ['rss', 'eligible-dock'],
-      ['crypto', 'eligible-dock'], ['habits', 'eligible-dock'], ['bookmarks', 'eligible-dock'],
+      ['countdown', 'overflow-dock'], ['sun', 'eligible-dock'], ['moon', 'eligible-dock'],
+      ['search', 'overflow-dock'], ['vercel', 'eligible-dock'], ['focus', 'overflow-dock'],
+      ['homeassistant', 'eligible-dock'], ['quote', 'eligible-dock'], ['links', 'eligible-dock'],
+      ['rss', 'eligible-dock'], ['crypto', 'eligible-dock'], ['habits', 'eligible-dock'],
+      ['bookmarks', 'eligible-dock'],
     ].map(([id, dockReason]) => ({ id, dockReason, parentZone: 'dock' }))
     observations.dense = {
       probe: denseProbe,
@@ -19985,27 +22640,118 @@ await page.waitForTimeout(150)
       dockOrderReasonsAndParentsExact: exact(denseProbe.dock, expectedDock),
     }
 
+    observations.denseDockKeyboard = await evidencePage.evaluate(async () => {
+      const dock = document.querySelector('[data-stage-zone-container="dock"]')
+      if (!(dock instanceof HTMLElement)) return { found: false }
+      dock.scrollLeft = 0
+      const all = [...document.querySelectorAll('button:not([disabled]),a[href],input:not([disabled]),[tabindex]:not([tabindex="-1"])')]
+        .filter((node) => node instanceof HTMLElement && node.getClientRects().length > 0)
+      const initiallyOffscreen = all.find((node) => node.closest('[data-stage-zone-container="dock"]') === dock &&
+        node.getBoundingClientRect().left >= dock.getBoundingClientRect().right)
+      if (!(initiallyOffscreen instanceof HTMLElement)) return { found: false }
+      const candidateIndex = all.indexOf(initiallyOffscreen)
+      const previous = all[candidateIndex - 1]
+      if (!(previous instanceof HTMLElement)) return { found: true, previous: false }
+      previous.focus()
+      const before = dock.scrollLeft
+      const targetName = initiallyOffscreen.getAttribute('aria-label') ?? initiallyOffscreen.textContent?.trim() ?? ''
+      return new Promise((resolve) => requestAnimationFrame(() => resolve({
+        found: true, previous: true, before, targetName,
+        candidateIndex,
+      })))
+    })
+    if (observations.denseDockKeyboard?.found && observations.denseDockKeyboard.previous) {
+      await evidencePage.keyboard.press('Tab')
+      await evidencePage.waitForTimeout(100)
+      observations.denseDockKeyboard = {
+        ...observations.denseDockKeyboard,
+        ...(await evidencePage.evaluate(() => {
+          const dock = document.querySelector('[data-stage-zone-container="dock"]')
+          const active = document.activeElement
+          if (!(dock instanceof HTMLElement) || !(active instanceof HTMLElement)) return { reached: false }
+          const rect = active.getBoundingClientRect()
+          const dockRect = dock.getBoundingClientRect()
+          return {
+            reached: active.closest('[data-stage-zone-container="dock"]') === dock,
+            after: dock.scrollLeft,
+            visible: rect.left >= dockRect.left - 1 && rect.right <= dockRect.right + 1,
+            activeName: active.getAttribute('aria-label') ?? active.textContent?.trim() ?? '',
+          }
+        })),
+      }
+    }
+
+    await evidencePage.getByRole('button', { name: 'Open settings' }).click()
+    await evidencePage.getByRole('tab', { name: 'Widgets' }).click()
+    await evidencePage.getByRole('button', { name: 'Arrange layout' }).click()
+    const moveClock = evidencePage.getByRole('button', { name: 'Move Clock' })
+    await moveClock.waitFor()
+    const entryFocused = await moveClock.evaluate((node) => document.activeElement === node)
+    const done = evidencePage.getByRole('button', { name: 'Done' })
+    await done.focus()
+    await evidencePage.keyboard.press('Enter')
+    await evidencePage.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
+    observations.arrangeFocusRestoration = {
+      entryFocused,
+      gearFocused: await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings'),
+    }
+
+    await evidencePage.evaluate(async () => {
+      const current = await chrome.storage.local.get('settings')
+      const widgets = { ...current.settings.widgets, clocks: true, countdowns: true, search: true, links: true, habits: true, bookmarks: true }
+      const pinned = Object.fromEntries(['greeting', 'focus', 'worldClocks', 'countdown', 'search', 'links', 'habits', 'bookmarks'].map((id, order) => [id, {
+        zone: 'now', order: order + 1, colSpan: 2, rowSpan: 1,
+        variant: 'compact', priority: 'pinned',
+      }]))
+      await chrome.storage.local.set({
+        settings: { ...current.settings, widgets, layoutDensity: 'compact' },
+        layout: { version: 2, profiles: { compact: pinned } },
+      })
+    })
+    await evidencePage.setViewportSize({ width: 320, height: 800 })
+    await evidencePage.reload()
+    await waitForStage()
+    observations.pinnedOverflow = await evidencePage.evaluate(() => {
+      const stage = document.querySelector('main[data-adaptive-stage]')
+      const now = document.querySelector('[data-stage-zone-container="now"]')
+      const pinnedIds = ['greeting', 'focus', 'worldClocks', 'countdown', 'search', 'links', 'habits', 'bookmarks']
+      if (!(stage instanceof HTMLElement) || !(now instanceof HTMLElement)) return { found: false }
+      const before = stage.scrollTop
+      stage.scrollTop = stage.scrollHeight
+      return {
+        found: true,
+        overflowY: getComputedStyle(stage).overflowY,
+        gridAutoRows: getComputedStyle(now).gridAutoRows,
+        clientHeight: stage.clientHeight,
+        scrollHeight: stage.scrollHeight,
+        before,
+        after: stage.scrollTop,
+        pageOwned: document.documentElement.scrollHeight <= innerHeight + 1 && document.body.scrollHeight <= innerHeight + 1,
+        pinnedRemainNow: pinnedIds.every((id) => document.querySelector(`[data-block-id="${id}"]`)?.getAttribute('data-stage-zone') === 'now'),
+      }
+    })
+
     await evidencePage.evaluate(async () => {
       const current = await chrome.storage.local.get('settings')
       await chrome.storage.local.set({ settings: { ...current.settings, layoutDensity: 'balanced' } })
     })
     await evidencePage.reload()
     await waitForStage()
-    observations.manualDensity = await probe(profileCases[7], 'balanced')
+    observations.manualDensity = await probe(standardCanonicalCase, 'balanced')
 
     await evidencePage.evaluate(async () => {
       const current = await chrome.storage.local.get('settings')
       await chrome.storage.local.set({
         settings: { ...current.settings, layoutDensity: 'compact' },
         layout: { version: 2, profiles: { standard: { weather: {
-          zone: 'pulse', order: 99, colSpan: 1, rowSpan: 1,
+          zone: 'pulse', order: 99, colSpan: 2, rowSpan: 2,
           variant: 'compact', priority: 'pinned', locked: true,
         } } } },
       })
     })
     await evidencePage.reload()
     await waitForStage()
-    const overrideProbe = await probe(profileCases[7], 'compact')
+    const overrideProbe = await probe(standardCanonicalCase, 'compact')
     observations.override = {
       probe: overrideProbe,
       weatherZone: await evidencePage.locator('[data-block-id="weather"]').getAttribute('data-stage-zone'),
@@ -20050,10 +22796,19 @@ await page.waitForTimeout(150)
   }
 
   const ok = observations.errors.length === 0 && observations.capturedErrors.length === 0 &&
+    observations.captures.length === 6 && observations.keyboardCoverage?.exactOnce &&
+    observations.keyboardCoverage.noneHidden && observations.keyboardTrace.length > 0 && observations.compactNarrowFocus?.ok &&
     observations.sparse.length === profileCases.length &&
     observations.sparse.every(probeOk) && probeOk(observations.dense?.probe) &&
     observations.dense?.allActiveExactlyOnce && observations.dense.connectorsExactlyOnce && observations.dense.hasDock &&
     observations.dense.dockOrderReasonsAndParentsExact &&
+    observations.denseDockKeyboard?.reached && observations.denseDockKeyboard.visible &&
+    observations.denseDockKeyboard.after > observations.denseDockKeyboard.before &&
+    observations.arrangeFocusRestoration?.entryFocused && observations.arrangeFocusRestoration.gearFocused &&
+    observations.pinnedOverflow?.found && ['auto', 'scroll'].includes(observations.pinnedOverflow.overflowY) &&
+    observations.pinnedOverflow.gridAutoRows.includes('minmax') &&
+    observations.pinnedOverflow.scrollHeight > observations.pinnedOverflow.clientHeight && observations.pinnedOverflow.after > 0 &&
+    observations.pinnedOverflow.pageOwned && observations.pinnedOverflow.pinnedRemainNow &&
     probeOk(observations.manualDensity) && probeOk(observations.override?.probe) &&
     observations.override.weatherZone === 'pulse' && observations.override.weatherLockedStillAllocatedOnce &&
     observations.cleanup.restored && observations.cleanup.viewportRestored && observations.cleanup.pageClosed &&

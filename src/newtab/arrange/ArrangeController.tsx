@@ -115,6 +115,12 @@ export default function ArrangeController({
   // further each time. Cleared on `exit` so the next session's first nudge
   // always re-derives its base from a fresh measurement.
   const [nudged, setNudged] = useState<Partial<Record<BlockId, BlockPos>>>({})
+  const draftRef = useRef<Layout>({})
+  const pointerStartDraftRef = useRef<Layout>({})
+  const publishDraft = useCallback((next: Layout) => {
+    draftRef.current = next
+    onDraftChange(next)
+  }, [onDraftChange])
   const overlayRef = useRef<HTMLDivElement>(null)
   // What to focus once the overlay's outlines exist for the entry currently
   // in flight — a specific block (long-press engaged it) or 'first' (the
@@ -173,8 +179,8 @@ export default function ArrangeController({
     // first, but this is the same defense-in-depth the old armed-Reset
     // disarm-on-exit had) would ambush the next session already open.
     setResetDialogOpen(false)
-    onDraftChange({})
-  }, [onDraftChange])
+    publishDraft({})
+  }, [publishDraft])
 
   // Newest-first shared Escape stack (src/lib/dialogStack.ts) — only active
   // while arrange mode is on.
@@ -337,10 +343,11 @@ export default function ArrangeController({
         pendingFocusRef.current = blockId // focus THIS block's own Move button once it renders
         setMode('on')
         setDrag({ blockId, pos, guides: [], size, pointerId })
-        onDraftChange({ [blockId]: pos })
+        pointerStartDraftRef.current = draftRef.current
+        publishDraft({ ...draftRef.current, [blockId]: pos })
       })
     },
-    [enterAfterClosing, measureAll, onDraftChange, nudged],
+    [enterAfterClosing, measureAll, publishDraft, nudged],
   )
 
   // The long-press entry point: engaging on ANY block immediately begins
@@ -419,7 +426,7 @@ export default function ArrangeController({
     const clamped = clampCenterPct(snapped.pos, drag.size, viewport)
 
     setDrag({ ...drag, pos: clamped, guides: snapped.guides })
-    onDraftChange({ [drag.blockId]: clamped })
+    publishDraft({ ...draftRef.current, [drag.blockId]: clamped })
   }
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -433,7 +440,7 @@ export default function ArrangeController({
     // STALE pre-drag rect and visibly jump the block back toward its old
     // spot — see handleOutlineKeyDown's `nudged[blockId] ?? …` base and
     // beginDrag's mirrored read of `nudged` above.
-    const nextNudged = { ...nudged, [blockId]: pos }
+    const nextNudged = { ...draftRef.current, [blockId]: pos }
     setNudged(nextNudged)
     releaseCapture(pointerId)
     setDrag(null)
@@ -449,7 +456,7 @@ export default function ArrangeController({
     // means the rendered position is identical right up until `exit()`
     // clears everything, by which point the real write has long since
     // landed and prop-driven rendering shows the same value anyway.
-    onDraftChange(nextNudged)
+    publishDraft(nextNudged)
   }
 
   const handlePointerCancel = (e: React.PointerEvent) => {
@@ -457,7 +464,7 @@ export default function ArrangeController({
     // A cancelled gesture never commits — no storage write.
     releaseCapture(drag.pointerId)
     setDrag(null)
-    onDraftChange({})
+    publishDraft(pointerStartDraftRef.current)
   }
 
   // Arrow-key nudging: operates on the focused block's CURRENT effective
@@ -513,7 +520,7 @@ export default function ArrangeController({
     const next = clampCenterPct(raw, size, viewport)
     const nextNudged = { ...nudged, [blockId]: next }
     setNudged(nextNudged)
-    onDraftChange(nextNudged)
+    publishDraft(nextNudged)
     void storage.update('layout', (current) => withLegacyBlockPosition(current, blockId, next))
   }
 
@@ -640,7 +647,7 @@ export default function ArrangeController({
           setResetDialogOpen(false)
           void storage.set('layout', emptyLayoutV2())
           setNudged({})
-          onDraftChange({})
+          publishDraft({})
         }}
       />
     </div>

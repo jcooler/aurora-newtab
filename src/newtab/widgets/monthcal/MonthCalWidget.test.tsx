@@ -72,6 +72,8 @@ describe('MonthCalWidget', () => {
     const today = cell(container, TODAY_KEY)
     expect(today).toBeTruthy()
     expect(today!.querySelector('span')!.className).toContain('ring-accent')
+    expect(today!.closest('tr')?.hasAttribute('data-current-week')).toBe(true)
+    expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
   })
 
   it('moves the today identity into June after restoration across midnight', async () => {

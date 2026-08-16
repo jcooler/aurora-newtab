@@ -408,6 +408,33 @@ describe('useConnectorSnapshot', () => {
     })
   })
 
+  it('treats a removed snapshot key as an empty map and refreshes without crashing', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('connectorSnapshots', {
+      rss: {
+        scope: await connectorSnapshotScope('rss', configA),
+        fetchedAt: Date.now(),
+        data: 'cached',
+      },
+    })
+    const refresh = vi.fn(() => Promise.resolve('replacement'))
+
+    mount(storage, refresh, 60_000, configA)
+    await screen.findByText('data:cached')
+    expect(refresh).not.toHaveBeenCalled()
+
+    await act(async () => {
+      // Chrome reports a removed storage key to subscribers as undefined.
+      await driver.write({ connectorSnapshots: undefined })
+      await tick()
+    })
+
+    expect(refresh).toHaveBeenCalledWith(null)
+    expect(screen.getByText('data:replacement')).toBeTruthy()
+  })
+
   it('a queued scope A write rechecks ownership after scope B commits', async () => {
     const driver = memoryDriver()
     const storage = createStorage(driver)

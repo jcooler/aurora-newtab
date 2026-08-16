@@ -669,6 +669,27 @@ describe('ArrangeController', () => {
   })
 
   describe('drop keeps its committed position in the draft (review fix I2 — drop flicker)', () => {
+    it('pointer movement and cancellation preserve every previously nudged draft entry', async () => {
+      const { onDraftChange } = await renderController()
+      engageClock()
+      await settleDrag()
+
+      const greetingOutline = screen.getByRole('button', { name: 'Move Greeting' })
+      fireEvent.keyDown(greetingOutline, { key: 'ArrowRight' })
+      await act(async () => {})
+      const beforeDrag = onDraftChange.mock.calls.at(-1)?.[0] as Layout
+
+      const clockOutline = screen.getByRole('button', { name: 'Move Clock' })
+      fireEvent.pointerDown(clockOutline, { pointerId: 31, clientX: 800, clientY: 450 })
+      fireEvent.pointerMove(clockOutline, { pointerId: 31, clientX: 1000, clientY: 304 })
+      const live = onDraftChange.mock.calls.at(-1)?.[0] as Layout
+      expect(live.greeting).toEqual(beforeDrag.greeting)
+      expect(live.clock).not.toEqual(beforeDrag.clock)
+
+      fireEvent.pointerCancel(clockOutline, { pointerId: 31 })
+      expect(onDraftChange).toHaveBeenLastCalledWith(beforeDrag)
+    })
+
     it('a dropped block STAYS in the draft after pointerup — the whole nudged map, same shape the keyboard path already sends, not a clear to {}', async () => {
       const { storage, onDraftChange } = await renderController()
       engageClock()

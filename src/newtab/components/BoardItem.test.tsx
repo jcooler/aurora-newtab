@@ -33,19 +33,24 @@ describe('BoardItem', () => {
     expect(item.classList.contains('board-item--day')).toBe(true)
     expect(item.style.getPropertyValue('--board-col-span')).toBe('2')
     expect(item.style.getPropertyValue('--board-row-span')).toBe('2')
+    expect(item.style.gridColumn).toBe('1 / span 2')
+    expect(item.style.gridRow).toBe('1 / span 2')
     expect(item.style.containerType).toBe('inline-size')
     expect(screen.getByRole('button', { name: 'Weather action' })).toBeTruthy()
   })
 
   it('keeps malformed board/Dock span inputs finite without positioning, transforms, or layout containment', () => {
     const { rerender } = render(
-      <BoardItem entry={weather} allocation={allocation({ zone: 'dock', colSpan: Infinity, rowSpan: NaN })} profile="compact">
+      <BoardItem entry={weather} allocation={allocation({ zone: 'dock', colSpan: Infinity, rowSpan: NaN, rect: null })} profile="compact">
         content
       </BoardItem>,
     )
     let item = document.querySelector('[data-block-id="weather"]') as HTMLElement
     expect(item.style.getPropertyValue('--board-col-span')).toBe('1')
     expect(item.style.getPropertyValue('--board-row-span')).toBe('1')
+    expect(item.style.gridColumn).toBe('span 1')
+    expect(item.style.gridRow).toBe('span 1')
+    expect(item.style.containerType).toBe('normal')
 
     rerender(
       <BoardItem entry={weather} allocation={allocation({ colSpan: -2.5, rowSpan: 4.8 })} profile="display">

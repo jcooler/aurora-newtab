@@ -189,7 +189,11 @@ export function useConnectorSnapshot<T>(
 
       unsubscribe = storage.subscribe('connectorSnapshots', (snapshots) => {
         if (!live || !isCurrent()) return
-        const snapshot = snapshots[id]
+        // A direct chrome.storage removal reports the key as undefined to
+        // subscribers even though Aurora's typed storage facade normally
+        // supplies an object. Treat that transient/removal shape exactly like
+        // an empty snapshot map so the mounted connector refreshes cleanly.
+        const snapshot = snapshots?.[id]
         if (!snapshot || snapshot.scope !== scope) {
           setCurrentState(() => ({ ...EMPTY_STATE, configKey }))
           void runRefresh(null)

@@ -194,7 +194,10 @@ function MonthCalInner() {
         </thead>
         <tbody>
           {weeks.map((week, wi) => (
-            <tr key={wi}>
+            <tr
+              key={wi}
+              data-current-week={isCurrentMonth && week.some((cell) => cell.key === todayKey) ? '' : undefined}
+            >
               {week.map((c) => (
                 <MonthCalCell
                   key={c.key}

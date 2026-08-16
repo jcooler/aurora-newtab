@@ -326,6 +326,25 @@ describe('protected Clock reservation', () => {
     expect(result.allocations.find((row) => row.id === 'greeting')?.rect).toEqual({ colStart: 1, rowStart: 3, colSpan: 2, rowSpan: 1 })
   })
 
+  it('keeps an outside-Now pinned Clock at least as large as its protected source footprint', () => {
+    const protectedClock = entry('clock', {
+      protectedClock: true,
+      eligibleZones: ['now'],
+      defaultPlacements: Object.fromEntries((['compact', 'standard', 'display', 'ultrawide'] as const).map((profile) =>
+        [profile, placement({ zone: 'now', order: 50, colSpan: 3, rowSpan: 2, variant: 'expanded', priority: 'pinned' })])) as Record<LayoutProfile, Placement>,
+    })
+    const result = plan([protectedClock], {
+      clock: placement({ zone: 'day', order: 7, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned', locked: true }),
+    }, 'standard', 'compact')
+    expect(result.allocations[0]).toMatchObject({
+      id: 'clock', zone: 'day', order: 7, colSpan: 3, rowSpan: 2,
+      variant: 'compact', priority: 'pinned', locked: true,
+    })
+    expect(result.clockReservation).toEqual({
+      kind: 'reservation', zone: 'now', colStart: 1, rowStart: 1, colSpan: 3, rowSpan: 2,
+    })
+  })
+
   it('relocates a covered canonical reservation and diagnoses no-fit without eviction', () => {
     const blocker = entry('weather', { defaultPlacements: Object.fromEntries(
       (['compact', 'standard', 'display', 'ultrawide'] as const).map((p) => [p, placement({ zone: 'now', order: 0, colSpan: 3, rowSpan: 2, priority: 'pinned' })]),

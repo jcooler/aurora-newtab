@@ -31,7 +31,17 @@ export default function BoardItem({
   const style: BoardItemStyle = {
     '--board-col-span': String(finiteSpan(allocation.colSpan)),
     '--board-row-span': String(finiteSpan(allocation.rowSpan)),
-    containerType: 'inline-size',
+    // Dock columns are intrinsically sized. Inline-size containment would
+    // remove their contents from that calculation and collapse link-only
+    // launchers to zero; finite Stage zones keep container-query ownership.
+    containerType: allocation.zone === 'dock' ? 'normal' : 'inline-size',
+    ...(allocation.rect ? {
+      gridColumn: `${finiteSpan(allocation.rect.colStart)} / span ${finiteSpan(allocation.colSpan)}`,
+      gridRow: `${finiteSpan(allocation.rect.rowStart)} / span ${finiteSpan(allocation.rowSpan)}`,
+    } : {
+      gridColumn: `span ${finiteSpan(allocation.colSpan)}`,
+      gridRow: `span ${finiteSpan(allocation.rowSpan)}`,
+    }),
   }
 
   return (
@@ -41,6 +51,7 @@ export default function BoardItem({
       data-stage-zone={allocation.zone}
       data-stage-variant={allocation.variant}
       data-stage-priority={allocation.priority}
+      data-stage-dock-reason={allocation.dockReason}
       className={`board-item board-item--${allocation.zone}${className ? ` ${className}` : ''}`}
       style={style}
     >
