@@ -68,7 +68,7 @@
 - [x] Run one focused built-extension replay at Compact 800x600, Standard 1600x900, and Display 2560x1440. Prove exact 1/2/3 segment priority/truncation, local cache identity/freshness gates, one visible/programmatic sentence, unchanged BoardItem ownership/order, no clipping, no network request attributable to Briefing, restored teardown, and zero runtime errors.
 - [x] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
 - [x] Inspect the three required captures once, mark W4-P2 Verified, record exact gates and A2-D028, commit `docs: checkpoint W4-P2`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
-- [ ] Begin W4-P3 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
+- [x] Begin W4-P3 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of done
 

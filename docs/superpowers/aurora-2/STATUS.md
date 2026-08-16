@@ -5,7 +5,7 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
 **Last verified packet:** `W4-P2` - Aurora Briefing<br>
-**Next packet:** `W4-P3` - Work Pulse variants; just-in-time plan next
+**Next packet:** `W4-P3` - Work Pulse variants; Planned, shared summary RED tests next
 
 ## Packet envelope
 
@@ -328,8 +328,8 @@
 ## Continuous remaining-work protocol
 
 - **Packet:** `W4-P3` - Work Pulse variants
-- **Plan:** Create just in time from the written W4-P3 acceptance criteria.
-- **State:** W4-P2 Verified; W4-P3 plan is next. Scope is attention-first Compact/Standard/Expanded connector forms and healthy-state quietness; do not absorb W4-P4 Dock redesign or W4-P5 launcher/content work.
+- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p3-work-pulse-variants.md`.
+- **State:** Planned; shared summary RED tests are next. Scope is attention-first GitHub/GitLab/Jira/Vercel/Status Compact/Standard/Expanded forms and healthy-state quietness; do not absorb W4-P4 Dock redesign or W4-P5 RSS/Home Assistant/Calendar/Weather/launcher content work.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
