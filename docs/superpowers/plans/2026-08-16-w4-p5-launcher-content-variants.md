@@ -96,7 +96,7 @@
 - [x] Run one implementation review against only W4-P5 acceptance. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic observations without reopening.
 - [x] After stabilization, run the full unit suite once, TypeScript once, production and preview builds once, production bridge scan once, and full browser harness once. If the harness fails, fix the actual failing family and rerun it once only.
 - [x] Mark W4-P5 Verified, record exact evidence and A2-D031, commit `docs: checkpoint W4-P5`, push, and prove target/upstream equality plus clean target/protected-original worktrees. Do not repeat full gates for documentation.
-- [ ] Begin W5-P1 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
+- [x] Begin W5-P1 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of Done
 

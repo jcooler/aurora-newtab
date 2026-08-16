@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 5 - Utility Tray<br>
-**Last verified packet:** `W4-P5` - Launcher shelf and remaining content variants<br>
-**Next packet:** `W5-P1` - Responsive Utility Tray shell; plan next
+**Last verified packet:** `W5-P1` - Responsive Utility Tray shell<br>
+**Next packet:** `W5-P2` - Working-tool integration; just-in-time planning next
 
 ## Packet envelope
 
-- **Acceptance:** Consolidate Bookmarks and Quick Links into a launcher shelf and provide Compact/Standard/Expanded content progression for Calendar, RSS, Home Assistant, and Weather without changing frozen planning, registry, schema, storage, privacy, permission, network, or Store contracts.
-- **Implemented files:** Added a render-only adjacent-launcher resolver/shelf, passed the existing allocation variant through the renderer boundary, bounded Calendar/RSS/Home Assistant rows/actions, and made Expanded Weather reveal its held forecast while resetting correctly when the planner changes variant. No new request, persisted field, provider, permission, or registry identity was added.
-- **Test scope:** Focused RED/green component/App/browser work; one implementation review and one Important fix/rereview; one final unit/type/build/bridge sequence; one full browser run and its single permitted rerun. Focused proof is green. The rerun's remaining failures were stale harness assumptions about direct zone children, fixed full-detail fixtures, and hidden pixel coordinates; their source assertions were corrected without a third full run and are Minor evidence debt only.
-- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once. The shelf is content-sized at Standard/Display, exact launcher IDs remain singly mounted, and the four content families visibly progress at their assigned variant.
+- **Acceptance:** Desktop Utility Tray is anchored/modeless without focus trapping or background inertness. Compact derives a true modal bottom sheet with backdrop, inert dashboard, focus trap, Escape/backdrop dismissal, and exact invoker restoration.
+- **Implemented files:** Added one render-only `UtilityTray`, persistent App invoker, profile-derived modality, modal-only dashboard inertness, and focused built-extension replay. W5-P2 tool content remains untouched; no registry, schema, planner, storage, migration, privacy, permission, network, or Store contract changed.
+- **Test scope:** Focused RED/green component/App coverage passed 2 files / 30 tests after the backdrop regression; TypeScript and focused Chromium passed. One implementation review returned Ready with no Critical/Important finding. The final unit suite passed 137 files / 2,250 tests; production/preview builds transformed 189 modules; bridge scan was clean. The full harness plus its one rerun corrected the new persistent-target inventory; one stale W2-P2 Compact Calendar row assertion was source-corrected without a third full run and is Minor evidence debt only.
+- **Visual scope:** Compact 800x600 modal and Standard 1600x900 modeless captures were inspected once. Both trays stay viewport-contained without page clipping; Compact visibly dims the inert dashboard and Standard remains an anchored working surface.
 
 ## Last completed commits
 
@@ -112,8 +112,15 @@
 - `e1167ca`, `58d3d1a`, and `a1ee6d7` - adjacent launcher shelf composition plus Calendar/RSS/Home Assistant/Weather content variants.
 - `4b8c714` and `250c1c3` - content-sized launcher surface and the bounded-review Weather variant-transition fix.
 - `6656182` - full-harness alignment for render-only launcher ancestry and exact content-variant fixtures; verified W4-P5 implementation head.
+- `e762699` and `8b36bac` - responsive Utility Tray shell plus the exact backdrop-dismissal focus-restoration fix and focused browser proof.
+- `e7b3c5f` - final harness alignment for the W5-P1 persistent control and accepted Compact Calendar content budget; verified W5-P1 implementation head.
 
 ## Latest verification
+
+- W5-P1 focused development passed 2 files / 30 tests plus TypeScript. `scripts/preview-w5-p1.mjs` passed Standard 1600x900 modeless and Compact 800x600 modal behavior with free/trapped focus as appropriate, outside/Escape/backdrop dismissal, exact restoration, containment, dashboard isolation only in Compact, clean teardown, and zero runtime errors. Both captures were inspected once.
+- The focused replay's first run found one genuine backdrop focus-restoration failure. `8b36bac` moved dismissal to the completed click and added its failing regression; the single focused rerun passed. One implementation review then returned Ready with 0 Critical / 0 Important findings, so no additional review was launched.
+- The final `npm test` run passed 137 files / 2,250 tests. TypeScript, production, and preview builds exited 0 with 189 modules transformed; the production bridge scan found no forbidden preview symbols.
+- The full harness ran once and reran once after adding the W5-P1 invoker to its persistent-target family. The rerun cleared W3-P2 and exposed one unrelated W2-P2 Calendar assertion that still required hidden agenda rows from a Compact variant. `e7b3c5f` made that assertion variant-aware; no third full run was performed. This is Minor legacy evidence debt, not a W5-P1 acceptance, security/privacy, stored-data, migration, core-functionality, or accessibility failure.
 
 - W4-P5 focused development and rereview gates passed: the stabilized component/App set passed 5 files / 140 tests plus TypeScript; the focused built-extension replay passed Compact 800x600, Standard 1600x900, and Display 2560x1440 with one content-sized shelf where eligible, exact launcher identities, exact Calendar/RSS/Home Assistant budgets, Expanded Weather trend, safe links, keyboard focus restoration, no page clip, exact cleanup, zero external requests, and zero runtime errors.
 - The one final `npm test` run passed 136 files / 2,244 tests. Final TypeScript, production build, and preview build exited 0; both builds transformed 188 modules. The production preview-bridge scan returned the expected no-match result.
@@ -353,13 +360,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W4-P4`. If `git status --short` is non-empty at continuation, reconcile it before W4-P5 production work.
+- None expected after `docs: checkpoint W5-P1`. If `git status --short` is non-empty at continuation, reconcile it before W5-P2 production work.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W5-P1` - Responsive Utility Tray shell
-- **Plan:** Create just in time after the W4-P5 checkpoint and clean/upstream proof.
-- **State:** Not started. Scope is the written desktop-modeless/narrow-modal Utility Tray shell acceptance only; do not absorb W5-P2 tool integration or change frozen schema/registry/allocation/storage/privacy/permission/Store contracts.
+- **Packet:** `W5-P2` - Working-tool integration
+- **Plan:** Create just in time after the W5-P1 checkpoint/equality proof.
+- **State:** Not started; begin immediately after W5-P1 push/equality proof. Preserve frozen schema/registry/allocation/storage/privacy/permission/Store contracts and integrate only the written working-tool acceptance.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
