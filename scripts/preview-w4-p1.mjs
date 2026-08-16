@@ -65,6 +65,7 @@ const setDayPopulated = async (populated) => {
 const observe = () => page.evaluate((ids) => {
   const day = document.querySelector('[data-stage-zone="day"]')
   const now = document.querySelector('[data-stage-zone="now"]')
+  const dock = document.querySelector('[data-stage-zone="dock"]')
   const contextNode = day?.querySelector('[data-day-context]')
   const clockDate = document.querySelector('[data-clock-date]')
   const controls = [
@@ -90,7 +91,11 @@ const observe = () => page.evaluate((ids) => {
       long: contextNode.querySelector('[data-day-context-long]')?.textContent,
     } : null,
     dayAllocationIds: [...(day?.querySelectorAll(':scope > [data-block-id]') ?? [])].map((node) => node.getAttribute('data-block-id')),
-    nowIds: [...(now?.querySelectorAll(':scope > [data-block-id]') ?? [])].map((node) => node.getAttribute('data-block-id')),
+    nowBoardIds: [...(now?.querySelectorAll(':scope > [data-block-id]') ?? [])].map((node) => node.getAttribute('data-block-id')),
+    hierarchyIds: [
+      ...(now?.querySelectorAll(':scope > [data-block-id]') ?? []),
+      ...(dock?.querySelectorAll(':scope > [data-block-id]') ?? []),
+    ].map((node) => node.getAttribute('data-block-id')).filter((id) => ids.includes(id)),
     nowPhotoForward: nowStyle?.borderTopColor === 'rgba(0, 0, 0, 0)' && nowStyle?.boxShadow === 'none',
     clockDate: clockDate?.textContent,
     clockDateVisible: clockDateStyle?.display !== 'none',
@@ -138,7 +143,10 @@ try {
   const standard = evidence.captures.standard
   const display = evidence.captures.display
   for (const [name, observation] of Object.entries(evidence.captures)) {
-    assert(exact(observation.nowIds, nowIds), `${name}: Now hierarchy changed`)
+    // Compact's frozen capacity keeps Clock/Greeting in Now and represents
+    // Search/Focus in Dock. Preserve the one semantic order across both
+    // regions rather than mutating registry footprints or Stage capacities.
+    assert(exact(observation.hierarchyIds, nowIds), `${name}: Now hierarchy order changed`)
     assert(observation.nowPhotoForward, `${name}: Now retained framed-card chrome`)
     assert(observation.unique && observation.board.every((item) => item.represented), `${name}: duplicate or missing BoardItem`)
     assert(observation.board.every((item) => item.position === '' && item.left === '' && item.top === ''), `${name}: non-semantic positioning found`)
@@ -146,8 +154,9 @@ try {
     assert(observation.noHorizontalPageClip, `${name}: horizontal page clipping`)
   }
   assert(compact.profile === 'compact' && compact.dayContext && compact.dayAllocationIds.length === 0, 'Compact sparse Day context failed')
+  assert(exact(compact.nowBoardIds, ['clock', 'greeting']), 'Compact protected Now anchor changed')
   assert(!compact.clockDateVisible, 'Compact exposed expanded Clock detail')
-  assert(standard.dayContext === null && standard.dayAllocationIds.includes('monthCal'), 'Standard populated Day ownership failed')
+  assert(standard.dayContext === null && standard.dayAllocationIds.includes('monthCal') && exact(standard.nowBoardIds, nowIds), 'Standard populated Day/Now ownership failed')
   assert(display.profile === 'display' && display.clockDateVisible && Boolean(display.clockDate), 'Display did not add Clock date detail')
   assert(runtimeErrors.length === 0, `runtime errors: ${runtimeErrors.join('; ')}`)
 } catch (error) {
