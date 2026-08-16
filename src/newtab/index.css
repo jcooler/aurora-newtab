@@ -1004,15 +1004,19 @@ select > option {
 
 /* Links and Bookmarks remain two planner-owned BoardItems, but when their
    rectangles share an edge they read and navigate as one launcher shelf.
-   The nested grid repeats the parent tracks and gap exactly, so the wrapper
-   adds a shared visual surface without moving either allocation. */
+   The nested grid repeats the parent columns and gap while content-sizing its
+   rows inside the planner-owned union, so the shared surface reads as a shelf
+   instead of stretching into an empty panel. */
 [data-launcher-shelf] {
   display: grid;
   grid-template-columns: repeat(var(--launcher-shelf-cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--launcher-shelf-rows), minmax(var(--stage-track-min), 1fr));
+  grid-template-rows: repeat(var(--launcher-shelf-rows), minmax(0, auto));
   gap: var(--stage-gap);
+  align-self: center;
   min-width: 0;
   min-height: 0;
+  padding: 8px;
+  box-sizing: border-box;
   border: 1px solid rgb(255 255 255 / 0.14);
   border-radius: calc(var(--radius-panel) + 2px);
   background: linear-gradient(145deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.28));
