@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
-**Last verified packet:** `W3-P4` - Legacy retirement gate<br>
-**Next packet:** `W4-P1` - Day and Now zones; Planned, implementation active
+**Last verified packet:** `W4-P1` - Day and Now zones<br>
+**Next packet:** `W4-P2` - Aurora Briefing; Not started, plan creation next
 
 ## Packet envelope
 
-- **Acceptance:** Remove live fixed-percentage placement and editing plus height-tier paths capable of hiding an entire enabled BoardItem, after proving semantic replacement parity and exact rollback provenance.
-- **Implemented files:** Deleted `PositionedBlock`, percentage snap/clamp/pill-dodge modules, the percentage draft seam, legacy editing helpers, dead rail CSS, and whole-widget hide classes. Active semantic preview types now live in `arrangePreview.ts`; the frozen optional `layout.legacy` field remains migration/backup provenance only and is ignored by rendering.
-- **Test scope:** Focused RED/green source guards, semantic parity, migration/backup preservation, App/Arrange, and GitHub/GitLab/Vercel representation; one final full unit/build set; one implementation review; one actual full-harness family fix and one permitted causal rerun; one focused W3-P4 real-Chromium proof.
-- **Visual scope:** Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected. All three target connectors remain represented exactly once without inline percentage positioning; compact truncation and historical evidence naming are Minor follow-up only. Automated Chromium evidence does not claim native zoom, mixed-DPI, or a real screen-reader pass.
+- **Acceptance:** Give sparse Day useful responsive date context, preserve the frozen Clock/Greeting/Search/Focus semantic hierarchy, and add useful expanded date detail without changing Stage geometry, registry/schema, storage, privacy, permissions, or Store state.
+- **Implemented files:** Added deterministic compact/long local-date formatting and a render-only empty-Day `DayContext`; added an accessible secondary long date to expanded Clock variants; refined Day and Now presentation while keeping planner capacity and registry identity frozen; added focused Chromium evidence and corrected legacy clock probes to read the established `<time>` source.
+- **Test scope:** Focused RED/green clock/component/App/CSS guards; one implementation review and one Important accessibility fix/rereview; one final unit/build set; one focused Compact/Standard/Display replay; one actual full-harness selector-family fix and one permitted rerun.
+- **Visual scope:** Compact 800x600 sparse Day, Standard 1600x900 populated Day, and Display 2560x1440 populated Day captures were inspected once. Compact retains Clock/Greeting in Now and Search/Focus in Dock under frozen capacity while the combined semantic order stays exact; Standard/Display keep all four in Now and expose the expanded date. No Critical/Important visual issue remains.
 
 ## Last completed commits
 
@@ -97,8 +97,20 @@
 - `108ac59` - executable W3-P4 legacy-retirement plan preserving the frozen rollback-provenance boundary.
 - `1951eb2` and `f5132fc` - retired live percentage placement/editing machinery, dead rail CSS, and whole-widget height-hide paths while retaining exact migration/backup provenance.
 - `e4cebe4` - causal W3-P3 focus-restoration harness wait plus the focused W3-P4 semantic parity, representation, rollback, runtime, and capture proof; verified W3-P4 implementation head.
+- `9f206da` - executable W4-P1 Day/Now plan with frozen schema, registry, capacity, storage, privacy, permission, and Store boundaries.
+- `6d87137`, `9561074`, and `05669b8` - responsive sparse Day context, calm photo-forward Now presentation, expanded date detail, and the bounded-review accessibility fix.
+- `089886e`, `5c33afb`, and `7acb851` - focused W4-P1 browser proof, frozen Compact-capacity evidence alignment, and causal full-harness Clock selector correction; verified W4-P1 implementation head.
 
 ## Latest verification
+
+- W4-P1 focused development gates passed after RED: final focused set 6 files / 46 tests, the accessibility fix set 4 files / 37 tests, and TypeScript exited 0.
+- Final `npm test` after implementation stabilized - exit 0; 129 files / 2,206 tests passed. `npx tsc --noEmit` also exited 0.
+- Final `npm run build` and `npm run build:preview` - exit 0; both transformed 183 modules. The production bridge scan returned the expected no-match result with no forbidden preview symbol output.
+- Focused `node scripts/preview-w4-p1.mjs` - exit 0 with `PASS: W4-P1 Day and Now zone semantics`; Compact/Standard/Display preserve the exact Clock/Greeting/Search/Focus order, every BoardItem is singly represented without percentage positioning, sparse/populated Day ownership is correct, expanded date detail is visible only where intended, targets are operable, page clipping is absent, teardown restored state, and `runtimeErrors: []`.
+- The final full harness first run reached 453 PASS / 4 FAIL / 3 SKIP. All four failures were one selector family reading the new secondary date through the Clock block's aggregate `textContent`; measured geometry was already non-overlapping. Three probes were corrected to target the established Clock `<time>`, and the single permitted rerun exited 0 at exactly 457 PASS / 0 FAIL / 3 SKIP.
+- Captures under `C:\Users\SickT\Documents\Codex\2026-08-16\change-aurora-execution-to-pragmatic-delivery\outputs\w4-p1\`: `w4-p1-compact-sparse-800x600.png`, `w4-p1-standard-populated-1600x900.png`, and `w4-p1-display-populated-2560x1440.png`. All three passed original-resolution inspection.
+- One implementation review found one Important issue: the visible expanded date was hidden from assistive technology. `05669b8` fixed it; the focused rereview returned Ready with 0 Critical / 0 Important open. Minor ledger only: the first focused browser assertion incorrectly assumed Compact could hold all four items inside Now despite frozen capacity; evidence now checks the exact hierarchy across Now then Dock without changing product contracts.
+- No schema, registry, profile threshold, capacity, migration, stored-data, permission, privacy, Aurora V1, or Store contract changed.
 
 - W3-P4 focused source/layout/App/Arrange/backup/migration/widget development gates passed: 10 files / 346 tests, with the final narrowed source/widget gate at 5 files / 113 tests. TypeScript exited 0.
 - Final `npm test` after implementation stabilized - exit 0; 127 files / 2,197 tests passed.
@@ -299,13 +311,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W3-P4`. If `git status --short` is non-empty at continuation, reconcile it before W4-P1 production work.
+- None expected after `docs: checkpoint W4-P1`. If `git status --short` is non-empty at continuation, reconcile it before W4-P2 production work.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W4-P1` - Day and Now zones
-- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p1-day-now-zones.md`.
-- **State:** Planned; focused RED tests and implementation are next. Scope is responsive sparse/populated Day context, the frozen Clock/Greeting/Search/Focus hierarchy, and useful large-display date detail without registry/schema, allocation, storage/privacy/permission, or later-W4 scope changes.
+- **Packet:** `W4-P2` - Aurora Briefing
+- **Plan:** Create just in time from the written W4-P2 acceptance criteria.
+- **State:** Not started; plan creation is next. Scope is deterministic privacy-preserving synthesis with priority/truncation and no new network dependency; do not absorb W4-P3 connector variants, W4-P4 Dock redesign, or W4-P5 launcher/content work.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -317,9 +329,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W4-P1
-Verified W3-P4 implementation SHA: e4cebe4
-Expected next checkpoint subject: docs: checkpoint W4-P1
+Starting packet: W4-P2
+Verified W4-P1 implementation SHA: 7acb851
+Expected next checkpoint subject: docs: checkpoint W4-P2
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```

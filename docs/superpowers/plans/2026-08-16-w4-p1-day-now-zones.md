@@ -30,10 +30,10 @@
 - Modify: `src/newtab/components/Clock.test.tsx`
 - Modify: `src/newtab/App.test.tsx`
 
-- [ ] Add deterministic local-date formatting tests covering compact and long labels without changing local-day ownership.
-- [ ] Add RED component tests for an empty-Day context with semantic `<time>` markup and a distinct long display detail.
-- [ ] Add RED App tests proving the context appears only when Day has no allocation and does not become a registry/BoardItem identity.
-- [ ] Pin the existing semantic allocation and Clock/Greeting/Search/Focus order so presentation work cannot move, duplicate, or silently Dock those source-default entries.
+- [x] Add deterministic local-date formatting tests covering compact and long labels without changing local-day ownership.
+- [x] Add RED component tests for an empty-Day context with semantic `<time>` markup and a distinct long display detail.
+- [x] Add RED App tests proving the context appears only when Day has no allocation and does not become a registry/BoardItem identity.
+- [x] Pin the existing semantic allocation and Clock/Greeting/Search/Focus order so presentation work cannot move, duplicate, or silently Dock those source-default entries.
 
 ### Task 2: Implement responsive Day context and large-display detail
 
@@ -44,10 +44,10 @@
 - Modify: `src/newtab/App.tsx`
 - Modify: focused tests above
 
-- [ ] Implement locale-stable weekday/month/day formatting from the same `useNow` sample used by each render surface; do not add storage or network state.
-- [ ] Render Day context only for a truly empty Day allocation, so sparse profiles remain informative without consuming planner capacity or overlapping Day widgets.
-- [ ] Add a long date detail to Clock markup that remains secondary and CSS-controlled; keep the existing `<time>` value, ticking, 12/24-hour setting, and accessible semantics unchanged.
-- [ ] Run focused clock/component/App tests, then commit `feat(stage): add responsive Day context`.
+- [x] Implement locale-stable weekday/month/day formatting from the same `useNow` sample used by each render surface; do not add storage or network state.
+- [x] Render Day context only for a truly empty Day allocation, so sparse profiles remain informative without consuming planner capacity or overlapping Day widgets.
+- [x] Add a long date detail to Clock markup that remains secondary and CSS-controlled; keep the existing `<time>` value, ticking, 12/24-hour setting, and accessible semantics unchanged.
+- [x] Run focused clock/component/App tests, then commit `feat(stage): add responsive Day context`.
 
 ### Task 3: Refine the Day/Now visual hierarchy
 
@@ -56,11 +56,11 @@
 - Modify: `src/lib/layout/legacyRetirement.test.ts`
 - Modify: `src/newtab/App.test.tsx`
 
-- [ ] Make Now a calm photo-forward anchor rather than another framed card while Day remains one coherent glance surface; do not alter grid tracks, padding, capacity, or allocation.
-- [ ] Scale empty-Day context and Clock date detail by the existing Compact/Standard/Display variants. Large displays add detail; Compact keeps the core hierarchy readable.
-- [ ] Keep Clock primary, Greeting secondary, Search operable, and Focus legible with existing target, focus, reduced-motion, and text-floor contracts.
-- [ ] Add source guards against viewport-percentage positioning, new height-hide tiers, root scaling, registry mutation, or layout geometry duplication.
-- [ ] Run the focused Day/Now/CSS/layout tests, then commit `style(stage): establish Day and Now hierarchy`.
+- [x] Make Now a calm photo-forward anchor rather than another framed card while Day remains one coherent glance surface; do not alter grid tracks, padding, capacity, or allocation.
+- [x] Scale empty-Day context and Clock date detail by the existing Compact/Standard/Display variants. Large displays add detail; Compact keeps the core hierarchy readable.
+- [x] Keep Clock primary, Greeting secondary, Search operable, and Focus legible with existing target, focus, reduced-motion, and text-floor contracts.
+- [x] Add source guards against viewport-percentage positioning, new height-hide tiers, root scaling, registry mutation, or layout geometry duplication.
+- [x] Run the focused Day/Now/CSS/layout tests, then commit `style(stage): establish Day and Now hierarchy`.
 
 ### Task 4: Bounded review, evidence, and checkpoint
 
@@ -70,10 +70,10 @@
 - Modify: `docs/superpowers/aurora-2/STATUS.md`
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 
-- [ ] Run one implementation review against only the explicit W4-P1 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
-- [ ] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
-- [ ] Run one focused built-extension replay with sparse and populated Day states plus Compact 800x600, Standard 1600x900, and Display 2560x1440 Now witnesses. Prove exact semantic hierarchy, single ownership, bounded/paint-contained geometry, targets/focus, no page clipping, useful expanded date detail with Compact remaining concise, and zero runtime errors.
-- [ ] Inspect the three required captures once, mark W4-P1 Verified, record exact gates and A2-D027, commit `docs: checkpoint W4-P1`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
+- [x] Run one implementation review against only the explicit W4-P1 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
+- [x] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
+- [x] Run one focused built-extension replay with sparse and populated Day states plus Compact 800x600, Standard 1600x900, and Display 2560x1440 Now witnesses. Prove exact semantic hierarchy, single ownership, bounded/paint-contained geometry, targets/focus, no page clipping, useful expanded date detail with Compact remaining concise, and zero runtime errors.
+- [x] Inspect the three required captures once, mark W4-P1 Verified, record exact gates and A2-D027, commit `docs: checkpoint W4-P1`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
 - [ ] Begin W4-P2 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of Done
