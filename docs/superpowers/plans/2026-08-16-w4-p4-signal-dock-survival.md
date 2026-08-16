@@ -69,10 +69,10 @@
 - Consumes: built preview extension, all nine frozen connector IDs (`ics`, `status`, `github`, `gitlab`, `jira`, `vercel`, `homeassistant`, `rss`, `crypto`), scoped seeded snapshots, and current Stage profile/density data hooks.
 - Produces: one focused replay and required captures under `outputs/w4-p4/` without network traffic or durable fixture residue.
 
-- [ ] Add a focused built-extension replay that enables all nine connectors with safe scoped fixture data, checks each enabled connector exactly once across board plus Dock at constrained Compact and dense Standard cases, and requires every Docked connector to expose identity, current/fallback state, a primary value, and an operable disclosure.
-- [ ] In the same replay, open one non-linking connector (Status or Crypto), verify the existing detail content becomes reachable, close with Escape, prove focus restoration, Tab-nearest Dock scrolling, safe existing external links, no clipping/collision, zero connector request attributable to presentation, zero runtime errors, and exact storage/viewport cleanup.
-- [ ] Build preview once with `npm run build:preview`, run `node scripts/preview-w4-p4.mjs`, inspect Compact 800x600, Standard 1600x900, and Display 2560x1440 captures once, and fix only genuine W4-P4 failures.
-- [ ] Commit `test(dock): prove connector survival and operation`.
+- [x] Add a focused built-extension replay that enables all nine connectors with safe scoped fixture data, checks each enabled connector exactly once across board plus Dock at constrained Compact and dense Standard cases, and requires every Docked connector to expose identity, current/fallback state, a primary value, and an operable disclosure.
+- [x] In the same replay, open one non-linking connector (Status or Crypto), verify the existing detail content becomes reachable, close with Escape, prove focus restoration, Tab-nearest Dock scrolling, safe existing external links, no clipping/collision, zero connector request attributable to presentation, zero runtime errors, and exact storage/viewport cleanup.
+- [x] Build preview once with `npm run build:preview`, run `node scripts/preview-w4-p4.mjs`, inspect Compact 800x600, Standard 1600x900, and Display 2560x1440 captures once, and fix only genuine W4-P4 failures.
+- [x] Commit `test(dock): prove connector survival and operation`.
 
 ### Task 4: Bounded review, final gates, and checkpoint
 

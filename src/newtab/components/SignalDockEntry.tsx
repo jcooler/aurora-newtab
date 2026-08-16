@@ -22,7 +22,11 @@ export default function SignalDockEntry({ entry, open, onOpenChange, children }:
   }
 
   return (
-    <div data-signal-dock-entry="" data-signal-dock-open={open ? 'true' : 'false'}>
+    <div
+      data-signal-dock-entry=""
+      data-signal-dock-open={open ? 'true' : 'false'}
+      onKeyDown={handleKeyDown}
+    >
       <div data-signal-dock-header="">
         <span data-signal-dock-identity="">{entry.label}</span>
         <span data-signal-dock-fallback="">Enabled</span>
@@ -42,7 +46,6 @@ export default function SignalDockEntry({ entry, open, onOpenChange, children }:
         data-signal-dock-content=""
         inert={open ? undefined : true}
         tabIndex={open ? -1 : undefined}
-        onKeyDown={handleKeyDown}
       >
         {children}
       </div>

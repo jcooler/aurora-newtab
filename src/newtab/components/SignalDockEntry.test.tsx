@@ -42,5 +42,10 @@ describe('SignalDockEntry', () => {
     fireEvent.keyDown(content, { key: 'Escape' })
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(document.activeElement).toBe(button)
+
+    onOpenChange.mockClear()
+    fireEvent.keyDown(button, { key: 'Escape' })
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(document.activeElement).toBe(button)
   })
 })

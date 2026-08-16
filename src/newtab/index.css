@@ -1119,6 +1119,11 @@ select > option {
 [data-signal-dock-open="false"] [data-signal-dock-content] :is(a, button, input, select, textarea, [role="button"]) {
   display: none;
 }
+[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Headlines"] > ul > li:first-child > a {
+  /* The closed subtree is inert, so this is readable preview text rather
+     than a second link. The disclosure remains the entry's only control. */
+  display: block;
+}
 [data-signal-dock-entry]:has([data-work-pulse-summary]) [data-signal-dock-fallback],
 [data-signal-dock-entry]:has(section[aria-label="Calendar"] > p:first-child) [data-signal-dock-fallback],
 [data-signal-dock-entry]:has(section[aria-label="Home Assistant"] > ul > li) [data-signal-dock-fallback],
@@ -1355,7 +1360,7 @@ select > option {
 .board-item[data-block-id="quote"] > *,
 .board-item[data-block-id="sun"] > *,
 .board-item[data-block-id="moon"] > *,
-.board-item[data-block-id="status"] > * {
+.board-item[data-block-id="status"] > section {
   pointer-events: none;
 }
 
