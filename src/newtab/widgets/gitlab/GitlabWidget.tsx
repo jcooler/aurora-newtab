@@ -6,6 +6,7 @@ import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -316,6 +317,12 @@ function GitlabInner({
   const chipShows = views.todos && todos > 0
   const anyRow = mrs.length > 0 || reviewMrs.length > 0
   if (!renderGraph && !anyRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = mrs.length + reviewMrs.length
+  const summaryValue = chipShows
+    ? `${todos >= TODOS_CAP ? '20+' : todos} need attention`
+    : prioritizedCount > 0
+      ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
+      : 'All clear'
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's
@@ -341,6 +348,12 @@ function GitlabInner({
         )}
       </div>
 
+      <WorkPulseSummary
+        label="GitLab"
+        value={summaryValue}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+
       {/* Activity graph on top — the board's composed face. It yields FIRST
           under height pressure (its reveal tier is HIGHER than the whole-card
           hide), and the cross-card rule can withhold it entirely for github's
@@ -348,13 +361,13 @@ function GitlabInner({
           (sectionTier) and this wrapper carries nothing — the whole card yields
           as one, no husk. */}
       {renderGraph && graph && (
-        <div className={innerGraphClass}>
+        <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph contributions={graph} />
         </div>
       )}
 
       {mrs.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${renderGraph ? graphSep : ''}`}>
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${renderGraph ? graphSep : ''}`}>
           {mrs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -367,7 +380,7 @@ function GitlabInner({
               both render — a single review list needs no label (its rows carry
               their own context), same restraint as github's unlabelled lists. */}
           {mrs.length > 0 && <p className={EYEBROW}>Review asks</p>}
-          <ul className="flex flex-col gap-2 dense:gap-1">
+          <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
             {reviewMrs.map((item) => (
               <ItemRow key={item.url} item={item} />
             ))}
@@ -395,7 +408,7 @@ function ItemRow({ item }: { item: GitlabMr }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.project && <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.project}</span>}
+        {item.project && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.project}</span>}
         <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>

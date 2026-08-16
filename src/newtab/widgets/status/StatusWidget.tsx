@@ -8,6 +8,7 @@ import {
   type StatusIndicator,
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
 // no-auth one (crypto.ts/ics.ts's own company) to reach the newtab page.
@@ -100,6 +101,13 @@ function StatusInner({
     )
     .sort((a, b) => SEVERITY_RANK[a.indicator] - SEVERITY_RANK[b.indicator])
     .slice(0, MAX_TROUBLE_LINES)
+  const unknownCount = rows.filter((service) => service.indicator === 'unknown').length
+  const hasSevereTrouble = trouble.some((service) => service.indicator === 'major' || service.indicator === 'critical')
+  const summaryValue = trouble.length > 0
+    ? `${trouble.length} service ${trouble.length === 1 ? 'issue' : 'issues'}`
+    : unknownCount > 0
+      ? `${unknownCount} unreachable`
+      : 'All operational'
 
   return (
     // A slim floating STRIP, not a panel — the SAME `w-88 text-center`
@@ -108,7 +116,14 @@ function StatusInner({
     // not this widget's or the PositionedBlock className's). FIRST child of
     // the bottom band (App.tsx), above crypto.
     <section aria-label="Service status" className="w-88 text-center">
-      <div className="flex justify-center gap-2">
+      <h2 className="text-sm font-semibold text-fg">Service status</h2>
+      <WorkPulseSummary
+        label="Service status"
+        value={summaryValue}
+        tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
+        metadata={`${rows.length} services`}
+      />
+      <div data-work-pulse-detail className="flex justify-center gap-2">
         {rows.map((s, i) => (
           <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
         ))}
@@ -131,7 +146,7 @@ function StatusInner({
         // same as every other bottom-band text (crypto's own price/change
         // spans), so it needs the same legibility treatment; it never had
         // it before this fix round.
-        <p key={i} className="hidden tallest:block mt-1 truncate text-xs text-red-400 text-photo">
+        <p key={i} data-work-pulse-rows className="hidden tallest:block mt-1 truncate text-sm text-red-400 text-photo">
           {s.name} — {s.description}
         </p>
       ))}

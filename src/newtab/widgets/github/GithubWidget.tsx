@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -186,6 +187,12 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const chipShows = views.notifications && notifications !== null && notifications > 0
   const anyRow = prs.length > 0 || issues.length > 0
   if (!graph && !anyRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = prs.length + issues.length
+  const summaryValue = chipShows
+    ? `${notifications >= NOTIF_CAP ? '50+' : notifications} need attention`
+    : prioritizedCount > 0
+      ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
+      : 'All clear'
 
   return (
     // Floating panel surface: the solid panel token per the house rule for
@@ -210,6 +217,12 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
         )}
       </div>
 
+      <WorkPulseSummary
+        label="GitHub"
+        value={summaryValue}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+
       {/* Commit graph on top — the board's composed face. The graph adds 176px
           full-height (168px dense-condensed) to github, so it yields FIRST under
           height pressure — BEFORE any whole right-rail card hides — and its reveal
@@ -229,13 +242,13 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
           graph-only, this boundary moves to the SECTION (sectionTier) and the inner
           wrapper carries nothing — the whole card yields as one, no husk. */}
       {graph && (
-        <div className={innerGraphClass}>
+        <div data-work-pulse-detail className={innerGraphClass}>
           <ContributionGraph contributions={graph} />
         </div>
       )}
 
       {prs.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${graph ? graphSep : ''}`}>
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${graph ? graphSep : ''}`}>
           {prs.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -243,7 +256,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
       )}
 
       {issues.length > 0 && (
-        <ul className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? graphSep : ''}`}>
+        <ul data-work-pulse-rows className={`flex flex-col gap-2 dense:gap-1${prs.length > 0 ? ROW_SEP : graph ? graphSep : ''}`}>
           {issues.map((item) => (
             <ItemRow key={item.url} item={item} />
           ))}
@@ -269,7 +282,7 @@ function ItemRow({ item }: { item: GithubItem }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.repo && <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
+        {item.repo && <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
         <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>

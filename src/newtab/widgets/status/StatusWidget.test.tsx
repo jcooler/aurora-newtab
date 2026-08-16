@@ -120,6 +120,7 @@ describe('StatusWidget — DOM contract', () => {
     const section = await screen.findByRole('region', { name: 'Service status' })
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
+    expect(screen.getByLabelText('Service status: All operational, 2 services').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 })
 
@@ -164,6 +165,7 @@ describe('StatusWidget — dot color + title per indicator', () => {
     mount(storage)
     const dot = await screen.findByTitle('Delta: Major Outage')
     expect(dot.className).toContain('bg-red-400')
+    expect(screen.getByLabelText('Service status: 3 service issues, 5 services').getAttribute('data-work-pulse-tone')).toBe('critical')
   })
 
   // FIX ROUND (post-Task 86, controller-approved): was `bg-fg-muted/40`
@@ -191,6 +193,7 @@ describe('StatusWidget — trouble lines', () => {
     const section = await screen.findByRole('region', { name: 'Service status' })
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
+    expect(screen.getByLabelText('Service status: 1 unreachable, 2 services').getAttribute('data-work-pulse-tone')).toBe('unknown')
   })
 
   // FIX ROUND (post-Task 86, controller-approved): the trouble line now

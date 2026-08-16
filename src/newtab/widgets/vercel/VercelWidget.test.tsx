@@ -88,6 +88,7 @@ describe('VercelWidget', () => {
     expect(screen.getByText('1h')).toBeTruthy()
     expect(screen.getByText('3m')).toBeTruthy()
     expect(screen.getByText('1d')).toBeTruthy()
+    expect(screen.getByLabelText('Vercel: 1 failure, 3 deployments').getAttribute('data-work-pulse-tone')).toBe('critical')
   })
 
   it('the failed-first order is exactly the DOM order (ERROR row precedes a chronologically-newer READY row)', async () => {
@@ -119,6 +120,7 @@ describe('VercelWidget', () => {
     const storage = await seededStorage(CONNECTED, { deployments: [] })
     mount(storage)
     expect(await screen.findByText('No deployments yet.')).toBeTruthy()
+    expect(screen.getByLabelText('Vercel: No deployments').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   it('caps rows at 5', async () => {

@@ -40,10 +40,10 @@
 - Modify: `src/newtab/widgets/vercel/VercelWidget.tsx`
 - Modify: `src/newtab/widgets/vercel/VercelWidget.test.tsx`
 
-- [ ] Add RED component tests proving Compact exposes one honest attention count/state and identity, Standard exposes prioritized actionable rows, and Expanded retains useful configured detail without changing row caps or external-link security.
-- [ ] Derive summary values only from each component's current resolved view/data: GitHub unread or open items, GitLab to-dos or review work, Jira active work, and Vercel failed/building/ready state. Use quiet `All clear`/ready wording only when current data supports it.
-- [ ] Mark summary, prioritized-row, and detail anatomy explicitly so variant CSS can reveal progressively without duplicating data or programmatic content.
-- [ ] Preserve every existing no-data/no-husk, view-toggle, graph-yield, URL security, snapshot, and settings contract; run focused connector tests and commit `feat(pulse): prioritize connector attention`.
+- [x] Add RED component tests proving Compact exposes one honest attention count/state and identity, Standard exposes prioritized actionable rows, and Expanded retains useful configured detail without changing row caps or external-link security.
+- [x] Derive summary values only from each component's current resolved view/data: GitHub unread or open items, GitLab to-dos or review work, Jira active work, and Vercel failed/building/ready state. Use quiet `All clear`/ready wording only when current data supports it.
+- [x] Mark summary, prioritized-row, and detail anatomy explicitly so variant CSS can reveal progressively without duplicating data or programmatic content.
+- [x] Preserve every existing no-data/no-husk, view-toggle, graph-yield, URL security, snapshot, and settings contract; run focused connector tests and commit `feat(pulse): prioritize connector attention`.
 
 ### Task 3: Make service health quiet when healthy and prominent when actionable
 
@@ -53,7 +53,7 @@
 - Modify: `src/newtab/index.css`
 - Create: `src/newtab/workPulsePresentation.test.ts`
 
-- [ ] Add RED tests for Status summary priority: confirmed trouble, then unknown/unreachable, then quiet all-operational; retain configured dot identity and avoid color-only meaning.
+- [x] Add RED tests for Status summary priority: confirmed trouble, then unknown/unreachable, then quiet all-operational; retain configured dot identity and avoid color-only meaning.
 - [ ] Present Compact as identity plus one primary status, Standard as summary plus prioritized rows, and Expanded as summary/rows plus useful detail. Keep healthy rows visually quiet and promote only confirmed trouble, stale/unknown, pending, or actionable work.
 - [ ] Turn Work Pulse into one coherent regional surface using existing zone/BoardItem ownership, hairlines, and localized contrast; do not create card-per-row geometry, root transforms, percentage positioning, height hides, new footprints, or new Dock behavior.
 - [ ] Add source/CSS guards for exact variant anatomy, minimum text/target rules, no schema/registry/network/storage changes, and reduced-motion continuity; run focused tests and TypeScript, then commit `style(pulse): establish responsive hierarchy`.

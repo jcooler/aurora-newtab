@@ -77,6 +77,7 @@ describe('JiraWidget', () => {
     expect(screen.getByText('Fix the flaky auth test on CI')).toBeTruthy()
     expect(screen.getByText('AUR-13')).toBeTruthy()
     expect(screen.getByText('Weather chip overlaps the bar at 800px wide')).toBeTruthy()
+    expect(screen.getByLabelText('Jira: 5 active items').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Counts line: first two statuses by count, descending.
     expect(screen.getByText('3 In Progress · 2 To Do')).toBeTruthy()
   })
@@ -121,6 +122,7 @@ describe('JiraWidget', () => {
     const storage = await seededStorage(CONNECTED, { issues: [], counts: {}, dueSoon: [] })
     mount(storage)
     expect(await screen.findByText('Nothing assigned to you.')).toBeTruthy()
+    expect(screen.getByLabelText('Jira: All clear').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing

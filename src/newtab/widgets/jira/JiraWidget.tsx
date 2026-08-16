@@ -5,6 +5,7 @@ import { DEFAULT_GITLAB_VIEWS } from '../../../services/connectors/gitlab'
 import { resolveGithubViews } from '../../../services/connectors/github'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -236,6 +237,12 @@ function JiraInner({
   const chipShows = views.statusChips && countEntries.length > 0
   const anyRow = issues.length > 0 || dueSoon.length > 0
   if (!anyRow && !chipShows && !showEmpty) return null
+  const countedWork = countEntries.reduce((total, [, count]) => total + count, 0)
+  const prioritizedCount = issues.length + dueSoon.length
+  const attentionCount = countedWork > 0 ? countedWork : prioritizedCount
+  const summaryValue = attentionCount > 0
+    ? `${attentionCount} active ${attentionCount === 1 ? 'item' : 'items'}`
+    : 'All clear'
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's/
@@ -259,8 +266,14 @@ function JiraInner({
         )}
       </div>
 
+      <WorkPulseSummary
+        label="Jira"
+        value={summaryValue}
+        tone={attentionCount > 0 ? 'attention' : 'quiet'}
+      />
+
       {issues.length > 0 && (
-        <ul className="flex flex-col gap-2 dense:gap-1">
+        <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
           {issues.map((item) => (
             <ItemRow key={item.key} item={item} />
           ))}
@@ -273,7 +286,7 @@ function JiraInner({
               both render — a single due-soon list needs no label (each row's due
               prefix carries its own context). */}
           {issues.length > 0 && <p className={EYEBROW}>Due soon</p>}
-          <ul className="flex flex-col gap-2 dense:gap-1">
+          <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
             {dueSoon.map((item) => (
               <ItemRow key={item.key} item={item} />
             ))}
@@ -304,7 +317,7 @@ function ItemRow({ item }: { item: JiraIssue }) {
         title={item.summary}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
+        <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
         <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>

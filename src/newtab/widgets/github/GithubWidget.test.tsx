@@ -84,6 +84,7 @@ describe('GithubWidget', () => {
     expect(screen.getByText('Crash on cold start')).toBeTruthy()
     // Unread header chip.
     expect(screen.getByText('3 unread')).toBeTruthy()
+    expect(screen.getByLabelText('GitHub: 3 need attention').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Repo prefix rides above each title.
     expect(screen.getAllByText('acme/app').length).toBeGreaterThan(0)
     expect(screen.getByText('acme/web')).toBeTruthy()
@@ -101,6 +102,7 @@ describe('GithubWidget', () => {
     mount(storage)
     await screen.findByText('Fix the flaky login test')
     expect(screen.queryByText(/unread/)).toBeNull()
+    expect(screen.getByLabelText('GitHub: 3 open items')).toBeTruthy()
   })
 
   it('hides the unread row when the count is zero (all caught up)', async () => {

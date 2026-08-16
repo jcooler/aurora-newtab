@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchVercel, DEFAULT_VERCEL_VIEWS, relAge, type VercelData, type VercelDeployment } from '../../../services/connectors/vercel'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
+import WorkPulseSummary from '../shared/WorkPulseSummary'
 
 const MAX_DEPLOYMENTS = 5
 
@@ -130,6 +131,15 @@ function VercelInner({
   // against the same instant. relAge itself stays pure and unit-tested at
   // exact second boundaries (vercel.test.ts).
   const now = Date.now()
+  const failedCount = allDeployments.filter((item) => item.state === 'ERROR').length
+  const pendingCount = allDeployments.filter((item) => item.state === 'BUILDING' || item.state === 'QUEUED').length
+  const summaryValue = failedCount > 0
+    ? `${failedCount} ${failedCount === 1 ? 'failure' : 'failures'}`
+    : pendingCount > 0
+      ? `${pendingCount} building`
+      : allDeployments.length > 0
+        ? 'All ready'
+        : 'No deployments'
 
   // The Adaptive Stage owns collision and Dock allocation. This connector
   // therefore stays represented at every height; semantic variant work may
@@ -143,6 +153,13 @@ function VercelInner({
     <section aria-label="Vercel" className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
       <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
 
+      <WorkPulseSummary
+        label="Vercel"
+        value={summaryValue}
+        tone={failedCount > 0 ? 'critical' : pendingCount > 0 ? 'attention' : 'quiet'}
+        metadata={allDeployments.length > 0 ? `${allDeployments.length} deployments` : undefined}
+      />
+
       {/* Status summary — a one-line chips row, order-pinned ABOVE the
           deployment rows (brief: summary line -> rows). Its own mb-2/
           dense:mb-1 bottom margin follows the h2's own idiom rather than
@@ -150,7 +167,7 @@ function VercelInner({
           separating two ROWS lists; this is a compact header-adjacent line,
           not a list, so no divider). */}
       {showSummary && (
-        <p className="mb-2 dense:mb-1 text-xs text-fg-muted">
+        <p data-work-pulse-detail className="mb-2 dense:mb-1 text-xs text-fg-muted">
           {summary.map(([state, count], i) => (
             <span key={state}>
               {i > 0 && (
@@ -173,7 +190,7 @@ function VercelInner({
       {showRowsEmpty && <p className="text-sm text-fg-muted">No deployments yet.</p>}
 
       {deployments.length > 0 && (
-        <ul className="flex flex-col gap-2 dense:gap-1">
+        <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">
           {deployments.map((item) => (
             <DeploymentRow key={item.url} item={item} now={now} />
           ))}
@@ -213,7 +230,7 @@ function DeploymentRow({ item, now }: { item: VercelDeployment; now: number }) {
           {item.project}
         </span>
         <span className={`shrink-0 text-xs ${stateClass(item.state)}`}>{item.state}</span>
-        <span data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
+        <span data-work-pulse-detail data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
       </a>
     </li>
   )

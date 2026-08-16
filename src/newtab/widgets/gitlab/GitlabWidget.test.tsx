@@ -78,6 +78,7 @@ describe('GitlabWidget', () => {
     expect(screen.getByText('Bump vite to 6.x')).toBeTruthy()
     // to-dos header chip.
     expect(screen.getByText('6 to-dos')).toBeTruthy()
+    expect(screen.getByLabelText('GitLab: 6 need attention').getAttribute('data-work-pulse-tone')).toBe('attention')
     // Project prefix rides above each title.
     expect(screen.getAllByText('acme/platform').length).toBeGreaterThan(0)
   })
@@ -100,6 +101,7 @@ describe('GitlabWidget', () => {
     const storage = await seededStorage(CONNECTED, { mrs: [], reviewMrs: [], todos: 0, contributions: null })
     mount(storage)
     expect(await screen.findByText('No MRs assigned to you.')).toBeTruthy()
+    expect(screen.getByLabelText('GitLab: All clear').getAttribute('data-work-pulse-tone')).toBe('quiet')
   })
 
   // Cap lowered 5 -> 3 (Task 55 fix round): this is a glance panel sharing
