@@ -14277,13 +14277,14 @@ function gitlabContributionsFixture() {
   await page.screenshot({ path: `${outDir}/w2-p1-weather-freshness-800x600.png` })
   console.log('captured w2-p1-weather-freshness-800x600.png (real held stale-cache refresh: polite Refreshing status)')
   automaticFailure.release()
-  const offlineVisible = await page.waitForFunction((selector) => {
+  await page.waitForFunction((selector) => {
     const weather = document.querySelector(selector)
     const status = weather?.querySelector('[role="status"]')
     return status?.textContent?.trim() === 'Offline — showing cached' &&
       status.getAttribute('aria-live') === 'polite' &&
       status.getAttribute('aria-atomic') === 'true'
-  }, weatherSel, { timeout: 2_000 }).then(() => true).catch(() => false)
+  }, weatherSel, { timeout: 5_000 })
+  const offlineVisible = true
   const offlineFeedback = await readWeatherFeedback()
   w2P1AxEvidence.weather.offline = await captureW2P1AxEvidence(page, {
     statuses: ['Offline — showing cached'],
@@ -23205,7 +23206,7 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('button', { name: 'Undo' }).click()
     const undoneSpan = await evidencePage.locator('[data-block-id="habits"]').evaluate((node) => getComputedStyle(node).getPropertyValue('--board-col-span').trim())
     await habitsRegion.getByRole('button', { name: 'Lock placement' }).click()
-    const locked = await habitsRegion.locator('fieldset').isDisabled()
+    const locked = await habitsRegion.locator('fieldset').evaluate((node) => node.hasAttribute('disabled'))
     await habitsRegion.getByRole('button', { name: 'Unlock placement' }).click()
     const storageDuringPreview = await evidencePage.evaluate(() => chrome.storage.local.get('layout'))
     const habitsPreview = await evidencePage.locator('[data-block-id="habits"]').evaluate((node) => ({
