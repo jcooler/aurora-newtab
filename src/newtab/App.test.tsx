@@ -45,6 +45,36 @@ describe('App — Adaptive Stage composition', () => {
     }
   })
 
+  it('opens a modeless Utility Tray without making the Standard dashboard inert', async () => {
+    await renderApp()
+    const invoker = screen.getByRole('button', { name: 'Open utility tray' })
+    const dashboard = invoker.closest('.contents')
+
+    fireEvent.click(invoker)
+
+    const tray = screen.getByRole('dialog', { name: 'Utility Tray' })
+    expect(tray.getAttribute('data-utility-tray-mode')).toBe('modeless')
+    expect(tray.getAttribute('aria-modal')).toBeNull()
+    expect(dashboard?.hasAttribute('inert')).toBe(false)
+  })
+
+  it('derives a modal Compact Utility Tray, inerts only the dashboard, and restores its invoker', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+    await renderApp()
+    const invoker = screen.getByRole('button', { name: 'Open utility tray' })
+    const dashboard = invoker.closest('.contents')
+
+    fireEvent.click(invoker)
+
+    expect(screen.getByRole('dialog', { name: 'Utility Tray' }).getAttribute('data-utility-tray-mode')).toBe('modal')
+    expect(dashboard?.hasAttribute('inert')).toBe(true)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
+    expect(dashboard?.hasAttribute('inert')).toBe(false)
+    expect(document.activeElement).toBe(invoker)
+  })
+
   it('shows render-only date context only when Day has no semantic allocation', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

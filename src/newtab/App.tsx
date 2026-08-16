@@ -11,6 +11,7 @@ import BoardItem from './components/BoardItem'
 import DayContext from './components/DayContext'
 import LauncherShelf, { resolveLauncherShelf } from './components/LauncherShelf'
 import SignalDockEntry from './components/SignalDockEntry'
+import UtilityTray from './components/UtilityTray'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
 import ArrangeController from './arrange/ArrangeController'
@@ -33,6 +34,7 @@ export default function App() {
   const [layout] = useStoredKey('layout')
   const [connectors] = useStoredKey('connectors')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
   const [arranging, setArranging] = useState(false)
   const [arrangeSignal, setArrangeSignal] = useState(0)
@@ -43,6 +45,7 @@ export default function App() {
   const [timerOpen, setTimerOpen] = useState(false)
   const [openSignalDockId, setOpenSignalDockId] = useState<BlockId | null>(null)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
+  const utilityTrayButtonRef = useRef<HTMLButtonElement>(null)
   const wasArrangingRef = useRef(false)
   const dockPointerDownRef = useRef(false)
   const dockKeyboardScrollRef = useRef<number | null>(null)
@@ -175,7 +178,7 @@ export default function App() {
       )).join(',')}
       className="adaptive-stage text-fg"
     >
-      <div className="contents" inert={arranging}>
+      <div className="contents" inert={arranging || (utilityTrayOpen && viewport.profile === 'compact')}>
           <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
           <div className="adaptive-stage__grid">
             {ZONES.map((zone) => {
@@ -244,6 +247,20 @@ export default function App() {
           </div>
 
           <button
+            ref={utilityTrayButtonRef}
+            type="button"
+            aria-label="Open utility tray"
+            aria-haspopup="dialog"
+            aria-expanded={utilityTrayOpen}
+            onClick={() => setUtilityTrayOpen(true)}
+            className="utility-tray-trigger fixed bottom-4 right-16 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M4 7h16v12H4z" />
+              <path d="M9 7V5h6v2M4 11h16M10 11v2h4v-2" />
+            </svg>
+          </button>
+          <button
             ref={settingsButtonRef}
             type="button"
             aria-label="Open settings"
@@ -264,6 +281,12 @@ export default function App() {
             <PaletteHost onOpenSettings={() => setSettingsOpen(true)} arranging={arranging} />
           </WidgetBoundary>
       </div>
+      <UtilityTray
+        open={utilityTrayOpen}
+        modal={viewport.profile === 'compact'}
+        onClose={() => setUtilityTrayOpen(false)}
+        invokerRef={utilityTrayButtonRef}
+      />
       <ArrangeController
         profile={viewport.profile}
         layout={layout}
