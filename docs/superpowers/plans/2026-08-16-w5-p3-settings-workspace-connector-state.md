@@ -14,21 +14,22 @@
 
 ### Task 1: Responsive Settings workspace
 
-- [ ] Widen the Drawer on roomy screens and use a true full-screen surface on narrow screens without adding a second scroll owner.
-- [ ] Render vertical Settings navigation with vertical keyboard behavior on roomy screens; preserve the bounded horizontal/grid navigation and keyboard behavior on narrow screens.
-- [ ] Preserve the active-panel-only mounting and existing dialog/focus/Escape contracts.
+- [x] Widen the Drawer on roomy screens and use a true full-screen surface on narrow screens without adding a second scroll owner.
+- [x] Render vertical Settings navigation with vertical keyboard behavior on roomy screens; preserve the bounded horizontal/grid navigation and keyboard behavior on narrow screens.
+- [x] Preserve the active-panel-only mounting and existing dialog/focus/Escape contracts.
 
 ### Task 2: State-first connector cards and credential disclosure
 
-- [ ] Lead every connector card with a derived `Off`, `Setup needed`, `Reconnect needed`, `Connected`, or `Ready` state before descriptive copy.
-- [ ] Keep token credential fields collapsed until explicit setup/edit, while showing reconnect fields immediately when a stripped-secret config requires them.
-- [ ] Never prefill or expose a stored credential; preserve gesture-safe permission transactions, connection extras, disconnect, and cleanup recovery.
+- [x] Lead every connector card with a derived `Off`, `Setup needed`, `Reconnect needed`, `Connected`, or `Ready` state before descriptive copy.
+- [x] Keep token credential fields collapsed until explicit setup/edit, while showing reconnect fields immediately when a stripped-secret config requires them.
+- [x] Never prefill or expose a stored credential; preserve gesture-safe permission transactions, connection extras, disconnect, and cleanup recovery.
 
 ### Task 3: Focused browser and packet closeout
 
-- [ ] Add one built-extension replay covering roomy/narrow Settings navigation, state-first cards, credential disclosure/reconnect, keyboard operation, and clean runtime output; inspect required captures once.
-- [ ] Run one implementation review and at most one fix/rereview cycle.
-- [ ] Run the final unit suite, TypeScript, production/preview builds, bridge scan, and full browser harness once; update ledgers, checkpoint/push, prove clean/upstream equality and protected checkout integrity, then begin W5-P4 automatically.
+- [x] Add one built-extension replay covering roomy/narrow Settings navigation, state-first cards, credential disclosure/reconnect, keyboard operation, and clean runtime output; inspect required captures once.
+- [x] Run one implementation review and one fix/rereview cycle; close the Important disclosure-focus finding.
+- [x] Run the final unit suite, TypeScript, production/preview builds, bridge scan, and full browser harness once; correct the actual stale Notes/HA/Timer evidence families and use the one permitted full rerun.
+- [x] Update ledgers, checkpoint/push, prove clean/upstream equality and protected checkout integrity, then begin W5-P4 automatically.
 
 ## Definition of Done
 

@@ -4,14 +4,16 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 5 - Utility Tray<br>
-**Last verified packet:** `W5-P2` - Working-tool integration<br>
-**Current packet:** `W5-P3` - Settings workspace and connector cards; implementation active
+**Last verified packet:** `W5-P3` - Settings workspace and connector cards<br>
+**Next packet:** `W5-P4` - Visual/motion system convergence; just-in-time planning next
 
 ## Packet envelope
 
-- **Acceptance:** Responsive Settings navigation, state-first connector cards, and credential fields revealed only for explicit setup/edit or reconnect.
-- **Implementation scope:** Existing Drawer/Tabs/Connectors/TokenConnectForm owners only; no schema, migration, registry, permission, privacy, backup, or Store changes.
-- **Remaining gates:** Focused tests/browser replay, one review and at most one fix/rereview, then one final unit/TypeScript/build/bridge/full-browser gate and checkpoint proof.
+- **Acceptance:** Narrow Settings is full-screen and reflowed; roomy Settings is a wide workspace with vertical navigation. Connector cards lead with configuration state and expose blank credential fields only after setup/edit or for required reconnect.
+- **Implemented files:** Drawer/Tabs responsive workspace, state-first connector shell, explicit TokenConnectForm disclosure/focus return, focused Chromium replay, and stale full-harness Notes/HA/Timer evidence alignment. No schema, migration, registry, planner, storage, permission, privacy, backup, or Store contract changed.
+- **Test scope:** Focused development passed 4 files / 278 tests and TypeScript. One review found one Important keyboard-focus defect; its focused fix/rereview returned Ready. The built-extension replay passed roomy/narrow geometry, vertical/horizontal keyboard navigation, Connected/Reconnect/Setup states, blank edit disclosure, secret absence, cleanup, and zero runtime errors.
+- **Final gate:** 137 files / 2,261 tests; TypeScript; 189-module production/preview builds; clean production bridge scan; full browser harness completed after its one permitted stale-family rerun. Two captures were inspected once.
+- **Manual ceilings:** Native permission prompts, live Home Assistant instance/picker/action success, real screen readers, native zoom/mixed-DPI, OS timezone changes, genuine sleep/wake, and unload-time persistence remain distinct manual evidence. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Previous packet envelope
 
