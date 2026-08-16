@@ -66,10 +66,10 @@
 - Modify: `docs/superpowers/aurora-2/STATUS.md`
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 
-- [ ] Run one implementation review against only the explicit W4-P3 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
-- [ ] Run one focused built-extension replay at Compact 800x600, Standard 1600x900, and Display 2560x1440 with seeded healthy and attention states. Prove exact progressive anatomy, quiet healthy state, promoted trouble/action state, single connector ownership, safe links, no clipping, no connector request attributable to presentation, restored teardown, and zero runtime errors.
-- [ ] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
-- [ ] Inspect the three required captures once, mark W4-P3 Verified, record exact gates and A2-D029, commit `docs: checkpoint W4-P3`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
+- [x] Run one implementation review against only the explicit W4-P3 criteria. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic issues without reopening.
+- [x] Run one focused built-extension replay at Compact 800x600, Standard 1600x900, and Display 2560x1440 with seeded healthy and attention states. Prove exact progressive anatomy, quiet healthy state, promoted trouble/action state, single connector ownership, safe links, no clipping, no connector request attributable to presentation, restored teardown, and zero runtime errors.
+- [x] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
+- [x] Inspect the three required captures once, mark W4-P3 Verified, record exact gates and A2-D029, commit `docs: checkpoint W4-P3`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
 - [ ] Begin W4-P4 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of done

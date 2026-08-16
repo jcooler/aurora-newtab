@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
-**Last verified packet:** `W4-P2` - Aurora Briefing<br>
-**Next packet:** `W4-P3` - Work Pulse variants; Planned, shared summary RED tests next
+**Last verified packet:** `W4-P3` - Work Pulse variants<br>
+**Next packet:** `W4-P4` - Signal Dock and connector survival; plan next
 
 ## Packet envelope
 
-- **Acceptance:** Render one terse deterministic Briefing in Now from already-held current Calendar, Tasks, and Weather data, with fixed priority and responsive budgets, while preserving privacy and all frozen schema/registry/allocation/storage/network/permission/Store contracts.
-- **Implemented files:** Added the pure `briefing` signal collector/formatter and a render-only `AuroraBriefing` component under Greeting. Calendar and Weather inputs require exact current scope/identity and freshness; only safe event fields enter synthesis. Compact/Standard/Display expose 1/2/3-signal sentences without a new BoardItem or refresh owner.
-- **Test scope:** Focused RED/green pure/component/source guards; one bounded implementation review and one related geometry stabilization/rereview cycle; one final unit/build set; one focused built-extension replay; one full browser run and its single permitted rerun. The rerun's sole adjacent Compact containment failure was fixed and proven with targeted 600x800/320x800 replays; no third full run was performed.
-- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once; the corrected Compact 600x800 and 320x800 family was inspected after the final causal fix. One sentence is visible per profile, the Display copy fits, Compact Greeting/Briefing paint remains contained, and no Critical/Important visual issue remains.
+- **Acceptance:** Make Work Pulse attention-first across Compact, Standard, and Expanded variants while keeping healthy connector states quiet and every configured connector represented, without changing frozen data, allocation, privacy, permission, network, or Store contracts.
+- **Implemented files:** Added a shared render-only `WorkPulseSummary`; integrated it into GitHub, GitLab, Jira, Vercel, and Status; and progressively reveals summary, prioritized rows, and detail through existing Adaptive Stage variants. The final bounded fix contains Vercel's dormant Compact paint without affecting Standard/Expanded focus outlines.
+- **Test scope:** Focused RED/green component/source tests; one implementation review and one fix/rereview cycle; one final unit/build set; one focused built-extension replay; and one full browser run plus its single permitted rerun. The rerun's genuine Vercel Compact containment failure was fixed and proven with one targeted replay; no third full run was performed.
+- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once and show one coherent Work Pulse surface with progressive anatomy. Two obsolete Status pixel-sampling assertions are recorded as Minor/cosmetic; semantic text, DOM anatomy, and non-color-only status meaning are green.
 
 ## Last completed commits
 
@@ -103,8 +103,19 @@
 - `8277845` - executable W4-P2 Aurora Briefing plan with local-only synthesis and frozen schema/registry/allocation/network boundaries.
 - `5ec2f4a` and `4a66a50` - pure deterministic Calendar/Tasks/Rain synthesis and render-only Greeting integration.
 - `c6c95c2`, `5258e2a`, and `e656263` - responsive text fitting, focused Chromium evidence, and bounded Compact Greeting containment corrections; verified W4-P2 implementation head.
+- `793af31` - executable W4-P3 Work Pulse variants plan with frozen schema, registry, allocation, storage, privacy, network, permission, and Store boundaries.
+- `ce23c04`, `fc258c0`, and `13a0b4a` - shared render-only attention summary, connector prioritization, and responsive Work Pulse hierarchy.
+- `3248890` and `1ab0fa6` - reviewed Status detail progression plus causal global geometry and Vercel Compact containment corrections; verified W4-P3 implementation head.
 
 ## Latest verification
+
+- W4-P3 focused development gates passed: the broad stabilized set was 9 files / 184 tests; the final causal Vercel set was 2 files / 26 tests. TypeScript and both harness syntax checks exited 0.
+- The one final `npm test` run completed at 132 files with 2,225 / 2,226 tests passing. Its only failure was an unrelated untouched Settings color-write timing case; the exact one-test rerun passed 1 / 1. The full unit suite was not repeated.
+- Final production and preview builds exited 0 with 186 modules transformed; the production bridge scan returned the expected clean no-match result.
+- Focused `node scripts/preview-w4-p3.mjs` exited 0 with `PASS: W4-P3 Work Pulse variants`. Compact/Standard/Display expose exact progressive anatomy; healthy and attention Status states are explicit; Vercel Compact is contained; links are safe; teardown restores storage; and external requests/runtime errors are empty.
+- The full browser harness was run once, then rerun once after its actual W4-P3 assertion/geometry family was corrected. The permitted rerun cleared the global geometry and obsolete variant-expectation families, leaving one genuine Vercel Compact paint-containment failure and two obsolete Status pixel-sampling assertions. The Vercel family passed its bounded focused fix; the two cosmetic pixel probes are Minor ledger items and did not reopen the packet. No third full harness run was performed.
+- Required captures under `C:\Users\SickT\Documents\Codex\2026-08-16\change-aurora-execution-to-pragmatic-delivery\outputs\w4-p3\` were inspected once at Compact 800x600, Standard 1600x900, and Display 2560x1440.
+- One bounded implementation review plus one fix/rereview cycle ended Ready with no Critical or Important issue open. No schema, registry, profile threshold, capacity, allocation, migration, stored-data, permission, privacy, production-network, Aurora V1, or Store contract changed.
 
 - W4-P2 focused pure/component/source development gates passed: final combined set 3 files / 15 tests plus the final source guard 1 file / 4 tests; TypeScript exited 0.
 - Final `npm test` after implementation stabilized - exit 0; 131 files / 2,218 tests passed. Final `npx tsc --noEmit` also exited 0.
