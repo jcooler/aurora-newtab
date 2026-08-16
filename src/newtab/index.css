@@ -1128,6 +1128,8 @@ select > option {
    planner capacity and cannot displace the frozen Now allocations. */
 .aurora-greeting {
   display: flex;
+  /* Keep all Briefing profiles on the Greeting allocation's real width. */
+  width: 100%;
   min-width: 0;
   max-width: 100%;
   flex-direction: column;

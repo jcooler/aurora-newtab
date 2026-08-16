@@ -29,9 +29,9 @@ describe('Aurora Briefing signal collection', () => {
     }))
 
     expect(signals).toEqual([
-      { kind: 'calendar', text: 'Design review in 48 min' },
+      { kind: 'calendar', text: 'Design review in 48m' },
       { kind: 'tasks', text: '3 tasks need attention' },
-      { kind: 'rain', text: 'Rain near 7 PM' },
+      { kind: 'rain', text: 'Rain 7 PM' },
     ])
   })
 
@@ -44,7 +44,7 @@ describe('Aurora Briefing signal collection', () => {
         { summary: 'Next week', start: NOW + 8 * 86_400_000, end: NOW + 8 * 86_400_000 + 3_600_000, allDay: false },
       ],
     }))
-    expect(signals).toEqual([{ kind: 'calendar', text: 'Alpha in 30 min' }])
+    expect(signals).toEqual([{ kind: 'calendar', text: 'Alpha in 30m' }])
   })
 
   it('describes an active all-day item without exposing unrelated event fields', () => {
@@ -77,21 +77,21 @@ describe('Aurora Briefing signal collection', () => {
     expect(collectBriefingSignals(inputs({
       use24Hour: true,
       hourly: [{ time: '2026-08-16T19:00', precipProb: 50 }],
-    }))).toContainEqual({ kind: 'rain', text: 'Rain near 19:00' })
+    }))).toContainEqual({ kind: 'rain', text: 'Rain 19:00' })
   })
 })
 
 describe('Aurora Briefing responsive formatting', () => {
   const signals = [
-    { kind: 'calendar' as const, text: 'Design review in 48 min' },
+    { kind: 'calendar' as const, text: 'Design review in 48m' },
     { kind: 'tasks' as const, text: '3 tasks need attention' },
-    { kind: 'rain' as const, text: 'Rain near 7 PM' },
+    { kind: 'rain' as const, text: 'Rain 7 PM' },
   ]
 
   it('admits exactly one, two, and three signals by profile', () => {
-    expect(formatBriefing(signals, 'compact')).toBe('Design review in 48 min')
-    expect(formatBriefing(signals, 'standard')).toBe('Design review in 48 min · 3 tasks need attention')
-    expect(formatBriefing(signals, 'display')).toBe('Design review in 48 min · 3 tasks need attention · Rain near 7 PM')
+    expect(formatBriefing(signals, 'compact')).toBe('Design review in 48m')
+    expect(formatBriefing(signals, 'standard')).toBe('Design review in 48m · 3 tasks need attention')
+    expect(formatBriefing(signals, 'display')).toBe('Design review in 48m · 3 tasks need attention · Rain 7 PM')
   })
 
   it('uses a fixed fallback when no useful local signal exists', () => {

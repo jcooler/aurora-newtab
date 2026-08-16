@@ -42,8 +42,10 @@ async function renderBriefing({ validScope = true, weatherAge = 0 } = {}) {
         fetchedAt: NOW,
         data: { events: [{
           summary: 'Design review',
-          start: NOW + 48 * 60_000,
-          end: NOW + 78 * 60_000,
+          // shouldAdvanceTime lets Testing Library's polling clock move. Keep
+          // the fixture safely inside the formatter's floored 48-minute band.
+          start: NOW + 48 * 60_000 + 30_000,
+          end: NOW + 78 * 60_000 + 30_000,
           allDay: false,
           cal: 0,
           meetUrl: 'https://zoom.us/j/private-capability',
@@ -71,9 +73,9 @@ describe('AuroraBriefing local-only rendering', () => {
     const { container, fetchSpy } = await renderBriefing()
     await waitFor(() => expect(container.querySelector('[data-briefing-display]')?.textContent).toContain('Design review'))
 
-    expect(container.querySelector('[data-briefing-compact]')?.textContent).toBe('Design review in 48 min')
-    expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48 min · 1 task needs attention')
-    expect(container.querySelector('[data-briefing-display]')?.textContent).toBe('Design review in 48 min · 1 task needs attention · Rain near 7 PM')
+    expect(container.querySelector('[data-briefing-compact]')?.textContent).toBe('Design review in 48m')
+    expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48m · 1 task needs attention')
+    expect(container.querySelector('[data-briefing-display]')?.textContent).toBe('Design review in 48m · 1 task needs attention · Rain 7 PM')
     expect(container.textContent).not.toContain('private-token')
     expect(container.textContent).not.toContain('zoom.us')
     expect(fetchSpy).not.toHaveBeenCalled()
@@ -90,7 +92,7 @@ describe('AuroraBriefing local-only rendering', () => {
     await act(async () => {
       await storage.set('todoLists', [{ id: 'today', name: 'Today', items: [] }])
     })
-    await waitFor(() => expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48 min · Rain near 7 PM'))
+    await waitFor(() => expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48m · Rain 7 PM'))
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })

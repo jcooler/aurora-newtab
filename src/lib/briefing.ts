@@ -63,8 +63,8 @@ function calendarSignal(inputs: BriefingInputs): BriefingSignal | null {
   const diffMs = event.start - inputs.now
   if (diffMs < 60_000) return { kind: 'calendar', text: `${summary} now` }
   const minutes = Math.floor(diffMs / 60_000)
-  if (minutes < 60) return { kind: 'calendar', text: `${summary} in ${minutes} min` }
-  return { kind: 'calendar', text: `${summary} in ${Math.floor(diffMs / 3_600_000)} h` }
+  if (minutes < 60) return { kind: 'calendar', text: `${summary} in ${minutes}m` }
+  return { kind: 'calendar', text: `${summary} in ${Math.floor(diffMs / 3_600_000)}h` }
 }
 
 function tasksSignal(todoLists: readonly BriefingTodoList[]): BriefingSignal | null {
@@ -99,7 +99,7 @@ function rainSignal(hourly: readonly BriefingHour[], use24Hour: boolean): Briefi
     .map((point) => ({ ...point, formatted: formatHour(point.time, use24Hour) }))
     .filter((point): point is BriefingHour & { formatted: string } => point.formatted !== null)
     .sort((a, b) => a.time < b.time ? -1 : a.time > b.time ? 1 : 0)
-  return candidates[0] ? { kind: 'rain', text: `Rain near ${candidates[0].formatted}` } : null
+  return candidates[0] ? { kind: 'rain', text: `Rain ${candidates[0].formatted}` } : null
 }
 
 export function collectBriefingSignals(inputs: BriefingInputs): BriefingSignal[] {
