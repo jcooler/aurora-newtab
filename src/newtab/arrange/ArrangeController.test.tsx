@@ -165,6 +165,20 @@ describe('semantic ArrangeController', () => {
     expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
   })
 
+  it('does not let Escape turn an in-flight Save into an apparent Cancel', async () => {
+    const { storage } = await setup()
+    let release!: (value: LayoutV2) => void
+    const pending = new Promise<LayoutV2>((resolve) => { release = resolve })
+    vi.spyOn(storage, 'update').mockImplementationOnce(() => pending)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(screen.getByRole('button', { name: 'Saving…' }).hasAttribute('disabled')).toBe(true)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
+    release({ version: 2, profiles: {} })
+    await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'Arrange Standard profile' })).toBeNull()
+  })
+
   it('Escape cancels the preview without persistence', async () => {
     const { storage, onPreviewChange } = await setup()
     const update = vi.spyOn(storage, 'update')

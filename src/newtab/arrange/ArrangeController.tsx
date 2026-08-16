@@ -16,7 +16,7 @@ import {
   type ArrangeEdit,
   type ProfileDraft,
 } from './profileEditor'
-import type { WidgetRegistryEntry } from '../widgetRegistry'
+import { WIDGET_REGISTRY, type WidgetRegistryEntry } from '../widgetRegistry'
 
 const PROFILE_LABELS: Readonly<Record<LayoutProfile, string>> = {
   compact: 'Compact', standard: 'Standard', display: 'Display', ultrawide: 'Ultrawide',
@@ -143,7 +143,11 @@ export default function ArrangeController({
     onPreviewChange(null)
   }, [onPreviewChange])
 
-  useDialogEscape(exit, mode === 'on')
+  const cancel = useCallback(() => {
+    if (saveState !== 'pending') exit()
+  }, [exit, saveState])
+
+  useDialogEscape(cancel, mode === 'on')
 
   const begin = useCallback((preferredId?: BlockId) => {
     if (!isPremium() || modeRef.current === 'on') return
@@ -269,7 +273,7 @@ export default function ArrangeController({
           <div className="flex flex-wrap gap-2">
             <button type="button" className={fixedButton()} disabled={draft.history.length === 0 || saveState === 'pending'} onClick={() => publish(undoArrangeEdit(draft))}>Undo</button>
             <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(resetProfileDraft(draft))}>Reset profile</button>
-            <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={exit}>Cancel</button>
+            <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={cancel}>Cancel</button>
             <button type="button" className={fixedButton(true)} disabled={saveState === 'pending'} onClick={() => void save()}>{saveState === 'pending' ? 'Saving…' : 'Save'}</button>
           </div>
         </div>
@@ -283,7 +287,7 @@ export default function ArrangeController({
               {(['compact', 'standard', 'display', 'ultrawide'] as const).filter((value) => value !== sessionProfile).map((value) => <option key={value} value={value}>{PROFILE_LABELS[value]}</option>)}
             </select>
           </label>
-          <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(copyProfileDraft(draft, sessionLayoutRef.current, copySource, sessionEntries))}>Copy profile</button>
+          <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(copyProfileDraft(draft, sessionLayoutRef.current, copySource, WIDGET_REGISTRY))}>Copy profile</button>
         </div>
 
         {selectedEntry && selectedPlacement ? (
