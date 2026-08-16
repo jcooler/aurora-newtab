@@ -53,11 +53,11 @@
 - Consumes: Task 1 data hooks and existing connector DOM, including W4-P3 `data-work-pulse-summary` anatomy.
 - Produces: a finite connector Dock inline floor, one-row collapsed presentation, hidden closed interactive descendants, one current primary-value preview where renderer data exists, and a bounded open detail surface that preserves original controls and safe external links.
 
-- [ ] Write failing source/component tests proving connector Dock allocations no longer use legacy 18-35rem renderer compatibility floors or tall block-size calibration, while non-connector compatibility remains unchanged. Assert 14px ordinary text, a 36px disclosure target, no root transform/percentage geometry/whole-widget height hide, closed descendants cannot receive pointer or keyboard focus, and the open surface is bounded above Dock with visible focus.
-- [ ] Run `npx vitest run src/newtab/components/BoardItem.test.tsx src/newtab/dockBlockSizes.test.ts src/newtab/signalDockPresentation.test.ts` and confirm the new assertions fail against the W3 compatibility bridge.
-- [ ] Implement Dock-only styles and connector sizing. Closed entries show the registry identity plus `data-work-pulse-summary` or the renderer's first meaningful current value; `Enabled` remains only when no current value exists. The open surface reveals the same mounted renderer and original actions, never a duplicate renderer or synthetic provider URL.
-- [ ] Run the Task 1 and Task 2 focused suites together plus `npx tsc --noEmit`; require green output.
-- [ ] Commit `style(dock): condense connector survival entries`.
+- [x] Write failing source/component tests proving connector Dock allocations no longer use legacy 18-35rem renderer compatibility floors or tall block-size calibration, while non-connector compatibility remains unchanged. Assert 14px ordinary text, a 36px disclosure target, no root transform/percentage geometry/whole-widget height hide, closed descendants cannot receive pointer or keyboard focus, and the open surface is bounded above Dock with visible focus.
+- [x] Run `npx vitest run src/newtab/components/BoardItem.test.tsx src/newtab/dockBlockSizes.test.ts src/newtab/signalDockPresentation.test.ts` and confirm the new assertions fail against the W3 compatibility bridge.
+- [x] Implement Dock-only styles and connector sizing. Closed entries show the registry identity plus `data-work-pulse-summary` or the renderer's first meaningful current value; `Enabled` remains only when no current value exists. The open surface reveals the same mounted renderer and original actions, never a duplicate renderer or synthetic provider URL.
+- [x] Run the Task 1 and Task 2 focused suites together plus `npx tsc --noEmit`; require green output.
+- [x] Commit `style(dock): condense connector survival entries`.
 
 ### Task 3: Prove every enabled connector survives constrained and dense allocation
 

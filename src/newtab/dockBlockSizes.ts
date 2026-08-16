@@ -13,11 +13,6 @@ const focus = sizes(112, 112, 120)
 const linksCompact = sizes(296, 296, 336)
 const linksStandard = sizes(192, 168, 192)
 const linksExpanded = sizes(416, 272, 272)
-const tallRss = sizes(344, 344, 408)
-const tallGithub = sizes(416, 416, 448)
-const tallGitlab = sizes(488, 488, 528)
-const tallJira = sizes(312, 312, 352)
-const tallVercel = sizes(304, 304, 344)
 const tallHabits = sizes(264, 264, 312)
 const tallMonth = sizes(288, 288, 296)
 
@@ -40,13 +35,6 @@ export const DOCK_BLOCK_SIZES: DockBlockSizeTable = Object.freeze({
   links: Object.freeze({ compact: linksCompact, standard: linksStandard, expanded: linksExpanded }),
   quote: Object.freeze({ compact: sizes(96), standard: sizes(104), expanded: sizes(176, 128) }),
   weather: Object.freeze({ compact: sizes(80), standard: sizes(192, 160, 120), expanded: sizes(120, 120, 120) }),
-  rss: Object.freeze({ compact: sizes(96, 96, 112), standard: tallRss, expanded: tallRss }),
-  github: Object.freeze({ compact: sizes(128, 128, 136), standard: tallGithub, expanded: tallGithub }),
-  gitlab: Object.freeze({ compact: sizes(128, 128, 136), standard: tallGitlab, expanded: tallGitlab }),
-  jira: Object.freeze({ compact: sizes(80), standard: tallJira, expanded: tallJira }),
-  vercel: Object.freeze({ compact: sizes(104, 104, 112), standard: tallVercel, expanded: tallVercel }),
-  ics: Object.freeze({ compact: sizes(80), standard: sizes(128, 128, 136), expanded: sizes(128, 128, 136) }),
   habits: Object.freeze({ compact: sizes(120, 120, 144), standard: tallHabits, expanded: tallHabits }),
   monthCal: Object.freeze({ compact: sizes(104, 104, 112), standard: tallMonth, expanded: tallMonth }),
-  homeassistant: Object.freeze({ standard: sizes(96, 96, 104), expanded: sizes(96, 96, 104) }),
 } satisfies DockBlockSizeTable)

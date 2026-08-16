@@ -40,6 +40,7 @@ export default function SignalDockEntry({ entry, open, onOpenChange, children }:
       <div
         id={contentId}
         data-signal-dock-content=""
+        inert={open ? undefined : true}
         tabIndex={open ? -1 : undefined}
         onKeyDown={handleKeyDown}
       >

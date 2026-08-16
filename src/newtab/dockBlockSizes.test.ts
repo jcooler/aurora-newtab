@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { DENSITY_TOKENS, type Density } from '../lib/layout/adaptiveStage'
 import { BLOCK_IDS, WIDGET_VARIANTS, type BlockId, type WidgetVariant } from '../lib/layout/types'
 import { DOCK_BLOCK_SIZES } from './dockBlockSizes'
+import { WIDGET_REGISTRY } from './widgetRegistry'
 
 const densities: readonly Density[] = ['compact', 'balanced', 'spacious']
+const connectorIds = new Set(WIDGET_REGISTRY.filter(({ availability }) => availability.kind === 'connector').map(({ id }) => id))
 type RawCalibration = Readonly<Record<BlockId, Readonly<Record<WidgetVariant, readonly [number, number, number]>>>>
 
 // Chromium 1600x900 source measurements from scripts/calibrate-dock-block-sizes.mjs.
@@ -48,6 +50,7 @@ describe('Dock renderer block-size compatibility bridge', () => {
 
   it('uses a measured-headroom contract for every renderer taller than the density track', () => {
     for (const id of BLOCK_IDS) {
+      if (connectorIds.has(id)) continue
       for (const variant of WIDGET_VARIANTS) {
         densities.forEach((density, index) => {
           const raw = RAW_OUTER_HEIGHTS[id][variant][index]
@@ -61,5 +64,10 @@ describe('Dock renderer block-size compatibility bridge', () => {
         })
       }
     }
+  })
+
+  it('uses the shared condensed wrapper instead of full-renderer height calibration for every connector', () => {
+    expect([...connectorIds].sort()).toEqual(['crypto', 'github', 'gitlab', 'homeassistant', 'ics', 'jira', 'rss', 'status', 'vercel'])
+    for (const id of connectorIds) expect(DOCK_BLOCK_SIZES[id]).toBeUndefined()
   })
 })

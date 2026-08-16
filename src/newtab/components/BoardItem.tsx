@@ -42,7 +42,12 @@ const DOCK_COMPAT_INLINE_FLOORS: Readonly<Partial<Record<WidgetRegistryEntry['id
   links: '5rem',
 }
 
-function dockInlineSize(colSpan: number, id: WidgetRegistryEntry['id'], variant: StageAllocation['variant']): string {
+function dockInlineSize(
+  colSpan: number,
+  id: WidgetRegistryEntry['id'],
+  variant: StageAllocation['variant'],
+  connector: boolean,
+): string {
   // W4-P4 owns condensed Dock renderers. Until then, the current one-track
   // content has a few measured compatibility floors, so publish only those
   // explicitly instead of asking size-contained descendants to contribute an
@@ -52,7 +57,9 @@ function dockInlineSize(colSpan: number, id: WidgetRegistryEntry['id'], variant:
     ...Array.from({ length: Math.max(0, colSpan - 1) }, () => 'var(--stage-gap)'),
   ]
   const finiteMinimum = minimumTerms.length === 1 ? minimumTerms[0] : `calc(${minimumTerms.join(' + ')})`
-  const compatibilityFloor = id === 'bookmarks'
+  const compatibilityFloor = connector
+    ? '14rem'
+    : id === 'bookmarks'
     ? variant === 'compact' ? '26.375rem' : '63.0625rem'
     : DOCK_COMPAT_INLINE_FLOORS[id]
   return compatibilityFloor ? `max(${finiteMinimum}, ${compatibilityFloor})` : finiteMinimum
@@ -75,7 +82,9 @@ export default function BoardItem({
     // contribution. Give Dock wrappers the finite geometry already chosen by
     // the planner so their container queries, paint, and focus scroll range
     // remain deterministic without ancestor clipping or root scaling.
-    ...(allocation.zone === 'dock' ? { inlineSize: dockInlineSize(colSpan, entry.id, allocation.variant) } : {}),
+    ...(allocation.zone === 'dock' ? {
+      inlineSize: dockInlineSize(colSpan, entry.id, allocation.variant, entry.availability.kind === 'connector'),
+    } : {}),
     ...(allocation.rect ? {
       gridColumn: `${finiteSpan(allocation.rect.colStart)} / span ${colSpan}`,
       gridRow: `${finiteSpan(allocation.rect.rowStart)} / span ${rowSpan}`,

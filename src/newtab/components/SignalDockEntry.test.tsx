@@ -14,11 +14,13 @@ describe('SignalDockEntry', () => {
     )
 
     const entry = document.querySelector('[data-signal-dock-entry]')
+    const content = document.querySelector('[data-signal-dock-content]')
     expect(entry?.getAttribute('data-signal-dock-open')).toBe('false')
     expect(screen.getByText('GitHub')).toBeTruthy()
     expect(screen.getByText('Enabled')).toBeTruthy()
     expect(screen.getByText('3 need attention')).toBeTruthy()
     expect(document.querySelectorAll('[data-render-count="one"]')).toHaveLength(1)
+    expect(content?.hasAttribute('inert')).toBe(true)
 
     const button = screen.getByRole('button', { name: 'Open GitHub details' })
     expect(button.getAttribute('aria-expanded')).toBe('false')
@@ -35,6 +37,7 @@ describe('SignalDockEntry', () => {
     )
     const button = screen.getByRole('button', { name: 'Close Service status details' })
     const content = document.querySelector('[data-signal-dock-content]') as HTMLElement
+    expect(content.hasAttribute('inert')).toBe(false)
     content.focus()
     fireEvent.keyDown(content, { key: 'Escape' })
     expect(onOpenChange).toHaveBeenCalledWith(false)

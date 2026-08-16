@@ -28,6 +28,8 @@ const github = WIDGET_REGISTRY.find((row) => row.id === 'github')!
 const gitlab = WIDGET_REGISTRY.find((row) => row.id === 'gitlab')!
 const jira = WIDGET_REGISTRY.find((row) => row.id === 'jira')!
 const homeassistant = WIDGET_REGISTRY.find((row) => row.id === 'homeassistant')!
+const status = WIDGET_REGISTRY.find((row) => row.id === 'status')!
+const vercel = WIDGET_REGISTRY.find((row) => row.id === 'vercel')!
 
 describe('BoardItem', () => {
   it('owns semantic data attributes, finite CSS spans, container semantics, and child rendering', () => {
@@ -173,37 +175,15 @@ describe('BoardItem', () => {
     expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 12rem)')
   })
 
-  it('contains the current RSS card and all five complete Crypto cells when they move to the Dock', () => {
-    const { rerender } = render(
-      <BoardItem entry={rss} allocation={allocation({ id: 'rss', zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
-        content
-      </BoardItem>,
-    )
-    let item = document.querySelector('[data-block-id="rss"]') as HTMLElement
-    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 18rem)')
-
-    rerender(
-      <BoardItem entry={crypto} allocation={allocation({ id: 'crypto', zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
-        content
-      </BoardItem>,
-    )
-    item = document.querySelector('[data-block-id="crypto"]') as HTMLElement
-    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 35rem)')
-  })
-
   it.each([
-    [ics, '18rem'],
-    [github, '20rem'],
-    [gitlab, '20rem'],
-    [jira, '20rem'],
-    [homeassistant, '20rem'],
-  ] as const)('contains the populated fixed-width %s renderer when pinned to Dock', (entry, floor) => {
+    ics, status, github, gitlab, jira, vercel, homeassistant, rss, crypto,
+  ] as const)('uses the intentional compact Signal Dock floor for connector %s', (entry) => {
     render(
       <BoardItem entry={entry} allocation={allocation({ id: entry.id, zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
         content
       </BoardItem>,
     )
     const item = document.querySelector(`[data-block-id="${entry.id}"]`) as HTMLElement
-    expect(item.style.inlineSize).toBe(`max(var(--stage-track-min), ${floor})`)
+    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 14rem)')
   })
 })
