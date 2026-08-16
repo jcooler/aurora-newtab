@@ -187,7 +187,7 @@ function VercelInner({
         </p>
       )}
 
-      {showRowsEmpty && <p className="text-sm text-fg-muted">No deployments yet.</p>}
+      {showRowsEmpty && <p data-work-pulse-rows className="text-sm text-fg-muted">No deployments yet.</p>}
 
       {deployments.length > 0 && (
         <ul data-work-pulse-rows className="flex flex-col gap-2 dense:gap-1">

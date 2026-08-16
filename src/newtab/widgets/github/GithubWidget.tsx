@@ -263,7 +263,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
         </ul>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No PRs waiting on you 🎉</p>}
     </section>
   )
 }

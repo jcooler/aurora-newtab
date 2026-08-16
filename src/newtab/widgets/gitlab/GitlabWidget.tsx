@@ -388,7 +388,7 @@ function GitlabInner({
         </div>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>No MRs assigned to you.</p>}
     </section>
   )
 }

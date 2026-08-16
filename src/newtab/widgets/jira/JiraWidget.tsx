@@ -294,7 +294,7 @@ function JiraInner({
         </div>
       )}
 
-      {showEmpty && <p className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
+      {showEmpty && <p data-work-pulse-rows className={`text-sm text-fg-muted${emptyLineTier}`}>Nothing assigned to you.</p>}
     </section>
   )
 }

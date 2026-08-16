@@ -54,9 +54,9 @@
 - Create: `src/newtab/workPulsePresentation.test.ts`
 
 - [x] Add RED tests for Status summary priority: confirmed trouble, then unknown/unreachable, then quiet all-operational; retain configured dot identity and avoid color-only meaning.
-- [ ] Present Compact as identity plus one primary status, Standard as summary plus prioritized rows, and Expanded as summary/rows plus useful detail. Keep healthy rows visually quiet and promote only confirmed trouble, stale/unknown, pending, or actionable work.
-- [ ] Turn Work Pulse into one coherent regional surface using existing zone/BoardItem ownership, hairlines, and localized contrast; do not create card-per-row geometry, root transforms, percentage positioning, height hides, new footprints, or new Dock behavior.
-- [ ] Add source/CSS guards for exact variant anatomy, minimum text/target rules, no schema/registry/network/storage changes, and reduced-motion continuity; run focused tests and TypeScript, then commit `style(pulse): establish responsive hierarchy`.
+- [x] Present Compact as identity plus one primary status, Standard as summary plus prioritized rows, and Expanded as summary/rows plus useful detail. Keep healthy rows visually quiet and promote only confirmed trouble, stale/unknown, pending, or actionable work.
+- [x] Turn Work Pulse into one coherent regional surface using existing zone/BoardItem ownership, hairlines, and localized contrast; do not create card-per-row geometry, root transforms, percentage positioning, height hides, new footprints, or new Dock behavior.
+- [x] Add source/CSS guards for exact variant anatomy, minimum text/target rules, no schema/registry/network/storage changes, and reduced-motion continuity; run focused tests and TypeScript, then commit `style(pulse): establish responsive hierarchy`.
 
 ### Task 4: Bounded review, evidence, and checkpoint
 

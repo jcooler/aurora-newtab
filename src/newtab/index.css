@@ -2076,6 +2076,60 @@ select > option {
   margin-bottom: 4px;
 }
 
+/* W4-P3: Work Pulse is one regional instrument, not a new pile of floating
+   cards. BoardItem still owns every finite allocation; these rules only
+   normalize the child surfaces and progressively reveal already-rendered
+   anatomy. Dock presentation remains untouched for W4-P4. */
+.stage-zone--pulse {
+  padding: var(--stage-gap);
+  background: linear-gradient(150deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.2));
+}
+.stage-zone--pulse .board-item > section {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+}
+.stage-zone--pulse .board-item > section > :first-child {
+  margin-top: 0;
+}
+.stage-zone--pulse [data-work-pulse-summary] {
+  margin-top: 2px;
+  margin-bottom: 8px;
+}
+.stage-zone--pulse [data-work-pulse-tone="quiet"] {
+  opacity: 0.78;
+}
+.stage-zone--pulse .board-item:is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"],
+  [data-block-id="jira"]
+) > section > div:first-child > span {
+  /* The shared primary summary supersedes the legacy header chip on-board.
+     Its text remains unchanged in source for Dock and historical evidence. */
+  display: none;
+}
+.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-rows],
+.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-detail] {
+  display: none;
+}
+.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-summary] {
+  margin-bottom: 0;
+}
+.stage-zone--pulse .board-item[data-stage-variant="standard"] [data-work-pulse-detail] {
+  display: none;
+}
+.stage-zone--pulse .board-item[data-stage-variant="expanded"] [data-work-pulse-detail] {
+  display: block;
+}
+
 /* Focus's form is the finite BoardItem child, but its input owns the legacy
    w-72 width. Cap that nested control to the semantic allocation; the Dock's
    intrinsic column still expands to its natural width. */
