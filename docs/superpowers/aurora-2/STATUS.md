@@ -5,7 +5,7 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
 **Last verified packet:** `W4-P3` - Work Pulse variants<br>
-**Next packet:** `W4-P4` - Signal Dock and connector survival; plan next
+**Next packet:** `W4-P4` - Signal Dock and connector survival; Planned, shared disclosure RED tests next
 
 ## Packet envelope
 
