@@ -268,13 +268,12 @@ function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
 }
 
 describe('SettingsPanel tabs (General / Widgets / Data)', () => {
-  it('applies the shared narrow row/control contract without changing ordinary control height', async () => {
+  it('applies the shared row/control contract with a 36px floor and narrow reflow', async () => {
     await renderPanel()
     const name = screen.getByLabelText('Your name')
-    expect(name.className).toContain('h-8')
+    expect(name.className.split(/\s+/)).toContain('min-h-9')
     expect(name.className).toContain('min-w-0')
     expect(name.className).toContain('max-w-full')
-    expect(name.className).toContain('max-[420px]:h-9')
     expect(name.className).toContain('max-[420px]:w-full')
     expect(name.parentElement?.className).toContain('max-[420px]:flex-col')
     expect(name.parentElement?.className).toContain('max-[420px]:items-stretch')

@@ -57,10 +57,11 @@ describe('ToggleChip (the control kit — Task 69)', () => {
     expect(attr(glyph!, 'aria-hidden')).toBe('true')
   })
 
-  it('adds the 36px target floor only at the narrow Settings breakpoint', () => {
+  it('keeps the 36px routine target floor at every Settings width', () => {
     render(<ToggleChip label="Commit graph" on={true} onClick={() => {}} />)
     const el = screen.getByRole('button', { name: /Commit graph/ })
-    expect(el.className).toContain('max-[420px]:min-h-9')
-    expect(el.className).toContain('max-[420px]:min-w-9')
+    const classes = el.className.split(/\s+/)
+    expect(classes).toContain('min-h-9')
+    expect(classes).toContain('min-w-9')
   })
 })

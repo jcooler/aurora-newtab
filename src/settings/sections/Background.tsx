@@ -208,7 +208,7 @@ export default function Background({
                 void handleAddUploads(files)
               }}
               aria-describedby={galleryError ? 'bg-gallery-error' : undefined}
-              className="min-w-0 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover max-[420px]:min-h-9 max-[420px]:w-full max-[420px]:max-w-full"
+              className="min-h-9 min-w-0 max-w-48 text-sm text-fg-muted transition-colors file:mr-2 file:rounded-lg file:border file:border-control-border file:bg-transparent file:px-2.5 file:py-1 file:text-fg hover:file:bg-control-bg-hover motion-reduce:transition-none max-[420px]:w-full max-[420px]:max-w-full"
             />
           </div>
           {uploads.length > 0 && (

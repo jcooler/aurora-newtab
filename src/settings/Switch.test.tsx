@@ -111,12 +111,13 @@ describe('Switch (the control kit — Task 61)', () => {
     expect(on).toContain('bg-accent')
   })
 
-  it('keeps the ordinary 36x20 box but expands its narrow target around a fixed visual track', () => {
+  it('keeps a fixed 36x20 visual track inside a 36px routine target at every width', () => {
     render(<Switch id="s" checked={false} onChange={() => {}} label="Wifi" />)
     const el = screen.getByRole('switch')
-    expect(el.className).toContain('h-5')
+    expect(el.className).toContain('min-h-9')
     expect(el.className).toContain('w-9')
-    expect(el.className).toContain('max-[420px]:h-9')
-    expect(el.querySelector('[data-switch-track]')).not.toBeNull()
+    const track = el.querySelector('[data-switch-track]')
+    expect(track).not.toBeNull()
+    expect(track!.className).toContain('h-5')
   })
 })

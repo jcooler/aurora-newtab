@@ -19,13 +19,13 @@ describe('Drawer narrow reflow', () => {
     expect(classes).toContain('min-[900px]:rounded-2xl')
   })
 
-  it('gives the narrow close control the local 36px target floor without changing ordinary padding', () => {
+  it('gives the close control the shared 36px target floor without changing padding', () => {
     const onClose = vi.fn()
     render(<Drawer open onClose={onClose} title="Settings"><p>Content</p></Drawer>)
 
     const classes = screen.getByRole('button', { name: 'Close settings' }).className.split(/\s+/)
     expect(classes).toContain('p-1')
-    expect(classes).toContain('max-[420px]:min-h-9')
-    expect(classes).toContain('max-[420px]:min-w-9')
+    expect(classes).toContain('min-h-9')
+    expect(classes).toContain('min-w-9')
   })
 })

@@ -85,7 +85,8 @@ export default function FocusLine() {
       >
         <label
           htmlFor="focus-input"
-          className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg-muted"
+          data-focus-prompt=""
+          className="focus-prompt-label text-base mid:text-sm short:text-sm xshort:text-xs font-medium"
         >
           What&rsquo;s your main focus today?
         </label>

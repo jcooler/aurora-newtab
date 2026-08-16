@@ -176,4 +176,12 @@ describe('FocusLine editor ownership', () => {
     expect(input.className).toContain('short:mb-0')
     expect(input.className).toContain('xshort:mb-0')
   })
+
+  it('marks only the empty editor prompt for its local photo-independent contrast surface', async () => {
+    setup(null)
+    const prompt = await screen.findByText(/main focus today/i)
+    expect(prompt.getAttribute('data-focus-prompt')).toBe('')
+    expect(prompt.className).toContain('focus-prompt-label')
+    expect(document.documentElement.style.getPropertyValue('--canvas-fg-muted')).toBe('')
+  })
 })

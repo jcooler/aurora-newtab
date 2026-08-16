@@ -59,7 +59,7 @@ export default function Switch({
       // 36×20 track (h-5 w-9) with a 2px inset (p-0.5) framing the 16px thumb.
       // cursor-pointer is explicit because Tailwind v4 preflight sets
       // `button { cursor: default }` (same fix as Tabs.tsx / the chips).
-      className="relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50 max-[420px]:h-9"
+      className="relative inline-flex min-h-9 w-9 shrink-0 cursor-pointer items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:cursor-not-allowed disabled:opacity-50"
     >
       {/* The signature micro-interaction: the 16px thumb slides 16px across the
           32px inner track with a slight overshoot (the cubic-bezier overshoots

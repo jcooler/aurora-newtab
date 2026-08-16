@@ -52,6 +52,27 @@
   --switch-off: color-mix(in srgb, var(--fg) 22%, transparent);
   --hairline: color-mix(in srgb, var(--fg) 9%, transparent);
 
+  /* Observatory visual roles (W5-P4). Regional glance surfaces share one
+     fixed photo-facing vocabulary; active editors/dialogs/trays continue to
+     use --panel-solid. These do not follow panelColor because they belong to
+     the photographic canvas, not to the configurable widget surface. */
+  --glance-border: rgb(255 255 255 / 0.12);
+  --glance-border-strong: rgb(255 255 255 / 0.14);
+  --glance-highlight: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --glance-surface: linear-gradient(145deg, rgb(3 7 18 / 0.34), rgb(3 7 18 / 0.16));
+  --glance-surface-day: linear-gradient(150deg, rgb(3 7 18 / 0.42), rgb(3 7 18 / 0.2));
+  --glance-surface-pulse: linear-gradient(150deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.2));
+  --glance-surface-launcher: linear-gradient(145deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.28));
+
+  /* The empty Focus question is the one photo-floating muted phrase that must
+     remain independent of arbitrary image luminance. Fixed light ink on an
+     opaque fixed near-black local surface guarantees that relationship while
+     leaving --canvas-fg-muted unchanged for every other canvas label. */
+  --focus-prompt-bg: #070b14;
+  --focus-prompt-fg: #f5f5f4;
+  --focus-prompt-border: rgb(255 255 255 / 0.18);
+  --focus-prompt-shadow: 0 2px 14px rgb(0 0 0 / 0.35);
+
   --panel-blur: 14px;
   --radius: 1rem;
   --scrim: linear-gradient(rgb(2 6 23 / 0.10), rgb(2 6 23 / 0.22));

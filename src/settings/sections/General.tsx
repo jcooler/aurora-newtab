@@ -118,7 +118,7 @@ export default function General({
                 input lets the swatch carry the focus ring. */}
             <label
               htmlFor="set-panel-color"
-              className="relative inline-flex size-7 cursor-pointer items-center justify-center rounded-full max-[420px]:size-9"
+              className="relative inline-flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full"
             >
               <input
                 ref={colorInputRef}
@@ -132,7 +132,7 @@ export default function General({
               <span
                 aria-hidden
                 style={{ backgroundColor: draftHex }}
-                className="size-7 rounded-full border border-control-border shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent"
+                className="size-7 rounded-full border border-control-border shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent motion-reduce:transition-none"
               />
             </label>
             {/* Quiet Reset, present only when a color is actually set (null =
@@ -142,7 +142,7 @@ export default function General({
                 type="button"
                 aria-label="Reset widget color"
                 onClick={resetColor}
-                className="rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none max-[420px]:min-h-9 max-[420px]:min-w-9"
+                className="min-h-9 min-w-9 rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
               >
                 Reset
               </button>

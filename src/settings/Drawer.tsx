@@ -42,7 +42,7 @@ export default function Drawer({
         aria-modal="true"
         aria-label={title}
         inert={!open} // off-screen drawer must not stay in the tab order
-        className={`fixed inset-0 z-50 w-full max-w-none overflow-y-auto border-0 border-panel-border bg-panel p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 min-[900px]:inset-y-4 min-[900px]:right-4 min-[900px]:left-auto min-[900px]:w-[calc(100vw-2rem)] min-[900px]:max-w-5xl min-[900px]:rounded-2xl min-[900px]:border ${
+        className={`fixed inset-0 z-50 w-full max-w-none overflow-y-auto border-0 border-panel-border bg-panel-solid p-6 text-fg backdrop-blur-[var(--panel-blur)] transition-transform duration-300 motion-reduce:transition-none max-[420px]:p-3 min-[900px]:inset-y-4 min-[900px]:right-4 min-[900px]:left-auto min-[900px]:w-[calc(100vw-2rem)] min-[900px]:max-w-5xl min-[900px]:rounded-2xl min-[900px]:border ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
@@ -52,7 +52,7 @@ export default function Drawer({
             type="button"
             onClick={onClose}
             aria-label="Close settings"
-            className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
+            className="min-h-9 min-w-9 rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
           >
             ✕
           </button>

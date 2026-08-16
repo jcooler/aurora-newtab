@@ -5,15 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 5 - Utility Tray<br>
 **Last verified packet:** `W5-P3` - Settings workspace and connector cards<br>
-**Next packet:** `W5-P4` - Visual/motion system convergence; just-in-time planning next
+**Current packet:** `W5-P4` - Visual/motion system convergence; implementation active
 
 ## Packet envelope
 
-- **Acceptance:** Narrow Settings is full-screen and reflowed; roomy Settings is a wide workspace with vertical navigation. Connector cards lead with configuration state and expose blank credential fields only after setup/edit or for required reconnect.
-- **Implemented files:** Drawer/Tabs responsive workspace, state-first connector shell, explicit TokenConnectForm disclosure/focus return, focused Chromium replay, and stale full-harness Notes/HA/Timer evidence alignment. No schema, migration, registry, planner, storage, permission, privacy, backup, or Store contract changed.
-- **Test scope:** Focused development passed 4 files / 278 tests and TypeScript. One review found one Important keyboard-focus defect; its focused fix/rereview returned Ready. The built-extension replay passed roomy/narrow geometry, vertical/horizontal keyboard navigation, Connected/Reconnect/Setup states, blank edit disclosure, secret absence, cleanup, and zero runtime errors.
-- **Final gate:** 137 files / 2,261 tests; TypeScript; 189-module production/preview builds; clean production bridge scan; full browser harness completed after its one permitted stale-family rerun. Two captures were inspected once.
-- **Manual ceilings:** Native permission prompts, live Home Assistant instance/picker/action success, real screen readers, native zoom/mixed-DPI, OS timezone changes, genuine sleep/wake, and unload-time persistence remain distinct manual evidence. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
+- **Acceptance:** Converge shared surfaces, typography, spacing, state, routine targets, and restrained/reduced motion; give the empty Focus prompt a local background-independent contrast treatment over representative packaged photos without changing global muted text.
+- **Implementation scope:** Theme/index visual tokens, existing Focus prompt presentation, shared Settings control shells, and only the observed reduced-motion omissions. No schema, migration, registry, planner, storage, permission, privacy, backup, connector, or Store change.
+- **Remaining gates:** Focused RED/green unit and built-extension evidence, one implementation review and at most one Critical/Important fix/rereview, then one final unit/TypeScript/build/bridge/full-browser gate and checkpoint proof.
 
 ## Previous packet envelope
 

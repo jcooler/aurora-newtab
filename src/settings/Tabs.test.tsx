@@ -90,15 +90,15 @@ describe('Tabs (ARIA tabs pattern)', () => {
     expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
   })
 
-  it('reflows both free three-tab and premium four-tab sets as a bounded narrow grid with 36px targets', () => {
+  it('reflows both free three-tab and premium four-tab sets as a bounded narrow grid while preserving 36px targets', () => {
     const { rerender } = render(<Host />)
     const assertNarrowGrid = (expected: number) => {
       expect(tablist().className).toContain('max-[420px]:grid')
       expect(tablist().className).toContain('max-[420px]:grid-cols-2')
       expect(screen.getAllByRole('tab')).toHaveLength(expected)
       for (const item of screen.getAllByRole('tab')) {
-        expect(item.className).toContain('max-[420px]:min-h-9')
-        expect(item.className).toContain('max-[420px]:min-w-9')
+        expect(item.className.split(/\s+/)).toContain('min-h-9')
+        expect(item.className.split(/\s+/)).toContain('min-w-9')
         expect(item.className).toContain('max-[420px]:w-full')
       }
     }
