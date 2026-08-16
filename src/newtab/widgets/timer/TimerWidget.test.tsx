@@ -130,7 +130,7 @@ describe('TimerWidget', () => {
     heightSpy.mockRestore()
   })
 
-  it('uses the shared 8px viewport fit, vertical overflow only when required, and narrow 36px controls', async () => {
+  it('uses the shared 8px viewport fit, vertical overflow only when required, and 36px shared action targets', async () => {
     await renderWidget()
     fireEvent.click(await screen.findByRole('button', { name: /Focus timer/ }))
     const dialog = await screen.findByRole('dialog', { name: 'Focus timer' })
@@ -141,9 +141,9 @@ describe('TimerWidget', () => {
     for (const button of [
       screen.getByRole('button', { name: 'Start' }),
       screen.getByRole('button', { name: 'Reset' }),
-    ]) expect(button.classList.contains('max-[420px]:min-h-9')).toBe(true)
+    ]) expect(button.classList.contains('min-h-9')).toBe(true)
     for (const input of screen.getAllByRole('spinbutton')) {
-      expect(input.classList.contains('max-[420px]:h-9')).toBe(true)
+      expect(input.classList.contains('min-h-9')).toBe(true)
     }
   })
 
