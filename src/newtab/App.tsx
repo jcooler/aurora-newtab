@@ -9,6 +9,7 @@ import SettingsPanel from '../settings/SettingsPanel'
 import Background from './components/Background'
 import BoardItem from './components/BoardItem'
 import DayContext from './components/DayContext'
+import SignalDockEntry from './components/SignalDockEntry'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
 import ArrangeController from './arrange/ArrangeController'
@@ -39,6 +40,7 @@ export default function App() {
   const [notesOpen, setNotesOpen] = useState(false)
   const [tasksOpen, setTasksOpen] = useState(false)
   const [timerOpen, setTimerOpen] = useState(false)
+  const [openSignalDockId, setOpenSignalDockId] = useState<BlockId | null>(null)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const wasArrangingRef = useRef(false)
   const dockPointerDownRef = useRef(false)
@@ -107,6 +109,13 @@ export default function App() {
     })
   }, [activeEntries, arrangePreview, layout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
 
+  useEffect(() => {
+    if (!openSignalDockId || !resolution) return
+    const allocation = resolution.plan.allocations.find(({ id }) => id === openSignalDockId)
+    const entry = WIDGET_REGISTRY_BY_ID[openSignalDockId]
+    if (allocation?.zone !== 'dock' || entry.availability.kind !== 'connector') setOpenSignalDockId(null)
+  }, [openSignalDockId, resolution])
+
   if (!stageInputsReady || !settings || !photoPrefs || !layout || !connectors || !resolution) return null
 
   const rendererProps: WidgetRendererProps = {
@@ -123,13 +132,23 @@ export default function App() {
     tasks: tasksOpen,
     timer: timerOpen,
   }
+  if (openSignalDockId) openById[openSignalDockId] = true
   const pinnedOverflow = (['day', 'now', 'pulse'] as const).some((zone) =>
     resolution.plan.implicitRows[zone] > resolution.geometry.capacities[zone][1])
   const viewportOverflow = resolution.diagnostics.some((diagnostic) => diagnostic.kind === 'density-viewport-overflow')
   const renderAllocation = (allocation: StageAllocation) => {
     const entry = WIDGET_REGISTRY_BY_ID[allocation.id]
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
-    const child = <Renderer {...rendererProps} />
+    const renderer = <Renderer {...rendererProps} />
+    const child = allocation.zone === 'dock' && entry.availability.kind === 'connector' ? (
+      <SignalDockEntry
+        entry={entry}
+        open={openSignalDockId === entry.id}
+        onOpenChange={(open) => setOpenSignalDockId(open ? entry.id : null)}
+      >
+        {renderer}
+      </SignalDockEntry>
+    ) : renderer
     return (
       <BoardItem
         key={entry.id}

@@ -186,6 +186,42 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelectorAll('[data-block-id="rss"]')).toHaveLength(1)
   })
 
+  it('gives a Docked connector one operable entry and removes the wrapper when it returns to Work Pulse', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { github: { enabled: true, username: '' } })
+    await storage.set('layout', {
+      version: 2,
+      profiles: { standard: { github: {
+        zone: 'dock', order: 3, colSpan: 1, rowSpan: 1,
+        variant: 'compact', priority: 'dock',
+      } } },
+    })
+    await renderApp(storage)
+
+    expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-signal-dock-entry]')).toHaveLength(1)
+    expect(document.querySelector('[data-block-id="notes"] [data-signal-dock-entry]')).toBeNull()
+    const open = screen.getByRole('button', { name: 'Open GitHub details' })
+    fireEvent.click(open)
+    expect(open.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.keyDown(document.querySelector('[data-signal-dock-content]') as HTMLElement, { key: 'Escape' })
+    expect(screen.getByRole('button', { name: 'Open GitHub details' })).toBe(document.activeElement)
+
+    await act(async () => {
+      await storage.set('layout', {
+        version: 2,
+        profiles: { standard: { github: {
+          zone: 'pulse', order: 1, colSpan: 1, rowSpan: 1,
+          variant: 'compact', priority: 'automatic',
+        } } },
+      })
+    })
+    expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
+    expect(document.querySelector('[data-block-id="github"]')?.getAttribute('data-stage-zone')).toBe('pulse')
+    expect(document.querySelector('[data-signal-dock-entry]')).toBeNull()
+  })
+
   it('uses only the active-profile override and ignores legacy for committed rendering', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

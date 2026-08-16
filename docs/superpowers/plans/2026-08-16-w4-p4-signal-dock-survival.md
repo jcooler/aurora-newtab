@@ -33,11 +33,11 @@
 - Consumes: `WidgetRegistryEntry.availability.kind === 'connector'`, the existing single renderer child, and App-owned open state.
 - Produces: `SignalDockEntry({ entry, open, onOpenChange, children })`, `data-signal-dock-entry`, `data-signal-dock-open`, `data-signal-dock-content`, and an `aria-expanded` button named `Open {label} details` / `Close {label} details`.
 
-- [ ] Write failing component/App tests proving only connector allocations in Dock receive the wrapper, the child renders once, identity plus truthful `Enabled` fallback remain visible, one disclosure can be open, Escape closes and restores its invoking button, and moving the connector back to its board zone removes the Dock wrapper without changing allocation identity.
-- [ ] Run `npx vitest run src/newtab/components/SignalDockEntry.test.tsx src/newtab/App.test.tsx` and confirm the new assertions fail because the shared disclosure does not exist.
-- [ ] Implement the minimal shared disclosure and App-owned single-open connector ID. Do not clone the child; render it once inside `data-signal-dock-content`. Clear stale open state when the ID no longer has a Dock allocation.
-- [ ] Run the same focused test command and `npx tsc --noEmit`; require green output.
-- [ ] Commit `feat(dock): add operable connector entries`.
+- [x] Write failing component/App tests proving only connector allocations in Dock receive the wrapper, the child renders once, identity plus truthful `Enabled` fallback remain visible, one disclosure can be open, Escape closes and restores its invoking button, and moving the connector back to its board zone removes the Dock wrapper without changing allocation identity.
+- [x] Run `npx vitest run src/newtab/components/SignalDockEntry.test.tsx src/newtab/App.test.tsx` and confirm the new assertions fail because the shared disclosure does not exist.
+- [x] Implement the minimal shared disclosure and App-owned single-open connector ID. Do not clone the child; render it once inside `data-signal-dock-content`. Clear stale open state when the ID no longer has a Dock allocation.
+- [x] Run the same focused test command and `npx tsc --noEmit`; require green output.
+- [x] Commit `feat(dock): add operable connector entries`.
 
 ### Task 2: Replace preserved full-card Dock geometry with intentional condensed anatomy
 
