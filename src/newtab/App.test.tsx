@@ -48,7 +48,7 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelector('[data-block-id="notes"]')?.getAttribute('data-stage-zone')).toBe('dock')
   })
 
-  it('publishes finite Dock geometry and intrinsic-width wrappers', async () => {
+  it('publishes finite Dock geometry with inline container ownership and explicit sizing', async () => {
     await renderApp()
     const dock = screen.getByRole('region', { name: 'Signal Dock' })
     const dockItems = [...dock.querySelectorAll<HTMLElement>(':scope > [data-block-id]')]
@@ -60,7 +60,8 @@ describe('App — Adaptive Stage composition', () => {
     const notes = document.querySelector<HTMLElement>('[data-block-id="notes"]')!
     expect(notes.style.getPropertyValue('--board-col-span')).toBe('1')
     expect(notes.style.getPropertyValue('--board-row-span')).toBe('1')
-    expect(notes.style.containerType).toBe('normal')
+    expect(notes.style.containerType).toBe('inline-size')
+    expect(notes.style.inlineSize).toBe('var(--stage-track-min)')
   })
 
   it('publishes zero explicit Dock tracks when no allocation belongs to the Dock', async () => {
@@ -164,7 +165,7 @@ describe('App — Adaptive Stage composition', () => {
     expect(focus.style.position).toBe('')
   })
 
-  it('keeps the protected Clock readable when legacy migration publishes a compact rail override', async () => {
+  it('preserves a migrated pinned Clock override while canonical Now protection stays separate', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('settings', { ...defaults().settings, layoutDensity: 'compact' })
@@ -180,8 +181,8 @@ describe('App — Adaptive Stage composition', () => {
     const clock = document.querySelector<HTMLElement>('[data-block-id="clock"]')!
     expect(clock.dataset.stageZone).toBe('day')
     expect(clock.dataset.stageVariant).toBe('compact')
-    expect(clock.style.getPropertyValue('--board-col-span')).toBe('3')
-    expect(clock.style.getPropertyValue('--board-row-span')).toBe('2')
+    expect(clock.style.getPropertyValue('--board-col-span')).toBe('1')
+    expect(clock.style.getPropertyValue('--board-row-span')).toBe('1')
   })
 
   it('marks explicit pinned implicit rows for Stage-owned vertical overflow', async () => {

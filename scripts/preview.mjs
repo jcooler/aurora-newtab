@@ -1371,15 +1371,46 @@ async function runAdaptiveStagePaintFixture(targetPage) {
     invisibleButton.style.cssText = 'width:32px;height:32px;background:#fff'
     invisibleAncestor.append(invisibleButton)
     transparent.append(invisibleAncestor)
-    zone.append(empty, transparent)
-    return { empty: empty.dataset.blockId, transparent: transparent.dataset.blockId }
+
+    const visibleEscape = document.createElement('div')
+    visibleEscape.className = 'board-item board-item--now'
+    visibleEscape.dataset.blockId = 'fixture-visible-escape'
+    visibleEscape.dataset.stageZone = 'now'
+    visibleEscape.style.cssText = 'position:relative;width:40px;height:40px;grid-column:1;grid-row:1'
+    const escapingPaint = document.createElement('button')
+    escapingPaint.textContent = 'Escaped paint'
+    escapingPaint.style.cssText = 'position:absolute;left:32px;top:0;width:24px;height:24px;background:#fff'
+    visibleEscape.append(escapingPaint)
+
+    const collision = document.createElement('div')
+    collision.className = 'board-item board-item--now'
+    collision.dataset.blockId = 'fixture-visible-collision'
+    collision.dataset.stageZone = 'now'
+    collision.style.cssText = 'width:40px;height:40px;margin-left:48px;grid-column:1;grid-row:1;background:#f00'
+
+    zone.append(empty, transparent, visibleEscape, collision)
+    return {
+      empty: empty.dataset.blockId,
+      transparent: transparent.dataset.blockId,
+      visibleEscape: visibleEscape.dataset.blockId,
+      collision: collision.dataset.blockId,
+    }
   })
   const empty = await adaptiveStagePredecessor(targetPage, [ids.empty])
   const transparentAncestor = await adaptiveStagePredecessor(targetPage, [ids.transparent])
+  const visibleEscape = await adaptiveStagePredecessor(targetPage, [ids.visibleEscape, ids.collision])
   return {
-    emptyTargetRejected: !empty.targetsOk,
-    transparentAncestorRejected: !transparentAncestor.targetsOk,
-    observed: { emptyTargetsOk: empty.targetsOk, transparentAncestorTargetsOk: transparentAncestor.targetsOk },
+    emptyWrapperAllowed: empty.targetsOk,
+    invisibleWrapperAllowed: transparentAncestor.targetsOk,
+    visibleEscapeRejected: !visibleEscape.targetsOk && visibleEscape.targetCollisions.length > 0 &&
+      visibleEscape.targets.some((target) => target.id === ids.visibleEscape && !target.paintContainedInItem),
+    observed: {
+      emptyTargetsOk: empty.targetsOk,
+      invisibleTargetsOk: transparentAncestor.targetsOk,
+      visibleEscapeTargetsOk: visibleEscape.targetsOk,
+      visibleEscapeCollisions: visibleEscape.targetCollisions,
+      visibleEscapeTargets: visibleEscape.targets,
+    },
   }
 }
 
@@ -1449,7 +1480,7 @@ async function runAdaptiveStageBookmarksGeometryFixture(targetPage) {
       ...committed,
       semantic,
       ok: committed.legacy?.x === 25 && committed.legacy?.y === 50 &&
-        committed.allocation?.zone === 'day' && committed.allocation.colSpan === 3 && committed.allocation.rowSpan === 2 &&
+        committed.allocation?.zone === 'day' && committed.allocation.colSpan === 1 && committed.allocation.rowSpan === 1 &&
         semantic.targetsOk,
     }
   }
@@ -2595,7 +2626,7 @@ if (process.env.AURORA_PREVIEW_PAINT_FIXTURE === '1') {
   console.log(`EVIDENCE: Adaptive Stage paint fixture: ${JSON.stringify(fixture)}`)
   await context.close()
   rmSync(profileDir, { recursive: true, force: true })
-  process.exit(fixture.emptyTargetRejected && fixture.transparentAncestorRejected ? 0 : 1)
+  process.exit(fixture.emptyWrapperAllowed && fixture.invisibleWrapperAllowed && fixture.visibleEscapeRejected ? 0 : 1)
 }
 
 // Seed a manual location so weather renders deterministically-ish (live
@@ -5245,7 +5276,7 @@ const droppedAllocation = await page.evaluate(() => {
 const semanticDropPersisted = droppedCompatibility &&
   droppedCompatibility.x === dropTarget.x / 1600 * 100 &&
   droppedCompatibility.y === dropTarget.y / 900 * 100 &&
-  droppedAllocation?.zone === 'day' && droppedAllocation.colSpan === 3 && droppedAllocation.rowSpan === 2 &&
+  droppedAllocation?.zone === 'day' && droppedAllocation.colSpan === 1 && droppedAllocation.rowSpan === 1 &&
   droppedStage.targetsOk
 console.log(
   semanticDropPersisted
@@ -17514,7 +17545,7 @@ function gitlabContributionsFixture() {
 // The OPEN timer panel was asserted only at 1600x900, never at a small
 // viewport where a 218px panel actually presses against the clamp. Prove it
 // at the matrix's tightest shape (800x450): open the panel, assert with real
-// rects that it stays FULLY on-screen, CLEARS the bookmarks band, and is a
+// rects that it stays FULLY on-screen, stays above the Signal Dock, and is a
 // disciplined occluder (solid surface, topmost at its own centre) — the same
 // rules the notes/tasks/timer-vs-connector gate just above applies. Measured,
 // not assumed: if the clamp fails here it FAILs honestly. Restores 1600x900.
@@ -17527,7 +17558,7 @@ function gitlabContributionsFixture() {
   const clamp = await page.evaluate(() => {
     const panel = document.querySelector('[role="dialog"][aria-label="Focus timer"]')
     if (!panel) return { found: false }
-    const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+    const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
     const cs = getComputedStyle(panel)
     const alpha = (() => {
@@ -17539,7 +17570,7 @@ function gitlabContributionsFixture() {
     // Topmost at the panel's own centre — proves nothing over-paints it where
     // it overlaps stacked center-column content at this tight viewport.
     const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
-    const bar = nav ? nav.getBoundingClientRect() : null
+    const dockRect = dock ? dock.getBoundingClientRect() : null
     return {
       found: true,
       vw: window.innerWidth,
@@ -17552,17 +17583,17 @@ function gitlabContributionsFixture() {
         p.bottom <= window.innerHeight + 0.5,
       alpha: +alpha.toFixed(2),
       onTop: !!sample && panel.contains(sample),
-      barBottom: bar ? +bar.bottom.toFixed(1) : null,
-      clearsBand: bar ? p.top >= bar.bottom : true,
+      dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
+      clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
     }
   })
   await page.screenshot({ path: `${outDir}/timer-panel-800x450.png` })
   console.log('captured timer-panel-800x450.png')
   const timerClampOk =
-    clamp.found && clamp.onScreen && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.clearsDock && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     timerClampOk
-      ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
       : `FAIL: the open Focus timer panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
   )
   await page.keyboard.press('Escape')
@@ -17579,7 +17610,7 @@ function gitlabContributionsFixture() {
 // matrix's tightest shape (800x450), the same 800x450 precedent the timer
 // clamp probe just above uses: open the panel (its seeded render fixture is
 // still in storage from the capture section), assert with real rects that it
-// stays FULLY on-screen, CLEARS the bookmarks band, and is a disciplined
+// stays FULLY on-screen, stays above the Signal Dock, and is a disciplined
 // occluder (solid surface, topmost at its own centre). Measured, not assumed.
 {
   await page.setViewportSize({ width: 800, height: 450 })
@@ -17590,7 +17621,7 @@ function gitlabContributionsFixture() {
   const clamp = await page.evaluate(() => {
     const panel = document.querySelector('[role="dialog"][aria-label="Tasks"]')
     if (!panel) return { found: false }
-    const nav = document.querySelector('nav[aria-label="Bookmarks bar"]')
+    const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
     const cs = getComputedStyle(panel)
     const alpha = (() => {
@@ -17600,7 +17631,7 @@ function gitlabContributionsFixture() {
       return parts.length > 3 ? parts[3] : 1
     })()
     const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
-    const bar = nav ? nav.getBoundingClientRect() : null
+    const dockRect = dock ? dock.getBoundingClientRect() : null
     return {
       found: true,
       vw: window.innerWidth,
@@ -17614,17 +17645,17 @@ function gitlabContributionsFixture() {
         p.bottom <= window.innerHeight + 0.5,
       alpha: +alpha.toFixed(2),
       onTop: !!sample && panel.contains(sample),
-      barBottom: bar ? +bar.bottom.toFixed(1) : null,
-      clearsBand: bar ? p.top >= bar.bottom : true,
+      dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
+      clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
     }
   })
   await page.screenshot({ path: `${outDir}/todo-panel-800x450.png` })
   console.log('captured todo-panel-800x450.png')
   const tasksClampOk =
-    clamp.found && clamp.onScreen && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.clearsDock && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     tasksClampOk
-      ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, clears the bookmarks band (panel top ${clamp.p.t} >= bar bottom ${clamp.barBottom}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
       : `FAIL: the open Tasks panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
   )
   await page.keyboard.press('Escape')
@@ -22189,6 +22220,7 @@ await page.waitForTimeout(150)
   const observations = {
     sparse: [], dense: null, manualDensity: null, override: null, pinnedOverflow: null,
     denseDockKeyboard: null, compactNarrowFocus: null, arrangeFocusRestoration: null,
+    paintFixture: null,
     cleanup: { restored: false, viewportRestored: false, pageClosed: false, lockCrossed: false },
     captures: [], keyboardTrace: [], keyboardCoverage: null, capturedErrors: [], errors: [],
   }
@@ -22337,6 +22369,8 @@ await page.waitForTimeout(150)
           paintRect, painted,
           spans: [style.getPropertyValue('--board-col-span').trim(), style.getPropertyValue('--board-row-span').trim()],
           containerType: style.containerType,
+          inlineSize: style.inlineSize,
+          authoredInlineSize: node.style.inlineSize,
           transform: style.transform,
           zIndex: style.zIndex,
           pointerEvents: style.pointerEvents,
@@ -22417,6 +22451,12 @@ await page.waitForTimeout(150)
         (!focusLabel || (focusLineHeight > 0 && focusLabel.getBoundingClientRect().height <= focusLineHeight * 2.1 && focusLabelContained))
       )
       const dockRows = itemRows.filter((row) => row.zone === 'dock')
+      const persistentTargets = ['Open settings', 'New background photo'].map((name) => {
+        const target = document.querySelector(`button[aria-label="${name}"]`)
+        if (!(target instanceof HTMLElement)) return { name, found: false, width: 0, height: 0 }
+        const rect = target.getBoundingClientRect()
+        return { name, found: true, width: rect.width, height: rect.height }
+      })
       const bookmarksRow = itemRows.find((row) => row.id === 'bookmarks')
       const closedBookmarksStackingNeutral = !bookmarksRow || bookmarksRow.zIndex === 'auto'
       const closedBookmarksHitTestNeutral = !bookmarksRow || bookmarksRow.pointerEvents === 'none'
@@ -22443,6 +22483,15 @@ await page.waitForTimeout(150)
         usedDockTracks.length === plannedDockTrackCount &&
         (plannedDockTrackCount > 0 || dockRows.length === 0) &&
         usedDockTracks.every((track) => Number.isFinite(track) && Boolean(token) && track >= token.track)
+      const dockInlineSizeExact = Boolean(token) && dockRows.every((row) => {
+        const span = Number(row.spans[0])
+        return row.containerType === 'inline-size' &&
+          row.authoredInlineSize !== '' && Number.parseFloat(row.inlineSize) > 0 &&
+          Math.abs((row.rect.right - row.rect.left) - Number.parseFloat(row.inlineSize)) <= 1 &&
+          row.rect.right - row.rect.left >= span * token.track + Math.max(0, span - 1) * token.gap - 1
+      })
+      const persistentTargetsExact = Boolean(token) && persistentTargets.every((target) =>
+        target.found && target.width >= token.target - 0.5 && target.height >= token.target - 0.5)
       return {
         expected: { profile, sublayout, density: expectedDensity },
         actual: {
@@ -22459,6 +22508,9 @@ await page.waitForTimeout(150)
         stageCapacityExact,
         dockTrackContract,
         dockExplicitTracksExact,
+        dockInlineSizeExact,
+        persistentTargetsExact,
+        persistentTargets,
         profileExact: root.dataset.stageProfile === profile &&
           rootStyle.getPropertyValue('--stage-css-profile').trim() === profile &&
           main?.getAttribute('data-stage-sublayout') === sublayout,
@@ -22468,7 +22520,7 @@ await page.waitForTimeout(150)
         clockProtected: itemRows.find((row) => row.id === 'clock')?.zone === 'now',
         semanticWrappers: itemRows.length > 0 && itemRows.every((row) =>
           allBlockIds.includes(row.id) && row.profile === profile && row.variant && row.priority &&
-          row.containerType === (row.zone === 'dock' ? 'normal' : 'inline-size') && row.transform === 'none'),
+          row.containerType === 'inline-size' && row.transform === 'none'),
         finiteBoardContained,
         noPageHorizontalScroll,
         noVerticalScroll,
@@ -22491,7 +22543,8 @@ await page.waitForTimeout(150)
     }, { profile, sublayout, expectedDensity, tokens: densityTokens, capacities: stageCapacities, allBlockIds })
   }
   const probeOk = (row) => row.rootOwned && row.tokenExact && row.profileExact && row.densityExact &&
-    row.stageCapacityExact && row.dockTrackContract && row.dockExplicitTracksExact && row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
+    row.stageCapacityExact && row.dockTrackContract && row.dockExplicitTracksExact && row.dockInlineSizeExact && row.persistentTargetsExact &&
+    row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
     row.noOverlap && row.descendantPaintContained && row.noPaintOverlap && row.compactReadable &&
     row.noRootTransform && row.dockPresent && row.dockReachable && row.dockZoneParentExact && row.dockReasonExact
     && row.closedBookmarksStackingNeutral && row.closedBookmarksHitTestNeutral
@@ -22500,6 +22553,9 @@ await page.waitForTimeout(150)
     await evidencePage.goto('chrome://newtab/')
     await waitForStage()
     originalPreimage = await evidencePage.evaluate((keys) => chrome.storage.local.get(keys), touchedKeys)
+    observations.paintFixture = await runAdaptiveStagePaintFixture(evidencePage)
+    await evidencePage.reload()
+    await waitForStage()
     const sparseBase = await evidencePage.evaluate(async () => {
       const current = await chrome.storage.local.get(['settings', 'layout', 'connectors'])
       const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, false]))
@@ -22796,6 +22852,8 @@ await page.waitForTimeout(150)
   }
 
   const ok = observations.errors.length === 0 && observations.capturedErrors.length === 0 &&
+    observations.paintFixture?.emptyWrapperAllowed && observations.paintFixture.invisibleWrapperAllowed &&
+    observations.paintFixture.visibleEscapeRejected &&
     observations.captures.length === 6 && observations.keyboardCoverage?.exactOnce &&
     observations.keyboardCoverage.noneHidden && observations.keyboardTrace.length > 0 && observations.compactNarrowFocus?.ok &&
     observations.sparse.length === profileCases.length &&

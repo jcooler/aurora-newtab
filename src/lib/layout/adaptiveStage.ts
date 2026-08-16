@@ -241,16 +241,6 @@ export function effectiveStageEntries(input: {
         placement.zone = resolved
       }
     }
-    // Legacy free-position migration can preserve a pinned Clock's requested
-    // zone/order, but its generic 1x1 mapping is not a readable Clock
-    // footprint. Only the protected Clock receives this floor: keep any
-    // larger stored span, while preventing an override from shrinking below
-    // the active profile's source-variant footprint before capacity clamping.
-    if (entry.protectedClock && hasOverride && placement.zone !== 'dock') {
-      const safe = spanFor(entry, source.variant, { colSpan: source.colSpan, rowSpan: source.rowSpan })
-      placement.colSpan = Math.max(placement.colSpan, safe.colSpan)
-      placement.rowSpan = Math.max(placement.rowSpan, safe.rowSpan)
-    }
     if (placement.zone !== 'dock') {
       const [columns, rows] = capacityFor(input.profile, density, viewportWidth, placement.zone)
       placement.colSpan = Math.max(1, Math.min(columns, Math.trunc(placement.colSpan)))

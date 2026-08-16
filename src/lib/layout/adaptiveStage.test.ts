@@ -326,7 +326,7 @@ describe('protected Clock reservation', () => {
     expect(result.allocations.find((row) => row.id === 'greeting')?.rect).toEqual({ colStart: 1, rowStart: 3, colSpan: 2, rowSpan: 1 })
   })
 
-  it('keeps an outside-Now pinned Clock at least as large as its protected source footprint', () => {
+  it('preserves an outside-Now pinned Clock override\'s clamped stored spans', () => {
     const protectedClock = entry('clock', {
       protectedClock: true,
       eligibleZones: ['now'],
@@ -337,7 +337,7 @@ describe('protected Clock reservation', () => {
       clock: placement({ zone: 'day', order: 7, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned', locked: true }),
     }, 'standard', 'compact')
     expect(result.allocations[0]).toMatchObject({
-      id: 'clock', zone: 'day', order: 7, colSpan: 3, rowSpan: 2,
+      id: 'clock', zone: 'day', order: 7, colSpan: 1, rowSpan: 1,
       variant: 'compact', priority: 'pinned', locked: true,
     })
     expect(result.clockReservation).toEqual({

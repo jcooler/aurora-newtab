@@ -1707,8 +1707,16 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="bookmarks"] [data-chip-mark] { display: block; }
 
-.settings-gear { z-index: 50; }
-.adaptive-stage button[aria-label="New background photo"] { z-index: 50; }
+.adaptive-stage .settings-gear,
+.adaptive-stage button[aria-label="New background photo"] {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  inline-size: var(--stage-control-target);
+  block-size: var(--stage-control-target);
+  padding: 0;
+  z-index: 50;
+}
 
 /* A content-driven Tasks dialog can be taller than its initial preferred
    anchor size. At the Compact height floor, keep its live portal box inside
