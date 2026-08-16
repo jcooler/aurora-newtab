@@ -166,6 +166,7 @@ try {
   evidence.captures.compact = await capture(800, 600, 'w4-p2-compact-800x600.png', expected.compact)
   evidence.captures.standard = await capture(1600, 900, 'w4-p2-standard-1600x900.png', expected.standard)
   evidence.captures.display = await capture(2560, 1440, 'w4-p2-display-2560x1440.png', expected.display)
+  evidence.compactWide = await capture(600, 800, 'w4-p2-compact-wide-600x800.png', expected.compact)
   evidence.narrow = await capture(320, 800, 'w4-p2-compact-narrow-320x800.png', expected.compact)
 
   for (const [profile, observation] of Object.entries(evidence.captures)) {
@@ -176,6 +177,8 @@ try {
     assert(observation.noHorizontalPageClip, `${profile}: horizontal page clipping`)
     assert(!observation.texts.join(' ').includes('private-token') && !observation.texts.join(' ').includes('zoom.us'), `${profile}: secret/capability text surfaced`)
   }
+  assert(evidence.compactWide.profile === 'compact', `compact-wide: wrong profile ${evidence.compactWide.profile}`)
+  assert(evidence.compactWide.greetingTextFits && evidence.compactWide.contained, 'compact-wide: Greeting or Briefing escaped its compact allocation')
   assert(evidence.narrow.profile === 'compact', `narrow: wrong profile ${evidence.narrow.profile}`)
   assert(evidence.narrow.greetingTextFits && evidence.narrow.contained, 'narrow: Greeting or Briefing escaped its compact allocation')
   assert(externalRequests.length === 0, `Briefing introduced external request(s): ${externalRequests.join(', ')}`)
