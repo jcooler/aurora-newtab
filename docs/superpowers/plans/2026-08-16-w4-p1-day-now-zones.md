@@ -74,7 +74,7 @@
 - [x] Run the final full unit suite once, TypeScript, production and preview builds once, the production bridge scan, and the full browser harness once. If the harness fails, fix the actual family and rerun once only.
 - [x] Run one focused built-extension replay with sparse and populated Day states plus Compact 800x600, Standard 1600x900, and Display 2560x1440 Now witnesses. Prove exact semantic hierarchy, single ownership, bounded/paint-contained geometry, targets/focus, no page clipping, useful expanded date detail with Compact remaining concise, and zero runtime errors.
 - [x] Inspect the three required captures once, mark W4-P1 Verified, record exact gates and A2-D027, commit `docs: checkpoint W4-P1`, push, and prove target/upstream equality plus clean target/protected-original worktrees.
-- [ ] Begin W4-P2 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
+- [x] Begin W4-P2 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of Done
 

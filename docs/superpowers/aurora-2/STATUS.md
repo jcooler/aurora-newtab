@@ -5,7 +5,7 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
 **Last verified packet:** `W4-P1` - Day and Now zones<br>
-**Next packet:** `W4-P2` - Aurora Briefing; Not started, plan creation next
+**Next packet:** `W4-P2` - Aurora Briefing; Planned, focused RED tests next
 
 ## Packet envelope
 
@@ -316,8 +316,8 @@
 ## Continuous remaining-work protocol
 
 - **Packet:** `W4-P2` - Aurora Briefing
-- **Plan:** Create just in time from the written W4-P2 acceptance criteria.
-- **State:** Not started; plan creation is next. Scope is deterministic privacy-preserving synthesis with priority/truncation and no new network dependency; do not absorb W4-P3 connector variants, W4-P4 Dock redesign, or W4-P5 launcher/content work.
+- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p2-aurora-briefing.md`.
+- **State:** Planned; focused RED tests are next. Scope is local-only deterministic Calendar/Tasks/Weather synthesis with fixed priority/truncation and no new network dependency; do not absorb W4-P3 connector variants, W4-P4 Dock redesign, or W4-P5 launcher/content work.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
