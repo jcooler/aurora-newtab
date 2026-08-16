@@ -3,16 +3,16 @@
 **Updated:** 2026-08-16<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 3 — Adaptive Stage foundation<br>
-**Last verified packet:** `W3-P3` - Arrange/profile editor<br>
-**Next packet:** `W3-P4` - Legacy retirement gate; Not started, no plan
+**Current wave:** Wave 4 — Information hierarchy and variants<br>
+**Last verified packet:** `W3-P4` - Legacy retirement gate<br>
+**Next packet:** `W4-P1` - Day and Now zones; Not started, no plan
 
 ## Packet envelope
 
-- **Acceptance:** Edit the active semantic profile by keyboard reorder, eligible-zone move, allowed variant, priority/Dock intent, bounded span, and lock; preview without persistence; Undo; exact Cancel; reset one profile; copy another profile; and Save only the active profile without losing sibling profiles or legacy rollback provenance.
-- **Implemented files:** Immutable profile draft operations in `profileEditor.ts`; semantic `ArrangeController` dialog and controls; `App` preview integration through the frozen W3-P2 planner; migration-safe active-profile persistence; and focused production-extension browser evidence. Frozen registry, Layout V2 schema, storage authority, permissions, privacy, and Store boundaries remain unchanged.
-- **Test scope:** Focused red/green model, controller, App, and planner coverage; one final full unit/build set; one implementation review and one fix/rereview; one focused real-Chromium W3-P3 replay after the legacy aggregate was blocked by an unrelated harness-timing family.
-- **Visual scope:** Standard 1600x900, Compact 800x600, and Display 2560x1440 editor captures were inspected. The modal remains bounded, scrollable where constrained, keyboard accessible, and does not introduce horizontal page clipping; automated Chromium evidence does not claim native zoom, mixed-DPI, or a real screen-reader pass.
+- **Acceptance:** Remove live fixed-percentage placement and editing plus height-tier paths capable of hiding an entire enabled BoardItem, after proving semantic replacement parity and exact rollback provenance.
+- **Implemented files:** Deleted `PositionedBlock`, percentage snap/clamp/pill-dodge modules, the percentage draft seam, legacy editing helpers, dead rail CSS, and whole-widget hide classes. Active semantic preview types now live in `arrangePreview.ts`; the frozen optional `layout.legacy` field remains migration/backup provenance only and is ignored by rendering.
+- **Test scope:** Focused RED/green source guards, semantic parity, migration/backup preservation, App/Arrange, and GitHub/GitLab/Vercel representation; one final full unit/build set; one implementation review; one actual full-harness family fix and one permitted causal rerun; one focused W3-P4 real-Chromium proof.
+- **Visual scope:** Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected. All three target connectors remain represented exactly once without inline percentage positioning; compact truncation and historical evidence naming are Minor follow-up only. Automated Chromium evidence does not claim native zoom, mixed-DPI, or a real screen-reader pass.
 
 ## Last completed commits
 
@@ -94,8 +94,20 @@
 - `c6a22cb`, `dc022b2`, and `088cf71` - executable W3-P3 plan, immutable semantic draft model, and production Arrange/profile editor with live Adaptive Stage preview.
 - `eab1bfe` - bounded review fixes preserving disabled-widget placements during profile copy and preventing Escape from cancelling an in-flight Save.
 - `8bc420d`, `672e136`, and `314bcbd` - focused semantic browser coverage, stale Arrange predecessor alignment, deterministic Weather recovery convergence, and the standalone W3-P3 replay; verified W3-P3 implementation head.
+- `108ac59` - executable W3-P4 legacy-retirement plan preserving the frozen rollback-provenance boundary.
+- `1951eb2` and `f5132fc` - retired live percentage placement/editing machinery, dead rail CSS, and whole-widget height-hide paths while retaining exact migration/backup provenance.
+- `e4cebe4` - causal W3-P3 focus-restoration harness wait plus the focused W3-P4 semantic parity, representation, rollback, runtime, and capture proof; verified W3-P4 implementation head.
 
 ## Latest verification
+
+- W3-P4 focused source/layout/App/Arrange/backup/migration/widget development gates passed: 10 files / 346 tests, with the final narrowed source/widget gate at 5 files / 113 tests. TypeScript exited 0.
+- Final `npm test` after implementation stabilized - exit 0; 127 files / 2,197 tests passed.
+- Final `npm run build` and `npm run build:preview` - exit 0; both transformed 182 modules. The production bridge scan returned expected exit 1 with no forbidden preview symbol output.
+- The final full harness first run reached 456 PASS / 1 FAIL / 3 SKIP. Its sole failure sampled Cancel focus one React effect before the already-tested Settings restoration completed; no product failure was present. The focused W3-P3 family passed after the causal wait, and the single permitted full rerun exited 0 at exactly 457 PASS / 0 FAIL / 3 SKIP, including the named W3-P2 and W3-P3 aggregates.
+- Focused `node scripts/preview-w3-p4.mjs` - exit 0 with `PASS: W3-P4 legacy retirement and rollback semantics`; GitHub, GitLab, and Vercel are each represented once in Compact/Standard/Display, all omit inline percentage positioning, allocation is identical with and without extreme legacy provenance, legacy data is exact, teardown restored the preimage, and `runtimeErrors: []`.
+- Captures under `C:\Users\SickT\Documents\Codex\2026-08-16\change-aurora-execution-to-pragmatic-delivery\outputs\w3-p4\`: `w3-p4-compact-800x600.png`, `w3-p4-standard-1600x900.png`, and `w3-p4-display-2560x1440.png`. All three passed original-resolution inspection.
+- One implementation review against only the explicit packet criteria found 0 Critical / 0 Important issues. Minor follow-up only: historical percentage-era evidence names/comments and internal content-detail tiers owned by W4; neither reopens W3-P4.
+- No schema, registry, migration, stored-data, permission, privacy, Aurora V1, or Store contract changed. The optional frozen `layout.legacy` member remains exact rollback provenance but has no live rendering/editing authority.
 
 - W3-P3 focused red/green coverage exercises reorder, move, variant, priority, spans, lock, preview, Undo, Cancel, reset-one, copy-profile, Save-only persistence, sibling-profile/legacy preservation, and pending-Save lifecycle.
 - Final `npm test` after implementation stabilized - exit 0; 130 files / 2,232 tests passed. `npx tsc --noEmit` also exited 0.
@@ -287,13 +299,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W3-P3`. If `git status --short` is non-empty at continuation, reconcile it before W3-P4 production work.
+- None expected after `docs: checkpoint W3-P4`. If `git status --short` is non-empty at continuation, reconcile it before W4-P1 production work.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W3-P4` - Legacy retirement gate
-- **Plan:** None. Create it just in time from the master specification, verified W3-P1 rollback contract, frozen W3-P2 profile/registry/planner contract, and verified W3-P3 semantic editor parity.
-- **State:** Not started. Prove replacement parity and rollback evidence before removing percentage rendering, `PositionedBlock`, legacy Arrange modules/CSS, and `layout.legacy` compatibility code within the written W3-P4 boundary.
+- **Packet:** `W4-P1` - Day and Now zones
+- **Plan:** None. Create it just in time from the master specification and the verified W3 semantic Stage/editor/retirement contracts.
+- **State:** Not started. Implement responsive Day context and the protected Clock/Greeting/Search/Focus hierarchy; larger displays add useful detail without changing the frozen registry/schema, storage/privacy/permission authorities, or W4-P2 Briefing ownership.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -305,9 +317,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W3-P4
-Verified W3-P3 implementation SHA: 314bcbd
-Expected next checkpoint subject: docs: checkpoint W3-P4
+Starting packet: W4-P1
+Verified W3-P4 implementation SHA: e4cebe4
+Expected next checkpoint subject: docs: checkpoint W4-P1
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```
