@@ -5,13 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; policy research active
+**Current packet:** `W6-P3` - Official policy and dashboard reconciliation; manual live-dashboard evidence required
 
 ## Packet envelope
 
 - **Acceptance:** Check current official Chrome/Google policy, verify the live Aurora V1 version/dashboard answers with the user, and reconcile privacy, Data Usage, and listing source without Store mutation.
 - **Implementation scope:** Official-source research, read-only V1/dashboard evidence, and repository policy/listing reconciliation only. No upload, submission, rollout, Store state change, schema, registry, migration, stored-data, permission, or product behavior change.
-- **Remaining gates:** Create the JIT W6-P3 plan, verify current official policy from primary sources, prepare exact live-dashboard questions/evidence, reconcile tracked disclosure sources, review once, checkpoint, and continue to W6-P4 unless manual dashboard evidence is required.
+- **Remaining gates:** Receive the user's read-only live item version and Store listing/Privacy practices values, complete the field-by-field comparison, perform the one final acceptance review, checkpoint/push, and continue to W6-P4. No dashboard mutation is authorized.
 
 ## Previous packet envelope
 

@@ -30,15 +30,15 @@
 - Consumes: current official Chrome Web Store Program Policies, User Data Policy/FAQ, permission guidance, listing requirements, and `src/privacy/dataFlows.ts`.
 - Produces: dated policy requirements with direct official URLs, Aurora applicability, and a dashboard evidence checklist.
 
-- [ ] **Step 1: Read current primary policy sources**
+- [x] **Step 1: Read current primary policy sources**
 
 Verify the current Chrome Web Store Program Policies, user-data disclosure/Limited Use requirements, single-purpose rule, permission minimum-use rule, privacy-policy requirement, and listing metadata rules. Record the access date and direct official URLs.
 
-- [ ] **Step 2: Map each rule to Aurora behavior**
+- [x] **Step 2: Map each rule to Aurora behavior**
 
 For every applicable rule, record `Compliant`, `Source change required`, or `Dashboard evidence required`. Do not invent stricter criteria than the official text or packet acceptance.
 
-- [ ] **Step 3: Define exact dashboard evidence**
+- [x] **Step 3: Define exact dashboard evidence**
 
 Request only the current live item version and the visible dashboard values needed to compare listing, privacy URL, single-purpose explanation, permission justifications, data-use selections, and Limited Use certifications. Mark every field read-only.
 
@@ -56,11 +56,11 @@ Request only the current live item version and the visible dashboard values need
 - Consumes: Task 1 policy map and the executable flow inventory.
 - Produces: mutually consistent repository privacy, listing, Data Usage recommendations, and dashboard-ready exact copy.
 
-- [ ] **Step 1: Compare source claims mechanically**
+- [x] **Step 1: Compare source claims mechanically**
 
 Run focused searches for account, tracking, backend, credential, capability URL, third-party transfer, backup, permission, personal/sensitive data, and Limited Use claims across the listed files. Record contradictions before editing.
 
-- [ ] **Step 2: Add a failing contract only for executable-copy drift**
+- [x] **Step 2: Add a failing contract only for executable-copy drift**
 
 If `src/privacy/dataFlows.ts` must change, first add exact expectations to `src/privacy/dataFlows.test.ts` and run:
 
@@ -70,11 +70,13 @@ npx vitest run src/privacy/dataFlows.test.ts
 
 Expected: the new exact policy/listing contract fails before implementation.
 
-- [ ] **Step 3: Apply the smallest source reconciliation**
+Not triggered: the executable inventory and manifest copy remained accurate; only public prose/source reconciliation was required.
+
+- [x] **Step 3: Apply the smallest source reconciliation**
 
 Edit only claims demonstrated stale or incomplete by Task 1. Preserve `No Aurora account`, local plaintext/shared-profile warnings, direct provider transmission, capability-URL redaction, no Aurora backend/tracking, and exact Home Assistant write behavior unless current policy requires clearer phrasing.
 
-- [ ] **Step 4: Run focused verification once**
+- [x] **Step 4: Run focused verification once**
 
 If executable copy changed, run `npx vitest run src/privacy/dataFlows.test.ts` once after stabilization. For prose-only changes, use `rg` comparison and `git diff --check`; do not run product gates.
 

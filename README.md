@@ -1,7 +1,8 @@
 # Aurora
 
 A calm, local-first new-tab dashboard for Chrome. No Aurora account, no tracking,
-no backend — everything lives on your machine.
+no backend — stored data stays on your machine, with selected features making
+direct provider requests only as disclosed below.
 
 ## Features
 
