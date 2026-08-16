@@ -5,13 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W5-P4` - Visual/motion system convergence<br>
-**Current packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA; planning active
+**Current packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA; replay implementation active
 
 ## Packet envelope
 
 - **Acceptance:** Execute the written named viewport/state/zoom matrix, inspect required screenshots in bounded batches, verify keyboard/core accessibility, and state hardware/manual ceilings explicitly.
 - **Implementation scope:** JIT planning only; W6-P2 may add bounded QA fixtures/reports and fix demonstrated Critical/Important responsive or core-accessibility defects. No schema, migration, registry, storage, privacy, permission, connector, packaging, policy, dashboard, or Store change.
-- **Remaining gates:** Freeze a non-exhaustive matrix from the written named dimensions, reuse already-green unchanged evidence where valid, run each remaining family once, inspect captures, review/classify findings, checkpoint, and continue to W6-P3.
+- **Remaining gates:** Run the one-shot named-gap/zoom-equivalent replay, map and inspect three bounded capture batches, record hardware/manual ceilings, perform one review/fix cycle only if needed, checkpoint, and continue to W6-P3.
 
 ## Previous packet envelope
 
