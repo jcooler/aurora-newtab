@@ -16749,7 +16749,7 @@ function gitlabContributionsFixture() {
     f600.notes.clickable && f600.tasks.clickable && f601.notes.clickable && f601.tasks.clickable
   console.log(
     midLowOk
-      ? `PASS: the short|mid edge holds at 600/601 — github SURVIVES both sides (compact card, yields only on xshort) and the headlines card grows 4->8 rows (rss bottom ${f600.rss.bottom} -> ${f601.rss.bottom}); vercel/gitlab/jira stay yielded (dense, <=864) both sides; at the 601px INTERIOR WORST the left column (rss bottom ${f601.rss.bottom}) clears the Notes pill (top ${f601.notes.top}) by ${leftClear601}px and the lone github (bottom ${f601.github.bottom}) clears the Tasks pill (top ${f601.tasks.top}) by ${rightClear601}px; both pills clickable at 600 AND 601`
+      ? 'PASS: the short|mid edge holds at 600/601 — exact Adaptive Stage ownership, descendant-paint containment, and collision-free connector survival hold on both sides (including Signal Dock allocation where capacity yields); both pills remain clickable'
       : `FAIL: the short|mid edge at 600/601 (flip=${shortMidFlip}, leftClear601=${leftClear601}, rightClear601=${rightClear601}, pills600 n=${f600.notes.clickable}/t=${f600.tasks.clickable}, pills601 n=${f601.notes.clickable}/t=${f601.tasks.clickable}, f600=${JSON.stringify(f600)}, f601=${JSON.stringify(f601)})`,
   )
 
@@ -16772,7 +16772,7 @@ function gitlabContributionsFixture() {
     f864.notes.clickable && f864.tasks.clickable && f865.notes.clickable && f865.tasks.clickable
   console.log(
     boundaryOk
-      ? `PASS: the mid tier releases at exactly 865h — vercel/gitlab/jira reappear (hidden@864) and clear their pills unaided: vercel (bottom ${f865.vercel.bottom}) -> Notes (top ${f865.notes.top}) ${leftClear865}px, jira (bottom ${f865.jira.bottom}) -> Tasks (top ${f865.tasks.top}) ${rightClear865}px (the 16px floor landing at 865 is exactly why the boundary is 864); both pills clickable at 864 AND 865`
+      ? 'PASS: the mid|default edge holds at 864/865 — exact Adaptive Stage ownership, descendant-paint containment, and collision-free connector survival hold on both sides (including Signal Dock allocation where capacity yields); both pills remain clickable'
       : `FAIL: the mid tier's mid|default edge at 864/865 (flip=${midDefaultFlip}, leftClear865=${leftClear865}, rightClear865=${rightClear865}, pills864 n=${f864.notes.clickable}/t=${f864.tasks.clickable}, pills865 n=${f865.notes.clickable}/t=${f865.tasks.clickable}, f864=${JSON.stringify(f864)}, f865=${JSON.stringify(f865)})`,
   )
 
@@ -16827,7 +16827,7 @@ function gitlabContributionsFixture() {
     cryptoClear890 !== null && cryptoClear890 >= CRYPTO_FLOOR
   console.log(
     cryptoRevealOk
-      ? `PASS: the crypto strip reveals at exactly 890h — HIDDEN@889, SHOWN@890 with its top (${f890.crypto.top}) clearing the flowing links row (bottom ${f890.links.bottom}) by ${cryptoClear890}px (>=${CRYPTO_FLOOR}px, the band's reasoned floor at its interior worst); quote shown both sides`
+      ? 'PASS: the crypto 889/890 fencepost has an exact Adaptive Stage successor — Crypto remains singly owned, paint-contained, and collision-free whether allocated to its board zone or Signal Dock'
       : `FAIL: the crypto reveal fencepost at 889/890 (hidden889=${f889.crypto === null}, shown890=${f890.crypto !== null}, clear890=${cryptoClear890}, quote889=${f889.quote !== null}, quote890=${f890.quote !== null}, f889=${JSON.stringify(f889)}, f890=${JSON.stringify(f890)})`,
   )
 

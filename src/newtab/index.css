@@ -2157,13 +2157,11 @@ select > option {
   display: none;
 }
 
-/* The compact Deploys summary is three short states. A two-column summary
-   keeps all three readable in two lines, leaving one complete 36px action in
-   the 1x1 footprint. Decorative separators are unnecessary in this layout. */
+/* Work Pulse Compact owns one primary Deploys summary. Retire the older
+   supporting state-count line here with the same specificity that introduced
+   it, so it cannot out-rank the shared Compact detail-yield rule. */
 .adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
+  display: none;
 }
 .adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section {
   display: grid;

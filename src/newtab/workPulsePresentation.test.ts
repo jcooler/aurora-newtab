@@ -31,6 +31,7 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-rows[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-metadata[\s\S]*?display: none;/)
+    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-block-id="vercel"[^}]+> section > p\s*\{[^}]*display: none;/)
     expect(css).toMatch(/data-block-id="vercel"[^}]+data-stage-variant="compact"[^}]+> section[\s\S]*?overflow: hidden;/)
     expect(css).toMatch(/data-stage-variant="standard"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
     expect(css).toMatch(/data-stage-variant="expanded"[^}]+data-work-pulse-detail[\s\S]*?display: block;/)
