@@ -27,6 +27,7 @@ import VercelWidget from './widgets/vercel/VercelWidget'
 import WeatherWidget from './widgets/weather/WeatherWidget'
 import { WIDGET_REGISTRY, type WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
+import type { UtilityTrayBridge } from './components/utilityTrayBridge'
 
 export interface WidgetRendererProps {
   stageVariant?: WidgetVariant
@@ -35,6 +36,7 @@ export interface WidgetRendererProps {
   onNotesOpenChange?: (open: boolean) => void
   onTasksOpenChange?: (open: boolean) => void
   onTimerOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
 }
 
 export type WidgetRenderer = ComponentType<WidgetRendererProps>
@@ -62,12 +64,12 @@ const RENDERERS = {
   gitlab: () => <GitlabWidget />,
   jira: () => <JiraWidget />,
   vercel: () => <VercelWidget />,
-  homeassistant: ({ stageVariant }) => <HomeAssistantWidget stageVariant={stageVariant} />,
+  homeassistant: ({ stageVariant, utilityTray }) => <HomeAssistantWidget stageVariant={stageVariant} utilityTray={utilityTray} />,
   rss: ({ stageVariant }) => <RssWidget stageVariant={stageVariant} />,
   crypto: () => <CryptoWidget />,
-  timer: ({ onTimerOpenChange }) => <TimerWidget onOpenChange={onTimerOpenChange} />,
-  tasks: ({ onTasksOpenChange }) => <TodoWidget onOpenChange={onTasksOpenChange} />,
-  notes: ({ onNotesOpenChange }) => <NotesWidget onOpenChange={onNotesOpenChange} />,
+  timer: ({ onTimerOpenChange, utilityTray }) => <TimerWidget onOpenChange={onTimerOpenChange} utilityTray={utilityTray} />,
+  tasks: ({ onTasksOpenChange, utilityTray }) => <TodoWidget onOpenChange={onTasksOpenChange} utilityTray={utilityTray} />,
+  notes: ({ onNotesOpenChange, utilityTray }) => <NotesWidget onOpenChange={onNotesOpenChange} utilityTray={utilityTray} />,
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(

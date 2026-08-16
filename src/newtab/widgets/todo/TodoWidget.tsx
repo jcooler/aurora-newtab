@@ -1,7 +1,9 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import { hugHorizontal } from '../../../lib/layout/anchor'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 const TodoPanel = lazy(() => import('./TodoPanel'))
 
@@ -29,7 +31,8 @@ export const TODO_CORNER_HUG_PX = 48
 
 export default function TodoWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  utilityTray,
+}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
   // Gate BEFORE the panel's open/close state exists, same shape as
   // NotesWidget/TimerWidget: a disabled widget (settings.widgets.todo can be
   // switched off mid-session) mounts nothing past the settings read, which
@@ -42,10 +45,10 @@ export default function TodoWidget({
   // writeup of why that guarantee matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.todo) return null
-  return <TodoInner onOpenChange={onOpenChange} />
+  return <TodoInner onOpenChange={onOpenChange} utilityTray={utilityTray} />
 }
 
-function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void }) {
+function TodoInner({ onOpenChange, utilityTray }: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -59,7 +62,7 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
     [],
   )
   const anchor = useViewportPanelAnchor({
-    open,
+    open: utilityTray ? false : open,
     invokerRef: pillRef,
     panelRef,
     preferredSize: TODO_PANEL_SIZE,
@@ -90,6 +93,10 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
 
   // The panel follows the pill and live rendered panel size while open.
   const togglePanel = () => {
+    if (utilityTray && pillRef.current) {
+      utilityTray.requestTool('tasks', pillRef.current)
+      return
+    }
     if (open) {
       setOpen(false)
       return
@@ -97,26 +104,30 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
     setOpen(true)
   }
 
+  const panelOpen = utilityTray ? utilityTray.activeTool === 'tasks' : open
+  const panel = panelOpen && (utilityTray?.host || anchor) ? (
+    <Suspense fallback={null}>
+      <TodoPanel
+        anchor={anchor ?? undefined}
+        embedded={Boolean(utilityTray)}
+        onClose={utilityTray ? utilityTray.close : () => setOpen(false)}
+        viewportRef={(node) => { panelRef.current = node }}
+      />
+    </Suspense>
+  ) : null
+
   return (
     <>
       <button
         ref={pillRef}
         type="button"
-        aria-expanded={open}
+        aria-expanded={panelOpen}
         onClick={togglePanel}
         className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
       >
         Tasks
       </button>
-      {open && anchor && (
-        <Suspense fallback={null}>
-          <TodoPanel
-            anchor={anchor}
-            onClose={() => setOpen(false)}
-            viewportRef={(node) => { panelRef.current = node }}
-          />
-        </Suspense>
-      )}
+      {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )
 }

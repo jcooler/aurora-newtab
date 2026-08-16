@@ -7,6 +7,7 @@ import { StorageProvider } from '../../../lib/storage/context'
 import { defaults } from '../../../lib/storage/schema'
 import { anchorPanel } from '../../../lib/layout/anchor'
 import TimerWidget, { TIMER_PANEL_SIZE } from './TimerWidget'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 async function renderWidget({
   onOpenChange,
@@ -27,6 +28,41 @@ async function renderWidget({
 }
 
 describe('TimerWidget', () => {
+  it('keeps one running timer represented after its Tray detail closes', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, timer: true },
+    })
+    const host = document.createElement('div')
+    document.body.append(host)
+    const baseBridge = {
+      host,
+      requestTool: vi.fn(),
+      close: vi.fn(),
+      registerCloseGuard: vi.fn(),
+    } satisfies Omit<UtilityTrayBridge, 'activeTool'>
+    const view = render(
+      <StorageProvider storage={storage}>
+        <TimerWidget utilityTray={{ ...baseBridge, activeTool: 'timer' }} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Start' }))
+    expect(screen.getByRole('button', { name: /Focus timer: .* running/ })).toBeTruthy()
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <TimerWidget utilityTray={{ ...baseBridge, activeTool: null }} />
+      </StorageProvider>,
+    )
+    expect(screen.queryByRole('region', { name: 'Focus timer' })).toBeNull()
+    expect(screen.getByRole('button', { name: /Focus timer: .* running/ })).toBeTruthy()
+    host.remove()
+  })
+
   it('does not mount its ticking clock while disabled', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

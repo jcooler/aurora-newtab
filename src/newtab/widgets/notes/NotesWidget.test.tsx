@@ -6,6 +6,7 @@ import { memoryDriver, type StorageDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { anchorPanel, hugHorizontal } from '../../../lib/layout/anchor'
 import NotesWidget, { NOTES_CORNER_HUG_PX, NOTES_PANEL_SIZE } from './NotesWidget'
+import type { UtilityCloseGuard, UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 async function renderWidget({
   onOpenChange,
@@ -23,6 +24,47 @@ async function renderWidget({
 }
 
 describe('NotesWidget', () => {
+  it('keeps a disabled Tray note mounted until its registered save guard flushes', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const host = document.createElement('div')
+    document.body.append(host)
+    const registerCloseGuard = vi.fn()
+    const bridge: UtilityTrayBridge = {
+      activeTool: 'notes',
+      host,
+      requestTool: vi.fn(),
+      close: vi.fn(),
+      registerCloseGuard,
+    }
+    const view = render(
+      <StorageProvider storage={storage}>
+        <NotesWidget utilityTray={bridge} />
+      </StorageProvider>,
+    )
+    const note = await screen.findByRole('textbox', { name: 'Scratchpad' })
+    fireEvent.change(note, { target: { value: 'Protected Tray draft' } })
+
+    const settings = await storage.get('settings')
+    await act(async () => storage.set('settings', {
+      ...settings,
+      widgets: { ...settings.widgets, notes: false },
+    }))
+    expect(screen.getByRole('textbox', { name: 'Scratchpad' })).toBeTruthy()
+
+    const guard = [...registerCloseGuard.mock.calls].reverse().find(([, candidate]) => candidate)?.[1] as UtilityCloseGuard
+    await act(async () => expect(await guard()).toBe(true))
+    expect((await storage.get('notes')).text).toBe('Protected Tray draft')
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <NotesWidget utilityTray={{ ...bridge, activeTool: null }} />
+      </StorageProvider>,
+    )
+    expect(screen.queryByRole('textbox', { name: 'Scratchpad' })).toBeNull()
+    host.remove()
+  })
+
   it('keeps a dirty panel open until a pill-close flush fulfills', async () => {
     const base = memoryDriver()
     let defer = false

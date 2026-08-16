@@ -232,10 +232,12 @@ export default function TodoPanel({
   anchor,
   onClose,
   viewportRef,
+  embedded = false,
 }: {
-  anchor: PanelPlacement
+  anchor?: PanelPlacement
   onClose: () => void
   viewportRef?: (node: HTMLDivElement | null) => void
+  embedded?: boolean
 }) {
   const [lists] = useStoredKey('todoLists')
   const storage = useStorage()
@@ -258,11 +260,11 @@ export default function TodoPanel({
   // exactly the render where `panelRef.current` first becomes non-null,
   // which is what actually triggers useFocusTrap's initial-focus + Tab-trap
   // + close-time restore. (Same fix as NotesPanel.tsx, Task 27.)
-  useFocusTrap(panelRef, lists !== undefined)
+  useFocusTrap(panelRef, !embedded && lists !== undefined)
 
   // Newest-first shared stack (src/lib/dialogStack.ts): this panel only
   // mounts while open, so it's always active.
-  useDialogEscape(onClose)
+  useDialogEscape(onClose, !embedded)
 
   const dispatch = (action: TodoAction) =>
     void storage.update('todoLists', (current) => todoReducer(current, action))
@@ -306,25 +308,27 @@ export default function TodoPanel({
   const total = activeList?.items.length ?? 0
   const doneCount = activeList?.items.filter((i) => i.done).length ?? 0
 
-  return createPortal(
+  const content = (
     <div
       ref={(node) => {
         panelRef.current = node
         viewportRef?.(node)
       }}
-      role="dialog"
+      role={embedded ? 'region' : 'dialog'}
       aria-label="Tasks"
       // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
       // upward, growing UP so the add-task command line below the list never
       // marches off-screen as it grows past ~5 tasks — review fix I1; see
       // anchor.ts's PanelPlacement doc).
-      style={{
+      style={embedded ? undefined : {
         position: 'fixed',
-        left: anchor.left,
-        maxHeight: anchor.maxHeight,
-        ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+        left: anchor!.left,
+        maxHeight: anchor!.maxHeight,
+        ...('top' in anchor! ? { top: anchor!.top } : { bottom: anchor!.bottom }),
       }}
-      className={`${overflowOpen ? 'z-50 overflow-visible' : 'z-30 overflow-hidden'} flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
+      className={embedded
+        ? `${overflowOpen ? 'overflow-visible' : 'overflow-hidden'} flex min-h-0 w-full flex-col text-fg`
+        : `${overflowOpen ? 'z-50 overflow-visible' : 'z-30 overflow-hidden'} flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
     >
       {/* Header — the active list as a bright uppercase eyebrow, the other
           lists as quieter eyebrows that switch on click (em-dash separated),
@@ -431,14 +435,14 @@ export default function TodoPanel({
           />
         )}
 
-        <button
+        {!embedded && <button
           type="button"
           aria-label="Close tasks"
           onClick={onClose}
           className="grid size-6 shrink-0 cursor-pointer place-items-center rounded text-fg-muted transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:size-9 motion-reduce:transition-none"
         >
           ✕
-        </button>
+        </button>}
       </div>
 
       <div className="flex-1 overflow-y-auto py-1.5">
@@ -587,7 +591,7 @@ export default function TodoPanel({
           </button>
         </form>
       )}
-    </div>,
-    document.body,
+    </div>
   )
+  return embedded ? content : createPortal(content, document.body)
 }

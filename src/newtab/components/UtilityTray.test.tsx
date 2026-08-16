@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-import { useRef, useState } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import UtilityTray from './UtilityTray'
 
 afterEach(() => cleanup())
 
-function Harness({ modal }: { modal: boolean }) {
+function Harness({ modal, children }: { modal: boolean; children?: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const [activeTool, setActiveTool] = useState<'tasks' | 'notes'>('tasks')
   const invokerRef = useRef<HTMLButtonElement>(null)
   return (
     <>
@@ -15,8 +16,19 @@ function Harness({ modal }: { modal: boolean }) {
         <button ref={invokerRef} type="button" onClick={() => setOpen(true)}>Open utility tray</button>
         <button type="button">Dashboard action</button>
       </div>
-      <UtilityTray open={open} modal={modal} onClose={() => setOpen(false)} invokerRef={invokerRef}>
-        <button type="button">Tray action</button>
+      <UtilityTray
+        open={open}
+        modal={modal}
+        onClose={() => setOpen(false)}
+        invokerRef={invokerRef}
+        tools={[
+          { id: 'tasks', label: 'Tasks' },
+          { id: 'notes', label: 'Notes' },
+        ]}
+        activeTool={activeTool}
+        onToolChange={(tool) => setActiveTool(tool as 'tasks' | 'notes')}
+      >
+        {children ?? <button type="button">Tray action</button>}
       </UtilityTray>
     </>
   )
@@ -74,6 +86,22 @@ describe('UtilityTray', () => {
     render(<UtilityTray open={false} modal={false} onClose={onClose} invokerRef={invokerRef} />)
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('selects exactly one working tool and exposes one content host', () => {
+    render(<Harness modal={false}><p>Current tool content</p></Harness>)
+    fireEvent.click(screen.getByRole('button', { name: 'Open utility tray' }))
+
+    const tasks = screen.getByRole('button', { name: 'Tasks' })
+    const notes = screen.getByRole('button', { name: 'Notes' })
+    expect(tasks.getAttribute('aria-pressed')).toBe('true')
+    expect(notes.getAttribute('aria-pressed')).toBe('false')
+    expect(document.querySelectorAll('[data-utility-tray-content]')).toHaveLength(1)
+
+    fireEvent.click(notes)
+    expect(tasks.getAttribute('aria-pressed')).toBe('false')
+    expect(notes.getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getAllByText('Current tool content')).toHaveLength(1)
   })
 
   it('restores the invoker after modal backdrop dismissal', () => {

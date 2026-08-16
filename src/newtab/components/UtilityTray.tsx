@@ -7,12 +7,20 @@ export default function UtilityTray({
   modal,
   onClose,
   invokerRef,
+  tools = [],
+  activeTool,
+  onToolChange,
+  contentRef,
   children,
 }: {
   open: boolean
   modal: boolean
   onClose: () => void
   invokerRef: RefObject<HTMLButtonElement | null>
+  tools?: readonly { id: string; label: string }[]
+  activeTool?: string | null
+  onToolChange?: (tool: string) => void
+  contentRef?: (node: HTMLDivElement | null) => void
   children?: ReactNode
 }) {
   const panelRef = useRef<HTMLElement>(null)
@@ -84,7 +92,28 @@ export default function UtilityTray({
             ×
           </button>
         </header>
-        {children ?? <p className="text-sm text-fg-muted">Working tools appear here.</p>}
+        {tools.length > 0 ? (
+          <nav aria-label="Working tools" className="mb-3 flex flex-wrap gap-2 border-b border-hairline pb-3">
+            {tools.map((tool) => (
+              <button
+                key={tool.id}
+                type="button"
+                aria-pressed={tool.id === activeTool}
+                onClick={() => onToolChange?.(tool.id)}
+                className={`min-h-9 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
+                  tool.id === activeTool
+                    ? 'bg-control-bg-hover text-accent'
+                    : 'text-fg-muted hover:bg-control-bg hover:text-fg'
+                }`}
+              >
+                {tool.label}
+              </button>
+            ))}
+          </nav>
+        ) : null}
+        <div ref={contentRef} data-utility-tray-content="" data-utility-tray-active-tool={activeTool ?? undefined}>
+          {children === undefined ? <p className="text-sm text-fg-muted">Working tools appear here.</p> : children}
+        </div>
       </section>
     </>
   )

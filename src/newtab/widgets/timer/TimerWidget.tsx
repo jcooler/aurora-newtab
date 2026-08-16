@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
@@ -11,6 +12,7 @@ import { initialTimer, timerReducer, type TimerAction, type TimerState } from '.
 // quiet one, and the work/break minutes fields reuse the exact Settings input
 // class, so the panel's controls speak the same language as the drawer's.
 import { btnPrimary, btnQuiet, control } from '../../../settings/sections/shared'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 const DEFAULT_CONFIG: TimerConfig = { workMinutes: 25, breakMinutes: 5 }
 const MIN_MINUTES = 1
@@ -41,7 +43,8 @@ function formatRemaining(ms: number): string {
 
 export default function TimerWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  utilityTray,
+}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
   // Gate BEFORE any of the ticking/reducer machinery exists: disabled tabs
   // (the default — settings.widgets.timer starts false) mount none of that
   // and so run zero interval work. Only useStoredKey is called out here, so
@@ -52,15 +55,17 @@ export default function TimerWidget({
   // onExpandedChange comment for the full writeup of why that matters.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.timer) return null
-  return <TimerInner settings={settings} onOpenChange={onOpenChange} />
+  return <TimerInner settings={settings} onOpenChange={onOpenChange} utilityTray={utilityTray} />
 }
 
 function TimerInner({
   settings,
   onOpenChange,
+  utilityTray,
 }: {
   settings: Settings
   onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
 }) {
   const [timerConfig, saveTimerConfig] = useStoredKey('timerConfig')
   const config = timerConfig ?? DEFAULT_CONFIG
@@ -87,7 +92,7 @@ function TimerInner({
     [],
   )
   const anchor = useViewportPanelAnchor({
-    open,
+    open: utilityTray ? false : open,
     invokerRef: pillRef,
     panelRef,
     preferredSize: TIMER_PANEL_SIZE,
@@ -96,7 +101,7 @@ function TimerInner({
   const prevJustFinished = useRef<TimerState['justFinished']>(state.justFinished)
   const prevConfigKey = useRef(`${config.workMinutes}:${config.breakMinutes}`)
 
-  const panelReady = open && anchor !== null
+  const panelReady = !utilityTray && open && anchor !== null
   useFocusTrap(panelRef, panelReady)
 
   // Drive the countdown from the shared 500ms clock: every tick of `now`
@@ -201,6 +206,10 @@ function TimerInner({
   // The panel follows the pill and live rendered panel size while open, via
   // the same anchorPanel formula every peripheral panel uses.
   const togglePanel = () => {
+    if (utilityTray && pillRef.current) {
+      utilityTray.requestTool('timer', pillRef.current)
+      return
+    }
     if (open) {
       setOpen(false)
       return
@@ -208,12 +217,14 @@ function TimerInner({
     setOpen(true)
   }
 
+  const panelOpen = utilityTray ? utilityTray.activeTool === 'timer' : open
+
   return (
     <>
       <button
         ref={pillRef}
         type="button"
-        aria-expanded={open}
+        aria-expanded={panelOpen}
         aria-label={`Focus timer: ${display} remaining, ${state.mode} session, ${
           state.running ? 'running' : 'paused'
         }`}
@@ -338,9 +349,94 @@ function TimerInner({
         </div>
       )}
 
+      {utilityTray?.host && panelOpen
+        ? createPortal(
+            <TimerTrayDetails
+              state={state}
+              display={display}
+              progressPct={progressPct}
+              config={config}
+              saveTimerConfig={saveTimerConfig}
+              start={start}
+              pause={pause}
+              reset={reset}
+            />,
+            utilityTray.host,
+          )
+        : null}
+
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
     </>
+  )
+}
+
+function TimerTrayDetails({
+  state,
+  display,
+  progressPct,
+  config,
+  saveTimerConfig,
+  start,
+  pause,
+  reset,
+}: {
+  state: TimerState
+  display: string
+  progressPct: number
+  config: TimerConfig
+  saveTimerConfig: (next: TimerConfig) => void
+  start: () => void
+  pause: () => void
+  reset: () => void
+}) {
+  return (
+    <section aria-label="Focus timer" className="flex w-full flex-col gap-3 text-fg">
+      <h3 className="text-sm font-semibold capitalize tracking-tight">{state.mode} session</h3>
+      <p className="text-center font-display text-5xl font-light tabular-nums tracking-tight leading-none">{display}</p>
+      <div aria-hidden className="h-1.5 w-full overflow-hidden rounded-full bg-control-bg">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-500 ease-linear motion-reduce:transition-none" style={{ width: `${progressPct}%` }} />
+      </div>
+      <div className="flex items-center justify-center gap-2">
+        {state.running ? (
+          <button type="button" onClick={pause} className={`${btnPrimary} justify-center px-5`}>Pause</button>
+        ) : (
+          <button type="button" onClick={start} className={`${btnPrimary} justify-center px-5`}>Start</button>
+        )}
+        <button type="button" onClick={reset} className={`${btnQuiet} justify-center`}>Reset</button>
+      </div>
+      <div className="flex items-center justify-between gap-3 text-xs text-fg-muted">
+        <label className="flex items-center gap-1">
+          Work
+          <input
+            type="number"
+            min={MIN_MINUTES}
+            max={MAX_MINUTES}
+            value={config.workMinutes}
+            disabled={state.running}
+            onChange={(event) => saveTimerConfig({ ...config, workMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
+            className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+          /> min
+        </label>
+        <label className="flex items-center gap-1">
+          Break
+          <input
+            type="number"
+            min={MIN_MINUTES}
+            max={MAX_MINUTES}
+            value={config.breakMinutes}
+            disabled={state.running}
+            onChange={(event) => saveTimerConfig({ ...config, breakMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
+            className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+          /> min
+        </label>
+      </div>
+      {state.cycles > 0 ? (
+        <p className="border-t border-hairline pt-2.5 text-center text-xs text-fg-muted">
+          {state.cycles} focus {state.cycles === 1 ? 'session' : 'sessions'} completed
+        </p>
+      ) : null}
+    </section>
   )
 }

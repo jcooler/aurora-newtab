@@ -12,6 +12,7 @@ import DayContext from './components/DayContext'
 import LauncherShelf, { resolveLauncherShelf } from './components/LauncherShelf'
 import SignalDockEntry from './components/SignalDockEntry'
 import UtilityTray from './components/UtilityTray'
+import type { UtilityCloseGuard, UtilityToolId, UtilityTrayBridge } from './components/utilityTrayBridge'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
 import ArrangeController from './arrange/ArrangeController'
@@ -20,6 +21,7 @@ import { selectActiveWidgetRegistry, WIDGET_REGISTRY_BY_ID } from './widgetRegis
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useAdaptiveStageViewport } from './useAdaptiveStageViewport'
 import { DOCK_BLOCK_SIZES } from './dockBlockSizes'
+import { haActionsOf, type HomeAssistantConfig } from '../services/connectors/homeassistant'
 
 const ZONES = ['day', 'now', 'pulse', 'dock'] as const
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
@@ -35,17 +37,19 @@ export default function App() {
   const [connectors] = useStoredKey('connectors')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
+  const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
+  const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
   const [arranging, setArranging] = useState(false)
   const [arrangeSignal, setArrangeSignal] = useState(0)
   const [weatherExpanded, setWeatherExpanded] = useState(false)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
-  const [notesOpen, setNotesOpen] = useState(false)
-  const [tasksOpen, setTasksOpen] = useState(false)
-  const [timerOpen, setTimerOpen] = useState(false)
   const [openSignalDockId, setOpenSignalDockId] = useState<BlockId | null>(null)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const utilityTrayButtonRef = useRef<HTMLButtonElement>(null)
+  const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
+  const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
+  const effectiveUtilityToolRef = useRef<UtilityToolId | null>(null)
   const wasArrangingRef = useRef(false)
   const dockPointerDownRef = useRef(false)
   const dockKeyboardScrollRef = useRef<number | null>(null)
@@ -60,10 +64,85 @@ export default function App() {
     if (wasArranging && !arranging && document.activeElement === document.body) settingsButtonRef.current?.focus()
   }, [arranging])
 
-  const requestArrange = useCallback(() => {
-    setSettingsOpen(false)
-    setArrangeSignal((value) => value + 1)
+  const registerUtilityCloseGuard = useCallback((tool: UtilityToolId, guard: UtilityCloseGuard | null) => {
+    if (guard) {
+      utilityCloseGuardRef.current = { tool, guard }
+    } else if (utilityCloseGuardRef.current?.tool === tool) {
+      utilityCloseGuardRef.current = null
+    }
   }, [])
+
+  const passUtilityGuard = useCallback(async () => {
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) return true
+    return registered.guard()
+  }, [])
+
+  const requestUtilityTrayClose = useCallback(() => {
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
+      setUtilityTrayOpen(false)
+      return
+    }
+    void (async () => {
+      if (!(await passUtilityGuard())) return
+      setUtilityTrayOpen(false)
+    })()
+  }, [passUtilityGuard])
+
+  const requestUtilityTool = useCallback((tool: UtilityToolId, invoker: HTMLButtonElement) => {
+    const openTool = () => {
+      utilityTrayInvokerRef.current = invoker
+      setActiveUtilityTool(tool)
+      setUtilityTrayOpen(true)
+    }
+    const registered = utilityCloseGuardRef.current
+    if (!utilityTrayOpen || tool === effectiveUtilityToolRef.current || !registered || registered.tool !== effectiveUtilityToolRef.current) {
+      openTool()
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) openTool()
+    })()
+  }, [passUtilityGuard, utilityTrayOpen])
+
+  const requestUtilityToolChange = useCallback((tool: UtilityToolId) => {
+    void (async () => {
+      if (tool === effectiveUtilityToolRef.current || !(await passUtilityGuard())) return
+      setActiveUtilityTool(tool)
+    })()
+  }, [passUtilityGuard])
+
+  const requestSettingsOpen = useCallback(() => {
+    const open = () => {
+      setUtilityTrayOpen(false)
+      setSettingsOpen(true)
+    }
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
+      open()
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) open()
+    })()
+  }, [passUtilityGuard])
+
+  const requestArrange = useCallback(() => {
+    const begin = () => {
+      setUtilityTrayOpen(false)
+      setSettingsOpen(false)
+      setArrangeSignal((value) => value + 1)
+    }
+    const registered = utilityCloseGuardRef.current
+    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
+      begin()
+      return
+    }
+    void (async () => {
+      if (await passUtilityGuard()) begin()
+    })()
+  }, [passUtilityGuard])
 
   // Restore/migration fixtures can publish related keys in separate native
   // storage notifications. Treat those raw intermediate shapes as hydration,
@@ -122,19 +201,42 @@ export default function App() {
 
   if (!stageInputsReady || !settings || !photoPrefs || !layout || !connectors || !resolution) return null
 
+  const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
+  const utilityTools: { id: UtilityToolId; label: string }[] = [
+    ...(settings.widgets.todo ? [{ id: 'tasks' as const, label: 'Tasks' }] : []),
+    ...(settings.widgets.notes ? [{ id: 'notes' as const, label: 'Notes' }] : []),
+    ...(settings.widgets.timer ? [{ id: 'timer' as const, label: 'Timer' }] : []),
+    ...(homeAssistant?.enabled && typeof homeAssistant.instanceUrl === 'string' && homeAssistant.instanceUrl.length > 0 &&
+      typeof homeAssistant.token === 'string' && homeAssistant.token.length > 0 && haActionsOf(homeAssistant).length > 0
+      ? [{ id: 'homeassistant' as const, label: 'Home Assistant' }]
+      : []),
+    { id: 'refresh', label: 'Refresh' },
+  ]
+  // Keep an already-open Notes detail mounted even if a staggered/external
+  // settings update removes its nav entry. Its save guard must get the chance
+  // to flush or expose the retained error before the surface can disappear.
+  const selectedUtilityTool = utilityTrayOpen && activeUtilityTool
+    ? activeUtilityTool
+    : utilityTools.some(({ id }) => id === activeUtilityTool)
+      ? activeUtilityTool
+      : utilityTools[0]!.id
+  effectiveUtilityToolRef.current = selectedUtilityTool
+  const utilityTray: UtilityTrayBridge = {
+    activeTool: utilityTrayOpen ? selectedUtilityTool : null,
+    host: utilityTrayHost,
+    requestTool: requestUtilityTool,
+    close: requestUtilityTrayClose,
+    registerCloseGuard: registerUtilityCloseGuard,
+  }
+
   const rendererProps: WidgetRendererProps = {
     onWeatherExpandedChange: setWeatherExpanded,
     onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
-    onNotesOpenChange: setNotesOpen,
-    onTasksOpenChange: setTasksOpen,
-    onTimerOpenChange: setTimerOpen,
+    utilityTray,
   }
   const openById: Partial<Record<BlockId, boolean>> = {
     weather: weatherExpanded,
     bookmarks: bookmarksPopoverOpen,
-    notes: notesOpen,
-    tasks: tasksOpen,
-    timer: timerOpen,
   }
   if (openSignalDockId) openById[openSignalDockId] = true
   const pinnedOverflow = (['day', 'now', 'pulse'] as const).some((zone) =>
@@ -179,7 +281,7 @@ export default function App() {
       className="adaptive-stage text-fg"
     >
       <div className="contents" inert={arranging || (utilityTrayOpen && viewport.profile === 'compact')}>
-          <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} />
+          <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
           <div className="adaptive-stage__grid">
             {ZONES.map((zone) => {
               const allocations = resolution.plan.allocations.filter((allocation) => allocation.zone === zone)
@@ -252,7 +354,11 @@ export default function App() {
             aria-label="Open utility tray"
             aria-haspopup="dialog"
             aria-expanded={utilityTrayOpen}
-            onClick={() => setUtilityTrayOpen(true)}
+            onClick={(event) => {
+              utilityTrayInvokerRef.current = event.currentTarget
+              setActiveUtilityTool(selectedUtilityTool)
+              setUtilityTrayOpen(true)
+            }}
             className="utility-tray-trigger fixed bottom-4 right-16 flex min-h-9 min-w-9 items-center justify-center rounded-full bg-panel-solid text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -264,7 +370,7 @@ export default function App() {
             ref={settingsButtonRef}
             type="button"
             aria-label="Open settings"
-            onClick={() => setSettingsOpen(true)}
+            onClick={requestSettingsOpen}
             className="settings-gear fixed bottom-4 right-4 rounded-full bg-panel-solid p-2 text-fg-muted shadow-lg shadow-black/25 backdrop-blur-sm transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -278,15 +384,19 @@ export default function App() {
             </DrawerBoundary>
           </Drawer>
           <WidgetBoundary name="palette">
-            <PaletteHost onOpenSettings={() => setSettingsOpen(true)} arranging={arranging} />
+            <PaletteHost onOpenSettings={requestSettingsOpen} arranging={arranging} />
           </WidgetBoundary>
       </div>
       <UtilityTray
         open={utilityTrayOpen}
         modal={viewport.profile === 'compact'}
-        onClose={() => setUtilityTrayOpen(false)}
-        invokerRef={utilityTrayButtonRef}
-      />
+        onClose={requestUtilityTrayClose}
+        invokerRef={utilityTrayInvokerRef}
+        tools={utilityTools}
+        activeTool={selectedUtilityTool}
+        onToolChange={(tool) => requestUtilityToolChange(tool as UtilityToolId)}
+        contentRef={setUtilityTrayHost}
+      ><></></UtilityTray>
       <ArrangeController
         profile={viewport.profile}
         layout={layout}

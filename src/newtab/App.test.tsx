@@ -388,15 +388,19 @@ describe('App — Adaptive Stage composition', () => {
     fireEvent.pointerUp(notes)
   })
 
-  it('keeps open utility surfaces above sibling stage items', async () => {
+  it('routes a working-tool pill into the single Utility Tray surface', async () => {
     await renderApp()
     const notes = await screen.findByRole('button', { name: 'Notes' })
     fireEvent.click(notes)
-    expect(document.querySelector('[data-block-id="notes"]')?.classList.contains('z-30')).toBe(true)
-    expect(screen.getByRole('region', { name: 'Signal Dock' }).classList.contains('stage-zone--elevated')).toBe(true)
-    fireEvent.click(notes)
+    expect(await screen.findByRole('dialog', { name: 'Utility Tray' })).toBeTruthy()
+    expect(await screen.findByRole('region', { name: 'Notes' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'Tasks' })).toBeNull()
+    expect(screen.getAllByRole('button', { name: 'Notes' }).some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
     expect(document.querySelector('[data-block-id="notes"]')?.classList.contains('z-30')).toBe(false)
     expect(screen.getByRole('region', { name: 'Signal Dock' }).classList.contains('stage-zone--elevated')).toBe(false)
+    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Close utility tray' })))
+    expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
+    expect(document.activeElement).toBe(notes)
   })
 
   it('keeps Settings focus restoration and Arrange entry/exit behavior', async () => {

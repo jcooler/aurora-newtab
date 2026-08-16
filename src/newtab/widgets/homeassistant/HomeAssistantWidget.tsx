@@ -1,4 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AssertiveAlert, PoliteStatus } from '../../../components/StateFeedback'
 import type { OperationState } from '../../../lib/asyncState'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
@@ -16,6 +17,7 @@ import {
 } from '../../../services/connectors/homeassistant'
 import type { ConnectorConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
   compact: { states: 2, actions: 0 },
@@ -96,7 +98,8 @@ export function chipCopy(s: HaState): string {
 
 export default function HomeAssistantWidget({
   stageVariant = 'standard',
-}: { stageVariant?: WidgetVariant } = {}) {
+  utilityTray,
+}: { stageVariant?: WidgetVariant; utilityTray?: UtilityTrayBridge } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (StatusWidget.tsx's own doc comment): the one useStoredKey read runs
   // every render (Rules of Hooks stay satisfied), but a disabled/unconnected
@@ -129,6 +132,7 @@ export default function HomeAssistantWidget({
       picked={picked}
       actions={actions}
       stageVariant={stageVariant}
+      utilityTray={utilityTray}
     />
   )
 }
@@ -140,6 +144,7 @@ function HomeAssistantInner({
   picked,
   actions,
   stageVariant,
+  utilityTray,
 }: {
   config: HomeAssistantConfig
   instanceUrl: string
@@ -147,6 +152,7 @@ function HomeAssistantInner({
   picked: HaEntityRef[]
   actions: HaAction[]
   stageVariant: WidgetVariant
+  utilityTray?: UtilityTrayBridge
 }) {
   // NO prev arg, by design (plan-pinned ruling 2, this file's header
   // comment): fetchHomeAssistant itself takes no `prev` parameter at all
@@ -165,7 +171,11 @@ function HomeAssistantInner({
   // See this file's header comment for why the buttons aren't spared: a dead
   // instance must never turn a still-rendered button into a guaranteed error
   // tint on every press.
-  if (!data || data.entities === null) return null
+  if (!data || data.entities === null) {
+    return utilityTray?.activeTool === 'homeassistant' && utilityTray.host
+      ? createPortal(<p className="text-sm text-fg-muted">Home Assistant actions are unavailable.</p>, utilityTray.host)
+      : null
+  }
 
   const chips = data.entities
 
@@ -185,7 +195,7 @@ function HomeAssistantInner({
   const actionLimit = stageVariant === 'compact' && chips.length === 0 ? 1 : limits.actions
   const visibleActions = actions.slice(0, actionLimit)
 
-  return (
+  const dashboard = (
     // A slim floating card, not a panel — no bg-panel-solid/rounded-2xl/
     // shadow-lg (unlike GithubWidget/GitlabWidget/JiraWidget/VercelWidget in
     // this same rail column): CryptoWidget.tsx's own "slim floating STRIP,
@@ -225,6 +235,26 @@ function HomeAssistantInner({
       )}
     </section>
   )
+  const tray = utilityTray?.activeTool === 'homeassistant' && utilityTray.host
+    ? createPortal(
+        <section aria-label="Home Assistant actions" className="flex flex-col gap-3">
+          <h3 className="text-sm font-semibold">Home Assistant actions</h3>
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <ActionButton
+                key={action.id}
+                action={action}
+                instanceUrl={instanceUrl}
+                token={token}
+                snapshotEpoch={config.snapshotEpoch}
+              />
+            ))}
+          </div>
+        </section>,
+        utilityTray.host,
+      )
+    : null
+  return <>{dashboard}{tray}</>
 }
 
 // Every button state's COMPLETE literal class string — never a template

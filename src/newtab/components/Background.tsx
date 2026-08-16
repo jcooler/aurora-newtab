@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { PhotoPrefs } from '../../lib/storage/schema'
 import { useUploads } from '../../lib/hooks/useUploads'
 import { useStorage } from '../../lib/storage/context'
@@ -14,6 +15,7 @@ import {
   type PhotoTier,
 } from '../../services/photos/index'
 import { readLocalDay, useLocalDay } from '../../lib/hooks/useLocalDay'
+import type { UtilityTrayBridge } from './utilityTrayBridge'
 
 // Module-level APOD ownership survives Background remounts. Identity-based
 // dedupe collapses requests only for the same local day and timezone; a new
@@ -45,9 +47,11 @@ function physicalMaxDimension(): number {
 export default function Background({
   prefs,
   onPrefsChange,
+  utilityTray,
 }: {
   prefs: PhotoPrefs
   onPrefsChange: (next: PhotoPrefs) => void
+  utilityTray?: UtilityTrayBridge
 }) {
   // null = not loaded yet (or not in upload mode); [] = loaded and confirmed
   // empty — the distinction matters because only a confirmed-empty gallery
@@ -340,6 +344,25 @@ export default function Background({
           </svg>
         </button>
       )}
+      {utilityTray?.activeTool === 'refresh' && utilityTray.host
+        ? createPortal(
+            <section aria-label="Background refresh" className="flex flex-col gap-3">
+              <h3 className="text-sm font-semibold">Background refresh</h3>
+              {showRefresh ? (
+                <button
+                  type="button"
+                  onClick={() => onPrefsChange(nextPhoto(prefs, today, count))}
+                  className="min-h-9 rounded-lg bg-control-bg px-3 text-sm font-medium text-fg hover:bg-control-bg-hover focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  New background photo
+                </button>
+              ) : (
+                <p className="text-sm text-fg-muted">Background refresh is unavailable for this source.</p>
+              )}
+            </section>,
+            utilityTray.host,
+          )
+        : null}
       {/* NASA APOD credit caption (Task 96; repositioned in the final-review
           fix wave, Finding 1). Anchors the same `left-4` corner the refresh
           button occupies in auto/upload mode — those two still never

@@ -3,6 +3,8 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
 import { hugHorizontal } from '../../../lib/layout/anchor'
 import type { NotesPanelHandle } from './NotesPanel'
+import { createPortal } from 'react-dom'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 const NotesPanel = lazy(() => import('./NotesPanel'))
 
@@ -23,21 +25,24 @@ export const NOTES_CORNER_HUG_PX = 48
 
 export default function NotesWidget({
   onOpenChange,
-}: { onOpenChange?: (open: boolean) => void } = {}) {
+  utilityTray,
+}: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
   // Keep NotesInner mounted across a settings disable so an open dirty panel
   // can finish (or recover) its authority-backed close before disappearing.
   // Once it is disabled and closed, NotesInner renders nothing.
   const [settings] = useStoredKey('settings')
   if (!settings) return null
-  return <NotesInner enabled={settings.widgets.notes} onOpenChange={onOpenChange} />
+  return <NotesInner enabled={settings.widgets.notes} onOpenChange={onOpenChange} utilityTray={utilityTray} />
 }
 
 function NotesInner({
   enabled,
   onOpenChange,
+  utilityTray,
 }: {
   enabled: boolean
   onOpenChange?: (open: boolean) => void
+  utilityTray?: UtilityTrayBridge
 }) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLButtonElement>(null)
@@ -49,7 +54,7 @@ function NotesInner({
     [],
   )
   const anchor = useViewportPanelAnchor({
-    open,
+    open: utilityTray ? false : open,
     invokerRef: pillRef,
     panelRef: viewportPanelRef,
     preferredSize: NOTES_PANEL_SIZE,
@@ -92,6 +97,10 @@ function NotesInner({
   }, [enabled, open, requestPanelClose])
 
   const togglePanel = () => {
+    if (utilityTray && pillRef.current) {
+      utilityTray.requestTool('notes', pillRef.current)
+      return
+    }
     if (open) {
       void requestPanelClose()
       return
@@ -100,7 +109,27 @@ function NotesInner({
     setOpen(true)
   }
 
-  if (!enabled && !open) return null
+  const panelOpen = utilityTray ? utilityTray.activeTool === 'notes' : open
+
+  useEffect(() => {
+    if (!utilityTray || !panelOpen) return
+    utilityTray.registerCloseGuard('notes', async () => panelRef.current?.flushLatest() ?? true)
+    return () => utilityTray.registerCloseGuard('notes', null)
+  }, [panelOpen, utilityTray])
+
+  if (!enabled && !panelOpen) return null
+
+  const panel = panelOpen && (utilityTray?.host || anchor) ? (
+    <Suspense fallback={null}>
+      <NotesPanel
+        ref={panelRef}
+        anchor={anchor ?? undefined}
+        embedded={Boolean(utilityTray)}
+        onClose={utilityTray ? utilityTray.close : () => setOpen(false)}
+        viewportRef={(node) => { viewportPanelRef.current = node }}
+      />
+    </Suspense>
+  ) : null
 
   return (
     <>
@@ -108,23 +137,14 @@ function NotesInner({
         <button
           ref={pillRef}
           type="button"
-          aria-expanded={open}
+          aria-expanded={panelOpen}
           onClick={togglePanel}
           className="rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
         >
           Notes
         </button>
       )}
-      {open && anchor && (
-        <Suspense fallback={null}>
-          <NotesPanel
-            ref={panelRef}
-            anchor={anchor}
-            onClose={() => setOpen(false)}
-            viewportRef={(node) => { viewportPanelRef.current = node }}
-          />
-        </Suspense>
-      )}
+      {utilityTray?.host && panel ? createPortal(panel, utilityTray.host) : panel}
     </>
   )
 }

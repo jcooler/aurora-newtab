@@ -34,6 +34,7 @@ import {
   connectorSnapshotScope,
 } from '../../../services/connectors/snapshotIdentity'
 import HomeAssistantWidget, { ActionButton, chipCopy, remountKey } from './HomeAssistantWidget'
+import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 beforeAll(() => {
   const digest = vi.fn(async (_algorithm: AlgorithmIdentifier, source: BufferSource) => {
@@ -679,6 +680,30 @@ describe('HomeAssistantWidget — action buttons (press handling)', () => {
 })
 
 describe('remountKey — pure function', () => {
+  it('renders Tray actions from the current snapshot owner without another refresh', async () => {
+    const storage = await seededStorage(CONNECTED)
+    const host = document.createElement('div')
+    document.body.append(host)
+    const utilityTray: UtilityTrayBridge = {
+      activeTool: 'homeassistant',
+      host,
+      requestTool: vi.fn(),
+      close: vi.fn(),
+      registerCloseGuard: vi.fn(),
+    }
+    render(
+      <StorageProvider storage={storage}>
+        <HomeAssistantWidget utilityTray={utilityTray} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(screen.getByRole('region', { name: 'Home Assistant actions' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Run Movie night' })).toHaveLength(2)
+    expect(fetchHomeAssistant).not.toHaveBeenCalled()
+    host.remove()
+  })
+
   it('changes when the picked ENTITY list changes', () => {
     const a = remountKey([{ id: 'sensor.a', name: 'A' }], [])
     const b = remountKey([{ id: 'sensor.b', name: 'B' }], [])

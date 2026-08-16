@@ -13,16 +13,18 @@ import { useNotesPersistence } from './useNotesPersistence'
 
 export interface NotesPanelHandle {
   requestClose(): Promise<boolean>
+  flushLatest(): Promise<boolean>
 }
 
 interface NotesPanelProps {
-  anchor: PanelPlacement
+  anchor?: PanelPlacement
   onClose: () => void
   viewportRef?: (node: HTMLDivElement | null) => void
+  embedded?: boolean
 }
 
 const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesPanel(
-  { anchor, onClose, viewportRef },
+  { anchor, onClose, viewportRef, embedded = false },
   forwardedRef,
 ) {
   const notes = useNotesPersistence()
@@ -46,9 +48,9 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
     return operation
   }, [notes.flushLatest])
 
-  useImperativeHandle(forwardedRef, () => ({ requestClose }), [requestClose])
-  useFocusTrap(panelRef, notes.ready)
-  useDialogEscape(() => requestClose(), notes.ready)
+  useImperativeHandle(forwardedRef, () => ({ requestClose, flushLatest: notes.flushLatest }), [notes.flushLatest, requestClose])
+  useFocusTrap(panelRef, !embedded && notes.ready)
+  useDialogEscape(() => requestClose(), !embedded && notes.ready)
 
   if (!notes.ready) return null
 
@@ -58,14 +60,16 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
         panelRef.current = node
         viewportRef?.(node)
       }}
-      role="dialog"
+      role={embedded ? 'region' : 'dialog'}
       aria-label="Notes"
-      style={{
+      style={embedded ? undefined : {
         position: 'fixed',
-        left: anchor.left,
-        ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
+        left: anchor!.left,
+        ...('top' in anchor! ? { top: anchor!.top } : { bottom: anchor!.bottom }),
       }}
-      className="z-30 flex h-[min(16rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+      className={embedded
+        ? 'flex min-h-64 w-full flex-col overflow-hidden'
+        : 'z-30 flex h-[min(16rem,calc(100dvh-1rem))] w-[min(20rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-panel border border-panel-border bg-panel-solid shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]'}
     >
       <div className="flex items-center justify-between px-3.5 pb-1 pt-2.5">
         <h2 className="text-sm font-semibold tracking-tight text-fg">Notes</h2>

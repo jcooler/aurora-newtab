@@ -3018,8 +3018,9 @@ console.log('captured newtab.png')
   const quoteBefore = await rolloverPage.locator('[data-block-id="quote"] blockquote').textContent()
   const timerPill = rolloverPage.locator('button[aria-label^="Focus timer:"]')
   await timerPill.click()
-  const timerDialog = rolloverPage.getByRole('dialog', { name: 'Focus timer' })
-  await timerDialog.getByRole('button', { name: 'Start' }).click()
+  const timerDialog = rolloverPage.getByRole('dialog', { name: 'Utility Tray' })
+  const timerDetail = timerDialog.getByRole('region', { name: 'Focus timer' })
+  await timerDetail.getByRole('button', { name: 'Start' }).click()
   await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('work session, running'))
 
   // Hide, cross local midnight, and restore. Production restoration listeners
@@ -3045,7 +3046,7 @@ console.log('captured newtab.png')
     countdown: document.querySelector('[data-block-id="countdown"]')?.textContent ?? '',
     quote: document.querySelector('[data-block-id="quote"] blockquote')?.textContent ?? '',
     timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
-    timerPanel: document.querySelector('[role="dialog"][aria-label="Focus timer"]')?.textContent ?? '',
+    timerPanel: document.querySelector('section[aria-label="Focus timer"]')?.textContent ?? '',
     calendar: document.querySelector('section[aria-label="Calendar"]')?.textContent ?? '',
     calendarVariant: document.querySelector('[data-block-id="ics"]')?.getAttribute('data-stage-variant') ?? null,
     joinHrefs: [...document.querySelectorAll('section[aria-label="Calendar"] a')].map((a) => a.href),
@@ -3083,7 +3084,7 @@ console.log('captured newtab.png')
   await rolloverPage.waitForTimeout(300)
   const repeatedState = await rolloverPage.evaluate(() => ({
     timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
-    timerPanel: document.querySelector('[role="dialog"][aria-label="Focus timer"]')?.textContent ?? '',
+    timerPanel: document.querySelector('section[aria-label="Focus timer"]')?.textContent ?? '',
   }))
   const workCountsStable = initialWorkCounts.apod === 1 && initialWorkCounts.ics <= 1 && apodRequests === initialWorkCounts.apod && icsRequests === initialWorkCounts.ics && repeatedState.timerLabel.includes('break session, running') && repeatedState.timerPanel.includes('1 focus session completed')
 
@@ -4555,17 +4556,17 @@ await page.waitForTimeout(300)
 // for anchor math after the redesign folded the old separate lists-row into
 // the header (320->384 wide, shorter than the old 217px empty state).
 await page.click('button:has-text("Tasks")')
-await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+await page.waitForSelector('[role="region"][aria-label="Tasks"]')
 await page.waitForTimeout(200)
 const defaultOpenHeight = await page.evaluate(() => {
-  const p = document.querySelector('[role="dialog"][aria-label="Tasks"]')
+  const p = document.querySelector('[role="region"][aria-label="Tasks"]')
   return p ? Math.round(p.getBoundingClientRect().height) : null
 })
 console.log(`Tasks panel default-open height (empty auto-seeded Today): ${defaultOpenHeight}px — the figure TODO_PANEL_SIZE.h should track`)
 // Close, then seed the reference-render fixture (6 tasks in Today with 2 done,
 // plus a second "This week" list) and reopen so the capture matches the
 // picked render (screenshots/options/tasks-C-command*.png).
-await page.click('button:has-text("Tasks")')
+await page.getByRole('button', { name: 'Close utility tray' }).click()
 await page.waitForTimeout(150)
 await page.evaluate(() =>
   globalThis.__auroraSetHarnessStorage({
@@ -4595,12 +4596,12 @@ await page.evaluate(() =>
 )
 await page.waitForTimeout(150)
 await page.click('button:has-text("Tasks")')
-await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+await page.waitForSelector('[role="region"][aria-label="Tasks"]')
 await page.waitForTimeout(200)
 await page.screenshot({ path: `${outDir}/todo-panel.png` })
 // A framed element-only closeup for a closer read against tasks-C-command-closeup.png.
 await page
-  .locator('[role="dialog"][aria-label="Tasks"]')
+  .locator('[role="region"][aria-label="Tasks"]')
   .screenshot({ path: `${outDir}/todo-panel-closeup.png` })
 console.log('captured todo-panel.png + todo-panel-closeup.png (6 tasks / 2 done / two lists — render-faithful seed)')
 
@@ -4615,7 +4616,7 @@ const firstTodayDone = async () =>
     .find((l) => l.name === 'Today')
     ?.items[0]?.done
 const roundCheck = page
-  .locator('[role="dialog"][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
+  .locator('[role="region"][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
   .first()
 const doneBefore = await firstTodayDone()
 await roundCheck.click()
@@ -4655,10 +4656,10 @@ console.log(
 // rendered rows to that list's items — the multi-list model surfaced through
 // the new header switcher. Click "This week" and assert the visible task
 // labels are exactly its two items.
-await page.click('[role="dialog"][aria-label="Tasks"] button:has-text("This week")')
+await page.click('[role="region"][aria-label="Tasks"] button:has-text("This week")')
 await page.waitForTimeout(150)
 const switchedLabels = await page.evaluate(() =>
-  [...document.querySelectorAll('[role="dialog"][aria-label="Tasks"] li label[for^="todo-item-"]')].map(
+  [...document.querySelectorAll('[role="region"][aria-label="Tasks"] li label[for^="todo-item-"]')].map(
     (l) => l.textContent,
   ),
 )
@@ -4670,20 +4671,19 @@ console.log(
     : `FAIL: list-switch via header eyebrow (${JSON.stringify(switchedLabels)})`,
 )
 // Switch back to Today so the still-open panel closes from a known state below.
-await page.click('[role="dialog"][aria-label="Tasks"] button:has-text("Today")')
+await page.click('[role="region"][aria-label="Tasks"] button:has-text("Today")')
 await page.waitForTimeout(100)
 
 // Open the focus timer pill and capture its panel
 await page.click('button[aria-label^="Focus timer"]')
-await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
+await page.waitForSelector('section[aria-label="Focus timer"]')
 await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/timer-panel.png` })
 console.log('captured timer-panel.png')
 
 // Close the still-open to-do and timer panels so the palette screenshot isn't
 // cluttered by dimmed panels behind its backdrop
-await page.click('button:has-text("Tasks")')
-await page.click('button[aria-label^="Focus timer"]')
+await page.getByRole('button', { name: 'Close utility tray' }).click()
 await page.waitForTimeout(150)
 
 // Open the command palette with Ctrl+K, filter it, and capture it
@@ -4701,7 +4701,7 @@ await page.keyboard.press('Escape')
 // prove the text actually round-tripped through chrome.storage rather than
 // just sitting in React state.
 await page.click('button:has-text("Notes")')
-await page.waitForSelector('[role="dialog"][aria-label="Notes"]')
+await page.waitForSelector('[role="region"][aria-label="Notes"]')
 await page.fill('textarea', 'Remember the milk')
 await page.waitForTimeout(700) // past the 500ms autosave debounce
 await page.screenshot({ path: `${outDir}/notes-panel.png` })
@@ -4711,7 +4711,7 @@ await page.reload()
 await page.waitForSelector('time')
 await page.waitForTimeout(800) // photo fade-in
 await page.click('button:has-text("Notes")')
-await page.waitForSelector('[role="dialog"][aria-label="Notes"]')
+await page.waitForSelector('[role="region"][aria-label="Notes"]')
 const notesPersisted = await page.locator('textarea').inputValue()
 console.log(
   notesPersisted === 'Remember the milk'
@@ -4750,7 +4750,7 @@ try {
     { timeout: 3_000 },
   )
   const storedNote = () => notesProofPage.evaluate(() => chrome.storage.local.get('notes').then((value) => value.notes))
-  const notesDialog = notesProofPage.getByRole('dialog', { name: 'Notes' })
+  const notesDialog = notesProofPage.getByRole('region', { name: 'Notes' })
   const openNotes = async () => {
     await notesProofPage.getByRole('button', { name: 'Notes' }).click()
     await notesDialog.waitFor()
@@ -4780,7 +4780,7 @@ try {
     try {
       for (const capture of captures) {
         await notesProofPage.setViewportSize({ width: capture.width, height: capture.height })
-        await notesProofPage.getByRole('button', { name: 'Notes' }).focus()
+        await notesProofPage.getByRole('navigation', { name: 'Working tools' }).getByRole('button', { name: 'Notes' }).focus()
         await notesProofPage.waitForTimeout(100)
         await notesProofPage.screenshot({ path: `${outDir}/${capture.file}` })
         console.log(`captured ${capture.file} (real held Notes retry: Saving status + retained alert + busy Retry)`)
@@ -4875,7 +4875,7 @@ try {
     await notesProofPage.setViewportSize(viewport)
     await resetAdaptiveStageScroll(notesProofPage)
     const geometry = await notesProofPage.evaluate(() => {
-      const panel = document.querySelector('[role="dialog"][aria-label="Notes"]')
+      const panel = document.querySelector('[role="region"][aria-label="Notes"]')
       const textarea = document.querySelector('#notes-textarea')
       const retry = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Retry save')
       if (!panel || !textarea || !retry) return null
@@ -4886,13 +4886,13 @@ try {
         panel: { left: p.left, top: p.top, right: p.right, bottom: p.bottom, width: p.width, height: p.height },
         textarea: { width: t.width, height: t.height },
         retry: { width: r.width, height: r.height },
-        fixedSize: Math.abs(p.width - 320) <= 1 && Math.abs(p.height - 256) <= 1,
+        containedInTray: !!panel.closest('[data-utility-tray]'),
         reachable: p.left >= 0 && p.top >= 0 && p.right <= innerWidth && p.bottom <= innerHeight
           && t.width > 0 && t.height > 0 && r.width > 0 && r.height > 0,
       }
     })
     responsiveGeometry.push({ viewport, geometry })
-    responsiveChecks.push(Boolean(geometry?.fixedSize && geometry?.reachable))
+    responsiveChecks.push(Boolean(geometry?.containedInTray && geometry?.reachable))
   }
   await notesProofPage.setViewportSize({ width: 1600, height: 900 })
   await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 latest retry')
@@ -4926,9 +4926,9 @@ try {
   await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 close draft')
   await waitForHeldNote()
   await notesProofPage.keyboard.press('Escape')
-  const dialogStayedDuringClose = await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
+  const dialogStayedDuringClose = await notesProofPage.getByRole('region', { name: 'Notes' }).isVisible()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
-  await notesProofPage.getByRole('dialog', { name: 'Notes' }).waitFor({ state: 'detached' })
+  await notesProofPage.getByRole('region', { name: 'Notes' }).waitFor({ state: 'detached' })
   const focusRestored = await notesProofPage.evaluate(() => document.activeElement?.textContent === 'Notes')
 
   await openNotes()
@@ -4936,13 +4936,11 @@ try {
   await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 arrange draft')
   await waitForHeldNote()
   await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
-  await notesProofPage.getByRole('dialog', { name: 'Settings' }).waitFor()
-  await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
-  await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectPending())
   await notesProofPage.getByRole('alert').waitFor()
-  const noArrangeOnFailure = (await notesProofPage.locator('[data-arrange-overlay]').count()) === 0
-    && await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
+  const noArrangeOnFailure = (await notesProofPage.getByRole('dialog', { name: 'Settings' }).count()) === 0
+    && (await notesProofPage.locator('[data-arrange-overlay]').count()) === 0
+    && await notesProofPage.getByRole('region', { name: 'Notes' }).isVisible()
     && await notesProofPage.evaluate(() => !document.querySelector('[data-arrange-overlay]'))
   await retrySave()
   await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
@@ -4950,7 +4948,7 @@ try {
   await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
   await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
   await notesProofPage.getByRole('button', { name: 'Cancel' }).waitFor()
-  const notesGoneBeforeInert = (await notesProofPage.getByRole('dialog', { name: 'Notes' }).count()) === 0
+  const notesGoneBeforeInert = (await notesProofPage.getByRole('region', { name: 'Notes' }).count()) === 0
     && await notesProofPage.evaluate(() => document.querySelector('[data-arrange-overlay]') !== null)
   await notesProofPage.getByRole('button', { name: 'Cancel' }).click()
   notesCloseArrangeOk = dialogStayedDuringClose && focusRestored && noArrangeOnFailure && notesGoneBeforeInert
@@ -17647,7 +17645,8 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   // NEXT probe starts from a clean idle-panel state.
   const panelOcclusionCheck = async (pillSel, dialogLabel, cardSel, cardName) => {
     await page.click(pillSel)
-    const panelSel = `[role="dialog"][aria-label="${dialogLabel}"]`
+    await page.waitForSelector(`[role="region"][aria-label="${dialogLabel}"]`)
+    const panelSel = '[data-utility-tray]'
     await page.waitForSelector(panelSel)
     await page.waitForTimeout(200)
     const res = await page.evaluate(
@@ -17763,10 +17762,10 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   await page.setViewportSize({ width: 800, height: 450 })
   await page.waitForTimeout(300) // reflow
   await page.click('[data-block-id="timer"] button[aria-expanded]')
-  await page.waitForSelector('[role="dialog"][aria-label="Focus timer"]')
+  await page.waitForSelector('section[aria-label="Focus timer"]')
   await page.waitForTimeout(200)
   const clamp = await page.evaluate(() => {
-    const panel = document.querySelector('[role="dialog"][aria-label="Focus timer"]')
+    const panel = document.querySelector('[data-utility-tray]')
     if (!panel) return { found: false }
     const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
@@ -17795,12 +17794,14 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
       onTop: !!sample && panel.contains(sample),
       dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
       clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
+      modal: panel.getAttribute('data-utility-tray-mode') === 'modal',
+      dashboardInert: document.querySelector('main[data-adaptive-stage] > .contents')?.hasAttribute('inert') ?? false,
     }
   })
   await page.screenshot({ path: `${outDir}/timer-panel-800x450.png` })
   console.log('captured timer-panel-800x450.png')
   const timerClampOk =
-    clamp.found && clamp.onScreen && clamp.clearsDock && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.modal && clamp.dashboardInert && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     timerClampOk
       ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
@@ -17826,10 +17827,10 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   await page.setViewportSize({ width: 800, height: 450 })
   await page.waitForTimeout(300) // reflow
   await page.click('[data-block-id="tasks"] button[aria-expanded]')
-  await page.waitForSelector('[role="dialog"][aria-label="Tasks"]')
+  await page.waitForSelector('[role="region"][aria-label="Tasks"]')
   await page.waitForTimeout(200)
   const clamp = await page.evaluate(() => {
-    const panel = document.querySelector('[role="dialog"][aria-label="Tasks"]')
+    const panel = document.querySelector('[data-utility-tray]')
     if (!panel) return { found: false }
     const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
@@ -17857,12 +17858,14 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
       onTop: !!sample && panel.contains(sample),
       dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
       clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
+      modal: panel.getAttribute('data-utility-tray-mode') === 'modal',
+      dashboardInert: document.querySelector('main[data-adaptive-stage] > .contents')?.hasAttribute('inert') ?? false,
     }
   })
   await page.screenshot({ path: `${outDir}/todo-panel-800x450.png` })
   console.log('captured todo-panel-800x450.png')
   const tasksClampOk =
-    clamp.found && clamp.onScreen && clamp.clearsDock && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.modal && clamp.dashboardInert && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     tasksClampOk
       ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
@@ -17893,9 +17896,12 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
 {
   const focusInside = (label) =>
     page.evaluate((l) => {
-      const d = document.querySelector(`[role="dialog"][aria-label="${l}"]`)
+      const d = document.querySelector('[data-utility-tray]')
+      const detail = l === 'Focus timer'
+        ? document.querySelector('section[aria-label="Focus timer"]')
+        : document.querySelector(`[role="region"][aria-label="${l}"]`)
       const a = document.activeElement
-      return { inside: !!d && d.contains(a) && a !== document.body, tag: a ? a.tagName : null }
+      return { inside: !!d && !!detail && d.contains(a) && a !== document.body, tag: a ? a.tagName : null }
     }, label)
 
   for (const { pill, label, switchTo } of [
@@ -17904,7 +17910,7 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
     { pill: '[data-block-id="timer"] button[aria-expanded]', label: 'Focus timer', switchTo: null },
   ]) {
     await page.click(pill)
-    await page.waitForSelector(`[role="dialog"][aria-label="${label}"]`)
+    await page.waitForSelector(label === 'Focus timer' ? 'section[aria-label="Focus timer"]' : `[role="region"][aria-label="${label}"]`)
     await page.waitForTimeout(350) // let any async defaulting effect settle
     const afterOpen = await focusInside(label)
     let held = afterOpen.inside
@@ -17917,7 +17923,7 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
       steps.push(`tab${i + 1}:${t.inside}(${t.tag})`)
     }
     if (switchTo) {
-      await page.click(`[role="dialog"][aria-label="${label}"] button:has-text("${switchTo}")`)
+      await page.click(`[role="region"][aria-label="${label}"] button:has-text("${switchTo}")`)
       await page.waitForTimeout(150)
       const sw = await focusInside(label)
       held = held && sw.inside
@@ -21626,7 +21632,7 @@ await page.waitForTimeout(150)
     // narrow/short and ordinary/large captures.
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.getByRole('button', { name: 'Notes', exact: true }).click()
-    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor()
+    await evidencePage.getByRole('region', { name: 'Notes', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
     await evidencePage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
@@ -21634,10 +21640,10 @@ await page.waitForTimeout(150)
     await notesTextbox.fill(Array.from({ length: 18 }, (_, index) => `W2-P3 recoverable short draft line ${index + 1}`).join('\n'))
     await evidencePage.getByRole('button', { name: 'Retry save', exact: true }).waitFor({ timeout: 3_000 })
     await capture('w2-p3-notes-320x180')
-    observations.checks.notes = await readSurface('[role="dialog"][aria-label="Notes"]', 7)
-    observations.checks.notes.keyboard = await tabReachability('[role="dialog"][aria-label="Notes"]')
+    observations.checks.notes = await readSurface('[data-utility-tray]', 7)
+    observations.checks.notes.keyboard = await tabReachability('[data-utility-tray]')
     observations.checks.notes.recovery = await evidencePage.evaluate(() => {
-      const panel = document.querySelector('[role="dialog"][aria-label="Notes"]')
+      const panel = document.querySelector('[role="region"][aria-label="Notes"]')
       const retry = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Retry save')
       const textarea = document.querySelector('#notes-textarea')
       return {
@@ -21652,9 +21658,9 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('status').filter({ hasText: 'Saved' }).waitFor({ timeout: 3_000 })
     observations.checks.notes.recovery.retrySucceeded = true
     await notesTextbox.focus()
-    const notesFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
-    const notesOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Notes"]')
-    const notesFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Notes"]')
+    const notesFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Notes"]')
+    const notesOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Notes"]')
+    const notesFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Notes"]')
     observations.checks.notes.outside = {
       point: notesOutsidePoint,
       panelPreserved: notesFocusAfterOutside.surfaceOpen,
@@ -21663,12 +21669,12 @@ await page.waitForTimeout(150)
       invokerNotRestored: !notesFocusAfterOutside.focusKey.endsWith('|Notes'),
     }
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('region', { name: 'Notes', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.notes.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Notes')
 
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 568 })
     await evidencePage.waitForTimeout(160)
     await capture('w2-p3-tasks-320x568')
@@ -21679,21 +21685,21 @@ await page.waitForTimeout(150)
     await evidencePage.keyboard.press('Enter')
     await capture('w2-p3-tasks-short-320x180')
     observations.checks.tasks = {
-      panel: await readSurface('[role="dialog"][aria-label="Tasks"]', 7),
+      panel: await readSurface('[data-utility-tray]', 7),
       menu: await readSurface('[aria-label="Task list actions"]', 7),
     }
-    observations.checks.tasks.panel.keyboard = await tabReachability('[role="dialog"][aria-label="Tasks"]')
+    observations.checks.tasks.panel.keyboard = await tabReachability('[data-utility-tray]')
     observations.checks.tasks.menu.keyboard = await tabReachability('[aria-label="Task list actions"]', { trap: false })
     const menuOutsidePoint = await clickOutsideSurface('[aria-label="Task list actions"]', { backdrop: true })
     observations.checks.tasks.outsideMenu = await evidencePage.evaluate((point) => ({
       point,
       menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
-      panelOpen: !!document.querySelector('[role="dialog"][aria-label="Tasks"]'),
+      panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
     }), menuOutsidePoint)
-    const tasksFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Tasks"]')
-    const tasksOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Tasks"]')
-    const tasksFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Tasks"]')
+    const tasksFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
+    const tasksOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Tasks"]')
+    const tasksFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
     observations.checks.tasks.outsidePanel = {
       point: tasksOutsidePoint,
       panelPreserved: tasksFocusAfterOutside.surfaceOpen,
@@ -21708,23 +21714,24 @@ await page.waitForTimeout(150)
     observations.checks.tasks.newestFirst = await evidencePage.evaluate(() => ({
       menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
-      panelOpen: !!document.querySelector('[role="dialog"][aria-label="Tasks"]'),
+      panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
     }))
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.tasks.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Tasks')
 
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.locator('button[aria-label^="Focus timer:"]').click()
-    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor()
+    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
     await capture('w2-p3-timer-320x180')
-    observations.checks.timer = await readSurface('[role="dialog"][aria-label="Focus timer"]', 7)
-    observations.checks.timer.keyboard = await tabReachability('[role="dialog"][aria-label="Focus timer"]')
-    const timerFocusBeforeOutside = await surfaceFocusState('[role="dialog"][aria-label="Focus timer"]')
-    const timerOutsidePoint = await clickOutsideSurface('[role="dialog"][aria-label="Focus timer"]')
-    const timerFocusAfterOutside = await surfaceFocusState('[role="dialog"][aria-label="Focus timer"]')
+    observations.checks.timer = await readSurface('[data-utility-tray]', 7)
+    observations.checks.timer.keyboard = await tabReachability('[data-utility-tray]')
+    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).getByRole('button', { name: 'Start' }).focus()
+    const timerFocusBeforeOutside = await surfaceFocusState('section[aria-label="Focus timer"]')
+    const timerOutsidePoint = await clickOutsideSurface('section[aria-label="Focus timer"]')
+    const timerFocusAfterOutside = await surfaceFocusState('section[aria-label="Focus timer"]')
     observations.checks.timer.outside = {
       point: timerOutsidePoint,
       panelPreserved: timerFocusAfterOutside.surfaceOpen,
@@ -21733,7 +21740,7 @@ await page.waitForTimeout(150)
       invokerNotRestored: !timerFocusAfterOutside.focusKey.includes('|Focus timer:'),
     }
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.timer.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label')?.startsWith('Focus timer:'))
 
     // Current dialogs and popovers. Each is exercised at 320x180; companion
@@ -21963,10 +21970,10 @@ await page.waitForTimeout(150)
     )
     await evidencePage.setViewportSize({ width: 2560, height: 1440 })
     await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
     await evidencePage.waitForTimeout(100)
     await capture('w2-p3-large-tools-2560x1440')
-    observations.checks.large = await readSurface('[role="dialog"][aria-label="Tasks"]', 7)
+    observations.checks.large = await readSurface('[data-utility-tray]', 7)
     observations.checks.large.stage = await adaptiveStagePredecessor(evidencePage, ['tasks'])
     await evidencePage.keyboard.press('Escape')
   } catch (error) {
