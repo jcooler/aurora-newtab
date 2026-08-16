@@ -1,4 +1,4 @@
-import type { Size } from './clamp'
+export interface Size { w: number; h: number }
 
 // px. A panel that opens DOWNWARD (pill in the top half) anchors via `top` —
 // unchanged. A panel that opens UPWARD (pill in the bottom half) anchors via

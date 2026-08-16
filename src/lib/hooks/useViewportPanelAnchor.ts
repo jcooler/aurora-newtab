@@ -3,8 +3,8 @@ import {
   anchorPanel,
   type HugRect,
   type PanelPlacement,
+  type Size,
 } from '../layout/anchor'
-import type { Size } from '../layout/clamp'
 
 interface ViewportPanelAnchorOptions {
   open: boolean

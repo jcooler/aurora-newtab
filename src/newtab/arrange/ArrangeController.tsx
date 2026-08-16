@@ -5,7 +5,7 @@ import { closeAllDialogs, hasOpenDialogs, useDialogEscape } from '../../lib/dial
 import { isPremium } from '../../lib/premium'
 import { useStorage } from '../../lib/storage/context'
 import { useLongPress } from './useLongPress'
-import type { ArrangePreview } from './draftLayout'
+import type { ArrangePreview } from './arrangePreview'
 import {
   applyArrangeEdit,
   copyProfileDraft,

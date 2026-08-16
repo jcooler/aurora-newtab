@@ -13,10 +13,8 @@ import {
   emptyLayoutV2,
   isValidPlacement,
   layoutV2FromLegacy,
-  legacyLayoutOf,
   normalizeProfilePlacements,
   validateLegacyLayout,
-  withLegacyBlockPosition,
   withProfileOverrides,
 } from './v2'
 
@@ -103,7 +101,6 @@ describe('legacy validation and compatibility', () => {
     expect(copy.clock).not.toBe(legacy.clock)
     expect(validateLegacyLayout({})).toEqual({})
     expect(legacy).toEqual({ clock: { x: 12.5, y: 87.25 }, unknown: { x: 1, y: 2 } })
-    expect(legacyLayoutOf({ version: 2, profiles: {} })).toEqual({})
   })
 
   it('raises one typed fixed safe error for malformed containers and known rows', () => {
@@ -181,7 +178,7 @@ describe('deterministic legacy mapping', () => {
   })
 })
 
-describe('collision normalization and compatibility moves', () => {
+describe('collision normalization', () => {
   it('normalizes duplicate/sparse orders by zone, configured order, and binary id', () => {
     const profile = {
       search: placement({ zone: 'now', order: 9 }),
@@ -199,67 +196,4 @@ describe('collision normalization and compatibility moves', () => {
     expect(profile.search.order).toBe(9)
   })
 
-  it('adds a moved block to all profiles while preserving profile-only overrides', () => {
-    const source: LayoutV2 = {
-      version: 2,
-      profiles: {
-        standard: { weather: placement({ zone: 'pulse', order: 7, variant: 'expanded', priority: 'automatic' }) },
-      },
-    }
-    const before = structuredClone(source)
-    const result = withLegacyBlockPosition(source, 'clock', { x: 50, y: 50 })
-    expect(source).toEqual(before)
-    expect(result.legacy).toEqual({ clock: { x: 50, y: 50 } })
-    for (const profile of LAYOUT_PROFILES) {
-      expect(result.profiles[profile]?.clock).toEqual({
-        zone: 'now', order: 0, colSpan: 1, rowSpan: 1, variant: 'standard', priority: 'pinned',
-      })
-    }
-    expect(result.profiles.standard?.weather).toEqual(source.profiles.standard?.weather)
-  })
-
-  it('preserves untouched semantic overrides and normalizes only old/new affected zones', () => {
-    const pulseWeather = placement({ zone: 'pulse', order: 12, variant: 'expanded', priority: 'automatic' })
-    const dockNotes = placement({ zone: 'dock', order: 8, locked: true })
-    const source: LayoutV2 = {
-      version: 2,
-      legacy: { clock: { x: 50, y: 50 }, greeting: { x: 50, y: 50 } },
-      profiles: Object.fromEntries(LAYOUT_PROFILES.map((profile) => [profile, {
-        clock: placement({ zone: 'now', order: 4 }),
-        greeting: placement({ zone: 'now', order: 4 }),
-        weather: pulseWeather,
-        notes: dockNotes,
-      }])) as LayoutV2['profiles'],
-    }
-    const result = withLegacyBlockPosition(source, 'clock', { x: 16.667, y: 50 })
-    expect(result.legacy).toEqual({ clock: { x: 16.667, y: 50 }, greeting: { x: 50, y: 50 } })
-    for (const profile of LAYOUT_PROFILES) {
-      expect(result.profiles[profile]?.clock?.zone).toBe('day')
-      expect(result.profiles[profile]?.clock?.order).toBe(0)
-      expect(result.profiles[profile]?.greeting?.order).toBe(0)
-      expect(result.profiles[profile]?.weather).toEqual(pulseWeather)
-      expect(result.profiles[profile]?.notes).toEqual(dockNotes)
-    }
-  })
-
-  it('derives the moved block order from the complete updated legacy map', () => {
-    const source = layoutV2FromLegacy({
-      weather: { x: 16.667, y: 40 },
-      clock: { x: 16.667, y: 60 },
-    })
-    const pulseGreeting = placement({ zone: 'pulse', order: 7, variant: 'expanded', priority: 'automatic' })
-    const dockNotes = placement({ zone: 'dock', order: 9, locked: true })
-    source.profiles.standard = {
-      ...source.profiles.standard,
-      greeting: pulseGreeting,
-      notes: dockNotes,
-    }
-
-    const result = withLegacyBlockPosition(source, 'clock', { x: 16.667, y: 70 })
-
-    expect(result.profiles.standard?.weather?.order).toBe(0)
-    expect(result.profiles.standard?.clock?.order).toBe(1)
-    expect(result.profiles.standard?.greeting).toEqual(pulseGreeting)
-    expect(result.profiles.standard?.notes).toEqual(dockNotes)
-  })
 })

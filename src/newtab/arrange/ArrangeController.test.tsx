@@ -7,7 +7,7 @@ import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import type { LayoutV2 } from '../../lib/layout/types'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
-import type { ArrangePreview } from './draftLayout'
+import type { ArrangePreview } from './arrangePreview'
 import ArrangeController from './ArrangeController'
 
 const ENTRIES = WIDGET_REGISTRY.filter((entry) => ['weather', 'ics', 'monthCal', 'clock', 'habits'].includes(entry.id))

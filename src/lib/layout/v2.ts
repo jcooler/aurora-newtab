@@ -31,7 +31,6 @@ export const SEMANTIC_ZONE_ANCHORS: Readonly<Record<Zone, Readonly<BlockPos>>> =
   dock: Object.freeze({ x: 50, y: 91.667 }),
 })
 
-const BLOCK_ID_SET = new Set<string>(BLOCK_IDS)
 const PROFILE_SET = new Set<string>(LAYOUT_PROFILES)
 const ZONE_SET = new Set<string>(ZONES)
 const VARIANT_SET = new Set<string>(WIDGET_VARIANTS)
@@ -101,10 +100,6 @@ export function validateLegacyLayout(value: unknown): LegacyLayout {
     result[id] = { x: row.x, y: row.y }
   }
   return result
-}
-
-export function legacyLayoutOf(layout: LayoutV2): LegacyLayout {
-  return layout.legacy ? validateLegacyLayout(layout.legacy) : {}
 }
 
 function nearestZone(pos: BlockPos): Zone {
@@ -196,25 +191,6 @@ export function withProfileOverrides(
     profiles,
     ...(layout.legacy ? { legacy: validateLegacyLayout(layout.legacy) } : {}),
   }
-}
-
-export function withLegacyBlockPosition(layout: LayoutV2, blockId: BlockId, pos: BlockPos): LayoutV2 {
-  if (!BLOCK_ID_SET.has(blockId) || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
-    throw new LegacyLayoutValidationError()
-  }
-  const legacy = legacyLayoutOf(layout)
-  legacy[blockId] = { x: pos.x, y: pos.y }
-  const mapped = mappedProfile(legacy)[blockId]!
-  const profiles = cloneProfiles(layout)
-  for (const profileName of LAYOUT_PROFILES) {
-    const profile = profiles[profileName] ?? {}
-    const oldZone = profile[blockId]?.zone
-    profile[blockId] = mapped
-    const affected = new Set<Zone>([mapped.zone])
-    if (oldZone) affected.add(oldZone)
-    profiles[profileName] = normalizeZones(profile, affected)
-  }
-  return { version: 2, profiles, legacy }
 }
 
 export function isLayoutProfile(value: string): value is LayoutProfile {

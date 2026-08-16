@@ -6,8 +6,6 @@ export type BlockId = (typeof BLOCK_IDS)[number]
 /** Block CENTER as percent of viewport (0-100 each axis), finite. */
 export interface BlockPos { x: number; y: number }
 export type LegacyLayout = Partial<Record<BlockId, BlockPos>>
-/** Compatibility alias for percentage-based W3-P1 consumers. */
-export type Layout = LegacyLayout
 
 export const LAYOUT_PROFILES = ['compact', 'standard', 'display', 'ultrawide'] as const
 export type LayoutProfile = (typeof LAYOUT_PROFILES)[number]
