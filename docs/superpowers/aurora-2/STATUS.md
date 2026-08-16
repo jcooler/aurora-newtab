@@ -5,13 +5,13 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W5-P4` - Visual/motion system convergence<br>
-**Current packet:** `W6-P1` - Migration, regression, offline/stale/error QA; matrix execution active
+**Current packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA; planning active
 
 ## Packet envelope
 
-- **Acceptance:** Complete the written automated migration, regression, offline/stale/error, and recovery matrix with every accepted finding tracked.
-- **Implementation scope:** JIT planning from the frozen Wave 6 acceptance and existing ledgers. Preserve schema/registry contracts and correct only demonstrated Critical/Important product failures; record Minor evidence/cosmetic debt without reopening verified packets.
-- **Remaining gates:** Run the four focused automated/recovery families once, record and classify findings, perform one implementation review/fix cycle only if product code changes are required, checkpoint, and continue to W6-P2.
+- **Acceptance:** Execute the written named viewport/state/zoom matrix, inspect required screenshots in bounded batches, verify keyboard/core accessibility, and state hardware/manual ceilings explicitly.
+- **Implementation scope:** JIT planning only; W6-P2 may add bounded QA fixtures/reports and fix demonstrated Critical/Important responsive or core-accessibility defects. No schema, migration, registry, storage, privacy, permission, connector, packaging, policy, dashboard, or Store change.
+- **Remaining gates:** Freeze a non-exhaustive matrix from the written named dimensions, reuse already-green unchanged evidence where valid, run each remaining family once, inspect captures, review/classify findings, checkpoint, and continue to W6-P3.
 
 ## Previous packet envelope
 
@@ -123,6 +123,9 @@
 - `44e05c0` - existing-owner Tasks, Notes, Timer, Home Assistant action, and background-refresh integration with guarded Notes lifecycle and focused browser proof.
 
 ## Latest verification
+
+- W6-P1 completed four first-run focused matrices: migration/stored-data 7 files / 317 tests; permission/secret recovery 7 / 219; offline/stale/error/persistence 13 / 190; civil-time/open-tab recovery 6 / 94. This is 820 executed assertions and 690 unique assertions because backup validation intentionally belongs to two families.
+- The unchanged W5-P4 full gate was reused instead of repeated. The bounded W6-P1 review returned Ready with no Critical, Important, or Minor product finding; no fix/rereview and no product/test code change was required. Exact results and retained manual ceilings are in `W6-P1-QA-MATRIX.md`.
 
 - W5-P4 focused development passed 6 files / 280 tests. The packaged Chromium replay proved an opaque local Focus prompt surface at 18.04:1 across bright, dark, and detailed packaged photos, 44px spacious persistent controls, 36px Settings controls, 14px ordinary and 12px metadata type floors, opaque Settings/Tray work surfaces, reduced-motion convergence, exact cleanup, and zero runtime errors. All three required captures were inspected once.
 - One implementation review returned Ready with 0 Critical / 0 Important findings. The final unit gate passed 137 files / 2,262 tests; production and preview builds transformed 189 modules; TypeScript and the production bridge scan were clean.
@@ -375,9 +378,9 @@
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W6-P1` - Migration, regression, offline/stale/error QA
-- **Plan:** Create just in time after the W5-P4 checkpoint/equality proof.
-- **State:** Planning active. Preserve frozen schema/registry/allocation/storage/privacy/permission/Store contracts; execute the written QA/recovery matrix once and fix only demonstrated blocking failures.
+- **Packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA
+- **Plan:** Create just in time after the W6-P1 checkpoint/equality proof.
+- **State:** Planning active. Execute the written named matrix without inventing cross-products; preserve explicit hardware/manual ceilings and fix only demonstrated blocking failures.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
