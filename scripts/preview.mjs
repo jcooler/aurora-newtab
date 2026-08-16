@@ -21712,22 +21712,23 @@ await page.waitForTimeout(150)
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
       panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
     }), menuOutsidePoint)
-    // At 320x180 the accepted Tasks surface can legitimately occupy every
-    // non-interactive pixel outside its menu. Exercise the tray's own outside
-    // pointer lifecycle at the same narrow width with real surrounding space;
-    // the short-viewport geometry and menu backdrop remain proved above.
+    // At Compact sizes the Utility Tray is intentionally modal, so every
+    // point outside its fitted surface belongs to the real backdrop. Exercise
+    // that current dismissal contract after proving the 320x180 menu above.
     await evidencePage.setViewportSize({ width: 320, height: 568 })
     await evidencePage.waitForTimeout(160)
     const tasksFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
-    const tasksOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Tasks"]')
+    const tasksOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Tasks"]', { backdrop: true })
+    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
     const tasksFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
     observations.checks.tasks.outsidePanel = {
       point: tasksOutsidePoint,
-      panelPreserved: tasksFocusAfterOutside.surfaceOpen,
+      panelClosed: !tasksFocusAfterOutside.surfaceOpen,
       focusOwnedBefore: tasksFocusBeforeOutside.focusInside,
-      focusOwnedAfter: tasksFocusAfterOutside.focusInside,
-      invokerNotRestored: !tasksFocusAfterOutside.focusKey.endsWith('|Tasks'),
+      invokerRestored: tasksFocusAfterOutside.focusKey.endsWith('|Tasks'),
     }
+    await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
+    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
     await moreActions.focus()
     await evidencePage.keyboard.press('Enter')
     await evidencePage.locator('[aria-label="Task list actions"]').waitFor()
@@ -22124,8 +22125,8 @@ await page.waitForTimeout(150)
   }) && observations.checks.tasks?.outsideMenu?.point &&
     observations.checks.tasks.outsideMenu.menuClosed && observations.checks.tasks.outsideMenu.triggerFocused &&
     observations.checks.tasks.outsideMenu.panelOpen && observations.checks.tasks?.outsidePanel?.point &&
-    observations.checks.tasks.outsidePanel.panelPreserved && observations.checks.tasks.outsidePanel.focusOwnedBefore &&
-    observations.checks.tasks.outsidePanel.invokerNotRestored && observations.checks.picker?.outside?.point &&
+    observations.checks.tasks.outsidePanel.panelClosed && observations.checks.tasks.outsidePanel.focusOwnedBefore &&
+    observations.checks.tasks.outsidePanel.invokerRestored && observations.checks.picker?.outside?.point &&
     observations.checks.picker.outside.pickerClosed && observations.checks.picker.outside.settingsOpen &&
     observations.checks.picker.outside.invokerFocused && observations.checks.palette?.outside?.point &&
     observations.checks.palette.outside.paletteClosed && observations.checks.palette.outside.priorFocusRestored &&
