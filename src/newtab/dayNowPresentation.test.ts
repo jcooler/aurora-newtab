@@ -34,6 +34,7 @@ describe('W4-P1 Day and Now presentation boundary', () => {
     expect(briefingSource).not.toContain("storage.set")
     expect(registrySource).not.toContain("id: 'briefing'")
     expect(indexCss).toMatch(/\.aurora-greeting\s*\{[\s\S]*?width: 100%;/)
+    expect(indexCss).toMatch(/data-stage-variant="compact"[^}]+data-block-id="greeting"[^}]+\.aurora-greeting > p/)
     expect(indexCss).toMatch(/\.aurora-briefing \[data-briefing-standard\],[\s\S]*?display: none;/)
     expect(indexCss).toMatch(/data-stage-profile="standard"[\s\S]*?data-briefing-standard[^}]+display: block;/)
     expect(indexCss).toMatch(/data-stage-profile="display"[\s\S]*?data-briefing-display[^}]+display: block;/)

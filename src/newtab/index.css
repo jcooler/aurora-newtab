@@ -2097,7 +2097,7 @@ select > option {
 .board-item--dock[data-block-id="focus"] #focus-input {
   margin-bottom: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="greeting"] > p {
+.board-item[data-stage-variant="compact"][data-block-id="greeting"] .aurora-greeting > p {
   font-size: 1.5rem;
   line-height: 2rem;
 }

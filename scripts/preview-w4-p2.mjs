@@ -64,6 +64,7 @@ const waitForBriefing = async (text) => {
 const observe = () => page.evaluate(() => {
   const briefing = document.querySelector('[data-aurora-briefing]')
   const greetingItem = briefing?.closest('[data-block-id="greeting"]')
+  const greetingText = greetingItem?.querySelector('.aurora-greeting > p')
   const now = document.querySelector('[data-stage-zone="now"]')
   const paragraphs = [...(briefing?.querySelectorAll('p') ?? [])]
   const visible = paragraphs.filter((node) => getComputedStyle(node).display !== 'none')
@@ -84,6 +85,7 @@ const observe = () => page.evaluate(() => {
     visibleTexts: visible.map((node) => node.textContent),
     visibleTextFits: visible.every((node) => node.scrollWidth <= node.clientWidth + 1),
     greetingOwner: greetingItem?.getAttribute('data-block-id'),
+    greetingTextFits: greetingText instanceof HTMLElement && greetingText.scrollWidth <= greetingText.clientWidth + 1,
     nowIds: [...(now?.querySelectorAll(':scope > [data-block-id]') ?? [])].map((node) => node.getAttribute('data-block-id')),
     contained,
     noHorizontalPageClip: document.documentElement.scrollWidth <= innerWidth + 1 && document.body.scrollWidth <= innerWidth + 1,
@@ -164,6 +166,7 @@ try {
   evidence.captures.compact = await capture(800, 600, 'w4-p2-compact-800x600.png', expected.compact)
   evidence.captures.standard = await capture(1600, 900, 'w4-p2-standard-1600x900.png', expected.standard)
   evidence.captures.display = await capture(2560, 1440, 'w4-p2-display-2560x1440.png', expected.display)
+  evidence.narrow = await capture(320, 800, 'w4-p2-compact-narrow-320x800.png', expected.compact)
 
   for (const [profile, observation] of Object.entries(evidence.captures)) {
     assert(observation.profile === profile, `${profile}: wrong profile ${observation.profile}`)
@@ -173,6 +176,8 @@ try {
     assert(observation.noHorizontalPageClip, `${profile}: horizontal page clipping`)
     assert(!observation.texts.join(' ').includes('private-token') && !observation.texts.join(' ').includes('zoom.us'), `${profile}: secret/capability text surfaced`)
   }
+  assert(evidence.narrow.profile === 'compact', `narrow: wrong profile ${evidence.narrow.profile}`)
+  assert(evidence.narrow.greetingTextFits && evidence.narrow.contained, 'narrow: Greeting or Briefing escaped its compact allocation')
   assert(externalRequests.length === 0, `Briefing introduced external request(s): ${externalRequests.join(', ')}`)
   assert(runtimeErrors.length === 0, `runtime errors: ${runtimeErrors.join('; ')}`)
 } catch (error) {
