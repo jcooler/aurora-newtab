@@ -980,8 +980,27 @@ select > option {
   grid-auto-rows: minmax(var(--stage-track-min), 1fr);
 }
 
-.stage-zone--day { grid-area: day; grid-template-columns: repeat(var(--stage-day-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--stage-day-rows), minmax(var(--stage-track-min), 1fr)); }
-.stage-zone--now { grid-area: now; grid-template-columns: repeat(var(--stage-now-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--stage-now-rows), minmax(var(--stage-track-min), 1fr)); align-content: safe center; }
+.stage-zone--day {
+  grid-area: day;
+  grid-template-columns: repeat(var(--stage-day-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--stage-day-rows), minmax(var(--stage-track-min), 1fr));
+  /* Day is one coherent glance surface. Its BoardItems supply content
+     hierarchy inside the shared region instead of each allocation receiving
+     another zone-level frame. Geometry remains exactly planner-owned. */
+  background: linear-gradient(150deg, rgb(3 7 18 / 0.42), rgb(3 7 18 / 0.2));
+}
+.stage-zone--now {
+  grid-area: now;
+  grid-template-columns: repeat(var(--stage-now-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--stage-now-rows), minmax(var(--stage-track-min), 1fr));
+  align-content: safe center;
+  /* Now is the photo-forward hero, not a second framed card. The localized
+     wash protects the Clock/Greeting/Search/Focus hierarchy without changing
+     tracks, capacity, padding, hit testing, or the root transform contract. */
+  border-color: transparent;
+  background: radial-gradient(ellipse at center, rgb(3 7 18 / 0.2), transparent 72%);
+  box-shadow: none;
+}
 .stage-zone--pulse { grid-area: pulse; grid-template-columns: repeat(var(--stage-pulse-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--stage-pulse-rows), minmax(var(--stage-track-min), 1fr)); }
 .stage-zone--dock {
   grid-area: dock;
@@ -1035,6 +1054,73 @@ select > option {
   grid-column: span var(--board-col-span);
   grid-row: span var(--board-row-span);
   isolation: isolate;
+}
+
+/* An empty Day region still answers "what day is it?" without minting a
+   registry identity or consuming planner capacity. Once any Day allocation
+   exists App removes this render-only context, so it can never overlap a
+   Weather/Calendar/sky BoardItem. */
+.day-context {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  align-self: center;
+  justify-self: center;
+  display: flex;
+  min-width: 0;
+  max-width: calc(100% - 24px);
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+  pointer-events: none;
+}
+.day-context__eyebrow {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--canvas-fg-muted);
+}
+.day-context time {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.day-context [data-day-context-long] { display: none; }
+:root:not([data-stage-profile="compact"]) .day-context [data-day-context-compact] { display: none; }
+:root:not([data-stage-profile="compact"]) .day-context [data-day-context-long] { display: inline; }
+:root[data-stage-profile="display"] .day-context time {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+/* The Clock owns the primary Now value. Its long local date is useful extra
+   context only when the semantic renderer is Expanded; Compact/Standard keep
+   the established quiet hierarchy and identical accessible time value. */
+.clock-face {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+}
+.clock-face [data-clock-date] {
+  display: none;
+  margin-top: 2px;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+.board-item[data-stage-variant="expanded"][data-block-id="clock"] .clock-face [data-clock-date] {
+  display: block;
 }
 
 /* Closed Bookmarks remains in the normal grid stacking order. Elevation is
