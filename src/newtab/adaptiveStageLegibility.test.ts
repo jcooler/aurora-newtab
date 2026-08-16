@@ -29,6 +29,19 @@ describe('Adaptive Stage compact legibility contract', () => {
     expect(declarations).toMatch(/block-size:\s*var\(--stage-control-target\)\s*;/)
   })
 
+  it('fits the unconfigured Weather controls inside a compact finite allocation', () => {
+    const wrapper = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div')
+    expect(wrapper).toMatch(/padding:\s*4px\s*;/)
+    expect(lastDeclarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div'))
+      .toMatch(/padding-inline:\s*48px\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div'))
+      .toMatch(/flex-direction:\s*column\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="full"]'))
+      .toMatch(/display:\s*none\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="compact"]'))
+      .toMatch(/display:\s*inline\s*;/)
+  })
+
   it('sizes the Stage grid to the padded viewport content box without intrinsic growth', () => {
     const declarations = declarationBlock('.adaptive-stage__grid')
     expect(declarations).toMatch(/height:\s*calc\(100dvh - var\(--stage-inset\) - var\(--stage-inset\)\)\s*;/)

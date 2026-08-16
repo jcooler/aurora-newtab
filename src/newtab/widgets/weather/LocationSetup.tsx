@@ -327,6 +327,7 @@ export default function LocationSetup() {
         type="button"
         onClick={useDevice}
         disabled={busy}
+        aria-label="Use my location"
         aria-describedby={error ? 'location-error' : undefined}
         // Explicit cursors, both here and on the input below: WeatherWidget's
         // <section> sets `cursor-default` (it inherits, which is what keeps
@@ -337,7 +338,8 @@ export default function LocationSetup() {
         // already carry their own `cursor-pointer`.
         className="self-start cursor-pointer rounded-panel border border-panel-border px-2 py-1 text-fg hover:text-accent focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 xshort:order-2 xshort:shrink-0"
       >
-        Use my location
+        <span data-location-label="full">Use my location</span>
+        <span data-location-label="compact" aria-hidden className="hidden">Locate</span>
       </button>
       <div className="relative w-40 xshort:order-1 xshort:min-w-0 xshort:flex-1">
         <input

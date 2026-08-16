@@ -1456,6 +1456,18 @@ select > option {
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
   flex-direction: column;
 }
+.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+  padding: 4px;
+}
+.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
+  flex-direction: column;
+}
+.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="full"] {
+  display: none;
+}
+.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="compact"] {
+  display: inline;
+}
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) input,
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) button,
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) [role="listbox"] {
@@ -2414,5 +2426,11 @@ select > option {
   .adaptive-stage .settings-gear,
   .adaptive-stage button[aria-label="New background photo"] {
     bottom: calc(var(--stage-inset) + var(--stage-track-min) + 24px);
+  }
+}
+
+@media (max-width: 320px) and (max-height: 200px) {
+  .board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+    padding-inline: 48px;
   }
 }
