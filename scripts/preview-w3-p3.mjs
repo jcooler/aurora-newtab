@@ -142,6 +142,7 @@ try {
 
   await page.getByRole('button', { name: 'Cancel' }).click()
   await page.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Open settings')
   const afterCancel = await page.evaluate(() => chrome.storage.local.get('layout'))
   evidence.cancel = {
     exactStorage: exact(afterCancel, beforeSession),
