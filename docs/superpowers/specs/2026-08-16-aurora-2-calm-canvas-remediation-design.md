@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-16
 
-**Status:** Owner approved the V1-first direction in chat; written specification awaiting owner review.
+**Status:** Owner approved the V1-first direction in chat; UI-completeness verification revision awaiting owner review.
 
 ## 1. Problem
 
@@ -140,6 +140,9 @@ Retain the same centered thesis. Edge clusters stay within comfortable reading w
 - At 2560x1440 dense Display, related Day signals read as one cluster, connector signals read as one Work Pulse instrument, launcher labels are readable, and the photograph remains materially visible.
 - At 3440x1440 Ultrawide, edge clusters retain bounded readable widths and Now remains centered.
 - Compact 800x600 and 375x812 retain a coherent reading order with owned scrolling only where already authorized.
+- Clock's visual center matches the viewport horizontal center within 2 CSS px at every representative Standard, Display, and Ultrawide witness.
+- The painted Day and Work Pulse envelopes end within the shared inset after their final visible child. The painted Dock envelope follows its allocated content unless real overflow is present.
+- No witness has document-level horizontal scrolling, clipped actionable content, unintended overlap, unreadable launcher labels, or an empty painted slab.
 
 ### Functional and safety preservation
 
@@ -150,17 +153,67 @@ Retain the same centered thesis. Edge clusters stay within comfortable reading w
 - Existing Notes guards, Home Assistant pending/action behavior, focus restoration, reduced motion, and target floors remain intact.
 - No console/page error, clipping, unintended overlap, or document-level horizontal overflow appears in the focused browser replay.
 
+### UI completeness inventory
+
+The implementation is not visually complete until a browser-evidence inventory accounts for every shipped registry surface and every distinct work surface. The inventory is generated from the frozen `WIDGET_REGISTRY`, connector registry, Settings tabs, Utility Tray tool union, and dialog/popover owners. Each row records its fixture, viewport, action path, expected result, screenshot path, geometry result, keyboard/touch result where applicable, and console/page/network result.
+
+The inventory must cover:
+
+- all 26 registry entries: Weather, Calendar, Month, Sun times, Moon phase, Quote, Clock, Greeting, World clocks, Countdown, Search, Focus, Links, Habits, Bookmarks, Service status, GitHub, GitLab, Jira, Deploys, Home Assistant, Headlines, Crypto, Timer, Tasks, and Notes;
+- all four Settings tabs: General, Widgets, Connectors, and Data, including the narrow Drawer presentation;
+- all five Utility Tray tools: Tasks, Notes, Timer, Home Assistant, and Refresh;
+- Arrange entry, profile selection, placement controls, live preview, Undo, Save, Cancel, reset-one, and copy-profile;
+- Quick Link editing, Bookmark folder disclosure, Palette, Calendar source controls, Weather location search, Home Assistant entity picker, reset confirmation, Tasks detail, and Notes detail;
+- representative initial, empty, loading, healthy, attention, stale, error, retry, dirty, pending, running, expanded, condensed, and overflow states where those states already exist for a surface.
+
+Every inventory row must have direct evidence or a documented not-applicable reason grounded in the existing product contract. A passing shell capture cannot substitute for an unexercised surface. Every connector must appear at least once, but the same connector does not need to be multiplied across every viewport and state when the shared behavior owner is already proven.
+
 ## 9. Verification and review
 
-Development uses focused tests and one focused real-Chromium replay while stabilizing. Required visual witnesses are exactly:
+Development uses focused tests and small real-Chromium probes while the composition is changing. After the implementation stabilizes, one comprehensive UI-completeness replay produces the evidence inventory and final visual set.
 
-1. sparse Standard 1600x900;
-2. user-like 2012x1397;
-3. dense Display 2560x1440;
-4. Ultrawide 3440x1440;
-5. Compact 800x600;
-6. touch Compact 375x812.
+### 9.1 Full-page composition witnesses
+
+The final set covers profile interiors, threshold boundaries, sparse and dense content, short viewports, touch, and the owner's reported geometry:
+
+1. 320x180 Compact extreme reflow;
+2. 375x812 Compact touch;
+3. 600x800 Compact boundary;
+4. 800x600 Compact sparse;
+5. 800x600 Compact dense;
+6. 900x700 Standard boundary;
+7. 1280x800 Standard typical;
+8. 1600x900 Standard sparse;
+9. 1600x900 Standard dense;
+10. 1920x1080 Standard typical;
+11. 2012x1397 owner-like dense;
+12. 2200x1100 Display boundary;
+13. 2560x1440 Display sparse;
+14. 2560x1440 Display dense;
+15. 3840x2160 Display 4K dense;
+16. 1600x700 Ultrawide boundary;
+17. 3440x1440 Ultrawide dense.
+
+These are not the whole acceptance gate. Additional close-up captures document open work surfaces and interaction states from the inventory. Related surfaces may share one screenshot when each remains legible and individually asserted.
+
+### 9.2 Real interaction audit
+
+The replay uses real clicks or taps plus Tab, Shift+Tab, Enter, Space, Escape, scrolling, resizing, disclosure, and Arrange interactions as applicable. It checks:
+
+- visibility, hit target, focus movement, focus restoration, keyboard reachability, and owned scrolling before and after each action;
+- Clock centering, content-envelope sizing, no overlap, no clipping, no paint escape, no hidden actionable content, and no document-level horizontal overflow;
+- launcher add/edit/remove, bookmark folder drill/back, search and Focus entry, and Palette opening/dismissal;
+- Signal Dock disclosure, horizontal reveal, Escape closure, and focus restoration;
+- Tasks editing, Notes dirty/save/error/retry guard, Timer run/close/reopen, Home Assistant pending/error/action isolation, and Refresh feedback;
+- Settings tab navigation, narrow reflow, connector search/configuration presentation, Data confirmation/error presentation, and Arrange edit/cancel/save paths;
+- missing or failed images, unexpected external requests, failed network requests, uncaught page errors, console errors, and teardown restoration.
+
+Every final screenshot is inspected at original resolution, not only through automated geometry assertions. A contact sheet and indexed inventory are delivered for owner review. Visual acceptance requires the owner to approve the representative board after the implementation's automated and agent-inspected results are green.
+
+### 9.3 Bounded final gates
 
 The implementation receives one review and, if a Critical or Important finding exists, one fix/rereview cycle. After the composition is visually approved and stable, run the full unit suite, production/preview builds, and full browser harness once. If the final harness exposes an actual failing family, fix that family and rerun once.
+
+Critical or Important UI findings block acceptance when they demonstrate a security/privacy risk, stored-data loss, broken core functionality, core accessibility failure, or failure of an explicit criterion above. Minor evidence naming, cosmetic edge cases, and speculative cross-product gaps are recorded in the ledger without reopening the remediation.
 
 Store listing, package, screenshots, promo assets, upload, submission, and rollout remain blocked. W6-P3 resumes only after this remediation is accepted; W6-P5 still requires contemporaneous explicit Store approval.
