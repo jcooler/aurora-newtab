@@ -6,9 +6,13 @@ import { memoryDriver } from '../lib/storage/driver'
 import { createStorage } from '../lib/storage/index'
 import { defaults } from '../lib/storage/schema'
 import { emptyLayoutV2 } from '../lib/layout/v2'
+import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import App from './App'
 
-vi.mock('../services/bookmarks', () => ({ loadBarModel: vi.fn(), hasBookmarksPermission: vi.fn() }))
+vi.mock('../services/bookmarks', () => ({
+  loadBarModel: vi.fn().mockResolvedValue({ folders: [], loose: [] }),
+  hasBookmarksPermission: vi.fn().mockResolvedValue(false),
+}))
 vi.mock('./widgets/links/linksLogic', () => ({ faviconUrl: (url: string) => `favicon:${url}` }))
 
 async function renderApp(storage?: ReturnType<typeof createStorage>) {
@@ -21,6 +25,8 @@ async function renderApp(storage?: ReturnType<typeof createStorage>) {
 
 describe('App — Adaptive Stage composition', () => {
   beforeEach(() => {
+    vi.mocked(hasBookmarksPermission).mockResolvedValue(false)
+    vi.mocked(loadBarModel).mockResolvedValue({ folders: [], loose: [] })
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1600 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 900 })
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
@@ -72,6 +78,32 @@ describe('App — Adaptive Stage composition', () => {
     expect(nowIds).toEqual(['clock', 'greeting', 'search', 'focus', 'links'])
     expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(1)
     expect(document.querySelector('[data-aurora-briefing]')?.closest('[data-block-id]')?.getAttribute('data-block-id')).toBe('greeting')
+  })
+
+  it('consolidates adjacent Quick Links and Bookmarks without duplicating either allocation', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const settings = defaults().settings
+    await storage.set('settings', {
+      ...settings,
+      layoutDensity: 'balanced',
+      widgets: { ...settings.widgets, links: true, bookmarks: true, habits: false },
+    })
+    await storage.set('layout', {
+      version: 2,
+      profiles: { standard: {
+        links: { zone: 'now', order: 6, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'automatic' },
+        bookmarks: { zone: 'now', order: 7, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'automatic' },
+      } },
+    })
+    await renderApp(storage)
+
+    const shelf = screen.getByRole('group', { name: 'Launchers' })
+    expect(shelf.closest('[data-stage-zone="now"]')).toBeTruthy()
+    expect(shelf.querySelectorAll('[data-block-id="links"]')).toHaveLength(1)
+    expect(shelf.querySelectorAll('[data-block-id="bookmarks"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-block-id="links"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-block-id="bookmarks"]')).toHaveLength(1)
   })
 
   it('renders each active registry ID exactly once on the board or in the Dock', async () => {

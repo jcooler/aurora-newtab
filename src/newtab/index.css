@@ -1001,6 +1001,27 @@ select > option {
   background: radial-gradient(ellipse at center, rgb(3 7 18 / 0.2), transparent 72%);
   box-shadow: none;
 }
+
+/* Links and Bookmarks remain two planner-owned BoardItems, but when their
+   rectangles share an edge they read and navigate as one launcher shelf.
+   The nested grid repeats the parent tracks and gap exactly, so the wrapper
+   adds a shared visual surface without moving either allocation. */
+[data-launcher-shelf] {
+  display: grid;
+  grid-template-columns: repeat(var(--launcher-shelf-cols), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--launcher-shelf-rows), minmax(var(--stage-track-min), 1fr));
+  gap: var(--stage-gap);
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid rgb(255 255 255 / 0.14);
+  border-radius: calc(var(--radius-panel) + 2px);
+  background: linear-gradient(145deg, rgb(3 7 18 / 0.48), rgb(3 7 18 / 0.28));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+}
+[data-launcher-shelf] .board-item[data-block-id="links"] > section {
+  margin: 0;
+  align-content: center;
+}
 .stage-zone--pulse { grid-area: pulse; grid-template-columns: repeat(var(--stage-pulse-cols), minmax(0, 1fr)); grid-template-rows: repeat(var(--stage-pulse-rows), minmax(var(--stage-track-min), 1fr)); }
 .stage-zone--dock {
   grid-area: dock;

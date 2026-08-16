@@ -9,6 +9,7 @@ import SettingsPanel from '../settings/SettingsPanel'
 import Background from './components/Background'
 import BoardItem from './components/BoardItem'
 import DayContext from './components/DayContext'
+import LauncherShelf, { resolveLauncherShelf } from './components/LauncherShelf'
 import SignalDockEntry from './components/SignalDockEntry'
 import WidgetBoundary from './components/WidgetBoundary'
 import PaletteHost from './widgets/palette/PaletteHost'
@@ -179,6 +180,7 @@ export default function App() {
           <div className="adaptive-stage__grid">
             {ZONES.map((zone) => {
               const allocations = resolution.plan.allocations.filter((allocation) => allocation.zone === zone)
+              const launcherShelf = resolveLauncherShelf(allocations)
               const dockTrackCount = allocations.reduce((total, allocation) => total + allocation.colSpan, 0)
               return (
                 <section
@@ -225,7 +227,17 @@ export default function App() {
                   } : undefined}
                 >
                   {zone === 'day' && allocations.length === 0 ? <DayContext /> : null}
-                  {allocations.map(renderAllocation)}
+                  {allocations.map((allocation) => {
+                    if (!launcherShelf) return renderAllocation(allocation)
+                    const shelfIndex = launcherShelf.allocations.findIndex(({ id }) => id === allocation.id)
+                    if (shelfIndex < 0) return renderAllocation(allocation)
+                    if (shelfIndex > 0) return null
+                    return (
+                      <LauncherShelf key="launcher-shelf" layout={launcherShelf}>
+                        {launcherShelf.allocations.map(renderAllocation)}
+                      </LauncherShelf>
+                    )
+                  })}
                 </section>
               )
             })}
