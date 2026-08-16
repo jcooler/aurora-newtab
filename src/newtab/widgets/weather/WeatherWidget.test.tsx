@@ -99,6 +99,21 @@ describe('WeatherWidget collapsed chip', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
+  it('returns to current conditions when an Expanded allocation becomes Standard', async () => {
+    const { storage, view } = await renderWidget({ stageVariant: 'expanded' })
+    expect(screen.getByText('Next 12 hours')).toBeTruthy()
+
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <WeatherWidget stageVariant="standard" />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(screen.queryByText('Next 12 hours')).toBeNull()
+    expect(toggle()).toBeTruthy()
+  })
+
   it('shows current temp and location without any expanded content', async () => {
     await renderWidget()
     expect(toggle().textContent).toContain('21°')

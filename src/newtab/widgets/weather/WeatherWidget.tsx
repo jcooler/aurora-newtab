@@ -51,12 +51,12 @@ export default function WeatherWidget({
   const [retrying, setRetrying] = useState(false)
   const feedbackId = useId()
 
-  // A larger Stage allocation should immediately spend its extra footprint
-  // on the already-held trend. Preserve the existing manual disclosure:
-  // users may still close it, and any later transition back to Expanded
-  // reveals it again without starting another refresh owner.
+  // A Stage variant transition resets the disclosure to that variant's useful
+  // default: Expanded spends its extra footprint on the already-held trend,
+  // while Standard/Compact return to current conditions. Manual disclosure
+  // remains untouched until the planner actually changes variant.
   useEffect(() => {
-    if (stageVariant === 'expanded') setExpanded(true)
+    setExpanded(stageVariant === 'expanded')
   }, [stageVariant])
 
   const requestRefresh = () => {
