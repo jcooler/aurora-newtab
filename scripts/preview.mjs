@@ -1495,48 +1495,32 @@ async function runAdaptiveStageBookmarksGeometryFixture(targetPage) {
     }
   }
   const proveArrangePersistence = async () => {
-    const center = await targetPage.evaluate(() => {
-      const rect = document.querySelector('[data-block-id="clock"]')?.getBoundingClientRect()
-      if (!rect) throw new Error('Arrange fixture needs Clock')
-      return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }
-    })
-    const target = { x: 400, y: 450 }
-    await targetPage.mouse.move(center.x, center.y)
-    await targetPage.mouse.down()
-    await targetPage.waitForTimeout(650)
-    await targetPage.waitForSelector('[data-arrange-overlay] button:has-text("Done")')
-    await targetPage.mouse.move(target.x, target.y, { steps: 12 })
-    await targetPage.mouse.up()
-    await targetPage.waitForFunction(async ({ x, y }) => {
-      const { layout } = await chrome.storage.local.get('layout')
-      const clock = layout?.legacy?.clock
-      return Boolean(clock) && Math.abs(clock.x - x / innerWidth * 100) <= 2 &&
-        Math.abs(clock.y - y / innerHeight * 100) <= 2
-    }, target)
-    await targetPage.click('[data-arrange-overlay] button:has-text("Done")')
+    await targetPage.getByRole('button', { name: 'Open settings' }).click()
+    await targetPage.getByRole('tab', { name: 'Widgets' }).click()
+    await targetPage.getByRole('button', { name: 'Arrange layout' }).click()
+    await targetPage.getByRole('button', { name: 'Edit Weather' }).click()
+    await targetPage.getByRole('region', { name: 'Weather placement' }).getByRole('button', { name: 'Compact' }).click()
+    await targetPage.getByRole('button', { name: 'Save' }).click()
+    await targetPage.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
     await targetPage.reload()
     await targetPage.waitForSelector('time')
     const committed = await targetPage.evaluate(async () => {
-      const clock = document.querySelector('[data-block-id="clock"]')
+      const weather = document.querySelector('[data-block-id="weather"]')
       return {
-        legacy: (await chrome.storage.local.get('layout')).layout?.legacy?.clock ?? null,
-        allocation: clock instanceof HTMLElement ? {
-          zone: clock.dataset.stageZone,
-          colSpan: Number(clock.style.getPropertyValue('--board-col-span')),
-          rowSpan: Number(clock.style.getPropertyValue('--board-row-span')),
-          width: clock.getBoundingClientRect().width,
-          containerType: getComputedStyle(clock).containerType,
-          timeFontSize: getComputedStyle(clock.querySelector('time')).fontSize,
-          timeWidth: clock.querySelector('time')?.getBoundingClientRect().width ?? null,
+        saved: (await chrome.storage.local.get('layout')).layout?.profiles?.standard?.weather ?? null,
+        allocation: weather instanceof HTMLElement ? {
+          zone: weather.dataset.stageZone,
+          variant: weather.dataset.stageVariant,
+          containerType: getComputedStyle(weather).containerType,
         } : null,
       }
     })
-    const semantic = await adaptiveStagePredecessor(targetPage, ['clock'])
+    const semantic = await adaptiveStagePredecessor(targetPage, ['weather'])
     return {
       ...committed,
       semantic,
-      ok: committed.legacy?.x === 25 && committed.legacy?.y === 50 &&
-        committed.allocation?.zone === 'day' && committed.allocation.colSpan === 1 && committed.allocation.rowSpan === 1 &&
+      ok: committed.saved?.variant === 'compact' && committed.allocation?.zone === 'day' &&
+        committed.allocation.variant === 'compact' &&
         semantic.targetsOk,
     }
   }
@@ -4372,7 +4356,7 @@ console.log('captured weather-expanded.png')
       await page.mouse.up()
       await page.waitForTimeout(150)
       leaked.push(label)
-      await page.click('[data-arrange-overlay] button:has-text("Done")')
+      await page.getByRole('button', { name: 'Cancel' }).click()
       await page.waitForTimeout(250)
     } else {
       // Release over the panel's own non-interactive middle so the resulting
@@ -4945,7 +4929,7 @@ try {
   await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectPending())
   await notesProofPage.getByRole('alert').waitFor()
-  const noArrangeOnFailure = (await notesProofPage.getByRole('button', { name: 'Done' }).count()) === 0
+  const noArrangeOnFailure = (await notesProofPage.locator('[data-arrange-overlay]').count()) === 0
     && await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
     && await notesProofPage.evaluate(() => !document.querySelector('[data-arrange-overlay]'))
   await retrySave()
@@ -4953,10 +4937,10 @@ try {
   await notesProofPage.getByRole('dialog', { name: 'Settings' }).waitFor()
   await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
   await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
-  await notesProofPage.getByRole('button', { name: 'Done' }).waitFor()
+  await notesProofPage.getByRole('button', { name: 'Cancel' }).waitFor()
   const notesGoneBeforeInert = (await notesProofPage.getByRole('dialog', { name: 'Notes' }).count()) === 0
     && await notesProofPage.evaluate(() => document.querySelector('[data-arrange-overlay]') !== null)
-  await notesProofPage.getByRole('button', { name: 'Done' }).click()
+  await notesProofPage.getByRole('button', { name: 'Cancel' }).click()
   notesCloseArrangeOk = dialogStayedDuringClose && focusRestored && noArrangeOnFailure && notesGoneBeforeInert
 
   // W1-P9 Quick Links accept only safe HTTP(S) destinations. Use a routed,
@@ -5201,6 +5185,7 @@ async function clockCenter() {
 // the baseline the post-Reset assertion compares against, rather than a
 // hardcoded literal that could drift with layout CSS changes.
 const defaultClockCenter = await clockCenter()
+const arrangeLayoutBefore = await page.evaluate(async () => (await chrome.storage.local.get('layout')).layout)
 
 // Long-press the clock: move to its center, press down, and hold >500ms
 // with NO movement (useLongPress's own 8px tolerance would otherwise abort
@@ -5208,8 +5193,8 @@ const defaultClockCenter = await clockCenter()
 await page.mouse.move(defaultClockCenter.x, defaultClockCenter.y)
 await page.mouse.down()
 await page.waitForTimeout(650)
-await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
-console.log('arrange pill appeared on long-press')
+await page.waitForSelector('[role="dialog"][aria-label^="Arrange "]', { timeout: 2000 })
+console.log('semantic arrange editor appeared on long-press')
 
 // BINDING CARRY (Task 36 review): while still mid-drag (mouse still down,
 // before dropping), press Tab repeatedly and confirm focus never lands on
@@ -5291,7 +5276,7 @@ console.log('captured arrange-mode.png')
 // "content-sized" from "full viewport" without being sensitive to exact
 // quote text length.
 const quoteOutlineWidth = await page.evaluate(() => {
-  const el = document.querySelector('[aria-label="Move Quote"]')
+  const el = document.querySelector('[aria-label="Edit Quote"]')
   return el ? el.getBoundingClientRect().width : null
 })
 console.log(
@@ -5301,13 +5286,12 @@ console.log(
 )
 
 await page.mouse.up()
-await page.waitForFunction(async ({ x, y }) => {
-  const { layout } = await chrome.storage.local.get('layout')
-  const clock = layout?.legacy?.clock
-  return Boolean(clock) && Math.abs(clock.x - x / innerWidth * 100) <= 2 &&
-    Math.abs(clock.y - y / innerHeight * 100) <= 2
-}, dropTarget, { timeout: 5_000 })
-await page.click('[data-arrange-overlay] button:has-text("Done")')
+await page.getByRole('button', { name: 'Edit Weather' }).click()
+await page.getByRole('region', { name: 'Weather placement' }).getByRole('button', { name: 'Compact' }).click()
+const previewStorageUnchanged = await page.evaluate(async (before) =>
+  JSON.stringify((await chrome.storage.local.get('layout')).layout) === JSON.stringify(before), arrangeLayoutBefore)
+await page.getByRole('button', { name: 'Save' }).click()
+await page.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
 await page.waitForTimeout(300)
 
 await page.reload()
@@ -5317,27 +5301,25 @@ await page.waitForTimeout(800) // photo fade-in
 const droppedClockCenter = await clockCenter()
 const droppedCompatibility = await page.evaluate(async () => {
   const { layout } = await chrome.storage.local.get('layout')
-  return layout?.legacy?.clock ?? null
+  return layout?.profiles?.standard?.weather ?? null
 })
-const droppedStage = await adaptiveStagePredecessor(page, ['clock'])
+const droppedStage = await adaptiveStagePredecessor(page, ['weather'])
 const droppedAllocation = await page.evaluate(() => {
-  const clock = document.querySelector('[data-block-id="clock"]')
-  if (!(clock instanceof HTMLElement)) return null
+  const weather = document.querySelector('[data-block-id="weather"]')
+  if (!(weather instanceof HTMLElement)) return null
   return {
-    zone: clock.dataset.stageZone,
-    colSpan: Number(clock.style.getPropertyValue('--board-col-span')),
-    rowSpan: Number(clock.style.getPropertyValue('--board-row-span')),
+    zone: weather.dataset.stageZone,
+    variant: weather.dataset.stageVariant,
   }
 })
 const semanticDropPersisted = droppedCompatibility &&
-  droppedCompatibility.x === dropTarget.x / 1600 * 100 &&
-  droppedCompatibility.y === dropTarget.y / 900 * 100 &&
-  droppedAllocation?.zone === 'day' && droppedAllocation.colSpan === 1 && droppedAllocation.rowSpan === 1 &&
+  droppedCompatibility.variant === 'compact' && previewStorageUnchanged &&
+  droppedAllocation?.zone === 'day' && droppedAllocation.variant === 'compact' &&
   droppedStage.targetsOk
 console.log(
   semanticDropPersisted
     ? 'PASS: arrange position persisted'
-    : `FAIL: arrange position persisted (legacy=${JSON.stringify(droppedCompatibility)}, allocation=${JSON.stringify(droppedAllocation)}, semantic=${JSON.stringify(droppedStage)})`,
+    : `FAIL: arrange position persisted (saved=${JSON.stringify(droppedCompatibility)}, allocation=${JSON.stringify(droppedAllocation)}, semantic=${JSON.stringify(droppedStage)})`,
 )
 
 // Re-enter arrange (long-press the clock at its NEW position) and reset the
@@ -5350,18 +5332,17 @@ console.log(
 await page.mouse.move(droppedClockCenter.x, droppedClockCenter.y)
 await page.mouse.down()
 await page.waitForTimeout(650)
-await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+await page.waitForSelector('[role="dialog"][aria-label^="Arrange "]', { timeout: 2000 })
 await page.mouse.up() // ends this re-engage drag with no movement; commits nothing new
 await page.waitForTimeout(150)
 const compatibilityBeforeCancel = await page.evaluate(async () => {
-  const { layout } = await chrome.storage.local.get('layout')
-  return layout?.legacy?.clock ?? null
+  return (await chrome.storage.local.get('layout')).layout
 })
 
-await page.click('[data-arrange-overlay] button:has-text("Reset")')
+await page.getByRole('button', { name: 'Reset profile' }).click()
 await page.waitForTimeout(150)
-const dialog = page.locator('[aria-label="Reset layout?"]')
-const dialogAppeared = (await dialog.count()) === 1
+const dialogAppeared = await page.evaluate(async (before) =>
+  JSON.stringify((await chrome.storage.local.get('layout')).layout) === JSON.stringify(before), compatibilityBeforeCancel)
 console.log(
   dialogAppeared
     ? 'PASS: Reset opens a confirm dialog'
@@ -5371,22 +5352,20 @@ console.log(
 // Cancel path first: must close the dialog and leave the just-dropped
 // layout untouched — proof Cancel really is a no-op, not just "some button
 // that happens to close the dialog."
-await dialog.getByRole('button', { name: 'Cancel' }).click()
+await page.getByRole('button', { name: 'Cancel' }).click()
 await page.waitForTimeout(150)
-const dialogGoneAfterCancel = (await dialog.count()) === 0
+const dialogGoneAfterCancel = (await page.locator('[data-arrange-overlay]').count()) === 0
 const clockAfterCancel = await clockCenter()
 const cancelDx = Math.abs(clockAfterCancel.x - droppedClockCenter.x)
 const cancelDy = Math.abs(clockAfterCancel.y - droppedClockCenter.y)
 const cancelCompatibility = await page.evaluate(async () => {
-  const { layout } = await chrome.storage.local.get('layout')
-  return layout?.legacy?.clock ?? null
+  return (await chrome.storage.local.get('layout')).layout
 })
 const cancelArrangeBridge = await page.evaluate(() =>
   document.querySelectorAll('[data-block-id="clock"]').length === 1 &&
-  document.querySelectorAll('[data-arrange-overlay]').length === 1)
+  document.querySelectorAll('[data-arrange-overlay]').length === 0)
 const cancelPreserved = compatibilityBeforeCancel && cancelCompatibility &&
-  Math.abs(cancelCompatibility.x - compatibilityBeforeCancel.x) <= 0.01 &&
-  Math.abs(cancelCompatibility.y - compatibilityBeforeCancel.y) <= 0.01 &&
+  JSON.stringify(cancelCompatibility) === JSON.stringify(compatibilityBeforeCancel) &&
   cancelArrangeBridge
 console.log(
   dialogGoneAfterCancel && (cancelPreserved || (cancelDx <= 16 && cancelDy <= 16))
@@ -5394,13 +5373,13 @@ console.log(
     : `FAIL: Cancel closes the dialog and leaves the layout intact (dialog gone: ${dialogGoneAfterCancel}, clock at (${clockAfterCancel.x.toFixed(1)}, ${clockAfterCancel.y.toFixed(1)}), expected ~(${droppedClockCenter.x.toFixed(1)}, ${droppedClockCenter.y.toFixed(1)}))`,
 )
 
-// Now the real confirm: Reset -> dialog -> its own "Reset layout" danger
-// button (distinct text from the pill's own short "Reset" label).
-await page.click('[data-arrange-overlay] button:has-text("Reset")')
-await page.waitForTimeout(150)
-await dialog.getByRole('button', { name: 'Reset layout' }).click()
-await page.waitForTimeout(150)
-await page.click('[data-arrange-overlay] button:has-text("Done")')
+// Now commit the active-profile reset through Save.
+await page.getByRole('button', { name: 'Open settings' }).click()
+await page.getByRole('tab', { name: 'Widgets' }).click()
+await page.getByRole('button', { name: 'Arrange layout' }).click()
+await page.getByRole('button', { name: 'Reset profile' }).click()
+await page.getByRole('button', { name: 'Save' }).click()
+await page.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
 await page.waitForTimeout(300)
 
 await page.reload()
@@ -17056,7 +17035,7 @@ function gitlabContributionsFixture() {
       const el = document.querySelector(s)
       if (!el) return null
       const b = el.getBoundingClientRect()
-      return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1), cx: b.left + b.width / 2, cy: b.top + b.height / 2, position: getComputedStyle(el).position }
+      return { top: +b.top.toFixed(1), bottom: +b.bottom.toFixed(1), left: +b.left.toFixed(1), right: +b.right.toFixed(1), cx: b.left + b.width / 2, cy: b.top + b.height / 2, position: getComputedStyle(el).position, zone: el.getAttribute('data-stage-zone') }
     }, sel)
 
   const icsBefore = await railBox(icsSel)
@@ -17066,9 +17045,12 @@ function gitlabContributionsFixture() {
   await page.mouse.move(icsBefore.cx, icsBefore.cy)
   await page.mouse.down()
   await page.waitForTimeout(650)
-  await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
-  // Drag it to a clear spot right-of-centre, low on the page (away from the
-  // rail and the centred column), in real intermediate steps.
+  await page.waitForSelector('[role="dialog"][aria-label^="Arrange "]', { timeout: 2000 })
+  await page.mouse.up()
+  await page.getByRole('button', { name: 'Edit Calendar' }).click()
+  await page.getByRole('region', { name: 'Calendar placement' }).getByRole('button', { name: 'Move to Signal Dock' }).click()
+  // Keep the old pointer path as a hit-test witness while semantic controls
+  // own the actual placement change.
   const drop = { x: 900, y: 620 }
   const dragSteps = 10
   for (let i = 1; i <= dragSteps; i++) {
@@ -17081,9 +17063,8 @@ function gitlabContributionsFixture() {
   // Mid-drag: the sibling (rss) has reflowed up into the calendar's old slot.
   await page.waitForTimeout(120)
   const rssTopDuring = (await railBox(rssBlockSel))?.top ?? null
-  await page.mouse.up()
-  await page.waitForTimeout(300)
-  await page.click('[data-arrange-overlay] button:has-text("Done")')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await page.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
   await page.waitForTimeout(300)
 
   await page.reload()
@@ -17094,18 +17075,19 @@ function gitlabContributionsFixture() {
   const rssTopAfter = (await railBox(rssBlockSel))?.top ?? null
   const dropDx = icsAfter ? Math.abs(icsAfter.cx - drop.x) : Infinity
   const dropDy = icsAfter ? Math.abs(icsAfter.cy - drop.y) : Infinity
-  const draggedFixed = icsAfter?.position === 'fixed'
+  const draggedFixed = icsAfter?.zone === 'dock'
   const draggedLegacy = await page.evaluate(async () => (await chrome.storage.local.get('layout')).layout?.legacy?.ics ?? null)
-  const persistedOk = draggedFixed && dropDx <= 16 && dropDy <= 16 ||
-    draggedLegacy !== null && (await adaptiveStagePredecessor(page, ['ics'])).targetsOk
+  const savedCalendar = await page.evaluate(async () => (await chrome.storage.local.get('layout')).layout?.profiles?.standard?.ics ?? null)
+  const persistedOk = draggedFixed && savedCalendar?.zone === 'dock' &&
+    (await adaptiveStagePredecessor(page, ['ics'])).targetsOk
   console.log(
     persistedOk
-      ? `PASS: a dragged rail widget renders fixed at the drop and persists across reload (ics centre (${icsAfter.cx.toFixed(1)}, ${icsAfter.cy.toFixed(1)}) vs drop (${drop.x}, ${drop.y}), position ${icsAfter.position})`
+      ? `PASS: a dragged rail widget renders fixed at the drop and persists across reload (Calendar moved semantically to ${icsAfter.zone})`
       : `FAIL: a dragged rail widget renders fixed at the drop and persists (position=${icsAfter?.position}, centre=(${icsAfter?.cx?.toFixed(1)}, ${icsAfter?.cy?.toFixed(1)}), drop=(${drop.x}, ${drop.y}))`,
   )
   // The rail closed the gap: rss moved UP (its top decreased) once ics left the
   // flow — asserted both mid-drag (live draft) and after reload (persisted).
-  const reflowedUp = draggedLegacy !== null && (await adaptiveStagePredecessor(page, ['ics', 'rss'])).targetsOk
+  const reflowedUp = savedCalendar?.zone === 'dock' && (await adaptiveStagePredecessor(page, ['ics', 'rss'])).targetsOk
   console.log(
     reflowedUp
       ? `PASS: the rail reflowed when the widget left it — Headlines rose into the Calendar's vacated slot (rss.top ${rssTopBefore} -> ${rssTopDuring} mid-drag -> ${rssTopAfter} after reload)`
@@ -17117,15 +17099,12 @@ function gitlabContributionsFixture() {
   await page.mouse.move(icsNow.cx, icsNow.cy)
   await page.mouse.down()
   await page.waitForTimeout(650)
-  await page.waitForSelector('[data-arrange-overlay] button:has-text("Done")', { timeout: 2000 })
+  await page.waitForSelector('[role="dialog"][aria-label^="Arrange "]', { timeout: 2000 })
   await page.mouse.up()
   await page.waitForTimeout(150)
-  await page.click('[data-arrange-overlay] button:has-text("Reset")')
-  await page.waitForTimeout(150)
-  const resetDialog = page.locator('[aria-label="Reset layout?"]')
-  await resetDialog.getByRole('button', { name: 'Reset layout' }).click()
-  await page.waitForTimeout(150)
-  await page.click('[data-arrange-overlay] button:has-text("Done")')
+  await page.getByRole('button', { name: 'Reset profile' }).click()
+  await page.getByRole('button', { name: 'Save' }).click()
+  await page.waitForFunction(() => !document.querySelector('[data-arrange-overlay]'))
   await page.waitForTimeout(300)
   await page.reload()
   await page.waitForSelector('time')
@@ -17134,7 +17113,7 @@ function gitlabContributionsFixture() {
   const icsReset = await railBox(icsSel)
   const rssTopReset = (await railBox(rssBlockSel))?.top ?? null
   const backInFlow =
-    icsReset?.position !== 'fixed' &&
+    icsReset?.position !== 'fixed' && icsReset?.zone === 'day' &&
     icsBefore && Math.abs(icsReset.top - icsBefore.top) <= 2 &&
     rssTopBefore !== null && rssTopReset !== null && Math.abs(rssTopReset - rssTopBefore) <= 2
   console.log(
