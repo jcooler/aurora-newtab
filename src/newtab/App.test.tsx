@@ -157,12 +157,24 @@ describe('App — Adaptive Stage composition', () => {
     await storage.set('layout', {
       version: 2,
       profiles: { standard: { focus: { zone: 'day', order: 99, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } },
-      legacy: { focus: { x: 1, y: 2 } },
+      legacy: { focus: { x: -10_000, y: 10_000 } },
     })
     await renderApp(storage)
     const focus = document.querySelector<HTMLElement>('[data-block-id="focus"]')!
     expect(focus.dataset.stageZone).toBe('day')
     expect(focus.style.position).toBe('')
+    expect(focus.style.left).toBe('')
+    expect(focus.style.top).toBe('')
+    const semanticStyle = focus.style.cssText
+
+    await act(async () => {
+      await storage.set('layout', {
+        version: 2,
+        profiles: { standard: { focus: { zone: 'day', order: 99, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } },
+      })
+    })
+    expect(focus.dataset.stageZone).toBe('day')
+    expect(focus.style.cssText).toBe(semanticStyle)
   })
 
   it('preserves a migrated pinned Clock override while canonical Now protection stays separate', async () => {

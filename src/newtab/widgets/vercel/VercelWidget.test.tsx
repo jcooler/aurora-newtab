@@ -327,10 +327,10 @@ describe('VercelWidget — left-column-crowded reveal tier (Task 77 fix wave, Fi
     expect(hasRoomyTier(vercelSection())).toBe(false)
   })
 
-  it('statusSummary on, BOTH ics and rss enabled → the section carries `hidden roomy:block` (the two-card-crowded composition C1\'s sibling I2 found unsafe)', async () => {
+  it('statusSummary on with both former rail siblings stays represented without a height tier', async () => {
     mount(await seededMulti(SUMMARY_ON, SUMMARY_DATA, { ics: ICS_SIBLING, rss: RSS_SIBLING }))
     await screen.findByText('3 ready')
-    expect(hasRoomyTier(vercelSection())).toBe(true)
+    expect(hasRoomyTier(vercelSection())).toBe(false)
   })
 
   it('statusSummary OFF, both ics and rss enabled → still untiered (the default path stays byte-identical — only statusSummary can ever trigger this tier)', async () => {

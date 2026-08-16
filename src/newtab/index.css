@@ -243,10 +243,6 @@
                        bottoms at 164px, so the right rail starts at 180; the
                        shorter timer pill bottoms at ~100px, so the left rail
                        starts at 120. */
-  --center-reserve: calc(425px + 2 * 16px);
-  --rail-w: calc((100vw - var(--center-reserve)) / 2 - 2rem);
-  --rail-top-left: 120px;
-  --rail-top-right: 180px;
 
   /* ── The clock's own footprint (short-wide fix) ─────────────────────────
      Single source of truth for the centred clock's rendered box, so any
@@ -803,10 +799,6 @@
    against the aside box exactly the same way. The zone's default centring is
    transform-free (`inset-x-0 mx-auto w-fit` + `flex`) precisely so it never
    does. */
-[data-zone='left'],
-[data-zone='right'] {
-  container: aurora-rail / inline-size;
-}
 
 /* ── THE FADE LAW (resize-continuity task) ────────────────────────────────
    Jon: "the quote and crypto literally disappear ... reappear and disappear.
@@ -831,32 +823,6 @@
    measure fully-settled rects (display has flipped, opacity has landed),
    never a mid-fade frame. Opacity does not affect getBoundingClientRect, so
    the fade is invisible to every rect/clearance probe by construction. */
-.tier-fade {
-  transition: opacity 180ms ease, display 180ms allow-discrete;
-}
-@starting-style {
-  .tier-fade {
-    opacity: 0;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tier-fade {
-    transition: none;
-  }
-}
-
-.rail-col2 {
-  display: none;
-  opacity: 0;
-}
-@container aurora-rail (min-width: 536px) {
-  @media (min-height: 680px) {
-    .rail-col2 {
-      display: block;
-      opacity: 1;
-    }
-  }
-}
 
 /* PRIMARY rail cards (left col-1 + the whole right column) hide when their zone
    can no longer hold the column's WIDEST card plus the house 16px clearance to
@@ -876,12 +842,6 @@
    construction, no magic number in source, same as the col-2 boundary above).
    Per-block `.rail-primary` (dropped by PositionedBlock on the arranged branch,
    exactly like `.rail-col2`), so an ARRANGED card is never hidden by width. */
-@container aurora-rail (width < 336px) {
-  .rail-primary {
-    display: none;
-    opacity: 0;
-  }
-}
 
 /* ── The quote's MONOTONIC fade-out (resize-continuity task) ───────────────
    The quote's old `mid:hidden` (601-864) was the worst offender Jon named: it
@@ -904,15 +864,6 @@
    reasoned 8px floor (scripts/preview.mjs's quote fencepost asserts 671/672).
    DROPPED on the arranged branch like every tier class, so a dragged quote is
    never height-hidden. */
-.quote-gate {
-  opacity: 1;
-}
-@media (max-height: 671px) {
-  .quote-gate {
-    display: none;
-    opacity: 0;
-  }
-}
 
 /* A self-gated-off widget still renders its (empty) PositionedBlock wrapper;
    drop it from the flex column so ENABLED cards stack flush instead of
@@ -921,10 +872,6 @@
    (out of flex flow) AND non-empty, so this never touches one. Higher
    specificity than `.rail-col2` above, so an empty-but-shown col-2 slot is
    still correctly removed. */
-[data-zone] [data-block-id]:empty {
-  display: none;
-}
-
 /* Belt and braces for platforms that style option rows from the page: */
 select > option {
   background-color: #17171c;
@@ -1608,12 +1555,6 @@ select > option {
 .board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"],
 .board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] + div {
   display: none;
-}
-.board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section.hidden {
-  /* Graph-only legacy composition placed its height tier on the whole card.
-     Compact owns a separate summary renderer, so keep the card represented
-     while only its incompatible heatmap is omitted. */
-  display: block;
 }
 .board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
   /* Rows-bearing and quiet compositions place the same legacy height tier on

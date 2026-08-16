@@ -301,22 +301,18 @@ describe('GithubWidget', () => {
     expect(graphWrapper().querySelector('[class*="taller:block"]')).toBeNull()
   })
 
-  // Round 3 — a STRICTLY graph-only card (commitGraph on, everything else off)
-  // moves the tier boundary to the SECTION itself: the whole card yields as one
-  // (never a header-only "GitHub" husk), and with no graph data it renders null.
-  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+  it('strictly graph-only, SOLE card remains represented without a height tier', async () => {
     mount(await seededWithSiblings(false, false, GRAPH_ONLY))
     const img = await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
-    // no INNER descendant carries a tier class — the section owns the boundary.
+    expect(sectionHasTier('taller')).toBe(false)
     expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
     expect(graphWrapper().contains(img)).toBe(true)
   })
 
-  it('strictly graph-only, TWO siblings → still `taller` on the SECTION (short card fits at 890; no husk at 890-1040)', async () => {
+  it('strictly graph-only, TWO siblings also remains represented without a height tier', async () => {
     mount(await seededWithSiblings(true, true, GRAPH_ONLY))
     await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
+    expect(sectionHasTier('taller')).toBe(false)
     expect(sectionHasTier('grand')).toBe(false)
     expect(graphWrapper().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
   })

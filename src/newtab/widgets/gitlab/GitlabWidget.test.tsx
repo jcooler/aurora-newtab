@@ -348,10 +348,10 @@ describe('GitlabWidget — composed card (wave 2)', () => {
     expect(section().getAttribute('data-yield')).toBe('github')
   })
 
-  it('strictly graph-only, SOLE card → the whole SECTION carries `taller:block` (whole-card yield), not an inner wrapper', async () => {
+  it('strictly graph-only, SOLE card remains represented without a height tier', async () => {
     mount(await seededMulti(GRAPH_ONLY, FULL_DATA))
     const img = await screen.findByRole('img')
-    expect(sectionHasTier('taller')).toBe(true)
+    expect(sectionHasTier('taller')).toBe(false)
     expect(section().querySelector('[class*="taller:block"], [class*="grand:block"]')).toBeNull()
     expect(section().contains(img)).toBe(true)
   })

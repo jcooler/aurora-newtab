@@ -216,7 +216,6 @@ function GitlabInner({
   // Where the tier boundary lands: on the SECTION when strictly graph-only (the
   // whole card yields), on the inner graph wrapper otherwise. Exactly one carries
   // it, so the reveal is a single whole-card OR single-section boundary.
-  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
   const innerGraphClass = graphOnly ? undefined : graphWrap
   const graphSep = soleForgeCard ? GRAPH_SEP_TALLER : GRAPH_SEP_GRAND
 
@@ -329,7 +328,7 @@ function GitlabInner({
     <section
       aria-label="GitLab"
       {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
-      className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}
+      className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg"
     >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>

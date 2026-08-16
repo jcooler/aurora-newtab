@@ -149,7 +149,6 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // whole card yields), on the inner graph wrapper otherwise (the card stays, the
   // graph alone yields). Exactly one of the two ever carries it, so the reveal is
   // a single whole-card OR single-section boundary — monotonic either way.
-  const sectionTier = graphOnly ? ` ${graphWrap}` : ''
   const innerGraphClass = graphOnly ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
@@ -197,7 +196,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" className={`w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg${sectionTier}`}>
+    <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the notifications view is on AND the
