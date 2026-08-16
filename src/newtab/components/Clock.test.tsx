@@ -40,7 +40,7 @@ describe('Clock large-display detail', () => {
 
     const detail = container.querySelector('[data-clock-date]')
     expect(detail?.textContent).toBe('Sunday, August 16')
-    expect(detail?.getAttribute('aria-hidden')).toBe('true')
+    expect(detail?.hasAttribute('aria-hidden')).toBe(false)
     vi.useRealTimers()
   })
 })

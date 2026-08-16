@@ -50,7 +50,7 @@ export default function Clock() {
       >
         {formatClock(now, settings.use24Hour)}
       </time>
-      <span data-clock-date="" aria-hidden="true" className="text-photo text-canvas-fg-muted">
+      <span data-clock-date="" className="text-photo text-canvas-fg-muted">
         {formatDayContext(now, 'long')}
       </span>
     </div>
