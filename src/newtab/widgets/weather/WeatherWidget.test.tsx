@@ -4,6 +4,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
+import type { WidgetVariant } from '../../../lib/layout/types'
 import type { StoredLocation, WeatherSnapshot } from '../../../lib/storage/schema'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
 import WeatherWidget from './WeatherWidget'
@@ -38,10 +39,12 @@ async function renderWidget({
   location = NEW_YORK,
   snapshot = makeSnapshot(),
   onExpandedChange,
+  stageVariant = 'standard',
 }: {
   location?: StoredLocation | null
   snapshot?: WeatherSnapshot | null
   onExpandedChange?: (expanded: boolean) => void
+  stageVariant?: WidgetVariant
 } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -49,7 +52,7 @@ async function renderWidget({
   await storage.set('weatherCache', snapshot)
   const view = render(
     <StorageProvider storage={storage}>
-      <WeatherWidget onExpandedChange={onExpandedChange} />
+      <WeatherWidget onExpandedChange={onExpandedChange} stageVariant={stageVariant} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -88,6 +91,14 @@ async function activateWithModeledNativeClick(button: HTMLButtonElement) {
 }
 
 describe('WeatherWidget collapsed chip', () => {
+  it('reveals the existing fuller trend immediately for an Expanded allocation without another request', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await renderWidget({ stageVariant: 'expanded' })
+    expect(screen.getByText('Next 12 hours')).toBeTruthy()
+    expect(openToggle()).toBeTruthy()
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
   it('shows current temp and location without any expanded content', async () => {
     await renderWidget()
     expect(toggle().textContent).toContain('21°')

@@ -40,7 +40,9 @@ export interface WidgetRendererProps {
 export type WidgetRenderer = ComponentType<WidgetRendererProps>
 
 const RENDERERS = {
-  weather: ({ onWeatherExpandedChange }) => <WeatherWidget onExpandedChange={onWeatherExpandedChange} />,
+  weather: ({ onWeatherExpandedChange, stageVariant }) => (
+    <WeatherWidget onExpandedChange={onWeatherExpandedChange} stageVariant={stageVariant} />
+  ),
   ics: ({ stageVariant }) => <CalendarWidget stageVariant={stageVariant} />,
   monthCal: () => <MonthCalWidget />,
   sun: () => <SunWidget />,

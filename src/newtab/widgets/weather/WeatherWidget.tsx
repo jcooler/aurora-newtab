@@ -15,6 +15,7 @@ import {
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
+import type { WidgetVariant } from '../../../lib/layout/types'
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
  *  rather than swapping glyphs so the control reads as one continuous thing. */
@@ -41,13 +42,22 @@ function Chevron({ expanded }: { expanded: boolean }) {
 
 export default function WeatherWidget({
   onExpandedChange,
-}: { onExpandedChange?: (expanded: boolean) => void } = {}) {
+  stageVariant = 'standard',
+}: { onExpandedChange?: (expanded: boolean) => void; stageVariant?: WidgetVariant } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   const { snapshot, stale, loading, error, refresh, state } = useWeather()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(stageVariant === 'expanded')
   const [retrying, setRetrying] = useState(false)
   const feedbackId = useId()
+
+  // A larger Stage allocation should immediately spend its extra footprint
+  // on the already-held trend. Preserve the existing manual disclosure:
+  // users may still close it, and any later transition back to Expanded
+  // reveals it again without starting another refresh owner.
+  useEffect(() => {
+    if (stageVariant === 'expanded') setExpanded(true)
+  }, [stageVariant])
 
   const requestRefresh = () => {
     setRetrying(true)
