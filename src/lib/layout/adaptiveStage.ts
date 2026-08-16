@@ -16,6 +16,17 @@ export interface ViewportSize { width: number; height: number; devicePixelRatio?
 export interface Span { colSpan: number; rowSpan: number }
 export interface ZoneCapacity { day: readonly [number, number]; now: readonly [number, number]; pulse: readonly [number, number] }
 
+export type DockBlockSizeTable = Readonly<Partial<Record<
+  BlockId,
+  Readonly<Partial<Record<WidgetVariant, Readonly<Partial<Record<Density, number>>>>>>
+>>>
+
+export interface DockBlockSizeAllocation {
+  id: BlockId
+  zone: Zone
+  variant: WidgetVariant
+}
+
 export const DENSITY_TOKENS: Readonly<Record<Density, Readonly<{
   gap: number
   inset: number
@@ -137,6 +148,7 @@ export interface StageGeometry {
   capacities: ZoneCapacity
   requiredWidth: number
   requiredHeight: number
+  dockBlockSize: number
   fits: boolean
 }
 
@@ -145,6 +157,8 @@ export function measureStageGeometry(input: {
   density: Density
   viewport: Pick<ViewportSize, 'width' | 'height'>
   implicitRows?: Partial<Record<Exclude<Zone, 'dock'>, number>>
+  allocations?: readonly DockBlockSizeAllocation[]
+  dockBlockSizes?: DockBlockSizeTable
 }): StageGeometry {
   const { profile, density, viewport } = input
   const sublayout = selectStageSublayout(profile, viewport.width)
@@ -170,12 +184,17 @@ export function measureStageGeometry(input: {
   }
   const contentWidth = boardWidth + token.inset * 2
   const requiredWidth = sublayout === 'compact-wide' ? Math.max(600, contentWidth) : contentWidth
-  const requiredHeight = boardHeight + trackSize(1, density) + token.gap + token.inset * 2
+  const dockBlockSize = Math.max(token.minimumTrack, ...(input.allocations ?? [])
+    .filter((row) => row.zone === 'dock')
+    .map((row) => input.dockBlockSizes?.[row.id]?.[row.variant]?.[density] ?? token.minimumTrack)
+    .filter((size) => Number.isFinite(size) && size > 0))
+  const requiredHeight = boardHeight + dockBlockSize + token.gap + token.inset * 2
   return {
     sublayout,
     capacities,
     requiredWidth,
     requiredHeight,
+    dockBlockSize,
     fits: viewport.width >= requiredWidth && viewport.height >= requiredHeight,
   }
 }
@@ -435,6 +454,7 @@ export function resolveStageDensity(input: {
   profile: LayoutProfile
   entries: readonly AdaptiveStageEntry[]
   overrides?: Partial<Record<BlockId, Placement>>
+  dockBlockSizes?: DockBlockSizeTable
 }): DensityResolution {
   const candidates: readonly Density[] = input.preference === 'auto' ? DENSITY_ORDER : [input.preference]
   const attempts: DensityResolution['attempts'] = []
@@ -443,6 +463,7 @@ export function resolveStageDensity(input: {
     const plan = planAdaptiveStage({ ...input, density, viewportWidth: input.viewport.width })
     const geometry = measureStageGeometry({
       profile: input.profile, density, viewport: input.viewport, implicitRows: plan.implicitRows,
+      allocations: plan.allocations, dockBlockSizes: input.dockBlockSizes,
     })
     const automaticDockCount = plan.allocations.filter((row) =>
       row.dockReason === 'eligible-dock' || row.dockReason === 'overflow-dock').length

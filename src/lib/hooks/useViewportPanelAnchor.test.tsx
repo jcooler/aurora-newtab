@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { StrictMode, useRef } from 'react'
+import { StrictMode, useCallback, useRef } from 'react'
 import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PanelPlacement } from '../layout/anchor'
@@ -16,21 +16,26 @@ function Harness({
   panelRect,
   preferredSize,
   mapInvokerRect,
+  boundaryTop,
 }: {
   open: boolean
   pillRect: Rect
   panelRect: Rect
   preferredSize: { w: number; h: number }
   mapInvokerRect?: (rect: DOMRectReadOnly, viewportWidth: number) => DOMRectReadOnly
+  boundaryTop?: number
 }) {
   const invokerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const boundaryRef = useRef<HTMLDivElement>(null)
+  const getBottomBoundaryElement = useCallback(() => boundaryRef.current, [])
   const anchor = useViewportPanelAnchor({
     open,
     invokerRef,
     panelRef,
     preferredSize,
     mapInvokerRect,
+    getBottomBoundaryElement: boundaryTop === undefined ? undefined : getBottomBoundaryElement,
   })
   return (
     <>
@@ -41,6 +46,13 @@ function Harness({
       >
         Open
       </button>
+      {boundaryTop !== undefined && (
+        <div
+          ref={boundaryRef}
+          data-testid="bottom-boundary"
+          data-rect={JSON.stringify({ left: 0, top: boundaryTop, right: 800, bottom: 450, width: 800, height: 450 - boundaryTop })}
+        />
+      )}
       {open && anchor && (
         <div
           ref={panelRef}
@@ -200,5 +212,23 @@ describe('useViewportPanelAnchor', () => {
     expect(disconnects).toBeGreaterThanOrEqual(1)
     view.unmount()
     expect(disconnects).toBeGreaterThanOrEqual(2)
+  })
+
+  it('observes an exact bottom boundary and returns a reachable max-height above it', () => {
+    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(800)
+    vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(450)
+    render(
+      <Harness
+        open
+        pillRect={{ left: 680, top: 260, right: 752, bottom: 298, width: 72, height: 38 }}
+        panelRect={{ left: 368, top: 8, right: 752, bottom: 332, width: 384, height: 324 }}
+        preferredSize={{ w: 384, h: 184 }}
+        boundaryTop={242}
+      />,
+    )
+    flushFrames()
+
+    expect(anchorOf()).toEqual({ left: 368, bottom: 216, maxHeight: 226 })
+    expect(resizeCallbacks).toHaveLength(1)
   })
 })

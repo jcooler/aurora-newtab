@@ -962,8 +962,13 @@ select > option {
   position: relative;
   display: grid;
   width: 100%;
-  height: 100%;
-  min-height: 100%;
+  /* Percentage height can transfer the Dock's max-content contribution back
+     into this grid through the display:contents provider wrapper. Resolve the
+     exact padded viewport content box directly so a geometry-fit plan never
+     creates an accidental Stage scrollport. The two explicit overflow modes
+     below still switch this to height:auto for owned vertical reachability. */
+  height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
+  min-height: 0;
   min-width: 0;
   gap: var(--stage-gap);
   grid-template-columns: minmax(0, 2fr) minmax(0, 4fr) minmax(0, 2fr);
@@ -998,8 +1003,20 @@ select > option {
   grid-template-rows: max-content auto;
 }
 
+/* A truthful no-fit diagnostic keeps the finite Board and preserved Dock in
+   normal flow inside the Stage-owned vertical scrollport. Nothing is clipped
+   or allowed to paint underneath the max-content Dock. */
+.adaptive-stage[data-stage-viewport-overflow="true"] .adaptive-stage__grid {
+  height: auto;
+  grid-template-rows: max-content var(--stage-dock-block-size);
+}
+
 :root[data-stage-profile="compact"] .adaptive-stage[data-stage-pinned-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
   grid-template-rows: max-content max-content auto;
+}
+
+:root[data-stage-profile="compact"] .adaptive-stage[data-stage-viewport-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
+  grid-template-rows: max-content max-content var(--stage-dock-block-size);
 }
 
 .stage-zone {
@@ -1023,6 +1040,7 @@ select > option {
   grid-area: dock;
   grid-auto-flow: column;
   grid-template-rows: minmax(var(--stage-track-min), auto);
+  min-block-size: var(--stage-dock-block-size);
   /* A constrained scroll container resolves implicit minmax(..., max-content)
      tracks to their minimum before overflowing grid items contribute their
      intrinsic width. Publish the planner's normalized Dock span count and
@@ -1254,6 +1272,18 @@ select > option {
   font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px));
 }
 
+/* At the compact height fence, the Clock's legacy 20vh curve can make its
+   line box taller than the planner's finite two-row allocation even when the
+   inline container cap is satisfied. Limit only that compact Board renderer
+   to 17vh: at the causal 1420x550 fixture this changes 110px to 93.5px and
+   leaves both the complete glyph box and its wrapper scroll box inside the
+   allocation with measured vertical headroom.
+   Dock content remains preserved, and standard/expanded Board renderers keep
+   the canvas Clock's existing scale. */
+.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="clock"] time {
+  font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px), 17vh);
+}
+
 /* A compact allocation is a real renderer variant, not a smaller hole cut
    around the legacy card. Keep each passive surface on its BoardItem's inline
    axis, then choose the highest-value glance content that fits the frozen
@@ -1299,7 +1329,11 @@ select > option {
    compact calendar keeps its navigable month header plus the current week
    (or the first visible week while browsing another month). */
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] > div {
-  padding: 6px;
+  /* A Standard compact track can be 72.66px wide. Preserve the full inline
+     width for the two 36px month-nav targets so neither wraps to a second row.
+     The label and conditional Today action then use the remaining block axis;
+     no padding or clipping is needed inside the finite one-track allocation. */
+  padding: 0;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
   flex-wrap: wrap;
@@ -1308,14 +1342,24 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button {
   padding: 0;
+  min-width: var(--stage-control-target);
+  min-height: var(--stage-control-target);
+  display: grid;
+  place-items: center;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
   order: 3;
   flex-basis: 100%;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] table {
-  margin-top: 4px;
+  margin-top: 0;
   table-layout: fixed;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] thead,
@@ -1324,13 +1368,16 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr:first-child,
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr[data-current-week] {
-  display: table-row;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody:has(tr[data-current-week]) tr:first-child:not([data-current-week]) {
   display: none;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td {
   padding-block: 0;
+  display: grid;
+  place-items: center;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td > div {
   gap: 0;
@@ -1339,11 +1386,50 @@ select > option {
   width: 100%;
   max-width: 14px;
   height: 14px;
-  font-size: 8px;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
   line-height: 14px;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label] {
-  font-size: 10px;
+  font-size: 14px;
+  line-height: 15px;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: center;
+}
+
+/* Two 36px navigation targets cannot share one row once a compact Board
+   allocation is narrower than 72px. The BoardItem is already an inline-size
+   container, so reflow only that causal footprint: the controls keep a 36px
+   column while the complete 14px month label and Today action use the column
+   beside them. This replaces the flex wrap that stacked the label underneath
+   both controls and made a 67.34x141px Standard-profile item scroll to 151px. */
+@container (inline-size < 72px) {
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
+    display: grid;
+    grid-template-columns: var(--stage-control-target) minmax(0, 1fr);
+    grid-template-rows: repeat(2, var(--stage-control-target));
+    align-items: center;
+  }
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:last-child {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
+    order: initial;
+    grid-column: 2;
+    grid-row: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    align-content: center;
+  }
 }
 
 .board-item[data-stage-variant="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
@@ -1380,7 +1466,7 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > span {
   width: 36px;
-  font-size: 9px;
+  font-size: 14px;
 }
 .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > a,
 .board-item[data-stage-variant="compact"][data-block-id="links"] > section > button {
@@ -1415,6 +1501,8 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="habits"] > div > button {
   padding-block: 4px;
+  min-width: var(--stage-control-target);
+  min-height: var(--stage-control-target);
 }
 
 /* Connector cards retain their header, compact status, and first actionable
@@ -1575,7 +1663,7 @@ select > option {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 8px;
+  font-size: 14px;
 }
 @container (max-width: 100px) {
   .board-item[data-stage-variant="compact"][data-block-id="homeassistant"] > section > ul {
@@ -1589,13 +1677,13 @@ select > option {
   justify-content: center;
   gap: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="crypto"] > section > div > span:nth-child(n + 2) {
+.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span:nth-child(n + 2) {
   display: none;
 }
 .board-item[data-stage-variant="compact"][data-block-id="crypto"] > section > div > span {
   gap: 1px;
-  font-size: 8px;
-  line-height: 12px;
+  font-size: 14px;
+  line-height: 18px;
 }
 
 /* A sparse short Ultrawide board resolves Balanced and therefore uses the
@@ -1634,7 +1722,7 @@ select > option {
   width: 36px;
 }
 .board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > span {
-  font-size: 9px;
+  font-size: 14px;
 }
 .board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > a,
 .board-item[data-stage-variant="standard"][data-block-id="links"] > section > button {
@@ -1649,13 +1737,43 @@ select > option {
   justify-content: center;
   gap: 4px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="crypto"] > section > div > span:nth-child(n + 3) {
+.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span:nth-child(n + 3) {
   display: none;
 }
 .board-item[data-stage-variant="standard"][data-block-id="crypto"] > section > div > span {
   gap: 1px;
-  font-size: 8px;
-  line-height: 12px;
+  font-size: 14px;
+  line-height: 18px;
+}
+
+/* Board tracks can be narrower than a complete 14px three-part coin value.
+   Keep the frozen one/two-cell condensation, but stack each preserved value's
+   symbol, price, and change instead of letting numeric paint escape. Dock
+   retains the native single-line five-cell strip. */
+.board-item:not(.board-item--dock)[data-block-id="crypto"] > section > div {
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.board-item:not(.board-item--dock)[data-block-id="crypto"] > section > div > span {
+  display: grid;
+  justify-items: center;
+  align-items: center;
+  gap: 0;
+  line-height: 20px;
+}
+.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span {
+  grid-template-columns: auto auto;
+  column-gap: 1px;
+}
+.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span > span:last-child {
+  grid-column: 1 / -1;
+}
+.board-item.board-item--dock[data-block-id="crypto"] > section > div > span {
+  /* The five untruncated Dock cells stay on one row. Chromium's 14px glyph
+     ink is 19px tall, so the former 18px line box let its top pixel escape
+     the owned BoardItem even though the element boxes were contained. */
+  line-height: 20px;
 }
 
 /* Focus's form is the finite BoardItem child, but its input owns the legacy

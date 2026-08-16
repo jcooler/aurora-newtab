@@ -54,12 +54,17 @@ function TodoInner({ onOpenChange }: { onOpenChange?: (open: boolean) => void })
       hugHorizontal(rect, TODO_CORNER_HUG_PX, viewportWidth),
     [],
   )
+  const getDockBoundaryElement = useCallback(
+    () => document.querySelector<HTMLElement>('[data-stage-zone-container="dock"]'),
+    [],
+  )
   const anchor = useViewportPanelAnchor({
     open,
     invokerRef: pillRef,
     panelRef,
     preferredSize: TODO_PANEL_SIZE,
     mapInvokerRect,
+    getBottomBoundaryElement: getDockBoundaryElement,
   })
 
   // Final-review fix wave, Fix 1 — the exact idiom WeatherWidget's own

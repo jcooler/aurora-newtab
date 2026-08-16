@@ -213,11 +213,25 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
   })
 
-  it('centres a focused Dock control away from fixed edge actions', async () => {
+  it('reveals a focused Dock control with the frozen minimum-scroll alignment', async () => {
     await renderApp()
     const notes = await screen.findByRole('button', { name: 'Notes' })
     notes.focus()
-    expect(notes.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'center' })
+    expect(notes.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
+  })
+
+  it('resolves Tab focus from the pre-keyboard Dock offset before applying nearest alignment', async () => {
+    await renderApp()
+    const dock = screen.getByRole('region', { name: 'Signal Dock' }) as HTMLElement
+    const notes = await screen.findByRole('button', { name: 'Notes' })
+    dock.scrollLeft = 37
+    fireEvent.keyDown(notes, { key: 'Tab' })
+    // Chromium may scroll during its native focus step before React receives
+    // focus. The handler must replay nearest from the keyboard-start offset.
+    dock.scrollLeft = 900
+    fireEvent.focus(notes)
+    expect(dock.scrollLeft).toBe(37)
+    expect(notes.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
   })
 
   it('does not move a Dock control between pointer down and click', async () => {

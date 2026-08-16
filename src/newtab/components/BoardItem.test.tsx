@@ -22,6 +22,11 @@ const monthCal = WIDGET_REGISTRY.find((row) => row.id === 'monthCal')!
 const greeting = WIDGET_REGISTRY.find((row) => row.id === 'greeting')!
 const rss = WIDGET_REGISTRY.find((row) => row.id === 'rss')!
 const crypto = WIDGET_REGISTRY.find((row) => row.id === 'crypto')!
+const ics = WIDGET_REGISTRY.find((row) => row.id === 'ics')!
+const github = WIDGET_REGISTRY.find((row) => row.id === 'github')!
+const gitlab = WIDGET_REGISTRY.find((row) => row.id === 'gitlab')!
+const jira = WIDGET_REGISTRY.find((row) => row.id === 'jira')!
+const homeassistant = WIDGET_REGISTRY.find((row) => row.id === 'homeassistant')!
 
 describe('BoardItem', () => {
   it('owns semantic data attributes, finite CSS spans, container semantics, and child rendering', () => {
@@ -137,7 +142,7 @@ describe('BoardItem', () => {
     expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 12rem)')
   })
 
-  it('contains the current RSS card and compact Crypto row when they move to the Dock', () => {
+  it('contains the current RSS card and all five complete Crypto cells when they move to the Dock', () => {
     const { rerender } = render(
       <BoardItem entry={rss} allocation={allocation({ id: 'rss', zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
         content
@@ -152,6 +157,22 @@ describe('BoardItem', () => {
       </BoardItem>,
     )
     item = document.querySelector('[data-block-id="crypto"]') as HTMLElement
-    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 5rem)')
+    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 35rem)')
+  })
+
+  it.each([
+    [ics, '18rem'],
+    [github, '20rem'],
+    [gitlab, '20rem'],
+    [jira, '20rem'],
+    [homeassistant, '20rem'],
+  ] as const)('contains the populated fixed-width %s renderer when pinned to Dock', (entry, floor) => {
+    render(
+      <BoardItem entry={entry} allocation={allocation({ id: entry.id, zone: 'dock', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
+        content
+      </BoardItem>,
+    )
+    const item = document.querySelector(`[data-block-id="${entry.id}"]`) as HTMLElement
+    expect(item.style.inlineSize).toBe(`max(var(--stage-track-min), ${floor})`)
   })
 })

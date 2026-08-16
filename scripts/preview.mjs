@@ -13,6 +13,7 @@
 import { mkdirSync, rmSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { chromium } from 'playwright'
+import { adaptiveStageProbeOk } from './adaptive-stage-probe.mjs'
 // Dev-only image measurement for the LQIP-underlay probe below (already a
 // devDependency — it is what encodes the photos in the first place).
 import sharp from 'sharp'
@@ -590,8 +591,56 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
     const pageHorizontalOverflow = document.documentElement.scrollWidth > innerWidth + 1
     const pageVerticalOverflow = document.documentElement.scrollHeight > innerHeight + 1 || document.body.scrollHeight > innerHeight + 1
     const stageHasIntendedPinnedOverflow = stage?.getAttribute('data-stage-pinned-overflow') === 'true'
+    const stageHasIntendedViewportOverflow = stage?.getAttribute('data-stage-viewport-overflow') === 'true' &&
+      stage?.getAttribute('data-stage-geometry-fits') === 'false'
     const unintendedStageScroll = stage instanceof HTMLElement && !stageHasIntendedPinnedOverflow &&
+      !stageHasIntendedViewportOverflow &&
       stage.scrollHeight > stage.clientHeight + 1
+    const stageStyle = stage instanceof HTMLElement ? getComputedStyle(stage) : null
+    const gridStyle = grid instanceof HTMLElement ? getComputedStyle(grid) : null
+    const dockZone = zones.find((zone) => zone.getAttribute('data-stage-zone-container') === 'dock')
+    const dockStyle = dockZone instanceof HTMLElement ? getComputedStyle(dockZone) : null
+    const stageMetrics = {
+      innerHeight,
+      visualViewportHeight: visualViewport?.height ?? null,
+      stage: stage instanceof HTMLElement ? {
+        rect: stageRect,
+        clientHeight: stage.clientHeight,
+        scrollHeight: stage.scrollHeight,
+        computedHeight: stageStyle.height,
+        boxSizing: stageStyle.boxSizing,
+        padding: stageStyle.padding,
+        paddingTop: stageStyle.paddingTop,
+        paddingRight: stageStyle.paddingRight,
+        paddingBottom: stageStyle.paddingBottom,
+        paddingLeft: stageStyle.paddingLeft,
+      } : null,
+      grid: grid instanceof HTMLElement ? {
+        rect: rectOf(grid),
+        clientHeight: grid.clientHeight,
+        scrollHeight: grid.scrollHeight,
+        computedHeight: gridStyle.height,
+        minHeight: gridStyle.minHeight,
+        boxSizing: gridStyle.boxSizing,
+        inheritedStageInset: gridStyle.getPropertyValue('--stage-inset').trim(),
+      } : null,
+      stageInset: getComputedStyle(root).getPropertyValue('--stage-inset').trim(),
+      dock: dockZone instanceof HTMLElement ? {
+        rect: rectOf(dockZone),
+        clientHeight: dockZone.clientHeight,
+        scrollHeight: dockZone.scrollHeight,
+        computedHeight: dockStyle.height,
+        computedMinHeight: dockStyle.minHeight,
+      } : null,
+      finiteZones: zones.filter((zone) => zone.getAttribute('data-stage-zone-container') !== 'dock').map((zone) => ({
+        zone: zone.getAttribute('data-stage-zone-container'),
+        rect: rectOf(zone),
+        clientWidth: zone instanceof HTMLElement ? zone.clientWidth : null,
+        clientHeight: zone instanceof HTMLElement ? zone.clientHeight : null,
+        scrollWidth: zone instanceof HTMLElement ? zone.scrollWidth : null,
+        scrollHeight: zone instanceof HTMLElement ? zone.scrollHeight : null,
+      })),
+    }
     const ownershipOk = markersOk && duplicateIds.length === 0 &&
       rows.filter((row) => ids.includes(row.id)).every((row) => row.zone === row.parentZone) &&
       rootTransform === 'none' && !pageHorizontalOverflow
@@ -610,7 +659,9 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
     // Semantic zones own setup/error/empty wrappers too, but a requested active
     // id must still exist exactly once. Its finite box and any descendant paint
     // stay in the owning zone; target paint cannot cross another BoardItem.
-    // Only an explicit pinned override may make the Stage vertically scroll.
+    // Only an explicit pinned override or the typed, truthful geometry no-fit
+    // marker may make the Stage vertically scroll. In both cases the document
+    // remains fixed and the Stage is the sole scroll owner.
     const targetsOk = ownershipOk && requestedExactlyOnce && !pageVerticalOverflow && !unintendedStageScroll &&
       targetRows.every((row) => row.zone === row.parentZone && row.rect.width > 0 && row.rect.height > 0 &&
         row.ownedContained && (row.painted.length === 0 || (row.ownedPaintContained && row.paintContainedInItem))) &&
@@ -618,7 +669,8 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
     return {
       ok, markersOk, ownershipOk, targetsOk, requestedCounts, requestedExactlyOnce,
       duplicateIds, rootTransform, pageHorizontalOverflow, pageVerticalOverflow,
-      stageHasIntendedPinnedOverflow, unintendedStageScroll,
+      stageHasIntendedPinnedOverflow, stageHasIntendedViewportOverflow, unintendedStageScroll,
+      stageMetrics,
       profile: root.dataset.stageProfile, density: root.dataset.stageDensity,
       ids: rows.map((row) => row.id), collisions, targetCollisions,
       targets: targetRows.map(({ id, zone, parentZone, rect, paintRect, parent, ownedContained, ownedPaintContained, paintContainedInItem }) =>
@@ -637,7 +689,9 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
       pageHorizontalOverflow: result.pageHorizontalOverflow,
       pageVerticalOverflow: result.pageVerticalOverflow,
       stageHasIntendedPinnedOverflow: result.stageHasIntendedPinnedOverflow,
+      stageHasIntendedViewportOverflow: result.stageHasIntendedViewportOverflow,
       unintendedStageScroll: result.unintendedStageScroll,
+      stageMetrics: result.stageMetrics,
       profile: result.profile,
       density: result.density,
       targetCollisions: result.targetCollisions,
@@ -11899,7 +11953,10 @@ function gitlabContributionsFixture() {
         const BACKUP_NOTICE = 'Connector secrets and capability URLs were not included. Re-enter them after restore.'
         const EXPECTED_EXPORT_REENTRY = ['rss', 'github', 'ics', 'homeassistant']
 
-        const PREIMPORT_SHARED_RSS = 'https://api.nasa.gov/planetary/apod?api_key=W1P4_PREIMPORT'
+        // Same host/permission owner as APOD, but a distinct path so the
+        // restore probe can release the old RSS response independently from
+        // the still-valid restored APOD owner.
+        const PREIMPORT_SHARED_RSS = 'https://api.nasa.gov/w1-p4/old-rss.xml'
         const OLD_ONLY_PATTERN = 'https://w1-p4-old-only.example.com/*'
         const OLD_ONLY_STATUS = 'https://w1-p4-old-only.example.com/api/v2/status.json'
         const RESTORED_STATUS_PATTERN = 'https://w1-p4-restored-status.example.com/*'
@@ -12007,6 +12064,40 @@ function gitlabContributionsFixture() {
           RESTORED_STATUS_URL,
           RESTORED_DATA.connectors.homeassistant.instanceUrl,
         ]
+        const activeRestoreRefreshHoldPatterns = [
+          'https://api.nasa.gov/planetary/apod?api_key=DEMO_KEY',
+          'https://api.coingecko.com/**',
+          'https://w1-p4-restored-status.example.com/**',
+        ]
+        const heldActiveRestoreRefreshRoutes = []
+        let restoreRefreshHoldsInstalled = false
+        let firstActiveRefreshResolve
+        const firstActiveRefresh = new Promise((resolve) => { firstActiveRefreshResolve = resolve })
+        let oldRssRoute = null
+        let oldRssRefreshResolve
+        const oldRssRefresh = new Promise((resolve) => { oldRssRefreshResolve = resolve })
+        const holdActiveRestoreRefresh = (route) => {
+          heldActiveRestoreRefreshRoutes.push(route)
+          firstActiveRefreshResolve?.()
+          firstActiveRefreshResolve = null
+        }
+        const holdOldRssRefresh = (route) => {
+          oldRssRoute = route
+          oldRssRefreshResolve?.()
+          oldRssRefreshResolve = null
+        }
+        const releaseRestoreRefreshHolds = async () => {
+          if (!restoreRefreshHoldsInstalled) return
+          const held = heldActiveRestoreRefreshRoutes.splice(0)
+          await Promise.allSettled(held.map((route) => route.abort()))
+          if (oldRssRoute) {
+            await oldRssRoute.abort().catch(() => undefined)
+            oldRssRoute = null
+          }
+          await page.unroute(PREIMPORT_SHARED_RSS, holdOldRssRefresh)
+          await Promise.all(activeRestoreRefreshHoldPatterns.map((pattern) => page.unroute(pattern, holdActiveRestoreRefresh)))
+          restoreRefreshHoldsInstalled = false
+        }
 
         let adapterRestoredBeforeReload = false
         try {
@@ -12083,6 +12174,16 @@ function gitlabContributionsFixture() {
           // deliberately old-only pattern. The restored registry keeps APOD,
           // drops RSS/old Status, and adds Status/Crypto. Only adapter-missing
           // target patterns may be requested by the real confirmation click.
+          // Hold provider responses before the pre-import reload. The restore
+          // contract asserted below is the coordinator's authoritative atomic
+          // commit/reset boundary; mounted APOD/RSS/Status/Crypto owners are
+          // allowed to refresh afterwards, but their completion cannot race
+          // this snapshot and turn a valid cache reset into a timing lottery.
+          await page.route(PREIMPORT_SHARED_RSS, holdOldRssRefresh)
+          for (const pattern of activeRestoreRefreshHoldPatterns) {
+            await page.route(pattern, holdActiveRestoreRefresh)
+          }
+          restoreRefreshHoldsInstalled = true
           await setHeld([NASA_API_PATTERN, OLD_ONLY_PATTERN])
           await page.evaluate(async (seed) => {
             await chrome.storage.local.set(seed)
@@ -12105,6 +12206,16 @@ function gitlabContributionsFixture() {
             },
           })
           await reloadWithAdapter()
+          await Promise.all([
+            Promise.race([
+              oldRssRefresh,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('W1-P4 saw no old RSS request')), 10_000)),
+            ]),
+            Promise.race([
+              firstActiveRefresh,
+              new Promise((_, reject) => setTimeout(() => reject(new Error('W1-P4 saw no active restored-provider request')), 10_000)),
+            ]),
+          ])
           await openMatrixTab('Data', '#set-import')
           await clearPermissionLog()
           await page.locator('#set-import').setInputFiles({
@@ -12150,10 +12261,33 @@ function gitlabContributionsFixture() {
               : `FAIL: W1-P4 confirmation gesture adapter requests (${JSON.stringify({ requestedPatterns, requestEntries })})`,
           )
 
-          const exactCommitted = exact(committed.values, EXPECTED_RESTORED_DATA)
+          const exactAtCommit = exact(committed.values, EXPECTED_RESTORED_DATA)
+          const refreshCommitQuiesced = heldActiveRestoreRefreshRoutes.length > 0 && oldRssRoute !== null
+          await page.waitForFunction(() => chrome.storage.local.get(['connectors']).then(({ connectors }) =>
+            connectors?.rss?.enabled === false && !document.querySelector('[data-block-id="rss"]')),
+          null, { timeout: 12_000 })
+          const oldRssResponse = page.waitForResponse((response) => response.url() === PREIMPORT_SHARED_RSS)
+          await oldRssRoute.fulfill({
+            status: 200,
+            contentType: 'application/rss+xml',
+            body: '<?xml version="1.0"?><rss version="2.0"><channel><title>Old restore owner</title><item><title>Must stay stale</title><link>https://example.test/stale-after-restore</link></item></channel></rss>',
+          })
+          oldRssRoute = null
+          await (await oldRssResponse).finished()
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+          const afterOldRssCompletion = await page.evaluate((keys) => chrome.storage.local.get(keys), dataKeys)
+          const staleOldRssRejected = exact(afterOldRssCompletion, EXPECTED_RESTORED_DATA) &&
+            afterOldRssCompletion.connectorSnapshots?.rss === undefined
+          const exactCommitted = exactAtCommit && staleOldRssRejected
+          console.log(`EVIDENCE: W1-P4 restore refresh fence ${JSON.stringify({
+            exactAtCommit,
+            oldRssObservedDisabled: true,
+            staleOldRssRejected,
+            heldActiveUrls: heldActiveRestoreRefreshRoutes.map((route) => route.request().url()),
+          })}`)
           console.log(
-            exactCommitted && exact(committed.values.connectorSnapshots, {}) && committed.values.apodCache === null
-              ? 'PASS: W1-P4 the production restore coordinator atomically committed the exact cleaned target through real storage and reset connectorSnapshots/apodCache'
+            exactCommitted && refreshCommitQuiesced && exact(committed.values.connectorSnapshots, {}) && committed.values.apodCache === null
+              ? `PASS: W1-P4 the production restore coordinator atomically committed the exact cleaned target through real storage, rejected the released stale RSS completion after disabled-state propagation, and reset connectorSnapshots/apodCache while ${heldActiveRestoreRefreshRoutes.length} active restored-provider refresh(es) remained causally quiesced`
               : `FAIL: W1-P4 exact restored data/cache reset (${JSON.stringify(committed.values)})`,
           )
 
@@ -12184,7 +12318,7 @@ function gitlabContributionsFixture() {
             statusText: document.querySelector('section[aria-label="Data"] [role="status"]')?.textContent?.trim() ?? '',
           }), dataKeys)
           const failedRevokeDurable =
-            exact(afterRoundTrip.values, EXPECTED_RESTORED_DATA) && afterRoundTrip.retryVisible
+            exact(afterRoundTrip.values, EXPECTED_RESTORED_DATA) && refreshCommitQuiesced && afterRoundTrip.retryVisible
           console.log(
             failedRevokeDurable
               ? 'PASS: W1-P4 the failed adapter revoke left the imported state committed and Retry permission cleanup durable across a Data/General/Data round trip'
@@ -12228,6 +12362,12 @@ function gitlabContributionsFixture() {
           const cleanupFailures = []
           let restored = null
           let lateWriteKeys = []
+
+          try {
+            await releaseRestoreRefreshHolds()
+          } catch (error) {
+            cleanupFailures.push(`refresh-holds=${error instanceof Error ? error.stack ?? error.message : String(error)}`)
+          }
 
           // Restore adapter state, every raw Data key, and the session flag
           // before touching fallible UI. The nested browser-side finally blocks
@@ -22446,9 +22586,47 @@ await page.waitForTimeout(150)
         focusLabelRect.left >= focusItemRect.left - 0.5 &&
         focusLabelRect.right <= focusItemRect.right + 0.5
       )
+      const compactTextInventory = [
+        ['links', '[data-block-id="links"][data-stage-variant="compact"] > section > div > span'],
+        ['homeassistant', '[data-block-id="homeassistant"][data-stage-variant="compact"] button[aria-label^="Run "]'],
+        ['crypto', '[data-block-id="crypto"][data-stage-variant="compact"] > section > div > span'],
+        ['monthCal-days', '[data-block-id="monthCal"][data-stage-variant="compact"] td span:first-child'],
+        ['monthCal-label', '[data-block-id="monthCal"][data-stage-variant="compact"] [data-monthcal-label]'],
+      ].map(([name, selector]) => {
+        const ownerId = name.startsWith('monthCal') ? 'monthCal' : name
+        const owner = document.querySelector(`[data-block-id="${ownerId}"][data-stage-variant="compact"]`)
+        const rows = [...document.querySelectorAll(selector)].filter((node) => {
+          const rect = node.getBoundingClientRect()
+          const style = getComputedStyle(node)
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+        }).map((node) => ({
+          text: node.textContent?.trim() ?? '',
+          fontSize: Number.parseFloat(getComputedStyle(node).fontSize),
+        }))
+        return { name, applicable: Boolean(owner), found: !owner || rows.length > 0, rows }
+      })
+      const compactControlInventory = [
+        ['monthCal-nav', '[data-block-id="monthCal"][data-stage-variant="compact"] [data-monthcal-header] > button'],
+        ['habits', '[data-block-id="habits"][data-stage-variant="compact"] > div > button'],
+      ].map(([name, selector]) => {
+        const ownerId = name === 'monthCal-nav' ? 'monthCal' : name
+        const owner = document.querySelector(`[data-block-id="${ownerId}"][data-stage-variant="compact"]`)
+        const rows = [...document.querySelectorAll(selector)].filter((node) => {
+          const rect = node.getBoundingClientRect()
+          const style = getComputedStyle(node)
+          return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+        }).map((node) => {
+          const rect = node.getBoundingClientRect()
+          return { label: node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '', width: rect.width, height: rect.height }
+        })
+        return { name, applicable: Boolean(owner), found: !owner || rows.length > 0, rows }
+      })
       const compactReadable = profile !== 'compact' || (
         (!greeting || greeting.scrollWidth <= greeting.clientWidth + 1) &&
-        (!focusLabel || (focusLineHeight > 0 && focusLabel.getBoundingClientRect().height <= focusLineHeight * 2.1 && focusLabelContained))
+        (!focusLabel || (focusLineHeight > 0 && focusLabel.getBoundingClientRect().height <= focusLineHeight * 2.1 && focusLabelContained)) &&
+        compactTextInventory.every((inventory) => inventory.found && inventory.rows.every((row) => row.fontSize >= 14)) &&
+        compactControlInventory.every((inventory) => inventory.found && inventory.rows.every((row) =>
+          row.width >= token.target - 0.5 && row.height >= token.target - 0.5))
       )
       const dockRows = itemRows.filter((row) => row.zone === 'dock')
       const persistentTargets = ['Open settings', 'New background photo'].map((name) => {
@@ -22528,6 +22706,8 @@ await page.waitForTimeout(150)
         descendantPaintContained,
         noPaintOverlap: paintOverlaps.length === 0,
         compactReadable,
+        compactTextInventory,
+        compactControlInventory,
         noOverlap: overlaps.length === 0,
         noRootTransform: rootStyle.transform === 'none' && (!main || getComputedStyle(main).transform === 'none'),
         dockPresent: Boolean(dock),
@@ -22542,12 +22722,7 @@ await page.waitForTimeout(150)
       }
     }, { profile, sublayout, expectedDensity, tokens: densityTokens, capacities: stageCapacities, allBlockIds })
   }
-  const probeOk = (row) => row.rootOwned && row.tokenExact && row.profileExact && row.densityExact &&
-    row.stageCapacityExact && row.dockTrackContract && row.dockExplicitTracksExact && row.dockInlineSizeExact && row.persistentTargetsExact &&
-    row.unique && row.exactlyOnceClock && row.clockProtected && row.semanticWrappers && row.finiteGeometry &&
-    row.noOverlap && row.descendantPaintContained && row.noPaintOverlap && row.compactReadable &&
-    row.noRootTransform && row.dockPresent && row.dockReachable && row.dockZoneParentExact && row.dockReasonExact
-    && row.closedBookmarksStackingNeutral && row.closedBookmarksHitTestNeutral
+  const probeOk = adaptiveStageProbeOk
 
   try {
     await evidencePage.goto('chrome://newtab/')
@@ -22650,24 +22825,51 @@ await page.waitForTimeout(150)
     await evidencePage.evaluate(async () => {
       const current = await chrome.storage.local.get(['settings'])
       const widgets = Object.fromEntries(Object.keys(current.settings.widgets).map((key) => [key, true]))
-      // Every connector is enabled but intentionally incomplete, so the
-      // registry must retain its wrapper while the existing renderer stays in
-      // setup/empty state and cannot leak this harness into provider traffic.
+      const now = Date.now()
+      // Most connectors remain intentionally incomplete to prove their empty
+      // wrappers stay allocated. The I1 inventory is deliberately populated
+      // with fresh scoped snapshots so the normal aggregate measures every
+      // cited compact text/control surface without provider traffic.
       const connectors = {
         rss: { enabled: true, feeds: [], shownCount: 5 },
         github: { enabled: true, token: '', username: '' },
         gitlab: { enabled: true, token: '', instanceUrl: '', username: '' },
         jira: { enabled: true, email: '', apiToken: '', site: '', displayName: '' },
         vercel: { enabled: true, token: '', username: '' },
-        crypto: { enabled: true, coins: [] },
+        crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'dogecoin', 'solana', 'cardano'] },
         ics: { enabled: true, calendars: [] },
         status: { enabled: true, services: [] },
-        homeassistant: { enabled: true },
+        homeassistant: {
+          enabled: true,
+          instanceUrl: 'https://ha.example.com',
+          token: 'w3-p2-fixture-token',
+          entities: [],
+          actions: [
+            { id: 'scene.movie_night', name: 'Movie night', domain: 'scene' },
+            { id: 'script.good_morning', name: 'Good morning', domain: 'script' },
+            { id: 'switch.porch_plug', name: 'Porch plug', domain: 'switch' },
+          ],
+        },
       }
-      await chrome.storage.local.set({
+      await globalThis.__auroraSetHarnessStorage({
         settings: { ...current.settings, widgets, layoutDensity: 'auto' },
         layout: { version: 2, profiles: {} },
         connectors,
+        connectorSnapshots: {
+          crypto: { fetchedAt: now, data: { coins: [
+            { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', price: 67412, change24h: 2.4 },
+            { id: 'ethereum', symbol: 'eth', name: 'Ethereum', price: 3245, change24h: -1.2 },
+            { id: 'dogecoin', symbol: 'doge', name: 'Dogecoin', price: 0.1234, change24h: 0 },
+            { id: 'solana', symbol: 'sol', name: 'Solana', price: 178.5, change24h: 4.1 },
+            { id: 'cardano', symbol: 'ada', name: 'Cardano', price: 0.42, change24h: -0.6 },
+          ] } },
+          homeassistant: { fetchedAt: now, data: { entities: [] } },
+        },
+        habits: [
+          { id: 'w3-p2-habit-1', name: 'Read', createdAt: now, log: [] },
+          { id: 'w3-p2-habit-2', name: 'Stretch', createdAt: now, log: [] },
+          { id: 'w3-p2-habit-3', name: 'Journal', createdAt: now, log: [] },
+        ],
       })
     })
     await evidencePage.reload()

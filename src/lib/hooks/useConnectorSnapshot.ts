@@ -141,14 +141,26 @@ export function useConnectorSnapshot<T>(
               fetchedAt: Date.now(),
               data: result,
             }
-            await storage.update('connectorSnapshots', (snapshots) =>
-              isCurrent()
-                ? {
-                    ...snapshots,
-                    [id]: snapshot,
-                  }
-                : snapshots,
-            )
+            await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+              const authoritativeConfig = connectors[id]
+              const authoritativeConfigKey = authoritativeConfig
+                ? `${canonicalConnectorConfig(authoritativeConfig)}\n${runtimeKey}`
+                : null
+              // A restore/config save can commit before React propagates the
+              // new props into this mounted owner. Revalidate against the
+              // authoritative connector record inside the same queued update
+              // that would write the derived cache; render-local generation
+              // ownership alone cannot authorize a stale completion.
+              if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== configKey) {
+                return {}
+              }
+              return {
+                connectorSnapshots: {
+                  ...connectorSnapshots,
+                  [id]: snapshot,
+                },
+              }
+            })
           }
           setCurrentState((current) => ({ ...current, lastError: null }))
         } catch (error) {

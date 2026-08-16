@@ -136,6 +136,20 @@ describe('anchorPanel', () => {
       { w: 1600, h: 900 },
     )).toEqual({ left: 1200, bottom: 62 })
   })
+
+  it('fits and anchors an upward-growing panel above an exact tall-Dock boundary', () => {
+    const viewport = { w: 800, h: 450 }
+    const dockTop = 242
+    const result = anchorPanel(
+      { left: 680, top: 260, right: 752, bottom: 298, width: 72, height: 38 },
+      { w: 384, h: 324 },
+      viewport,
+      dockTop,
+    )
+
+    expect(result).toEqual({ left: 368, bottom: 216, maxHeight: 226 })
+    expect(viewport.h - bottomOf(result)).toBe(dockTop - VIEWPORT_PANEL_GUTTER)
+  })
 })
 
 describe('hugHorizontal', () => {

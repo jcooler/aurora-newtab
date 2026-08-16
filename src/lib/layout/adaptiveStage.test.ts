@@ -10,6 +10,7 @@ import {
   selectStageProfile,
   type AdaptiveStageEntry,
   type Density,
+  type DockBlockSizeTable,
 } from './adaptiveStage'
 
 const variants: readonly WidgetVariant[] = ['compact', 'standard', 'expanded']
@@ -387,6 +388,71 @@ describe('protected Clock reservation', () => {
 })
 
 describe('Auto Fit two-condition resolution and diagnostics', () => {
+  it('budgets the tallest preserved Dock renderer for every density candidate and reports an honest compact no-fit', () => {
+    const dockBlockSizes: DockBlockSizeTable = {
+      monthCal: {
+        expanded: { compact: 240, balanced: 240, spacious: 240 },
+      },
+    }
+    const expandedMonth = entry('monthCal')
+    const overrides = {
+      monthCal: placement({ zone: 'dock', priority: 'pinned', variant: 'expanded', colSpan: 3, rowSpan: 1 }),
+    }
+    const input = {
+      preference: 'auto' as const,
+      viewport: { width: 1200, height: 700 },
+      profile: 'standard' as const,
+      entries: [expandedMonth],
+      overrides,
+      dockBlockSizes,
+    }
+
+    const result = resolveStageDensity(input)
+    const reversed = resolveStageDensity({ ...input, entries: [...input.entries].reverse() })
+
+    expect(result.density).toBe('compact')
+    expect(result.attempts).toEqual([
+      { density: 'spacious', geometryFits: false, automaticDockCount: 0 },
+      { density: 'balanced', geometryFits: false, automaticDockCount: 0 },
+      { density: 'compact', geometryFits: false, automaticDockCount: 0 },
+    ])
+    expect(result.geometry).toMatchObject({ dockBlockSize: 240, requiredHeight: 720, fits: false })
+    expect(result.plan.allocations).toContainEqual(expect.objectContaining({
+      id: 'monthCal', zone: 'dock', variant: 'expanded', colSpan: 3,
+    }))
+    expect(result.diagnostics).toEqual([{
+      kind: 'density-viewport-overflow', profile: 'standard', width: 1200, height: 700,
+    }])
+    expect(reversed).toEqual(result)
+
+    const manual = resolveStageDensity({ ...input, preference: 'balanced' })
+    expect(manual.density).toBe('balanced')
+    expect(manual.geometry).toMatchObject({ dockBlockSize: 240, requiredHeight: 752, fits: false })
+  })
+
+  it('budgets an unsupported schema-valid pinned variant without constraining it to the registry variant', () => {
+    const compactOnly = entry('links', {
+      allowedVariants: ['compact'],
+      footprints: { compact: { colSpan: 1, rowSpan: 1 } },
+    })
+    const result = resolveStageDensity({
+      preference: 'compact',
+      viewport: { width: 1200, height: 700 },
+      profile: 'standard',
+      entries: [compactOnly],
+      overrides: {
+        links: placement({ zone: 'dock', priority: 'pinned', variant: 'expanded', colSpan: 3 }),
+      },
+      dockBlockSizes: { links: { expanded: { compact: 416 } } },
+    })
+
+    expect(result.plan.allocations).toContainEqual(expect.objectContaining({
+      id: 'links', zone: 'dock', variant: 'expanded', colSpan: 3,
+    }))
+    expect(result.geometry.dockBlockSize).toBe(416)
+    expect(result.geometry.fits).toBe(false)
+  })
+
   it('tries spacious then balanced then compact and rejects a candidate that newly docks automatic work', () => {
     const roomy = resolveStageDensity({
       preference: 'auto', viewport: { width: 1600, height: 900 }, profile: 'standard', entries: [entry('weather')], overrides: {},

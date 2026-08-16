@@ -30,7 +30,15 @@ const DOCK_COMPAT_INLINE_FLOORS: Readonly<Partial<Record<WidgetRegistryEntry['id
   monthCal: '12.5rem',
   greeting: '12rem',
   rss: '18rem',
-  crypto: '5rem',
+  // Canonical five-coin standard content paints 557.33px wide at the 14px
+  // legibility floor; 35rem (560px) is the smallest rounded source contract
+  // that contains it without hiding, clipping, or truncating a numeric cell.
+  crypto: '35rem',
+  ics: '18rem',
+  github: '20rem',
+  gitlab: '20rem',
+  jira: '20rem',
+  homeassistant: '20rem',
   focus: '15rem',
   links: '5rem',
 }

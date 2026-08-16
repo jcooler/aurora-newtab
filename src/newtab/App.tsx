@@ -16,6 +16,7 @@ import { DraftLayoutContext } from './arrange/draftLayout'
 import { selectActiveWidgetRegistry, WIDGET_REGISTRY_BY_ID } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useAdaptiveStageViewport } from './useAdaptiveStageViewport'
+import { DOCK_BLOCK_SIZES } from './dockBlockSizes'
 
 const ZONES = ['day', 'now', 'pulse', 'dock'] as const
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
@@ -41,6 +42,7 @@ export default function App() {
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const wasArrangingRef = useRef(false)
   const dockPointerDownRef = useRef(false)
+  const dockKeyboardScrollRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (settings) applyPanelColor(document.documentElement, settings.panelColor)
@@ -83,6 +85,7 @@ export default function App() {
       profile,
       entries: activeEntries,
       overrides: layout.profiles[profile],
+      dockBlockSizes: DOCK_BLOCK_SIZES,
     }).density
   }, [activeEntries, layout, settings, stageInputsReady]))
 
@@ -94,6 +97,7 @@ export default function App() {
       profile: viewport.profile,
       entries: activeEntries,
       overrides: layout.profiles[viewport.profile],
+      dockBlockSizes: DOCK_BLOCK_SIZES,
     })
   }, [activeEntries, layout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
 
@@ -115,6 +119,7 @@ export default function App() {
   }
   const pinnedOverflow = (['day', 'now', 'pulse'] as const).some((zone) =>
     resolution.plan.implicitRows[zone] > resolution.geometry.capacities[zone][1])
+  const viewportOverflow = resolution.diagnostics.some((diagnostic) => diagnostic.kind === 'density-viewport-overflow')
   const renderAllocation = (allocation: StageAllocation) => {
     const entry = WIDGET_REGISTRY_BY_ID[allocation.id]
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
@@ -144,6 +149,11 @@ export default function App() {
       data-adaptive-stage=""
       data-stage-sublayout={resolution.geometry.sublayout}
       data-stage-pinned-overflow={pinnedOverflow ? 'true' : undefined}
+      data-stage-viewport-overflow={viewportOverflow ? 'true' : undefined}
+      data-stage-geometry-fits={resolution.geometry.fits ? 'true' : 'false'}
+      data-stage-density-attempts={resolution.attempts.map((attempt) => (
+        `${attempt.density}:${attempt.geometryFits ? 'fits' : 'overflow'}:${attempt.automaticDockCount}`
+      )).join(',')}
       className="adaptive-stage text-fg"
     >
       <DraftLayoutContext.Provider value={draft}>
@@ -160,26 +170,40 @@ export default function App() {
                   data-stage-zone-container={zone}
                   aria-label={zone === 'day' ? 'Day' : zone === 'now' ? 'Now' : zone === 'pulse' ? 'Work Pulse' : 'Signal Dock'}
                   className={`stage-zone stage-zone--${zone}${allocations.some((allocation) => openById[allocation.id]) ? ' stage-zone--elevated' : ''}${bookmarksPopoverOpen && allocations.some((allocation) => allocation.id === 'bookmarks') ? ' stage-zone--elevated-high' : ''}`}
-                  style={zone === 'dock' ? { '--stage-dock-track-count': dockTrackCount } as CSSProperties : undefined}
-                  onPointerDownCapture={zone === 'dock' ? () => { dockPointerDownRef.current = true } : undefined}
+                  style={zone === 'dock' ? {
+                    '--stage-dock-track-count': dockTrackCount,
+                    '--stage-dock-block-size': `${resolution.geometry.dockBlockSize}px`,
+                  } as CSSProperties : undefined}
+                  onKeyDownCapture={zone === 'dock' ? (event) => {
+                    if (event.key === 'Tab') dockKeyboardScrollRef.current = event.currentTarget.scrollLeft
+                  } : undefined}
+                  onPointerDownCapture={zone === 'dock' ? () => {
+                    dockKeyboardScrollRef.current = null
+                    dockPointerDownRef.current = true
+                  } : undefined}
                   onPointerUpCapture={zone === 'dock' ? () => { dockPointerDownRef.current = false } : undefined}
                   onPointerCancelCapture={zone === 'dock' ? () => { dockPointerDownRef.current = false } : undefined}
                   onFocus={zone === 'dock' ? (event) => {
                     // Pointer activation must keep the target stationary
                     // between down and up or the browser cancels the click.
                     // Keyboard focus has no pointer coordinate to preserve,
-                    // so it can safely centre an offscreen Dock control.
+                    // so it can safely reveal an offscreen Dock control.
                     if (dockPointerDownRef.current) {
                       dockPointerDownRef.current = false
                       return
                     }
                     if (event.target instanceof HTMLElement && typeof event.target.scrollIntoView === 'function') {
-                      // A narrow Dock may have persistent edge actions over
-                      // its outer gutters. Centre the newly focused control so
-                      // keyboard navigation cannot leave it under those fixed
-                      // actions even when the BoardItem itself was only a few
-                      // pixels outside the scrollport.
-                      event.target.scrollIntoView({ block: 'nearest', inline: 'center' })
+                      // Native Tab focus may scroll before React receives the
+                      // focus event. Replay nearest from the offset where the
+                      // keyboard move began, so a far target is not centered.
+                      if (dockKeyboardScrollRef.current !== null) {
+                        event.currentTarget.scrollLeft = dockKeyboardScrollRef.current
+                        dockKeyboardScrollRef.current = null
+                      }
+                      // Move only when an edge is outside the scrollport. This
+                      // preserves the frozen minimum-scroll keyboard contract
+                      // and avoids panning on every Tab through visible items.
+                      event.target.scrollIntoView({ block: 'nearest', inline: 'nearest' })
                     }
                   } : undefined}
                 >

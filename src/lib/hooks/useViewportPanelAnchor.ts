@@ -12,10 +12,11 @@ interface ViewportPanelAnchorOptions {
   panelRef: RefObject<HTMLElement | null>
   preferredSize: Size
   mapInvokerRect?: (rect: DOMRectReadOnly, viewportWidth: number) => DOMRectReadOnly | HugRect
+  getBottomBoundaryElement?: () => HTMLElement | null
 }
 
 function samePlacement(left: PanelPlacement | null, right: PanelPlacement): boolean {
-  if (!left || left.left !== right.left) return false
+  if (!left || left.left !== right.left || left.maxHeight !== right.maxHeight) return false
   if ('top' in left && 'top' in right) return left.top === right.top
   if ('bottom' in left && 'bottom' in right) return left.bottom === right.bottom
   return false
@@ -25,14 +26,17 @@ function samePlacement(left: PanelPlacement | null, right: PanelPlacement): bool
  *
  * The hook deliberately owns only measurement: the invoker remains the
  * placement source, the rendered panel border box becomes the live size, and
- * viewport/content changes coalesce through one animation frame. Callers keep
- * all persistence, timer, focus, and close semantics. */
+ * viewport/content changes coalesce through one animation frame. A supplied
+ * bottom-boundary element joins that observer and contributes its live top
+ * edge to the same pure geometry, so a portaled panel cannot cover a tall
+ * Signal Dock. Callers keep all persistence, timer, focus, and close semantics. */
 export function useViewportPanelAnchor({
   open,
   invokerRef,
   panelRef,
   preferredSize,
   mapInvokerRect,
+  getBottomBoundaryElement,
 }: ViewportPanelAnchorOptions): PanelPlacement | null {
   const [anchor, setAnchor] = useState<PanelPlacement | null>(null)
   const generationRef = useRef(0)
@@ -47,6 +51,7 @@ export function useViewportPanelAnchor({
     let disposed = false
     let frame: number | null = null
     let observedPanel: HTMLElement | null = null
+    let observedBottomBoundary: HTMLElement | null = null
     let observer: ResizeObserver | null = null
 
     const isCurrent = () => !disposed && generationRef.current === generation
@@ -64,7 +69,9 @@ export function useViewportPanelAnchor({
       const panelSize = renderedRect && (renderedRect.width > 0 || renderedRect.height > 0)
         ? { w: renderedRect.width, h: renderedRect.height }
         : preferredSize
-      const next = anchorPanel(invokerRect, panelSize, viewport)
+      const bottomBoundaryElement = getBottomBoundaryElement?.() ?? null
+      const bottomBoundary = bottomBoundaryElement?.getBoundingClientRect().top
+      const next = anchorPanel(invokerRect, panelSize, viewport, bottomBoundary)
       setAnchor((current) => samePlacement(current, next) ? current : next)
     }
 
@@ -75,6 +82,12 @@ export function useViewportPanelAnchor({
       if (observedPanel) observer.unobserve(observedPanel)
       observedPanel = current
       if (observedPanel) observer.observe(observedPanel)
+      const currentBottomBoundary = getBottomBoundaryElement?.() ?? null
+      if (currentBottomBoundary !== observedBottomBoundary) {
+        if (observedBottomBoundary) observer.unobserve(observedBottomBoundary)
+        observedBottomBoundary = currentBottomBoundary
+        if (observedBottomBoundary) observer.observe(observedBottomBoundary)
+      }
     }
 
     const flush = () => {
@@ -111,8 +124,9 @@ export function useViewportPanelAnchor({
       observer?.disconnect()
       observer = null
       observedPanel = null
+      observedBottomBoundary = null
     }
-  }, [open, invokerRef, panelRef, preferredSize.w, preferredSize.h, mapInvokerRect])
+  }, [open, invokerRef, panelRef, preferredSize.w, preferredSize.h, mapInvokerRect, getBottomBoundaryElement])
 
   return anchor
 }

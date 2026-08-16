@@ -105,6 +105,7 @@ async function freshStorage(
 ): Promise<AuroraStorage> {
   const storage = createStorage(memoryDriver())
   await storage.init()
+  await storage.set('connectors', { rss: config })
   if (seed) {
     await storage.set('connectorSnapshots', {
       rss: { ...seed, scope: await connectorSnapshotScope('rss', config) },
@@ -338,6 +339,7 @@ describe('useConnectorSnapshot', () => {
       fetchedAt: Date.now(),
       data: 'account-a',
     })
+    await storage.set('connectors', { rss: configB })
     const pending = deferred<string>()
     const refresh = vi.fn(() => pending.promise)
 
@@ -361,6 +363,7 @@ describe('useConnectorSnapshot', () => {
     const view = mount(storage, refresh, 60_000, configA)
     await screen.findByText('data:account-a')
 
+    await storage.set('connectors', { rss: configB })
     view.rerender(
       <StorageProvider storage={storage}>
         <Probe config={configB} refresh={refresh} ttl={60_000} />
@@ -389,6 +392,7 @@ describe('useConnectorSnapshot', () => {
       await tick()
     })
 
+    await storage.set('connectors', { rss: configB })
     view.rerender(
       <StorageProvider storage={storage}>
         <Probe config={configB} refresh={refresh} ttl={60_000} />
@@ -408,10 +412,34 @@ describe('useConnectorSnapshot', () => {
     })
   })
 
+  it('rejects a pending response when authoritative storage disables the connector before React rerenders', async () => {
+    const storage = await freshStorage()
+    const pending = deferred<string>()
+    mount(storage, () => pending.promise, 60_000, configA)
+    await act(async () => {
+      await tick()
+    })
+
+    // Atomic restore commits connector config and clears derived snapshots in
+    // one authority-held write. The old component may not have rerendered yet,
+    // so its render-local generation alone is insufficient commit authority.
+    await storage.updateMany(['connectors', 'connectorSnapshots'], () => ({
+      connectors: { rss: { ...configA, enabled: false } },
+      connectorSnapshots: {},
+    }))
+    await act(async () => {
+      pending.resolve('stale-after-restore')
+      await tick()
+    })
+
+    expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
+  })
+
   it('treats a removed snapshot key as an empty map and refreshes without crashing', async () => {
     const driver = memoryDriver()
     const storage = createStorage(driver)
     await storage.init()
+    await storage.set('connectors', { rss: configA })
     await storage.set('connectorSnapshots', {
       rss: {
         scope: await connectorSnapshotScope('rss', configA),
@@ -439,6 +467,7 @@ describe('useConnectorSnapshot', () => {
     const driver = memoryDriver()
     const storage = createStorage(driver)
     await storage.init()
+    await storage.set('connectors', { rss: configA })
 
     const queueEntered = deferred<void>()
     const releaseQueue = deferred<void>()
@@ -461,14 +490,15 @@ describe('useConnectorSnapshot', () => {
       .fn<(_: string | null) => Promise<string>>()
       .mockResolvedValueOnce('account-a')
       .mockReturnValueOnce(requestB.promise)
-    const update = vi.spyOn(storage, 'update')
+    const updateMany = vi.spyOn(storage, 'updateMany')
     const view = mount(storage, refresh, 60_000, configA)
     await act(async () => {
       await tick()
     })
-    expect(update).toHaveBeenCalledTimes(1)
-    const queuedAWrite = update.mock.results[0]?.value as Promise<unknown>
+    expect(updateMany).toHaveBeenCalledTimes(1)
+    const queuedAWrite = updateMany.mock.results[0]?.value as Promise<unknown>
 
+    const configBCommit = storage.set('connectors', { rss: configB })
     view.rerender(
       <StorageProvider storage={storage}>
         <Probe config={configB} refresh={refresh} ttl={60_000} />
@@ -482,6 +512,7 @@ describe('useConnectorSnapshot', () => {
     releaseQueue.resolve()
     await priorUpdate
     await queuedAWrite
+    await configBCommit
 
     const storedAfterA = (await storage.get('connectorSnapshots')).rss
     expect(storedAfterA?.data).not.toBe('account-a')
@@ -505,6 +536,7 @@ describe('useConnectorSnapshot', () => {
       await tick()
     })
 
+    await storage.set('connectors', { rss: configB })
     view.rerender(
       <StorageProvider storage={storage}>
         <Probe config={configB} refresh={refresh} ttl={60_000} />

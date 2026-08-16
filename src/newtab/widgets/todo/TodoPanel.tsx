@@ -321,6 +321,7 @@ export default function TodoPanel({
       style={{
         position: 'fixed',
         left: anchor.left,
+        maxHeight: anchor.maxHeight,
         ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
       }}
       className={`${overflowOpen ? 'z-50 overflow-visible' : 'z-30 overflow-hidden'} flex max-h-[calc(100dvh-1rem)] w-[min(24rem,calc(100vw-1rem))] flex-col rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}

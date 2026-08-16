@@ -103,7 +103,17 @@ if (import.meta.env.MODE === 'preview') {
   }).__auroraStorageHarness = { update: storage.update, notes: notesHarness! }
 }
 
-createRoot(document.getElementById('root')!).render(
+createRoot(document.getElementById('root')!, {
+  // WidgetBoundary already emits the one fixed-safe diagnostic. React 19's
+  // default caught-error reporter would log the raw thrown value first.
+  onCaughtError: () => {},
+  // Replacing React's other default reporters prevents secret-bearing thrown
+  // values and component stacks from reaching the console. These fixed
+  // diagnostics still make root-level failures observable without attaching
+  // the error or errorInfo capability data.
+  onUncaughtError: () => console.error('[aurora] uncaught root render failure'),
+  onRecoverableError: () => console.error('[aurora] recoverable root render failure'),
+}).render(
   <StrictMode>
     <StorageProvider storage={storage}>
       <App />

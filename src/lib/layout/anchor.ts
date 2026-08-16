@@ -13,7 +13,9 @@ import type { Size } from './clamp'
 // instead — restoring the pre-anchorPanel `bottom-16`-class behavior. Panel
 // components must branch on which key is present (`'top' in anchor`) rather
 // than assuming one shape.
-export type PanelPlacement = { left: number; top: number } | { left: number; bottom: number }
+export type PanelPlacement = (
+  { left: number; top: number } | { left: number; bottom: number }
+) & { maxHeight?: number }
 export interface HugRect { left: number; top: number; right: number; bottom: number; width: number; height: number }
 
 export const VIEWPORT_PANEL_GUTTER = 8
@@ -57,7 +59,12 @@ export function hugHorizontal(rect: HugRect, hugPx: number, viewportW: number): 
  *  above it when the pill is in the bottom half (anchored via `bottom`,
  *  growing UP — review fix I1, see the `PanelPlacement` doc above) —
  *  left-aligned when the pill is in the left half (else right-aligned), 8px
- *  gap, clamped to >= 8px from every edge.
+ *  gap, clamped to >= 8px from every edge. An optional measured
+ *  `bottomBoundary` (the Signal Dock's top edge for Tasks) replaces only the
+ *  usable vertical bottom. The returned `bottom` remains a CSS viewport-edge
+ *  offset, and `maxHeight` publishes the exact reachable content ceiling to
+ *  the panel; callers that omit the boundary keep the established shape and
+ *  coordinates byte-for-byte.
  *
  *  The vertical clamp bounds (`margin` .. `viewport.h - panel.h - margin`)
  *  are the SAME numeric range for both branches: `top` and `bottom` are just
@@ -69,15 +76,24 @@ export function anchorPanel(
   pillRect: DOMRectReadOnly | { left: number; top: number; right: number; bottom: number; width: number; height: number },
   panel: Size,
   viewport: Size,
+  bottomBoundary?: number,
 ): PanelPlacement {
   const gap = 8
   const margin = VIEWPORT_PANEL_GUTTER
-  const fittedPanel = fitPanelSize(panel, viewport)
+  const hasBottomBoundary = Number.isFinite(bottomBoundary)
+  const usableBottom = hasBottomBoundary
+    ? Math.min(viewport.h, Math.max(0, bottomBoundary!))
+    : viewport.h
+  const verticalViewport = { w: viewport.w, h: usableBottom }
+  const fittedPanel = fitPanelSize(panel, verticalViewport)
+  const maxHeight = hasBottomBoundary
+    ? Math.max(0, usableBottom - margin * 2)
+    : undefined
 
   const pillCenterX = (pillRect.left + pillRect.right) / 2
   const pillCenterY = (pillRect.top + pillRect.bottom) / 2
 
-  const topHalf = pillCenterY < viewport.h / 2
+  const topHalf = pillCenterY < usableBottom / 2
   const leftHalf = pillCenterX < viewport.w / 2
 
   const rawLeft = leftHalf ? pillRect.left : pillRect.right - fittedPanel.w
@@ -86,12 +102,21 @@ export function anchorPanel(
   const left = Math.min(Math.max(rawLeft, minLeft), maxLeft)
 
   const minOffset = margin
-  const maxOffset = Math.max(minOffset, viewport.h - fittedPanel.h - margin)
+  const maxOffset = Math.max(minOffset, usableBottom - fittedPanel.h - margin)
 
   if (topHalf) {
     const rawTop = pillRect.bottom + gap
-    return { left, top: Math.min(Math.max(rawTop, minOffset), maxOffset) }
+    return {
+      left,
+      top: Math.min(Math.max(rawTop, minOffset), maxOffset),
+      ...(maxHeight === undefined ? {} : { maxHeight }),
+    }
   }
-  const rawBottom = viewport.h - pillRect.top + gap
-  return { left, bottom: Math.min(Math.max(rawBottom, minOffset), maxOffset) }
+  const rawBottom = usableBottom - pillRect.top + gap
+  const boundaryOffset = viewport.h - usableBottom
+  return {
+    left,
+    bottom: boundaryOffset + Math.min(Math.max(rawBottom, minOffset), maxOffset),
+    ...(maxHeight === undefined ? {} : { maxHeight }),
+  }
 }

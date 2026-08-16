@@ -51,6 +51,17 @@ describe('TodoPanel', () => {
     expect(screen.getByRole('button', { name: 'Add task' }).classList.contains('max-[420px]:min-h-9')).toBe(true)
   })
 
+  it('applies the anchor geometry\'s exact Dock-safe height while keeping one internal list scroll owner', async () => {
+    await renderPanel({ left: 368, bottom: 216, maxHeight: 226 })
+    const dialog = await screen.findByRole('dialog', { name: 'Tasks' })
+    expect(dialog.style.bottom).toBe('216px')
+    expect(dialog.style.maxHeight).toBe('226px')
+    expect(dialog.querySelectorAll('.overflow-y-auto')).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Close tasks' })).toBeTruthy()
+    expect(await screen.findByRole('textbox', { name: 'Add a task' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Add task' })).toBeTruthy()
+  })
+
   it('keeps its nested overflow actions inside the bounded Tasks surface with their own viewport ceiling', async () => {
     await renderPanel()
     fireEvent.click(await screen.findByRole('button', { name: 'More actions' }))
