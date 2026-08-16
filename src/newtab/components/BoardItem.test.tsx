@@ -18,6 +18,7 @@ const weather = WIDGET_REGISTRY.find((row) => row.id === 'weather')!
 const search = WIDGET_REGISTRY.find((row) => row.id === 'search')!
 const focus = WIDGET_REGISTRY.find((row) => row.id === 'focus')!
 const links = WIDGET_REGISTRY.find((row) => row.id === 'links')!
+const bookmarks = WIDGET_REGISTRY.find((row) => row.id === 'bookmarks')!
 const monthCal = WIDGET_REGISTRY.find((row) => row.id === 'monthCal')!
 const greeting = WIDGET_REGISTRY.find((row) => row.id === 'greeting')!
 const rss = WIDGET_REGISTRY.find((row) => row.id === 'rss')!
@@ -120,6 +121,36 @@ describe('BoardItem', () => {
     )
     item = document.querySelector('[data-block-id="links"]') as HTMLElement
     expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 5rem)')
+  })
+
+  it('publishes variant-aware Bookmarks Dock floors that contain all nine visible chips', () => {
+    const { rerender } = render(
+      <BoardItem entry={bookmarks} allocation={allocation({ id: 'bookmarks', zone: 'dock', variant: 'compact', colSpan: 1, rowSpan: 1, rect: null })} profile="compact">
+        content
+      </BoardItem>,
+    )
+    let item = document.querySelector('[data-block-id="bookmarks"]') as HTMLElement
+    expect(item.style.inlineSize).toBe('max(var(--stage-track-min), 26.375rem)')
+
+    rerender(
+      <BoardItem entry={bookmarks} allocation={allocation({ id: 'bookmarks', zone: 'dock', variant: 'standard', colSpan: 2, rowSpan: 1, rect: null })} profile="standard">
+        content
+      </BoardItem>,
+    )
+    item = document.querySelector('[data-block-id="bookmarks"]') as HTMLElement
+    expect(item.style.inlineSize).toBe(
+      'max(calc(var(--stage-track-min) + var(--stage-track-min) + var(--stage-gap)), 63.0625rem)',
+    )
+
+    rerender(
+      <BoardItem entry={bookmarks} allocation={allocation({ id: 'bookmarks', zone: 'dock', variant: 'expanded', colSpan: 3, rowSpan: 1, rect: null })} profile="display">
+        content
+      </BoardItem>,
+    )
+    item = document.querySelector('[data-block-id="bookmarks"]') as HTMLElement
+    expect(item.style.inlineSize).toBe(
+      'max(calc(var(--stage-track-min) + var(--stage-track-min) + var(--stage-track-min) + var(--stage-gap) + var(--stage-gap)), 63.0625rem)',
+    )
   })
 
   it('contains the current fixed-width Month Calendar card when it moves to the Dock', () => {

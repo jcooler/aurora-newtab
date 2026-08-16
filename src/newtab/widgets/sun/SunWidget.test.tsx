@@ -113,6 +113,7 @@ describe('SunWidget', () => {
     const expected = `☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)} · golden hour ${formatClock(times.goldenHour!, false)}`
     const section = container.querySelector('section[aria-label="Sun times"]')!
     expect(section.textContent).toBe(expected)
+    expect(section.querySelector('[data-sun-golden]')?.textContent).toContain('golden hour')
   })
 
   it('use24Hour is respected both ways', async () => {

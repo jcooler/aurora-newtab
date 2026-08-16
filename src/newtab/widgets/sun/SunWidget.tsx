@@ -35,14 +35,15 @@ function SunInner({ settings, location }: { settings: Settings; location: Stored
   const golden = times.goldenHour
     ? ` · golden hour ${formatClock(times.goldenHour, settings.use24Hour)}`
     : ''
-  const line = `☀ ${formatClock(times.sunrise, settings.use24Hour)} → ${formatClock(times.sunset, settings.use24Hour)}${golden}`
+  const primary = `☀ ${formatClock(times.sunrise, settings.use24Hour)} → ${formatClock(times.sunset, settings.use24Hour)}`
 
   return (
     <section
       aria-label="Sun times"
       className="w-[200px] rounded-2xl bg-panel-solid px-3 py-2.5 dense:px-2 dense:py-2 text-sm text-fg shadow-lg"
     >
-      {line}
+      {primary}
+      {golden && <span data-sun-golden>{golden}</span>}
     </section>
   )
 }

@@ -25,7 +25,7 @@ function DailyQuote() {
       <blockquote className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg">
         &ldquo;{quote.text}&rdquo;
       </blockquote>
-      <figcaption className="text-photo mt-1 mid:mt-0.5 short:mt-0.5 xshort:mt-0.5 text-sm mid:text-xs short:text-xs xshort:text-xs font-normal text-canvas-fg-muted">
+      <figcaption data-stage-text-tier="metadata" className="text-photo mt-1 mid:mt-0.5 short:mt-0.5 xshort:mt-0.5 text-sm mid:text-xs short:text-xs xshort:text-xs font-normal text-canvas-fg-muted">
         — {quote.author}
       </figcaption>
     </figure>

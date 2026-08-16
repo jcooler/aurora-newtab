@@ -72,6 +72,7 @@ function MonthCalInner() {
   const weeks = monthGrid(view.y, view.m0)
   const countdownKeys = new Set((countdowns ?? []).map((c) => c.date))
   const label = monthLabel(view.y, view.m0)
+  const compactLabel = MONTH_NAMES[view.m0].slice(0, 3)
 
   return (
     <div className="w-[200px] rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
@@ -134,7 +135,10 @@ function MonthCalInner() {
             intentional gaps (gap-1 x2 + gap-1.5 here) rendering exactly as
             designed, not stretched or squeezed to fit. */}
         <span className="flex min-w-0 items-center justify-center gap-1.5">
-          <span data-monthcal-label className="truncate text-xs font-medium text-fg">{label}</span>
+          <span data-monthcal-label aria-label={label} className="truncate text-xs font-medium text-fg">
+            <span data-monthcal-label-full>{label}</span>
+            <span data-monthcal-label-short data-label={compactLabel} aria-hidden />
+          </span>
           {/* Re-derived from the ticking `now` (not the mount-time `view`
               seed), so it's correct even across a midnight rollover while
               the widget sat open on a past/future month. This, plus the two
@@ -186,7 +190,7 @@ function MonthCalInner() {
               // Sunday..Saturday all need their own key; the initial alone
               // collides twice (Sun/Sat both 'S', Tue/Thu both 'T') so the
               // index is the key, not the label.
-              <th key={i} scope="col" className="pb-1 text-[10px] font-normal text-fg-muted">
+              <th key={i} scope="col" data-stage-text-tier="metadata" className="pb-1 text-[10px] font-normal text-fg-muted">
                 {initial}
               </th>
             ))}

@@ -41,6 +41,19 @@ describe('QuoteWidget', () => {
     expect(figcaption?.classList.contains('text-photo')).toBe(true)
   })
 
+  it('marks only the attribution as glance metadata', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', defaults().settings)
+    const { container } = render(
+      <StorageProvider storage={storage}><QuoteWidget /></StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(container.querySelector('blockquote')?.getAttribute('data-stage-text-tier')).toBeNull()
+    expect(container.querySelector('figcaption')?.getAttribute('data-stage-text-tier')).toBe('metadata')
+  })
+
   it('selects a new daily quote after local midnight without a reload', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

@@ -320,7 +320,7 @@ export default function WeatherWidget({
                     as a child span. The two pieces still concatenate to
                     exactly `displayTempWithUnit` — one derivation, styled
                     apart — never a second string for the same value. */}
-                <span className="align-baseline text-[0.7em] text-fg-muted">
+                <span data-stage-text-tier="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                   {unitLetter(settings.units)}
                 </span>
               </span>
@@ -357,7 +357,7 @@ export default function WeatherWidget({
             <div className="px-4 pb-4 short:pb-3 xshort:pb-3">
               {range && slots.length > 0 && (
                 <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
-                  <div className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
+                  <div data-stage-text-tier="metadata" className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
                     {/* CSS-uppercased, so the DOM text stays "Next 12 hours"
                         (screen readers and tests read the real word, the eye
                         reads the eyebrow). */}
@@ -394,7 +394,7 @@ export default function WeatherWidget({
                       the retired ridgeline held by being an SVG. Accent is
                       reserved for rain here and in the callout above; nothing
                       else in the panel uses it. */}
-                  <div className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-6 gap-x-1 narrow:gap-x-0">
+                  <div data-weather-hourly-grid className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-6 gap-x-1 narrow:gap-x-0">
                     {slots.map((slot, i) => {
                       const atEnd = i === 0 || i === slots.length - 1
                       const rain =
@@ -406,7 +406,7 @@ export default function WeatherWidget({
                             slot.now ? 'bg-fg/[0.07]' : ''
                           }`}
                         >
-                          <span className="text-[11px] narrow:text-[10px] leading-none text-fg-muted">
+                          <span data-stage-text-tier="metadata" className="text-[11px] narrow:text-[10px] leading-none text-fg-muted">
                             {slot.now
                               ? 'NOW'
                               : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
@@ -428,13 +428,13 @@ export default function WeatherWidget({
                           <span className="text-[15px] narrow:text-[12px] font-medium leading-none tabular-nums text-fg">
                             {displayTemp(slot.point.tempC, settings.units)}
                             {atEnd && (
-                              <span className="align-baseline text-[0.7em] text-fg-muted">
+                              <span data-stage-text-tier="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                                 {unitLetter(settings.units)}
                               </span>
                             )}
                           </span>
                           {rain !== null && (
-                            <span className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">
+                            <span data-stage-text-tier="metadata" className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">
                               <span className="sr-only">Rain chance </span>
                               {rain}%
                             </span>
@@ -448,24 +448,24 @@ export default function WeatherWidget({
 
               <dl className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Feels like</dt>
+                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Feels like</dt>
                   <dd className="mt-0.5 text-sm tabular-nums text-fg">
                     {displayTemp(snapshot.current.feelsLikeC, settings.units)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Wind</dt>
+                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Wind</dt>
                   <dd className="mt-0.5 text-sm tabular-nums text-fg">
                     {displayWind(snapshot.current.windKmh, settings.units)}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-fg-muted">Humidity</dt>
+                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Humidity</dt>
                   <dd className="mt-0.5 text-sm tabular-nums text-fg">{snapshot.current.humidity}%</dd>
                 </div>
                 {snapshot.sunriseISO && snapshot.sunsetISO && (
                   <div>
-                    <dt className="text-[11px] text-fg-muted">Sun</dt>
+                    <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Sun</dt>
                     <dd className="mt-0.5 text-sm tabular-nums text-fg">
                       <span className="block">
                         <span aria-hidden="true">↑ </span>

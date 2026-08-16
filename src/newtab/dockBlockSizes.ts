@@ -9,17 +9,17 @@ const sizes = (compact?: number, balanced?: number, spacious?: number): DensityS
 })
 
 const clock = sizes(248, 248, 248)
-const focus = sizes(112, 112, 112)
-const linksCompact = sizes(288, 288, 288)
-const linksStandard = sizes(192, 168, 128)
+const focus = sizes(112, 112, 120)
+const linksCompact = sizes(296, 296, 336)
+const linksStandard = sizes(192, 168, 192)
 const linksExpanded = sizes(416, 272, 272)
-const tallRss = sizes(344, 344, 344)
-const tallGithub = sizes(416, 416, 416)
-const tallGitlab = sizes(488, 488, 488)
-const tallJira = sizes(312, 312, 312)
-const tallVercel = sizes(224, 224, 224)
-const tallHabits = sizes(248, 248, 248)
-const tallMonth = sizes(256, 256, 256)
+const tallRss = sizes(344, 344, 408)
+const tallGithub = sizes(416, 416, 448)
+const tallGitlab = sizes(488, 488, 528)
+const tallJira = sizes(312, 312, 352)
+const tallVercel = sizes(304, 304, 344)
+const tallHabits = sizes(264, 264, 312)
+const tallMonth = sizes(288, 288, 296)
 
 /**
  * Temporary W3 compatibility bridge for preserved Dock renderers whose
@@ -38,15 +38,15 @@ export const DOCK_BLOCK_SIZES: DockBlockSizeTable = Object.freeze({
   search: Object.freeze({ compact: sizes(72), standard: sizes(72), expanded: sizes(72) }),
   focus: Object.freeze({ compact: focus, standard: focus, expanded: focus }),
   links: Object.freeze({ compact: linksCompact, standard: linksStandard, expanded: linksExpanded }),
-  quote: Object.freeze({ compact: sizes(80), expanded: sizes(176, 128) }),
-  weather: Object.freeze({ compact: sizes(80), standard: sizes(80) }),
-  rss: Object.freeze({ compact: sizes(96, 96), standard: tallRss, expanded: tallRss }),
-  github: Object.freeze({ compact: sizes(96, 96), standard: tallGithub, expanded: tallGithub }),
-  gitlab: Object.freeze({ compact: sizes(96, 96), standard: tallGitlab, expanded: tallGitlab }),
-  jira: Object.freeze({ standard: tallJira, expanded: tallJira }),
-  vercel: Object.freeze({ compact: sizes(80), standard: tallVercel, expanded: tallVercel }),
-  ics: Object.freeze({ standard: sizes(104, 104), expanded: sizes(104, 104) }),
+  quote: Object.freeze({ compact: sizes(96), standard: sizes(104), expanded: sizes(176, 128) }),
+  weather: Object.freeze({ compact: sizes(80), standard: sizes(192, 160, 120), expanded: sizes(120, 120, 120) }),
+  rss: Object.freeze({ compact: sizes(96, 96, 112), standard: tallRss, expanded: tallRss }),
+  github: Object.freeze({ compact: sizes(128, 128, 136), standard: tallGithub, expanded: tallGithub }),
+  gitlab: Object.freeze({ compact: sizes(128, 128, 136), standard: tallGitlab, expanded: tallGitlab }),
+  jira: Object.freeze({ compact: sizes(80), standard: tallJira, expanded: tallJira }),
+  vercel: Object.freeze({ compact: sizes(104, 104, 112), standard: tallVercel, expanded: tallVercel }),
+  ics: Object.freeze({ compact: sizes(80), standard: sizes(128, 128, 136), expanded: sizes(128, 128, 136) }),
   habits: Object.freeze({ compact: sizes(120, 120, 144), standard: tallHabits, expanded: tallHabits }),
-  monthCal: Object.freeze({ compact: sizes(96, 96), standard: tallMonth, expanded: tallMonth }),
-  homeassistant: Object.freeze({ standard: sizes(88, 88), expanded: sizes(88, 88) }),
+  monthCal: Object.freeze({ compact: sizes(104, 104, 112), standard: tallMonth, expanded: tallMonth }),
+  homeassistant: Object.freeze({ standard: sizes(96, 96, 104), expanded: sizes(96, 96, 104) }),
 } satisfies DockBlockSizeTable)

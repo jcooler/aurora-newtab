@@ -334,6 +334,7 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
   it('renders exactly six every-two-hours slots with real temperature digits', async () => {
     await renderWidget()
     await expandPanel()
+    expect(grid().hasAttribute('data-weather-hourly-grid')).toBe(true)
     const cells = grid().children
     expect(cells).toHaveLength(6)
     // The first slot is labelled NOW; the rest carry compact, uppercased hours.

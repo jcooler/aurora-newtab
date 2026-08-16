@@ -81,7 +81,7 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
               {h.name}
             </span>
             {count > 0 && (
-              <span className="shrink-0 text-xs text-fg-muted">🔥 {count}</span>
+              <span data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">🔥 {count}</span>
             )}
           </button>
         )

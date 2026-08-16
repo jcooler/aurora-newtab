@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import { useNow } from '../../../lib/hooks/useNow'
@@ -82,11 +82,16 @@ function TimerInner({
   const [announcement, setAnnouncement] = useState('')
   const pillRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const getDockBoundaryElement = useCallback(
+    () => document.querySelector<HTMLElement>('[data-stage-zone-container="dock"]'),
+    [],
+  )
   const anchor = useViewportPanelAnchor({
     open,
     invokerRef: pillRef,
     panelRef,
     preferredSize: TIMER_PANEL_SIZE,
+    getBottomBoundaryElement: getDockBoundaryElement,
   })
   const prevJustFinished = useRef<TimerState['justFinished']>(state.justFinished)
   const prevConfigKey = useRef(`${config.workMinutes}:${config.breakMinutes}`)
@@ -236,6 +241,7 @@ function TimerInner({
           style={{
             position: 'fixed',
             left: anchor.left,
+            maxHeight: anchor.maxHeight,
             ...('top' in anchor ? { top: anchor.top } : { bottom: anchor.bottom }),
           }}
           className="z-30 flex max-h-[calc(100dvh-1rem)] w-[min(16rem,calc(100vw-1rem))] flex-col gap-3 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"

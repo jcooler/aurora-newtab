@@ -10750,7 +10750,12 @@ function gitlabContributionsFixture() {
     return !!btn
   })
   await page.click('button[aria-label="Remove Cloudflare"]')
-  await page.waitForTimeout(250)
+  await page.waitForFunction(() => {
+    const toggle = document.getElementById('connector-status-enabled')
+    const card = toggle?.closest('.rounded-xl')
+    const widget = document.querySelector('[data-block-id="status"] section[aria-label="Service status"]')
+    return card?.querySelectorAll('li').length === 1 && widget?.querySelectorAll('span.rounded-full').length === 1
+  }, { timeout: 3_000 }).catch(() => {})
   const afterRemoveDots = await dotCount(statusSel)
   const cardAfterRemove = await page.evaluate(() => {
     const toggle = document.getElementById('connector-status-enabled')

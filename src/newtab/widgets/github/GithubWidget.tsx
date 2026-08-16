@@ -270,7 +270,7 @@ function ItemRow({ item }: { item: GithubItem }) {
         title={item.title}
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
-        {item.repo && <span className="block truncate text-xs text-fg-muted">{item.repo}</span>}
+        {item.repo && <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{item.repo}</span>}
         <span className="block truncate text-sm dense:text-xs font-medium text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.title}
         </span>

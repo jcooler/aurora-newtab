@@ -47,38 +47,47 @@ describe('Adaptive Stage compact legibility contract', () => {
     expect(declarations).toMatch(/min-height:\s*var\(--stage-control-target\)\s*;/)
   })
 
-  it('keeps both compact Month navigation targets on one row at the narrowest standard track', () => {
+  it('removes compact Month padding so complete controls own the finite track', () => {
     expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] > div'))
       .toMatch(/padding:\s*0\s*;/)
   })
 
-  it('reflows the complete compact Month label, Today action, and seven days without clipping them', () => {
+  it('uses an accessible compact Month label and a single four-day glance row', () => {
     const row = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span')
     expect(row).toMatch(/display:\s*grid\s*;/)
     expect(row).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) auto\s*;/)
     expect(row).toMatch(/gap:\s*0\s*;/)
     expect(row).toMatch(/width:\s*100%\s*;/)
+    expect(row).toMatch(/min-height:\s*var\(--stage-control-target\)\s*;/)
     const label = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label]')
     expect(label).toMatch(/min-width:\s*0\s*;/)
-    expect(label).toMatch(/white-space:\s*normal\s*;/)
-    expect(label).toMatch(/overflow-wrap:\s*anywhere\s*;/)
+    expect(label).toMatch(/white-space:\s*nowrap\s*;/)
     expect(label).toMatch(/overflow:\s*visible\s*;/)
     expect(label).toMatch(/text-overflow:\s*clip\s*;/)
-    expect(label).toMatch(/line-height:\s*15px\s*;/)
+    expect(label).toMatch(/line-height:\s*20px\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-full]'))
+      .toMatch(/display:\s*none\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before'))
+      .toMatch(/content:\s*attr\(data-label\)\s*;/)
     expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] table'))
       .toMatch(/margin-top:\s*0\s*;/)
     const week = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr:first-child,\n.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr[data-current-week]')
     expect(week).toMatch(/display:\s*grid\s*;/)
     expect(week).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5)'))
+      .toMatch(/display:\s*none\s*;/)
   })
 
-  it('places compact Month navigation beside its readable label below two target widths', () => {
+  it('stacks all compact Month actions in a complete target column below two target widths', () => {
     expect(indexCss).toContain('@container (inline-size < 72px)')
     const header = lastDeclarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header]')
     expect(header).toMatch(/display:\s*grid\s*;/)
     expect(header).toMatch(/grid-template-columns:\s*var\(--stage-control-target\) minmax\(0,\s*1fr\)\s*;/)
-    const labelColumn = lastDeclarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span')
-    expect(labelColumn).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)\s*;/)
+    expect(header).toMatch(/grid-template-rows:\s*repeat\(3,\s*var\(--stage-control-target\)\)\s*;/)
+    expect(lastDeclarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span'))
+      .toMatch(/display:\s*contents\s*;/)
+    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"]'))
+      .toMatch(/grid-row:\s*3\s*;/)
   })
 
   it.each(['compact', 'standard'] as const)('condenses %s Crypto only on the Board, never in Dock', (variant) => {
@@ -102,6 +111,23 @@ describe('Adaptive Stage compact legibility contract', () => {
     const dockCell = declarationBlock('.board-item.board-item--dock[data-block-id="crypto"] > section > div > span')
     expect(dockCell).toMatch(/line-height:\s*20px\s*;/)
     expect(dockCell).not.toMatch(/display:\s*grid/)
+  })
+
+  it('reserves readable edge tracks for Weather metadata and unit glyphs at narrow Stage widths', () => {
+    const grid = declarationBlock('.adaptive-stage .board-item[data-block-id="weather"] [data-weather-hourly-grid]')
+    expect(grid).toMatch(/grid-template-columns:\s*minmax\(29px,\s*1fr\) repeat\(4,\s*minmax\(0,\s*1fr\)\) minmax\(29px,\s*1fr\)\s*;/)
+  })
+
+  it('fits the compact Vercel summary and one complete action in its finite Board row', () => {
+    const section = declarationBlock('.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section')
+    expect(section).toMatch(/padding-block:\s*0\s*;/)
+  })
+
+  it('keeps the Quick Link removal target below the primary link center', () => {
+    const remove = lastDeclarationBlock('.adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "]')
+    expect(remove).toMatch(/top:\s*calc\(var\(--stage-control-target\) - 8px\)\s*;/)
+    expect(remove).toMatch(/width:\s*var\(--stage-control-target\)\s*;/)
+    expect(remove).toMatch(/height:\s*var\(--stage-control-target\)\s*;/)
   })
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {

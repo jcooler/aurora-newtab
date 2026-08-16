@@ -111,6 +111,40 @@ describe('TimerWidget', () => {
     }
   })
 
+  it('caps the open panel above the live Signal Dock boundary', async () => {
+    const widthSpy = vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(800)
+    const heightSpy = vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(450)
+    const dock = document.createElement('div')
+    dock.dataset.stageZoneContainer = 'dock'
+    document.body.appendChild(dock)
+
+    const rectSpy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockImplementation(function (this: HTMLElement) {
+        if (this === dock) {
+          return {
+            left: 0, top: 242, right: 800, bottom: 450,
+            width: 800, height: 208, x: 0, y: 242, toJSON() {},
+          } as DOMRect
+        }
+        return {
+          left: 16, top: 16, right: 92, bottom: 54,
+          width: 76, height: 38, x: 16, y: 16, toJSON() {},
+        } as DOMRect
+      })
+
+    try {
+      await renderWidget()
+      fireEvent.click(await screen.findByRole('button', { name: /Focus timer/ }))
+      const dialog = await screen.findByRole('dialog', { name: 'Focus timer' })
+      expect(dialog.style.maxHeight).toBe('226px')
+    } finally {
+      rectSpy.mockRestore()
+      widthSpy.mockRestore()
+      heightSpy.mockRestore()
+      dock.remove()
+    }
+  })
+
   it('activates the focus trap only when the asynchronously anchored panel is mounted', async () => {
     const prior = document.createElement('button')
     document.body.appendChild(prior)

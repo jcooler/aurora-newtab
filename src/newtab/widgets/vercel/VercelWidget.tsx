@@ -273,7 +273,7 @@ function DeploymentRow({ item, now }: { item: VercelDeployment; now: number }) {
           {item.project}
         </span>
         <span className={`shrink-0 text-xs ${stateClass(item.state)}`}>{item.state}</span>
-        <span className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
+        <span data-stage-text-tier="metadata" className="shrink-0 text-xs text-fg-muted">{relAge(now, item.createdAt)}</span>
       </a>
     </li>
   )

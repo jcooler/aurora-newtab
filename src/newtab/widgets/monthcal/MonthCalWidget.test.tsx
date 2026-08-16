@@ -76,6 +76,16 @@ describe('MonthCalWidget', () => {
     expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
   })
 
+  it('reserves the metadata tier for weekday headings, not the month label or day values', async () => {
+    const { container } = await renderWithMonthCal()
+    expect(container.querySelectorAll('th[data-stage-text-tier="metadata"]')).toHaveLength(7)
+    const label = container.querySelector('[data-monthcal-label]')
+    expect(label?.getAttribute('data-stage-text-tier')).toBeNull()
+    expect(label?.getAttribute('aria-label')).toBe(label?.textContent)
+    expect(label?.querySelector('[data-monthcal-label-short]')?.getAttribute('data-label')).toHaveLength(3)
+    expect(container.querySelector('[data-cell-key] span')?.getAttribute('data-stage-text-tier')).toBeNull()
+  })
+
   it('moves the today identity into June after restoration across midnight', async () => {
     const { container } = await renderWithMonthCal()
     expect(cell(container, TODAY_KEY)!.querySelector('span')!.className).toContain('ring-accent')

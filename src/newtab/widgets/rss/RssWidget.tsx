@@ -118,7 +118,7 @@ function RssInner({ rss }: { rss: RssConfig }) {
               title={h.title}
               className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
             >
-              <span className="block truncate text-xs text-fg-muted">{h.source}</span>
+              <span data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted">{h.source}</span>
               {/* truncate is a single-line ellipsis — never a wrap, never a
                   scroll region — with the full string one hover away via the
                   title attribute on the link above. The list is capped at

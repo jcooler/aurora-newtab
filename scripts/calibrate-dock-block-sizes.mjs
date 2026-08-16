@@ -6,12 +6,14 @@ import { chromium } from 'playwright'
 
 const dist = resolve('dist')
 const profileDir = resolve('.playwright-dock-calibration')
+const calibrationWidth = Number(process.env.AURORA_CALIBRATION_WIDTH ?? 1600)
+const calibrationHeight = Number(process.env.AURORA_CALIBRATION_HEIGHT ?? 900)
 rmSync(profileDir, { recursive: true, force: true })
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
   headless: true,
-  viewport: { width: 1600, height: 900 },
+  viewport: { width: calibrationWidth, height: calibrationHeight },
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 })
 
@@ -75,7 +77,7 @@ const snapshots = {
   github: { fetchedAt: now, data: { prs: Array.from({ length: 3 }, (_, index) => row('PR', index)), issues: Array.from({ length: 3 }, (_, index) => row('Issue', index)), notifications: 50, contributions: { total: 246, days: contributionDays }, etags: {} } },
   gitlab: { fetchedAt: now, data: { mrs: Array.from({ length: 4 }, (_, index) => row('MR', index)), reviewMrs: Array.from({ length: 3 }, (_, index) => row('Review', index)), todos: 20, contributions: { total: 246, days: contributionDays } } },
   jira: { fetchedAt: now, data: { issues: Array.from({ length: 4 }, (_, index) => ({ key: `AUR-${index + 1}`, summary: `Assigned issue ${index + 1} with representative content`, status: index % 2 ? 'To Do' : 'In Progress', url: `https://jira.example.test/browse/AUR-${index + 1}` })), counts: { 'In Progress': 7, 'To Do': 5 }, dueSoon: Array.from({ length: 3 }, (_, index) => ({ key: `DUE-${index + 1}`, summary: `Due issue ${index + 1}`, due: new Date(now + index * 86_400_000).toISOString().slice(0, 10), url: `https://jira.example.test/browse/DUE-${index + 1}` })) } },
-  vercel: { fetchedAt: now, data: { deployments: Array.from({ length: 5 }, (_, index) => ({ project: `project-${index + 1}`, state: index === 0 ? 'ERROR' : index === 1 ? 'BUILDING' : 'READY', url: `https://vercel.example.test/${index + 1}`, createdAt: now - index * 60_000 })) } },
+  vercel: { fetchedAt: now, data: { deployments: ['marketing-site', 'app-web', 'admin', 'landing', 'docs'].map((project, index) => ({ project, state: index === 0 ? 'ERROR' : index === 1 ? 'BUILDING' : 'READY', url: `https://vercel.example.test/${index + 1}`, createdAt: now - index * 60_000 })) } },
   crypto: { fetchedAt: now, data: { coins: configs.crypto.coins.map((id, index) => ({
     id,
     symbol: ['btc', 'eth', 'doge', 'sol', 'ada'][index],
@@ -83,7 +85,7 @@ const snapshots = {
     price: [67_412, 3_245, 0.1234, 178.5, 0.42][index],
     change24h: [2.4, -1.2, 0, 4.1, -0.6][index],
   })) } },
-  ics: { fetchedAt: now, data: { events: Array.from({ length: 4 }, (_, index) => ({ summary: `Calendar event ${index + 1} with representative content`, start: now + (index + 1) * 3_600_000, end: now + (index + 2) * 3_600_000, cal: 0, allDay: false, meetUrl: `https://meet.example.test/${index + 1}` })) } },
+  ics: { fetchedAt: now, data: { events: Array.from({ length: 4 }, (_, index) => ({ summary: `Calendar event ${index + 1} with representative content`, start: index === 0 ? now + 5 * 60_000 : now + (index + 1) * 3_600_000, end: now + (index + 2) * 3_600_000, cal: 0, allDay: false, meetUrl: `https://meet.example.test/${index + 1}` })) } },
   status: { fetchedAt: now, data: { services: configs.status.services.map((service, index) => ({ name: service.name, indicator: index === 0 ? 'major' : 'none', description: index === 0 ? 'Major outage' : 'All Systems Operational' })) } },
   homeassistant: { fetchedAt: now, data: { entities: configs.homeassistant.entities.map((entity, index) => ({ id: entity.id, state: String(20 + index), unit: '°C', friendlyName: entity.name, domain: 'sensor' })) } },
 }
@@ -93,11 +95,53 @@ const auxiliary = {
   worldClocks: Array.from({ length: 6 }, (_, index) => ({ id: `clock-${index}`, label: `City ${index + 1}`, timeZone: 'UTC' })),
   countdowns: Array.from({ length: 5 }, (_, index) => ({ id: `countdown-${index}`, name: `Event ${index + 1}`, date: new Date(now + (index + 2) * 86_400_000).toISOString().slice(0, 10) })),
 }
+const weatherLocation = { lat: 40.7128, lon: -74.006, label: 'New York', manual: true }
+const weatherRequestIdentity = (() => {
+  const params = new URLSearchParams()
+  params.set('temperature_unit', 'celsius')
+  params.set('wind_speed_unit', 'kmh')
+  params.set('forecast_hours', '12')
+  params.set('forecast_days', '1')
+  params.set('timezone', 'auto')
+  params.set('timeformat', 'iso8601')
+  params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
+  params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
+  params.set('daily', 'sunrise,sunset')
+  params.set('latitude', '40.7128')
+  params.set('longitude', '-74.006')
+  return `open-meteo:v1:https://api.open-meteo.com/v1/forecast?${params.toString()}`
+})()
+const weatherCache = {
+  current: { tempC: 21, feelsLikeC: 19, code: 2, windKmh: 14, humidity: 55, isDay: true },
+  hourly: Array.from({ length: 12 }, (_, index) => ({
+    time: new Date(now + index * 3_600_000).toISOString().slice(0, 13) + ':00',
+    tempC: 20 + index,
+    precipProb: index === 3 ? 60 : 10,
+    code: 2,
+    isDay: true,
+  })),
+  fetchedAt: now,
+  locationLabel: weatherLocation.label,
+  requestIdentity: weatherRequestIdentity,
+  sunriseISO: new Date(now).toISOString().slice(0, 11) + '06:12',
+  sunsetISO: new Date(now).toISOString().slice(0, 11) + '19:58',
+}
 
 const page = await context.newPage()
 await page.goto('chrome://newtab/')
 await page.waitForSelector('main[data-adaptive-stage]')
 const defaults = await page.evaluate(() => chrome.storage.local.get(['settings']))
+const bookmarksSeeded = await page.evaluate(async () => {
+  if (!chrome.bookmarks?.getChildren || !chrome.bookmarks?.create) return false
+  const bar = '1'
+  for (const node of await chrome.bookmarks.getChildren(bar)) await chrome.bookmarks.removeTree(node.id)
+  const folder = await chrome.bookmarks.create({ parentId: bar, title: 'Reference' })
+  await chrome.bookmarks.create({ parentId: folder.id, title: 'Docs', url: 'https://docs.example.test/' })
+  for (let index = 0; index < 8; index += 1) {
+    await chrome.bookmarks.create({ parentId: bar, title: `Bookmark ${index + 1}`, url: `https://bookmark${index + 1}.example.test/` })
+  }
+  return true
+})
 const results = []
 if (process.env.AURORA_SKIP_DOCK_CALIBRATION !== '1') {
 for (const [id, variants] of Object.entries(variantsById)) {
@@ -108,19 +152,20 @@ for (const [id, variants] of Object.entries(variantsById)) {
       const connectors = Object.fromEntries(connectorIds.map((connectorId) => [connectorId, {
         ...configs[connectorId], enabled: connectorId === id,
       }]))
-      await page.evaluate(async ({ settings, widgets, connectors, snapshots, auxiliary, id, variant, density }) => {
+      await page.evaluate(async ({ settings, widgets, connectors, snapshots, auxiliary, weatherLocation, weatherCache, id, variant, density }) => {
         await globalThis.__setCalibratedStorage({
           settings: { ...settings, widgets, layoutDensity: density },
           connectors,
           connectorSnapshots: snapshots,
           ...auxiliary,
-          location: { lat: 40.7128, lon: -74.006, label: 'New York', manual: true },
+          location: weatherLocation,
+          weatherCache,
           layout: { version: 2, profiles: { standard: { [id]: {
             zone: 'dock', order: 0, colSpan: variant === 'compact' ? 1 : variant === 'standard' ? 2 : 3,
             rowSpan: 1, variant, priority: 'pinned', locked: true,
           } } } },
         })
-      }, { settings: defaults.settings, widgets, connectors, snapshots, auxiliary, id, variant, density })
+      }, { settings: defaults.settings, widgets, connectors, snapshots, auxiliary, weatherLocation, weatherCache, id, variant, density })
       try {
         await page.waitForFunction(({ id, variant, density }) => {
           const item = document.querySelector(`[data-block-id="${id}"][data-stage-zone="dock"]`)
@@ -161,6 +206,11 @@ const summary = Object.fromEntries(Object.keys(variantsById).map((id) => [id, Ob
   )]),
 )]))
 console.log(`DOCK_BLOCK_SIZE_CALIBRATION=${JSON.stringify(summary)}`)
+if (process.env.AURORA_DOCK_CALIBRATION_ONLY === '1') {
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit()
+}
 }
 
 const settingsFor = (activeIds, density) => {
@@ -174,13 +224,14 @@ const connectorsFor = (activeIds) => Object.fromEntries(connectorIds.map((id) =>
 const applyCase = async ({ activeIds, density, overrides }) => {
   const settings = settingsFor(activeIds, density)
   const connectors = connectorsFor(activeIds)
-  await page.evaluate(async ({ settings, connectors, snapshots, auxiliary, overrides }) => {
+  await page.evaluate(async ({ settings, connectors, snapshots, auxiliary, weatherLocation, weatherCache, overrides }) => {
     await globalThis.__setCalibratedStorage({
       settings, connectors, connectorSnapshots: snapshots, ...auxiliary,
-      location: { lat: 40.7128, lon: -74.006, label: 'New York', manual: true },
+      location: weatherLocation,
+      weatherCache,
       layout: { version: 2, profiles: { standard: overrides } },
     })
-  }, { settings, connectors, snapshots, auxiliary, overrides })
+  }, { settings, connectors, snapshots, auxiliary, weatherLocation, weatherCache, overrides })
   // A profile or density can retain the same root markers across successive
   // cases. Reload at the storage commit boundary so a same-marker case cannot
   // accidentally measure the predecessor's allocation while React processes
@@ -194,6 +245,270 @@ const pinned = (id, order, variant, zone = 'dock') => [id, {
   zone, order, colSpan: zone === 'dock' ? (variant === 'compact' ? 1 : variant === 'standard' ? 2 : 3) : 1,
   rowSpan: 1, variant, priority: 'pinned', locked: true,
 }]
+
+const densityControlTarget = { compact: 36, balanced: 36, spacious: 44 }
+const inventoryZonesById = Object.fromEntries(Object.keys(variantsById).map((id) => [
+  id,
+  id === 'timer' || id === 'tasks' || id === 'notes' ? ['dock'] : ['board', 'dock'],
+]))
+const inventoryGroupsById = {
+  links: [
+    ['labels', '> section > div > span'],
+    ['primary', '> section > div > a'],
+    ['add', '> section > button[aria-label="Add quick link"]'],
+    ['remove', '> section button[aria-label^="Remove "]'],
+  ],
+  quote: [['quote', 'blockquote'], ['attribution', 'figcaption']],
+  weather: [
+    ['condition', 'section[aria-label="Weather"] button[aria-expanded] span[title]', ['standard', 'expanded']],
+    ['rain-callout', 'section[aria-label="Weather"] button[aria-expanded] > span.text-accent'],
+  ],
+  bookmarks: [['chips', 'nav[aria-label="Bookmarks bar"] > *'], ['actions', 'nav[aria-label="Bookmarks bar"] button,nav[aria-label="Bookmarks bar"] a[href]']],
+  rss: [['sources', 'li a > span:first-child'], ['headlines', 'li a > span:last-child'], ['actions', 'li a[href]']],
+  github: [['identity', 'h2'], ['summary', 'section > div:first-child > span,[role="img"] ~ p'], ['actions', 'li a[href]']],
+  gitlab: [['identity', 'h2'], ['summary', 'section > div:first-child > span,[role="img"] ~ p'], ['actions', 'li a[href]']],
+  jira: [['identity', 'h2'], ['summary', 'section > div:first-child > span'], ['actions', 'li a[href]']],
+  vercel: [['identity', 'h2'], ['summary', 'section > p'], ['actions', 'li a[href]']],
+  ics: [['next', 'section > p'], ['join', 'section > p a[href]'], ['rows', 'section > ul li', ['standard', 'expanded']]],
+  habits: [['rows', '> div > button'], ['names', '> div > button span:nth-child(2)']],
+  monthCal: [
+    ['label', '[data-monthcal-label]'],
+    ['days', 'td span:first-child'],
+    ['previous', 'button[aria-label="Previous month"]'],
+    ['next', 'button[aria-label="Next month"]'],
+    ['today', 'button[aria-label="Back to today"]'],
+  ],
+  sun: [['value', 'section']],
+  moon: [['value', 'section']],
+  status: [['indicators', 'section > div > span']],
+  homeassistant: [['entities', 'section > ul li'], ['actions', 'button[aria-label^="Run "]']],
+  crypto: [['cells', 'section > div > span']],
+}
+
+const boardFootprint = (id, variant) => {
+  if (id === 'clock') return variant === 'expanded' ? [3, 2] : [2, 2]
+  if (id === 'greeting') return variant === 'expanded' ? [2, 2] : [2, 1]
+  if (id === 'worldClocks') return variant === 'compact' ? [1, 1] : [2, variant === 'expanded' ? 2 : 1]
+  if (['countdown', 'search', 'focus', 'links', 'bookmarks', 'status', 'sun', 'moon', 'quote', 'crypto'].includes(id)) {
+    return variant === 'compact' ? [1, 1] : variant === 'standard' ? [2, 1] : [3, 2]
+  }
+  return variant === 'compact' ? [1, 1] : variant === 'standard' ? [2, 2] : [3, 2]
+}
+
+const inventoryPlacement = (id, variant, zone) => {
+  const placementZone = zone === 'dock' ? 'dock' : id === 'status' || connectorIds.includes(id)
+    ? 'pulse'
+    : id === 'weather' || ['ics', 'monthCal', 'sun', 'moon', 'quote'].includes(id)
+      ? 'day'
+      : 'now'
+  const [colSpan, rowSpan] = placementZone === 'dock'
+    ? [variant === 'compact' ? 1 : variant === 'standard' ? 2 : 3, 1]
+    : boardFootprint(id, variant)
+  return [id, { zone: placementZone, order: 0, colSpan, rowSpan, variant, priority: 'pinned', locked: true }]
+}
+
+const collectGlanceInventory = async ({ id, variant, density, zone }) => {
+  if (id === 'monthCal') {
+    await page.locator(`[data-block-id="${id}"] button[aria-label="Next month"]`).click()
+    await page.waitForTimeout(25)
+  }
+  if (id === 'links') {
+    await page.locator(`[data-block-id="${id}"] button[aria-label^="Remove "]`).first().focus()
+    await page.waitForTimeout(25)
+  }
+  return page.evaluate(({ id, variant, density, zone, target, expectedGroups, bookmarksSeeded }) => {
+    const owner = document.querySelector(`[data-block-id="${id}"][data-stage-variant="${variant}"]`)
+    if (!(owner instanceof HTMLElement)) return { id, variant, density, zone, ownerFound: false }
+    const visibleRect = (node) => {
+      if (!(node instanceof Element)) return null
+      const style = getComputedStyle(node)
+      if (style.display === 'none' || style.visibility === 'hidden' || Number.parseFloat(style.opacity) === 0) return null
+      const rect = node.getBoundingClientRect()
+      return rect.width > 0.5 && rect.height > 0.5 ? rect : null
+    }
+    const rectOf = (node) => {
+      const rect = node.getBoundingClientRect()
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }
+    }
+    const colorPaints = (value) => {
+      if (value === 'transparent') return false
+      const channels = value.match(/[\d.]+/g)?.map(Number) ?? []
+      return channels.length < 4 || channels.at(-1) > 0
+    }
+    const effectiveOpacity = (node) => {
+      let opacity = 1
+      for (let current = node; current instanceof Element; current = current.parentElement) {
+        opacity *= Number.parseFloat(getComputedStyle(current).opacity)
+        if (opacity === 0) return 0
+      }
+      return opacity
+    }
+    const visiblePaintRects = (node) => {
+      if (!(node instanceof HTMLElement || node instanceof SVGElement)) return []
+      const style = getComputedStyle(node)
+      if (style.display === 'none' || style.visibility === 'hidden' || effectiveOpacity(node) === 0) return []
+      const rect = rectOf(node)
+      if (rect.right - rect.left <= 0.5 || rect.bottom - rect.top <= 0.5) return []
+      const paintsOwnBox = colorPaints(style.backgroundColor) || style.backgroundImage !== 'none' ||
+        style.boxShadow !== 'none' ||
+        (style.outlineStyle !== 'none' && Number.parseFloat(style.outlineWidth) > 0) ||
+        ['IMG', 'SVG', 'CANVAS', 'VIDEO', 'INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(node.tagName) ||
+        ['Top', 'Right', 'Bottom', 'Left'].some((side) =>
+          style[`border${side}Style`] !== 'none' && Number.parseFloat(style[`border${side}Width`]) > 0 &&
+          colorPaints(style[`border${side}Color`])) ||
+        ['::before', '::after'].some((pseudo) => {
+          const pseudoStyle = getComputedStyle(node, pseudo)
+          return pseudoStyle.content !== 'none' && pseudoStyle.content !== 'normal' &&
+            pseudoStyle.display !== 'none' && pseudoStyle.visibility !== 'hidden' && Number.parseFloat(pseudoStyle.opacity) !== 0
+        })
+      const textRects = []
+      for (const child of node.childNodes) {
+        if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue
+        const range = document.createRange()
+        range.selectNodeContents(child)
+        for (const textRect of range.getClientRects()) {
+          if (textRect.width <= 0.5 || textRect.height <= 0.5) continue
+          const clipsX = !['visible', 'unset'].includes(style.overflowX)
+          const clipsY = !['visible', 'unset'].includes(style.overflowY)
+          const left = clipsX ? Math.max(textRect.left, rect.left) : textRect.left
+          const right = clipsX ? Math.min(textRect.right, rect.right) : textRect.right
+          const top = clipsY ? Math.max(textRect.top, rect.top) : textRect.top
+          const bottom = clipsY ? Math.min(textRect.bottom, rect.bottom) : textRect.bottom
+          if (right - left > 0.5 && bottom - top > 0.5) textRects.push({ left, top, right, bottom })
+        }
+      }
+      const localClip = (paint) => {
+        const clipped = { ...paint }
+        for (let current = node.parentElement; current && current !== owner; current = current.parentElement) {
+          if (current.parentElement === owner) continue
+          const currentStyle = getComputedStyle(current)
+          const currentRect = rectOf(current)
+          if (!['visible', 'unset'].includes(currentStyle.overflowX)) {
+            clipped.left = Math.max(clipped.left, currentRect.left)
+            clipped.right = Math.min(clipped.right, currentRect.right)
+          }
+          if (!['visible', 'unset'].includes(currentStyle.overflowY)) {
+            clipped.top = Math.max(clipped.top, currentRect.top)
+            clipped.bottom = Math.min(clipped.bottom, currentRect.bottom)
+          }
+        }
+        return clipped
+      }
+      return [...(paintsOwnBox ? [rect] : []), ...textRects]
+        .map(localClip)
+        .filter((paint) => paint.right - paint.left > 0.5 && paint.bottom - paint.top > 0.5)
+    }
+    const text = []
+    const walker = document.createTreeWalker(owner, NodeFilter.SHOW_TEXT)
+    while (walker.nextNode()) {
+      const node = walker.currentNode
+      const value = node.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+      const parent = node.parentElement
+      if (!value || !parent || parent.closest('.sr-only,[aria-hidden="true"],script,style')) continue
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      const rect = range.getBoundingClientRect()
+      const style = getComputedStyle(parent)
+      if (rect.width <= 0.5 || rect.height <= 0.5 || style.display === 'none' || style.visibility === 'hidden' || Number.parseFloat(style.opacity) === 0) continue
+      const tier = parent.closest('[data-stage-text-tier="metadata"]') ? 'metadata' : 'ordinary'
+      text.push({
+        value,
+        tier,
+        fontSize: Number.parseFloat(style.fontSize),
+        rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+        selector: parent.tagName.toLowerCase() + (parent.className ? `.${String(parent.className).trim().replace(/\s+/g, '.')}` : ''),
+      })
+    }
+    for (const input of owner.querySelectorAll('input,textarea,select')) {
+      const rect = visibleRect(input)
+      if (!rect) continue
+      const value = input.value || input.getAttribute('placeholder') || input.getAttribute('aria-label') || ''
+      if (!value) continue
+      const style = getComputedStyle(input)
+      const tier = input.closest('[data-stage-text-tier="metadata"]') ? 'metadata' : 'ordinary'
+      text.push({ value, tier, fontSize: Number.parseFloat(style.fontSize), rect: { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom }, selector: input.tagName.toLowerCase() })
+    }
+    const actions = [...owner.querySelectorAll('button,a[href],input,select,textarea,[role="button"]')].flatMap((node) => {
+      const rect = visibleRect(node)
+      if (!rect) return []
+      return [{
+        label: node.getAttribute('aria-label') ?? node.textContent?.replace(/\s+/g, ' ').trim() ?? node.tagName.toLowerCase(),
+        width: rect.width,
+        height: rect.height,
+        tag: node.tagName.toLowerCase(),
+      }]
+    })
+    const itemRect = owner.getBoundingClientRect()
+    const groupFailures = expectedGroups.flatMap(([name, selector, variants]) => {
+      if (variants && !variants.includes(variant)) return []
+      const rows = [...owner.querySelectorAll(`:scope ${selector}`)].filter((node) => visibleRect(node))
+      return rows.length > 0 ? [] : [{ name, selector }]
+    })
+    const textFailures = text.filter((row) => row.fontSize < (row.tier === 'metadata' ? 12 : 14) - 0.01)
+    const actionFailures = actions.filter((row) => row.width < target - 0.5 || row.height < target - 0.5)
+    const paintFailures = [owner, ...owner.querySelectorAll('*')].flatMap(visiblePaintRects).filter((rect) =>
+      rect.left < itemRect.left - 0.5 || rect.top < itemRect.top - 0.5 ||
+      rect.right > itemRect.right + 0.5 || rect.bottom > itemRect.bottom + 0.5)
+    return {
+      id, variant, density, zone, ownerFound: true,
+      textCount: text.length, actionCount: actions.length,
+      textFailures, actionFailures, groupFailures, paintFailureCount: paintFailures.length, paintFailures,
+      ownerRect: { left: itemRect.left, top: itemRect.top, right: itemRect.right, bottom: itemRect.bottom, width: itemRect.width, height: itemRect.height },
+      ownerScroll: { clientWidth: owner.clientWidth, clientHeight: owner.clientHeight, scrollWidth: owner.scrollWidth, scrollHeight: owner.scrollHeight },
+      directGeometry: [...(owner.firstElementChild?.children ?? [])].map((node) => ({
+        tag: node.tagName,
+        text: node.textContent?.replace(/\s+/g, ' ').trim().slice(0, 80),
+        rect: rectOf(node),
+        display: getComputedStyle(node).display,
+        marginTop: getComputedStyle(node).marginTop,
+        marginBottom: getComputedStyle(node).marginBottom,
+      })),
+      bookmarksSeeded,
+      ownerHtml: owner.outerHTML.slice(0, 4_000),
+      scrollContained: owner.scrollWidth <= owner.clientWidth + 1 && owner.scrollHeight <= owner.clientHeight + 1,
+    }
+  }, { id, variant, density, zone, target: densityControlTarget[density], expectedGroups: inventoryGroupsById[id] ?? [], bookmarksSeeded })
+}
+
+if (process.env.AURORA_SKIP_GLANCE_INVENTORY !== '1') {
+  const inventory = []
+  const requestedIds = new Set((process.env.AURORA_GLANCE_IDS ?? Object.keys(variantsById).join(',')).split(',').filter(Boolean))
+  const requestedVariants = new Set((process.env.AURORA_GLANCE_VARIANTS ?? allSchemaVariants.join(',')).split(',').filter(Boolean))
+  const requestedDensities = new Set((process.env.AURORA_GLANCE_DENSITIES ?? 'compact,balanced,spacious').split(',').filter(Boolean))
+  const requestedZones = new Set((process.env.AURORA_GLANCE_ZONES ?? 'board,dock').split(',').filter(Boolean))
+  const requestedActiveIds = (process.env.AURORA_GLANCE_ACTIVE_IDS ?? '').split(',').filter(Boolean)
+  for (const [id, variants] of Object.entries(variantsById)) {
+    if (!requestedIds.has(id)) continue
+    for (const variant of variants) {
+      if (!requestedVariants.has(variant)) continue
+      for (const density of ['compact', 'balanced', 'spacious']) {
+        if (!requestedDensities.has(density)) continue
+        for (const zone of inventoryZonesById[id]) {
+          if (!requestedZones.has(zone)) continue
+          await applyCase({
+            activeIds: requestedActiveIds.length > 0 ? requestedActiveIds : [id],
+            density,
+            overrides: Object.fromEntries([inventoryPlacement(id, variant, zone)]),
+          })
+          inventory.push(await collectGlanceInventory({ id, variant, density, zone }))
+        }
+      }
+    }
+  }
+  const failures = inventory.filter((row) => !row.ownerFound || row.textFailures.length > 0 || row.actionFailures.length > 0 ||
+    row.groupFailures.length > 0 || row.paintFailureCount > 0 || !row.scrollContained)
+  console.log(`STAGE_GLANCE_INVENTORY=${JSON.stringify({
+    cases: inventory.length,
+    failures,
+    ...(process.env.AURORA_GLANCE_REPORT_ALL === '1' ? { inventory } : {}),
+  })}`)
+  if (failures.length > 0) process.exitCode = 1
+  if (process.env.AURORA_GLANCE_INVENTORY_ONLY === '1') {
+    await context.close()
+    rmSync(profileDir, { recursive: true, force: true })
+    process.exit()
+  }
+}
 
 // Exact I2 no-fit witness: the preserved Month renderer stays expanded and
 // reachable below the finite Board in the Stage-owned vertical scrollport.
@@ -721,7 +1036,7 @@ const predecessorNarrowMonth = await page.evaluate(() => {
   const header = item?.querySelector('[data-monthcal-header]')
   const table = item?.querySelector('table')
   const rect = (node) => {
-    const value = node.getBoundingClientRect()
+    const value = typeof node?.getBoundingClientRect === 'function' ? node.getBoundingClientRect() : node
     return { left: value.left, top: value.top, right: value.right, bottom: value.bottom, width: value.width, height: value.height }
   }
   const itemRect = rect(item)
@@ -751,13 +1066,28 @@ const predecessorNarrowMonth = await page.evaluate(() => {
     right: Math.max(...paintRects.map((value) => value.right)),
     bottom: Math.max(...paintRects.map((value) => value.bottom)),
   }
+  const escapeRows = visible.flatMap((node) => {
+    const rows = []
+    for (const child of node.childNodes) {
+      if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue
+      const range = document.createRange()
+      range.selectNodeContents(child)
+      for (const value of range.getClientRects()) {
+        if (value.left < itemRect.left - 0.5 || value.top < itemRect.top - 0.5 ||
+            value.right > itemRect.right + 0.5 || value.bottom > itemRect.bottom + 0.5) {
+          rows.push({ tag: node.tagName, text: child.textContent.trim(), rect: rect(value) })
+        }
+      }
+    }
+    return rows
+  })
   return {
     item: { ...itemRect, clientWidth: item.clientWidth, clientHeight: item.clientHeight, scrollWidth: item.scrollWidth, scrollHeight: item.scrollHeight },
     content: rect(item.firstElementChild),
     header: rect(header),
     table: rect(table),
     controls,
-    paint,
+    paint, escapeRows,
     contained: paint.left >= itemRect.left - 0.5 && paint.top >= itemRect.top - 0.5 &&
       paint.right <= itemRect.right + 0.5 && paint.bottom <= itemRect.bottom + 0.5 &&
       item.scrollWidth <= item.clientWidth + 1 && item.scrollHeight <= item.clientHeight + 1,
@@ -792,7 +1122,8 @@ const predecessorMonth = await page.evaluate(() => {
     const visible = [...item.querySelectorAll('*')].filter((node) => {
       const rect = node.getBoundingClientRect()
       const style = getComputedStyle(node)
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+      return !node.closest('.sr-only,[aria-hidden="true"]') && rect.width > 0 && rect.height > 0 &&
+        style.display !== 'none' && style.visibility !== 'hidden'
     })
     const painted = visible.flatMap((node) => {
       const rects = [node.getBoundingClientRect()]
@@ -800,7 +1131,15 @@ const predecessorMonth = await page.evaluate(() => {
         if (child.nodeType !== Node.TEXT_NODE || !child.textContent?.trim()) continue
         const range = document.createRange()
         range.selectNodeContents(child)
-        rects.push(...range.getClientRects())
+        const style = getComputedStyle(node)
+        const nodeRect = node.getBoundingClientRect()
+        for (const rangeRect of range.getClientRects()) {
+          const left = ['visible', 'unset'].includes(style.overflowX) ? rangeRect.left : Math.max(rangeRect.left, nodeRect.left)
+          const right = ['visible', 'unset'].includes(style.overflowX) ? rangeRect.right : Math.min(rangeRect.right, nodeRect.right)
+          const top = ['visible', 'unset'].includes(style.overflowY) ? rangeRect.top : Math.max(rangeRect.top, nodeRect.top)
+          const bottom = ['visible', 'unset'].includes(style.overflowY) ? rangeRect.bottom : Math.min(rangeRect.bottom, nodeRect.bottom)
+          if (right - left > 0.5 && bottom - top > 0.5) rects.push({ left, right, top, bottom })
+        }
       }
       return rects
     })
@@ -874,6 +1213,8 @@ const predecessorMonth = await page.evaluate(() => {
       headerHeightWithToday: monthHeader.getBoundingClientRect().height,
       label: {
         ...rect(monthLabel), text: monthLabel.textContent,
+        accessibleName: monthLabel.getAttribute('aria-label'),
+        compactText: getComputedStyle(monthLabel.querySelector('[data-monthcal-label-short]'), '::before').content,
         clientWidth: monthLabel.clientWidth, scrollWidth: monthLabel.scrollWidth,
         clientHeight: monthLabel.clientHeight, scrollHeight: monthLabel.scrollHeight,
         overflow: getComputedStyle(monthLabel).overflow,
@@ -887,8 +1228,8 @@ const predecessorMonth = await page.evaluate(() => {
         .map(rect),
       dayGlyphs,
     },
-    contained: month.elementsContained && monthLabel.scrollWidth <= monthLabel.clientWidth + 1 &&
-      getComputedStyle(monthLabel).overflow === 'visible' && getComputedStyle(monthLabel).whiteSpace === 'normal',
+    contained: month.elementsContained && monthLabel.getAttribute('aria-label') === 'January 2027' &&
+      getComputedStyle(monthLabel.querySelector('[data-monthcal-label-short]'), '::before').content === '"Jan"',
     disjoint: month.paint.bottom <= quote.paint.top + 0.5 || month.paint.right <= quote.paint.left + 0.5 ||
       month.paint.left >= quote.paint.right - 0.5,
   }

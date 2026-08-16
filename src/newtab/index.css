@@ -1337,8 +1337,9 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: 0;
-  min-height: 29px;
+  min-height: calc(var(--stage-control-target) * 2);
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button {
   padding: 0;
@@ -1353,6 +1354,7 @@ select > option {
   min-width: 0;
   width: 100%;
   max-width: 100%;
+  min-height: var(--stage-control-target);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -1370,6 +1372,9 @@ select > option {
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr[data-current-week] {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5) {
+  display: none;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody:has(tr[data-current-week]) tr:first-child:not([data-current-week]) {
   display: none;
@@ -1392,27 +1397,37 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label] {
   font-size: 14px;
-  line-height: 15px;
+  line-height: 20px;
   min-width: 0;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
   overflow: visible;
   text-overflow: clip;
   text-align: center;
 }
+.board-item[data-block-id="monthCal"] [data-monthcal-label-short] {
+  display: none;
+}
+.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-full] {
+  display: none;
+}
+.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-short] {
+  display: inline;
+}
+.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before {
+  content: attr(data-label);
+}
 
-/* Two 36px navigation targets cannot share one row once a compact Board
-   allocation is narrower than 72px. The BoardItem is already an inline-size
-   container, so reflow only that causal footprint: the controls keep a 36px
-   column while the complete 14px month label and Today action use the column
-   beside them. This replaces the flex wrap that stacked the label underneath
-   both controls and made a 67.34x141px Standard-profile item scroll to 151px. */
+/* Below 72px, three 36px actions cannot share a row. Use three stable rows in
+   one target-width column and place the compact month abbreviation beside
+   them. The optional Today action owns the reserved third row, so navigation
+   still has zero height shift while every target remains complete. */
 @container (inline-size < 72px) {
   .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
     display: grid;
     grid-template-columns: var(--stage-control-target) minmax(0, 1fr);
-    grid-template-rows: repeat(2, var(--stage-control-target));
-    align-items: center;
+    grid-template-rows: repeat(3, var(--stage-control-target));
+    min-height: calc(var(--stage-control-target) * 3);
   }
   .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:first-child {
     grid-column: 1;
@@ -1423,12 +1438,16 @@ select > option {
     grid-row: 2;
   }
   .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
-    order: initial;
+    display: contents;
+  }
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label] {
     grid-column: 2;
     grid-row: 1 / -1;
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-    align-content: center;
+    align-self: center;
+  }
+  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"] {
+    grid-column: 1;
+    grid-row: 3;
   }
 }
 
@@ -1436,6 +1455,11 @@ select > option {
   padding: 8px;
   font-size: 11px;
   line-height: 14px;
+}
+.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="sun"] [data-sun-golden] {
+  /* Golden hour remains available in standard/expanded and Dock renderers;
+     the 1x1 Board glance spends its finite lines on sunrise and sunset. */
+  display: none;
 }
 
 /* Quote compact is a three-line excerpt plus attribution. This is a local
@@ -1482,6 +1506,11 @@ select > option {
    the full intrinsic row and its horizontal scroller. */
 .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
   display: none;
+}
+@container (inline-size < 112px) {
+  .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 3) {
+    display: none;
+  }
 }
 
 /* Search's legacy 16rem input is nested below the BoardItem's direct child;
@@ -1774,6 +1803,205 @@ select > option {
      ink is 19px tall, so the former 18px line box let its top pixel escape
      the owned BoardItem even though the element boxes were contained. */
   line-height: 20px;
+}
+
+/* Adaptive Stage legibility is a renderer contract, not a viewport
+   breakpoint. Every visible glance keeps ordinary copy at 14px, explicitly
+   marked secondary metadata at 12px, and direct actions on the density-owned
+   target (36px Compact/Balanced; 44px Spacious). These rules stay below the
+   BoardItem: neither the Stage nor its allocation wrappers clip or scale
+   descendants, so the geometry probes continue to expose any renderer that
+   needs local wrapping or a larger Dock compatibility block. */
+.adaptive-stage .board-item :is(button, a[href], input, select, textarea, [role="button"]) {
+  box-sizing: border-box;
+  min-inline-size: var(--stage-control-target) !important;
+  min-block-size: var(--stage-control-target) !important;
+  min-width: var(--stage-control-target) !important;
+  min-height: var(--stage-control-target) !important;
+}
+
+.adaptive-stage .board-item [data-stage-text-tier="metadata"] {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
+
+.adaptive-stage .board-item[data-block-id="search"] input,
+.adaptive-stage .board-item[data-block-id="links"] > section > div > span,
+.adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "],
+.adaptive-stage .board-item[data-block-id="quote"] blockquote,
+.adaptive-stage .board-item:is([data-block-id="sun"], [data-block-id="moon"]) > section,
+.adaptive-stage .board-item[data-block-id="rss"] li a > span:last-child,
+.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) h2,
+.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) > section > div:first-child > span,
+.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) li a > span:last-child,
+.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) [role="img"] ~ p,
+.adaptive-stage .board-item:is([data-block-id="gitlab"], [data-block-id="jira"]) section p.text-\[11px\],
+.adaptive-stage .board-item[data-block-id="vercel"] > section > p,
+.adaptive-stage .board-item[data-block-id="vercel"] li a > span:not([data-stage-text-tier="metadata"]),
+.adaptive-stage .board-item[data-block-id="ics"] > section :is(p, li, a),
+.adaptive-stage .board-item[data-block-id="monthCal"] [data-monthcal-label],
+.adaptive-stage .board-item[data-block-id="monthCal"] td span:first-child,
+.adaptive-stage .board-item[data-block-id="monthCal"] button[aria-label="Back to today"],
+.adaptive-stage .board-item[data-block-id="homeassistant"] :is(li, button, [role="status"], [role="alert"]),
+.adaptive-stage .board-item[data-block-id="status"] p,
+.adaptive-stage .board-item[data-block-id="weather"] button[aria-expanded] > span:not(:first-child),
+.adaptive-stage .board-item[data-block-id="weather"] a[aria-label^="Full forecast"],
+.adaptive-stage .board-item:is([data-block-id="worldClocks"], [data-block-id="countdown"]) > p {
+  font-size: 14px !important;
+  line-height: 20px !important;
+}
+
+.adaptive-stage .board-item[data-block-id="quote"] figcaption,
+.adaptive-stage .board-item[data-block-id="monthCal"] th[data-stage-text-tier="metadata"] {
+  font-size: 12px !important;
+  line-height: 16px !important;
+}
+
+/* Quote is passive glance content. Clamp its Board renderer to the finite
+   three-line excerpt plus one attribution line while leaving Dock content
+   complete and preserving the 14px/12px text floors. */
+.adaptive-stage .board-item:not(.board-item--dock)[data-block-id="quote"] blockquote {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+.adaptive-stage .board-item:not(.board-item--dock)[data-block-id="quote"] figcaption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.adaptive-stage .board-item[data-block-id="links"] > section > div {
+  width: var(--stage-control-target);
+  min-width: var(--stage-control-target);
+}
+.adaptive-stage .board-item[data-block-id="links"] > section > div > span {
+  box-sizing: border-box;
+  width: var(--stage-control-target);
+}
+.adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "] {
+  /* Keep the 36/44px removal target in the label band. Only its top 8px
+     shares the primary tile, so the tile's centre remains an unambiguous
+     navigation hit target. */
+  top: calc(var(--stage-control-target) - 8px);
+  right: 0;
+  width: var(--stage-control-target);
+  height: var(--stage-control-target);
+}
+
+.adaptive-stage .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td span:first-child {
+  width: 100%;
+  max-width: 100%;
+  height: 18px;
+  line-height: 18px !important;
+  letter-spacing: -0.04em;
+}
+
+.adaptive-stage .board-item[data-block-id="habits"] > div > button,
+.adaptive-stage .board-item[data-block-id="homeassistant"] button[aria-label^="Run "] {
+  min-width: var(--stage-control-target);
+  min-height: var(--stage-control-target);
+}
+
+/* A two-track Dock Weather card cannot keep icon, temperature, condition,
+   and chevron on one unbroken flex line at Compact/Balanced track widths.
+   Let the meaningful condition take a complete second line instead of
+   shrinking to a zero-width ellipsis. Expanded cards naturally keep the
+   same readable anatomy with more inline headroom. */
+.adaptive-stage .board-item:not([data-stage-variant="compact"])[data-block-id="weather"] > section > button > span:first-child {
+  flex-wrap: wrap;
+}
+.adaptive-stage .board-item:not([data-stage-variant="compact"])[data-block-id="weather"] > section > button > span:first-child > span[title] {
+  order: 2;
+  flex-basis: 100%;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+/* The first and last six-hour slots carry both a 12px metadata label and a
+   12px unit glyph. Reserve their measured 29px min-content width; the four
+   middle tracks remain fully flexible, and all six tracks still resolve to
+   equal fractions whenever the panel has room. */
+.adaptive-stage .board-item[data-block-id="weather"] [data-weather-hourly-grid] {
+  grid-template-columns: minmax(29px, 1fr) repeat(4, minmax(0, 1fr)) minmax(29px, 1fr);
+}
+
+/* Accessibility target and type floors are part of each renderer's finite
+   Stage footprint. Keep only the amount of supporting content that the
+   frozen variant can present without clipping; the underlying data remains
+   mounted and larger variants retain progressively more detail. */
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="links"] > section > div:nth-of-type(n + 7),
+.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 6),
+.adaptive-stage .board-item:not([data-stage-variant="compact"]):not(.board-item--dock)[data-block-id="rss"] li:nth-child(n + 7),
+.adaptive-stage .board-item:not([data-stage-variant="compact"]):not(.board-item--dock):is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"]
+) section li:nth-child(n + 2) {
+  display: none;
+}
+
+/* Standard connector cards spend their smaller 2x2 footprint on actionable
+   rows when both rows and a contribution graph are present. Graph-only cards
+   keep the graph, while Expanded retains graph plus the limited row set. */
+.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock):is(
+  [data-block-id="github"],
+  [data-block-id="gitlab"]
+) > section:has(ul) > div:has([role="img"]) {
+  display: none;
+}
+
+/* The compact Deploys summary is three short states. A two-column summary
+   keeps all three readable in two lines, leaving one complete 36px action in
+   the 1x1 footprint. Decorative separators are unnecessary in this layout. */
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section {
+  display: grid;
+  grid-template-rows: 20px 40px 36px;
+  align-content: start;
+  block-size: 96px;
+  padding-block: 0;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > h2 {
+  margin-bottom: 0;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p {
+  margin-bottom: 0;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > ul {
+  min-height: 0;
+  overflow: hidden;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p > span:last-child {
+  grid-column: 1 / -1;
+}
+.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p [aria-hidden="true"] {
+  display: none;
+}
+
+/* Balanced Standard needed only the legacy separator chrome removed; all
+   issue and deployment rows, labels, and target sizes remain unchanged. */
+.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="jira"] > section > div.border-t {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="jira"] > section > div.border-t > p {
+  margin-bottom: 0;
+}
+.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="vercel"] > section {
+  padding-block: 7px;
+}
+.adaptive-stage .board-item[data-stage-variant="expanded"]:not(.board-item--dock)[data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])) {
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.adaptive-stage .board-item[data-stage-variant="expanded"]:not(.board-item--dock)[data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])) > p {
+  margin-bottom: 4px;
 }
 
 /* Focus's form is the finite BoardItem child, but its input owns the legacy
