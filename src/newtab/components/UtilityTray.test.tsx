@@ -75,4 +75,15 @@ describe('UtilityTray', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  it('restores the invoker after modal backdrop dismissal', () => {
+    render(<Harness modal />)
+    const invoker = screen.getByRole('button', { name: 'Open utility tray' })
+    fireEvent.click(invoker)
+
+    fireEvent.click(document.querySelector('[data-utility-tray-backdrop]') as HTMLElement)
+
+    expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
+    expect(document.activeElement).toBe(invoker)
+  })
 })

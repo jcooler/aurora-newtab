@@ -57,7 +57,7 @@ export default function UtilityTray({
         <div
           data-utility-tray-backdrop=""
           aria-hidden="true"
-          onPointerDown={onClose}
+          onClick={onClose}
           className="fixed inset-0 z-50 bg-black/45"
         />
       ) : null}
