@@ -4,15 +4,15 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 4 — Information hierarchy and variants<br>
-**Last verified packet:** `W4-P3` - Work Pulse variants<br>
-**Next packet:** `W4-P4` - Signal Dock and connector survival; Planned, shared disclosure RED tests next
+**Last verified packet:** `W4-P4` - Signal Dock and connector survival<br>
+**Next packet:** `W4-P5` - Launcher shelf and remaining content variants; plan next
 
 ## Packet envelope
 
-- **Acceptance:** Make Work Pulse attention-first across Compact, Standard, and Expanded variants while keeping healthy connector states quiet and every configured connector represented, without changing frozen data, allocation, privacy, permission, network, or Store contracts.
-- **Implemented files:** Added a shared render-only `WorkPulseSummary`; integrated it into GitHub, GitLab, Jira, Vercel, and Status; and progressively reveals summary, prioritized rows, and detail through existing Adaptive Stage variants. The final bounded fix contains Vercel's dormant Compact paint without affecting Standard/Expanded focus outlines.
-- **Test scope:** Focused RED/green component/source tests; one implementation review and one fix/rereview cycle; one final unit/build set; one focused built-extension replay; and one full browser run plus its single permitted rerun. The rerun's genuine Vercel Compact containment failure was fixed and proven with one targeted replay; no third full run was performed.
-- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once and show one coherent Work Pulse surface with progressive anatomy. Two obsolete Status pixel-sampling assertions are recorded as Minor/cosmetic; semantic text, DOM anatomy, and non-color-only status meaning are green.
+- **Acceptance:** Represent every enabled connector exactly once across constrained and dense profiles; when allocated to Signal Dock, preserve compact identity, truthful state/fallback, a useful current primary value, and a keyboard-operable path to the existing detail without changing frozen allocation, registry, schema, storage, privacy, permission, network, or Store contracts.
+- **Implemented files:** Added one shared `SignalDockEntry` around the existing single connector renderer only for Dock allocations; App owns one open connector ID and clears stale state after reallocation. Connector Dock geometry now uses a 14rem condensed floor, 14px text, 36px disclosure, inert closed detail, readable held values, and one bounded active-work surface. The final causal fix removes a legacy high-specificity Vercel detail line from Compact Work Pulse instead of masking escaped paint.
+- **Test scope:** Focused RED/green component, App, sizing, source, and built-extension work; one implementation review and one fix/rereview cycle; one final unit/type/build/bridge sequence; one full browser run and its single permitted rerun. The rerun exited 0 and cleared the genuine Vercel containment family. Two historical Status pixel samples and one stale W3-P2 aggregate-report predicate are Minor evidence debt because the underlying semantic ownership, paint, collision, runtime-error, and cleanup observations are green; they do not demonstrate a W4-P4 acceptance failure.
+- **Visual scope:** Required Compact 800x600, Standard 1600x900, and Display 2560x1440 captures were inspected once. All nine connectors remain meaningful in the horizontal Dock; narrower profiles intentionally scroll, keyboard focus reveals remote entries, and Display shows the complete row.
 
 ## Last completed commits
 
@@ -106,8 +106,18 @@
 - `793af31` - executable W4-P3 Work Pulse variants plan with frozen schema, registry, allocation, storage, privacy, network, permission, and Store boundaries.
 - `ce23c04`, `fc258c0`, and `13a0b4a` - shared render-only attention summary, connector prioritization, and responsive Work Pulse hierarchy.
 - `3248890` and `1ab0fa6` - reviewed Status detail progression plus causal global geometry and Vercel Compact containment corrections; verified W4-P3 implementation head.
+- `5227110` - executable W4-P4 Signal Dock and connector-survival plan with frozen schema, registry, allocation, storage, privacy, permission, network, and Store boundaries.
+- `4481358`, `c90fd94`, and `f441149` - one shared Dock-only connector disclosure, condensed connector geometry/presentation, and exact nine-connector built-extension survival/operation proof.
+- `049be58` - bounded fix/rereview correction that yields the legacy Compact Vercel detail line and aligns stale fencepost reporting with Signal Dock survival; verified W4-P4 implementation head.
 
 ## Latest verification
+
+- W4-P4 focused development gates passed: the stabilized component/App/sizing/presentation set passed 5 files / 47 tests plus TypeScript; the final Vercel cascade regression test passed 1 file / 3 tests. `node --check scripts/preview.mjs` exited 0.
+- The one final `npm test` run passed 135 files / 2,235 tests. Final `npx tsc --noEmit`, production build, and preview build exited 0; both builds transformed 187 modules. The production bridge scan returned the expected clean no-match result.
+- Focused `node scripts/preview-w4-p4.mjs` exited 0 with `PASS: W4-P4 Signal Dock connector survival`. All nine frozen connector IDs were present exactly once in Dock across Compact 800x600, Standard 1600x900, and Display 2560x1440; identity/current value, inert closed state, 36px disclosure, containment, safe links, open detail, Escape/focus restoration, keyboard reveal, exact teardown, zero external requests, and zero runtime errors were green. All three captures were inspected once.
+- The first full browser run found one genuine Compact Vercel paint escape and stopped later on a stale legacy fencepost log that dereferenced a Dock-condensed connector. The causal fix removed the high-specificity supporting detail, and the exact compact-density/six-deployment focused diagnosis reported no escaping box or text. The one permitted full rerun exited 0 and the Vercel family passed.
+- The full rerun retained two historical Status pixel-sampling FAIL logs and one stale W3-P2 aggregate FAIL label. These are Minor evidence/report debt: Status meaning remains explicit in text and the W3-P2 observations reported empty runtime/captured-error, paint-escape, duplicate, and collision arrays with exact ownership/cleanup. They do not demonstrate security/privacy risk, data loss, broken core functionality, or failure of W4-P4 acceptance, so the packet was not reopened.
+- One bounded implementation review plus one fix/rereview cycle ended Ready with no Critical or Important issue open. No schema, registry, profile threshold, capacity, allocation, migration, stored-data, permission, privacy, production-network, Aurora V1, or Store contract changed.
 
 - W4-P3 focused development gates passed: the broad stabilized set was 9 files / 184 tests; the final causal Vercel set was 2 files / 26 tests. TypeScript and both harness syntax checks exited 0.
 - The one final `npm test` run completed at 132 files with 2,225 / 2,226 tests passing. Its only failure was an unrelated untouched Settings color-write timing case; the exact one-test rerun passed 1 / 1. The full unit suite was not repeated.
@@ -334,13 +344,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W4-P2`. If `git status --short` is non-empty at continuation, reconcile it before W4-P3 production work.
+- None expected after `docs: checkpoint W4-P4`. If `git status --short` is non-empty at continuation, reconcile it before W4-P5 production work.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W4-P3` - Work Pulse variants
-- **Plan:** `docs/superpowers/plans/2026-08-16-w4-p3-work-pulse-variants.md`.
-- **State:** Planned; shared summary RED tests are next. Scope is attention-first GitHub/GitLab/Jira/Vercel/Status Compact/Standard/Expanded forms and healthy-state quietness; do not absorb W4-P4 Dock redesign or W4-P5 RSS/Home Assistant/Calendar/Weather/launcher content work.
+- **Packet:** `W4-P5` - Launcher shelf and remaining content variants
+- **Plan:** Create just in time after the W4-P4 checkpoint and clean/upstream proof.
+- **State:** Not started. Scope is the written launcher consolidation plus RSS/Home Assistant/Calendar/Weather expanded content acceptance; do not absorb W5 Utility Tray work or change frozen schema/registry/allocation/storage/privacy/permission/Store contracts.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
@@ -352,8 +362,8 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W4-P3
-Verified W4-P2 implementation SHA: e656263
+Starting packet: W4-P5
+Verified W4-P4 implementation SHA: 049be58
 Expected next checkpoint subject: docs: checkpoint W4-P3
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.

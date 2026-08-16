@@ -86,9 +86,9 @@
 - Consumes: the stabilized W4-P4 implementation and focused evidence.
 - Produces: one review result, final verification record, decision A2-D030, pushed checkpoint, and clean/upstream proof.
 
-- [ ] Run one implementation review against only W4-P4 acceptance. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic observations without reopening.
-- [ ] After implementation stabilizes, run the full unit suite once, TypeScript once, production and preview builds once, the production bridge scan once, and the full browser harness once. If the harness fails, fix the actual failing family and rerun it once only.
-- [ ] Mark W4-P4 Verified, record exact evidence and A2-D030, commit `docs: checkpoint W4-P4`, push, and prove target/upstream equality plus clean target/protected-original worktrees. Do not repeat full gates for documentation.
+- [x] Run one implementation review against only W4-P4 acceptance. Fix only Critical/Important findings and perform at most one focused rereview; ledger Minor/cosmetic observations without reopening.
+- [x] After implementation stabilizes, run the full unit suite once, TypeScript once, production and preview builds once, the production bridge scan once, and the full browser harness once. If the harness fails, fix the actual failing family and rerun it once only.
+- [x] Mark W4-P4 Verified, record exact evidence and A2-D030, commit `docs: checkpoint W4-P4`, push, and prove target/upstream equality plus clean target/protected-original worktrees. Do not repeat full gates for documentation.
 - [ ] Begin W4-P5 automatically. Chrome Web Store actions remain blocked until explicit W6-P5 approval.
 
 ## Definition of Done
