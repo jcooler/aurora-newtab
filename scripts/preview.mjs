@@ -535,7 +535,12 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
       const rect = rectOf(item)
       const zone = item.getAttribute('data-stage-zone')
       const parent = item.parentElement
-      const parentZone = parent?.getAttribute('data-stage-zone-container') ?? null
+      // Render-only composition wrappers (for example W4-P5's launcher
+      // shelf) may sit between a BoardItem and its semantic zone. Geometry
+      // remains owned by the direct parent, while zone identity belongs to
+      // the nearest zone container.
+      const zoneContainer = item.closest('[data-stage-zone-container]')
+      const parentZone = zoneContainer?.getAttribute('data-stage-zone-container') ?? null
       const parentRect = parent ? rectOf(parent) : null
       const parentContentLeft = parent instanceof HTMLElement && parentRect ? parentRect.left + parent.clientLeft : 0
       const parentContentTop = parent instanceof HTMLElement && parentRect ? parentRect.top + parent.clientTop : 0
@@ -3042,6 +3047,7 @@ console.log('captured newtab.png')
     timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
     timerPanel: document.querySelector('[role="dialog"][aria-label="Focus timer"]')?.textContent ?? '',
     calendar: document.querySelector('section[aria-label="Calendar"]')?.textContent ?? '',
+    calendarVariant: document.querySelector('[data-block-id="ics"]')?.getAttribute('data-stage-variant') ?? null,
     joinHrefs: [...document.querySelectorAll('section[aria-label="Calendar"] a')].map((a) => a.href),
   }))
   const backgroundRotated = await rolloverPage.evaluate(() => chrome.storage.local.get('photoPrefs').then(({ photoPrefs }) => photoPrefs?.lastRotated === '2026-01-16'))
@@ -3055,9 +3061,15 @@ console.log('captured newtab.png')
     ? 'PASS: W1-P7 a sleeping one-minute Focus timer wakes in the break phase exactly once with one completed work cycle'
     : `FAIL: W1-P7 Focus timer wake transition (${JSON.stringify(rolloverState)})`)
 
-  const calendarOk = rolloverState.calendar.includes('All day') && rolloverState.calendar.includes('Company day') && rolloverState.calendar.includes('00:00 Midnight handoff') && rolloverState.joinHrefs.length === 1 && rolloverState.joinHrefs[0] === TIMED_MEET_URL
+  const compactCalendarOk = rolloverState.calendarVariant === 'compact' &&
+    !rolloverState.calendar.includes('Company day') && !rolloverState.calendar.includes('Midnight handoff')
+  const fullerCalendarOk = rolloverState.calendarVariant !== 'compact' &&
+    rolloverState.calendar.includes('All day') && rolloverState.calendar.includes('Company day') &&
+    rolloverState.calendar.includes('00:00 Midnight handoff')
+  const calendarOk = (compactCalendarOk || fullerCalendarOk) &&
+    rolloverState.joinHrefs.length === 1 && rolloverState.joinHrefs[0] === TIMED_MEET_URL
   console.log(calendarOk
-    ? 'PASS: W1-P7 Calendar preserves explicit all-day and timed-midnight rows while Join belongs only to the timed running headline'
+    ? `PASS: W1-P7 Calendar preserves timed-running Join semantics and honors its ${rolloverState.calendarVariant} content budget across midnight`
     : `FAIL: W1-P7 Calendar all-day/timed-midnight/Join semantics (${JSON.stringify(rolloverState)})`)
 
   const initialWorkCounts = { apod: apodRequests, ics: icsRequests }
@@ -5457,6 +5469,7 @@ console.log(
     if (!sec) return null
     const links = [...sec.querySelectorAll('a')]
     return {
+      variant: sec.closest('[data-block-id="rss"]')?.getAttribute('data-stage-variant') ?? null,
       count: links.length,
       firstTitle: links[0]?.getAttribute('title') ?? null,
       firstTarget: links[0]?.getAttribute('target') ?? null,
@@ -5464,13 +5477,14 @@ console.log(
       firstHref: links[0]?.getAttribute('href') ?? null,
     }
   }, rssSel)
+  const expectedRssRows = rows?.variant === 'compact' ? 2 : 5
   const rowsOk =
     rows !== null &&
-    rows.count === 5 &&
+    rows.count === expectedRssRows &&
     rows.firstTitle === 'A local-first dashboard people actually keep open'
   console.log(
     rowsOk
-      ? `PASS: the RSS widget renders the seeded headlines from cache (${rows.count} rows, first "${rows.firstTitle}")`
+      ? `PASS: the RSS widget renders the seeded headlines from cache at its ${rows.variant} budget (${rows.count} rows, first "${rows.firstTitle}")`
       : `FAIL: the RSS widget renders the seeded headlines from cache (${JSON.stringify(rows)})`,
   )
 
@@ -10144,6 +10158,7 @@ function gitlabContributionsFixture() {
       pulseTone: sec.querySelector('[data-work-pulse-summary]')?.getAttribute('data-work-pulse-tone') ?? null,
       dotCount: dots.length,
       dotDisplay: dots.map((dot) => getComputedStyle(dot).display),
+      dotVisible: dots.map((dot) => dot.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })),
       titles: dots.map((d) => d.getAttribute('title')),
       classes: dots.map((d) => d.className),
       cursors: [...new Set(dots.map((d) => getComputedStyle(d).cursor))],
@@ -10227,9 +10242,9 @@ function gitlabContributionsFixture() {
   // identically via two independent sampling methods (a raw clip and a
   // per-element screenshot).
   const EMERALD_400 = [0, 212, 146]
-  const emeraldPx = widget?.emeraldCenter ? await clipMean(widget.emeraldCenter) : null
+  const emeraldPx = widget?.variant !== 'compact' && widget?.emeraldCenter ? await clipMean(widget.emeraldCenter) : null
   const emeraldOk = widget?.variant === 'compact'
-    ? widget.dotDisplay.every((display) => display === 'none')
+    ? widget.dotVisible.every((visible) => !visible)
     : !!emeraldPx && emeraldPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
   console.log(
     emeraldOk
@@ -10260,7 +10275,7 @@ function gitlabContributionsFixture() {
     document.documentElement.style.background = '#000000'
   }, bgLayerSel)
   await page.waitForTimeout(100)
-  const grayPx = widget?.grayCenter ? await clipMean(widget.grayCenter) : null
+  const grayPx = widget?.variant !== 'compact' && widget?.grayCenter ? await clipMean(widget.grayCenter) : null
   await page.evaluate((sel) => {
     const bg = document.querySelector(sel)
     if (bg) bg.style.visibility = ''
@@ -10268,7 +10283,7 @@ function gitlabContributionsFixture() {
   }, bgLayerSel)
   const desaturated = (px) => Math.max(...px) - Math.min(...px) <= 10
   const grayOk = widget?.variant === 'compact'
-    ? widget.dotDisplay.every((display) => display === 'none')
+    ? widget.dotVisible.every((visible) => !visible)
     : !!grayPx && desaturated(grayPx) && !grayPx.every((v, i) => Math.abs(v - EMERALD_400[i]) <= 6)
   console.log(
     grayOk
@@ -10867,12 +10882,24 @@ function gitlabContributionsFixture() {
   const EXPECTED_CHIPS = ['Kitchen 21.5°C', 'Porch light on', 'Front door off', 'Humidity 48%', 'Thermostat heat', 'CO2 612ppm']
 
   await page.setViewportSize({ width: 1600, height: 1100 })
+  const haLayoutPreimage = await page.evaluate(() => chrome.storage.local.get('layout').then(({ layout }) => layout))
   await page.evaluate(
     async ({ instanceUrl, token, locationName, entities, actions, states }) => {
-      const { connectors } = await chrome.storage.local.get('connectors')
+      const { connectors, layout } = await chrome.storage.local.get(['connectors', 'layout'])
+      const expandedHa = { zone: 'pulse', order: 0, variant: 'expanded', colSpan: 3, rowSpan: 2, priority: 'pinned' }
       await globalThis.__auroraSetHarnessStorage({
         connectors: { ...connectors, homeassistant: { enabled: true, instanceUrl, token, locationName, entities, actions } },
         connectorSnapshots: { homeassistant: { fetchedAt: Date.now(), data: { entities: states } } },
+        layout: {
+          ...layout,
+          version: 2,
+          profiles: {
+            ...layout?.profiles,
+            standard: { ...layout?.profiles?.standard, homeassistant: expandedHa },
+            display: { ...layout?.profiles?.display, homeassistant: expandedHa },
+            ultrawide: { ...layout?.profiles?.ultrawide, homeassistant: expandedHa },
+          },
+        },
       })
     },
     { instanceUrl: HA_INSTANCE_URL, token: HA_TOKEN, locationName: HA_LOCATION, entities: HA_ENTITY_REFS, actions: HA_ACTIONS, states: HA_STATES },
@@ -10890,6 +10917,7 @@ function gitlabContributionsFixture() {
     const buttons = [...sec.querySelectorAll('button')]
     return {
       className: sec.className,
+      variant: sec.closest('[data-block-id="homeassistant"]')?.getAttribute('data-stage-variant') ?? null,
       chipTexts: chips.map((li) => li.textContent),
       buttonLabels: buttons.map((b) => b.getAttribute('aria-label')),
       buttonTexts: buttons.map((b) => b.textContent?.trim()),
@@ -10898,7 +10926,7 @@ function gitlabContributionsFixture() {
   }, haSel)
 
   const chipsOk =
-    widget !== null && widget.className.includes('w-80') && JSON.stringify(widget.chipTexts) === JSON.stringify(EXPECTED_CHIPS)
+    widget !== null && widget.variant === 'expanded' && widget.className.includes('w-80') && JSON.stringify(widget.chipTexts) === JSON.stringify(EXPECTED_CHIPS)
   console.log(
     chipsOk
       ? `PASS: the Home Assistant widget renders its own w-80 section with EXACT chip copy — ${JSON.stringify(widget.chipTexts)} (unit rides the state with no space; 'Porch light on'/'Front door off'/'Thermostat heat' prove the null-unit case)`
@@ -11263,13 +11291,14 @@ function gitlabContributionsFixture() {
   // locationName/entities/actions all still present — re-enabling would land
   // straight back in the CONNECTED branch instead of the disconnected form
   // this block's own probes never needed to reach.
-  await page.evaluate(async () => {
+  await page.evaluate(async (layoutPreimage) => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, homeassistant: { enabled: false } },
       connectorSnapshots: {},
+      layout: layoutPreimage,
     })
-  })
+  }, haLayoutPreimage)
   await page.setViewportSize({ width: 1600, height: 900 })
   await page.reload()
   await page.waitForSelector('time')
@@ -12604,12 +12633,14 @@ function gitlabContributionsFixture() {
 // snapshot in this file uses. Every snapshot event now carries a REQUIRED
 // `cal: <index>` field (0-4) — the widget's dot color and the 'per-calendar'
 // view both key off it.
+const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.get('layout').then(({ layout }) => layout))
 {
   const icsSel = '[data-block-id="ics"] section[aria-label="Calendar"]'
   const DOT_CLASSES = ['bg-accent', 'bg-sky-400', 'bg-emerald-400', 'bg-amber-400', 'bg-fuchsia-400']
 
   await page.evaluate(async () => {
-    const { connectors } = await chrome.storage.local.get('connectors')
+    const { connectors, layout } = await chrome.storage.local.get(['connectors', 'layout'])
+    const expandedCalendar = { zone: 'day', order: 0, variant: 'expanded', colSpan: 3, rowSpan: 2, priority: 'pinned' }
     const now = Date.now()
     const H = 3_600_000
     const DAY_MS = 86_400_000
@@ -12655,6 +12686,16 @@ function gitlabContributionsFixture() {
     // separated by the column's gap-4 — the probes below measure that live
     // flow, which needs rss actually rendering a card.
     await globalThis.__auroraSetHarnessStorage({
+      layout: {
+        ...layout,
+        version: 2,
+        profiles: {
+          ...layout?.profiles,
+          standard: { ...layout?.profiles?.standard, ics: expandedCalendar },
+          display: { ...layout?.profiles?.display, ics: expandedCalendar },
+          ultrawide: { ...layout?.profiles?.ultrawide, ics: expandedCalendar },
+        },
+      },
       connectors: {
         ...connectors,
         // TRUE DISPLAY MAX: five named calendars (MAX_CALENDARS,
@@ -13339,13 +13380,14 @@ function gitlabContributionsFixture() {
   // Restore: disable the connector and clear its cache, then reload — same
   // restore discipline as every connector block above (and the ics block
   // just above this one).
-  await page.evaluate(async () => {
+  await page.evaluate(async (layoutPreimage) => {
     const { connectors } = await chrome.storage.local.get('connectors')
     await globalThis.__auroraSetHarnessStorage({
       connectors: { ...connectors, ics: { ...connectors.ics, enabled: false } },
       connectorSnapshots: {},
+      layout: layoutPreimage,
     })
-  })
+  }, calendarLayoutPreimage)
   await page.reload()
   await page.waitForSelector('time')
   await page.waitForTimeout(800) // photo fade-in
@@ -22529,7 +22571,7 @@ await page.waitForTimeout(150)
           id: node.getAttribute('data-block-id'),
           zone: node.getAttribute('data-stage-zone'),
           dockReason: node.getAttribute('data-stage-dock-reason'),
-          parentZone: parent?.getAttribute('data-stage-zone-container') ?? null,
+          parentZone: node.closest('[data-stage-zone-container]')?.getAttribute('data-stage-zone-container') ?? null,
           profile: node.getAttribute('data-stage-profile'),
           variant: node.getAttribute('data-stage-variant'),
           priority: node.getAttribute('data-stage-priority'),
