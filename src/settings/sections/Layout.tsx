@@ -42,6 +42,7 @@ export default function Layout({
 }) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [density, setDensity] = useState<LayoutDensityPreference>('auto')
+  const [briefingEnabled, setBriefingEnabled] = useState(false)
   const [canRestore, setCanRestore] = useState(false)
   const [isCanvasLayout, setIsCanvasLayout] = useState<boolean | null>(null)
   const densityId = useId()
@@ -57,9 +58,13 @@ export default function Layout({
     const unsubscribe = storage.subscribe('settings', (settings) => {
       gotUpdate = true
       setDensity(settings.layoutDensity)
+      setBriefingEnabled(settings.briefingEnabled === true)
     })
     void storage.get('settings').then((settings) => {
-      if (live && !gotUpdate) setDensity(settings.layoutDensity)
+      if (live && !gotUpdate) {
+        setDensity(settings.layoutDensity)
+        setBriefingEnabled(settings.briefingEnabled === true)
+      }
     })
     return () => {
       live = false
@@ -100,6 +105,14 @@ export default function Layout({
       })
   }
 
+  function persistBriefing(next: boolean) {
+    setBriefingEnabled(next)
+    void storage.update('settings', (settings) => ({ ...settings, briefingEnabled: next }))
+      .catch(() => {
+        void storage.get('settings').then((settings) => setBriefingEnabled(settings.briefingEnabled === true))
+      })
+  }
+
   if (!isPremium()) return null
 
   return (
@@ -120,8 +133,18 @@ export default function Layout({
         </select>
       </div>
       <p id={densityDescriptionId} className="mb-2 text-xs text-fg-muted">
-        Auto Fit chooses the roomiest layout that keeps automatic items on the board.
+        Auto Fit chooses the roomiest layout that keeps enabled items on the board.
       </p>
+      <div className={row}>
+        <label htmlFor={`${densityId}-briefing`} className={label}>Show briefing</label>
+        <input
+          id={`${densityId}-briefing`}
+          type="checkbox"
+          checked={briefingEnabled}
+          onChange={(event) => persistBriefing(event.currentTarget.checked)}
+          className="size-5 cursor-pointer accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        />
+      </div>
       <div className={row}>
         <span className={label}>Widget positions</span>
         <div className="flex gap-2">

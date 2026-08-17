@@ -110,7 +110,7 @@ describe('App Canvas composition', () => {
       expect(canvasItem(id).dataset.canvasX).toBe('50')
     }
     expect(Number(canvasItem('clock').dataset.canvasY)).toBeLessThan(Number(canvasItem('focus').dataset.canvasY))
-    expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(0)
   })
 
   it('renders adjacent Quick Links and Bookmarks exactly once without a synthetic launcher shelf', async () => {
@@ -335,17 +335,67 @@ describe('App Canvas composition', () => {
     }
   })
 
-  it('routes a movable Notes launcher into the single Utility Tray surface', async () => {
-    await renderApp()
-    const notes = await screen.findByRole('button', { name: 'Notes' })
-    fireEvent.click(notes)
-    expect(await screen.findByRole('dialog', { name: 'Utility Tray' })).toBeTruthy()
-    expect(await screen.findByRole('region', { name: 'Notes' })).toBeTruthy()
-    expect(screen.queryByRole('region', { name: 'Tasks' })).toBeNull()
-    expect(screen.getAllByRole('button', { name: 'Notes' }).some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
-    expect(canvasItem('notes').dataset.canvasKind).toBe('canvas')
-    await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Close utility tray' })))
+  it('opens movable Timer, Tasks, and Notes launchers in their own contained panels and restores each invoker', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, timer: true },
+    })
+    await renderApp(storage)
+
+    expect(Number(canvasItem('timer').dataset.canvasX)).toBeLessThan(50)
+    expect(Number(canvasItem('timer').dataset.canvasY)).toBeLessThan(50)
+    expect(Number(canvasItem('notes').dataset.canvasX)).toBeLessThan(50)
+    expect(Number(canvasItem('notes').dataset.canvasY)).toBeGreaterThan(50)
+    expect(Number(canvasItem('tasks').dataset.canvasX)).toBeGreaterThan(50)
+    expect(Number(canvasItem('tasks').dataset.canvasY)).toBeGreaterThan(50)
+
+    for (const entry of [
+      { id: 'notes', button: 'Notes', dialog: 'Notes' },
+      { id: 'tasks', button: 'Tasks', dialog: 'Tasks' },
+    ]) {
+      const launcher = await screen.findByRole('button', { name: entry.button })
+      launcher.focus()
+      fireEvent.click(launcher)
+      expect(await screen.findByRole('dialog', { name: entry.dialog })).toBeTruthy()
+      expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
+      expect(canvasItem(entry.id).dataset.canvasKind).toBe('canvas')
+      fireEvent.keyDown(document, { key: 'Escape' })
+      await act(async () => {})
+      expect(screen.queryByRole('dialog', { name: entry.dialog })).toBeNull()
+      expect(document.activeElement).toBe(launcher)
+    }
+
+    const timer = await screen.findByRole('button', { name: /Focus timer:/ })
+    timer.focus()
+    fireEvent.click(timer)
+    expect(await screen.findByRole('dialog', { name: 'Focus timer' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
+    expect(canvasItem('timer').dataset.canvasKind).toBe('canvas')
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Focus timer' })).toBeNull()
+    expect(document.activeElement).toBe(timer)
+  })
+
+  it('uses one body-owned document-safe tool sheet on Small', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 812 })
+    await renderApp()
+
+    const notes = await screen.findByRole('button', { name: 'Notes' })
+    notes.focus()
+    fireEvent.click(notes)
+    const sheet = await screen.findByRole('dialog', { name: 'Notes' })
+
+    expect(document.documentElement.dataset.stageProfile).toBe('compact')
+    expect(sheet.getAttribute('data-canvas-tool-panel')).toBe('')
+    expect(sheet.parentElement).toBe(document.body)
+    expect(document.querySelectorAll('[data-canvas-tool-panel]')).toHaveLength(1)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {})
+    expect(screen.queryByRole('dialog', { name: 'Notes' })).toBeNull()
     expect(document.activeElement).toBe(notes)
   })
 

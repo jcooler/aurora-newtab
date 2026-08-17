@@ -2413,7 +2413,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(within(density).getAllByRole('option').map((option) => option.textContent)).toEqual([
       'Auto Fit', 'Compact', 'Balanced', 'Spacious',
     ])
-    const description = region.getByText('Auto Fit chooses the roomiest layout that keeps automatic items on the board.')
+    const description = region.getByText('Auto Fit chooses the roomiest layout that keeps enabled items on the board.')
     expect(attr(density, 'aria-describedby')).toBe(description.id)
     expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
     expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
@@ -2453,6 +2453,31 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect((within(layoutRegion()).getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement).value).toBe('compact')
     expect(set).not.toHaveBeenCalled()
     expect(await storage.get('settings')).toEqual(settings)
+  })
+
+  it('treats an absent Briefing preference as off and writes it only after the user changes it', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const update = vi.spyOn(storage, 'update')
+
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    const briefing = within(layoutRegion()).getByRole('checkbox', { name: 'Show briefing' }) as HTMLInputElement
+    expect(briefing.checked).toBe(false)
+    expect((await storage.get('settings')).briefingEnabled).toBeUndefined()
+    expect(update).not.toHaveBeenCalled()
+
+    await act(async () => {
+      fireEvent.click(briefing)
+    })
+    expect((await storage.get('settings')).briefingEnabled).toBe(true)
+    expect(update).toHaveBeenCalledOnce()
   })
 
   it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {

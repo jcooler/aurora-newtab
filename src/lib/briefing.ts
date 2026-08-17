@@ -118,7 +118,7 @@ function truncate(value: string, characters: number): string {
 }
 
 export function formatBriefing(signals: readonly BriefingSignal[], profile: BriefingProfile): string {
-  if (signals.length === 0) return 'Nothing urgent.'
+  if (signals.length === 0) return ''
   const budget = BUDGETS[profile]
   const admitted = signals.slice(0, budget.segments)
   let sentence = ''
@@ -129,5 +129,5 @@ export function formatBriefing(signals: readonly BriefingSignal[], profile: Brie
     sentence += separator + truncate(signal.text, remaining)
     if (sentence.length >= budget.characters || sentence.endsWith('…')) break
   }
-  return sentence || 'Nothing urgent.'
+  return sentence
 }

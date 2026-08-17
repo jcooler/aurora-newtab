@@ -5,6 +5,7 @@ import {
   useImperativeHandle,
   useRef,
 } from 'react'
+import { createPortal } from 'react-dom'
 import { AssertiveAlert, PoliteStatus } from '../../../components/StateFeedback'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -54,7 +55,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
 
   if (!notes.ready) return null
 
-  return (
+  const content = (
     <div
       ref={(node) => {
         panelRef.current = node
@@ -62,6 +63,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
       }}
       role={embedded ? 'region' : 'dialog'}
       aria-label="Notes"
+      data-canvas-tool-panel={embedded ? undefined : ''}
       style={embedded ? undefined : {
         position: 'fixed',
         left: anchor!.left,
@@ -114,6 +116,7 @@ const NotesPanel = forwardRef<NotesPanelHandle, NotesPanelProps>(function NotesP
       />
     </div>
   )
+  return embedded ? content : createPortal(content, document.body)
 })
 
 export default NotesPanel

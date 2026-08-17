@@ -94,9 +94,10 @@ describe('Aurora Briefing responsive formatting', () => {
     expect(formatBriefing(signals, 'display')).toBe('Design review in 48m · 3 tasks need attention · Rain 7 PM')
   })
 
-  it('uses a fixed fallback when no useful local signal exists', () => {
-    expect(formatBriefing([], 'compact')).toBe('Nothing urgent.')
-    expect(formatBriefing([], 'display')).toBe('Nothing urgent.')
+  it('stays silent when no useful local signal exists', () => {
+    expect(formatBriefing([], 'compact')).toBe('')
+    expect(formatBriefing([], 'display')).toBe('')
+    expect(formatBriefing([], 'display')).not.toContain('Nothing urgent.')
   })
 
   it('truncates deterministically inside the profile character ceiling', () => {

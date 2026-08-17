@@ -316,6 +316,7 @@ export default function TodoPanel({
       }}
       role={embedded ? 'region' : 'dialog'}
       aria-label="Tasks"
+      data-canvas-tool-panel={embedded ? undefined : ''}
       // `anchor` is `{left,top}` (opens downward) or `{left,bottom}` (opens
       // upward, growing UP so the add-task command line below the list never
       // marches off-screen as it grows past ~5 tasks — review fix I1; see

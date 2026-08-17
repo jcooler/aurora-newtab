@@ -177,11 +177,31 @@ describe('FocusLine editor ownership', () => {
     expect(input.className).toContain('xshort:mb-0')
   })
 
-  it('marks only the empty editor prompt for its local photo-independent contrast surface', async () => {
-    setup(null)
+  it('keeps one centered footprint through empty, committed, completed, and edit-again states without an opaque prompt surface', async () => {
+    const { driver } = setup(null)
     const prompt = await screen.findByText(/main focus today/i)
-    expect(prompt.getAttribute('data-focus-prompt')).toBe('')
-    expect(prompt.className).toContain('focus-prompt-label')
+    const footprint = prompt.closest('[data-focus-footprint]')
+    expect(footprint).not.toBeNull()
+    expect(footprint!.className).toContain('grid')
+    expect(footprint!.className).toContain('place-items-center')
+    expect(prompt.hasAttribute('data-focus-prompt')).toBe(false)
+    expect(prompt.className).not.toContain('focus-prompt-label')
+    expect(prompt.className).not.toContain('bg-')
+
+    const input = screen.getByLabelText(/main focus today/i)
+    fireEvent.change(input, { target: { value: 'Centered work' } })
+    fireEvent.submit(input.closest('form')!)
+    await waitFor(() => expect(driver.dump().focus).toEqual({
+      text: 'Centered work', date: '2026-07-26', done: false,
+    }))
+    expect(screen.getByText('Centered work').closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    await screen.findByText('Nice.')
+    expect(screen.getByText('Nice.').closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByLabelText(/main focus today/i).closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
     expect(document.documentElement.style.getPropertyValue('--canvas-fg-muted')).toBe('')
   })
 })

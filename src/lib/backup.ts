@@ -255,6 +255,7 @@ function isSettings(v: unknown): boolean {
     (v.panelColor === null || isPanelColor(v.panelColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
+    isOptional(v.briefingEnabled, isBoolean) &&
     LAYOUT_DENSITY_SET.has(v.layoutDensity) &&
     isWidgetToggles(v.widgets)
   )

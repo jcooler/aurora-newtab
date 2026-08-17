@@ -22,21 +22,33 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-async function renderBriefing({ validScope = true, weatherAge = 0 } = {}) {
+async function renderBriefing({
+  validScope = true,
+  weatherAge = 0,
+  briefingEnabled = true,
+  withSignals = true,
+}: {
+  validScope?: boolean
+  weatherAge?: number
+  briefingEnabled?: boolean | 'absent'
+  withSignals?: boolean
+} = {}) {
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(NOW)
   const storage = createStorage(memoryDriver())
   await storage.init()
   const scope = await connectorSnapshotScope('ics', ICS_CONFIG, { timeZone: resolvedLocalTimeZone() })
   const location = { label: 'New York', lat: 40.71, lon: -74.01, manual: true }
+  const settings = { ...defaults().settings, use24Hour: false }
+  if (briefingEnabled !== 'absent') settings.briefingEnabled = briefingEnabled
   await storage.setMany({
-    settings: { ...defaults().settings, use24Hour: false },
-    todoLists: [{ id: 'today', name: 'Today', items: [
+    settings,
+    todoLists: withSignals ? [{ id: 'today', name: 'Today', items: [
       { id: '1', text: 'Ship', done: false },
       { id: '2', text: 'Done', done: true },
-    ] }],
-    connectors: { ics: ICS_CONFIG },
-    connectorSnapshots: {
+    ] }] : [],
+    connectors: withSignals ? { ics: ICS_CONFIG } : {},
+    connectorSnapshots: withSignals ? {
       ics: {
         scope: validScope ? scope : 'ics:v2:wrong',
         fetchedAt: NOW,
@@ -51,15 +63,15 @@ async function renderBriefing({ validScope = true, weatherAge = 0 } = {}) {
           meetUrl: 'https://zoom.us/j/private-capability',
         }] },
       },
-    },
-    location,
-    weatherCache: {
+    } : {},
+    location: withSignals ? location : null,
+    weatherCache: withSignals ? {
       current: { tempC: 20, feelsLikeC: 20, code: 1, windKmh: 5, humidity: 40 },
       hourly: [{ time: '2026-08-16T19:00', tempC: 18, precipProb: 70, code: 61 }],
       fetchedAt: NOW - weatherAge,
       locationLabel: location.label,
       requestIdentity: weatherRequestIdentity(location.lat, location.lon),
-    },
+    } : null,
   })
   const fetchSpy = vi.fn()
   vi.stubGlobal('fetch', fetchSpy)
@@ -69,6 +81,22 @@ async function renderBriefing({ validScope = true, weatherAge = 0 } = {}) {
 }
 
 describe('AuroraBriefing local-only rendering', () => {
+  it('renders nothing when the opt-in preference is absent or off and never rewrites Settings', async () => {
+    for (const briefingEnabled of ['absent', false] as const) {
+      const { container, storage, fetchSpy, unmount } = await renderBriefing({ briefingEnabled })
+      expect(container.querySelector('[data-aurora-briefing]')).toBeNull()
+      expect((await storage.get('settings')).briefingEnabled).toBe(briefingEnabled === 'absent' ? undefined : false)
+      expect(fetchSpy).not.toHaveBeenCalled()
+      unmount()
+    }
+  })
+
+  it('renders no empty briefing when enabled but no signal is useful', async () => {
+    const { container } = await renderBriefing({ briefingEnabled: true, withSignals: false })
+    await waitFor(() => expect(container.querySelector('[data-aurora-briefing]')).toBeNull())
+    expect(container.textContent).not.toContain('Nothing urgent.')
+  })
+
   it('renders deterministic 1/2/3 segment variants without initiating a request or exposing a capability URL', async () => {
     const { container, fetchSpy } = await renderBriefing()
     await waitFor(() => expect(container.querySelector('[data-briefing-display]')?.textContent).toContain('Design review'))

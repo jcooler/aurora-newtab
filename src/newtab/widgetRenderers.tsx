@@ -75,9 +75,9 @@ const RENDERERS = {
   homeassistant: (props) => <HomeAssistantWidget stageVariant={effectiveVariant(props)} utilityTray={props.utilityTray} />,
   rss: (props) => <RssWidget stageVariant={effectiveVariant(props)} />,
   crypto: () => <CryptoWidget />,
-  timer: ({ onTimerOpenChange, utilityTray }) => <TimerWidget onOpenChange={onTimerOpenChange} utilityTray={utilityTray} />,
-  tasks: ({ onTasksOpenChange, utilityTray }) => <TodoWidget onOpenChange={onTasksOpenChange} utilityTray={utilityTray} />,
-  notes: ({ onNotesOpenChange, utilityTray }) => <NotesWidget onOpenChange={onNotesOpenChange} utilityTray={utilityTray} />,
+  timer: ({ onTimerOpenChange }) => <TimerWidget onOpenChange={onTimerOpenChange} />,
+  tasks: ({ onTasksOpenChange }) => <TodoWidget onOpenChange={onTasksOpenChange} />,
+  notes: ({ onNotesOpenChange }) => <NotesWidget onOpenChange={onNotesOpenChange} />,
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(

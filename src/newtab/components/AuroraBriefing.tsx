@@ -34,7 +34,7 @@ export default function AuroraBriefing() {
   useEffect(() => {
     let live = true
     const snapshotData = icsSnapshot?.data
-    if (!ics?.enabled || icsCalendarsOf(ics).length === 0 || !icsSnapshot || !isIcsData(snapshotData)) {
+    if (settings?.briefingEnabled !== true || !ics?.enabled || icsCalendarsOf(ics).length === 0 || !icsSnapshot || !isIcsData(snapshotData)) {
       setCalendarData(null)
       return () => { live = false }
     }
@@ -50,7 +50,9 @@ export default function AuroraBriefing() {
       if (live) setCalendarData(null)
     })
     return () => { live = false }
-  }, [ics, icsSnapshot, localDay.timeZone])
+  }, [ics, icsSnapshot, localDay.timeZone, settings?.briefingEnabled])
+
+  if (settings !== undefined && settings.briefingEnabled !== true) return null
 
   if (
     settings === undefined || todoLists === undefined || connectors === undefined ||
@@ -81,6 +83,8 @@ export default function AuroraBriefing() {
     todoLists,
     hourly,
   })
+
+  if (signals.length === 0) return null
 
   return (
     <div data-aurora-briefing="" className="aurora-briefing text-photo text-canvas-fg-muted">

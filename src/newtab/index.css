@@ -66,6 +66,18 @@
   visibility: hidden;
 }
 
+/* Direct tool panels anchor to their launchers on roomy canvases. Small uses
+   one shared, viewport-owned sheet geometry so a dragged launcher can never
+   make its panel widen the document or open beyond the visible page. */
+:root[data-stage-profile="compact"] [data-canvas-tool-panel] {
+  position: fixed !important;
+  inset: auto 0.5rem 0.5rem 0.5rem !important;
+  width: auto !important;
+  max-width: none !important;
+  max-height: calc(100dvh - 1rem) !important;
+  z-index: 50 !important;
+}
+
 .arrange-overlay {
   position: fixed;
   z-index: 60;
@@ -1163,22 +1175,6 @@
 select > option {
   background-color: #17171c;
   color: #f5f5f4;
-}
-
-/* W5-P4's local Focus-prompt treatment. Inline padding is balanced by equal
-   negative margins, and block padding by equal block margins, so the existing
-   finite Focus allocation and W2-P2 margin-box clearance do not grow. */
-@utility focus-prompt-label {
-  display: inline-flex;
-  max-width: calc(100% - 1rem);
-  padding: 0.125rem 0.625rem;
-  margin: -0.125rem -0.625rem;
-  border: 1px solid var(--focus-prompt-border);
-  border-radius: 9999px;
-  color: var(--focus-prompt-fg);
-  background-color: var(--focus-prompt-bg);
-  box-shadow: var(--focus-prompt-shadow);
-  text-shadow: none;
 }
 
 /* Aurora 2 Adaptive Stage. JS owns the runtime markers; these ordered media

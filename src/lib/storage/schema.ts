@@ -40,6 +40,9 @@ export interface WidgetToggles {
 export interface Settings {
   name: string
   use24Hour: boolean
+  /** Opt-in Canvas briefing. Missing remains equivalent to false so existing
+   *  settings load without a migration or eager rewrite. */
+  briefingEnabled?: boolean
   /** The widget-color customizer (Task 60, which retired the three-theme
    *  system). `null` = the default surface defined by themes.css's :root. A
    *  `#rrggbb` string re-tints every widget's panel at runtime

@@ -237,11 +237,12 @@ function TimerInner({
         {display}
       </button>
 
-      {open && anchor && (
+      {open && anchor && createPortal(
         <div
           ref={panelRef}
           role="dialog"
           aria-label="Focus timer"
+          data-canvas-tool-panel=""
           // `anchor` is `{left,top}` (opens downward) or `{left,bottom}`
           // (opens upward) — review fix I1; see anchor.ts's PanelPlacement
           // doc. Timer's own pill defaults to the top half
@@ -347,7 +348,7 @@ function TimerInner({
             </p>
           )}
         </div>
-      )}
+      , document.body)}
 
       {utilityTray?.host && panelOpen
         ? createPortal(

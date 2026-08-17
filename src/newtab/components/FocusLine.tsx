@@ -74,10 +74,16 @@ export default function FocusLine() {
 
   if (stored === undefined) return null
 
-  if (!focus || editing) {
-    return (
+  return (
+    <div
+      data-focus-footprint=""
+      data-focus-state={!focus ? 'empty' : editing ? 'editing' : focus.done ? 'completed' : 'committed'}
+      className="grid h-full min-h-0 w-full place-items-center"
+      aria-live="polite"
+    >
+      {!focus || editing ? (
       <form
-        className="mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex flex-col items-center"
+        className="flex w-full flex-col items-center"
         onSubmit={(e) => {
           e.preventDefault()
           commitDraft(draft, true)
@@ -85,8 +91,7 @@ export default function FocusLine() {
       >
         <label
           htmlFor="focus-input"
-          data-focus-prompt=""
-          className="focus-prompt-label text-base mid:text-sm short:text-sm xshort:text-xs font-medium"
+          className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg"
         >
           What&rsquo;s your main focus today?
         </label>
@@ -116,14 +121,8 @@ export default function FocusLine() {
           className="text-photo mt-2 mid:mt-1 short:mt-0.5 xshort:mt-0.5 min-h-9 w-72 narrow:w-56 border-b border-panel-border bg-transparent pb-1 text-center text-xl mid:text-lg short:text-base xshort:text-sm text-canvas-fg outline-none focus-visible:border-accent -mb-[3px] short:mb-0 xshort:mb-0"
         />
       </form>
-    )
-  }
-
-  return (
-    <div
-      className="group mt-10 mid:mt-5 short:mt-3 xshort:mt-1 flex items-center gap-3 short:gap-2 xshort:gap-1"
-      aria-live="polite"
-    >
+      ) : (
+      <div className="group flex items-center gap-3 short:gap-2 xshort:gap-1">
       {/* Round check — the same completion-checkmark control family as
           TodoPanel's task checks, but tuned for the PHOTO: the hairline uses the
           fixed light canvas ink (visible over any image, with a contact shadow)
@@ -172,6 +171,8 @@ export default function FocusLine() {
       >
         Edit
       </button>
+      </div>
+      )}
     </div>
   )
 }
