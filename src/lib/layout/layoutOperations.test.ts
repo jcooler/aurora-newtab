@@ -5,9 +5,12 @@ import {
   duplicateLayout,
   renameLayout,
   reorderLayouts,
+  saveLayoutsDocument,
   switchActiveLayout,
 } from './layoutOperations'
-import type { LayoutsDocument } from './namedLayouts'
+import { LayoutsDocumentValidationError, type LayoutsDocument } from './namedLayouts'
+import { createStorage } from '../storage/index'
+import { memoryDriver } from '../storage/driver'
 
 function doc(): LayoutsDocument {
   return {
@@ -89,5 +92,35 @@ describe('reorderLayouts', () => {
 
   it('rejects out-of-range indices', () => {
     expect(() => reorderLayouts(doc(), 0, 5)).toThrow('Layout index out of range')
+  })
+})
+
+describe('saveLayoutsDocument', () => {
+  it('writes ONLY the layouts key and never the legacy layout key', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const legacyBefore = await storage.get('layout')
+
+    const writes: string[][] = []
+    const originalWrite = driver.write.bind(driver)
+    driver.write = async (patch: Record<string, unknown>) => {
+      writes.push(Object.keys(patch).sort())
+      return originalWrite(patch)
+    }
+
+    await saveLayoutsDocument(storage, doc())
+    expect(writes).toEqual([['layouts']])
+    expect(await storage.get('layouts')).toEqual(doc())
+    expect(await storage.get('layout')).toEqual(legacyBefore)
+  })
+
+  it('rejects an invalid document before any write', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    const bad = { ...doc(), activeLayoutId: 'missing' }
+    await expect(saveLayoutsDocument(storage, bad)).rejects.toThrow(LayoutsDocumentValidationError)
+    expect(await storage.get('layouts')).toBeNull()
   })
 })

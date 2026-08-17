@@ -3,6 +3,7 @@ import {
   type LayoutsDocument,
   type NamedLayout,
 } from './namedLayouts'
+import type { AuroraStorage } from '../storage/index'
 
 function requireIndex(doc: LayoutsDocument, layoutId: string): number {
   const index = doc.layouts.findIndex((layout) => layout.id === layoutId)
@@ -88,4 +89,15 @@ export function reorderLayouts(
   const [moved] = layouts.splice(fromIndex, 1)
   layouts.splice(toIndex, 0, moved)
   return finish({ ...doc, layouts })
+}
+
+/** The ONLY named-layouts write path (named-layouts spec §4: explicit-save-
+ *  only, atomic under the existing storage authority). Validates before
+ *  writing; a rejected document leaves storage untouched. Writes exactly one
+ *  key — never the legacy `layout` recovery input. */
+export async function saveLayoutsDocument(
+  storage: AuroraStorage,
+  next: LayoutsDocument,
+): Promise<void> {
+  await storage.set('layouts', cleanLayoutsDocument(next))
 }
