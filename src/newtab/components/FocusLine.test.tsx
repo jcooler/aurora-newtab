@@ -204,4 +204,13 @@ describe('FocusLine editor ownership', () => {
     expect(screen.getByLabelText(/main focus today/i).closest('[data-focus-footprint]')?.className).toBe(footprint!.className)
     expect(document.documentElement.style.getPropertyValue('--canvas-fg-muted')).toBe('')
   })
+
+  it('wires both the prompt and committed value to the supporting-information type role', async () => {
+    const empty = setup(null)
+    expect((await screen.findByText(/main focus today/i)).getAttribute('data-canvas-type-role')).toBe('support')
+    empty.view.unmount()
+
+    setup({ text: 'Readable focus', date: '2026-07-26', done: false })
+    expect((await screen.findByText('Readable focus')).getAttribute('data-canvas-type-role')).toBe('support')
+  })
 })

@@ -22,10 +22,10 @@ function DailyQuote() {
           reappearing below. `mid` (601-864) is disjoint from short/xshort, so
           the four type tiers (base ≥865 / mid / short / xshort) never collide
           on source order. */}
-      <blockquote className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg">
+      <blockquote data-canvas-type-role="quote" className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg">
         &ldquo;{quote.text}&rdquo;
       </blockquote>
-      <figcaption data-stage-text-tier="metadata" className="text-photo mt-1 mid:mt-0.5 short:mt-0.5 xshort:mt-0.5 text-sm mid:text-xs short:text-xs xshort:text-xs font-normal text-canvas-fg-muted">
+      <figcaption data-canvas-type-role="attribution" className="text-photo mt-1 mid:mt-0.5 short:mt-0.5 xshort:mt-0.5 text-sm mid:text-xs short:text-xs xshort:text-xs font-normal text-canvas-fg-muted">
         — {quote.author}
       </figcaption>
     </figure>

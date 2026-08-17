@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -105,17 +105,20 @@ function domRect(left: number, top: number, right: number, bottom: number): DOMR
 }
 
 describe('WeatherWidget collapsed chip', () => {
-  it('reveals the existing fuller trend immediately for an Expanded allocation without another request', async () => {
+  it('uses a Full allocation for useful inline hourly and metric content without auto-opening details', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
     await renderWidget({ stageVariant: 'expanded' })
-    expect(screen.getByText('Next 12 hours')).toBeTruthy()
-    expect(openToggle()).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-size="full"]')).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-hourly]')).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-metrics]')).toBeTruthy()
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+    expect(toggle()).toBeTruthy()
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('returns to current conditions when an Expanded allocation becomes Standard', async () => {
+  it('removes only the Full hourly preview when an allocation becomes Standard', async () => {
     const { storage, view } = await renderWidget({ stageVariant: 'expanded' })
-    expect(screen.getByText('Next 12 hours')).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-hourly]')).toBeTruthy()
 
     view.rerender(
       <StorageProvider storage={storage}>
@@ -124,8 +127,22 @@ describe('WeatherWidget collapsed chip', () => {
     )
     await act(async () => {})
 
-    expect(screen.queryByText('Next 12 hours')).toBeNull()
+    expect(document.querySelector('[data-weather-summary-size="standard"]')).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-hourly]')).toBeNull()
+    expect(document.querySelector('[data-weather-summary-trend]')).toBeTruthy()
+    expect(document.querySelector('[data-weather-summary-metrics]')).toBeTruthy()
     expect(toggle()).toBeTruthy()
+  })
+
+  it('keeps Compact to icon, temperature, condition-location, freshness, and disclosure only', async () => {
+    await renderWidget({ stageVariant: 'compact' })
+    const summary = document.querySelector('[data-weather-summary-size="compact"]')!
+    expect(summary.querySelector('[data-weather-current]')).toBeTruthy()
+    expect(summary.querySelector('[data-weather-condition-location]')?.textContent).toBe('Partly cloudy - New York')
+    expect(summary.querySelector('[data-weather-disclosure]')).toBeTruthy()
+    expect(summary.querySelector('[data-weather-summary-trend]')).toBeNull()
+    expect(summary.querySelector('[data-weather-summary-metrics]')).toBeNull()
+    expect(summary.querySelector('[data-weather-summary-hourly]')).toBeNull()
   })
 
   it('shows current temp and location without any expanded content', async () => {
@@ -202,14 +219,28 @@ describe('WeatherWidget collapsed chip', () => {
     fetchSpy.mockRestore()
   })
 
-  it('keeps condition and location on one line, with the full text in a title', async () => {
-    await renderWidget()
-    const summary = screen.getByTitle('Partly cloudy · New York')
-    expect(summary.textContent).toBe('Partly cloudy · New York')
+  it('keeps a long condition and location on one line with accessible full hyphenated text', async () => {
+    const label = 'The Extremely Long Metropolitan District of New York'
+    await renderWidget({ location: { ...NEW_YORK, label }, snapshot: makeSnapshot({ locationLabel: label }) })
+    const full = `Partly cloudy - ${label}`
+    const summary = screen.getByTitle(full)
+    expect(summary.textContent).toBe(full)
+    expect(summary.getAttribute('aria-label')).toBe(full)
     // `truncate` is white-space:nowrap + ellipsis + overflow:hidden: the
     // line can shorten but can never become two lines, so the chevron
     // beside it can never be orphaned.
     expect(summary.classList.contains('truncate')).toBe(true)
+  })
+
+  it.each([
+    ['compact', 'compact'],
+    ['standard', 'standard'],
+    ['expanded', 'full'],
+  ] as const)('renders %s with no empty summary spacer rows', async (stageVariant, size) => {
+    await renderWidget({ stageVariant })
+    const summary = document.querySelector(`[data-weather-summary-size="${size}"]`)!
+    expect([...summary.querySelectorAll('[data-weather-summary-row]')].every((row) => row.textContent?.trim())).toBe(true)
+    expect(summary.querySelector('[data-weather-empty-row]')).toBeNull()
   })
 
   it('caps the collapsed chip against the room left beside the timer pill, not a viewport fraction', async () => {
@@ -486,11 +517,12 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
   it('shows feels-like, wind, humidity and sunrise/sunset as a structured meta grid', async () => {
     await renderWidget()
     await expandPanel()
-    expect(screen.getByText('Feels like').nextElementSibling?.textContent).toContain('19°')
-    expect(screen.getByText('Wind').nextElementSibling?.textContent).toContain('14 km/h')
-    expect(screen.getByText('Humidity').nextElementSibling?.textContent).toContain('55%')
-    expect(screen.getByText('Sun').nextElementSibling?.textContent).toContain('6:12 AM')
-    expect(screen.getByText('Sun').nextElementSibling?.textContent).toContain('7:58 PM')
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(details.getByText('Feels like').nextElementSibling?.textContent).toContain('19°')
+    expect(details.getByText('Wind').nextElementSibling?.textContent).toContain('14 km/h')
+    expect(details.getByText('Humidity').nextElementSibling?.textContent).toContain('55%')
+    expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('6:12 AM')
+    expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('7:58 PM')
   })
 
   it('omits the grid entirely rather than drawing a degenerate one', async () => {
@@ -498,7 +530,7 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     await expandPanel()
     expect(screen.queryByText('Next 12 hours')).toBeNull()
     // The rest of the panel still renders from the current conditions.
-    expect(screen.getByText('Humidity')).toBeTruthy()
+    expect(within(screen.getByRole('dialog', { name: 'Weather details' })).getByText('Humidity')).toBeTruthy()
   })
 })
 
@@ -580,7 +612,7 @@ describe('WeatherWidget stale data', () => {
       await retry
     })
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(screen.getByText('22\u00b0')).toBeTruthy()
+    expect(document.querySelector('[data-weather-current]')?.textContent).toContain('22\u00b0')
     view.unmount()
     fetchSpy.mockRestore()
   })
@@ -619,7 +651,7 @@ describe('WeatherWidget stale data', () => {
     const status = screen.getByRole('status')
     expect(status.textContent).toBe('Refreshing\u2026')
     expect(pendingRefresh.getAttribute('aria-describedby')).toBe(status.id)
-    expect(screen.getByTitle('Partly cloudy · New York')).toBeTruthy()
+    expect(screen.getByTitle('Partly cloudy - New York')).toBeTruthy()
 
     await act(async () => {
       resolveRetry(weatherResponse(24))

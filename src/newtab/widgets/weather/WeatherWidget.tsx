@@ -50,21 +50,14 @@ export default function WeatherWidget({
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   const { snapshot, stale, loading, error, refresh, state } = useWeather()
-  const [expanded, setExpanded] = useState(stageVariant === 'expanded')
+  const summarySize = stageVariant === 'expanded' ? 'full' : stageVariant
+  const [expanded, setExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
   const [panelAnchor, setPanelAnchor] = useState<WeatherPanelAnchor | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const feedbackId = useId()
   const detailsId = useId()
-
-  // A Stage variant transition resets the disclosure to that variant's useful
-  // default: Expanded spends its extra footprint on the already-held trend,
-  // while Standard/Compact return to current conditions. Manual disclosure
-  // remains untouched until the planner actually changes variant.
-  useEffect(() => {
-    setExpanded(stageVariant === 'expanded')
-  }, [stageVariant])
 
   const closeExpanded = useCallback(() => {
     setExpanded(false)
@@ -186,6 +179,10 @@ export default function WeatherWidget({
   // shows even when the peak falls on an odd hour the grid never samples.
   const slots = forecastSlots(hours)
   const range = forecastRange(hours)
+  const trendSignal = callout ?? (range
+    ? `High ${displayTemp(range.hiC, settings.units)} · Low ${displayTempWithUnit(range.loC, settings.units)}`
+    : null)
+  const summarySlots = slots.slice(0, 4)
 
   // Width caps. ORIGINALLY derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
@@ -403,18 +400,20 @@ export default function WeatherWidget({
             // heights. Both variants carry the same value (they're disjoint
             // ranges covering height <= 600px together), so there is no
             // source-order tie to break between them.
-            className="flex w-full cursor-pointer flex-col gap-1 rounded-panel px-4 py-3 short:py-2 xshort:py-2 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            data-weather-summary=""
+            data-weather-summary-size={summarySize}
+            className="weather-summary flex w-full cursor-pointer flex-col gap-2 rounded-panel px-4 py-3 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
-            <span className="flex w-full items-center gap-3">
+            <span data-weather-summary-row="current" className="flex w-full items-center gap-3">
               <WeatherIcon
                 icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
-                size={32}
+                size={summarySize === 'compact' ? 28 : 32}
               />
               {/* font-display (Space Grotesk) is the page's own headline face
                   — the clock and greeting already speak it. Borrowing it for
                   the one number this widget exists to report ties the card to
                   the page instead of styling it like a generic tooltip. */}
-              <span className="font-display text-[2rem] font-light leading-none tabular-nums">
+              <span data-weather-current="" data-canvas-type-role="body" className="font-display text-[2rem] font-light leading-none tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
                 {/* Jon: "adding F or C to the card would be nice." Same
                     two-span idiom as the expanded grid's own end slots below
@@ -423,7 +422,7 @@ export default function WeatherWidget({
                     as a child span. The two pieces still concatenate to
                     exactly `displayTempWithUnit` — one derivation, styled
                     apart — never a second string for the same value. */}
-                <span data-stage-text-tier="metadata" className="align-baseline text-[0.7em] text-fg-muted">
+                <span data-canvas-type-role="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                   {unitLetter(settings.units)}
                 </span>
               </span>
@@ -436,14 +435,51 @@ export default function WeatherWidget({
                   condition meets a long city ("Thunderstorm · San Francisco"),
                   and `title` is where the rest of it goes when it does. */}
               <span
-                title={`${describeCode(snapshot.current.code).label} · ${snapshot.locationLabel}`}
-                className="min-w-0 flex-1 truncate text-sm leading-snug text-fg-muted"
+                data-weather-condition-location=""
+                data-canvas-type-role="body"
+                title={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
+                aria-label={`${describeCode(snapshot.current.code).label} - ${snapshot.locationLabel}`}
+                className="min-w-0 flex-1 truncate text-fg-muted"
               >
-                {describeCode(snapshot.current.code).label} · {snapshot.locationLabel}
+                {describeCode(snapshot.current.code).label} - {snapshot.locationLabel}
               </span>
-              <Chevron expanded={expanded} />
+              <span data-weather-disclosure=""><Chevron expanded={expanded} /></span>
             </span>
-            {callout && <span className="text-sm text-accent">{callout}</span>}
+            {summarySize !== 'compact' && trendSignal ? (
+              <span data-weather-summary-row="trend" data-weather-summary-trend="" data-canvas-type-role="body" className="truncate text-accent">
+                {trendSignal}
+              </span>
+            ) : null}
+            {summarySize !== 'compact' ? (
+              <dl data-weather-summary-row="metrics" data-weather-summary-metrics="" className="grid grid-cols-3 gap-x-3 border-t border-panel-border pt-2">
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Feels</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{displayTemp(snapshot.current.feelsLikeC, settings.units)}</dd>
+                </div>
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{displayWind(snapshot.current.windKmh, settings.units)}</dd>
+                </div>
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
+                  <dd data-canvas-type-role="body" className="tabular-nums">{snapshot.current.humidity}%</dd>
+                </div>
+              </dl>
+            ) : null}
+            {summarySize === 'full' && summarySlots.length > 0 ? (
+              <div data-weather-summary-row="hourly" data-weather-summary-hourly="" className="grid grid-cols-4 gap-1 border-t border-panel-border pt-2">
+                {summarySlots.map((slot) => (
+                  <span key={slot.index} className="min-w-0 text-center">
+                    <span data-canvas-type-role="metadata" className="block truncate text-fg-muted">
+                      {slot.now ? 'Now' : compactHour(slot.point.time, settings.use24Hour)}
+                    </span>
+                    <span data-canvas-type-role="body" className="block tabular-nums">
+                      {displayTemp(slot.point.tempC, settings.units)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            ) : null}
             <ResourceFeedback
               state={state}
               loading={'Loading weather\u2026'}
@@ -452,7 +488,7 @@ export default function WeatherWidget({
               offline={'Offline \u2014 showing cached'}
               unavailable="Weather unavailable. Try again."
               id={feedbackId}
-              className="text-xs text-fg-muted"
+              className="text-fg-muted"
             />
           </button>
 
@@ -475,7 +511,7 @@ export default function WeatherWidget({
             <div className="px-4 py-4 short:py-3 xshort:py-3">
               {range && slots.length > 0 && (
                 <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
-                  <div data-stage-text-tier="metadata" className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
+                  <div data-canvas-type-role="metadata" className="flex items-baseline justify-between gap-3 text-fg-muted">
                     {/* CSS-uppercased, so the DOM text stays "Next 12 hours"
                         (screen readers and tests read the real word, the eye
                         reads the eyebrow). */}
@@ -524,7 +560,7 @@ export default function WeatherWidget({
                             slot.now ? 'bg-fg/[0.07]' : ''
                           }`}
                         >
-                          <span data-stage-text-tier="metadata" className="text-[11px] narrow:text-[10px] leading-none text-fg-muted">
+                          <span data-canvas-type-role="metadata" className="leading-none text-fg-muted">
                             {slot.now
                               ? 'NOW'
                               : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
@@ -546,13 +582,13 @@ export default function WeatherWidget({
                           <span className="text-[15px] narrow:text-[12px] font-medium leading-none tabular-nums text-fg">
                             {displayTemp(slot.point.tempC, settings.units)}
                             {atEnd && (
-                              <span data-stage-text-tier="metadata" className="align-baseline text-[0.7em] text-fg-muted">
+                              <span data-canvas-type-role="metadata" className="align-baseline text-[0.7em] text-fg-muted">
                                 {unitLetter(settings.units)}
                               </span>
                             )}
                           </span>
                           {rain !== null && (
-                            <span data-stage-text-tier="metadata" className="text-[11px] narrow:text-[10px] leading-none tabular-nums text-accent">
+                            <span data-canvas-type-role="metadata" className="leading-none tabular-nums text-accent">
                               <span className="sr-only">Rain chance </span>
                               {rain}%
                             </span>
@@ -564,27 +600,27 @@ export default function WeatherWidget({
                 </div>
               )}
 
-              <dl className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
+              <dl data-weather-details-metrics="" className="mt-3 short:mt-2 xshort:mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2 border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                 <div>
-                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Feels like</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Feels like</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
                     {displayTemp(snapshot.current.feelsLikeC, settings.units)}
                   </dd>
                 </div>
                 <div>
-                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Wind</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
                     {displayWind(snapshot.current.windKmh, settings.units)}
                   </dd>
                 </div>
                 <div>
-                  <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Humidity</dt>
-                  <dd className="mt-0.5 text-sm tabular-nums text-fg">{snapshot.current.humidity}%</dd>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">{snapshot.current.humidity}%</dd>
                 </div>
                 {snapshot.sunriseISO && snapshot.sunsetISO && (
                   <div>
-                    <dt data-stage-text-tier="metadata" className="text-[11px] text-fg-muted">Sun</dt>
-                    <dd className="mt-0.5 text-sm tabular-nums text-fg">
+                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sun</dt>
+                    <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
                       <span className="block">
                         <span aria-hidden="true">↑ </span>
                         <span className="sr-only">Sunrise </span>

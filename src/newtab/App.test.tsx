@@ -60,6 +60,8 @@ describe('App Canvas composition', () => {
   it('owns one V1 Canvas and retires the rejected semantic presentation regions', async () => {
     await renderApp()
     expect(document.querySelectorAll('main[data-aurora-canvas]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-canvas-legibility]')).toHaveLength(1)
+    expect(document.querySelector('[data-canvas-legibility]')?.parentElement?.hasAttribute('data-canvas-surface')).toBe(true)
     expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe('Desktop')
     for (const name of ['Day', 'Now', 'Work Pulse', 'Signal Dock']) {
       expect(screen.queryByRole('region', { name })).toBeNull()
@@ -403,11 +405,11 @@ describe('App Canvas composition', () => {
     let frame: FrameRequestCallback | undefined
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frame = callback; return 1 })
 
-    for (const [width, height, profile, label] of [
-      [800, 600, 'compact', 'Small'],
-      [1400, 900, 'standard', 'Desktop'],
-      [2560, 1440, 'display', 'Large'],
-      [1800, 700, 'ultrawide', 'Wide'],
+    for (const [width, height, profile, label, textScale] of [
+      [800, 600, 'compact', 'Small', 'standard'],
+      [1400, 900, 'standard', 'Desktop', 'standard'],
+      [2560, 1440, 'display', 'Large', 'large'],
+      [1800, 700, 'ultrawide', 'Wide', 'large'],
     ] as const) {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
@@ -418,6 +420,7 @@ describe('App Canvas composition', () => {
       })
       expect(document.documentElement.dataset.stageProfile).toBeUndefined()
       expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-profile')).toBe(profile)
+      expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-text-scale')).toBe(textScale)
       expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe(label)
       expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
     }
@@ -600,5 +603,16 @@ describe('App Canvas composition', () => {
     expect(main.dataset.canvasProfile).toBe('standard')
     expect(document.documentElement.dataset.stageProfile).toBeUndefined()
     expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-profile')).toBe('standard')
+  })
+
+  it('reads legacy Compact density as Standard text without eagerly rewriting storage', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', { ...defaults().settings, layoutDensity: 'compact' })
+
+    await renderApp(storage)
+
+    expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-text-scale')).toBe('standard')
+    expect((await storage.get('settings')).layoutDensity).toBe('compact')
   })
 })

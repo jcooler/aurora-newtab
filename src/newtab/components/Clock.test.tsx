@@ -41,7 +41,33 @@ describe('Clock large-display detail', () => {
     const detail = container.querySelector('[data-clock-date]')
     expect(detail?.textContent).toBe('Sunday, August 16')
     expect(detail?.hasAttribute('aria-hidden')).toBe(false)
+    expect(container.querySelector('time')?.getAttribute('data-canvas-type-role')).toBe('clock')
+    expect(detail?.getAttribute('data-canvas-type-role')).toBe('date')
     vi.useRealTimers()
+  })
+})
+
+describe('index.css - Canvas type roles', () => {
+  it('defines ordinary desktop floors and bounded Large/4K targets', () => {
+    expect(indexCss).toMatch(/--canvas-type-date: clamp\(16px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-greeting: clamp\(32px,[^;]+40px\);/)
+    expect(indexCss).toMatch(/--canvas-type-support: clamp\(16px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-quote: clamp\(15px,[^;]+18px\);/)
+    expect(indexCss).toMatch(/--canvas-type-attribution: 13px;/)
+    expect(indexCss).toMatch(/--canvas-type-body: clamp\(14px,[^;]+16px\);/)
+    expect(indexCss).toMatch(/--canvas-type-metadata: 12px;/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--clock-font: clamp\(72px,[^;]+216px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-date: clamp\(20px,[^;]+22px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-greeting: clamp\(48px,[^;]+56px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-support: clamp\(18px,[^;]+20px\);/)
+    expect(indexCss).toMatch(/\[data-canvas-text-scale="large"\][^{]*\{[\s\S]*?--canvas-type-attribution: 16px;/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="clock"\][^{]*\{[\s\S]*?font-size: var\(--canvas-type-clock\);/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="date"\][^{]*\{[^}]*color: var\(--canvas-fg\);/)
+    expect(indexCss).toMatch(/\[data-canvas-type-role="support"\][^{]*\{[^}]*color: var\(--canvas-fg\);/)
+  })
+
+  it('shows the useful date for Standard and Full Canvas clock sizes', () => {
+    expect(indexCss).toMatch(/\.canvas-item\[data-block-id="clock"\]:not\(\[data-canvas-size="compact"\]\)[^{]*\[data-clock-date\][^{]*\{[\s\S]*?display: block;/)
   })
 })
 

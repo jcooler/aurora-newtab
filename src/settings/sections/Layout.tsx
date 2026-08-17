@@ -1,13 +1,12 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
-import type { LayoutDensityPreference } from '../../lib/layout/types'
 import { emptyLayoutV2 } from '../../lib/layout/v2'
 import type { StoredLayout } from '../../lib/layout/canvasTypes'
 import { restorePreviousLayout } from '../../lib/layout/canvasAdapter'
 import Section from '../Section'
-import { row, label, select, btnQuiet, btnDanger } from './shared'
+import { row, label, btnQuiet, btnDanger } from './shared'
 
 /** Widget-arrangement entry points. Both gated on `isPremium()` and hidden
  *  ENTIRELY (not disabled/greyed) when it's false — the no-placeholder-UI
@@ -41,36 +40,12 @@ export default function Layout({
   open: boolean
 }) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
-  const [density, setDensity] = useState<LayoutDensityPreference>('auto')
-  const [briefingEnabled, setBriefingEnabled] = useState(false)
   const [canRestore, setCanRestore] = useState(false)
   const [isCanvasLayout, setIsCanvasLayout] = useState<boolean | null>(null)
-  const densityId = useId()
-  const densityDescriptionId = `${densityId}-description`
 
   useEffect(() => {
     if (!open) setResetDialogOpen(false)
   }, [open])
-
-  useEffect(() => {
-    let live = true
-    let gotUpdate = false
-    const unsubscribe = storage.subscribe('settings', (settings) => {
-      gotUpdate = true
-      setDensity(settings.layoutDensity)
-      setBriefingEnabled(settings.briefingEnabled === true)
-    })
-    void storage.get('settings').then((settings) => {
-      if (live && !gotUpdate) {
-        setDensity(settings.layoutDensity)
-        setBriefingEnabled(settings.briefingEnabled === true)
-      }
-    })
-    return () => {
-      live = false
-      unsubscribe()
-    }
-  }, [storage])
 
   useEffect(() => {
     let live = true
@@ -97,54 +72,10 @@ export default function Layout({
     }
   }, [storage])
 
-  function persistDensity(next: LayoutDensityPreference) {
-    setDensity(next)
-    void storage.update('settings', (settings) => ({ ...settings, layoutDensity: next }))
-      .catch(() => {
-        void storage.get('settings').then((settings) => setDensity(settings.layoutDensity))
-      })
-  }
-
-  function persistBriefing(next: boolean) {
-    setBriefingEnabled(next)
-    void storage.update('settings', (settings) => ({ ...settings, briefingEnabled: next }))
-      .catch(() => {
-        void storage.get('settings').then((settings) => setBriefingEnabled(settings.briefingEnabled === true))
-      })
-  }
-
   if (!isPremium()) return null
 
   return (
     <Section title="Layout">
-      <div className={row}>
-        <label htmlFor={densityId} className={label}>Layout density</label>
-        <select
-          id={densityId}
-          aria-describedby={densityDescriptionId}
-          className={`${select} w-36`}
-          value={density}
-          onChange={(event) => persistDensity(event.currentTarget.value as LayoutDensityPreference)}
-        >
-          <option value="auto">Auto Fit</option>
-          <option value="compact">Compact</option>
-          <option value="balanced">Balanced</option>
-          <option value="spacious">Spacious</option>
-        </select>
-      </div>
-      <p id={densityDescriptionId} className="mb-2 text-xs text-fg-muted">
-        Auto Fit chooses the roomiest layout that keeps enabled items on the board.
-      </p>
-      <div className={row}>
-        <label htmlFor={`${densityId}-briefing`} className={label}>Show briefing</label>
-        <input
-          id={`${densityId}-briefing`}
-          type="checkbox"
-          checked={briefingEnabled}
-          onChange={(event) => persistBriefing(event.currentTarget.checked)}
-          className="size-5 cursor-pointer accent-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-        />
-      </div>
       <div className={row}>
         <span className={label}>Widget positions</span>
         <div className="flex gap-2">

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type SVGProps } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -8,7 +8,7 @@ import { faviconUrl } from '../links/linksLogic'
 // Kept clear of the viewport edge when the panel is nudged back on-screen.
 const EDGE_MARGIN = 8
 
-export function FolderIcon({ className = '' }: { className?: string }) {
+export function FolderIcon({ className = '', ...props }: SVGProps<SVGSVGElement>) {
   return (
     <svg
       width="14"
@@ -21,6 +21,7 @@ export function FolderIcon({ className = '' }: { className?: string }) {
       strokeLinejoin="round"
       aria-hidden
       className={`shrink-0 ${className}`}
+      {...props}
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
     </svg>

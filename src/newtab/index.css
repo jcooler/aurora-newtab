@@ -6,6 +6,26 @@
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: clip;
+  --clock-font: clamp(3rem, min(12vw, 20vh), 10rem);
+  --canvas-type-clock: var(--clock-font);
+  --canvas-type-date: clamp(16px, min(1.1vw, 2vh), 18px);
+  --canvas-type-greeting: clamp(32px, min(2.5vw, 5vh), 40px);
+  --canvas-type-support: clamp(16px, min(1.05vw, 2.2vh), 18px);
+  --canvas-type-quote: clamp(15px, min(1vw, 2vh), 18px);
+  --canvas-type-attribution: 13px;
+  --canvas-type-body: clamp(14px, min(0.9vw, 1.8vh), 16px);
+  --canvas-type-metadata: 12px;
+}
+
+.aurora-canvas[data-canvas-text-scale="large"] {
+  --clock-font: clamp(72px, min(9vw, 14vh), 216px);
+  --canvas-type-date: clamp(20px, min(0.7vw, 1.4vh), 22px);
+  --canvas-type-greeting: clamp(48px, min(2vw, 4vh), 56px);
+  --canvas-type-support: clamp(18px, min(0.75vw, 1.5vh), 20px);
+  --canvas-type-quote: clamp(18px, min(0.75vw, 1.5vh), 20px);
+  --canvas-type-attribution: 16px;
+  --canvas-type-body: clamp(16px, min(0.65vw, 1.3vh), 18px);
+  --canvas-type-metadata: 14px;
 }
 
 .canvas-root,
@@ -17,6 +37,18 @@
 
 .canvas-surface {
   isolation: isolate;
+}
+
+.canvas-legibility-layer {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, color-mix(in srgb, var(--panel-solid) 56%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 32%, transparent) 14%, transparent 32%),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--panel-solid) 68%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 48%, transparent) 34%, color-mix(in srgb, var(--panel-solid) 16%, transparent) 68%),
+    linear-gradient(to right, color-mix(in srgb, var(--panel-solid) 34%, transparent) 0%, transparent 24%, transparent 76%, color-mix(in srgb, var(--panel-solid) 34%, transparent) 100%),
+    linear-gradient(to top, color-mix(in srgb, var(--panel-solid) 42%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 14%, transparent) 14%, transparent 32%);
 }
 
 .canvas-item {
@@ -2022,13 +2054,9 @@ select > option {
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
-  font-size: 11px;
-  line-height: 14px;
 }
 .board-item[data-stage-variant="compact"][data-block-id="quote"] figcaption {
   margin-top: 2px;
-  font-size: 10px;
-  line-height: 14px;
 }
 
 /* Quick Links no longer spends forty compact pixels on the former centered
@@ -2290,14 +2318,8 @@ select > option {
 .board-item[data-stage-variant="standard"][data-block-id="quote"] > figure {
   padding-inline: 4px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="quote"] blockquote {
-  font-size: 11px;
-  line-height: 14px;
-}
 .board-item[data-stage-variant="standard"][data-block-id="quote"] figcaption {
   margin-top: 2px;
-  font-size: 10px;
-  line-height: 14px;
 }
 .board-item[data-stage-variant="standard"][data-block-id="links"] > section {
   margin-top: 0;
@@ -2677,11 +2699,6 @@ select > option {
 .board-item--dock[data-block-id="focus"] #focus-input {
   margin-bottom: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="greeting"] .aurora-greeting > p {
-  font-size: 1.375rem;
-  line-height: 1.875rem;
-}
-
 /* The registry may give the full bookmarks launcher a compact BoardItem.
    Its existing viewport-wide cap is no longer the right containing size;
    make the chip row honor the assigned container and switch to its existing
@@ -2746,4 +2763,63 @@ select > option {
   .board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
     padding-inline: 48px;
   }
+}
+
+/* Canvas role typography is declared after the retired Adaptive Stage layer so
+   live Canvas content wins the cascade without depending on old zone or density
+   selectors. The scale remains bounded by both viewport axes. */
+.aurora-canvas [data-canvas-type-role="clock"] {
+  font-size: var(--canvas-type-clock);
+  line-height: 0.92;
+}
+
+.aurora-canvas [data-canvas-type-role="date"] {
+  font-size: var(--canvas-type-date);
+  line-height: 1.35;
+  color: var(--canvas-fg);
+}
+
+.aurora-canvas [data-canvas-type-role="greeting"] {
+  font-size: var(--canvas-type-greeting);
+  line-height: 1.08;
+}
+
+.aurora-canvas [data-canvas-type-role="support"] {
+  font-size: var(--canvas-type-support);
+  line-height: 1.4;
+  color: var(--canvas-fg);
+}
+
+.aurora-canvas [data-canvas-type-role="quote"] {
+  font-size: var(--canvas-type-quote);
+  line-height: 1.45;
+}
+
+.aurora-canvas [data-canvas-type-role="attribution"] {
+  font-size: var(--canvas-type-attribution);
+  line-height: 1.4;
+}
+
+.aurora-canvas [data-canvas-type-role="body"] {
+  font-size: var(--canvas-type-body);
+  line-height: 1.45;
+}
+
+.aurora-canvas [data-canvas-type-role="metadata"] {
+  font-size: var(--canvas-type-metadata);
+  line-height: 1.4;
+}
+
+.canvas-item[data-block-id="clock"]:not([data-canvas-size="compact"]) [data-clock-date] {
+  display: block;
+}
+
+.aurora-canvas[data-canvas-profile="standard"] .aurora-briefing [data-briefing-compact],
+.aurora-canvas:is([data-canvas-profile="display"], [data-canvas-profile="ultrawide"]) .aurora-briefing [data-briefing-compact] {
+  display: none;
+}
+
+.aurora-canvas[data-canvas-profile="standard"] .aurora-briefing [data-briefing-standard],
+.aurora-canvas:is([data-canvas-profile="display"], [data-canvas-profile="ultrawide"]) .aurora-briefing [data-briefing-display] {
+  display: block;
 }

@@ -8,7 +8,7 @@ import { defaults } from '../../../lib/storage/schema'
 import type { BarModel } from '../../../services/bookmarks'
 import { hasBookmarksPermission, loadBarModel } from '../../../services/bookmarks'
 import BookmarksBar from './BookmarksBar'
-import { folderMonogram } from './BookmarksBar'
+import { folderMonogram, resolveBookmarkMark } from './BookmarksBar'
 
 // loadBarModel and hasBookmarksPermission are the only chrome.* touches
 // (chrome.bookmarks.getTree and chrome.permissions.contains respectively);
@@ -63,6 +63,17 @@ describe('BookmarksBar', () => {
     expect(folderMonogram('Project Aurora')).toBe('PA')
     expect(folderMonogram('Reading')).toBe('R')
     expect(folderMonogram('   ')).toBe('\ud83d\udcc1')
+  })
+
+  it('resolves exactly one deterministic mark for every compact bookmark identity', () => {
+    expect(resolveBookmarkMark({ kind: 'folder', title: 'A' })).toEqual({ kind: 'monogram', text: 'A' })
+    expect(resolveBookmarkMark({ kind: 'folder', title: 'Project Aurora' })).toEqual({ kind: 'monogram', text: 'PA' })
+    expect(resolveBookmarkMark({ kind: 'folder', title: '   ' })).toEqual({ kind: 'folder' })
+    expect(resolveBookmarkMark({ kind: 'bookmark', url: 'https://docs.example', faviconFailed: false })).toEqual({
+      kind: 'favicon',
+      src: 'favicon:https://docs.example',
+    })
+    expect(resolveBookmarkMark({ kind: 'bookmark', url: 'https://docs.example', faviconFailed: true })).toEqual({ kind: 'globe' })
   })
   it('renders nothing while settings.widgets.bookmarks is off', async () => {
     vi.mocked(loadBarModel).mockResolvedValue(nestedModel)
@@ -270,7 +281,7 @@ describe('BookmarksBar', () => {
     }
   })
 
-  it('swaps a folder chip\'s generic glyph for its own initial in compact mode', async () => {
+  it('renders one named-folder monogram and no competing folder glyph', async () => {
     const model: BarModel = {
       folders: [
         { id: 'f1', title: 'reading list', items: [], folders: [] },
@@ -287,13 +298,19 @@ describe('BookmarksBar', () => {
     const mark = reading.querySelector('[data-chip-mark]')!
     expect(mark.textContent).toBe('RL')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
-    expect(mark.classList.contains('hidden')).toBe(true)
-    expect(mark.classList.contains('compact:block')).toBe(true)
+    expect(reading.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
     // Code points, not UTF-16 units, and uppercasing a CJK glyph is the
     // identity — a folder named with an emoji or a Han character keeps it.
     expect(weather.querySelector('[data-chip-mark]')!.textContent).toBe('天')
-    // The generic folder glyph steps aside for it rather than doubling up.
-    expect(reading.querySelector('svg')!.classList.contains('compact:hidden')).toBe(true)
+    expect(reading.querySelector('svg')).toBeNull()
+  })
+
+  it('renders one folder glyph and no monogram for an unnamed folder', async () => {
+    await renderBar({ folders: [{ id: 'f1', title: '   ', items: [], folders: [] }], loose: [] })
+    const folder = await screen.findByRole('button')
+    expect(folder.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
+    expect(folder.querySelector('[data-chip-mark]')?.tagName).toBe('svg')
+    expect(folder.textContent?.trim()).toBe('')
   })
 
   it('keeps a loose bookmark\'s favicon as its compact mark, sized up to carry the chip alone', async () => {
@@ -303,6 +320,15 @@ describe('BookmarksBar', () => {
     expect(favicon.tagName).toBe('IMG')
     expect(favicon.classList.contains('size-3')).toBe(true)
     expect(favicon.classList.contains('compact:size-4')).toBe(true)
+  })
+
+  it('replaces a failed favicon with one generic globe without adding a second mark', async () => {
+    await renderBar(nestedModel)
+    const looseChip = await screen.findByRole('link', { name: 'Docs' })
+    fireEvent.error(looseChip.querySelector('img')!)
+    expect(looseChip.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
+    expect(looseChip.querySelector('[data-chip-mark]')?.getAttribute('data-bookmark-mark')).toBe('globe')
+    expect(looseChip.querySelector('img')).toBeNull()
   })
 
   it('advertises chips as clickable (Tailwind preflight makes a bare <button> cursor:default)', async () => {

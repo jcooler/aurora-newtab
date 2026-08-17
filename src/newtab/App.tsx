@@ -19,6 +19,7 @@ import PaletteHost from './widgets/palette/PaletteHost'
 import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
+import { projectTextScale } from './canvas/canvasTextScale'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -187,6 +188,7 @@ export default function App() {
     return <Renderer {...rendererProps} canvasSize={size} />
   }
   const previewProfile = arrangePreview?.profile ?? viewport.profile
+  const textScale = projectTextScale(settings.layoutDensity, viewport)
   const previewViewport = arrangePreview
     ? {
         width: previewProfile === 'compact'
@@ -203,6 +205,7 @@ export default function App() {
     <main
       data-aurora-canvas=""
       data-canvas-profile={previewProfile}
+      data-canvas-text-scale={textScale}
       data-arranging={arranging ? 'true' : undefined}
       data-arrange-profile={arranging ? previewProfile : undefined}
       data-arrange-small-sheet={arranging && previewProfile === 'compact' && arrangePreview?.inspectorOpen ? 'true' : undefined}

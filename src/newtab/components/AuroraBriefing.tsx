@@ -87,7 +87,7 @@ export default function AuroraBriefing() {
   if (signals.length === 0) return null
 
   return (
-    <div data-aurora-briefing="" className="aurora-briefing text-photo text-canvas-fg-muted">
+    <div data-aurora-briefing="" data-canvas-type-role="support" className="aurora-briefing text-photo text-canvas-fg-muted">
       <p data-briefing-compact="">{formatBriefing(signals, 'compact')}</p>
       <p data-briefing-standard="">{formatBriefing(signals, 'standard')}</p>
       <p data-briefing-display="">{formatBriefing(signals, 'display')}</p>

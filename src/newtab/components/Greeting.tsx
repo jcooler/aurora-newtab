@@ -11,6 +11,7 @@ export default function Greeting() {
   return (
     <div className="aurora-greeting">
       <p
+      data-canvas-type-role="greeting"
       // `title` carries the full text whenever `truncate` below actually
       // elides it — same "always set, only visible on the clipped path"
       // idiom the weather chip's condition/location line and every

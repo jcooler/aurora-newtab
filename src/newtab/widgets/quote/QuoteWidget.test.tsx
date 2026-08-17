@@ -5,6 +5,7 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import { defaults } from '../../../lib/storage/schema'
+import indexCss from '../../index.css?raw'
 import QuoteWidget from './QuoteWidget'
 
 const localDay = vi.hoisted(() => ({
@@ -39,6 +40,12 @@ describe('QuoteWidget', () => {
     expect(figcaption).toBeTruthy()
     expect(blockquote?.classList.contains('text-photo')).toBe(true)
     expect(figcaption?.classList.contains('text-photo')).toBe(true)
+    expect(blockquote?.getAttribute('data-canvas-type-role')).toBe('quote')
+    expect(figcaption?.getAttribute('data-canvas-type-role')).toBe('attribution')
+    expect(indexCss).not.toMatch(/data-stage-variant="compact"[^}]+data-block-id="quote"[^}]+blockquote\s*\{[^}]+font-size:/)
+    expect(indexCss).not.toMatch(/data-stage-variant="compact"[^}]+data-block-id="quote"[^}]+figcaption\s*\{[^}]+font-size:/)
+    expect(indexCss).not.toMatch(/data-stage-variant="standard"[^}]+data-block-id="quote"[^}]+blockquote\s*\{[^}]+font-size:/)
+    expect(indexCss).not.toMatch(/data-stage-variant="standard"[^}]+data-block-id="quote"[^}]+figcaption\s*\{[^}]+font-size:/)
   })
 
   it('marks only the attribution as glance metadata', async () => {
@@ -51,7 +58,7 @@ describe('QuoteWidget', () => {
     await act(async () => {})
 
     expect(container.querySelector('blockquote')?.getAttribute('data-stage-text-tier')).toBeNull()
-    expect(container.querySelector('figcaption')?.getAttribute('data-stage-text-tier')).toBe('metadata')
+    expect(container.querySelector('figcaption')?.getAttribute('data-stage-text-tier')).toBeNull()
   })
 
   it('selects a new daily quote after local midnight without a reload', async () => {

@@ -47,6 +47,7 @@ describe('Greeting — canvas ink (fixed over the photo)', () => {
 
     const p = container.querySelector('p')
     expect(p).toBeTruthy()
+    expect(p?.getAttribute('data-canvas-type-role')).toBe('greeting')
     expect(p?.classList.contains('text-canvas-fg')).toBe(true)
     // NOT the adaptive panel ink: a light panelColor pick must leave it light.
     // (Panel/card text keeps text-fg and DOES adapt — proven at the token level

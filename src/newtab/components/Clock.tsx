@@ -10,6 +10,7 @@ export default function Clock() {
     <div data-clock-face="" className="clock-face">
       <time
         dateTime={now.toISOString()}
+        data-canvas-type-role="clock"
       // The scale term is `min(12vw, 20vh)`, not `12vw` alone — the old
       // width-only clamp() rendered ~160px tall at the owner's ~1420x437
       // short-wide window (12vw already exceeded the 10rem ceiling there) and
@@ -50,7 +51,7 @@ export default function Clock() {
       >
         {formatClock(now, settings.use24Hour)}
       </time>
-      <span data-clock-date="" className="text-photo text-canvas-fg-muted">
+      <span data-clock-date="" data-canvas-type-role="date" className="text-photo text-canvas-fg-muted">
         {formatDayContext(now, 'long')}
       </span>
     </div>

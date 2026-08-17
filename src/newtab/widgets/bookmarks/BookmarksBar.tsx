@@ -154,7 +154,84 @@ export function folderMonogram(title: string): string {
   return words.slice(0, 2).map((word) => Array.from(word)[0]?.toUpperCase() ?? '').join('') || '📁'
 }
 
+type BookmarkMarkInput =
+  | { kind: 'folder'; title: string }
+  | { kind: 'bookmark'; url: string; faviconFailed: boolean }
+
+export type BookmarkMark =
+  | { kind: 'monogram'; text: string }
+  | { kind: 'folder' }
+  | { kind: 'favicon'; src: string }
+  | { kind: 'globe' }
+
+/** One identity resolver owns every visible bookmark mark. It deliberately
+ * returns a discriminated union so a chip cannot render a folder glyph and
+ * monogram, or a broken favicon and fallback globe, at the same time. */
+export function resolveBookmarkMark(input: BookmarkMarkInput): BookmarkMark {
+  if (input.kind === 'folder') {
+    if (input.title.trim().length === 0) return { kind: 'folder' }
+    return { kind: 'monogram', text: folderMonogram(input.title) }
+  }
+  if (input.faviconFailed) return { kind: 'globe' }
+  return { kind: 'favicon', src: faviconUrl(input.url) }
+}
+
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
+
+function GlobeMark() {
+  return (
+    <svg
+      aria-hidden
+      data-chip-mark
+      data-bookmark-mark="globe"
+      className="size-3 compact:size-4 shrink-0"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.4 2.5 3.6 5.5 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.5-3.6-9S9.6 5.5 12 3Z" />
+    </svg>
+  )
+}
+
+function ChipMark({ chip }: { chip: ChipEntry }) {
+  const [faviconFailed, setFaviconFailed] = useState(false)
+  const mark = resolveBookmarkMark(
+    chip.kind === 'folder'
+      ? { kind: 'folder', title: chip.folder.title }
+      : { kind: 'bookmark', url: chip.item.url, faviconFailed },
+  )
+
+  if (mark.kind === 'monogram') {
+    return (
+      <span aria-hidden data-chip-mark data-bookmark-mark="monogram" className="shrink-0 font-display font-medium">
+        {mark.text}
+      </span>
+    )
+  }
+  if (mark.kind === 'folder') {
+    return <FolderIcon data-chip-mark data-bookmark-mark="folder" />
+  }
+  if (mark.kind === 'globe') return <GlobeMark />
+  return (
+    <img
+      src={mark.src}
+      alt=""
+      width={12}
+      height={12}
+      data-chip-mark
+      data-bookmark-mark="favicon"
+      className="size-3 compact:size-4 shrink-0"
+      onError={() => setFaviconFailed(true)}
+    />
+  )
+}
 
 export default function BookmarksBar({
   onPopoverOpenChange,
@@ -336,14 +413,7 @@ function BookmarksBarInner({
               onClick={(event) => toggle(chip.folder.id, event.currentTarget)}
               className={CHIP}
             >
-              <FolderIcon className="compact:hidden" />
-              <span
-                aria-hidden
-                data-chip-mark
-                className="hidden compact:block font-display font-medium"
-              >
-                {folderMonogram(chip.folder.title)}
-              </span>
+              <ChipMark chip={chip} />
               <span data-chip-label className={CHIP_LABEL}>
                 {chip.folder.title}
               </span>
@@ -369,14 +439,7 @@ function BookmarksBarInner({
                 width/height attributes stay for the intrinsic size before
                 CSS arrives; the size utilities are what the breakpoint can
                 actually address. */}
-            <img
-              src={faviconUrl(chip.item.url)}
-              alt=""
-              width={12}
-              height={12}
-              data-chip-mark
-              className="size-3 compact:size-4 shrink-0"
-            />
+            <ChipMark chip={chip} />
             <span data-chip-label className={CHIP_LABEL}>
               {chip.item.title}
             </span>

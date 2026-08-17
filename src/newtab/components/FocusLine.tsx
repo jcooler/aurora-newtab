@@ -91,6 +91,7 @@ export default function FocusLine() {
       >
         <label
           htmlFor="focus-input"
+          data-canvas-type-role="support"
           className="text-photo text-base mid:text-sm short:text-sm xshort:text-xs font-medium text-canvas-fg"
         >
           What&rsquo;s your main focus today?
@@ -100,6 +101,7 @@ export default function FocusLine() {
           id="focus-input"
           name="focus"
           autoComplete="off"
+          data-canvas-type-role="support"
           value={draft}
           onFocus={() => {
             editorDay.current ??= today
@@ -156,13 +158,14 @@ export default function FocusLine() {
       </label>
       <label
         htmlFor="focus-done"
+        data-canvas-type-role="support"
         className={`text-photo text-xl mid:text-lg short:text-base xshort:text-sm transition-opacity motion-reduce:transition-none ${
           focus.done ? 'text-canvas-fg-muted line-through opacity-70' : 'text-canvas-fg'
         }`}
       >
         {focus.text}
       </label>
-      {focus.done && <span className="text-photo text-sm text-accent">Nice.</span>}
+      {focus.done && <span data-canvas-type-role="metadata" className="text-photo text-sm text-accent">Nice.</span>}
       <button
         ref={editRef}
         type="button"

@@ -102,6 +102,7 @@ describe('AuroraBriefing local-only rendering', () => {
     await waitFor(() => expect(container.querySelector('[data-briefing-display]')?.textContent).toContain('Design review'))
 
     expect(container.querySelector('[data-briefing-compact]')?.textContent).toBe('Design review in 48m')
+    expect(container.querySelector('[data-aurora-briefing]')?.getAttribute('data-canvas-type-role')).toBe('support')
     expect(container.querySelector('[data-briefing-standard]')?.textContent).toBe('Design review in 48m · 1 task needs attention')
     expect(container.querySelector('[data-briefing-display]')?.textContent).toBe('Design review in 48m · 1 task needs attention · Rain 7 PM')
     expect(container.textContent).not.toContain('private-token')

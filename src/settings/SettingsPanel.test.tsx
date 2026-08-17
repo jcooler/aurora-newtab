@@ -303,7 +303,9 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.getByLabelText('Widget color')).toBeTruthy()
     expect(screen.getByLabelText('24-hour clock')).toBeTruthy()
     expect(screen.getByLabelText('Units')).toBeTruthy()
-    expect(screen.getByLabelText('Mute sounds')).toBeTruthy()
+    expect(screen.getByLabelText('Text size')).toBeTruthy()
+    expect(screen.getByLabelText('Timer completion sound')).toBeTruthy()
+    expect(screen.getByLabelText('Daily summary')).toBeTruthy()
     expect(screen.getByRole('region', { name: 'Background' })).toBeTruthy()
 
     // The other tabs' sections are UNMOUNTED, not hidden — the whole reason
@@ -2403,61 +2405,54 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     })
   }
 
-  it('renders the labeled four-option density control with an explanatory Auto Fit default', async () => {
+  it('keeps Layout focused on arrangement and removes the retired density and briefing controls', async () => {
     await renderPanel()
     await openLayoutTab()
 
     const region = within(layoutRegion())
-    const density = region.getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement
-    expect(density.value).toBe('auto')
-    expect(within(density).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Auto Fit', 'Compact', 'Balanced', 'Spacious',
-    ])
-    const description = region.getByText('Auto Fit chooses the roomiest layout that keeps enabled items on the board.')
-    expect(attr(density, 'aria-describedby')).toBe(description.id)
+    expect(region.queryByLabelText('Layout density')).toBeNull()
+    expect(region.queryByLabelText('Show briefing')).toBeNull()
     expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
     expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
   })
 
-  it('persists Balanced as a manual density and reflects authority-backed subscription updates', async () => {
+  it('shows truthful information controls on General and persists their existing compatible fields', async () => {
     const storage = await renderPanel()
-    await openLayoutTab()
-    const density = within(layoutRegion()).getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement
+    const size = screen.getByRole('combobox', { name: 'Text size' }) as HTMLSelectElement
+    expect(size.value).toBe('auto')
+    expect(within(size).getAllByRole('option').map((option) => option.textContent)).toEqual([
+      'Automatic', 'Standard', 'Large',
+    ])
+    expect(screen.getByText('Uses your next calendar event, unfinished tasks, and rain forecast. Nothing is shown when there is no useful update.')).toBeTruthy()
+    expect(screen.queryByLabelText('Mute sounds')).toBeNull()
+    expect(screen.queryByLabelText('Show briefing')).toBeNull()
+    expect(screen.queryByLabelText('Layout density')).toBeNull()
 
     await act(async () => {
-      fireEvent.change(density, { target: { value: 'balanced' } })
+      fireEvent.change(size, { target: { value: 'spacious' } })
     })
+    expect((await storage.get('settings')).layoutDensity).toBe('spacious')
 
-    expect((await storage.get('settings')).layoutDensity).toBe('balanced')
+    const sound = screen.getByRole('switch', { name: 'Timer completion sound' })
+    expect(sound.getAttribute('aria-checked')).toBe('true')
     await act(async () => {
-      await storage.update('settings', (settings) => ({ ...settings, layoutDensity: 'spacious' }))
+      fireEvent.click(sound)
     })
-    expect(density.value).toBe('spacious')
+    expect((await storage.get('settings')).muted).toBe(true)
+
+    const summary = screen.getByRole('switch', { name: 'Daily summary' })
+    await act(async () => {
+      fireEvent.click(summary)
+    })
+    expect((await storage.get('settings')).briefingEnabled).toBe(true)
   })
 
-  it('reloads an already-persisted manual density without rewriting Settings', async () => {
+  it('projects legacy Compact to Standard without rewriting Settings', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const settings = { ...await storage.get('settings'), name: 'Reloaded', layoutDensity: 'compact' as const }
     await storage.set('settings', settings)
     const set = vi.spyOn(storage, 'set')
-
-    render(
-      <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
-      </StorageProvider>,
-    )
-    await screen.findByLabelText('Your name')
-    await openLayoutTab()
-
-    expect((within(layoutRegion()).getByRole('combobox', { name: 'Layout density' }) as HTMLSelectElement).value).toBe('compact')
-    expect(set).not.toHaveBeenCalled()
-    expect(await storage.get('settings')).toEqual(settings)
-  })
-
-  it('treats an absent Briefing preference as off and writes it only after the user changes it', async () => {
-    const storage = createStorage(memoryDriver())
-    await storage.init()
     const update = vi.spyOn(storage, 'update')
 
     render(
@@ -2466,18 +2461,35 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    await openLayoutTab()
 
-    const briefing = within(layoutRegion()).getByRole('checkbox', { name: 'Show briefing' }) as HTMLInputElement
-    expect(briefing.checked).toBe(false)
-    expect((await storage.get('settings')).briefingEnabled).toBeUndefined()
+    expect((screen.getByRole('combobox', { name: 'Text size' }) as HTMLSelectElement).value).toBe('balanced')
+    expect(set).not.toHaveBeenCalled()
     expect(update).not.toHaveBeenCalled()
+    expect(await storage.get('settings')).toEqual(settings)
+  })
+
+  it('treats an absent Daily summary preference as off and writes it only after the user changes it', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const set = vi.spyOn(storage, 'set')
+
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+
+    const briefing = screen.getByRole('switch', { name: 'Daily summary' })
+    expect(briefing.getAttribute('aria-checked')).toBe('false')
+    expect((await storage.get('settings')).briefingEnabled).toBeUndefined()
+    expect(set).not.toHaveBeenCalled()
 
     await act(async () => {
       fireEvent.click(briefing)
     })
     expect((await storage.get('settings')).briefingEnabled).toBe(true)
-    expect(update).toHaveBeenCalledOnce()
+    expect(set).toHaveBeenCalledOnce()
   })
 
   it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {

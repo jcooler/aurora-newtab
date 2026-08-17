@@ -150,6 +150,25 @@ export default function General({
           </div>
         </div>
         <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically.</p>
+        <div className={row}>
+          <label htmlFor="set-text-size" className={label}>
+            Text size
+          </label>
+          <select
+            id="set-text-size"
+            aria-describedby="set-text-size-description"
+            value={settings.layoutDensity === 'compact' ? 'balanced' : settings.layoutDensity}
+            onChange={(event) => patch({ layoutDensity: event.currentTarget.value as Settings['layoutDensity'] })}
+            className={`${select} w-36`}
+          >
+            <option value="auto">Automatic</option>
+            <option value="balanced">Standard</option>
+            <option value="spacious">Large</option>
+          </select>
+        </div>
+        <p id="set-text-size-description" className="pb-2 text-xs text-fg-muted">
+          Automatic uses larger type on larger displays.
+        </p>
       </Section>
 
       <Section title="Clock and units">
@@ -178,15 +197,29 @@ export default function General({
           </select>
         </div>
         <div className={row}>
-          <label htmlFor="set-muted" className={label}>
-            Mute sounds
+          <label htmlFor="set-timer-sound" className={label}>
+            Timer completion sound
           </label>
           <Switch
-            id="set-muted"
-            checked={settings.muted}
-            onChange={(checked) => patch({ muted: checked })}
+            id="set-timer-sound"
+            checked={!settings.muted}
+            onChange={(checked) => patch({ muted: !checked })}
           />
         </div>
+        <div className={row}>
+          <label htmlFor="set-daily-summary" className={label}>
+            Daily summary
+          </label>
+          <Switch
+            id="set-daily-summary"
+            checked={settings.briefingEnabled === true}
+            onChange={(checked) => patch({ briefingEnabled: checked })}
+            describedBy="set-daily-summary-description"
+          />
+        </div>
+        <p id="set-daily-summary-description" className="pb-2 text-xs text-fg-muted">
+          Uses your next calendar event, unfinished tasks, and rain forecast. Nothing is shown when there is no useful update.
+        </p>
       </Section>
     </>
   )

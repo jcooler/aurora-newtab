@@ -4,6 +4,7 @@ import { CANVAS_PROFILE_LABELS, resolveCanvasProfile } from '../../lib/layout/ca
 import { canvasMinimumHeight, fitCanvasProfile } from '../../lib/layout/canvasGeometry'
 import type { CanvasProfile, CanvasProfileKey, CanvasSize, StoredLayout } from '../../lib/layout/canvasTypes'
 import CanvasItem from './CanvasItem'
+import CanvasLegibilityLayer from './CanvasLegibilityLayer'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 
 interface CanvasSurfaceProps {
@@ -78,6 +79,7 @@ export default function CanvasSurface({
         className="canvas-surface"
         style={{ minHeight: `${canvasHeight}px`, height: `${canvasHeight}px` }}
       >
+        <CanvasLegibilityLayer />
         {canvasEntries.map((entry) => {
           const placement = fitted.placements[entry.id]
           if (!placement || placement.kind !== 'canvas') return null
