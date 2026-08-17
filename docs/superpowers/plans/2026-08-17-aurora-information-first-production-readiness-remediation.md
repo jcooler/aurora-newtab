@@ -227,15 +227,17 @@ export interface ArrangeViewportMode {
 - Weather location, world clocks, countdowns, and habits editors live in labelled disclosures below the grouped toggles. Disclosure state is session-only and stores no new key.
 - Layout contains Arrange, exact previous-layout recovery when available, and concise profile guidance. It has no density control.
 
-- [ ] Add RED Drawer/Tabs geometry and keyboard tests for 899/900px boundaries, 54rem maximum, 9rem navigation, readable content width, horizontal narrow tabs, vertical roomy tabs, roving focus, and one scroll owner.
-- [ ] Implement the bounded shell and navigation dimensions, then rerun Drawer/Tabs tests green.
-- [ ] Add RED `DisclosureSection` tests for semantic button naming, `aria-expanded`, controlled region association, keyboard activation, and no persistence. Implement the reusable disclosure.
-- [ ] Add RED Settings integration tests for the three exact widget groups, two-column/one-column class behavior, editor location below toggle groups, only intentionally opened editor content, and preserved toggle/save behavior.
-- [ ] Reshape Widgets and compose the existing editor sections inside disclosures without changing their storage owners.
-- [ ] Add RED Layout tests proving Arrange and exact recovery remain, concise Small/Desktop/Large/Wide guidance is present, and no removed presentation terminology remains.
-- [ ] Run `npx vitest run src/settings/Drawer.test.tsx src/settings/Tabs.test.tsx src/settings/DisclosureSection.test.tsx src/settings/SettingsPanel.test.tsx src/settings/sections/EntityPickerDialog.test.tsx src/settings/sections/TokenConnectForm.test.tsx`.
-- [ ] Run a focused Chromium Settings probe at 320x568, 390x844, 768x1024, 1024x768, 1366x768, 1920x1080, and 3840x2160. Exercise all tabs, every disclosure, local scrolling, Escape, focus restoration, overflow, and closed-state containment.
-- [ ] Run TypeScript and `git diff --check`, commit `feat(settings): converge the information workspace`, complete one bounded review/fix/rereview cycle, update ledgers, commit `docs: checkpoint information-first PR-P3`, push, and prove both repositories.
+- [x] Add RED Drawer/Tabs geometry and keyboard tests for 899/900px boundaries, 54rem maximum, 9rem navigation, readable content width, horizontal narrow tabs, vertical roomy tabs, roving focus, and one scroll owner.
+- [x] Implement the bounded shell and navigation dimensions, then rerun Drawer/Tabs tests green.
+- [x] Add RED `DisclosureSection` tests for semantic button naming, `aria-expanded`, controlled region association, keyboard activation, and no persistence. Implement the reusable disclosure.
+- [x] Add RED Settings integration tests for the three exact widget groups, two-column/one-column class behavior, editor location below toggle groups, only intentionally opened editor content, and preserved toggle/save behavior.
+- [x] Reshape Widgets and compose the existing editor sections inside disclosures without changing their storage owners.
+- [x] Add RED Layout tests proving Arrange and exact recovery remain, concise Small/Desktop/Large/Wide guidance is present, and no removed presentation terminology remains.
+- [x] Run `npx vitest run src/settings/Drawer.test.tsx src/settings/Tabs.test.tsx src/settings/DisclosureSection.test.tsx src/settings/SettingsPanel.test.tsx src/settings/sections/EntityPickerDialog.test.tsx src/settings/sections/TokenConnectForm.test.tsx`.
+- [x] Run a focused Chromium Settings probe at 320x568, 390x844, 768x1024, 1024x768, 1366x768, 1920x1080, and 3840x2160. Exercise all tabs, every disclosure, local scrolling, Escape, focus restoration, overflow, and closed-state containment.
+- [x] Run TypeScript and `git diff --check`, commit `feat(settings): converge the information workspace`, complete one bounded review/fix/rereview cycle, update ledgers, commit `docs: checkpoint information-first PR-P3`, push, and prove both repositories.
+
+**Evidence:** Implemented in `4b84fb7`. The exact focused gate passed 6 files / 311 tests, TypeScript, and diff hygiene. The focused built-extension probe passed at 320x568, 390x844, 768x1024, 1024x768, 1366x768, 1920x1080, and 3840x2160 with all four tabs, horizontal and vertical keyboard navigation, every editor disclosure opened by Enter, one local document scroll owner, 38rem content measure, exact roomy geometry, Escape, opener focus restoration, closed-state containment, no horizontal overflow, and zero runtime errors or failed requests. All seven original-resolution captures were inspected individually. The bounded review found two acceptance-evidence gaps: no literal 899/900 input witness and pointer-only disclosure activation. The fix/rereview added both without changing the product implementation; no Critical or Important finding remains. Existing Settings hydration `act(...)` warnings and stale retired Weather commentary remain Minor.
 
 ---
 
