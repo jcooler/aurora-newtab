@@ -18,7 +18,7 @@ import { APOD_ORIGINS } from '../services/apod'
 import { releaseUnownedOrigins, runOriginTransaction } from '../services/permissionTransactions'
 import SettingsPanel from './SettingsPanel'
 import { authState, connectorCardState } from './sections/Connectors'
-import { LOCAL_SECRET_STORAGE_NOTICE } from '../privacy/dataFlows'
+import indexCss from '../newtab/index.css?raw'
 // Imported (not hardcoded) so the About footer's version assertion below
 // can't silently drift from package.json — the same file __APP_VERSION__ is
 // itself derived from at build time (see vite.config.ts / vitest.config.ts).
@@ -273,6 +273,11 @@ function openWidgetEditor(name: 'Weather location' | 'World clocks' | 'Countdown
   if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button)
 }
 
+function openConnectorEditor(name: string) {
+  const action = screen.queryByRole('button', { name: new RegExp(`^(Set up|Edit|Reconnect) ${name}$`) })
+  if (action) fireEvent.click(action)
+}
+
 describe('SettingsPanel tabs (General / Widgets / Data)', () => {
   it('applies the shared row/control contract with a 36px floor and narrow reflow', async () => {
     await renderPanel()
@@ -291,6 +296,9 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     const sticky = screen.getByLabelText('Search connectors').parentElement
     expect(sticky?.className).toContain('-top-6')
     expect(sticky?.className).toContain('max-[420px]:-top-3')
+    expect(sticky?.className).toContain('settings-sticky-surface')
+    expect(sticky?.className).not.toContain('bg-panel-solid')
+    expect(indexCss).toMatch(/\.settings-sticky-surface\s*\{[\s\S]*?rgb\(from var\(--panel-solid\) r g b \/ 1\)/)
   })
 
   it('opens on General, showing its own sections and nothing from the other tabs', async () => {
@@ -329,11 +337,15 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     openTab('Connectors')
 
     expect(screen.getByRole('region', { name: 'Connectors' })).toBeTruthy()
-    // The one shipped connector card (RSS), rendered from its registry
-    // descriptor — label, blurb, and its enable toggle.
+    // Registry-driven cards begin with a truthful setup action and no false
+    // visibility switch until configuration exists.
     expect(screen.getByRole('heading', { name: 'RSS' })).toBeTruthy()
-    expect(screen.getByLabelText('Enable RSS')).toBeTruthy()
-    expect(screen.getByText(LOCAL_SECRET_STORAGE_NOTICE)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up RSS' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show RSS on Canvas' })).toBeNull()
+    expect(
+      screen.getByText('Connector details stay in this Chrome profile and are sent only to the services you choose.'),
+    ).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'How connector data is handled' })).toBeTruthy()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
     expect(screen.queryByLabelText('Bookmarks')).toBeNull()
@@ -2746,7 +2758,7 @@ describe('Connectors tab — search and categories', () => {
     vi.mocked(whoamiGithub).mockReset()
   })
 
-  async function renderConnectors(config?: { github?: GithubConfig; ics?: IcsConfig }) {
+  async function renderConnectors(config?: AuroraData['connectors']) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (config) await storage.set('connectors', config)
@@ -2768,7 +2780,7 @@ describe('Connectors tab — search and categories', () => {
   // filter getAllByRole('heading', { level: 4 }) down to JUST the eyebrows,
   // since ConnectorCard's own title is ALSO an <h4> (its label, e.g.
   // 'GitHub') and lives in the very same subtree.
-  const EYEBROW_NAMES = ['On your board', 'Development', 'Calendar & tasks', 'Home', 'News & markets', 'Fun']
+  const EYEBROW_NAMES = ['On canvas', 'Available']
 
   function eyebrowsIn(container: HTMLElement): string[] {
     return within(container)
@@ -2788,52 +2800,40 @@ describe('Connectors tab — search and categories', () => {
       .filter((t): t is string => t !== null && t !== heading.textContent)
   }
 
-  it('default grouping: eyebrows in CATEGORY_ORDER for non-empty categories only; cards in registry order beneath each', async () => {
+  it('default grouping: every shipped connector is Available by registry category', async () => {
     await renderConnectors()
     const region = connectorsRegion()
 
-    // No connector enabled -> no pinned group; Fun has no members yet -> no
-    // eyebrow for it. Home now has one member (homeassistant, Task 101), so
-    // it joins the other three non-empty categories, IN CATEGORY_ORDER.
-    expect(eyebrowsIn(region)).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
-
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
+    expect(eyebrowsIn(region)).toEqual(['Available'])
+    expect(within(region).queryByRole('region', { name: 'On canvas' })).toBeNull()
+    const available = within(region).getByRole('region', { name: 'Available' })
+    expect(within(within(available).getByRole('region', { name: 'Development' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual([
       'GitHub',
       'GitLab',
       'Jira',
       'Vercel',
       'Status',
     ])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Calendar & tasks' }))).toEqual(['Calendar'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Home' }))).toEqual(['Home Assistant'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'News & markets' }))).toEqual(['RSS', 'Crypto'])
+    expect(within(within(available).getByRole('region', { name: 'Calendar & tasks' })).getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    expect(within(within(available).getByRole('region', { name: 'Home' })).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
+    expect(within(within(available).getByRole('region', { name: 'News & markets' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['RSS', 'Crypto'])
   })
 
-  it('pinning: enabling github + ics surfaces "On your board" first with exactly those two cards, absent from their categories', async () => {
+  it('configured-visible GitHub and Calendar surface in On canvas and are absent from Available', async () => {
     await renderConnectors({
-      github: { enabled: true, token: '', username: '' },
+      github: { enabled: true, token: 'github_pat_fixture', username: 'octocat' },
       ics: { enabled: true, calendars: [{ name: 'Personal', url: 'https://calendar.example.com/basic.ics' }] },
     })
     const region = connectorsRegion()
 
-    // 'On your board' FIRST, registry order (github before ics).
-    expect(eyebrowsIn(region)).toEqual(['On your board', 'Development', 'Home', 'News & markets'])
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'On your board' }))).toEqual([
+    expect(eyebrowsIn(region)).toEqual(['On canvas', 'Available'])
+    expect(cardsUnder(within(region).getByRole('heading', { name: 'On canvas' }))).toEqual([
       'GitHub',
       'Calendar',
     ])
-
-    // Development keeps its other four, minus the now-pinned github.
-    expect(cardsUnder(within(region).getByRole('heading', { name: 'Development' }))).toEqual([
-      'GitLab',
-      'Jira',
-      'Vercel',
-      'Status',
-    ])
-
-    // Calendar & tasks had ONLY ics -> now empty -> no eyebrow at all (not an
-    // empty group, an ABSENT one).
-    expect(within(region).queryByRole('heading', { name: 'Calendar & tasks' })).toBeNull()
+    const available = within(region).getByRole('region', { name: 'Available' })
+    expect(within(available).queryByRole('heading', { name: 'GitHub' })).toBeNull()
+    expect(within(available).queryByRole('heading', { name: 'Calendar' })).toBeNull()
   })
 
   it('search filters: "git" is a flat list (no eyebrows) with GitHub + GitLab only; "calendar" matches the Calendar card by blurb', async () => {
@@ -2885,7 +2885,7 @@ describe('Connectors tab — search and categories', () => {
     expect(screen.queryByRole('heading', { name: 'Development' })).toBeNull()
 
     fireEvent.change(input, { target: { value: '' } })
-    expect(eyebrowsIn(connectorsRegion())).toEqual(['Development', 'Calendar & tasks', 'Home', 'News & markets'])
+    expect(eyebrowsIn(connectorsRegion())).toEqual(['Available'])
   })
 
   // Behavior preservation: the exact "connect happy path" assertions from
@@ -2898,6 +2898,7 @@ describe('Connectors tab — search and categories', () => {
     const storage = await renderConnectors({ github: { enabled: true, token: '', username: '' } })
 
     fireEvent.change(screen.getByLabelText('Search connectors'), { target: { value: 'github' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set up GitHub' }))
 
     const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
     await act(async () => {
@@ -2911,6 +2912,105 @@ describe('Connectors tab — search and categories', () => {
       github: { enabled: true, token: 'github_pat_123', username: 'octocat' },
     })
     expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  it('search reaches every shipped connector identity regardless of its current group', async () => {
+    await renderConnectors({
+      github: { enabled: false, token: 'github_pat_fixture', username: 'octocat' },
+      ics: {
+        enabled: true,
+        calendars: [{ name: 'Studio', url: 'https://calendar.example.test/studio.ics' }],
+      },
+    })
+    const search = screen.getByLabelText('Search connectors')
+
+    for (const [query, label] of [
+      ['rss', 'RSS'],
+      ['github', 'GitHub'],
+      ['gitlab', 'GitLab'],
+      ['jira', 'Jira'],
+      ['vercel', 'Vercel'],
+      ['crypto', 'Crypto'],
+      ['calendar', 'Calendar'],
+      ['status', 'Status'],
+      ['home assistant', 'Home Assistant'],
+    ] as const) {
+      fireEvent.change(search, { target: { value: query } })
+      expect(screen.getByRole('heading', { name: label })).toBeTruthy()
+    }
+  })
+
+  it('keeps exactly one setup/edit body open and restores focus after Close editor', async () => {
+    await renderConnectors()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up RSS' }))
+    expect(screen.getByRole('region', { name: 'RSS setup' })).toBeTruthy()
+    expect(screen.getByLabelText('Add feed URL')).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Set up GitHub' }))
+    expect(screen.queryByRole('region', { name: 'RSS setup' })).toBeNull()
+    expect(screen.queryByLabelText('Add feed URL')).toBeNull()
+    expect(screen.getByRole('region', { name: 'GitHub setup' })).toBeTruthy()
+    expect(screen.getAllByLabelText('Fine-grained personal access token')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Close GitHub editor' }))
+    const setup = screen.getByRole('button', { name: 'Set up GitHub' })
+    expect(screen.queryByRole('region', { name: 'GitHub setup' })).toBeNull()
+    expect(document.activeElement).toBe(setup)
+  })
+
+  it('opens a backup-restored reconnect form immediately without exposing Show on Canvas', async () => {
+    await renderConnectors({ github: { enabled: true, token: '', username: 'octocat' } })
+
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'GitHub reconnect' })).toBeTruthy()
+    expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
+  })
+
+  it.each([
+    {
+      id: 'rss',
+      label: 'RSS',
+      config: { enabled: true, feeds: ['https://feed.example.test/rss.xml'], shownCount: 6 },
+      field: 'Add feed URL',
+    },
+    {
+      id: 'crypto',
+      label: 'Crypto',
+      config: { enabled: true, coins: ['bitcoin', 'ethereum'] },
+      field: 'Coins (CoinGecko ids, comma-separated)',
+    },
+    {
+      id: 'ics',
+      label: 'Calendar',
+      config: {
+        enabled: true,
+        calendars: [{ name: 'Studio', url: 'https://calendar.example.test/studio.ics' }],
+      },
+      field: 'Secret calendar address (ICS URL)',
+    },
+    {
+      id: 'status',
+      label: 'Status',
+      config: {
+        enabled: true,
+        services: [{ name: 'API', url: 'https://status.example.test/api/v2/status.json' }],
+      },
+      field: 'Add a service',
+    },
+  ] as const)('$label remains configured and editable after hiding it from the Canvas', async ({ id, label, config, field }) => {
+    const storage = await renderConnectors({ [id]: config } as AuroraData['connectors'])
+    const visibility = screen.getByRole('switch', { name: `Show ${label} on Canvas` })
+
+    await act(async () => {
+      fireEvent.click(visibility)
+    })
+
+    expect((await storage.get('connectors'))[id]).toEqual({ ...config, enabled: false })
+    expect(screen.getByRole('switch', { name: `Show ${label} on Canvas` }).getAttribute('aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: `Edit ${label}` }))
+    expect(screen.getByLabelText(field)).toBeTruthy()
   })
 })
 
@@ -2931,6 +3031,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (rss) openConnectorEditor('RSS')
     return storage
   }
 
@@ -2945,16 +3046,13 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     return (await storage.get('connectors')).rss as RssConfig | undefined
   }
 
-  it('enabling the connector writes the default config (enabled, no feeds, shownCount 5)', async () => {
+  it('starts with Set up, no visibility switch, and opening the editor does not create configuration', async () => {
     const storage = await renderWithConnectors()
-    const toggle = screen.getByLabelText('Enable RSS') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    expect(screen.queryByRole('switch', { name: 'Show RSS on Canvas' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Set up RSS' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect((await storage.get('connectors')).rss).toEqual({ enabled: true, feeds: [], shownCount: 5 })
+    expect(screen.getByLabelText('Add feed URL')).toBeTruthy()
+    expect((await storage.get('connectors')).rss).toBeUndefined()
   })
 
   it('add-feed happy path: validates https, requests the origin, then persists the feed', async () => {
@@ -3222,6 +3320,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('RSS')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
@@ -3243,6 +3342,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('RSS')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: `Remove ${url}` }))
@@ -3310,7 +3410,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     vi.mocked(whoamiGithub).mockReset()
   })
 
-  async function renderWithGithub(github?: GithubConfig) {
+  async function renderWithGithub(github?: GithubConfig, revealEditor = true) {
     const storage = createStorage(memoryDriver())
     await storage.init()
     if (github) await storage.set('connectors', { github })
@@ -3321,6 +3421,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (github && revealEditor) openConnectorEditor('GitHub')
     return storage
   }
 
@@ -3328,11 +3429,12 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     return (await storage.get('connectors')).github as GithubConfig | undefined
   }
 
-  it('the card shell renders the GitHub descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the GitHub descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGithub()
     expect(screen.getByRole('heading', { name: 'GitHub' })).toBeTruthy()
     expect(screen.getByText('PRs waiting on you, your issues, notifications')).toBeTruthy()
-    expect(screen.getByLabelText('Enable GitHub')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up GitHub' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitHub on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -3494,7 +3596,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithGithub({ enabled: true, token: '', username: 'octocat' })
     // The card shell flags it, and the body offers the form to re-enter a token.
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Fine-grained personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -3515,7 +3617,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
       username: 'octocat',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Fine-grained personal access token') as HTMLInputElement
     await act(async () => {
@@ -3577,6 +3679,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (gitlab) openConnectorEditor('GitLab')
     return storage
   }
 
@@ -3584,11 +3687,12 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     return (await storage.get('connectors')).gitlab as GitlabConfig | undefined
   }
 
-  it('the card shell renders the GitLab descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the GitLab descriptor with Set up and no premature visibility switch', async () => {
     await renderWithGitlab()
     expect(screen.getByRole('heading', { name: 'GitLab' })).toBeTruthy()
     expect(screen.getByText('Assigned MRs and to-dos')).toBeTruthy()
-    expect(screen.getByLabelText('Enable GitLab')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up GitLab' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show GitLab on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -3729,7 +3833,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
 
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithGitlab({ enabled: true, token: '', instanceUrl: 'https://gitlab.com', username: 'jcooler' })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -3783,7 +3887,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
       username: 'jcooler',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Personal access token') as HTMLInputElement
     await act(async () => {
@@ -3845,6 +3949,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (jira) openConnectorEditor('Jira')
     return storage
   }
 
@@ -3852,11 +3957,12 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     return (await storage.get('connectors')).jira as JiraConfig | undefined
   }
 
-  it('the card shell renders the Jira descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the Jira descriptor with Set up and no premature visibility switch', async () => {
     await renderWithJira()
     expect(screen.getByRole('heading', { name: 'Jira' })).toBeTruthy()
     expect(screen.getByText('Issues assigned to you')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Jira')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Jira' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Jira on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -3997,7 +4103,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       site: 'yoursite.atlassian.net',
       displayName: 'Jon Cooler',
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('API token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -4051,7 +4157,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
       displayName: 'Jon Cooler',
       views: seededViews,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     // JiraBody's three fields carry NO defaultValue (unlike GitlabBody's
     // instanceUrl), so a reconnect's form starts blank even though the prior
@@ -4088,6 +4194,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (vercel) openConnectorEditor('Vercel')
     return storage
   }
 
@@ -4095,11 +4202,12 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     return (await storage.get('connectors')).vercel as VercelConfig | undefined
   }
 
-  it('the card shell renders the Vercel descriptor (label, blurb, enable toggle)', async () => {
+  it('the card shell renders the Vercel descriptor with Set up and no premature visibility switch', async () => {
     await renderWithVercel()
     expect(screen.getByRole('heading', { name: 'Vercel' })).toBeTruthy()
     expect(screen.getByText('Your latest deployments')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Vercel')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Vercel' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Vercel on Canvas' })).toBeNull()
     // Not connected -> no status chip yet, and the token form only appears once
     // the connector is enabled (the shell gates the body on `enabled`).
     expect(screen.queryByText(/Connected as/)).toBeNull()
@@ -4184,7 +4292,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
   it('reconnect state (username present, token stripped by a backup) renders the FORM, not the Disconnect row', async () => {
     await renderWithVercel({ enabled: true, token: '', username: 'jon' })
     // The card shell flags it, and the body offers the form to re-enter a token.
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
     expect(screen.getByLabelText('Personal access token')).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Disconnect' })).toBeNull()
   })
@@ -4223,7 +4331,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     vi.mocked(whoamiVercel).mockResolvedValue({ ok: true, identity: 'jon' })
     const seededViews = { deployments: false, statusSummary: true }
     const storage = await renderWithVercel({ enabled: true, token: '', username: 'jon', views: seededViews })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     const input = screen.getByLabelText('Personal access token') as HTMLInputElement
     await act(async () => {
@@ -4254,6 +4362,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (crypto) openConnectorEditor('Crypto')
     return storage
   }
 
@@ -4261,27 +4370,22 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     return (await storage.get('connectors')).crypto as CryptoConfig | undefined
   }
 
-  it('the card shell renders the Crypto descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders the Crypto descriptor with Set up, no switch, and no body until requested', async () => {
     await renderWithCrypto()
     expect(screen.getByRole('heading', { name: 'Crypto' })).toBeTruthy()
     expect(screen.getByText('Prices for the coins you watch')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Crypto')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Crypto' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Crypto on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
     expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
   })
 
-  it('enabling the connector via the shell toggle writes ONLY { enabled: true } — crypto is not RSS-shaped, so nothing extra is seeded', async () => {
+  it('opening Crypto setup writes nothing and reveals an empty input', async () => {
     const storage = await renderWithCrypto()
-    const toggle = screen.getByLabelText('Enable Crypto') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Crypto' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect(await readCrypto(storage)).toEqual({ enabled: true })
-    // The now-enabled body renders with an EMPTY input (no coins seeded).
+    expect(await readCrypto(storage)).toBeUndefined()
     expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe('')
   })
 
@@ -4475,6 +4579,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('Crypto')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
@@ -4549,6 +4654,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (ics) openConnectorEditor('Calendar')
     return storage
   }
 
@@ -4560,26 +4666,22 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     return (await storage.get('connectors')).ics as IcsConfig | undefined
   }
 
-  it('the card shell renders the Calendar descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders Calendar with Set up, no switch, and no body until requested', async () => {
     await renderWithIcs()
     expect(screen.getByRole('heading', { name: 'Calendar' })).toBeTruthy()
     expect(screen.getByText('Your next events, from any calendar app')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Calendar')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Calendar' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Calendar on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
     expect(screen.queryByLabelText('Secret calendar address (ICS URL)')).toBeNull()
   })
 
-  it('enabling the connector via the shell toggle writes ONLY { enabled: true }; the now-enabled body renders an EMPTY, password-type url field', async () => {
+  it('opening Calendar setup writes nothing and reveals an empty password-type URL field', async () => {
     const storage = await renderWithIcs()
-    const toggle = screen.getByLabelText('Enable Calendar') as HTMLButtonElement
-    expect(attr(toggle, 'aria-checked')).toBe('false')
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Calendar' }))
 
-    await act(async () => {
-      fireEvent.click(toggle)
-    })
-
-    expect(await readIcs(storage)).toEqual({ enabled: true })
+    expect(await readIcs(storage)).toBeUndefined()
     const input = screen.getByLabelText('Secret calendar address (ICS URL)') as HTMLInputElement
     expect(input.value).toBe('')
     expect(input.type).toBe('password')
@@ -4894,6 +4996,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('Calendar')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Shared' }))
@@ -5131,6 +5234,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    if (status) openConnectorEditor('Status')
     return storage
   }
 
@@ -5142,11 +5246,12 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     return (await storage.get('connectors')).status as StatusConfig | undefined
   }
 
-  it('the card shell renders the Status descriptor (label, blurb, enable toggle); no status chip (auth "none"), no body until enabled', async () => {
+  it('the card shell renders Status with Set up, no switch, and no body until requested', async () => {
     await renderWithStatus()
     expect(screen.getByRole('heading', { name: 'Status' })).toBeTruthy()
     expect(screen.getByText('Green dots for the services you depend on')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Status')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Status' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Status on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
     expect(screen.queryByLabelText('Add a service')).toBeNull()
@@ -5577,8 +5682,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
-    const setup = screen.queryByRole('button', { name: 'Set up connection' })
-    if (setup && revealSetup) fireEvent.click(setup)
+    if (ha && revealSetup) openConnectorEditor('Home Assistant')
     return storage
   }
 
@@ -5616,11 +5720,12 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     snapshotEpoch: '00000000-0000-4000-8000-000000000100',
   }
 
-  it('the card shell renders the Home Assistant descriptor (label, blurb, enable toggle); no chip/form until enabled', async () => {
+  it('the card shell renders Home Assistant with Set up, no switch, and no form until requested', async () => {
     await renderWithHa()
     expect(screen.getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
     expect(screen.getByText('Your home, at a glance — and three buttons that do things')).toBeTruthy()
-    expect(screen.getByLabelText('Enable Home Assistant')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Set up Home Assistant' })).toBeTruthy()
+    expect(screen.queryByRole('switch', { name: 'Show Home Assistant on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected (to|as)/)).toBeNull()
     expect(screen.queryByLabelText('Instance URL')).toBeNull()
   })
@@ -5660,9 +5765,10 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
 
   it('keeps fresh Home Assistant credentials hidden until setup is requested', async () => {
     await renderWithHa({ enabled: true }, false, false)
-    expect(screen.getByText('Setup needed')).toBeTruthy()
+    const card = document.querySelector('[data-connector-card="homeassistant"]') as HTMLElement
+    expect(within(card).getByText('Not set up')).toBeTruthy()
     expect(screen.queryByLabelText('Long-lived access token')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Set up connection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Home Assistant' }))
     expect(screen.getByLabelText('Long-lived access token')).toBeTruthy()
   })
 
@@ -5687,15 +5793,13 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       '00000000-0000-4000-8000-000000000201',
     )
 
+    openConnectorEditor('Home Assistant')
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
     })
     expect(await readHa(storage)).toBeUndefined()
 
-    await act(async () => {
-      fireEvent.click(screen.getByLabelText('Enable Home Assistant'))
-    })
-    fireEvent.click(screen.getByRole('button', { name: 'Set up connection' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Set up Home Assistant' }))
     await screen.findByLabelText('Instance URL')
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Instance URL'), {
@@ -5746,7 +5850,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
       entities: seededEntities,
       actions: seededActions,
     })
-    expect(screen.getByText('Reconnect needed')).toBeTruthy()
+    expect(screen.getByText('Reconnect required')).toBeTruthy()
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Instance URL'), {
@@ -5860,7 +5964,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     }
 
     let trigger = await openAfterHeldFetchLosesFocus()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Pick entities' })).getByRole('button', { name: 'Cancel' }))
     await expectRestored(trigger)
 
     trigger = await openAfterHeldFetchLosesFocus()
@@ -5948,6 +6052,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     )
     await screen.findByLabelText('Your name')
     openTab('Connectors')
+    openConnectorEditor('Home Assistant')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
@@ -5986,6 +6091,7 @@ describe('SettingsPanel permission cleanup recovery', () => {
     await storage.set('connectors', { github: { enabled: true, token: '', username: '' } })
     await renderPanel(() => {}, storage)
     openTab('Connectors')
+    openConnectorEditor('GitHub')
 
     await act(async () => {
       fireEvent.change(screen.getByLabelText('Fine-grained personal access token'), { target: { value: 'ghp_bad' } })
@@ -6023,6 +6129,7 @@ describe('SettingsPanel permission cleanup recovery', () => {
     await storage.set('connectors', { github: { enabled: true, token: 'ghp_live', username: 'octocat' } })
     await renderPanel(() => {}, storage)
     openTab('Connectors')
+    openConnectorEditor('GitHub')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))

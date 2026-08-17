@@ -6,6 +6,7 @@ import {
   type OriginTransactionResult,
 } from '../../services/permissionTransactions'
 import { btnQuiet, control, submitBtn } from './shared'
+import type { ConnectorCardMode } from '../connectors/connectorCardState'
 
 export interface TokenField {
   id: string
@@ -46,6 +47,10 @@ export function TokenConnectForm(props: {
   /** Hide a first-time setup form until the user explicitly asks to configure it.
    * Reconnect callers leave this false so stripped-secret recovery remains immediate. */
   initiallyCollapsed?: boolean
+  /** When the connector-card parent owns the active editor, render the form
+   * immediately and route Cancel/success/disconnect back through that owner. */
+  managedMode?: ConnectorCardMode
+  onManagedClose?(): void
   /** Attempts the authoritative config removal and returns both its lifecycle
    * outcome and the canonical origins captured from the removed config. */
   onDisconnect(): Promise<TokenDisconnectResult>
@@ -69,11 +74,14 @@ export function TokenConnectForm(props: {
     onConnected,
     connectedAs,
     initiallyCollapsed = false,
+    managedMode,
+    onManagedClose,
     onDisconnect,
     storage,
     reportPendingCleanup,
     connectedExtras,
   } = props
+  const managed = managedMode !== undefined
 
   // Two token connectors can render on the same Connectors tab at once
   // (GithubConfig and VercelConfig both declare a `token` field, for
@@ -88,7 +96,7 @@ export function TokenConnectForm(props: {
   )
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
-  const [revealed, setRevealed] = useState(() => connectedAs === null && !initiallyCollapsed)
+  const [revealed, setRevealed] = useState(() => managed || (connectedAs === null && !initiallyCollapsed))
   const firstFieldRef = useRef<HTMLInputElement>(null)
   const setupButtonRef = useRef<HTMLButtonElement>(null)
   const editButtonRef = useRef<HTMLButtonElement>(null)
@@ -117,6 +125,12 @@ export function TokenConnectForm(props: {
   }
 
   function cancelAndCollapse() {
+    if (managed) {
+      setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+      setError(null)
+      onManagedClose?.()
+      return
+    }
     restoreDisclosureFocusRef.current = true
     resetAndCollapse()
   }
@@ -144,9 +158,10 @@ export function TokenConnectForm(props: {
     } catch {
       if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
     }
+    if (managed) onManagedClose?.()
   }
 
-  if (!revealed && connectedAs !== null) {
+  if (!managed && !revealed && connectedAs !== null) {
     // `connectedAs` still SELECTS this connected branch, but the identity itself
     // is shown by the card SHELL's authState-driven chip (Connectors.tsx) — the
     // single source of that indicator, and the only one present in the
@@ -177,7 +192,7 @@ export function TokenConnectForm(props: {
     )
   }
 
-  if (!revealed) {
+  if (!managed && !revealed) {
     return (
       <div className="mt-3 border-t border-hairline pt-3">
         <button ref={setupButtonRef} type="button" onClick={revealCredentials} className={submitBtn}>
@@ -236,7 +251,13 @@ export function TokenConnectForm(props: {
         reportPendingCleanup(transaction.pendingCleanup)
       }
       if (transaction.status === 'committed') {
-        resetAndCollapse()
+        if (managed) {
+          setValues(Object.fromEntries(fields.map((field) => [field.id, field.defaultValue ?? ''])))
+          setError(null)
+          onManagedClose?.()
+        } else {
+          resetAndCollapse()
+        }
         return
       }
       if (transaction.status === 'aborted') {
@@ -259,9 +280,12 @@ export function TokenConnectForm(props: {
 
   return (
     <form
-      className="mt-3 flex flex-col gap-2 border-t border-hairline pt-3"
+      className={managed ? 'flex flex-col gap-2' : 'mt-3 flex flex-col gap-2 border-t border-hairline pt-3'}
       onSubmit={(e) => void handleConnect(e)}
     >
+      {managed && connectedAs !== null && connectedExtras ? (
+        <div className="mb-1 border-b border-hairline pb-3">{connectedExtras}</div>
+      ) : null}
       {fields.map((field, index) => (
         <div key={field.id}>
           <label htmlFor={`${uid}-${field.id}`} className="sr-only">
@@ -292,6 +316,16 @@ export function TokenConnectForm(props: {
         <button type="button" disabled={connecting} onClick={cancelAndCollapse} className={btnQuiet}>
           Cancel
         </button>
+        {managed && connectedAs !== null ? (
+          <button
+            type="button"
+            disabled={connecting}
+            onClick={() => void handleDisconnect()}
+            className={btnQuiet}
+          >
+            Disconnect
+          </button>
+        ) : null}
       </div>
 
       {error && (

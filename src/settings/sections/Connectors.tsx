@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentType } from 'react'
+import { useEffect, useRef, useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
 import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
@@ -35,7 +35,12 @@ import EntityPickerDialog from './EntityPickerDialog'
 import Switch from '../Switch'
 import ToggleChip from '../ToggleChip'
 import { btnQuiet, control, eyebrow, label, row, select, submitBtn } from './shared'
-import { LOCAL_SECRET_STORAGE_NOTICE } from '../../privacy/dataFlows'
+import ConnectorCardShell from '../connectors/ConnectorCardShell'
+import ConnectorPrivacyDisclosure from '../connectors/ConnectorPrivacyDisclosure'
+import {
+  deriveConnectorCardState,
+  type ConnectorCardMode,
+} from '../connectors/connectorCardState'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -49,6 +54,8 @@ interface BodyProps {
   config: ConnectorConfig | undefined
   storage: AuroraStorage
   reportPendingCleanup(patterns: readonly string[]): void
+  mode: ConnectorCardMode
+  closeEditor(): void
 }
 
 type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto'
@@ -203,24 +210,75 @@ export default function Connectors({
   reportPendingCleanup(patterns: readonly string[]): void
 }) {
   const [query, setQuery] = useState('')
+  const [editor, setEditor] = useState<{
+    id: ConnectorId
+    mode: ConnectorCardMode
+    group: 'on-canvas' | 'available'
+  } | null>(null)
+  const pendingFocusId = useRef<ConnectorId | null>(null)
+  const autoOpenedReconnects = useRef(new Set<ConnectorId>())
   const q = query.trim()
+
+  const presentation = (descriptor: ConnectorDescriptor) =>
+    deriveConnectorCardState(descriptor, connectors?.[descriptor.id])
+
+  useEffect(() => {
+    if (editor) return
+    const reconnect = CONNECTORS.find((descriptor) => {
+      const state = presentation(descriptor)
+      return state.openImmediately && !autoOpenedReconnects.current.has(descriptor.id)
+    })
+    if (!reconnect) return
+    autoOpenedReconnects.current.add(reconnect.id)
+    setEditor({ id: reconnect.id, mode: 'reconnect', group: 'available' })
+  }, [connectors, editor])
+
+  useEffect(() => {
+    if (editor || !pendingFocusId.current) return
+    const id = pendingFocusId.current
+    pendingFocusId.current = null
+    document.getElementById(`connector-${id}-action`)?.focus()
+  }, [editor])
+
+  function openEditor(id: ConnectorId, mode: ConnectorCardMode) {
+    pendingFocusId.current = null
+    const descriptor = getConnector(id)
+    setEditor({
+      id,
+      mode,
+      group: descriptor ? presentation(descriptor).group : 'available',
+    })
+  }
+
+  function closeEditor(id: ConnectorId) {
+    pendingFocusId.current = id
+    setEditor((current) => (current?.id === id ? null : current))
+  }
 
   // Grouping is DERIVED per render from the registry + live config — no
   // memo: seven descriptors is nothing, and staleness bugs cost more than
   // the map does.
-  const enabled = (d: ConnectorDescriptor) => !!connectors?.[d.id]?.enabled
   const results = q
     ? CONNECTORS.map((d, i) => ({ d, i, score: fuzzyScore(q, `${d.label} ${d.blurb}`) }))
         .filter((r): r is { d: ConnectorDescriptor; i: number; score: number } => r.score !== null)
         .sort((a, b) => b.score - a.score || a.i - b.i)
         .map((r) => r.d)
     : null
-  const pinned = q ? [] : CONNECTORS.filter(enabled)
+  const onCanvas = q
+    ? []
+    : CONNECTORS.filter(
+        (descriptor) =>
+          (editor?.id === descriptor.id ? editor.group : presentation(descriptor).group) === 'on-canvas',
+      )
   const grouped = q
     ? []
     : CATEGORY_ORDER.map((cat) => ({
         cat,
-        cards: CONNECTORS.filter((d) => d.category === cat && !enabled(d)),
+        cards: CONNECTORS.filter(
+          (descriptor) =>
+            descriptor.category === cat &&
+            (editor?.id === descriptor.id ? editor.group : presentation(descriptor).group) === 'available',
+        ),
       })).filter((g) => g.cards.length > 0)
 
   const card = (d: ConnectorDescriptor) => (
@@ -230,14 +288,17 @@ export default function Connectors({
       config={connectors?.[d.id]}
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      activeMode={editor?.id === d.id ? editor.mode : null}
+      onOpen={(mode) => openEditor(d.id, mode)}
+      onClose={() => closeEditor(d.id)}
     />
   )
 
   return (
-    <section aria-label="Connectors" className="py-6 first:pt-0 last:pb-0">
-      <div className="sticky -top-6 z-10 bg-panel pb-3 max-[420px]:-top-3">
+    <section aria-label="Connectors" className="py-4 first:pt-0 last:pb-0">
+      <div className="settings-sticky-surface sticky -top-6 z-10 pb-3 max-[420px]:-top-3">
         <h3 className={eyebrow}>Connectors</h3>
-        <p className="mb-3 text-xs text-fg-muted">{LOCAL_SECRET_STORAGE_NOTICE}</p>
+        <ConnectorPrivacyDisclosure />
         <label htmlFor="connector-search" className="sr-only">
           Search connectors
         </label>
@@ -246,33 +307,42 @@ export default function Connectors({
           type="search"
           placeholder="Search connectors"
           value={query}
-          onChange={(e) => setQuery(e.currentTarget.value)}
-          className={`${control} w-full`}
+          onChange={(e) => {
+            pendingFocusId.current = null
+            setEditor(null)
+            setQuery(e.currentTarget.value)
+          }}
+          className={`${control} mt-2 w-full`}
         />
       </div>
 
       <div data-testid="connector-scroll">
         {results !== null ? (
           results.length > 0 ? (
-            results.map(card)
+            <div className="space-y-2">{results.map(card)}</div>
           ) : (
             <p className="text-sm text-fg-muted">No connector matches.</p>
           )
         ) : (
-          <>
-            {pinned.length > 0 && (
-              <div className="mt-6 first:mt-0">
-                <h4 className={eyebrow}>On your board</h4>
-                {pinned.map(card)}
+          <div className="space-y-5">
+            {onCanvas.length > 0 ? (
+              <section aria-label="On canvas">
+                <h4 className={eyebrow}>On canvas</h4>
+                <div className="space-y-2">{onCanvas.map(card)}</div>
+              </section>
+            ) : null}
+            <section aria-label="Available">
+              <h4 className={eyebrow}>Available</h4>
+              <div className="space-y-4">
+                {grouped.map(({ cat, cards }) => (
+                  <section key={cat} aria-label={CATEGORY_LABELS[cat]}>
+                    <h5 className="mb-2 text-xs font-medium text-fg-muted">{CATEGORY_LABELS[cat]}</h5>
+                    <div className="space-y-2">{cards.map(card)}</div>
+                  </section>
+                ))}
               </div>
-            )}
-            {grouped.map(({ cat, cards }) => (
-              <div key={cat} className="mt-6 first:mt-0">
-                <h4 className={eyebrow}>{CATEGORY_LABELS[cat]}</h4>
-                {cards.map(card)}
-              </div>
-            ))}
-          </>
+            </section>
+          </div>
         )}
       </div>
     </section>
@@ -301,65 +371,51 @@ function ConnectorCard({
   config,
   storage,
   reportPendingCleanup,
+  activeMode,
+  onOpen,
+  onClose,
 }: {
   descriptor: ConnectorDescriptor
   config: ConnectorConfig | undefined
   storage: AuroraStorage
   reportPendingCleanup(patterns: readonly string[]): void
+  activeMode: ConnectorCardMode | null
+  onOpen(mode: ConnectorCardMode): void
+  onClose(): void
 }) {
-  const enabled = !!config?.enabled
-  const cardState = connectorCardState(descriptor, config)
+  const presentation = deriveConnectorCardState(descriptor, config)
   const Body = BODY_COMPONENTS[descriptor.id]
-  const stateTone =
-    cardState.state === 'connected' || cardState.state === 'ready'
-      ? 'text-emerald-400'
-      : cardState.state === 'reconnect'
-        ? 'text-amber-300'
-        : 'text-fg-muted'
 
   return (
-    <div className="mt-3 rounded-xl border border-control-border p-3 first:mt-0">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-fg">{descriptor.label}</h4>
-          <p className={`text-xs font-medium ${stateTone}`} data-connector-state={cardState.state}>
-            {cardState.label}
-          </p>
-          <p className="text-xs text-fg-muted">{descriptor.blurb}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <label htmlFor={`connector-${descriptor.id}-enabled`} className="sr-only">
-            Enable {descriptor.label}
-          </label>
-          {/* A plain storage write — NO permission gesture rides on this enable
-              toggle (each connector body requests chrome.permissions at
-              connect/add-feed time, not here), so the checkbox→Switch swap
-              carries no gesture-ordering concern. */}
-          <Switch
-            id={`connector-${descriptor.id}-enabled`}
-            checked={enabled}
-            onChange={(checked) => {
-              // Only rss seeds default FIELDS here (its feeds/shownCount, which
-              // RssBody needs present the moment it renders). Every other
-              // connector supplies its real fields through its OWN body — token
-              // connectors (github + Tasks 49-51) at connect time via
-              // onConnected — so seeding them with RSS_DEFAULT would persist,
-              // and EXPORT, an RSS-shaped {feeds, shownCount} object under an id
-              // it doesn't belong to. Keyed to 'rss' specifically (not
-              // auth-gated) so no non-rss id ever gets an RSS-shaped seed; a
-              // first enable of any other connector writes just { enabled }.
-              const seed = descriptor.id === 'rss' ? RSS_DEFAULT : {}
-              void storage.update('connectors', (prev) => ({
-                ...prev,
-                [descriptor.id]: { ...seed, ...prev[descriptor.id], enabled: checked },
-              }))
-            }}
-          />
-        </div>
-      </div>
-
-      {Body && enabled && <Body config={config} storage={storage} reportPendingCleanup={reportPendingCleanup} />}
-    </div>
+    <ConnectorCardShell
+      id={descriptor.id}
+      label={descriptor.label}
+      blurb={descriptor.blurb}
+      presentation={presentation}
+      activeMode={activeMode}
+      onOpen={(mode) => onOpen(mode)}
+      onClose={() => onClose()}
+      onVisibilityChange={(visible) => {
+        void storage.update('connectors', (previous) => {
+          const current = previous[descriptor.id]
+          if (!current || !deriveConnectorCardState(descriptor, current).configured) return previous
+          return {
+            ...previous,
+            [descriptor.id]: { ...current, enabled: visible },
+          }
+        })
+      }}
+    >
+      {Body && activeMode ? (
+        <Body
+          config={config}
+          storage={storage}
+          reportPendingCleanup={reportPendingCleanup}
+          mode={activeMode}
+          closeEditor={onClose}
+        />
+      ) : null}
+    </ConnectorCardShell>
   )
 }
 
@@ -475,7 +531,7 @@ function RssBody({ config, storage, reportPendingCleanup }: BodyProps) {
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {feeds.map((url) => (
           <li key={url} className="flex items-center justify-between gap-2">
@@ -566,7 +622,7 @@ const VIEW_CHIPS: Array<{ key: keyof GithubViews; label: string }> = [
 // mechanics (the gesture-safe ensureOrigin-first chain, the single inline
 // alert, the per-instance field ids) live in the shared TokenConnectForm
 // (Task 47); this body only supplies the pure, connector-specific callbacks.
-function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function GithubBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as RssBody above: BodyProps.config is the generic
   // union (the body map is shared across ids), and this component is registered
   // only under 'github', so it is always GithubConfig at runtime — one
@@ -590,6 +646,8 @@ function GithubBody({ config, storage, reportPendingCleanup }: BodyProps) {
     <TokenConnectForm
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'token',
@@ -685,7 +743,7 @@ const GITLAB_VIEW_CHIPS: Array<{ key: keyof GitlabViews; label: string }> = [
 // difference: TWO fields (a per-config instance URL alongside the token,
 // since GitLab is self-hostable), which flows through into `originsFor`
 // deriving the origin from the FIELD VALUE rather than a single constant.
-function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function GitlabBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'gitlab', so it is always GitlabConfig at runtime —
@@ -711,6 +769,8 @@ function GitlabBody({ config, storage, reportPendingCleanup }: BodyProps) {
     <TokenConnectForm
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'instanceUrl',
@@ -827,7 +887,7 @@ const JIRA_VIEW_CHIPS: Array<{ key: keyof JiraViews; label: string }> = [
   { key: 'dueSoon', label: 'Due soon' },
 ]
 
-function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function JiraBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GitlabBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'jira', so it is always JiraConfig at runtime —
@@ -853,6 +913,8 @@ function JiraBody({ config, storage, reportPendingCleanup }: BodyProps) {
     <TokenConnectForm
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'site',
@@ -970,7 +1032,7 @@ const VERCEL_VIEW_CHIPS: Array<{ key: keyof VercelViews; label: string }> = [
 // The Vercel connector's card body — the fourth token connector (Task 51),
 // copying GithubBody's mechanics most closely: ONE field, a single constant
 // origin (unlike GitlabBody's/JiraBody's per-config derived one).
-function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function VercelBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as GithubBody above: BodyProps.config is the
   // generic union (the body map is shared across ids), and this component is
   // registered only under 'vercel', so it is always VercelConfig at runtime —
@@ -995,6 +1057,8 @@ function VercelBody({ config, storage, reportPendingCleanup }: BodyProps) {
     <TokenConnectForm
       storage={storage}
       reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
       fields={[
         {
           id: 'token',
@@ -1100,7 +1164,7 @@ function parseCoinIds(raw: string): string[] {
 // neither of which a no-auth connector has), just one labelled text input
 // (CoinGecko ids, comma-separated) and a Save button, closest in spirit to
 // RssBody's own handleAddFeed above.
-function CryptoBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'crypto', so it is always
@@ -1178,11 +1242,12 @@ function CryptoBody({ config, storage, reportPendingCleanup }: BodyProps) {
     } catch {
       if (result.candidates.length > 0) reportPendingCleanup(result.candidates)
     }
+    closeEditor()
   }
 
   return (
     <form
-      className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3"
+      className="flex flex-col gap-2"
       onSubmit={(e) => void handleSave(e)}
     >
       <div>
@@ -1466,7 +1531,7 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {calendars.map((cal, i) => (
           <li key={cal.url} className="flex items-center justify-between gap-2">
@@ -1839,7 +1904,7 @@ function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
   }
 
   return (
-    <div className="mt-3 flex flex-col gap-2 border-t border-panel-border pt-3">
+    <div className="flex flex-col gap-2">
       <ul className="flex flex-col gap-1">
         {services.map((s) => (
           <li key={s.url} className="flex items-center justify-between gap-2">
@@ -1968,7 +2033,7 @@ function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
 // mirroring StatusBody's clearStatusSnapshot (:1526-1531) exactly, so the
 // widget's next mount finds no stale cached snapshot and fetches the newly
 // picked entities immediately rather than serving up to ttlMs-stale data.
-function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps) {
+function HomeAssistantBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
   // component is registered only under 'homeassistant' — one documented
@@ -2061,6 +2126,8 @@ function HomeAssistantBody({ config, storage, reportPendingCleanup }: BodyProps)
       <TokenConnectForm
         storage={storage}
         reportPendingCleanup={reportPendingCleanup}
+        managedMode={mode}
+        onManagedClose={closeEditor}
         fields={[
           {
             id: 'instanceUrl',
