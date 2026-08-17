@@ -173,7 +173,7 @@ The ignored PNGs remain local and unstaged.
 - Consumes: a clean committed Task 2 HEAD, the package guard, five inspected PNGs, and W6-P3's exact dashboard worksheet.
 - Produces: a local audited ZIP and tracked dossier/checklist/reviewer copy sufficient for a later explicitly approved W6-P5 action.
 
-- [ ] **Step 1: Freeze the package source commit**
+- [x] **Step 1: Freeze the package source commit**
 
 Run:
 
@@ -184,7 +184,7 @@ git rev-parse HEAD
 
 Expected: clean worktree. Save the full HEAD as the dossier's `Source commit`; do not package an uncommitted tree.
 
-- [ ] **Step 2: Build the production ZIP once**
+- [x] **Step 2: Build the production ZIP once**
 
 Run:
 
@@ -194,7 +194,7 @@ npm run package
 
 Expected: `release/aurora-2.0.0.zip`; version guard green; production bookmarks guard green; no source maps; three icons; all bundled photo tiers; ZIP contents rooted at `manifest.json` rather than nested under `dist/`.
 
-- [ ] **Step 3: Audit the actual ZIP, not only `dist/`**
+- [x] **Step 3: Audit the actual ZIP, not only `dist/`**
 
 Run:
 
@@ -208,7 +208,7 @@ tar -xOf $zip manifest.json
 
 Record the exact filename, bytes, SHA-256, entry count, root entries, manifest version, permissions, optional permissions, optional host permissions, icon paths, new-tab override, source commit, and command result. Confirm the archive has no `.map`, source/test/harness file, nested `dist/`, or preview-only install-time `bookmarks` permission.
 
-- [ ] **Step 4: Replace stale release instructions with exact 2.0 copy**
+- [x] **Step 4: Replace stale release instructions with exact 2.0 copy**
 
 Create `release/RELEASE-DOSSIER-2.0.0.md` with sections for artifact identity, package audit, accepted product gates, screenshot inventory/inspection, W6-P3 disclosure differences, exact dashboard field map, external manual ceilings, and the W6-P5 stop boundary.
 
@@ -222,7 +222,7 @@ Replace `release/LAUNCH-CHECKLIST.md` with a 2.0 checklist that maps every manua
 
 Keep `release/RESUBMISSION-NOTES.md` as historical 1.2.1 evidence, but add a top warning that it is not 2.0 submission copy and point to the new dossier/release notes.
 
-- [ ] **Step 5: Verify submission-copy consistency**
+- [x] **Step 5: Verify submission-copy consistency**
 
 Run focused searches across `PRIVACY.md`, `release/store-listing.md`, the new dossier/notes/checklist, `src/privacy/dataFlows.ts`, and `src/manifest.ts` for:
 
@@ -237,7 +237,7 @@ three current certifications; privacy/homepage/support URLs.
 
 Expected: no V1 engine picker, `no data collection`, four-certification, 1.2.0 upload, new-item, or pre-approval mutation instruction survives in active 2.0 copy. Historical 1.2.1 prose remains explicitly labeled historical.
 
-- [ ] **Step 6: Commit the release dossier**
+- [x] **Step 6: Commit the release dossier**
 
 ```powershell
 git add release/RELEASE-DOSSIER-2.0.0.md release/RELEASE-NOTES-2.0.0.md release/LAUNCH-CHECKLIST.md release/RESUBMISSION-NOTES.md release/store-listing.md

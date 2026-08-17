@@ -1,6 +1,6 @@
-# Chrome Web Store listing source — Aurora 2.0.0
+# Chrome Web Store listing source: Aurora 2.0.0
 
-> **STAGED SOURCE ONLY — DO NOT PASTE OR MUTATE THE LIVE STORE BEFORE W6-P5 APPROVAL.**
+> **STAGED SOURCE ONLY: DO NOT PASTE OR MUTATE THE LIVE STORE BEFORE W6-P5 APPROVAL.**
 >
 > W6-P3 verified this source against official Chrome Web Store policy current
 > on 2026-08-16 and transcribed the signed-in live 1.2.1 dashboard read-only on

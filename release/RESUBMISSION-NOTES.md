@@ -1,4 +1,6 @@
-# Resubmission notes — Aurora v1.2.1 (Red Argon remediation)
+# Resubmission notes: Aurora v1.2.1 (Red Argon remediation)
+
+> **HISTORICAL 1.2.1 EVIDENCE ONLY.** Do not use this file as Aurora 2.0 submission copy or as authority to change the Store. Use `release/RELEASE-DOSSIER-2.0.0.md`, `release/RELEASE-NOTES-2.0.0.md`, `release/store-listing.md`, and `release/LAUNCH-CHECKLIST.md`. W6-P5 explicit approval is still required before any Store mutation.
 
 v1.2.0 was rejected by Chrome Web Store review for Single Purpose violation
 **"Red Argon"**: the new-tab page's search bar included an in-extension
