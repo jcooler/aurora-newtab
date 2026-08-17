@@ -51,10 +51,10 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <StatusWidget />
+      <StatusWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
@@ -98,6 +98,20 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it('keeps the health summary in Compact while reserving service dots for Standard and Full', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    const view = mount(storage, 'compact')
+    const compact = await screen.findByRole('region', { name: 'Service status' })
+    expect(screen.getByLabelText('Service status: All operational, 2 services')).toBeTruthy()
+    expect(compact.querySelectorAll('span[title]')).toHaveLength(0)
+
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" /></StorageProvider>)
+    expect((await screen.findByRole('region', { name: 'Service status' })).querySelectorAll('span[title]')).toHaveLength(2)
+
+    view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" /></StorageProvider>)
+    expect((await screen.findByRole('region', { name: 'Service status' })).querySelectorAll('span[title]')).toHaveLength(2)
+  })
+
   it('renders section[aria-label="Service status"] with the crypto strip language (w-88 text-center)', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

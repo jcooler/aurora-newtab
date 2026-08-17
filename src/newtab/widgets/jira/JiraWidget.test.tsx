@@ -60,10 +60,10 @@ async function seededStorage(config: JiraConfig, data: JiraData | null = DATA): 
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <JiraWidget />
+      <JiraWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
@@ -235,6 +235,15 @@ const DUE_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChi
 const CHIPS_ONLY: JiraConfig = { ...CONNECTED, views: { assigned: false, statusChips: true, dueSoon: false } }
 
 describe('JiraWidget — composed card (wave 2)', () => {
+  it('uses real due-soon rows in Standard when that is the only selected issue family', async () => {
+    const storage = await seededStorage(DUE_ONLY, { ...DATA, issues: [], counts: {}, dueSoon: DUE_SOON })
+    mount(storage, 'standard')
+
+    expect(await screen.findByText('Ship the release notes')).toBeTruthy()
+    expect(screen.getByTitle('Ship the release notes').getAttribute('href')).toContain('/browse/AUR-20')
+    expect(screen.getByText('To Do')).toBeTruthy()
+  })
+
   it('renders assigned issues and the due-soon list (below a DUE SOON eyebrow) when both are on', async () => {
     const storage = await seededStorage(ALL_ON, { ...DATA, dueSoon: DUE_SOON })
     mount(storage)

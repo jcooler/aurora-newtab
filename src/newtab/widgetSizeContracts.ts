@@ -8,6 +8,11 @@ export interface WidgetSizeContract {
   full?: string
 }
 
+export interface SelectedCanvasContent {
+  label: string
+  minimumSize: CanvasSize
+}
+
 const contract = (sizes: readonly CanvasSize[], compact: string, standard?: string, full?: string): WidgetSizeContract =>
   Object.freeze({ sizes: Object.freeze([...sizes]), compact, standard, full })
 
@@ -35,18 +40,20 @@ export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>
   timer: contract(['compact'], 'Timer action'), tasks: contract(['compact'], 'Tasks action'), notes: contract(['compact'], 'Notes action'),
 })
 
-function joinNames(items: readonly string[]): string {
-  if (items.length === 1) return items[0]
-  if (items.length === 2) return `${items[0]} and ${items[1]}`
-  return `${items.slice(0, -1).join(', ')}, and ${items.at(-1)}`
+function joinNames(items: readonly SelectedCanvasContent[]): string {
+  const labels = items.map((item) => item.label)
+  if (labels.length === 1) return labels[0]
+  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`
+  return `${labels.slice(0, -1).join(', ')}, and ${labels.at(-1)}`
 }
 
 /** Returns the truthful inspector explanation when selected content exceeds a size. */
-export function contentConflictFor(id: BlockId, size: CanvasSize, selectedContent: readonly string[]): string | null {
+export function contentConflictFor(id: BlockId, size: CanvasSize, selectedContent: readonly SelectedCanvasContent[]): string | null {
   const current = WIDGET_SIZE_CONTRACTS[id]
-  const needsStandard = selectedContent.length > 1 && size === 'compact'
-  const needsFull = selectedContent.length > 1 && size === 'standard' && current.sizes.includes('full')
-  if (!needsStandard && !needsFull) return null
-  const larger = needsFull ? 'Full' : current.sizes.includes('full') ? 'Standard or Full' : 'Standard'
-  return `${joinNames(selectedContent)} need ${larger}.`
+  const rank: Record<CanvasSize, number> = { compact: 0, standard: 1, full: 2 }
+  const hidden = selectedContent.filter((item) => rank[item.minimumSize] > rank[size])
+  if (hidden.length === 0) return null
+  const minimum = hidden.reduce<CanvasSize>((largest, item) => rank[item.minimumSize] > rank[largest] ? item.minimumSize : largest, 'compact')
+  const larger = minimum === 'full' ? 'Full' : current.sizes.includes('full') ? 'Standard or Full' : 'Standard'
+  return `${joinNames(hidden)} need ${larger}.`
 }

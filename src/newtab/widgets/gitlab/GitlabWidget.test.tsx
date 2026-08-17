@@ -61,15 +61,20 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <GitlabWidget />
+      <GitlabWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
 describe('GitlabWidget', () => {
+  it('Compact keeps the real selected MR count instead of a false empty state', async () => {
+    mount(await seededStorage(CONNECTED, DATA), 'compact')
+    expect(await screen.findByLabelText('GitLab: 6 need attention')).toBeTruthy()
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  })
   it('renders MR rows plus the to-dos count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

@@ -111,7 +111,7 @@ function VercelInner({
   // The empty-connected copy is gated on the ROWS section being on AND
   // truly empty — same "a disabled section shows neither its rows nor its
   // own empty line" rule github/gitlab/jira apply.
-  const showRowsEmpty = views.deployments && deployments.length === 0
+  const showRowsEmpty = views.deployments && allDeployments.length === 0
 
   const summary = summaryEntries(allDeployments)
   // Renders only when there's something to summarize — "renders only when
@@ -128,7 +128,8 @@ function VercelInner({
   // (fetchVercel already skips the request for it, but a STALE cached
   // snapshot from before both were turned off must still degrade to null
   // here, not a bare "Vercel" heading).
-  if (!showSummary && deployments.length === 0 && !showRowsEmpty) return null
+  const hasPrimary = views.deployments && allDeployments.length > 0
+  if (!showSummary && !hasPrimary && !showRowsEmpty) return null
 
   // Sole impure boundary in this component: `now` for relAge's age math,
   // read once per render (not per row) so every row in one paint measures

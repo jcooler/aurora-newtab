@@ -13,7 +13,10 @@ import ArrangeController from './ArrangeController'
 const ENTRIES = WIDGET_REGISTRY
   .filter((entry) => ['weather', 'clock', 'focus', 'notes', 'github'].includes(entry.id))
   .map((entry) => entry.id === 'github'
-    ? { ...entry, selectedContent: ['Contribution graph', 'Pull requests'] }
+    ? { ...entry, selectedContent: [
+      { label: 'Contribution graph', minimumSize: 'standard' as const },
+      { label: 'Pull requests', minimumSize: 'standard' as const },
+    ] }
     : entry)
 
 function rect(left: number, top: number, width = 180, height = 90): DOMRect {

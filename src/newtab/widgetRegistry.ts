@@ -10,12 +10,13 @@ import type {
 import type { Settings, WidgetToggles } from '../lib/storage/schema'
 import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConfig, VercelConfig } from '../services/connectors/types'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
-import { WIDGET_SIZE_CONTRACTS, type WidgetSizeContract } from './widgetSizeContracts'
+import { WIDGET_SIZE_CONTRACTS, type SelectedCanvasContent, type WidgetSizeContract } from './widgetSizeContracts'
 import { resolveGithubViews } from '../services/connectors/github'
 import { DEFAULT_GITLAB_VIEWS } from '../services/connectors/gitlab'
 import { DEFAULT_JIRA_VIEWS } from '../services/connectors/jira'
 import { DEFAULT_VERCEL_VIEWS } from '../services/connectors/vercel'
 import { resolveViews } from '../services/connectors/views'
+import { haActionsOf, haEntitiesOf, type HomeAssistantConfig } from '../services/connectors/homeassistant'
 
 export type WidgetAvailability =
   | Readonly<{ kind: 'always' }>
@@ -28,7 +29,7 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   availability: WidgetAvailability
   canvasSizes: readonly CanvasSize[]
   contentContract: WidgetSizeContract
-  selectedContent?: readonly string[]
+  selectedContent?: readonly SelectedCanvasContent[]
 }
 
 interface RegistrySource {
@@ -136,29 +137,36 @@ export const WIDGET_REGISTRY_BY_ID: Readonly<Record<BlockId, WidgetRegistryEntry
   Object.fromEntries(WIDGET_REGISTRY.map((entry) => [entry.id, entry])) as Record<BlockId, WidgetRegistryEntry>,
 )
 
-function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | undefined): readonly string[] {
+function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | undefined): readonly SelectedCanvasContent[] {
+  const selected = (label: string, minimumSize: CanvasSize): SelectedCanvasContent => ({ label, minimumSize })
   switch (id) {
     case 'github': {
       const views = resolveGithubViews(config as GithubConfig | undefined)
-      return [views.commitGraph && 'Contribution graph', views.pulls && 'Pull requests', views.issues && 'Issues', views.notifications && 'Notifications'].filter(Boolean) as string[]
+      return [views.commitGraph && selected('Contribution graph', 'standard'), views.pulls && selected('Pull requests', 'standard'), views.issues && selected('Issues', 'standard'), views.notifications && selected('Notifications', 'compact')].filter(Boolean) as SelectedCanvasContent[]
     }
     case 'gitlab': {
       const views = resolveViews(DEFAULT_GITLAB_VIEWS, (config as GitlabConfig | undefined)?.views)
-      return [views.activityGraph && 'Activity graph', views.mergeRequests && 'Merge requests', views.reviewAsks && 'Review asks', views.todos && 'To-dos'].filter(Boolean) as string[]
+      return [views.activityGraph && selected('Activity graph', 'standard'), views.mergeRequests && selected('Merge requests', 'standard'), views.reviewAsks && selected('Review asks', 'standard'), views.todos && selected('To-dos', 'compact')].filter(Boolean) as SelectedCanvasContent[]
     }
     case 'jira': {
       const views = resolveViews(DEFAULT_JIRA_VIEWS, (config as JiraConfig | undefined)?.views)
-      return [views.assigned && 'Assigned', views.dueSoon && 'Due soon', views.statusChips && 'Status counts'].filter(Boolean) as string[]
+      return [views.assigned && selected('Assigned', 'standard'), views.dueSoon && selected('Due soon', 'standard'), views.statusChips && selected('Status counts', 'compact')].filter(Boolean) as SelectedCanvasContent[]
     }
     case 'vercel': {
       const views = resolveViews(DEFAULT_VERCEL_VIEWS, (config as VercelConfig | undefined)?.views)
-      return [views.deployments && 'Deployments', views.statusSummary && 'Status summary'].filter(Boolean) as string[]
+      return [views.deployments && selected('Deployments', 'compact'), views.statusSummary && selected('Status summary', 'compact')].filter(Boolean) as SelectedCanvasContent[]
     }
-    case 'rss': return ['Headlines']
-    case 'crypto': return ['Selected coins']
-    case 'status': return ['Service issues']
-    case 'homeassistant': return ['Selected entities']
-    case 'ics': return ['Selected calendar view']
+    case 'rss': return [selected('Headlines', 'compact')]
+    case 'crypto': return [selected('Selected coins', 'compact')]
+    case 'status': return [selected('Service status', 'compact')]
+    case 'homeassistant': {
+      const home = config as HomeAssistantConfig | undefined
+      return [
+        haEntitiesOf(home ?? { enabled: false }).length > 0 && selected('Entity states', 'compact'),
+        haActionsOf(home ?? { enabled: false }).length > 0 && selected('Actions', 'standard'),
+      ].filter(Boolean) as SelectedCanvasContent[]
+    }
+    case 'ics': return [selected('Selected calendar view', 'compact')]
   }
 }
 

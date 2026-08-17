@@ -163,8 +163,10 @@ function JiraInner({
   // A disabled list is empty regardless of what the snapshot still carries.
   const compact = canvasSize === 'compact'
   const standard = canvasSize === 'standard'
-  const issues = !compact && views.assigned ? (data.issues ?? []).slice(0, standard ? 2 : MAX_ISSUES) : []
-  const dueSoon = !compact && !standard && views.dueSoon ? (data.dueSoon ?? []).slice(0, MAX_DUE_SOON) : []
+  const allIssues = views.assigned ? (data.issues ?? []) : []
+  const allDueSoon = views.dueSoon ? (data.dueSoon ?? []) : []
+  const issues = !compact ? allIssues.slice(0, standard ? 2 : MAX_ISSUES) : []
+  const dueSoon = !compact && (!standard || allIssues.length === 0) ? allDueSoon.slice(0, MAX_DUE_SOON) : []
   const counts = data.counts ?? {}
   const countEntries = Object.entries(counts)
 
@@ -232,19 +234,19 @@ function JiraInner({
   // before.
   const showEmpty =
     (views.assigned || views.dueSoon) &&
-    issues.length === 0 &&
-    (dueSoon.length === 0 || dueSoonTierName !== '')
-  const emptyLineTier = dueSoon.length > 0 && dueSoonTierName ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName] : ''
+    allIssues.length === 0 &&
+    (allDueSoon.length === 0 || dueSoonTierName !== '')
+  const emptyLineTier = allDueSoon.length > 0 && dueSoonTierName ? DUE_SOON_INVERSE_TIER_CLASS[dueSoonTierName] : ''
 
   // No-husk law (wave 2, generalized): render null when NOTHING inside the card
   // would render — no rows in either enabled list, no status chip with a value,
   // and no empty line. (status-chips-only with empty counts is the canonical
   // case; all-views-off is the degenerate one.)
   const chipShows = views.statusChips && countEntries.length > 0
-  const anyRow = issues.length > 0 || dueSoon.length > 0
-  if (!anyRow && !chipShows && !showEmpty) return null
+  const anySelectedRow = allIssues.length > 0 || allDueSoon.length > 0
+  if (!anySelectedRow && !chipShows && !showEmpty) return null
   const countedWork = countEntries.reduce((total, [, count]) => total + count, 0)
-  const prioritizedCount = issues.length + dueSoon.length
+  const prioritizedCount = allIssues.length + allDueSoon.length
   const attentionCount = countedWork > 0 ? countedWork : prioritizedCount
   const summaryValue = attentionCount > 0
     ? `${attentionCount} active ${attentionCount === 1 ? 'item' : 'items'}`

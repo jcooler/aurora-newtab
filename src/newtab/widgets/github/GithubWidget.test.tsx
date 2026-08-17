@@ -66,15 +66,26 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <GithubWidget />
+      <GithubWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
 describe('GithubWidget', () => {
+  it('Compact keeps the real selected-work count as its primary value without rendering rows', async () => {
+    mount(await seededStorage(CONNECTED, DATA), 'compact')
+    expect(await screen.findByLabelText('GitHub: 3 need attention')).toBeTruthy()
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  })
+
+  it('Full keeps a selected graph visible without a legacy height-tier class', async () => {
+    mount(await seededStorage({ ...CONNECTED, views: { commitGraph: true, pulls: false, issues: false, notifications: false } }, DATA_WITH_GRAPH), 'full')
+    const graph = await screen.findByRole('img', { name: /contribution activity/i })
+    expect(graph.parentElement?.className).not.toContain('hidden')
+  })
   it('renders PR and issue rows plus the unread count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

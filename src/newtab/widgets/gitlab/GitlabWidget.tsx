@@ -221,13 +221,15 @@ function GitlabInner({
   // Where the tier boundary lands: on the SECTION when strictly graph-only (the
   // whole card yields), on the inner graph wrapper otherwise. Exactly one carries
   // it, so the reveal is a single whole-card OR single-section boundary.
-  const innerGraphClass = graphOnly ? undefined : graphWrap
+  const innerGraphClass = graphOnly || canvasSize === 'full' ? undefined : graphWrap
   const graphSep = soleForgeCard ? GRAPH_SEP_TALLER : GRAPH_SEP_GRAND
 
   // A disabled list is empty regardless of what the snapshot still carries.
   const compact = canvasSize === 'compact'
-  const mrs = !compact && views.mergeRequests ? (data.mrs ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_MRS) : []
-  const reviewMrs = !compact && views.reviewAsks ? (data.reviewMrs ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_REVIEW_ASKS) : []
+  const allMrs = views.mergeRequests ? (data.mrs ?? []) : []
+  const allReviewMrs = views.reviewAsks ? (data.reviewMrs ?? []) : []
+  const mrs = !compact ? allMrs.slice(0, canvasSize === 'standard' ? 1 : MAX_MRS) : []
+  const reviewMrs = !compact ? allReviewMrs.slice(0, canvasSize === 'standard' ? 1 : MAX_REVIEW_ASKS) : []
   const todos = data.todos
 
   // Task 77 — review-asks yields under height pressure too, the SAME "extra
@@ -304,11 +306,11 @@ function GitlabInner({
   // any height — never a husk band, never a double render.
   const showEmpty =
     (views.mergeRequests || views.reviewAsks) &&
-    mrs.length === 0 &&
-    (reviewMrs.length === 0 || reviewAsksTierName !== '')
+    allMrs.length === 0 &&
+    (allReviewMrs.length === 0 || reviewAsksTierName !== '')
   const emptyLineTier =
     graph === null || githubGraphEnabled
-      ? reviewMrs.length > 0 && reviewAsksTierName
+      ? allReviewMrs.length > 0 && reviewAsksTierName
         ? REVIEW_ASKS_INVERSE_TIER_CLASS[reviewAsksTierName]
         : ''
       : soleForgeCard
@@ -320,9 +322,9 @@ function GitlabInner({
   // to-dos chip with a positive count, and no friendly empty line. (to-dos-only
   // with 0 to-dos is the canonical case; all-views-off is the degenerate one.)
   const chipShows = views.todos && todos > 0
-  const anyRow = mrs.length > 0 || reviewMrs.length > 0
-  if (!renderGraph && !anyRow && !chipShows && !showEmpty) return null
-  const prioritizedCount = mrs.length + reviewMrs.length
+  const anySelectedRow = allMrs.length > 0 || allReviewMrs.length > 0
+  if (!renderGraph && !anySelectedRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = allMrs.length + allReviewMrs.length
   const summaryValue = chipShows
     ? `${todos >= TODOS_CAP ? '20+' : todos} need attention`
     : prioritizedCount > 0

@@ -62,15 +62,20 @@ async function seededStorage(
   return storage
 }
 
-function mount(storage: AuroraStorage) {
+function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'full') {
   return render(
     <StorageProvider storage={storage}>
-      <VercelWidget />
+      <VercelWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
 }
 
 describe('VercelWidget', () => {
+  it('Compact keeps a real deployment health primary value and never claims there are no deployments', async () => {
+    mount(await seededStorage(CONNECTED, DATA), 'compact')
+    expect(await screen.findByLabelText('Vercel: 1 failure, 3 deployments')).toBeTruthy()
+    expect(screen.queryByText('No deployments yet.')).toBeNull()
+  })
   it('renders deployment rows (project, state chip, relative age) from the seeded snapshot, failed-first', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

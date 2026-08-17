@@ -152,12 +152,14 @@ function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConf
   // whole card yields), on the inner graph wrapper otherwise (the card stays, the
   // graph alone yields). Exactly one of the two ever carries it, so the reveal is
   // a single whole-card OR single-section boundary — monotonic either way.
-  const innerGraphClass = graphOnly ? undefined : graphWrap
+  const innerGraphClass = graphOnly || canvasSize === 'full' ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
+  const allPrs = views.pulls ? (data.prs ?? []) : []
+  const allIssues = views.issues ? (data.issues ?? []) : []
   const rowCap = canvasSize === 'standard' ? 1 : MAX_PRS
-  const prs = canvasSize !== 'compact' && views.pulls ? (data.prs ?? []).slice(0, rowCap) : []
-  const issues = canvasSize !== 'compact' && views.issues ? (data.issues ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
+  const prs = canvasSize !== 'compact' ? allPrs.slice(0, rowCap) : []
+  const issues = canvasSize !== 'compact' ? allIssues.slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
   const notifications = data.notifications
 
   // The celebratory empty line ("No PRs waiting on you") shows whenever a LIST
@@ -173,7 +175,7 @@ function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConf
   // else. With no graph DATA the line shows unconditionally, exactly as it did
   // before the graph existed. (A strictly graph-only card has no list section, so
   // showEmpty is false there — that whole-card path is untouched.)
-  const showEmpty = (views.pulls || views.issues) && prs.length === 0 && issues.length === 0
+  const showEmpty = (views.pulls || views.issues) && allPrs.length === 0 && allIssues.length === 0
   const emptyLineTier = graph === null ? '' : graphNeedsGrand ? ' grand:hidden' : ' taller:hidden'
 
   // No-husk law (wave 2, generalized — gitlab/jira/vercel apply the same
@@ -188,9 +190,9 @@ function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConf
   // showEmpty are all false, so `!graph` alone decides it there too — but
   // that early return stays, unchanged, to skip the tier math below for it.)
   const chipShows = views.notifications && notifications !== null && notifications > 0
-  const anyRow = prs.length > 0 || issues.length > 0
-  if (!graph && !anyRow && !chipShows && !showEmpty) return null
-  const prioritizedCount = prs.length + issues.length
+  const anySelectedRow = allPrs.length > 0 || allIssues.length > 0
+  if (!graph && !anySelectedRow && !chipShows && !showEmpty) return null
+  const prioritizedCount = allPrs.length + allIssues.length
   const summaryValue = chipShows
     ? `${notifications >= NOTIF_CAP ? '50+' : notifications} need attention`
     : prioritizedCount > 0
