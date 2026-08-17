@@ -257,7 +257,7 @@ git commit -m "docs: stage Aurora 2.0 release dossier"
 - Consumes: exact local ZIP/screenshots/dossier evidence.
 - Produces: a clean pushed W6-P4 checkpoint and a hard stop before W6-P5 external action.
 
-- [ ] **Step 1: Perform the one W6-P4 acceptance review**
+- [x] **Step 1: Perform the one W6-P4 acceptance review**
 
 Review only:
 
@@ -269,7 +269,7 @@ Review only:
 
 Only a demonstrated Critical or Important failure gets one fix and one scoped rereview. If a fix changes package inputs, rebuild the ZIP once and replace every derived byte/hash/manifest/source-commit fact. If it changes screenshot inputs, regenerate and reinspect only the affected capture family. Ledger Minor/cosmetic issues without reopening the packet.
 
-- [ ] **Step 2: Run final focused hygiene**
+- [x] **Step 2: Run final focused hygiene**
 
 Run:
 
@@ -281,7 +281,7 @@ git check-ignore -v release/aurora-2.0.0.zip release/store-shots/1-hero.png
 
 Expected: tracked changes are only the W6-P4 ledger checkpoint; ZIP and screenshots remain ignored; no full unit or canonical browser gate is repeated.
 
-- [ ] **Step 3: Update ledgers and checkpoint**
+- [x] **Step 3: Update ledgers and checkpoint**
 
 Mark W6-P4 Verified with exact artifact and screenshot evidence, acceptance-review verdict, manual ceilings, and unchanged Store state. Set W6-P5 as the current packet and hard approval boundary.
 
@@ -291,7 +291,7 @@ git commit -m "docs: checkpoint W6-P4"
 git push
 ```
 
-- [ ] **Step 4: Prove both repositories and stop**
+- [x] **Step 4: Prove both repositories and stop**
 
 Run:
 

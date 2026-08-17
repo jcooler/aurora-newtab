@@ -58,13 +58,15 @@ The release package performed its own fresh TypeScript and production build thro
 
 All five ignored PNGs were generated from the built preview extension with representative non-personal `.invalid` connector fixtures and real extension storage/bookmark interactions. Each is exactly 1280x800, and the focused capture run reported zero console, page, or request errors and removed its temporary browser profile.
 
+Capture source commit: `f6d0b6fb2c847929003aa68a14c522203086ed65`.
+
 | Order | File | Bytes | SHA-256 | Direct original-resolution inspection |
 |---:|---|---:|---|---|
-| 1 | `release/store-shots/1-hero.png` | 1,676,745 | `F88DD54AC9AF4FAFE0B31423F70235FD1E436C5E945C043307DCE72DC06E3097` | Photo-first hierarchy is clear; Weather shows `Mostly clear · Atlanta` and an expansion chevron; Clock/Focus are centered; GitHub/Jira and all three tool launchers are legible. |
-| 2 | `release/store-shots/2-arrange-mode.png` | 1,469,915 | `306732CDDB768FDC5AC420EFBA24153A15244B853B1173423C3A05C52126316C` | Real long press and pointer drag show a snap guide, selected Clock, slim toolbar, and non-occluding inspector. Cancel preserves the stored layout exactly. |
-| 3 | `release/store-shots/3-calendar-connectors.png` | 1,739,032 | `D2E6FD9EC35CA3DFCFCAECC49FB4703424BE0BEB831086632878A973D632E31B` | Standard Month is complete, calendar sources `Studio` and `Family` are visible, and ICS/RSS/Status render truthful content at distinct sizes. |
-| 4 | `release/store-shots/4-direct-tools.png` | 1,643,334 | `1C8044828D9762554A05455301F79D7559F5594E2B6CE9834F1076EC9644D600` | Notes opens directly with representative local content while independent Timer and Tasks launchers remain visible and unobstructed. |
-| 5 | `release/store-shots/5-bookmarks-popover.png` | 1,742,959 | `65513D438B7B08800FBC2888894C34421F26FC00FBF8D08F57F1ED44828DB85F` | A named folder opens through the real Bookmarks API; its items are legible and the popover clears the Clock. |
+| 1 | `release/store-shots/1-hero.png` | 1,678,357 | `6C11D819656FAD495F5F164B02715108B550A316E6BBF8872A5C60F723D21468` | Photo-first hierarchy is clear; Weather shows `Mostly clear · Atlanta` and an expansion chevron; Clock/Focus are centered; GitHub/Jira and all three tool launchers are legible. |
+| 2 | `release/store-shots/2-arrange-mode.png` | 1,464,719 | `DC7433569AACC8F3963B249FF54322EECECFEB9ADD8C6E3B13BD74F34EB7130E` | Real long press and pointer drag show a snap guide, selected Clock, slim toolbar, and non-occluding inspector. Cancel preserves the stored layout exactly. |
+| 3 | `release/store-shots/3-calendar-connectors.png` | 1,740,826 | `8D539524A1E6C9D3407B027B070130AE6A7432082BB02855DA2D54C8168EC212` | Standard Month is complete, calendar sources `Studio` and `Family` are visible, and ICS/RSS/Status render truthful content at distinct sizes. |
+| 4 | `release/store-shots/4-direct-tools.png` | 1,644,916 | `6C536EC7C493D3B15860342EA55A3AE11998F684BF507D1BBB4BE09182EA4DBB` | Notes opens directly with representative local content while independent Timer and Tasks launchers remain visible and unobstructed. |
+| 5 | `release/store-shots/5-bookmarks-popover.png` | 1,744,368 | `4AA2835434825B4EDED51DCAA5A51BE4C1C073C277DCF71BC5F8EF7AB69E9C95` | A named folder opens through the real Bookmarks API; its items are legible and the popover clears the Clock. |
 
 No image contains a real token, capability URL, account payload, personal bookmark, or live connector response.
 
@@ -120,6 +122,10 @@ The source of truth for pasteable copy is `release/store-listing.md`. At W6-P5, 
 ## Manual ceilings
 
 Automation does not claim native Chrome zoom behavior, Windows scaling or mixed-DPI movement, real screen-reader speech, physical touch/pen hardware, native permission prompts, live provider accounts or Home Assistant picker/actions, genuine sleep/wake, OS timezone changes, or unload-time persistence. These remain explicit manual observations; they do not authorize Store mutation.
+
+## W6-P4 acceptance review
+
+The one bounded review found one Important release-fixture issue: the Jira seed used a host in the routable `atlassian.net` namespace instead of the packet's required `.invalid` namespace. No request had occurred and the production ZIP did not include the release-only fixture. Commit `f6d0b6f` changed the Jira configuration and snapshot links to `jira.invalid`; the focused preview/capture gate regenerated all five images with zero console, page, request, clipping, overflow, or dimension failures. The affected hero was reinspected at original resolution and remains correct. The scoped rereview revalidated synchronized versions, the unchanged ZIP hash and manifest, exact screenshot hashes, and non-routable fixture hosts. Verdict: Ready with 0 Critical and 0 Important issues open.
 
 ## W6-P5 hard stop
 

@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
-**Last verified packet:** `W6-P3` - Official policy and dashboard reconciliation<br>
-**Current packet:** `W6-P4` - 2.0.0 package and release dossier
+**Last verified packet:** `W6-P4` - 2.0.0 package and release dossier<br>
+**Current packet:** `W6-P5` - Explicit Store approval gate
 
 ## Packet envelope
 
@@ -22,7 +22,8 @@
 - **Canvas-P7 evidence:** The focused real-Chromium gate produced three separate DSF-1 owner captures at 1600x900, 2560x1440, and 3440x1440. Desktop shows top Bookmarks plus rich GitHub/Jira content; independent Large and Wide profiles show all nine connector families, visibly named multi-calendar sources, and a complete Month. Direct evidence covers all visible Arrange identities, long press, active pointer capture, guides, keyboard movement, overlap/layers, Undo/Cancel/Save, profile previews, nested local scrolling, cursor semantics, Small containment/clearance, Focus lifecycle, and cache-neutral persisted ICS color changes. The Calendar attribution and incomplete-evidence review findings were closed in the single fix/rereview cycle; rereview returned Ready. The owner then correctly rejected the submitted Desktop capture because Compact Month dates were vertically stacked. `01f5076` removed the Compact table-cell layout override and added an exact Chromium row-geometry regression. The regenerated Desktop capture now shows `16 17 18 19 20 21 22` left to right, Large/Wide remain complete, and all three corrected captures have zero intersections, clipped blocks, missing images, runtime errors, and failed requests. The compact folder glyph/monogram duplication remains Minor, and the documented native/live-service ceilings remain manual.
 - **Canvas-P8 evidence:** The owner approved the corrected Packet 7 captures. The one full unit run exposed only an obsolete source-text assertion for the retired Day presentation; the affected behavior family passed 2 files / 29 tests after its removal and the full suite was not repeated. Production and preview builds each transformed 193 modules, and the production bridge scan was clean. The canonical harness run and its one permitted rerun both stopped in the same stale Utility Tray/direct Timer harness family; the rerun passed its first six product assertions before a leftover `timerDialog` reference stopped traversal. The corrected W1-P7-only Chromium family then passed all seven reported checks, including exact restoration and a real advancing clock. No third canonical run occurred. Final original-resolution inspection reconfirmed the accepted captures and `errors: []`; one final review returned Ready with no Critical or Important blocker. The incomplete later canonical traversal is Minor procedural evidence debt under the explicit no-third-run limit.
 - **W6-P3 evidence:** Current official Chrome Web Store policy is mapped to Aurora's executable data-flow inventory. Canonical privacy/listing/Data Usage source was reconciled after two Important disclosure fixes and a Ready rereview. The signed-in live dashboard was then transcribed read-only: publisher `jcooler`, Aurora item `akjalbmacojpmebkgohhcaaiacicpgkh`, live/draft version `1.2.1`, status `Published - public`, five V1 screenshots, and five live 2.0 Data Usage category changes. The privacy URL, remote-code answer, and all three current certifications match. Exact differences are assigned to W6-P4 preparation or W6-P5 action; no dashboard field, package, draft, submission, publication, or rollout changed.
-- **Remaining gates:** W6-P4 owns the local 2.0.0 package, current screenshots, release dossier, and exact manual submission copy. W6-P5 remains the hard external-action approval boundary.
+- **W6-P4 evidence:** Version 2.0.0 is synchronized. `release/aurora-2.0.0.zip` was built once from clean source commit `6fae415`, is 60,443,024 bytes with 59 entries and SHA-256 `31930FEC4A288992EC74FD3173F08FE444D132A00FA7EF51C0900B629F356116`, and passed production manifest/root/leakage guards. Five current 1280x800 Store screenshots passed the real-extension capture gate with zero console/page/request errors and were inspected separately. Listing, release/reviewer notes, checklist, exact field map, and dossier are staged. One Important routable Jira fixture namespace was changed to `.invalid` in `f6d0b6f`; regenerated evidence and the single rereview are Ready with no Critical/Important issue. The live Store remains unchanged.
+- **Remaining gate:** W6-P5 is the hard external-action approval boundary. Stop before upload, field typing/save, submission, publication, distribution, or rollout until the owner explicitly approves the exact action at that moment.
 
 ## Previous packet envelope
 
@@ -33,6 +34,10 @@
 
 ## Last completed commits
 
+- `2e194bc` - synchronized Aurora 2.0.0 version metadata.
+- `6fae415` - current five-image Store capture source and real-interaction harness.
+- `c564687` - audited 2.0 release dossier, notes, and checklist.
+- `f6d0b6f` - review fix moving the Jira capture fixture to the non-routable `.invalid` namespace.
 - `19771f0` - current-policy/source reconciliation and bounded disclosure review fixes; W6-P3 checkpoint subject is `docs: checkpoint W6-P3`.
 - `01f5076` - owner-reported Compact Month row-geometry correction and real Chromium regression witness.
 - `cb58bd2db35557e884008e683d64687548e1d146` and `73b279431fb868f5d31ec628a5d8c2b6579052b2` - integrated Canvas Chromium evidence, visible calendar-source attribution, and the bounded review fix/rereview closure.
@@ -371,8 +376,10 @@
 - Original V1 checkout remains clean on `main` at `eb1354b`.
 - Preserved original `release/aurora-1.14.0.zip`: 60,400,065 bytes; SHA-256 `4da05f9763dfddd529695dcc5c41f7e8d73b53090740bb5d330166b1aec2f1fa`.
 - Isolated baseline rebuild: same byte size; SHA-256 `0c46ecbaab9329e9933cc96d3edbb2eb4eb988e6e797a5dbc251702ba4fff9b7`; baseline-only and not a replacement artifact.
-- Tracked release files: `release/LAUNCH-CHECKLIST.md`, `release/RESUBMISSION-NOTES.md`, `release/store-listing.md`.
-- Local original release inventory includes ZIPs 1.2.0, 1.2.1, and 1.3.0 through 1.14.0 plus five stale v1.2-era Store screenshots.
+- Tracked release files now include `release/RELEASE-DOSSIER-2.0.0.md`, `release/RELEASE-NOTES-2.0.0.md`, `release/LAUNCH-CHECKLIST.md`, the historical `release/RESUBMISSION-NOTES.md`, and `release/store-listing.md`.
+- Local 2.0 candidate: ignored `release/aurora-2.0.0.zip`, 60,443,024 bytes, 59 entries, SHA-256 `31930FEC4A288992EC74FD3173F08FE444D132A00FA7EF51C0900B629F356116`.
+- Current ignored Store evidence: five exact 1280x800 PNGs in `release/store-shots/`, generated from non-personal fixtures and inspected separately at original resolution.
+- Historical local release inventory still includes ZIPs 1.2.0, 1.2.1, and 1.3.0 through 1.14.0 plus the replaced v1.2-era screenshot set in history.
 - Live Chrome Web Store item: Aurora `1.2.1`, item ID `akjalbmacojpmebkgohhcaaiacicpgkh`, `Published - public`; signed-in dashboard values were transcribed read-only on 2026-08-17.
 - No Store dashboard field, listing, package, draft, submission, publication, or rollout state has been changed.
 
@@ -389,7 +396,7 @@
 - Native Chrome optional-permission Block/Allow interaction remains unavailable in headless automation; W1-P4 does not claim a synthetic click, a grant restored from a backup file, or native-grant revocation.
 - Real Home Assistant entity-picker contents, successful service execution, and real screen-reader behavior still require the user's live instance/manual session.
 - Chromium AX trees support W2-P1/W2-P2 semantic inspection but do not establish real assistive-technology speech, timing, or interaction behavior.
-- Live Store version/dashboard answers require user/dashboard access in Wave 6.
+- Store-side upload and dashboard changes require contemporaneous W6-P5 owner approval; the current signed-in session does not itself grant that authority.
 - Mixed-DPI monitor moves and real Home Assistant hardware/service behavior require later environment/user evidence.
 - The indirect development-only nanoid advisory is resolved by the exact `3.3.18` override; production and full audits are clean and no production dependency changed.
 - A native hidden-to-visible browser transition is unavailable in the current headless harness; W1-P6 records modeled built-extension convergence plus exact fake-time listener coverage without overstating that boundary.
@@ -398,13 +405,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W6-P3`.
+- None expected after `docs: checkpoint W6-P4`.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W6-P4` - 2.0.0 package and release dossier
-- **Plan:** Create just in time after the clean W6-P3 checkpoint.
-- **State:** Canvas-P1 through Canvas-P8 and W6-P3 are verified. Prepare and inspect only local release artifacts and exact submission copy. Do not cross the W6-P5 external-action gate.
+- **Packet:** `W6-P5` - Explicit Store approval gate
+- **Plan:** Create only after contemporaneous explicit approval names the authorized Store action.
+- **State:** Canvas-P1 through Canvas-P8 and W6-P3/W6-P4 are verified. The exact local package, screenshots, copy, checklist, and dossier are staged. Do not mutate Store state without W6-P5 approval.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -416,9 +423,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W6-P4
-Verified release checkpoint: W6-P3
-Expected next checkpoint subject: docs: checkpoint W6-P4
-Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
-Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
+Starting packet: W6-P5
+Verified release checkpoint: W6-P4
+Expected next checkpoint subject: create only after explicit W6-P5 authority
+Execution: remain stopped at the Store boundary until the owner explicitly names the authorized external action.
+Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```
