@@ -608,7 +608,14 @@ export default function ArrangeController({
                     >{size === 'full' ? 'Full' : size[0].toUpperCase() + size.slice(1)}</button>
                   ))}
                 </div>
-                <button type="button" className={buttonClass()} onClick={() => replaceDraft(restoreCanvasItemDefault(draft, selectedEntry.id, defaults.placements[selectedEntry.id], 'size'))}>Restore default size</button>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(restoreCanvasItemDefault(
+                  draft,
+                  selectedEntry.id,
+                  defaults.placements[selectedEntry.id],
+                  'size',
+                  selectedEntry,
+                  canvasBounds,
+                ))}>Restore default size</button>
               </section>
             </>
           ) : <p>Bottom bar position {selectedPlacement.order + 1}</p>}

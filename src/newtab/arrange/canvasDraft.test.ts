@@ -11,6 +11,7 @@ import {
   overlappingCanvasIds,
   resetCanvasDraft,
   resizeCanvasItem,
+  restoreCanvasItemDefault,
   selectCanvasItem,
   sendCanvasItemBackward,
   setCanvasItemVisibility,
@@ -71,6 +72,21 @@ describe('Canvas Arrange draft', () => {
     const enlarged = resizeCanvasItem(atEdge, WIDGET_REGISTRY_BY_ID.clock, 'full', { width: 1000, height: 800, inset: 8 })
     expect(enlarged.placements.clock).toMatchObject({ x: 76.8, y: 86, size: 'full' })
     expect(undoCanvasDraft(enlarged).placements.clock).toEqual(atEdge.placements.clock)
+  })
+
+  it('clamps Restore default size through the same safe resize path', () => {
+    const compact = resizeCanvasItem(draft(), WIDGET_REGISTRY_BY_ID.clock, 'compact')
+    const atCompactEdge = moveCanvasItem(compact, 'clock', { x: 86, y: 86 })
+    const restored = restoreCanvasItemDefault(
+      atCompactEdge,
+      'clock',
+      DEFAULTS.placements.clock,
+      'size',
+      WIDGET_REGISTRY_BY_ID.clock,
+      { width: 1000, height: 800, inset: 8 },
+    )
+    expect(restored.placements.clock).toMatchObject({ x: 76.8, y: 86, size: 'full' })
+    expect(undoCanvasDraft(restored).placements.clock).toEqual(atCompactEdge.placements.clock)
   })
 
   it('detects overlaps, allows them, and changes layers only while overlap makes layering relevant', () => {

@@ -108,7 +108,7 @@ export function resizeCanvasItem(
   bounds?: CanvasBounds,
 ): CanvasDraft {
   const current = draft.placements[entry.id]
-  if (current?.kind !== 'canvas' || current.size === size || !entry.canvasSizes.includes(size)) return draft
+  if (current?.kind !== 'canvas' || !entry.canvasSizes.includes(size)) return draft
   let next = { ...current, size }
   if (bounds && bounds.width > 0 && bounds.height > 0) {
     const inset = bounds.inset ?? 8
@@ -152,9 +152,12 @@ export function restoreCanvasItemDefault(
   id: BlockId,
   fallback: CanvasBlockPlacement | undefined,
   part: 'position' | 'size',
+  entry?: WidgetRegistryEntry,
+  bounds?: CanvasBounds,
 ): CanvasDraft {
   const current = draft.placements[id]
   if (current?.kind !== 'canvas' || fallback?.kind !== 'canvas') return draft
+  if (part === 'size' && entry) return resizeCanvasItem(draft, entry, fallback.size, bounds)
   const next = part === 'position'
     ? { ...current, x: fallback.x, y: fallback.y }
     : { ...current, size: fallback.size }
