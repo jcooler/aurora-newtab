@@ -9,7 +9,7 @@ import { isPlainObject } from './object'
 import { isPanelColor } from './color'
 import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
 import { cleanStoredLayout, type StoredLayout } from './layout/canvasTypes'
-import { isLayoutsDocument } from './layout/namedLayouts'
+import { cleanLayoutsDocument, isLayoutsDocument, type LayoutsDocument } from './layout/namedLayouts'
 import { LegacyLayoutValidationError } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
@@ -436,6 +436,13 @@ function cleanLayout(v: unknown): StoredLayout {
   return cleanStoredLayout(v)
 }
 
+/** Strict on known members, drops unknown widget ids — the same convention
+ *  as cleanLayout/cleanConnectors. `null` (never explicitly saved) passes
+ *  through untouched. */
+function cleanLayoutsKey(v: unknown): LayoutsDocument | null {
+  return v === null ? null : cleanLayoutsDocument(v)
+}
+
 const CONNECTOR_ID_SET: ReadonlySet<string> = new Set(CONNECTOR_IDS)
 
 /** Drops any connector entry whose key isn't a known ConnectorId — same
@@ -521,11 +528,13 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
     cleaned[key] =
       key === 'layout'
         ? cleanLayout(value)
-        : key === 'connectors'
-          ? cleanConnectors(value)
-          : key === 'habits'
-            ? cleanHabits(value)
-            : value
+        : key === 'layouts'
+          ? cleanLayoutsKey(value)
+          : key === 'connectors'
+            ? cleanConnectors(value)
+            : key === 'habits'
+              ? cleanHabits(value)
+              : value
   }
   return { ok: true, data: cleaned as unknown as AuroraData }
 }

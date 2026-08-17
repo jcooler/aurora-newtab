@@ -1138,3 +1138,59 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
     expect(prepareBackup(envelope(11, layout))).toEqual({ ok: false, reason: 'That backup\'s "layout" data is invalid.' })
   })
 })
+
+describe('layouts document backup boundary (NL-P1)', () => {
+  const document = {
+    version: 1,
+    activeLayoutId: 'work',
+    layouts: [{
+      id: 'work',
+      name: 'Work',
+      widgets: {
+        clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -8, tier: 'full', layer: 0 },
+        bookmarks: { kind: 'docked', dock: 'top', order: 0 },
+      },
+    }],
+  }
+
+  it('serializes layouts and round-trips it through prepare/validate exactly', () => {
+    const input = { ...defaults(), layouts: structuredClone(document) as AuroraData['layouts'] }
+    const prepared = prepareBackup(serializeBackup(input))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
+  })
+
+  it('serializes the default null layouts and imports it as null', () => {
+    const prepared = prepareBackup(serializeBackup(defaults()))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toBeNull()
+  })
+
+  it('imports a pre-v13 backup with layouts backfilled to null', () => {
+    const envelope = JSON.parse(serializeBackup(defaults())) as { version: number; data: Record<string, unknown> }
+    envelope.version = 12
+    delete envelope.data.layouts
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toBeNull()
+  })
+
+  it('rejects a malformed layouts document with the exact reason', () => {
+    const envelope = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    envelope.data.layouts = { version: 1, activeLayoutId: 'missing', layouts: [] }
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared).toEqual({ ok: false, reason: 'That backup\'s "layouts" data is invalid.' })
+  })
+
+  it('drops an unknown widget id inside an otherwise valid document instead of failing the import', () => {
+    const withUnknown = structuredClone(document) as {
+      layouts: { widgets: Record<string, unknown> }[]
+    }
+    withUnknown.layouts[0].widgets.futureWidget = { kind: 'docked', dock: 'top', order: 3 }
+    const envelope = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    envelope.data.layouts = withUnknown
+    const prepared = prepareBackup(JSON.stringify(envelope))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
+  })
+})
