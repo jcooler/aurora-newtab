@@ -111,25 +111,27 @@ export interface ArrangeViewportMode {
 - Weather expanded content is portaled outside the Canvas item. Its anchor prefers below, aligns inward, flips only when the full panel cannot fit below, clamps to an 8px safe margin, and exposes one finite internal scrollport.
 - Drawer closed state combines `inert`, non-visibility, non-hit-testing, and a transform that clears the 1rem inset. Open state retains dialog semantics and focus trapping.
 
-- [ ] Add RED `canvasDefaults` tests with hand-written expected placements for the same identities in two different active subsets for all four profiles. Assert exact surviving x, y, size, and layer equality and unchanged custom-profile placements.
-- [ ] Run `npx vitest run src/lib/layout/canvasDefaults.test.ts` and observe the count-dependent source-slot failure.
-- [ ] Replace active-count `spread` calls with stable identity slot catalogs and rerun the test green.
-- [ ] Add RED App/Canvas tests that toggle one widget and one connector, compare surviving item geometry, assert only the selected identity appears or disappears, and assert no layout storage write.
-- [ ] Run `npx vitest run src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx` and observe geometry or write failure, then connect stable defaults without adding a toggle write path.
-- [ ] Add RED hook tests for the four profile fenceposts, resize coalescing, and cleanup. Run `npx vitest run src/newtab/useCanvasViewport.test.tsx` and observe the missing hook.
-- [ ] Implement `useCanvasViewport`, replace `useAdaptiveStageViewport` in `App`, remove layout-density capacity input from runtime layout, and rerun the hook plus App tests green.
-- [ ] Add RED pure anchor cases for top-left, top-right, bottom-left, bottom-right, narrow viewport internal scrolling, utility exclusion, and 8px clamping. Run `npx vitest run src/newtab/widgets/weather/weatherPanelAnchor.test.ts` and observe the missing module.
-- [ ] Implement the pure Weather anchor without DOM access and rerun it green.
-- [ ] Add RED Weather component tests proving portal ownership, disclosure state, Escape, outside click, second activation, invoker focus restoration, resize re-anchoring, finite scroll containment, and unchanged trigger/Canvas footprint. Run `npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx` and observe the inline-expansion failure.
-- [ ] Portal Weather details to `document.body`, measure trigger and panel, observe movement/resize with the pure anchor, preserve the existing data and size content, and rerun component tests green.
-- [ ] Add RED Drawer tests proving the closed surface has `inert`, zero visibility, zero pointer events, no focusable descendants in sequential navigation, and an off-viewport bounding rect at both narrow and roomy widths. Run `npx vitest run src/settings/Drawer.test.tsx` and observe the visible-strip contract failure.
-- [ ] Implement the closed/open containment classes and rerun Drawer tests green.
-- [ ] Build production once for the focused probe with `npm run build` only if the current unpacked build is stale, then run `node scripts/preview-information-first-p1.mjs`. Exercise representative 375x812, 1366x768, 1920x1080, and 3840x2160 viewports, all four Weather corners, closed drawer pixels/hit testing, sibling geometry, toggle stability, layout bytes, page errors, and horizontal overflow.
-- [ ] Run the exact focused packet gate: `npx vitest run src/lib/layout/canvasDefaults.test.ts src/newtab/useCanvasViewport.test.tsx src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/widgets/weather/weatherPanelAnchor.test.ts src/newtab/widgets/weather/WeatherWidget.test.tsx src/settings/Drawer.test.tsx`.
-- [ ] Run `npx tsc --noEmit --incremental false --pretty false` and `git diff --check`.
-- [ ] Commit `fix(canvas): stabilize runtime geometry and overlays`.
-- [ ] Run one PR-P1 implementation review against this packet only. Fix only Critical/Important findings, rerun affected focused tests, and perform one focused rereview. Ledger Minor/cosmetic findings.
-- [ ] Update plan evidence, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`; commit `docs: checkpoint information-first PR-P1`; push; and prove both repository states.
+- [x] Add RED `canvasDefaults` tests with hand-written expected placements for the same identities in two different active subsets for all four profiles. Assert exact surviving x, y, size, and layer equality and unchanged custom-profile placements.
+- [x] Run `npx vitest run src/lib/layout/canvasDefaults.test.ts` and observe the count-dependent source-slot failure.
+- [x] Replace active-count `spread` calls with stable identity slot catalogs and rerun the test green.
+- [x] Add RED App/Canvas tests that toggle one widget and one connector, compare surviving item geometry, assert only the selected identity appears or disappears, and assert no layout storage write.
+- [x] Run `npx vitest run src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx` and observe geometry or write failure, then connect stable defaults without adding a toggle write path.
+- [x] Add RED hook tests for the four profile fenceposts, resize coalescing, and cleanup. Run `npx vitest run src/newtab/useCanvasViewport.test.tsx` and observe the missing hook.
+- [x] Implement `useCanvasViewport`, replace `useAdaptiveStageViewport` in `App`, remove layout-density capacity input from runtime layout, and rerun the hook plus App tests green.
+- [x] Add RED pure anchor cases for top-left, top-right, bottom-left, bottom-right, narrow viewport internal scrolling, utility exclusion, and 8px clamping. Run `npx vitest run src/newtab/widgets/weather/weatherPanelAnchor.test.ts` and observe the missing module.
+- [x] Implement the pure Weather anchor without DOM access and rerun it green.
+- [x] Add RED Weather component tests proving portal ownership, disclosure state, Escape, outside click, second activation, invoker focus restoration, resize re-anchoring, finite scroll containment, and unchanged trigger/Canvas footprint. Run `npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx` and observe the inline-expansion failure.
+- [x] Portal Weather details to `document.body`, measure trigger and panel, observe movement/resize with the pure anchor, preserve the existing data and size content, and rerun component tests green.
+- [x] Add RED Drawer tests proving the closed surface has `inert`, zero visibility, zero pointer events, no focusable descendants in sequential navigation, and an off-viewport bounding rect at both narrow and roomy widths. Run `npx vitest run src/settings/Drawer.test.tsx` and observe the visible-strip contract failure.
+- [x] Implement the closed/open containment classes and rerun Drawer tests green.
+- [x] Build production once for the focused probe with `npm run build` only if the current unpacked build is stale, then run `node scripts/preview-information-first-p1.mjs`. Exercise representative 375x812, 1366x768, 1920x1080, and 3840x2160 viewports, all four Weather corners, closed drawer pixels/hit testing, sibling geometry, toggle stability, layout bytes, page errors, and horizontal overflow.
+- [x] Run the exact focused packet gate: `npx vitest run src/lib/layout/canvasDefaults.test.ts src/newtab/useCanvasViewport.test.tsx src/newtab/App.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/widgets/weather/weatherPanelAnchor.test.ts src/newtab/widgets/weather/WeatherWidget.test.tsx src/settings/Drawer.test.tsx`.
+- [x] Run `npx tsc --noEmit --incremental false --pretty false` and `git diff --check`.
+- [x] Commit `fix(canvas): stabilize runtime geometry and overlays`.
+- [x] Run one PR-P1 implementation review against this packet only. Fix only Critical/Important findings, rerun affected focused tests, and perform one focused rereview. Ledger Minor/cosmetic findings.
+- [x] Update plan evidence, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`; commit `docs: checkpoint information-first PR-P1`; push; and prove both repository states.
+
+**Evidence:** Implemented in `d138ee6`. The exact focused gate passed 7 files / 103 tests, TypeScript passed, and `git diff --check` passed. The focused built-extension probe passed at 375x812, 1366x768, 1920x1080, and 3840x2160 with a fully hidden and non-hit-testable closed drawer, exact surviving geometry and layout bytes through one widget toggle and one connector toggle, all four Weather corners at narrow and roomy widths, 8px viewport containment, unchanged Canvas and sibling geometry, focus restoration, no horizontal overflow, and zero runtime errors or failed requests. The bounded review found one Important missing resize-regression witness; a deliberate listener-removal mutation made the new test fail and restoration made it pass. No Critical or Important finding remains. Minor source-comment debt around the retired Weather wrapper-elevation bridge is assigned to PR-P5 reference-proof cleanup.
 
 ---
 
