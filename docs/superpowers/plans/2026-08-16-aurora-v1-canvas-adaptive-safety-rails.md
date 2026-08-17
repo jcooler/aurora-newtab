@@ -280,13 +280,15 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - `IcsCalendar.color` is optional and reads as `auto`. Palette values are a closed contrast-safe union.
 - Auto uses the existing deterministic position-based palette. A chosen color is stored on the calendar object so it follows calendar identity through reorder.
 
-- [ ] Write RED Month tests for exactly seven Compact days including today, complete Standard month rows, named/reachable Previous/Next/Today controls, and no Full or four-day path.
-- [ ] Write RED color tests for absent/Auto compatibility, the unchanged deterministic position palette, closed palette validation, contrast-safe token mapping, reorder identity ownership, and color plus name attribution.
-- [ ] Write RED Settings/widget tests proving one accessible color control per feed, row/event color agreement, selected color persistence on the feed object, and unchanged normalized URLs, permissions, snapshots, per-feed errors, Today/Upcoming/One per calendar views, and redaction.
-- [ ] Implement the Month render contracts, palette helper, optional type, Settings control, and event-dot use without eager writes.
-- [ ] Run `npx vitest run src/lib/monthGrid.test.ts src/newtab/widgets/monthcal/MonthCalWidget.test.tsx src/services/connectors/calendarColors.test.ts src/services/connectors/ics.test.ts src/newtab/widgets/calendar/CalendarWidget.test.tsx src/newtab/widgetRegistry.test.ts src/settings/SettingsPanel.test.tsx`.
-- [ ] Commit `feat(calendar): complete Month sizes and ICS colors`.
-- [ ] Run one Packet 6 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P6`, push, and prove both repository states.
+- [x] Write RED Month tests for exactly seven Compact days including today, complete Standard month rows, named/reachable Previous/Next/Today controls, and no Full or four-day path.
+- [x] Write RED color tests for absent/Auto compatibility, the unchanged deterministic position palette, closed palette validation, contrast-safe token mapping, reorder identity ownership, and color plus name attribution.
+- [x] Write RED Settings/widget tests proving one accessible color control per feed, row/event color agreement, selected color persistence on the feed object, and unchanged normalized URLs, permissions, snapshots, per-feed errors, Today/Upcoming/One per calendar views, and redaction.
+- [x] Implement the Month render contracts, palette helper, optional type, Settings control, and event-dot use without eager writes.
+- [x] Run `npx vitest run src/lib/monthGrid.test.ts src/newtab/widgets/monthcal/MonthCalWidget.test.tsx src/services/connectors/calendarColors.test.ts src/services/connectors/ics.test.ts src/newtab/widgets/calendar/CalendarWidget.test.tsx src/newtab/widgetRegistry.test.ts src/settings/SettingsPanel.test.tsx`.
+- [x] Commit `feat(calendar): complete Month sizes and ICS colors`.
+- [x] Run one Packet 6 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P6`, push, and prove both repository states.
+
+**Packet 6 evidence:** Implemented in `45bcf45`, with cache-ownership fix `8ce4fb8` and exact backward-compatible color-save residual closure `f6c35af`. Compact renders one complete Sunday-to-Saturday week in its default and Today state, Previous/Next remain coherent complete-week navigation, Standard renders the complete natural month, and Canvas offers no redundant Full Month. The optional closed ICS palette preserves the exact legacy Auto order, stores explicit color on feed identity, and resolves matching named Settings/event dots. One event identity now governs lifecycle, queued authorization, and persisted scope so color edits neither refetch nor strand in-flight work; the color save also preserves omitted optional fields. The final packet gate passed 7 files / 445 tests, the focused snapshot gate passed 3 files / 76 tests, TypeScript, and `git diff --check`. The single review/fix/rereview cycle accepted navigation and exposed the legacy-default branch, which was closed with direct RED/GREEN evidence under the exhausted cycle and no second rereview. Existing Settings `act(...)` warnings remain Minor harness noise; visual proof is assigned to Packet 7.
 
 ## Packet 7: Integrated Visual QA
 
