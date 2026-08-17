@@ -103,10 +103,22 @@ export function canvasMinimumHeight(
     return Math.max(base, content)
   }
   if (canvas.mode !== 'derived') return base
+  // Side columns need the height their actual boxes occupy, not a flat
+  // per-row constant: 220/row inflated a three-widget column to 900px and
+  // pushed the centered Focus stack below a short window's fold. Enabled
+  // side ids alternate columns in BLOCK_IDS order; the tallest column plus
+  // the 240px top/bottom reserve is the honest minimum.
   const sideColumns = profile === 'standard' ? 1 : 2
-  const workRows = Math.ceil(rows.filter(({ id }) => WORK_IDS.has(id)).length / sideColumns)
-  const personalRows = Math.ceil(rows.filter(({ id }) => PERSONAL_IDS.has(id)).length / sideColumns)
-  return Math.max(base, 240 + Math.max(workRows, personalRows) * 220)
+  const columnNeed = (ids: ReadonlySet<BlockId>): number => {
+    const columns = Array.from({ length: sideColumns }, () => 0)
+    rows
+      .filter(({ id }) => ids.has(id))
+      .forEach(({ id, placement }, index) => {
+        columns[index % sideColumns] += canvasBoxFor(id, placement.size).height + 8
+      })
+    return Math.max(...columns, 0)
+  }
+  return Math.max(base, 240 + Math.max(columnNeed(WORK_IDS), columnNeed(PERSONAL_IDS)))
 }
 
 export function fitCanvasProfile(canvas: CanvasProfile, bounds: CanvasBounds): FittedCanvasProfile {

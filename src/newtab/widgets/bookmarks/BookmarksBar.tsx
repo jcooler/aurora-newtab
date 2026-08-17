@@ -209,10 +209,27 @@ function ChipMark({ chip }: { chip: ChipEntry }) {
   )
 
   if (mark.kind === 'monogram') {
+    // A named folder carries BOTH identity marks, media-gated so exactly
+    // one is ever visible: the V1 folder glyph beside the readable label
+    // above the compact width threshold, and the monogram alone inside the
+    // compact circle (<=720px, index.css) where no label fits. The owner's
+    // 1408px-wide window proved a monogram without its label reads as an
+    // unexplained one-letter circle, so the glyph owns the labelled state.
+    // Monogram first: the canonical harness's compact-mode popover click
+    // targets the first [data-chip-mark] match and needs the visible half
+    // of the swap to come first in DOM order.
     return (
-      <span aria-hidden data-chip-mark data-bookmark-mark="monogram" className="shrink-0 font-display font-medium">
-        {mark.text}
-      </span>
+      <>
+        <span
+          aria-hidden
+          data-chip-mark
+          data-bookmark-mark="monogram"
+          className="hidden compact:inline shrink-0 font-display font-medium"
+        >
+          {mark.text}
+        </span>
+        <FolderIcon data-chip-mark data-bookmark-mark="folder" className="compact:hidden" />
+      </>
     )
   }
   if (mark.kind === 'folder') {

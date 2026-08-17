@@ -23,7 +23,11 @@ export function selectCanvasProfile(viewport: {
   height: number
 }): CanvasProfileKey {
   const { width, height } = viewport
-  if (width < 900 || height < 700) return 'compact'
+  // Width alone selects the Small phone document. A short-height desktop
+  // window (the owner's installed 1408x445) is a compressed desktop canvas,
+  // never a vertical phone flow — V1 handled that window with height-
+  // responsive rhythm, and the short/xshort CSS tiers still do.
+  if (width < 900) return 'compact'
   if (width >= 1600 && width / height >= 2.1) return 'ultrawide'
   if (width >= 2200 && height >= 1100) return 'display'
   return 'standard'

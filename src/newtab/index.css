@@ -1279,7 +1279,8 @@ select > option {
 @media (min-width: 2200px) and (min-height: 1100px) { :root { --stage-css-profile: display; } }
 @media (min-width: 1600px) and (min-aspect-ratio: 21/10) { :root { --stage-css-profile: ultrawide; } }
 @media (max-width: 899px) { :root { --stage-css-profile: compact; } }
-@media (max-height: 699px) { :root { --stage-css-profile: compact; } }
+/* No height clause: selectCanvasProfile chooses the phone profile by width
+   alone, and this mirror must agree with it (scripts/preview.mjs checks). */
 
 /* Ultrawide retains five Now rows at the 1600px height fencepost. Its former
    20vh clock curve can paint across the adjacent automatic greeting/focus
@@ -2763,28 +2764,11 @@ select > option {
 .board-item--dock[data-block-id="focus"] #focus-input {
   margin-bottom: 0;
 }
-/* The registry may give the full bookmarks launcher a compact BoardItem.
-   Its existing viewport-wide cap is no longer the right containing size;
-   make the chip row honor the assigned container and switch to its existing
-   icon/initial anatomy before flex shrinking can collapse sibling hit boxes. */
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] nav {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  gap: 5px;
-  justify-content: flex-start;
-}
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] nav > * {
-  flex: 0 0 var(--bookmarks-chip-h);
-}
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] [data-chip-label] { display: none; }
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] nav > div > button,
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] nav > a {
-  width: var(--bookmarks-chip-h);
-  justify-content: center;
-  padding-inline: 0;
-}
-.board-item[data-stage-variant="compact"][data-block-id="bookmarks"] [data-chip-mark] { display: block; }
+/* The retired Adaptive Stage bookmark restyle is deleted, not amended: it
+   keyed on the Canvas-emitted data-stage-variant, so a compact-size
+   bookmarks placement hid every chip label and forced one-letter mark
+   circles at ANY viewport width — the owner's installed 1408px-wide window.
+   Label collapse belongs to the `compact:` width media variant alone. */
 
 .adaptive-stage .settings-gear,
 .adaptive-stage .utility-tray-trigger,

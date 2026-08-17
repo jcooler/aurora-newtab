@@ -281,7 +281,7 @@ describe('BookmarksBar', () => {
     }
   })
 
-  it('renders one named-folder monogram and no competing folder glyph', async () => {
+  it('pairs a named folder\'s glyph and monogram exclusively across the width threshold', async () => {
     const model: BarModel = {
       folders: [
         { id: 'f1', title: 'reading list', items: [], folders: [] },
@@ -293,16 +293,24 @@ describe('BookmarksBar', () => {
     const reading = await screen.findByRole('button', { name: 'reading list' })
     const weather = screen.getByRole('button', { name: '天気予報' })
 
-    // Eight identical folder glyphs in a row say nothing. The initial says
-    // which folder — the one thing the label was there to tell you.
-    const mark = reading.querySelector('[data-chip-mark]')!
+    // V1 identity above the compact width threshold: the folder GLYPH sits
+    // beside the visible name. The monogram is the compact-only mark —
+    // eight one-letter circles say nothing next to a visible label, and
+    // the owner's installed window proved a monogram-only chip reads as an
+    // "unexplained one-letter circle" the moment the label is squeezed.
+    // The two marks are media-gated so exactly one is ever visible.
+    const glyph = reading.querySelector('[data-bookmark-mark="folder"]')!
+    expect(glyph).not.toBeNull()
+    expect(glyph.classList.contains('compact:hidden')).toBe(true)
+    const mark = reading.querySelector('[data-bookmark-mark="monogram"]')!
     expect(mark.textContent).toBe('RL')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
-    expect(reading.querySelectorAll('[data-chip-mark]')).toHaveLength(1)
+    expect(mark.classList.contains('hidden')).toBe(true)
+    expect(mark.classList.contains('compact:inline')).toBe(true)
+    expect(reading.querySelectorAll('[data-chip-mark]')).toHaveLength(2)
     // Code points, not UTF-16 units, and uppercasing a CJK glyph is the
     // identity — a folder named with an emoji or a Han character keeps it.
-    expect(weather.querySelector('[data-chip-mark]')!.textContent).toBe('天')
-    expect(reading.querySelector('svg')).toBeNull()
+    expect(weather.querySelector('[data-bookmark-mark="monogram"]')!.textContent).toBe('天')
   })
 
   it('renders one folder glyph and no monogram for an unnamed folder', async () => {

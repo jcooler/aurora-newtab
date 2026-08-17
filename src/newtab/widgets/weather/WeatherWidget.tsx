@@ -87,13 +87,22 @@ export default function WeatherWidget({
           toJSON: () => ({}),
         } as DOMRectReadOnly)
       : undefined
+    // Clamp against the LAYOUT viewport, not window.inner*: on a scrollable
+    // document real Chrome's classic scrollbar gutter lives inside inner*,
+    // so an inner-clamped top-right panel could sit up to ~17px underneath
+    // the scrollbar (the owner's reported right-edge cut). documentElement
+    // client sizes exclude the gutter; jsdom reports 0 there, so fall back.
+    const layoutViewport = {
+      width: document.documentElement.clientWidth || window.innerWidth,
+      height: document.documentElement.clientHeight || window.innerHeight,
+    }
     const next = weatherPanelAnchor({
       trigger: trigger.getBoundingClientRect(),
       panel: {
-        width: panelRect.width || Math.min(384, Math.max(0, window.innerWidth - 16)),
+        width: panelRect.width || Math.min(384, Math.max(0, layoutViewport.width - 16)),
         height: panel.scrollHeight || panelRect.height || 420,
       },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
+      viewport: layoutViewport,
       safeMargin: 8,
       utilityExclusion,
     })
@@ -320,7 +329,7 @@ export default function WeatherWidget({
   const effectiveAnchor = panelAnchor ?? {
     left: 8,
     top: 8,
-    maxHeight: Math.max(0, window.innerHeight - 16),
+    maxHeight: Math.max(0, (document.documentElement.clientHeight || window.innerHeight) - 16),
     vertical: 'below' as const,
     horizontal: 'inward-right' as const,
   }

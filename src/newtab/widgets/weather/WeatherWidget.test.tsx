@@ -699,6 +699,39 @@ describe('WeatherWidget viewport-owned details', () => {
     expect(details.style.maxHeight).toBe('784px')
   })
 
+  it('clamps against the layout viewport so a classic scrollbar gutter cannot cut the panel', async () => {
+    // Real Windows Chrome lays out a scrollable document inside
+    // documentElement.clientWidth/Height, while window.inner* still
+    // includes the classic scrollbar gutter. Anchoring against inner*
+    // let a top-right panel sit up to ~17px underneath the scrollbar —
+    // the owner-reported right-edge cut. The anchor must clamp against
+    // the layout viewport instead.
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    Object.defineProperty(document.documentElement, 'clientWidth', { configurable: true, value: 983 })
+    Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 780 })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('button[aria-expanded]')) return domRect(792, 8, 992, 88)
+      if (this.matches('[data-weather-details]')) return domRect(0, 0, 320, 400)
+      return domRect(0, 0, 0, 0)
+    })
+    try {
+      await renderWidget()
+
+      await expandPanel()
+
+      const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+      // maximumLeft = clientWidth 983 - 8 - 320 = 655: the panel's right
+      // edge ends at 975 <= 983 instead of 992, which sat under the
+      // scrollbar gutter when the clamp used window.innerWidth.
+      expect(details.style.left).toBe('655px')
+      expect(details.style.maxHeight).toBe('764px')
+    } finally {
+      Reflect.deleteProperty(document.documentElement, 'clientWidth')
+      Reflect.deleteProperty(document.documentElement, 'clientHeight')
+    }
+  })
+
   it('re-anchors after a physical viewport resize without changing its Canvas owner', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })

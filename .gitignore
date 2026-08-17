@@ -34,3 +34,7 @@ release/store-shots/
 # Product-concept renders Jon drops in for vision discussions — reference
 # imagery for design sessions, not source and not shipped.
 output/
+.playwright-profile-forensic/
+.playwright-profile-forensic-weather/
+.preview-forensic-dist/
+.forensic-short-height-out/

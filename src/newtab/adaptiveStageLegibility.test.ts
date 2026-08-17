@@ -21,6 +21,25 @@ function lastDeclarationBlock(selector: string): string {
   return indexCss.slice(open + 1, close)
 }
 
+describe('Retired stage presentation must not restyle live Canvas bookmarks', () => {
+  it('keeps no stage-variant bookmark rules that hide labels or force mark circles', () => {
+    // These retired Adaptive Stage rules fired on the live Canvas because
+    // CanvasItem still emits the board-item class and data-stage-variant.
+    // With a compact-size bookmarks placement they hid every chip label at
+    // ANY viewport width — the owner's 1408px-wide window showed only
+    // ambiguous mark circles. Label collapse belongs to the `compact:`
+    // width media variant alone (index.css, viewport width <= 720px).
+    expect(indexCss).not.toContain('[data-stage-variant="compact"][data-block-id="bookmarks"]')
+  })
+
+  it('maps the CSS profile mirror by width only, never by viewport height', () => {
+    // The JS selector no longer sends short-height desktop windows to the
+    // phone document; the legacy harness cross-checks --stage-css-profile,
+    // so the media mirror must agree.
+    expect(indexCss).not.toMatch(/@media \(max-height: 699px\)[^\n]*--stage-css-profile: compact/)
+  })
+})
+
 describe('Adaptive Stage compact legibility contract', () => {
   it('sizes every persistent stage action from the resolved control target', () => {
     expect(indexCss).toMatch(/\.adaptive-stage \.settings-gear,\s*\.adaptive-stage \.utility-tray-trigger,\s*\.adaptive-stage button\[aria-label="New background photo"\]\s*\{/)

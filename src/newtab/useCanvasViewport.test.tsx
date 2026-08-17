@@ -13,7 +13,6 @@ describe('Canvas viewport ownership', () => {
 
   it.each([
     [899, 900, 'compact'],
-    [900, 699, 'compact'],
     [900, 700, 'standard'],
     [1599, 700, 'standard'],
     [1600, 762, 'standard'],
@@ -23,6 +22,22 @@ describe('Canvas viewport ownership', () => {
     [2200, 1100, 'display'],
     [2310, 1100, 'ultrawide'],
   ] as const)('selects %sx%s as %s', (width, height, profile) => {
+    expect(selectCanvasProfile({ width, height })).toBe(profile)
+  })
+
+  // A physically wide browser window is a desktop canvas even when it is
+  // short. The owner's installed 1408x445 window must never receive the
+  // Small phone document: only narrow widths select the compact profile.
+  it.each([
+    [1408, 445, 'standard'],
+    [1366, 600, 'standard'],
+    [1024, 600, 'standard'],
+    [900, 699, 'standard'],
+    [1280, 500, 'standard'],
+    [899, 445, 'compact'],
+    [720, 400, 'compact'],
+    [1920, 500, 'ultrawide'],
+  ] as const)('keeps short-height %sx%s off the phone document as %s', (width, height, profile) => {
     expect(selectCanvasProfile({ width, height })).toBe(profile)
   })
 
