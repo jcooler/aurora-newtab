@@ -173,18 +173,18 @@ This owner-approved recovery supersedes the rejected Calm Canvas and the user-fa
 
 ## Information-first production readiness remediation
 
-Owner testing of the packaged candidate supersedes the release-readiness conclusion without reopening already-green correctness foundations. The written design is [`2026-08-17-aurora-information-first-production-readiness-remediation-design.md`](../specs/2026-08-17-aurora-information-first-production-readiness-remediation-design.md). No production packet begins until the written design is reviewed and the executable plan is committed.
+Owner testing of the packaged candidate supersedes the release-readiness conclusion without reopening already-green correctness foundations. The approved written design is [`2026-08-17-aurora-information-first-production-readiness-remediation-design.md`](../specs/2026-08-17-aurora-information-first-production-readiness-remediation-design.md), and the executable plan is [`2026-08-17-aurora-information-first-production-readiness-remediation.md`](../plans/2026-08-17-aurora-information-first-production-readiness-remediation.md).
 
 | Packet | State | Depends on | Acceptance summary | Plan | Finishing commit |
 |---|---|---|---|---|---|
-| PR-P0 Information-first design checkpoint | Awaiting owner review | Owner installed-extension QA | Withdraw the current package, establish the information-first hierarchy, combine immediate and coherent remediation, define 23 common displays and five required states, preserve frozen correctness and Store boundaries. | Written design | checkpoint pending |
-| PR-P1 Runtime stability and viewport containment | Not started | PR-P0 approval and executable plan | Stable source slots and toggle geometry, Canvas viewport ownership, fully hidden closed Settings, viewport-owned Weather disclosure. | Create after design approval | - |
-| PR-P2 Information hierarchy and legibility | Not started | PR-P1 | Role-based responsive type, Text size projection, local contrast, meaningful Weather sizes, and truthful setting labels. | Create after design approval | - |
-| PR-P3 Settings workspace | Not started | PR-P2 | Bounded drawer, compact navigation and controls, grouped Widgets, editor disclosures, concise Layout controls. | Create after design approval | - |
-| PR-P4 Connector workspace | Not started | PR-P3 | Converged surface, compact connector states, explicit Setup/Edit, configured visibility, complete privacy disclosure. | Create after design approval | - |
-| PR-P5 Arrange artboards and obsolete-code retirement | Not started | PR-P4 | Physical-viewport modality, framed logical previews, compact inspector, deletion of proven-unreachable presentation code only. | Create after design approval | - |
-| PR-P6 Common-display Chromium QA and owner gate | Not started | PR-P5 | All 23 CSS viewports and five required states, 115 individually inspected captures, deeper fencepost interactions, and eight original owner captures. | Create after design approval | - |
-| PR-P7 Stabilization and release restaging | Not started | PR-P6 owner approval | One stabilized full unit/build/browser gate under the bounded rerun policy, then a new audited local ZIP, Store images, and dossier. No Store mutation. | Create after design approval | - |
+| PR-P0 Information-first design checkpoint | Verified - owner approved | Owner installed-extension QA | Withdraw the current package, establish the information-first hierarchy, combine immediate and coherent remediation, define 23 common displays and five required states, preserve frozen correctness and Store boundaries. | Seven-packet remediation plan | `8081f9d`; checkpoint subject `docs: approve information-first implementation plan` |
+| PR-P1 Runtime stability and viewport containment | In progress | PR-P0 approval and executable plan | Stable source slots and toggle geometry, Canvas viewport ownership, fully hidden closed Settings, viewport-owned Weather disclosure. | Seven-packet remediation plan | - |
+| PR-P2 Information hierarchy and legibility | Not started | PR-P1 | Role-based responsive type, Text size projection, local contrast, meaningful Weather sizes, and truthful setting labels. | Seven-packet remediation plan | - |
+| PR-P3 Settings workspace | Not started | PR-P2 | Bounded drawer, compact navigation and controls, grouped Widgets, editor disclosures, concise Layout controls. | Seven-packet remediation plan | - |
+| PR-P4 Connector workspace | Not started | PR-P3 | Converged surface, compact connector states, explicit Setup/Edit, configured visibility, complete privacy disclosure. | Seven-packet remediation plan | - |
+| PR-P5 Arrange artboards and obsolete-code retirement | Not started | PR-P4 | Physical-viewport modality, framed logical previews, compact inspector, deletion of proven-unreachable presentation code only. | Seven-packet remediation plan | - |
+| PR-P6 Common-display Chromium QA and owner gate | Not started | PR-P5 | All 23 CSS viewports and five required states, 115 individually inspected captures, deeper fencepost interactions, and eight original owner captures. | Seven-packet remediation plan | - |
+| PR-P7 Stabilization and release restaging | Not started | PR-P6 owner approval | One stabilized full unit/build/browser gate under the bounded rerun policy, then a new audited local ZIP, Store images, and dossier. No Store mutation. | Seven-packet remediation plan | - |
 
 ## Program definition of done
 
