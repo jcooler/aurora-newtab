@@ -8,6 +8,7 @@ const repoRoot = process.cwd()
 const dist = resolve('.preview-v1-canvas-dist')
 const profileDir = resolve('.playwright-profile-v1-canvas')
 const outDir = 'C:/Users/SickT/Documents/Codex/2026-08-16/aurora-v1-canvas-implementation-session-prompt/outputs/canvas-p7'
+const failureCapture = `${outDir}/canvas-p7-failure.png`
 const headed = process.argv.includes('--headed')
 
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
@@ -17,6 +18,7 @@ for (const [path, suffix] of [[dist, '.preview-v1-canvas-dist'], [profileDir, '.
 rmSync(dist, { recursive: true, force: true })
 rmSync(profileDir, { recursive: true, force: true })
 mkdirSync(outDir, { recursive: true })
+rmSync(failureCapture, { force: true })
 
 const vite = resolve('node_modules/vite/bin/vite.js')
 const build = spawnSync(process.execPath, [vite, 'build', '--mode', 'preview', '--outDir', dist, '--emptyOutDir'], {
@@ -146,9 +148,9 @@ async function seedRealContent() {
     })
     const snapshots = {
       ics: { fetchedAt: at, scope: await scope('ics', configs.ics, { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }), data: { events: [
-        { summary: 'Studio review', start: noon + 60 * 60_000, end: noon + 90 * 60_000, allDay: false, cal: 0 },
-        { summary: 'Family dinner', start: noon + 3 * 60 * 60_000, end: noon + 4 * 60 * 60_000, allDay: false, cal: 1 },
-        { summary: 'Release planning', start: noon + 25 * 60 * 60_000, end: noon + 26 * 60 * 60_000, allDay: false, cal: 0 },
+        { summary: 'Release planning', start: noon + 60 * 60_000, end: noon + 90 * 60_000, allDay: false, cal: 0 },
+        { summary: 'Quarterly checkpoint', start: noon + 3 * 60 * 60_000, end: noon + 4 * 60 * 60_000, allDay: false, cal: 1 },
+        { summary: 'Roadmap review', start: noon + 25 * 60 * 60_000, end: noon + 26 * 60 * 60_000, allDay: false, cal: 0 },
       ] } },
       status: { fetchedAt: at, scope: await scope('status', configs.status), data: { services: [{ name: 'GitHub', indicator: 'none', description: 'All systems operational' }, { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' }] } },
       github: { fetchedAt: at, scope: await scope('github', configs.github), data: { prs: [{ title: 'Ship the Canvas owner gate', url: 'https://github.invalid/aurora/pull/7', repo: 'aurora/canvas' }, { title: 'Preserve visual regression evidence', url: 'https://github.invalid/aurora/pull/8', repo: 'aurora/canvas' }], issues: [{ title: 'Verify screenshot metadata', url: 'https://github.invalid/aurora/issues/21', repo: 'aurora/qa' }], notifications: 4, contributions: { total: 42, days: contributionDays(5) }, etags: {} } },
@@ -227,6 +229,9 @@ async function seedRealContent() {
         const folder = await chrome.bookmarks.create({ parentId: bar.id, title: 'A' })
         const nested = await chrome.bookmarks.create({ parentId: folder.id, title: 'QA' })
         await chrome.bookmarks.create({ parentId: nested.id, title: 'Capture ledger', url: 'https://example.invalid/capture-ledger' })
+        for (let index = 1; index <= 32; index += 1) {
+          await chrome.bookmarks.create({ parentId: nested.id, title: `Evidence item ${index}`, url: `https://example.invalid/evidence-${index}` })
+        }
         await chrome.bookmarks.create({ parentId: folder.id, title: 'Canvas plan', url: 'https://example.invalid/canvas-plan' })
         await chrome.bookmarks.create({ parentId: bar.id, title: 'Loose reference', url: 'https://example.invalid/reference' })
         await chrome.bookmarks.create({ parentId: bar.id, title: '   ' })
@@ -260,6 +265,34 @@ const assertNoHorizontalOverflow = async (label) => {
   evidence.layout[label] = widths
 }
 
+const ARRANGE_LABELS = {
+  weather: 'Weather', ics: 'Calendar', monthCal: 'Month', sun: 'Sun times', moon: 'Moon phase', quote: 'Quote',
+  clock: 'Clock', greeting: 'Greeting', worldClocks: 'World clocks', countdown: 'Countdown', search: 'Search', focus: 'Focus', links: 'Links', habits: 'Habits', bookmarks: 'Bookmarks',
+  status: 'Service status', github: 'GitHub', gitlab: 'GitLab', jira: 'Jira', vercel: 'Deploys', homeassistant: 'Home Assistant', rss: 'Headlines', crypto: 'Crypto',
+  timer: 'Timer', tasks: 'Tasks', notes: 'Notes',
+}
+
+const assertArrangeSelections = async (profile) => {
+  const ids = await page.locator('[data-block-id]').evaluateAll((nodes) => nodes
+    .filter((node) => {
+      const rect = node.getBoundingClientRect()
+      const style = getComputedStyle(node)
+      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+    })
+    .map((node) => node.getAttribute('data-block-id')))
+  const selections = {}
+  for (const id of ids) {
+    const label = ARRANGE_LABELS[id]
+    assert(label, `No Arrange label mapping for visible ${id}`)
+    const target = page.getByRole('button', { name: `Edit ${label}`, exact: true })
+    await target.click()
+    const pressed = await target.getAttribute('aria-pressed')
+    assert(pressed === 'true', `${profile} Arrange did not select visible ${id}`)
+    selections[id] = { label, pressed }
+  }
+  return selections
+}
+
 const capture = async (label, file) => {
   const path = `${outDir}/${file}`
   await page.screenshot({ path, fullPage: false })
@@ -279,11 +312,12 @@ const capture = async (label, file) => {
       const a = blocks[i].rect; const b = blocks[j].rect
       if (a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) intersections.push([blocks[i].id, blocks[j].id])
     }
+    const clippedBlocks = blocks.filter(({ rect }) => rect.x < -0.5 || rect.y < -0.5 || rect.x + rect.width > viewport.width + 0.5 || rect.y + rect.height > viewport.height + 0.5)
     const controls = [...document.querySelectorAll('button, a, input, select, textarea')]
       .filter((node) => { const s = getComputedStyle(node); return s.display !== 'none' && s.visibility !== 'hidden' })
       .map((node) => { const r = node.getBoundingClientRect(); return { name: node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '', width: r.width, height: r.height } })
     return {
-      viewport, blocks, intersections,
+      viewport, blocks, intersections, clippedBlocks,
       overflow: { document: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth },
       missingImages: [...document.images].filter((image) => !image.complete || image.naturalWidth === 0).map((image) => image.currentSrc || image.src),
       unnamedActions: controls.filter((control) => !control.name).length,
@@ -327,7 +361,7 @@ try {
   await capture('Desktop 1600x900 bookmarks, GitHub, and Jira', 'canvas-p7-desktop-1600x900-bookmarks-github-jira.png')
   const desktopCapture = evidence.captures.at(-1)
   assert(desktopCapture.intersections.length === 0, `Desktop owner capture intersects: ${JSON.stringify(desktopCapture.intersections)}`)
-  assert(desktopCapture.blocks.every((block) => block.rect.y >= 0 && block.rect.y + block.rect.height <= 900), 'Desktop owner capture has an off-viewport block')
+  assert(desktopCapture.clippedBlocks.length === 0, `Desktop owner capture has clipped blocks: ${JSON.stringify(desktopCapture.clippedBlocks)}`)
   const compactMonth = page.locator('[data-block-id="monthCal"]')
   assert(await compactMonth.locator('tbody tr').count() === 1 && await compactMonth.locator('tbody tr td').count() === 7, 'Compact Month is not exactly seven days')
   await compactMonth.getByRole('button', { name: 'Next month' }).click()
@@ -346,6 +380,20 @@ try {
   const nestedPopover = page.getByRole('dialog', { name: 'QA bookmarks' })
   await nestedPopover.waitFor()
   evidence.interactions.nestedBookmarks = await assertInsideViewport(nestedPopover, 'Nested bookmarks popover')
+  const nestedScroll = await nestedPopover.evaluate((node) => {
+    const before = node.scrollTop
+    node.scrollTop = Math.min(48, Math.max(0, node.scrollHeight - node.clientHeight))
+    return {
+      overflowY: getComputedStyle(node).overflowY,
+      clientHeight: node.clientHeight,
+      scrollHeight: node.scrollHeight,
+      before,
+      after: node.scrollTop,
+    }
+  })
+  assert(nestedScroll.overflowY === 'auto' && nestedScroll.scrollHeight > nestedScroll.clientHeight && nestedScroll.after > nestedScroll.before,
+    `Nested Bookmarks is not locally scrollable: ${JSON.stringify(nestedScroll)}`)
+  evidence.interactions.nestedBookmarksScroll = nestedScroll
   await page.keyboard.press('Escape')
   assert(await folder.evaluate((node) => node === document.activeElement), 'Bookmarks did not restore invoker focus')
 
@@ -379,6 +427,23 @@ try {
   assert(await timer.evaluate((node) => node === document.activeElement), 'Timer did not restore invoker focus')
   assert((await timer.getAttribute('aria-label'))?.includes('running'), 'Timer did not continue after its panel closed')
 
+  const cursorStates = await page.evaluate(() => {
+    const cursorOf = (selector) => {
+      const node = document.querySelector(selector)
+      if (!node) throw new Error(`cursor witness missing: ${selector}`)
+      return getComputedStyle(node).cursor
+    }
+    return {
+      folder: cursorOf('button[title="A"]'),
+      weatherToggle: cursorOf('[data-block-id="weather"] button[aria-expanded]'),
+      weatherSurface: cursorOf('[data-block-id="weather"] section'),
+      passiveCalendar: cursorOf('[data-block-id="monthCal"] tbody'),
+    }
+  })
+  assert(cursorStates.folder === 'pointer' && cursorStates.weatherToggle === 'pointer' && cursorStates.weatherSurface === 'default' && cursorStates.passiveCalendar !== 'pointer',
+    `Computed cursor contract failed: ${JSON.stringify(cursorStates)}`)
+  evidence.interactions.cursors = cursorStates
+
   const storedFocus = await page.evaluate(async () => (await chrome.storage.local.get('focus')).focus)
   await page.evaluate(async () => chrome.storage.local.set({ focus: null }))
   await page.reload({ waitUntil: 'domcontentloaded' })
@@ -391,10 +456,77 @@ try {
   }))
   assert(promptSurface.backgroundColor === 'rgba(0, 0, 0, 0)', `Focus prompt is opaque: ${promptSurface.backgroundColor}`)
   assert(!promptSurface.hasRetiredClass && promptSurface.footprint === 'empty', `Focus prompt contract failed: ${JSON.stringify(promptSurface)}`)
+  const focusFootprint = async (expectedState) => {
+    const value = await page.locator('[data-focus-footprint]').evaluate((node) => {
+      const footprint = node.getBoundingClientRect()
+      const block = node.closest('[data-block-id="focus"]')?.getBoundingClientRect()
+      if (!block) throw new Error('Focus block missing')
+      return {
+        state: node.getAttribute('data-focus-state'),
+        blockCenter: { x: block.x + block.width / 2, y: block.y + block.height / 2 },
+        footprintCenter: { x: footprint.x + footprint.width / 2, y: footprint.y + footprint.height / 2 },
+        canvasCenter: (() => {
+          const canvas = document.querySelector('[data-canvas-surface]')?.getBoundingClientRect()
+          if (!canvas) throw new Error('Canvas surface missing')
+          return { x: canvas.x + canvas.width / 2, y: canvas.y + canvas.height / 2 }
+        })(),
+      }
+    })
+    value.blockDelta = {
+      x: Math.abs(value.footprintCenter.x - value.blockCenter.x),
+      y: Math.abs(value.footprintCenter.y - value.blockCenter.y),
+    }
+    value.canvasDelta = {
+      x: Math.abs(value.footprintCenter.x - value.canvasCenter.x),
+      y: Math.abs(value.footprintCenter.y - value.canvasCenter.y),
+    }
+    assert(value.state === expectedState && value.blockDelta.x <= 1 && value.blockDelta.y <= 1 && value.canvasDelta.x <= 1 && value.canvasDelta.y <= 12,
+      `Focus ${expectedState} footprint is not centered: ${JSON.stringify(value)}`)
+    return value
+  }
+  const focusLifecycle = { empty: await focusFootprint('empty') }
+  const focusInput = page.getByLabel(/main focus today/i)
+  await focusInput.fill('Lifecycle focus')
+  focusLifecycle.firstEntry = await focusFootprint('empty')
+  await focusInput.press('Enter')
+  focusLifecycle.committed = await focusFootprint('committed')
+  await page.locator('label[for="focus-done"]').last().click()
+  focusLifecycle.completed = await focusFootprint('completed')
+  await page.getByRole('button', { name: 'Edit' }).click({ force: true })
+  focusLifecycle.editing = await focusFootprint('editing')
+  await page.getByLabel(/main focus today/i).fill('Lifecycle focus revised')
+  await page.getByLabel(/main focus today/i).press('Enter')
+  focusLifecycle.editedAgain = await focusFootprint('committed')
+  evidence.interactions.focusLifecycle = focusLifecycle
   evidence.interactions.focusPrompt = promptSurface
+  const lifecycleRevision = { text: 'Lifecycle focus revised', date: storedFocus?.date, done: false }
+  await page.waitForFunction(async (expected) => {
+    const { focus } = await chrome.storage.local.get('focus')
+    return JSON.stringify(focus) === JSON.stringify(expected)
+  }, lifecycleRevision)
   await page.evaluate(async (focus) => chrome.storage.local.set({ focus }), storedFocus)
+  await page.waitForFunction(async (expected) => {
+    const { focus } = await chrome.storage.local.get('focus')
+    return JSON.stringify(focus) === JSON.stringify(expected)
+  }, storedFocus)
   await page.reload({ waitUntil: 'domcontentloaded' })
   await waitForCanvas('Desktop')
+  const restoredFocusText = await page.locator('[data-block-id="focus"] [data-focus-footprint]').innerText()
+  assert(restoredFocusText.includes(storedFocus?.text ?? ''), `Seeded Focus did not restore before captures: ${restoredFocusText}`)
+  evidence.interactions.focusRestore = { storedText: storedFocus?.text, visibleText: restoredFocusText }
+
+  const longPressSurface = page.locator('[data-block-id="clock"] time')
+  const longPressBox = await rectOf(longPressSurface)
+  await page.mouse.move(longPressBox.x + longPressBox.width / 2, longPressBox.y + longPressBox.height / 2)
+  await page.mouse.down()
+  await page.waitForTimeout(650)
+  const longPressToolbar = page.getByRole('toolbar', { name: 'Arrange layout' })
+  await longPressToolbar.waitFor()
+  await page.mouse.up()
+  evidence.interactions.longPress = { target: 'Clock time', holdMs: 650, toolbarVisible: await longPressToolbar.isVisible() }
+  assert(evidence.interactions.longPress.toolbarVisible, 'Real Clock long-press did not enter Arrange')
+  await longPressToolbar.getByRole('button', { name: 'Cancel' }).click()
+  await longPressToolbar.waitFor({ state: 'detached' })
 
   const layoutBeforeArrange = await page.evaluate(async () => JSON.stringify((await chrome.storage.local.get('layout')).layout))
   await page.getByRole('button', { name: 'Open settings' }).click()
@@ -403,10 +535,20 @@ try {
   await settings.getByRole('button', { name: 'Arrange layout' }).click()
   const toolbar = page.getByRole('toolbar', { name: 'Arrange layout' })
   await toolbar.waitFor()
+  evidence.interactions.desktopArrangeSelections = await assertArrangeSelections('Desktop')
   const clockTarget = page.getByRole('button', { name: 'Edit Clock' })
   await clockTarget.click()
   const inspector = page.getByRole('complementary', { name: 'Clock inspector' })
   await inspector.waitFor()
+  await clockTarget.evaluate((node) => {
+    window.__canvasP7PointerCapture = { got: 0, lost: 0, active: false, pointerId: null }
+    node.addEventListener('gotpointercapture', (event) => {
+      window.__canvasP7PointerCapture.got += 1
+      window.__canvasP7PointerCapture.pointerId = event.pointerId
+      window.__canvasP7PointerCapture.active = node.hasPointerCapture(event.pointerId)
+    })
+    node.addEventListener('lostpointercapture', () => { window.__canvasP7PointerCapture.lost += 1 })
+  })
 
   const beforePointerX = Number(await page.locator('[data-block-id="clock"]').getAttribute('data-canvas-x'))
   const targetBox = await rectOf(clockTarget)
@@ -414,6 +556,9 @@ try {
   await page.mouse.down()
   await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2 + 32, { steps: 4 })
   const guidesDuringDrag = await page.locator('[data-canvas-guide]').count()
+  const pointerCaptureDuringDrag = await page.evaluate(() => window.__canvasP7PointerCapture)
+  assert(pointerCaptureDuringDrag?.got > 0 && pointerCaptureDuringDrag.active,
+    `Arrange drag did not acquire actual pointer capture: ${JSON.stringify(pointerCaptureDuringDrag)}`)
   await page.mouse.up()
   const afterPointerX = Number(await page.locator('[data-block-id="clock"]').getAttribute('data-canvas-x'))
   const beforeKeyboardLeft = (await rectOf(page.locator('[data-block-id="clock"]'))).x
@@ -438,7 +583,7 @@ try {
   await toolbar.getByRole('button', { name: 'Copy Desktop layout' }).click()
   await toolbar.getByRole('tab', { name: 'Desktop' }).click()
   evidence.interactions.arrange = {
-    pointer: { beforeX: beforePointerX, afterX: afterPointerX },
+    pointer: { beforeX: beforePointerX, afterX: afterPointerX, capture: pointerCaptureDuringDrag },
     keyboard: { beforeLeft: beforeKeyboardLeft, afterLeft: afterKeyboardLeft },
     guidesDuringDrag,
     selected: await clockTarget.getAttribute('aria-pressed'),
@@ -518,9 +663,20 @@ try {
   await assertNoHorizontalOverflow('Large default')
   const largeMonth = page.locator('[data-block-id="monthCal"]')
   assert(await largeMonth.locator('tbody tr').count() >= 4, 'Large Month does not show a natural full month')
-  assert(await page.getByText('Studio review').count() > 0 && await page.getByText('Family dinner').count() > 0, 'Large Calendar is missing named multi-feed events')
+  assert(await page.getByText('Release planning').count() > 0 && await page.getByText('Studio', { exact: true }).count() > 0 && await page.getByText('Family', { exact: true }).count() > 0,
+    'Large Calendar is missing visibly attributed neutral multi-feed events')
   await capture('Large 2560x1440 dense connectors', 'canvas-p7-large-2560x1440-dense.png')
   assert(evidence.captures.at(-1).intersections.length === 0, `Large owner capture intersects: ${JSON.stringify(evidence.captures.at(-1).intersections)}`)
+  assert(evidence.captures.at(-1).clippedBlocks.length === 0, `Large owner capture has clipped blocks: ${JSON.stringify(evidence.captures.at(-1).clippedBlocks)}`)
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  const largeSettings = page.getByRole('dialog', { name: 'Settings' })
+  await largeSettings.getByRole('tab', { name: 'Widgets' }).click()
+  await largeSettings.getByRole('button', { name: 'Arrange layout' }).click()
+  const largeArrange = page.getByRole('toolbar', { name: 'Arrange layout' })
+  await largeArrange.waitFor()
+  evidence.interactions.largeArrangeSelections = await assertArrangeSelections('Large')
+  await largeArrange.getByRole('button', { name: 'Cancel' }).click()
+  await largeArrange.waitFor({ state: 'detached' })
 
   await page.setViewportSize({ width: 3440, height: 1440 })
   await page.reload({ waitUntil: 'domcontentloaded' })
@@ -531,16 +687,45 @@ try {
   }
   await capture('Wide 3440x1440 dense connectors', 'canvas-p7-wide-3440x1440-dense.png')
   assert(evidence.captures.at(-1).intersections.length === 0, `Wide owner capture intersects: ${JSON.stringify(evidence.captures.at(-1).intersections)}`)
+  assert(evidence.captures.at(-1).clippedBlocks.length === 0, `Wide owner capture has clipped blocks: ${JSON.stringify(evidence.captures.at(-1).clippedBlocks)}`)
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  const wideSettings = page.getByRole('dialog', { name: 'Settings' })
+  await wideSettings.getByRole('tab', { name: 'Widgets' }).click()
+  await wideSettings.getByRole('button', { name: 'Arrange layout' }).click()
+  const wideArrange = page.getByRole('toolbar', { name: 'Arrange layout' })
+  await wideArrange.waitFor()
+  evidence.interactions.wideArrangeSelections = await assertArrangeSelections('Wide')
+  await wideArrange.getByRole('button', { name: 'Cancel' }).click()
+  await wideArrange.waitFor({ state: 'detached' })
 
   await page.getByRole('button', { name: 'Open settings' }).click()
   const connectorSettings = page.getByRole('dialog', { name: 'Settings' })
   await connectorSettings.getByRole('tab', { name: 'Connectors' }).click()
+  const icsSnapshotBeforeColor = await page.evaluate(async () => JSON.stringify((await chrome.storage.local.get('connectorSnapshots')).connectorSnapshots.ics))
   const studioColor = connectorSettings.getByLabel('Color for Studio')
   await studioColor.selectOption('emerald')
-  await page.waitForFunction(() => document.querySelector('[aria-label="Color for Studio"]')?.value === 'emerald')
+  await page.waitForFunction(async () => {
+    const { connectors } = await chrome.storage.local.get('connectors')
+    return connectors?.ics?.calendars?.[0]?.color === 'emerald'
+  })
   assert(await studioColor.inputValue() === 'emerald', 'Calendar Settings color did not update')
-  evidence.interactions.calendarColor = { studio: await studioColor.inputValue(), family: await connectorSettings.getByLabel('Color for Family').inputValue() }
   await connectorSettings.getByRole('button', { name: 'Close settings' }).click()
+  const calendarColor = await page.evaluate(async (before) => {
+    const { connectors, connectorSnapshots } = await chrome.storage.local.get(['connectors', 'connectorSnapshots'])
+    return {
+      studio: connectors.ics.calendars[0]?.color,
+      family: connectors.ics.calendars[1]?.color ?? 'auto',
+      snapshotUnchanged: JSON.stringify(connectorSnapshots.ics) === before,
+    }
+  }, icsSnapshotBeforeColor)
+  const visibleDotClasses = await page.locator('[data-block-id="ics"] span').evaluateAll((nodes) => nodes
+    .map((node) => node.className)
+    .filter((className) => typeof className === 'string' && /bg-(?:fuchsia|emerald|sky)-400/.test(className)))
+  assert(calendarColor.studio === 'emerald' && calendarColor.family === 'auto' && calendarColor.snapshotUnchanged,
+    `Calendar Settings persistence/cache neutrality failed: ${JSON.stringify(calendarColor)}`)
+  assert(visibleDotClasses.some((className) => className.includes('bg-emerald-400')) && !visibleDotClasses.some((className) => className.includes('bg-fuchsia-400')),
+    `Visible Calendar dots did not match persisted Emerald selection: ${JSON.stringify(visibleDotClasses)}`)
+  evidence.interactions.calendarColor = { ...calendarColor, visibleDotClasses }
 
   await page.getByRole('button', { name: 'Open settings' }).click()
   const saveSettings = page.getByRole('dialog', { name: 'Settings' })

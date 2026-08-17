@@ -222,6 +222,11 @@ function CalendarInner({
         <span className="block min-w-0 truncate">
           Next: {next.summary} · {relative}
         </span>
+        {multi && (
+          <span data-calendar-source title={sourceName(next.cal)} className="max-w-24 shrink-0 truncate text-xs font-normal text-fg-muted">
+            {sourceName(next.cal)}
+          </span>
+        )}
         {showJoin && (
           <a
             href={next.meetUrl}
@@ -249,7 +254,12 @@ function CalendarInner({
                 className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted"
               >
                 {multi && dot(ev.cal)}
-                <span className="block truncate">{rowText}</span>
+                <span className="block min-w-0 truncate">{rowText}</span>
+                {multi && (
+                  <span data-calendar-source title={sourceName(ev.cal)} className="max-w-24 shrink-0 truncate text-[11px] text-fg-muted">
+                    {sourceName(ev.cal)}
+                  </span>
+                )}
               </li>
             )
           })}

@@ -307,7 +307,7 @@ describe('CalendarWidget', () => {
     expect(screen.getByText('Next: Standup · in 2 h')).toBeTruthy()
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     // Tomorrow (Sat) and Monday get weekday tokens; 11 days out gets a date token.
-    expect(rows).toEqual(['Sat 09:00 Kickoff', 'Mon 12:00 Family lunch', 'Aug 18 15:30 Dentist'])
+    expect(rows).toEqual(['Sat 09:00 KickoffPersonal', 'Mon 12:00 Family lunchFamily', 'Aug 18 15:30 DentistFamily'])
   })
 
   it('per-calendar view shows each calendar’s soonest not-already-shown event, in list order', async () => {
@@ -320,7 +320,7 @@ describe('CalendarWidget', () => {
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
     // Headline consumed EVENT_NEXT (cal 0), so cal 0's row is its SECOND event;
     // cal 1 contributes its first. List order (cal 0 then cal 1), not chronological.
-    expect(rows).toEqual(['14:00 Design review', 'Mon 12:00 Family lunch'])
+    expect(rows).toEqual(['14:00 Design reviewPersonal', 'Mon 12:00 Family lunchFamily'])
   })
 
   it('with 2+ calendars every row and the headline carry that calendar’s dot; with 1 calendar no dots render', async () => {
@@ -389,7 +389,7 @@ describe('CalendarWidget', () => {
     await act(async () => {})
 
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
-    expect(rows).toEqual(['Sat 09:00 Standup', 'Sat 09:00 Standup'])
+    expect(rows).toEqual(['Sat 09:00 StandupPersonal', 'Sat 09:00 StandupFamily'])
 
     const keyWarning = consoleError.mock.calls.some((args) =>
       args.some((a) => typeof a === 'string' && (a.includes('same key') || a.includes('unique "key"'))),
@@ -398,7 +398,7 @@ describe('CalendarWidget', () => {
     consoleError.mockRestore()
   })
 
-  it('programmatically distinguishes identical multi-calendar events and the Join action without changing visible event copy', async () => {
+  it('visibly and programmatically distinguishes identical multi-calendar events and the Join action', async () => {
     const duplicateStart = NOW + 10 * 60_000
     const headline = ev('Opening sync', NOW + 5 * 60_000, NOW + 35 * 60_000, 0, MEET_URL)
     const personalDuplicate = ev('Duplicate review', duplicateStart, duplicateStart + 30 * 60_000, 0)
@@ -438,11 +438,37 @@ describe('CalendarWidget', () => {
       clone.querySelectorAll('.sr-only').forEach((node) => node.remove())
       return clone.textContent?.replace(/\s+/g, ' ').trim()
     }
-    expect(rows.map(visibleText)).toEqual(['09:10 Duplicate review', '09:10 Duplicate review'])
+    expect(rows.map(visibleText)).toEqual(['09:10 Duplicate reviewPersonal', '09:10 Duplicate reviewWork'])
     const join = screen.getByRole('link', { name: 'Join Opening sync — Personal' })
     expect(join.textContent).toBe('Join')
     expect(join.className).toContain('min-h-9')
     expect(join.className).toContain('min-w-9')
+  })
+
+  it('visibly attributes neutral multi-calendar events in the next-event and agenda rows', async () => {
+    const releasePlanning = ev('Release planning', NOW + 5 * 60_000, NOW + 35 * 60_000, 0)
+    const quarterlyCheckpoint = ev('Quarterly checkpoint', NOW + 65 * 60_000, NOW + 95 * 60_000, 1)
+    const storage = await seededStorage(
+      {
+        enabled: true,
+        view: 'upcoming',
+        upcomingCount: 2,
+        calendars: [
+          { name: 'Studio', url: 'https://calendar.example.com/studio.ics' },
+          { name: 'Family', url: 'https://calendar.example.com/family.ics' },
+        ],
+      },
+      { events: [releasePlanning, quarterlyCheckpoint] },
+    )
+    mount(storage)
+    await act(async () => {})
+
+    const section = document.querySelector('section[aria-label="Calendar"]')!
+    const next = section.querySelector('p')!
+    const rows = [...section.querySelectorAll('ul > li')]
+    expect(next.textContent).toContain('Studio')
+    expect(rows[0]?.textContent).toContain('Family')
+    expect(section.querySelectorAll('[data-calendar-source]')).toHaveLength(2)
   })
 
   it('keeps single-calendar semantics quiet while preserving the visible Join label', async () => {
@@ -515,7 +541,7 @@ describe('CalendarWidget', () => {
     mount(storage)
     await act(async () => {})
     const rows = [...document.querySelectorAll('section[aria-label="Calendar"] ul > li')].map((li) => li.textContent)
-    expect(rows).toEqual(['All day · Vacation'])
+    expect(rows).toEqual(['All day · VacationPersonal'])
   })
 
   // Task 89 — the Join link. Visibility rule (the plan's own words): meetLinks
