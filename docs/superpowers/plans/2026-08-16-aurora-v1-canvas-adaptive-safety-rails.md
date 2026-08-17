@@ -112,15 +112,17 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - `CanvasSurface` owns the measured safe canvas, normalized placement rendering, document-safe Small vertical flow, selection geometry hooks, and optional Bottom bar.
 - Existing connector/render components receive the effective Canvas size, but Packet 2 does not redesign their inner content.
 
-- [ ] Write RED default tests proving top-center Bookmarks, centered Clock and Focus, V1 left/right edge meaning, Timer/Notes/Tasks launcher anchors, fixed utility controls outside the registry, all enabled identities present, and materially different Small/Desktop/Large/Wide dimensions.
-- [ ] Write RED geometry tests for 8px safe margins, finite percentage-to-pixel conversion, per-block clamping, tall Small canvases, display-only fitting, stable layering, and no document-level horizontal overflow.
-- [ ] Write RED component tests proving every enabled registry identity renders once, normalized V1/V2/V3 inputs render through the same surface, hidden identities do not render, Bottom bar remains optional/empty, and corrupt block geometry falls back without affecting siblings.
-- [ ] Write RED App/profile tests proving Small, Desktop, Large, and Wide select the correct normalized profile, custom profiles remain independent, derived profiles use source defaults, and `Use Desktop layout everywhere` previews fitted copies without writing.
-- [ ] Implement `CanvasSurface` and `CanvasItem`, replace the semantic zone DOM in `App`, retire user-facing semantic labels, and preserve real widget content, boundaries, Settings, Refresh, hydration, and fixed permissions behavior.
-- [ ] Add Canvas CSS using the existing V1 tokens and photo-native treatment. Keep production content untransformed; any Arrange preview scaling is isolated to the editor artboard.
-- [ ] Run `npx vitest run src/lib/layout/canvasDefaults.test.ts src/lib/layout/canvasGeometry.test.ts src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/CanvasItem.test.tsx src/newtab/widgetRegistry.test.ts src/newtab/App.test.tsx src/newtab/useAdaptiveStageViewport.test.tsx`.
-- [ ] Commit `feat(canvas): restore the V1 placement surface`.
-- [ ] Run one Packet 2 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P2`, push, and prove both repository states.
+- [x] Write RED default tests proving top-center Bookmarks, centered Clock and Focus, V1 left/right edge meaning, Timer/Notes/Tasks launcher anchors, fixed utility controls outside the registry, all enabled identities present, and materially different Small/Desktop/Large/Wide dimensions.
+- [x] Write RED geometry tests for 8px safe margins, finite percentage-to-pixel conversion, per-block clamping, tall Small canvases, display-only fitting, stable layering, and no document-level horizontal overflow.
+- [x] Write RED component tests proving every enabled registry identity renders once, normalized V1/V2/V3 inputs render through the same surface, hidden identities do not render, Bottom bar remains optional/empty, and corrupt block geometry falls back without affecting siblings.
+- [x] Write RED App/profile tests proving Small, Desktop, Large, and Wide select the correct normalized profile, custom profiles remain independent, derived profiles use source defaults, and `Use Desktop layout everywhere` previews fitted copies without writing.
+- [x] Implement `CanvasSurface` and `CanvasItem`, replace the semantic zone DOM in `App`, retire user-facing semantic labels, and preserve real widget content, boundaries, Settings, Refresh, hydration, and fixed permissions behavior.
+- [x] Add Canvas CSS using the existing V1 tokens and photo-native treatment. Keep production content untransformed; any Arrange preview scaling is isolated to the editor artboard.
+- [x] Run `npx vitest run src/lib/layout/canvasDefaults.test.ts src/lib/layout/canvasGeometry.test.ts src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/CanvasItem.test.tsx src/newtab/widgetRegistry.test.ts src/newtab/App.test.tsx src/newtab/useAdaptiveStageViewport.test.tsx`.
+- [x] Commit `feat(canvas): restore the V1 placement surface`.
+- [x] Run one Packet 2 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P2`, push, and prove both repository states.
+
+**Packet 2 evidence:** Implemented in `dffa11d` with the bounded review fix in `68c8cd6`. The final focused gate passed 8 files / 71 tests, TypeScript, and `git diff --check`. The single review/fix/rereview cycle connected preserved compact presentations to Canvas sizes, added the in-memory Desktop-everywhere fitted preview, and placed newly enabled identities at a nearest safe snapped position without moving saved custom blocks. The rereview returned Ready with no Critical, Important, or Minor finding open.
 
 ## Packet 3: Direct Arrange
 

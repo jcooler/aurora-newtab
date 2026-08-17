@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
-**Last verified packet:** `Canvas-P1` - V3 layout foundation<br>
-**Current packet:** `Canvas-P2` - Canvas renderer
+**Last verified packet:** `Canvas-P2` - Canvas renderer<br>
+**Current packet:** `Canvas-P3` - Direct Arrange
 
 ## Packet envelope
 
@@ -14,7 +14,8 @@
 - **Executable plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md` defines eight bounded packets, two owner visual gates, one review/fix cycle per packet, checkpoint pushes, and the single post-approval final gate.
 - **Rejected candidate:** Calm Canvas commits through `3c5015a` remain recoverable historical evidence but are not visually accepted, release-ready, or a foundation to continue polishing. Their full gates were correctly withheld.
 - **Canvas-P1 evidence:** Schema v12 and the additive V1/V2/V3 union are implemented without eager layout rewrite. V1/V2 recovery is exact, V3 Save is explicit, active block corruption falls back per block, backup validation remains strict, and legacy Settings/Arrange paths cannot destroy V3. The final focused gate passed 9 files / 609 tests, TypeScript, and diff hygiene. One review/fix/rereview cycle closed all blocking findings; repeated Settings test `act(...)` warnings remain Minor harness noise.
-- **Remaining gates:** Canvas-P2 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
+- **Canvas-P2 evidence:** One normalized Canvas now renders V1, V2, and V3 profiles with source-owned V1 anchors, Small/Desktop/Large/Wide selection, safe fitted geometry, optional Bottom bar ownership, preserved compact presentations, and no semantic Day/Now/Work Pulse/Signal Dock presentation regions. Custom saved blocks remain exact while newly enabled identities find a safe snapped position. `Use Desktop layout everywhere` is an in-memory fitted preview with no write. The final focused gate passed 8 files / 71 tests, TypeScript, and diff hygiene; the bounded rereview returned Ready with no findings open.
+- **Remaining gates:** Canvas-P3 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 
@@ -381,13 +382,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint W5-P4`. If `git status --short` is non-empty during W6-P1, reconcile only generated evidence or packet-owned changes.
+- None expected after `docs: checkpoint Canvas P2`. If `git status --short` is non-empty during Canvas-P3, reconcile only generated evidence or packet-owned changes.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `Canvas-P1` - V3 layout foundation
+- **Packet:** `Canvas-P3` - Direct Arrange
 - **Plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`
-- **State:** Owner-approved implementation planning is checkpointing. Execute Canvas-P1 through Canvas-P4 continuously, then stop at the required early visual gate with four original-resolution captures.
+- **State:** Canvas-P1 and Canvas-P2 are verified. Execute Canvas-P3 and Canvas-P4 continuously, then stop at the required early visual gate with four original-resolution captures.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep the approved eight-packet plan, one implementation envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
