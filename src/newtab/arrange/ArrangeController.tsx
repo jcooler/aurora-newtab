@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObje
 import { adaptStoredLayout, saveCanvasProfile } from '../../lib/layout/canvasAdapter'
 import { CANVAS_PROFILE_LABELS, canvasDefaults, resolveCanvasProfile } from '../../lib/layout/canvasDefaults'
 import type { CanvasProfile, CanvasProfileKey, StoredLayout } from '../../lib/layout/canvasTypes'
+import { canvasBoxFor } from '../../lib/layout/canvasGeometry'
 import type { BlockId } from '../../lib/layout/types'
 import { closeAllDialogs, hasOpenDialogs } from '../../lib/dialogStack'
 import { isPremium } from '../../lib/premium'
@@ -26,7 +27,7 @@ import {
   undoCanvasDraft,
   type CanvasDraft,
 } from './canvasDraft'
-import { canvasKeyboardDelta, snapCanvasPosition, type CanvasGuide, type SnapNeighbor } from './canvasSnap'
+import { canvasKeyboardDelta, clampCanvasTopLeft, snapCanvasPosition, type CanvasGuide, type SnapNeighbor } from './canvasSnap'
 import { useLongPress } from './useLongPress'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 
@@ -49,6 +50,7 @@ interface DragState {
   pointerId: number
   startDraft: CanvasDraft
   pointerOffset: { x: number; y: number }
+  canvasRect: DOMRect
 }
 
 function buttonClass(active = false): string {
@@ -73,6 +75,7 @@ export default function ArrangeController({
   const [mode, setMode] = useState<'off' | 'on'>('off')
   const [draft, setDraft] = useState<CanvasDraft | null>(null)
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
+  const [surfaceRect, setSurfaceRect] = useState<DOMRect | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'pending' | 'error'>('idle')
@@ -85,6 +88,8 @@ export default function ArrangeController({
   const profileRef = useRef(profile)
   const sessionLayoutRef = useRef<StoredLayout | null>(null)
   const sessionEntriesRef = useRef<readonly WidgetRegistryEntry[]>([])
+  const sessionInvokerRef = useRef<HTMLElement | null>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
   const pendingFocusRef = useRef<BlockId | null>(null)
   const entryPromiseRef = useRef<Promise<void> | null>(null)
   const mountedRef = useRef(true)
@@ -104,6 +109,15 @@ export default function ArrangeController({
   useEffect(() => {
     onModeChange?.(mode === 'on')
   }, [mode, onModeChange])
+
+  useLayoutEffect(() => {
+    if (mode !== 'off' || !restoreFocusRef.current) return
+    const target = restoreFocusRef.current
+    if (target.isConnected && target.closest('[inert]')) return
+    restoreFocusRef.current = null
+    if (target.isConnected) target.focus()
+    else returnFocusRef?.current?.focus()
+  })
 
   const buildDraft = useCallback((target: CanvasProfileKey, preferredId?: BlockId): CanvasDraft => {
     const sourceLayout = sessionLayoutRef.current ?? layoutRef.current
@@ -152,6 +166,8 @@ export default function ArrangeController({
 
   const measureAll = useCallback(() => {
     const next: Partial<Record<BlockId, DOMRect>> = {}
+    const surface = document.querySelector<HTMLElement>('[data-canvas-surface]')
+    setSurfaceRect(surface?.getBoundingClientRect() ?? null)
     for (const entry of sessionEntriesRef.current) {
       const element = document.querySelector<HTMLElement>(`[data-block-id="${entry.id}"]`)
       if (!element) continue
@@ -183,34 +199,37 @@ export default function ArrangeController({
     pendingFocusRef.current = null
   }, [mode, rects])
 
-  const exit = useCallback(() => {
+  const exit = useCallback((terminalAnnouncement: string) => {
+    restoreFocusRef.current = sessionInvokerRef.current ?? returnFocusRef?.current ?? null
     modeRef.current = 'off'
     draftRef.current = null
     draftsRef.current = {}
     sessionLayoutRef.current = null
     sessionEntriesRef.current = []
+    sessionInvokerRef.current = null
     dragRef.current = null
     setMode('off')
     setDraft(null)
     setRects({})
+    setSurfaceRect(null)
     setInspectorOpen(true)
     setGuides([])
     setSaveState('idle')
-    setAnnouncement('')
+    setAnnouncement(terminalAnnouncement)
     onPreviewChange(null)
-    returnFocusRef?.current?.focus()
   }, [onPreviewChange, returnFocusRef])
 
   const cancel = useCallback(() => {
-    if (saveState !== 'pending') exit()
+    if (saveState !== 'pending') exit('Layout changes cancelled.')
   }, [exit, saveState])
 
-  const begin = useCallback((preferredId?: BlockId) => {
+  const begin = useCallback((preferredId?: BlockId, invoker?: HTMLElement | null) => {
     if (!isPremium() || modeRef.current === 'on') return
     const start = () => {
       const nextProfile = profileRef.current
       sessionLayoutRef.current = layoutRef.current
       sessionEntriesRef.current = [...entriesRef.current]
+      sessionInvokerRef.current = invoker ?? returnFocusRef?.current ?? null
       const next = buildDraft(nextProfile, preferredId)
       draftsRef.current = { [nextProfile]: next }
       draftRef.current = next
@@ -231,9 +250,14 @@ export default function ArrangeController({
     entryPromiseRef.current = closeAllDialogs().then((closed) => {
       if (closed && mountedRef.current && modeRef.current === 'off') start()
     }).finally(() => { entryPromiseRef.current = null })
-  }, [buildDraft])
+  }, [buildDraft, returnFocusRef])
 
-  useLongPress(useCallback((blockId: BlockId) => begin(blockId), [begin]))
+  useLongPress(useCallback((blockId: BlockId, event: PointerEvent) => {
+    const target = event.target instanceof Element ? event.target : null
+    const control = target?.closest<HTMLElement>('button, a, input, textarea, select, [role="button"]')
+    const block = target?.closest<HTMLElement>('[data-block-id]')
+    begin(blockId, control ?? block)
+  }, [begin]))
 
   const previousOpenSignalRef = useRef(openSignal)
   useEffect(() => {
@@ -276,31 +300,49 @@ export default function ArrangeController({
 
   const announceMove = useCallback((next: CanvasDraft, id: BlockId) => {
     const label = sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? 'Widget'
-    const overlaps = overlappingCanvasIds(next, viewport, id)
+    const bounds = surfaceRect
+      ? { width: surfaceRect.width, height: surfaceRect.height }
+      : viewport
+    const overlaps = overlappingCanvasIds(next, bounds, id)
       .map((candidate) => sessionEntriesRef.current.find((entry) => entry.id === candidate)?.label ?? candidate)
     setAnnouncement(`${label} moved.${overlaps.length > 0 ? ` Overlaps ${overlaps.join(', ')}.` : ''}`)
-  }, [viewport])
+  }, [surfaceRect, viewport])
 
   const keyboardMove = useCallback((id: BlockId, key: string, fine: boolean) => {
     const delta = canvasKeyboardDelta(key, fine)
     const current = draftRef.current
     const placement = current?.placements[id]
     if (!delta || !current || placement?.kind !== 'canvas') return false
+    const measured = rects[id]
+    const bounds = surfaceRect
+      ? { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
+      : { ...viewport, inset: 8 }
+    const box = measured
+      ? { width: measured.width, height: measured.height }
+      : canvasBoxFor(id, placement.size, bounds)
+    const clamped = clampCanvasTopLeft({
+      left: placement.x / 100 * bounds.width - box.width / 2 + delta.x,
+      top: placement.y / 100 * bounds.height - box.height / 2 + delta.y,
+    }, box, bounds)
     const next = moveCanvasItem(current, id, {
-      x: placement.x + delta.x / viewport.width * 100,
-      y: placement.y + delta.y / viewport.height * 100,
+      x: (clamped.left + box.width / 2) / bounds.width * 100,
+      y: (clamped.top + box.height / 2) / bounds.height * 100,
     })
     replaceDraft(next)
     announceMove(next, id)
     return true
-  }, [announceMove, replaceDraft, viewport.height, viewport.width])
+  }, [announceMove, rects, replaceDraft, surfaceRect, viewport])
 
   const switchProfile = useCallback((target: CanvasProfileKey) => {
     const current = draftRef.current
     if (!current || current.profile === target) return
     draftsRef.current[current.profile] = current
     const stored = draftsRef.current[target] ?? buildDraft(target, current.selectedId ?? undefined)
-    const next = { ...stored, hiddenIds: [...current.hiddenIds] }
+    const next = {
+      ...stored,
+      hiddenIds: [...current.hiddenIds],
+      useDesktopLayoutEverywhere: current.useDesktopLayoutEverywhere,
+    }
     draftsRef.current[target] = next
     replaceDraft(next)
     pendingFocusRef.current = next.selectedId
@@ -359,27 +401,32 @@ export default function ArrangeController({
       } else {
         await storage.update('layout', saveLayout)
       }
-      if (mountedRef.current) exit()
+      if (mountedRef.current) exit('Layout saved.')
     } catch {
       if (mountedRef.current) setSaveState('error')
     }
   }, [buildDraft, exit, saveState, storage])
 
-  if (mode !== 'on' || !draft) return null
+  const liveStatus = <div role="status" aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
+  if (mode !== 'on' || !draft) return <div data-arrange-controller="">{liveStatus}</div>
 
   const selectedEntry = sessionEntriesRef.current.find((entry) => entry.id === draft.selectedId) ?? null
   const selectedPlacement = selectedEntry ? draft.placements[selectedEntry.id] : null
   const defaults = canvasDefaults(draft.profile, sessionEntriesRef.current)
-  const overlapIds = selectedEntry ? overlappingCanvasIds(draft, viewport, selectedEntry.id) : []
+  const canvasBounds = surfaceRect
+    ? { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
+    : { ...viewport, inset: 8 }
+  const overlapIds = selectedEntry ? overlappingCanvasIds(draft, canvasBounds, selectedEntry.id) : []
   const small = draft.profile === 'compact'
 
   return (
-    <div
-      data-arrange-overlay=""
-      data-arrange-profile={draft.profile}
-      data-arrange-small-sheet={small && inspectorOpen ? 'true' : undefined}
-      className="arrange-overlay"
-    >
+    <div data-arrange-controller="">
+      <div
+        data-arrange-overlay=""
+        data-arrange-profile={draft.profile}
+        data-arrange-small-sheet={small && inspectorOpen ? 'true' : undefined}
+        className="arrange-overlay"
+      >
       <div role="toolbar" aria-label="Arrange layout" className="arrange-toolbar">
         <div role="tablist" aria-label="Canvas previews" className="arrange-profile-tabs">
           {PROFILE_KEYS.map((key) => (
@@ -442,6 +489,9 @@ export default function ArrangeController({
             }}
             onPointerDown={(event) => {
               if (event.button !== 0) return
+              const canvasRect = surfaceRect
+                ?? document.querySelector<HTMLElement>('[data-canvas-surface]')?.getBoundingClientRect()
+              if (!canvasRect) return
               event.preventDefault()
               select(id)
               event.currentTarget.setPointerCapture?.(event.pointerId)
@@ -450,6 +500,7 @@ export default function ArrangeController({
                 pointerId: event.pointerId,
                 startDraft: draftRef.current ?? draft,
                 pointerOffset: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+                canvasRect,
               }
               setGuides([])
             }}
@@ -458,19 +509,28 @@ export default function ArrangeController({
               if (!drag || drag.id !== id || drag.pointerId !== event.pointerId) return
               const neighbors: SnapNeighbor[] = Object.entries(rects).flatMap(([candidate, candidateRect]) => (
                 candidate !== id && candidateRect
-                  ? [{ id: candidate as BlockId, left: candidateRect.left, top: candidateRect.top, width: candidateRect.width, height: candidateRect.height }]
+                  ? [{
+                      id: candidate as BlockId,
+                      left: candidateRect.left - drag.canvasRect.left,
+                      top: candidateRect.top - drag.canvasRect.top,
+                      width: candidateRect.width,
+                      height: candidateRect.height,
+                    }]
                   : []
               ))
               const snapped = snapCanvasPosition({
-                pointer: { x: event.clientX, y: event.clientY },
+                pointer: {
+                  x: event.clientX - drag.canvasRect.left,
+                  y: event.clientY - drag.canvasRect.top,
+                },
                 pointerOffset: drag.pointerOffset,
                 box: { width: rect.width, height: rect.height },
-                bounds: viewport,
+                bounds: { width: drag.canvasRect.width, height: drag.canvasRect.height, inset: 8 },
                 neighbors,
               })
               const next = moveCanvasItem(drag.startDraft, id, {
-                x: (snapped.left + rect.width / 2) / viewport.width * 100,
-                y: (snapped.top + rect.height / 2) / viewport.height * 100,
+                x: (snapped.left + rect.width / 2) / drag.canvasRect.width * 100,
+                y: (snapped.top + rect.height / 2) / drag.canvasRect.height * 100,
               })
               replaceDraft(next)
               setGuides(snapped.guides)
@@ -500,7 +560,9 @@ export default function ArrangeController({
           key={`${guide.axis}-${guide.value}-${index}`}
           data-canvas-guide={guide.kind}
           className={`arrange-guide arrange-guide--${guide.axis}`}
-          style={guide.axis === 'x' ? { left: guide.value } : { top: guide.value }}
+          style={guide.axis === 'x'
+            ? { left: (surfaceRect?.left ?? 0) + guide.value }
+            : { top: (surfaceRect?.top ?? 0) + guide.value }}
         />
       ))}
 
@@ -542,7 +604,7 @@ export default function ArrangeController({
                       role="radio"
                       aria-checked={selectedPlacement.size === size}
                       className={buttonClass(selectedPlacement.size === size)}
-                      onClick={() => replaceDraft(resizeCanvasItem(draft, selectedEntry, size))}
+                      onClick={() => replaceDraft(resizeCanvasItem(draft, selectedEntry, size, canvasBounds))}
                     >{size === 'full' ? 'Full' : size[0].toUpperCase() + size.slice(1)}</button>
                   ))}
                 </div>
@@ -569,8 +631,8 @@ export default function ArrangeController({
             <section aria-label="Overlap" className="arrange-overlap-warning">
               <p>Overlaps {overlapIds.map((id) => sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? id).join(', ')}.</p>
               <div>
-                <button type="button" className={buttonClass()} onClick={() => replaceDraft(bringCanvasItemForward(draft, selectedEntry.id, viewport))}>Bring forward</button>
-                <button type="button" className={buttonClass()} onClick={() => replaceDraft(sendCanvasItemBackward(draft, selectedEntry.id, viewport))}>Send backward</button>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(bringCanvasItemForward(draft, selectedEntry.id, canvasBounds))}>Bring forward</button>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(sendCanvasItemBackward(draft, selectedEntry.id, canvasBounds))}>Send backward</button>
               </div>
             </section>
           ) : null}
@@ -583,7 +645,8 @@ export default function ArrangeController({
         </aside>
       ) : null}
 
-      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
+      </div>
+      {liveStatus}
     </div>
   )
 }

@@ -33,7 +33,7 @@ function Fixture({
       <div data-canvas-content="" inert={arranging}>
         <div data-canvas-surface="" data-test-surface="">
           {ENTRIES.map((entry, index) => (
-            <div key={entry.id} data-block-id={entry.id} data-test-index={index}>
+            <div key={entry.id} data-block-id={entry.id} data-arrange-long-press-controls="true" data-test-index={index} tabIndex={-1}>
               <span data-testid={`surface-${entry.id}`}>{entry.label} surface</span>
               <button type="button">{entry.label} content</button>
             </div>
@@ -54,11 +54,17 @@ function Fixture({
   )
 }
 
-async function setup(seed: StoredLayout = { version: 3, profiles: {} }) {
+async function setup(
+  seed: StoredLayout = { version: 3, profiles: {} },
+  options: { surface?: DOMRect; itemRects?: Partial<Record<string, DOMRect>> } = {},
+) {
+  const surface = options.surface ?? rect(0, 0, 1200, 800)
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-    if (this.hasAttribute('data-test-surface')) return rect(0, 0, 1200, 800)
+    if (this.hasAttribute('data-test-surface')) return surface
+    const id = this.getAttribute('data-block-id')
+    if (id && options.itemRects?.[id]) return options.itemRects[id]
     const index = Number(this.getAttribute('data-test-index') ?? -1)
-    return index >= 0 ? rect(24 + index * 230, 120 + (index % 2) * 150, 200, 100) : rect(0, 0)
+    return index >= 0 ? rect(surface.left + 24 + index * 230, surface.top + 120 + (index % 2) * 150, 200, 100) : rect(0, 0)
   })
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -111,10 +117,15 @@ describe('Canvas ArrangeController', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     vi.useFakeTimers()
     try {
-      fireEvent.pointerDown(screen.getByTestId('surface-clock'), { pointerId: 4, clientX: 100, clientY: 100 })
+      const launcher = screen.getByRole('button', { name: 'Clock content' })
+      fireEvent.pointerDown(launcher, { pointerId: 4, clientX: 100, clientY: 100 })
       act(() => vi.advanceTimersByTime(500))
       expect(screen.getByRole('toolbar', { name: 'Arrange layout' })).toBeTruthy()
       expect(screen.getByRole('button', { name: 'Edit Clock' })).toBe(document.activeElement)
+      fireEvent.pointerUp(launcher, { pointerId: 4 })
+      fireEvent.click(launcher)
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+      expect(launcher).toBe(document.activeElement)
     } finally {
       vi.useRealTimers()
     }
@@ -131,6 +142,10 @@ describe('Canvas ArrangeController', () => {
     expect(latestPreview(onPreviewChange)?.profile).toBe('compact')
     expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ size: 'full' })
     expect(latestPreview(onPreviewChange)?.useDesktopLayoutEverywhere).toBe(true)
+    fireEvent.click(screen.getByRole('tab', { name: 'Large' }))
+    expect(latestPreview(onPreviewChange)?.profile).toBe('display')
+    expect(latestPreview(onPreviewChange)?.useDesktopLayoutEverywhere).toBe(true)
+    expect(screen.getByRole('button', { name: 'Use Desktop layout everywhere' }).getAttribute('aria-pressed')).toBe('true')
     expect(update).not.toHaveBeenCalled()
   })
 
@@ -188,6 +203,18 @@ describe('Canvas ArrangeController', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
+  it('converts offset Canvas pointer, neighbors, and guides into one local coordinate space', async () => {
+    const surface = rect(100, 56, 1200, 800)
+    const { onPreviewChange } = await setup({ version: 3, profiles: {} }, { surface })
+    const target = screen.getByRole('button', { name: 'Edit Weather' })
+
+    fireEvent.pointerDown(target, { pointerId: 9, clientX: 174, clientY: 206 })
+    fireEvent.pointerMove(target, { pointerId: 9, clientX: 650, clientY: 456 })
+
+    expect(latestPreview(onPreviewChange)?.canvas.placements.weather).toMatchObject({ x: 50, y: 52.5 })
+    expect(document.querySelector<HTMLElement>('[data-canvas-guide="canvas-center"]')?.style.left).toBe('700px')
+  })
+
   it('moves by 8px or 1px from the keyboard and announces movement and overlap', async () => {
     const seed: StoredLayout = {
       version: 3,
@@ -199,13 +226,25 @@ describe('Canvas ArrangeController', () => {
     const { onPreviewChange } = await setup(seed)
     const target = screen.getByRole('button', { name: 'Edit Clock' })
     fireEvent.keyDown(target, { key: 'ArrowRight' })
-    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ x: 50 + 8 / 1200 * 100 })
+    expect((latestPreview(onPreviewChange)?.canvas.placements.clock as { x: number }).x).toBeCloseTo(50 + 8 / 1200 * 100)
     fireEvent.keyDown(target, { key: 'ArrowDown', shiftKey: true })
     expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ y: 40 + 1 / 800 * 100 })
     expect(screen.getByRole('status').textContent).toMatch(/Clock moved.*overlaps Focus/i)
     const inspector = screen.getByRole('complementary', { name: 'Clock inspector' })
     expect(within(inspector).getByRole('button', { name: 'Bring forward' })).toBeTruthy()
     expect(within(inspector).getByRole('button', { name: 'Send backward' })).toBeTruthy()
+  })
+
+  it('keeps keyboard movement inside the 8px Canvas safe margin', async () => {
+    const seed: StoredLayout = {
+      version: 3,
+      profiles: { standard: { mode: 'custom', placements: {
+        clock: { kind: 'canvas', x: 91, y: 40, size: 'full', layer: 0 },
+      } } },
+    }
+    const { onPreviewChange } = await setup(seed, { itemRects: { clock: rect(992, 320, 200, 100) } })
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Clock' }), { key: 'ArrowRight' })
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ x: 91, y: 40 })
   })
 
   it('uses Escape to cancel an active move before cancelling the whole session', async () => {
@@ -233,6 +272,7 @@ describe('Canvas ArrangeController', () => {
     expect(await storage.get('layout')).toEqual(seed)
     expect(latestPreview(onPreviewChange)).toBeNull()
     expect(document.activeElement).toBe(open)
+    expect(screen.getByRole('status').textContent).toBe('Layout changes cancelled.')
   })
 
   it('performs one atomic successful Save, writes V3 recovery, and re-enters from the saved profile', async () => {
@@ -247,6 +287,7 @@ describe('Canvas ArrangeController', () => {
     const saved = await storage.get('layout')
     expect(saved).toMatchObject({ version: 3, recovery: { semanticV2: seed } })
     expect(screen.queryByRole('toolbar', { name: 'Arrange layout' })).toBeNull()
+    expect(screen.getByRole('status').textContent).toBe('Layout saved.')
   })
 
   it('keeps a failed Save open with a sanitized alert and the complete draft', async () => {

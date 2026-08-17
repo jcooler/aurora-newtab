@@ -56,6 +56,7 @@ export default function CanvasItem({
   return (
     <div
       ref={ref}
+      tabIndex={-1}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
       data-arrange-long-press-controls="true"

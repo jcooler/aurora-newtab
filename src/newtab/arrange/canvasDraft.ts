@@ -1,4 +1,4 @@
-import { fitCanvasProfile, type CanvasBounds } from '../../lib/layout/canvasGeometry'
+import { canvasBoxFor, fitCanvasProfile, type CanvasBounds } from '../../lib/layout/canvasGeometry'
 import type {
   CanvasBlockPlacement,
   CanvasProfile,
@@ -105,10 +105,25 @@ export function resizeCanvasItem(
   draft: CanvasDraft,
   entry: WidgetRegistryEntry,
   size: CanvasSize,
+  bounds?: CanvasBounds,
 ): CanvasDraft {
   const current = draft.placements[entry.id]
   if (current?.kind !== 'canvas' || current.size === size || !entry.canvasSizes.includes(size)) return draft
-  return commit(draft, { placements: { ...draft.placements, [entry.id]: { ...current, size } } })
+  let next = { ...current, size }
+  if (bounds && bounds.width > 0 && bounds.height > 0) {
+    const inset = bounds.inset ?? 8
+    const box = canvasBoxFor(entry.id, size, bounds)
+    const minX = (inset + box.width / 2) / bounds.width * 100
+    const maxX = (bounds.width - inset - box.width / 2) / bounds.width * 100
+    const minY = (inset + box.height / 2) / bounds.height * 100
+    const maxY = (bounds.height - inset - box.height / 2) / bounds.height * 100
+    next = {
+      ...next,
+      x: Math.min(maxX, Math.max(minX, current.x)),
+      y: Math.min(maxY, Math.max(minY, current.y)),
+    }
+  }
+  return commit(draft, { placements: { ...draft.placements, [entry.id]: next } })
 }
 
 export function moveCanvasItemToBottomBar(draft: CanvasDraft, id: BlockId): CanvasDraft {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   canvasKeyboardDelta,
+  clampCanvasTopLeft,
   snapCanvasPosition,
   type SnapNeighbor,
 } from './canvasSnap'
@@ -71,5 +72,10 @@ describe('Canvas snapping and guides', () => {
     expect(canvasKeyboardDelta('ArrowDown', false)).toEqual({ x: 0, y: 8 })
     expect(canvasKeyboardDelta('ArrowRight', true)).toEqual({ x: 1, y: 0 })
     expect(canvasKeyboardDelta('Escape', false)).toBeNull()
+  })
+
+  it('clamps non-pointer movement to the same 8px safe margin', () => {
+    expect(clampCanvasTopLeft({ left: -1, top: -1 }, BOX, BOUNDS)).toEqual({ left: 8, top: 8 })
+    expect(clampCanvasTopLeft({ left: 900, top: 750 }, BOX, BOUNDS)).toEqual({ left: 792, top: 692 })
   })
 })

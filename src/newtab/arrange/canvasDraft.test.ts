@@ -66,6 +66,13 @@ describe('Canvas Arrange draft', () => {
     expect(resizeCanvasItem(bottom, WIDGET_REGISTRY_BY_ID.notes, 'compact')).toBe(bottom)
   })
 
+  it('clamps a resized item so the larger box remains inside the safe Canvas', () => {
+    const atEdge = moveCanvasItem(resizeCanvasItem(draft(), WIDGET_REGISTRY_BY_ID.clock, 'compact'), 'clock', { x: 99, y: 99 })
+    const enlarged = resizeCanvasItem(atEdge, WIDGET_REGISTRY_BY_ID.clock, 'full', { width: 1000, height: 800, inset: 8 })
+    expect(enlarged.placements.clock).toMatchObject({ x: 76.8, y: 86, size: 'full' })
+    expect(undoCanvasDraft(enlarged).placements.clock).toEqual(atEdge.placements.clock)
+  })
+
   it('detects overlaps, allows them, and changes layers only while overlap makes layering relevant', () => {
     const current = draft()
     expect(overlappingCanvasIds(current, { width: 1600, height: 900 }, 'clock')).toEqual(['focus'])

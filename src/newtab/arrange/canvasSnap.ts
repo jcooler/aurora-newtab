@@ -48,6 +48,18 @@ function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value))
 }
 
+export function clampCanvasTopLeft(
+  position: Readonly<{ left: number; top: number }>,
+  box: CanvasSnapBox,
+  bounds: CanvasSnapBounds,
+): { left: number; top: number } {
+  const inset = bounds.inset ?? 8
+  return {
+    left: clamp(position.left, inset, bounds.width - inset - box.width),
+    top: clamp(position.top, inset, bounds.height - inset - box.height),
+  }
+}
+
 function nearestAxisGuide(
   axis: 'x' | 'y',
   start: number,
@@ -101,15 +113,17 @@ export function snapCanvasPosition({
   grid = 8,
   magneticThreshold = 6,
 }: SnapCanvasPositionInput): CanvasSnapResult {
-  const inset = bounds.inset ?? 8
   const rawLeft = pointer.x - pointerOffset.x
   const rawTop = pointer.y - pointerOffset.y
   const xGuide = nearestAxisGuide('x', rawLeft, box.width, bounds.width, neighbors, magneticThreshold)
   const yGuide = nearestAxisGuide('y', rawTop, box.height, bounds.height, neighbors, magneticThreshold)
   const gridLeft = Math.round(rawLeft / grid) * grid
   const gridTop = Math.round(rawTop / grid) * grid
-  const left = clamp(xGuide?.start ?? gridLeft, inset, bounds.width - inset - box.width)
-  const top = clamp(yGuide?.start ?? gridTop, inset, bounds.height - inset - box.height)
+  const { left, top } = clampCanvasTopLeft(
+    { left: xGuide?.start ?? gridLeft, top: yGuide?.start ?? gridTop },
+    box,
+    bounds,
+  )
   return {
     left,
     top,
