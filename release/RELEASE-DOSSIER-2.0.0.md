@@ -1,5 +1,7 @@
 # Aurora 2.0.0 Release Dossier
 
+> **WITHDRAWN CANDIDATE.** Owner testing rejected this presentation on 2026-08-17. The ZIP, screenshots, hashes, and copy below are historical evidence only and must not be uploaded. PR-P7 must replace this dossier after the information-first visual gate and stabilized release gates.
+>
 > **LOCAL RELEASE CANDIDATE ONLY.** This dossier does not authorize a Chrome Web Store upload, listing edit, draft save, submission, publication, or rollout. W6-P5 and contemporaneous explicit owner approval are required before the first Store mutation.
 
 ## Artifact identity

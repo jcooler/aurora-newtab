@@ -1,5 +1,7 @@
 # Aurora 2.0.0 Release Notes
 
+> **WITHDRAWN DRAFT.** This copy describes the owner-rejected presentation candidate. Do not use it for Store submission. PR-P7 will replace it after the information-first visual and release gates.
+
 Aurora 2.0 restores the photo-first new-tab Canvas and lets each workspace feel deliberately yours.
 
 ## What is new

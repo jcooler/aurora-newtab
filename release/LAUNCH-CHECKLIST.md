@@ -1,5 +1,7 @@
 # Aurora 2.0.0 Chrome Web Store Checklist
 
+> **WITHDRAWN CANDIDATE:** The staged ZIP, screenshots, hash, and submission copy failed owner production-readiness review. Do not execute this checklist. PR-P7 must produce a replacement after the information-first visual gate and stabilized gates.
+>
 > **HARD STOP:** Do not upload, type into a Store field, save a draft, submit, publish, change distribution, or alter rollout until W6-P5 receives contemporaneous explicit owner approval.
 
 ## Local staging complete

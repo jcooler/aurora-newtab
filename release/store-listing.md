@@ -1,5 +1,7 @@
 # Chrome Web Store listing source: Aurora 2.0.0
 
+> **WITHDRAWN DRAFT:** The current product presentation was rejected in owner testing. Do not paste this copy into the Store. PR-P7 will replace it after the information-first visual and release gates.
+>
 > **STAGED SOURCE ONLY: DO NOT PASTE OR MUTATE THE LIVE STORE BEFORE W6-P5 APPROVAL.**
 >
 > W6-P3 verified this source against official Chrome Web Store policy current
