@@ -70,16 +70,18 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - `saveCanvasProfile` receives the current stored union and a complete valid draft; the first Canvas save preserves the exact V1 or V2 value in `recovery`, later saves retain existing recovery, and invalid saves return a failure without a partial value.
 - `restorePreviousLayout` returns the exact preserved V1 or V2 value while recovery exists.
 
-- [ ] Write RED type/validator tests for all four profiles, derived/custom modes, finite coordinates, known IDs, allowed Canvas and Bottom bar placement shapes, valid sizes/layers, per-block invalid-placement fallback, and unknown block removal.
-- [ ] Write RED adapter tests for V1 percentage positions, V2 semantic placements, V3 custom profiles, deterministic derived missing profiles, independent saved profiles, disabled/unknown identities, and input immutability.
-- [ ] Write RED save/recovery tests proving Save is the only V3 write, the exact prior V1/V2 object survives in recovery, later V3 saves retain it, a failed save returns no new stored value, and restore returns the exact prior layout.
-- [ ] Write RED migration/storage tests proving v11 to v12 changes version metadata only, preserves the layout value byte-for-byte, performs no boot rewrite, and gives a new install an empty derived V3 layout.
-- [ ] Write RED backup tests proving strict V1/V2/V3 validation before live write, finite coordinate and known identity enforcement, exact recovery round-trip, and unchanged secret/capability URL redaction.
-- [ ] Implement the union, pure validators/adapters, additive schema v12 migration, atomic authority-backed save/restore helpers, and a Settings `Restore previous layout` action visible only while recovery exists.
-- [ ] Run `npx vitest run src/lib/layout/canvasTypes.test.ts src/lib/layout/canvasAdapter.test.ts src/lib/storage/migrations.test.ts src/lib/storage/index.test.ts src/lib/backup.test.ts src/lib/backupRestore.test.ts src/settings/SettingsPanel.test.tsx`.
-- [ ] Commit `feat(layout): add recoverable Canvas V3 foundation`.
-- [ ] Run one implementation review against Packet 1 only. Fix Critical/Important findings, run the affected focused tests, and perform one focused rereview. Ledger Minor/cosmetic findings.
-- [ ] Update the ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P1`, push, and prove both repository states.
+- [x] Write RED type/validator tests for all four profiles, derived/custom modes, finite coordinates, known IDs, allowed Canvas and Bottom bar placement shapes, valid sizes/layers, per-block invalid-placement fallback, and unknown block removal.
+- [x] Write RED adapter tests for V1 percentage positions, V2 semantic placements, V3 custom profiles, deterministic derived missing profiles, independent saved profiles, disabled/unknown identities, and input immutability.
+- [x] Write RED save/recovery tests proving Save is the only V3 write, the exact prior V1/V2 object survives in recovery, later V3 saves retain it, a failed save returns no new stored value, and restore returns the exact prior layout.
+- [x] Write RED migration/storage tests proving v11 to v12 changes version metadata only, preserves the layout value byte-for-byte, performs no boot rewrite, and gives a new install an empty derived V3 layout.
+- [x] Write RED backup tests proving strict V1/V2/V3 validation before live write, finite coordinate and known identity enforcement, exact recovery round-trip, and unchanged secret/capability URL redaction.
+- [x] Implement the union, pure validators/adapters, additive schema v12 migration, atomic authority-backed save/restore helpers, and a Settings `Restore previous layout` action visible only while recovery exists.
+- [x] Run `npx vitest run src/lib/layout/canvasTypes.test.ts src/lib/layout/canvasAdapter.test.ts src/lib/storage/migrations.test.ts src/lib/storage/index.test.ts src/lib/backup.test.ts src/lib/backupRestore.test.ts src/settings/SettingsPanel.test.tsx`.
+- [x] Commit `feat(layout): add recoverable Canvas V3 foundation`.
+- [x] Run one implementation review against Packet 1 only. Fix Critical/Important findings, run the affected focused tests, and perform one focused rereview. Ledger Minor/cosmetic findings.
+- [x] Update the ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P1`, push, and prove both repository states.
+
+**Packet 1 evidence:** Implemented in `412a420`, with bounded data-protection fixes in `b074187` and `f71148d`. The final focused gate passed 9 files / 609 tests, TypeScript, and `git diff --check`. The single review/fix/rereview cycle closed destructive V3 downgrade, global V3 reset, and exact recovery defects. The rereview's additional corrupt-active-placement blocker was fixed under the exhausted cycle and verified locally without requesting another review. Repeated React test `act(...)` warnings from Settings layout availability remain ledgered as Minor test-harness noise.
 
 ## Packet 2: Canvas Renderer
 

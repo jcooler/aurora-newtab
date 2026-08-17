@@ -162,8 +162,8 @@ This owner-approved recovery supersedes the rejected Calm Canvas and the user-fa
 
 | Packet | State | Depends on | Acceptance summary | Plan | Finishing commit |
 |---|---|---|---|---|---|
-| Canvas-P1 V3 layout foundation | In progress | `03bca3b` approved design | Schema v12, V1/V2/V3 in-memory adapters, exact recovery, explicit-save-only atomic persistence, no boot rewrite, no presentation change | Eight-packet Canvas plan | Pending |
-| Canvas-P2 Canvas renderer | Not started | Canvas-P1 | V1 anchors, four real profiles, safe margins, fitting, selection geometry, no widget-content change | Eight-packet Canvas plan | Pending |
+| Canvas-P1 V3 layout foundation | Verified | `03bca3b` approved design | Schema v12, V1/V2/V3 in-memory adapters, exact recovery, explicit-save-only atomic persistence, no boot rewrite, no presentation change. Final focused evidence: 9 files / 609 tests, TypeScript, diff hygiene, and one completed review/fix/rereview cycle. Minor debt: repeated Settings test `act(...)` warnings. | Eight-packet Canvas plan | `412a420`, `b074187`, `f71148d`; checkpoint subject `docs: checkpoint Canvas P1` |
+| Canvas-P2 Canvas renderer | In progress | Canvas-P1 | V1 anchors, four real profiles, safe margins, fitting, selection geometry, no widget-content change | Eight-packet Canvas plan | Pending |
 | Canvas-P3 Direct Arrange | Not started | Canvas-P2 | Direct drag, snap/guides, keyboard movement, collisions/layers, toolbar, inspector/Small sheet, atomic Save and exact Cancel | Eight-packet Canvas plan | Pending |
 | Canvas-P4 V1 interaction restoration | Not started | Canvas-P3 | Top Bookmarks, movable Timer/Tasks/Notes, direct panels, centered Focus, conditional Briefing, four-capture early owner gate | Eight-packet Canvas plan | Pending |
 | Canvas-P5 Meaningful widget sizes | Not started | Canvas-P4 owner approval | Truthful distinct sizes and preserved user-selected connector content | Eight-packet Canvas plan | Pending |

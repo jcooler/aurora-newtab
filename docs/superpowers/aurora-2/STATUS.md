@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
-**Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** `Canvas-P1` - V3 layout foundation; approved design and eight-packet executable plan checkpoint in progress
+**Last verified packet:** `Canvas-P1` - V3 layout foundation<br>
+**Current packet:** `Canvas-P2` - Canvas renderer
 
 ## Packet envelope
 
@@ -13,7 +13,8 @@
 - **Written design:** The owner approved `docs/superpowers/specs/2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md` on 2026-08-16. Internal profile keys remain compatible while the user-facing canvas uses Small, Desktop, Large, and Wide layouts with direct drag, safety rails, and non-occluding editing.
 - **Executable plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md` defines eight bounded packets, two owner visual gates, one review/fix cycle per packet, checkpoint pushes, and the single post-approval final gate.
 - **Rejected candidate:** Calm Canvas commits through `3c5015a` remain recoverable historical evidence but are not visually accepted, release-ready, or a foundation to continue polishing. Their full gates were correctly withheld.
-- **Remaining gates:** Canvas-P1 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
+- **Canvas-P1 evidence:** Schema v12 and the additive V1/V2/V3 union are implemented without eager layout rewrite. V1/V2 recovery is exact, V3 Save is explicit, active block corruption falls back per block, backup validation remains strict, and legacy Settings/Arrange paths cannot destroy V3. The final focused gate passed 9 files / 609 tests, TypeScript, and diff hygiene. One review/fix/rereview cycle closed all blocking findings; repeated Settings test `act(...)` warnings remain Minor harness noise.
+- **Remaining gates:** Canvas-P2 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 
