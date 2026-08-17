@@ -182,4 +182,34 @@ describe('explicit Canvas save and recovery', () => {
     expect(restored).not.toBe(semantic)
     expect(restorePreviousLayout({ version: 3, profiles: {} })).toBeNull()
   })
+
+  it('drops a corrupt active V3 placement without blocking Save or exact valid recovery', () => {
+    const recovery = {
+      legacy: { notes: { y: 81.5, x: 13.25 } },
+      profiles: {},
+      version: 2 as const,
+    }
+    const current = {
+      version: 3 as const,
+      profiles: {
+        standard: {
+          mode: 'custom' as const,
+          placements: {
+            clock: { kind: 'canvas' as const, x: Number.NaN, y: 40, size: 'full' as const, layer: 0 },
+            focus: { kind: 'canvas' as const, x: 50, y: 60, size: 'standard' as const, layer: 1 },
+          },
+        },
+      },
+      recovery: { semanticV2: recovery },
+    }
+    const recoveryBytes = JSON.stringify(recovery)
+
+    const saved = saveCanvasProfile(current, 'compact', draft)
+
+    expect(saved.profiles.standard?.placements).toEqual({
+      focus: { kind: 'canvas', x: 50, y: 60, size: 'standard', layer: 1 },
+    })
+    expect(JSON.stringify(saved.recovery?.semanticV2)).toBe(recoveryBytes)
+    expect(JSON.stringify(restorePreviousLayout(current))).toBe(recoveryBytes)
+  })
 })

@@ -152,7 +152,10 @@ export function saveCanvasProfile(
   profile: CanvasProfileKey,
   draft: CanvasProfile,
 ): LayoutV3 {
-  const stored = cleanStoredLayout(current)
+  const currentIsV3 = 'version' in current && current.version === 3
+  const stored = cleanStoredLayout(current, {
+    invalidPlacement: currentIsV3 ? 'drop' : 'reject',
+  })
   const profiles: LayoutV3['profiles'] = {}
   let recovery: LayoutV3['recovery']
   if ('version' in stored && stored.version === 3) {
@@ -175,10 +178,22 @@ export function saveCanvasProfile(
 }
 
 export function restorePreviousLayout(current: StoredLayout): StoredLayout | null {
-  const stored = cleanStoredLayout(current)
-  if (!('version' in stored) || stored.version !== 3 || !stored.recovery) return null
   if (!('version' in current) || current.version !== 3 || !current.recovery) return null
-  if (current.recovery.semanticV2) return cloneExact(current.recovery.semanticV2)
-  if (current.recovery.legacyV1) return cloneExact(current.recovery.legacyV1)
+  if (current.recovery.semanticV2) {
+    try {
+      cleanStoredLayout(current.recovery.semanticV2)
+      return cloneExact(current.recovery.semanticV2)
+    } catch {
+      // Try the legacy recovery member when the semantic copy is corrupt.
+    }
+  }
+  if (current.recovery.legacyV1) {
+    try {
+      cleanStoredLayout(current.recovery.legacyV1)
+      return cloneExact(current.recovery.legacyV1)
+    } catch {
+      return null
+    }
+  }
   return null
 }
