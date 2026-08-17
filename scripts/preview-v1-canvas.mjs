@@ -358,17 +358,27 @@ try {
   for (const witness of ['Ship the Canvas owner gate', 'Prove the dense connector composition']) {
     assert(visibleText.includes(witness), `Desktop is missing fixture witness: ${witness}`)
   }
+  const compactMonth = page.locator('[data-block-id="monthCal"]')
+  assert(await compactMonth.locator('tbody tr').count() === 1 && await compactMonth.locator('tbody tr td').count() === 7, 'Compact Month is not exactly seven days')
+  const compactMonthGeometry = await compactMonth.locator('tbody tr td').evaluateAll((cells) => cells.map((cell) => {
+    const rect = cell.getBoundingClientRect()
+    return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+  }))
+  const compactMonthRowTop = compactMonthGeometry[0]?.top
+  const compactMonthSingleRow = compactMonthGeometry.length === 7
+    && compactMonthGeometry.every((cell) => Math.abs(cell.top - compactMonthRowTop) <= 1)
+    && compactMonthGeometry.every((cell, index) => index === 0 || cell.left > compactMonthGeometry[index - 1].left)
+  assert(compactMonthSingleRow, `Compact Month dates are not one left-to-right seven-day row: ${JSON.stringify(compactMonthGeometry)}`)
+  evidence.interactions.month = { compactDays: compactMonthGeometry.length, geometry: compactMonthGeometry }
   await capture('Desktop 1600x900 bookmarks, GitHub, and Jira', 'canvas-p7-desktop-1600x900-bookmarks-github-jira.png')
   const desktopCapture = evidence.captures.at(-1)
   assert(desktopCapture.intersections.length === 0, `Desktop owner capture intersects: ${JSON.stringify(desktopCapture.intersections)}`)
   assert(desktopCapture.clippedBlocks.length === 0, `Desktop owner capture has clipped blocks: ${JSON.stringify(desktopCapture.clippedBlocks)}`)
-  const compactMonth = page.locator('[data-block-id="monthCal"]')
-  assert(await compactMonth.locator('tbody tr').count() === 1 && await compactMonth.locator('tbody tr td').count() === 7, 'Compact Month is not exactly seven days')
   await compactMonth.getByRole('button', { name: 'Next month' }).click()
   await compactMonth.getByRole('button', { name: 'Previous month' }).click()
   await compactMonth.getByRole('button', { name: 'Next month' }).click()
   await compactMonth.getByRole('button', { name: 'Back to today' }).click()
-  evidence.interactions.month = { compactDays: await compactMonth.locator('tbody tr td').count(), controls: 'Previous, Next, Today' }
+  evidence.interactions.month.controls = 'Previous, Next, Today'
 
   const folder = page.getByRole('button', { name: 'A', exact: true })
   await folder.click()

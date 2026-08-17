@@ -1935,8 +1935,6 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td {
   padding-block: 0;
-  display: grid;
-  place-items: center;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td > div {
   gap: 0;
