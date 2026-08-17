@@ -6,6 +6,7 @@ import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
 import type { LayoutV2 } from '../../lib/layout/types'
+import type { LayoutV3 } from '../../lib/layout/canvasTypes'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
 import type { ArrangePreview } from './arrangePreview'
 import ArrangeController from './ArrangeController'
@@ -152,6 +153,38 @@ describe('semantic ArrangeController', () => {
     expect(saved.profiles.display).toEqual(seed.profiles.display)
     expect(saved.legacy).toEqual(seed.legacy)
     expect(latestPreview(onPreviewChange)).toBeNull()
+  })
+
+  it('refuses a legacy semantic Save when Canvas V3 is current and preserves it exactly', async () => {
+    const { storage } = await setup()
+    const canvas: LayoutV3 = {
+      version: 3,
+      profiles: {
+        standard: {
+          mode: 'custom',
+          placements: {
+            clock: { kind: 'canvas', x: 50, y: 38, size: 'full', layer: 0 },
+            notes: { kind: 'canvas', x: 84, y: 74, size: 'standard', layer: 1 },
+          },
+        },
+        display: {
+          mode: 'custom',
+          placements: {
+            weather: { kind: 'canvas', x: 12, y: 18, size: 'standard', layer: 0 },
+          },
+        },
+      },
+      recovery: { semanticV2: { version: 2, profiles: {} } },
+    }
+    await storage.set('layout', canvas)
+    const before = JSON.stringify(await storage.get('layout'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    const alert = await screen.findByRole('alert')
+
+    expect(alert.textContent).toBe('Layout could not be saved. Review your changes and try again.')
+    expect(JSON.stringify(await storage.get('layout'))).toBe(before)
+    expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
   })
 
   it('keeps a rejected Save editable and never exposes the thrown value', async () => {

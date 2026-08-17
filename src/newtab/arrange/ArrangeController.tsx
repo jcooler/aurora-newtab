@@ -210,9 +210,15 @@ export default function ArrangeController({
     if (!current || !activeProfile || saveState === 'pending') return
     setSaveState('pending')
     try {
-      await storage.update('layout', (stored) => (
-        withProfileOverrides(semanticLayoutV2(stored), activeProfile, current.overrides)
-      ))
+      await storage.update('layout', (stored) => {
+        // This semantic editor is retained only until the Canvas editor lands.
+        // It cannot represent V3 coordinates, layers, or independent profiles,
+        // so fail closed instead of destructively downgrading current Canvas data.
+        if ('version' in stored && stored.version === 3) {
+          throw new Error('Canvas V3 requires the Canvas editor.')
+        }
+        return withProfileOverrides(semanticLayoutV2(stored), activeProfile, current.overrides)
+      })
       if (mountedRef.current) exit()
     } catch {
       if (mountedRef.current) setSaveState('error')

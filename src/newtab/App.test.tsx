@@ -5,7 +5,6 @@ import { StorageProvider } from '../lib/storage/context'
 import { memoryDriver } from '../lib/storage/driver'
 import { createStorage } from '../lib/storage/index'
 import { defaults } from '../lib/storage/schema'
-import { emptyLayoutV3 } from '../lib/layout/canvasTypes'
 import { emptyLayoutV2 } from '../lib/layout/v2'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import App from './App'
@@ -464,16 +463,18 @@ describe('App — Adaptive Stage composition', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('settings', { ...defaults().settings, layoutDensity: 'spacious' })
-    await storage.set('layout', { ...emptyLayoutV2(), profiles: { standard: { focus: { zone: 'day', order: 1, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } } })
     await renderApp(storage)
+    await act(async () => {
+      await storage.set('layout', { ...emptyLayoutV2(), profiles: { standard: { focus: { zone: 'day', order: 1, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } } })
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Reset layout' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset layout' }))
     const dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' }))
     await act(async () => {})
     expect((await storage.get('settings')).layoutDensity).toBe('spacious')
-    expect(await storage.get('layout')).toEqual(emptyLayoutV3())
+    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
   })
 
   it('does not introduce a root transform or duplicate profile authority', async () => {

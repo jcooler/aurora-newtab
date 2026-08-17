@@ -30,14 +30,28 @@ function variantSize(variant: Placement['variant']): CanvasSize {
   return variant
 }
 
+function cloneExact<T>(value: T): T {
+  if (Array.isArray(value)) return value.map((item) => cloneExact(item)) as T
+  if (value && typeof value === 'object') {
+    const cloned: Record<string, unknown> = {}
+    for (const key of Object.keys(value)) {
+      cloned[key] = cloneExact((value as Record<string, unknown>)[key])
+    }
+    return cloned as T
+  }
+  return value
+}
+
 function cloneRecovery(recovery: LayoutV3['recovery']): LayoutV3['recovery'] {
   if (!recovery) return undefined
+  if (recovery.semanticV2) cleanStoredLayout(recovery.semanticV2)
+  if (recovery.legacyV1) cleanStoredLayout(recovery.legacyV1)
   return {
     ...(recovery.semanticV2
-      ? { semanticV2: cleanStoredLayout(recovery.semanticV2) as LayoutV2 }
+      ? { semanticV2: cloneExact(recovery.semanticV2) }
       : {}),
     ...(recovery.legacyV1
-      ? { legacyV1: cleanStoredLayout(recovery.legacyV1) as NonNullable<LayoutV3['recovery']>['legacyV1'] }
+      ? { legacyV1: cloneExact(recovery.legacyV1) }
       : {}),
   }
 }
@@ -146,11 +160,11 @@ export function saveCanvasProfile(
       const existing = stored.profiles[key]
       if (existing) profiles[key] = cleanCanvasProfile(existing)
     }
-    recovery = cloneRecovery(stored.recovery)
+    recovery = cloneRecovery('version' in current && current.version === 3 ? current.recovery : undefined)
   } else if ('version' in stored && stored.version === 2) {
-    recovery = { semanticV2: stored }
+    recovery = { semanticV2: cloneExact(current as LayoutV2) }
   } else {
-    recovery = { legacyV1: stored }
+    recovery = { legacyV1: cloneExact(current as NonNullable<LayoutV3['recovery']>['legacyV1']) }
   }
   profiles[profile] = normalizeProfile(draft)
   return {
@@ -163,7 +177,8 @@ export function saveCanvasProfile(
 export function restorePreviousLayout(current: StoredLayout): StoredLayout | null {
   const stored = cleanStoredLayout(current)
   if (!('version' in stored) || stored.version !== 3 || !stored.recovery) return null
-  if (stored.recovery.semanticV2) return cleanStoredLayout(stored.recovery.semanticV2)
-  if (stored.recovery.legacyV1) return cleanStoredLayout(stored.recovery.legacyV1)
+  if (!('version' in current) || current.version !== 3 || !current.recovery) return null
+  if (current.recovery.semanticV2) return cloneExact(current.recovery.semanticV2)
+  if (current.recovery.legacyV1) return cloneExact(current.recovery.legacyV1)
   return null
 }

@@ -3,7 +3,8 @@ import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { LayoutDensityPreference } from '../../lib/layout/types'
-import { emptyLayoutV3, type StoredLayout } from '../../lib/layout/canvasTypes'
+import { emptyLayoutV2 } from '../../lib/layout/v2'
+import type { StoredLayout } from '../../lib/layout/canvasTypes'
 import { restorePreviousLayout } from '../../lib/layout/canvasAdapter'
 import Section from '../Section'
 import { row, label, select, btnQuiet, btnDanger } from './shared'
@@ -17,14 +18,9 @@ import { row, label, select, btnQuiet, btnDanger } from './shared'
  *  "close the drawer, then bump ArrangeController's `openSignal` nonce" so
  *  the page is actually visible once arrange mode's overlay appears.
  *
- *  "Reset layout" opens the exact same shared confirm dialog
- *  (`src/lib/ResetLayoutDialog.tsx`) as the arrange pill's own danger-styled
- *  Reset button inside `ArrangeController` — replacing the old two-step
- *  arm/auto-expire idiom (`useArmedConfirm`, since removed from both call
- *  sites) per explicit user feedback that a silently-auto-reverting button
- *  is a bad pattern for a destructive action. Settings and the newtab/arrange
- *  feature tree still never import from each other directly; the dialog
- *  lives in `lib`, shared by both.
+ *  The legacy V1/V2 "Reset layout" action keeps its shared confirmation
+ *  dialog. Canvas V3 hides that global action because it cannot preserve
+ *  independent profiles or recovery; profile reset belongs to Canvas Save.
  *
  *  `open` (review fix): this section — like the rest of SettingsPanel —
  *  stays MOUNTED while the Drawer is merely closed (Drawer only toggles
@@ -47,6 +43,7 @@ export default function Layout({
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [density, setDensity] = useState<LayoutDensityPreference>('auto')
   const [canRestore, setCanRestore] = useState(false)
+  const [isCanvasLayout, setIsCanvasLayout] = useState<boolean | null>(null)
   const densityId = useId()
   const densityDescriptionId = `${densityId}-description`
 
@@ -74,9 +71,11 @@ export default function Layout({
     let live = true
     let gotUpdate = false
     const updateAvailability = (layout: StoredLayout) => {
+      const canvas = 'version' in layout && layout.version === 3
+      setIsCanvasLayout(canvas)
+      if (canvas) setResetDialogOpen(false)
       setCanRestore(
-        'version' in layout
-        && layout.version === 3
+        canvas
         && Boolean(layout.recovery?.semanticV2 || layout.recovery?.legacyV1),
       )
     }
@@ -129,12 +128,12 @@ export default function Layout({
           <button type="button" onClick={onArrangeLayout} className={btnQuiet}>
             Arrange layout
           </button>
-          {/* Danger-styled to match the arrange pill's own Reset button —
-              same restrained-red convention (ResetLayoutDialog's doc
-              comment), since this opens the identical destructive dialog. */}
-          <button type="button" onClick={() => setResetDialogOpen(true)} className={btnDanger}>
-            Reset layout
-          </button>
+          {/* Legacy-only: Canvas V3 reset is profile-scoped inside its editor. */}
+          {isCanvasLayout === false ? (
+            <button type="button" onClick={() => setResetDialogOpen(true)} className={btnDanger}>
+              Reset layout
+            </button>
+          ) : null}
         </div>
       </div>
       {canRestore ? (
@@ -153,11 +152,11 @@ export default function Layout({
       ) : null}
 
       <ResetLayoutDialog
-        open={resetDialogOpen}
+        open={resetDialogOpen && isCanvasLayout === false}
         onCancel={() => setResetDialogOpen(false)}
         onConfirm={() => {
           setResetDialogOpen(false)
-          void storage.set('layout', emptyLayoutV3())
+          void storage.set('layout', emptyLayoutV2())
         }}
       />
     </Section>

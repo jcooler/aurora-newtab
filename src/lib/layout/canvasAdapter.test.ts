@@ -138,6 +138,32 @@ describe('explicit Canvas save and recovery', () => {
     })
   })
 
+  it('preserves the exact serialized V2 recovery shape through Save and Restore', () => {
+    const semantic = {
+      legacy: {
+        notes: { y: 82.5, x: 14.25 },
+        clock: { y: 38.75, x: 51.5 },
+      },
+      profiles: {
+        display: {
+          notes: {
+            priority: 'automatic', variant: 'standard', rowSpan: 2, colSpan: 2, order: 3, zone: 'pulse',
+          },
+        },
+      },
+      version: 2,
+    } as LayoutV2
+    const before = JSON.stringify(semantic)
+
+    const saved = saveCanvasProfile(semantic, 'standard', draft)
+    const restored = restorePreviousLayout(saved)
+
+    expect(JSON.stringify(saved.recovery?.semanticV2)).toBe(before)
+    expect(JSON.stringify(restored)).toBe(before)
+    expect(saved.recovery?.semanticV2).not.toBe(semantic)
+    expect(restored).not.toBe(saved.recovery?.semanticV2)
+  })
+
   it('rejects the complete Save when any draft placement is invalid', () => {
     expect(() => saveCanvasProfile({ version: 3, profiles: {} }, 'standard', {
       mode: 'custom',

@@ -7,8 +7,7 @@ import { createInProcessStorageAuthority } from '../lib/storage/authority'
 import { StorageProvider } from '../lib/storage/context'
 import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
-import { layoutV2FromLegacy } from '../lib/layout/v2'
-import { emptyLayoutV3 } from '../lib/layout/canvasTypes'
+import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
 import { saveCanvasProfile } from '../lib/layout/canvasAdapter'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
 import { CURATED_STATUS } from '../services/connectors/status'
@@ -2417,7 +2416,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     const description = region.getByText('Auto Fit chooses the roomiest layout that keeps automatic items on the board.')
     expect(attr(density, 'aria-describedby')).toBe(description.id)
     expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
-    expect(region.getByRole('button', { name: 'Reset layout' })).toBeTruthy()
+    expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
   })
 
   it('persists Balanced as a manual density and reflects authority-backed subscription updates', async () => {
@@ -2466,7 +2465,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(onArrangeLayout).toHaveBeenCalledOnce()
   })
 
-  it('Reset layout Cancel writes neither key; confirm clears only Canvas layout and preserves Settings byte-for-byte', async () => {
+  it('legacy Reset layout Cancel writes neither key; confirm clears only the V2 layout and preserves Settings byte-for-byte', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
@@ -2506,10 +2505,41 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
     await act(async () => {})
-    expect(await storage.get('layout')).toEqual(emptyLayoutV3())
+    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
     expect(await storage.get('settings')).toEqual(settings)
     expect(set).toHaveBeenCalledOnce()
-    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV3())
+    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV2())
+  })
+
+  it('does not offer the legacy global Reset for Canvas V3 or write the layout on open', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const previous = layoutV2FromLegacy({ clock: { x: 12.25, y: 34.75 } })
+    const canvas = saveCanvasProfile(previous, 'standard', {
+      mode: 'custom',
+      placements: {
+        clock: { kind: 'canvas', x: 50, y: 38, size: 'full', layer: 0 },
+        notes: { kind: 'canvas', x: 84, y: 76, size: 'standard', layer: 1 },
+      },
+    })
+    await storage.set('layout', canvas)
+    const before = JSON.stringify(await storage.get('layout'))
+    const set = vi.spyOn(storage, 'set')
+    const update = vi.spyOn(storage, 'update')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Reset layout' })).toBeNull()
+    expect(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
+    expect(within(layoutRegion()).getByRole('button', { name: 'Restore previous layout' })).toBeTruthy()
+    expect(JSON.stringify(await storage.get('layout'))).toBe(before)
+    expect(set.mock.calls.filter(([key]) => key === 'layout')).toEqual([])
+    expect(update.mock.calls.filter(([key]) => key === 'layout')).toEqual([])
   })
 
   it('offers exact previous-layout recovery only while V3 recovery exists', async () => {
