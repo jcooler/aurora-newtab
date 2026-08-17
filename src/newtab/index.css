@@ -1894,9 +1894,8 @@ select > option {
   display: none;
 }
 
-/* A full six-week matrix cannot be legible in a frozen 1x1 footprint. The
-   compact calendar keeps its navigable month header plus the current week
-   (or the first visible week while browsing another month). */
+/* Month chooses its truthful Compact/Standard cells in React. Stage styling
+   may arrange that complete week, but never hides days or month rows. */
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] > div {
   /* A Standard compact track can be 72.66px wide. Preserve the full inline
      width for the two 36px month-nav targets so neither wraps to a second row.
@@ -1932,21 +1931,6 @@ select > option {
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] table {
   margin-top: 0;
   table-layout: fixed;
-}
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] thead,
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr {
-  display: none;
-}
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr:first-child,
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr[data-current-week] {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5) {
-  display: none;
-}
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody:has(tr[data-current-week]) tr:first-child:not([data-current-week]) {
-  display: none;
 }
 .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td {
   padding-block: 0;

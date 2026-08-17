@@ -13,6 +13,7 @@
 // type { ConnectorDescriptor } from './types'`: both sides erase at compile
 // time, so nothing survives to a load-order cycle at runtime.
 import type { HomeAssistantConfig } from './homeassistant'
+import type { CalendarColor } from './calendarColors'
 
 export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant'] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
@@ -156,6 +157,7 @@ export interface CryptoConfig extends ConnectorCacheIdentity {
 export interface IcsCalendar {
   name: string // display name, e.g. "Personal" — shown in settings; dots key by list position
   url: string // https-only at rest (webcal:// is converted before persist); the WHOLE url is the secret
+  color?: CalendarColor // absent is Auto; explicit selections follow this calendar through reorder
 }
 export interface IcsConfig extends ConnectorCacheIdentity {
   enabled: boolean

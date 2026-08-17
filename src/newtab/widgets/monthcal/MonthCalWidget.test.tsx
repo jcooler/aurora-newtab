@@ -21,6 +21,11 @@ const TODAY_KEY = '2026-05-15'
 async function renderWithMonthCal({
   widgetsOn = true,
   countdowns = [] as Countdown[],
+  canvasSize,
+}: {
+  widgetsOn?: boolean
+  countdowns?: Countdown[]
+  canvasSize?: 'compact' | 'standard'
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -31,7 +36,7 @@ async function renderWithMonthCal({
   await storage.set('countdowns', countdowns)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <MonthCalWidget />
+      <MonthCalWidget canvasSize={canvasSize} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -74,6 +79,33 @@ describe('MonthCalWidget', () => {
     expect(today!.querySelector('span')!.className).toContain('ring-accent')
     expect(today!.closest('tr')?.hasAttribute('data-current-week')).toBe(true)
     expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
+  })
+
+  it('renders Compact as exactly the current Sunday-through-Saturday week, including today', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'compact' })
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(7)
+    expect([...container.querySelectorAll('[data-cell-key]')].map((entry) => entry.getAttribute('data-cell-key'))).toEqual([
+      '2026-05-10', '2026-05-11', '2026-05-12', '2026-05-13', '2026-05-14', '2026-05-15', '2026-05-16',
+    ])
+    expect(cell(container, TODAY_KEY)).toBeTruthy()
+  })
+
+  it('keeps Compact navigation coherent by showing a complete week from the viewed month', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'compact' })
+    await act(async () => {
+      screen.getByRole('button', { name: 'Previous month' }).click()
+    })
+    expect(screen.getByText('April 2026')).toBeTruthy()
+    expect([...container.querySelectorAll('[data-cell-key]')].map((entry) => entry.getAttribute('data-cell-key'))).toEqual([
+      '2026-03-29', '2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04',
+    ])
+    expect(screen.getByRole('button', { name: 'Back to today' })).toBeTruthy()
+  })
+
+  it('renders Standard as the complete viewed month, including all six May rows', async () => {
+    const { container } = await renderWithMonthCal({ canvasSize: 'standard' })
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(6)
   })
 
   it('reserves the metadata tier for weekday headings, not the month label or day values', async () => {

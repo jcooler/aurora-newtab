@@ -108,14 +108,18 @@ const EVENT_FAR = ev(
  *  (fetchedAt = NOW) so useConnectorSnapshot treats it as fresh and never
  *  calls the real fetchIcs — the widget renders straight from cache, no
  *  network. Mirrors CryptoWidget.test.tsx's own seededStorage. */
-async function seededStorage(config: IcsConfig, data: IcsData | null): Promise<AuroraStorage> {
+async function seededStorage(
+  config: IcsConfig,
+  data: IcsData | null,
+  snapshotConfig: IcsConfig = config,
+): Promise<AuroraStorage> {
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('connectors', { ics: config })
   if (data) {
     await storage.set('connectorSnapshots', {
       ics: {
-        scope: await connectorSnapshotScope('ics', config, {
+        scope: await connectorSnapshotScope('ics', snapshotConfig, {
           timeZone: TIME_ZONE,
         }),
         fetchedAt: NOW,
@@ -337,6 +341,28 @@ describe('CalendarWidget', () => {
     mount(single)
     await act(async () => {})
     expect(document.querySelector('section[aria-label="Calendar"] .bg-accent')).toBeNull()
+  })
+
+  it('uses each calendar identity’s explicit color for event dots rather than its list position', async () => {
+    const base = {
+      ...CONNECTED_TWO,
+      view: 'upcoming' as const,
+      upcomingCount: 2,
+    }
+    const storage = await seededStorage({
+      ...CONNECTED_TWO,
+      calendars: [
+        { name: 'Personal', url: 'https://calendar.example.com/a.ics', color: 'fuchsia' },
+        { name: 'Family', url: 'https://calendar.example.com/b.ics', color: 'emerald' },
+      ],
+      view: 'upcoming',
+      upcomingCount: 2,
+    }, { events: [EVENT_NEXT, EVENT_MON] }, base)
+    mount(storage)
+    await act(async () => {})
+    const section = document.querySelector('section[aria-label="Calendar"]')!
+    expect(section.querySelectorAll('.bg-fuchsia-400')).toHaveLength(1)
+    expect(section.querySelectorAll('.bg-emerald-400')).toHaveLength(1)
   })
 
   it('upcoming/per-calendar empty state says "No upcoming events."; today keeps its copy', async () => {

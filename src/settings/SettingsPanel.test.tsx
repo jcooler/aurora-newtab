@@ -4749,6 +4749,38 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     expect(within(region).getByRole('button', { name: 'Remove Family' })).toBeTruthy()
   })
 
+  it('persists an explicit feed color without changing its URL, permissions, or snapshot', async () => {
+    const url = 'https://calendar.example.com/personal/basic.ics'
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url }],
+    }, true)
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Color for Personal' }), { target: { value: 'emerald' } })
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([{ name: 'Personal', url, color: 'emerald' }])
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect(removeOrigin).not.toHaveBeenCalled()
+    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+    expect(within(connectorsRegion()).getByRole('listitem').querySelector('.bg-emerald-400')).toBeTruthy()
+  })
+
+  it('ignores a malformed color-control value instead of persisting an open-ended color', async () => {
+    const url = 'https://calendar.example.com/personal/basic.ics'
+    const storage = await renderWithIcs({
+      enabled: true,
+      calendars: [{ name: 'Personal', url, color: 'sky' }],
+    })
+
+    await act(async () => {
+      fireEvent.change(screen.getByRole('combobox', { name: 'Color for Personal' }), { target: { value: 'not-a-color' } })
+    })
+
+    expect((await readIcs(storage))?.calendars).toEqual([{ name: 'Personal', url, color: 'sky' }])
+  })
+
   it('removing a calendar revokes its origin ONLY when no remaining calendar shares that origin', async () => {
     const storage = await renderWithIcs({
       enabled: true,

@@ -1148,6 +1148,22 @@ describe('icsDescriptor', () => {
 })
 
 describe('icsCalendarsOf — read-time config normalization', () => {
+  it('keeps a valid optional color while reading invalid or absent colors as Auto without writing one', () => {
+    const calendars = icsCalendarsOf({
+      enabled: true,
+      calendars: [
+        { name: 'Personal', url: 'https://a.example.com/x.ics', color: 'sky' },
+        { name: 'Family', url: 'https://b.example.com/y.ics', color: 'invalid' },
+        { name: 'Work', url: 'https://c.example.com/z.ics' },
+      ],
+    } as never)
+    expect(calendars).toEqual([
+      { name: 'Personal', url: 'https://a.example.com/x.ics', color: 'sky' },
+      { name: 'Family', url: 'https://b.example.com/y.ics' },
+      { name: 'Work', url: 'https://c.example.com/z.ics' },
+    ])
+  })
+
   it('returns a structurally valid calendars array as-is', () => {
     const cals = [{ name: 'Personal', url: 'https://a.example.com/x.ics' }]
     expect(icsCalendarsOf({ enabled: true, calendars: cals })).toEqual(cals)

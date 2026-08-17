@@ -10,7 +10,8 @@ import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../service
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
 import { newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
 import { resolveViews } from '../../services/connectors/views'
-import { icsCalendarsOf, icsViewOf, CALENDAR_DOT_CLASSES, MAX_CALENDARS } from '../../services/connectors/ics'
+import { icsCalendarsOf, icsViewOf, MAX_CALENDARS } from '../../services/connectors/ics'
+import { CALENDAR_COLORS, calendarColorClass, calendarColorOf, isCalendarColor, type CalendarColor } from '../../services/connectors/calendarColors'
 import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
 import {
   whoamiHomeAssistant,
@@ -1311,6 +1312,15 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
       return next === current && !patch ? prev : { ...prev, ics: icsConfig(previous, next, patch) }
     })
 
+  const updateCalendarColor = (target: string, value: 'auto' | CalendarColor) =>
+    updateIcs((cals) =>
+      cals.map((calendar) => {
+        if (calendar.url !== target) return calendar
+        if (value === 'auto') return { name: calendar.name, url: calendar.url }
+        return { ...calendar, color: value }
+      }),
+    )
+
   // WHY: CalendarWidget.tsx's own gate remounts CalendarInner on every
   // calendars/view/upcomingCount change (its key includes both), but a
   // remount ALONE does not force a refetch — useConnectorSnapshot's mount
@@ -1445,17 +1455,32 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
         {calendars.map((cal, i) => (
           <li key={cal.url} className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2">
-              {/* Dot keyed by LIST POSITION, same rule CALENDAR_DOT_CLASSES'
-                  own doc comment states (ics.ts) — the widget's rows key their
-                  dots the identical way, so a calendar's color never drifts
-                  between settings and the card. */}
+              {/* Calendar dots share this color helper with the event widget.
+                  Explicit colors persist with a feed; Auto follows its list position.
+                  This keeps Settings and Calendar in sync. */}
               <span
                 aria-hidden="true"
-                className={`h-2 w-2 shrink-0 rounded-full ${CALENDAR_DOT_CLASSES[i % CALENDAR_DOT_CLASSES.length]}`}
+                className={`h-2 w-2 shrink-0 rounded-full ${calendarColorClass(calendarColorOf(cal.color, i))}`}
               />
               <span className="min-w-0 truncate text-xs text-fg">{cal.name}</span>
               <span className="shrink-0 truncate text-xs text-fg-muted">{hostOf(cal.url)}</span>
             </span>
+            <label className="sr-only" htmlFor={`connector-ics-color-${i}`}>Color for {cal.name}</label>
+            <select
+              id={`connector-ics-color-${i}`}
+              aria-label={`Color for ${cal.name}`}
+              value={cal.color ?? 'auto'}
+              onChange={(event) => {
+                const value = event.currentTarget.value
+                if (value === 'auto' || isCalendarColor(value)) void updateCalendarColor(cal.url, value)
+              }}
+              className={select}
+            >
+              <option value="auto">Auto</option>
+              {CALENDAR_COLORS.map((color) => (
+                <option key={color} value={color}>{color[0]!.toUpperCase() + color.slice(1)}</option>
+              ))}
+            </select>
             <button
               type="button"
               aria-label={`Remove ${cal.name}`}

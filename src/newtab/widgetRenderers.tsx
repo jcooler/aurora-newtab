@@ -54,7 +54,7 @@ const RENDERERS = {
     <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} />
   ),
   ics: (props) => <CalendarWidget stageVariant={effectiveVariant(props)} />,
-  monthCal: () => <MonthCalWidget />,
+  monthCal: (props) => <MonthCalWidget canvasSize={props.canvasSize} stageVariant={props.stageVariant} />,
   sun: () => <SunWidget />,
   moon: () => <MoonWidget />,
   quote: () => <QuoteWidget />,

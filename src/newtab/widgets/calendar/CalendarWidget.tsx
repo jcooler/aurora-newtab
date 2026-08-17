@@ -4,7 +4,6 @@ import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useNow } from '../../../lib/hooks/useNow'
 import { calendarDayDifference, resolvedLocalTimeZone, zonedLocalDayRange } from '../../../lib/dates'
 import {
-  CALENDAR_DOT_CLASSES,
   fetchIcs,
   icsCalendarsOf,
   isIcsData,
@@ -12,6 +11,7 @@ import {
   type IcsData,
   type IcsEvent,
 } from '../../../services/connectors/ics'
+import { calendarColorClass, calendarColorOf } from '../../../services/connectors/calendarColors'
 import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 
@@ -167,7 +167,7 @@ function CalendarInner({
   const dot = (cal: number) => (
     <span
       aria-hidden
-      className={`h-1.5 w-1.5 shrink-0 rounded-full ${CALENDAR_DOT_CLASSES[cal % CALENDAR_DOT_CLASSES.length]}`}
+      className={`h-1.5 w-1.5 shrink-0 rounded-full ${calendarColorClass(calendarColorOf(calendars[cal]?.color, cal))}`}
     />
   )
 

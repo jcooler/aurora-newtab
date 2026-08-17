@@ -1,4 +1,4 @@
-import type { ConnectorConfig, ConnectorId } from './types'
+import type { ConnectorConfig, ConnectorId, IcsConfig } from './types'
 
 function canonicalSerializable(input: unknown): string {
   if (input === null) return 'null'
@@ -29,12 +29,27 @@ export function canonicalConnectorRuntimeScope(value: unknown): string {
   return canonicalSerializable(value)
 }
 
+/** ICS color is presentation metadata, not a fetched-event identity input. */
+function snapshotConfig(id: ConnectorId, config: ConnectorConfig): ConnectorConfig {
+  if (id !== 'ics') return config
+  const ics = config as IcsConfig
+  if (!Array.isArray(ics.calendars)) return ics
+  return {
+    ...ics,
+    calendars: (ics.calendars as unknown[]).map((entry) => {
+      if (!entry || typeof entry !== 'object') return entry
+      const { color: _color, ...calendar } = entry as Record<string, unknown>
+      return calendar
+    }) as IcsConfig['calendars'],
+  }
+}
+
 export async function connectorSnapshotScope(
   id: ConnectorId,
   config: ConnectorConfig,
   runtimeScope?: unknown,
 ): Promise<string> {
-  const canonical = canonicalConnectorConfig(config)
+  const canonical = canonicalConnectorConfig(snapshotConfig(id, config))
   const identity =
     runtimeScope === undefined ? `${id}\n${canonical}` : `${id}\n${canonical}\n${canonicalSerializable(runtimeScope)}`
   const bytes = new TextEncoder().encode(identity)

@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useLocalDay } from '../../../lib/hooks/useLocalDay'
-import { monthGrid, type MonthCell } from '../../../lib/monthGrid'
+import { monthGrid, weekContainingDate, type MonthCell } from '../../../lib/monthGrid'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import type { WidgetVariant } from '../../../lib/layout/types'
 
 const WEEKDAY_INITIALS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'] // Sunday-origin, matching monthGrid's own fixed row-0 weekday
 const MONTH_NAMES = [
@@ -15,7 +17,13 @@ function monthLabel(y: number, m0: number): string {
   return `${MONTH_NAMES[m0]} ${y}`
 }
 
-export default function MonthCalWidget() {
+export default function MonthCalWidget({
+  canvasSize,
+  stageVariant,
+}: {
+  canvasSize?: CanvasSize
+  stageVariant?: WidgetVariant
+} = {}) {
   // Gate BEFORE any other hook exists — same "zero hooks in the gate" split
   // every other toggle-gated widget in this app uses (RssWidget/HabitsWidget
   // own doc comments): the one useStoredKey read runs unconditionally every
@@ -23,10 +31,10 @@ export default function MonthCalWidget() {
   // mounts MonthCalInner and therefore never starts useNow's 60s interval.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.monthCal) return null
-  return <MonthCalInner />
+  return <MonthCalInner canvasSize={canvasSize} stageVariant={stageVariant} />
 }
 
-function MonthCalInner() {
+function MonthCalInner({ canvasSize, stageVariant }: { canvasSize?: CanvasSize; stageVariant?: WidgetVariant }) {
   const [countdowns] = useStoredKey('countdowns')
   // Coherent local-day identity for the ring and current-month control. The
   // scheduler covers midnight, restoration, and runtime timezone changes.
@@ -69,7 +77,12 @@ function MonthCalInner() {
     })
   const goToday = () => setView({ y: todayYear, m0: todayMonth - 1 })
 
-  const weeks = monthGrid(view.y, view.m0)
+  // Canvas owns the chosen content size. Adaptive Stage retains its legacy
+  // compact fallback only when Canvas has not supplied a saved size.
+  const compact = canvasSize ? canvasSize === 'compact' : stageVariant === 'compact'
+  const weeks = compact
+    ? [weekContainingDate(view.y, view.m0, isCurrentMonth ? Number(todayKey.slice(-2)) : 1)]
+    : monthGrid(view.y, view.m0)
   const countdownKeys = new Set((countdowns ?? []).map((c) => c.date))
   const label = monthLabel(view.y, view.m0)
   const compactLabel = MONTH_NAMES[view.m0].slice(0, 3)
@@ -200,13 +213,13 @@ function MonthCalInner() {
           {weeks.map((week, wi) => (
             <tr
               key={wi}
-              data-current-week={isCurrentMonth && week.some((cell) => cell.key === todayKey) ? '' : undefined}
+              data-current-week={week.some((cell) => cell.key === todayKey) ? '' : undefined}
             >
               {week.map((c) => (
                 <MonthCalCell
                   key={c.key}
                   cell={c}
-                  isToday={isCurrentMonth && c.key === todayKey}
+                  isToday={(compact || isCurrentMonth) && c.key === todayKey}
                   hasCountdown={countdownKeys.has(c.key)}
                 />
               ))}

@@ -34,6 +34,7 @@
 import type { ConnectorDescriptor, IcsCalendar, IcsConfig } from './types'
 import { originPattern } from '../permissions'
 import { zonedWallTimeToEpoch } from '../../lib/dates'
+import { CALENDAR_COLORS, calendarColorClass, isCalendarColor } from './calendarColors'
 
 export interface IcsEvent {
   summary: string
@@ -754,6 +755,11 @@ export function icsCalendarsOf(config: IcsConfig | undefined): IcsCalendar[] {
           !!c && typeof c === 'object' && typeof c.name === 'string' && typeof c.url === 'string' && c.url.length > 0,
       )
       .slice(0, MAX_CALENDARS)
+      .map((calendar) =>
+        isCalendarColor(calendar.color)
+          ? calendar
+          : { name: calendar.name, url: calendar.url },
+      )
   }
   if (typeof config.url === 'string' && config.url.length > 0) return [{ name: 'Calendar', url: config.url }]
   return []
@@ -784,13 +790,7 @@ export function icsViewOf(config: IcsConfig | undefined): {
  *  1 is the theme accent; 2–5 are stock Tailwind hues checked against both
  *  themes at the visual gate. Lives here (not in a component) because both
  *  the widget rows and the settings legend render the same dot. */
-export const CALENDAR_DOT_CLASSES: readonly string[] = [
-  'bg-accent',
-  'bg-sky-400',
-  'bg-emerald-400',
-  'bg-amber-400',
-  'bg-fuchsia-400',
-]
+export const CALENDAR_DOT_CLASSES: readonly string[] = CALENDAR_COLORS.map(calendarColorClass)
 
 export const icsDescriptor: ConnectorDescriptor<IcsConfig> = {
   id: 'ics',

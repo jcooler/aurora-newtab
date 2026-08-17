@@ -103,6 +103,25 @@ describe('connector snapshot identity', () => {
     expect(berlin).not.toContain('Europe/Berlin')
   })
 
+  it('keeps ICS snapshot scope stable when only an identity-owned display color changes', async () => {
+    const base = {
+      enabled: true,
+      calendars: [{ name: 'Work', url: 'https://calendar.example/private' }],
+    } as const
+    const colored = {
+      ...base,
+      calendars: [{ ...base.calendars[0], color: 'fuchsia' as const }],
+    }
+    expect(await connectorSnapshotScope('ics', colored)).toBe(await connectorSnapshotScope('ics', base))
+  })
+
+  it('keeps malformed calendar entries serializable while ignoring a color field', async () => {
+    await expect(connectorSnapshotScope('ics', {
+      enabled: true,
+      calendars: [null, { name: 'Work', url: 'https://calendar.example/private', color: 'sky' }],
+    } as never)).resolves.toMatch(/^ics:v2:[0-9a-f]{64}$/)
+  })
+
   it('keeps omitted runtime scope byte-compatible for existing v1 connectors', async () => {
     const config: RssConfig = {
       enabled: true,
