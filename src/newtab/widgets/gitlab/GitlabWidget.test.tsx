@@ -70,10 +70,15 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GitlabWidget', () => {
-  it('Compact keeps the real selected MR count instead of a false empty state', async () => {
-    mount(await seededStorage(CONNECTED, DATA), 'compact')
-    expect(await screen.findByLabelText('GitLab: 6 need attention')).toBeTruthy()
-    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  it('Compact derives attention from selected MRs when to-dos are zero', async () => {
+    const selectedMrs: GitlabConfig = {
+      ...CONNECTED,
+      views: { mergeRequests: true, reviewAsks: false, todos: true, activityGraph: false },
+    }
+    mount(await seededStorage(selectedMrs, { ...DATA, todos: 0 }), 'compact')
+    expect(await screen.findByLabelText('GitLab: 2 open items')).toBeTruthy()
+    expect(screen.queryByText('All clear')).toBeNull()
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
   })
   it('renders MR rows plus the to-dos count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)

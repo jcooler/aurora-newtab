@@ -53,7 +53,14 @@ export function contentConflictFor(id: BlockId, size: CanvasSize, selectedConten
   const rank: Record<CanvasSize, number> = { compact: 0, standard: 1, full: 2 }
   const hidden = selectedContent.filter((item) => rank[item.minimumSize] > rank[size])
   if (hidden.length === 0) return null
-  const minimum = hidden.reduce<CanvasSize>((largest, item) => rank[item.minimumSize] > rank[largest] ? item.minimumSize : largest, 'compact')
-  const larger = minimum === 'full' ? 'Full' : current.sizes.includes('full') ? 'Standard or Full' : 'Standard'
-  return `${joinNames(hidden)} need ${larger}.`
+  return (['standard', 'full'] as const)
+    .map((minimum) => {
+      const items = hidden.filter((item) => item.minimumSize === minimum)
+      if (items.length === 0) return null
+      const larger = minimum === 'full' ? 'Full' : current.sizes.includes('full') ? 'Standard or Full' : 'Standard'
+      const singular = items.length === 1 && !items[0].label.endsWith('s')
+      return `${joinNames(items)} ${singular ? 'needs' : 'need'} ${larger}.`
+    })
+    .filter((message): message is string => message !== null)
+    .join(' ')
 }

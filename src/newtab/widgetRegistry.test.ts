@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { BLOCK_IDS, type WidgetVariant } from '../lib/layout/types'
 import { defaults, type Settings, type WidgetToggles } from '../lib/storage/schema'
-import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from '../services/connectors/types'
+import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId, type JiraConfig, type RssConfig } from '../services/connectors/types'
 import { resolveWidgetRenderer, WIDGET_RENDERER_KEYS } from './widgetRenderers'
 import { WIDGET_REGISTRY, selectActiveWidgetRegistry, type WidgetRegistryEntry } from './widgetRegistry'
-import { WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
+import { contentConflictFor, WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 
 const EXPECTED = [
   ['weather', 'Weather', 'day', 0, 'automatic', ['day'], 'standard', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
@@ -58,6 +58,13 @@ function connector(enabled: boolean): ConnectorConfig {
 
 function ids(rows: readonly WidgetRegistryEntry[]): string[] {
   return rows.map((row) => row.id)
+}
+
+function selectedContent(id: ConnectorId, config: ConnectorConfig) {
+  const entry = selectActiveWidgetRegistry(settingsWith(ALL_WIDGETS_OFF), { [id]: config })
+    .find((row) => row.id === id)
+  if (!entry?.selectedContent) throw new Error(`Missing ${id} selected content`)
+  return entry.selectedContent
 }
 
 describe('source-owned widget registry', () => {
@@ -153,6 +160,22 @@ describe('source-owned widget registry', () => {
     expect(ids(second)).toEqual(['clock', 'greeting', 'focus', 'github', 'notes'])
     expect(settingsA.widgets).toEqual({ ...ALL_WIDGETS_OFF, weather: true })
     expect(connectorsA.rss.enabled).toBe(true)
+  })
+
+  it('models Jira and RSS size conflicts from the actual selected configuration', () => {
+    const jira = (views: JiraConfig['views']): JiraConfig => ({
+      enabled: true, email: 'jon@example.test', apiToken: 'token', site: 'https://acme.atlassian.net', displayName: 'Jon', views,
+    })
+    const rss = (shownCount: number): RssConfig => ({ enabled: true, feeds: ['https://example.test/feed.xml'], shownCount })
+
+    expect(contentConflictFor('jira', 'standard', selectedContent('jira', jira({ assigned: false, dueSoon: true, statusChips: false })))).toBeNull()
+    expect(contentConflictFor('jira', 'standard', selectedContent('jira', jira({ assigned: true, dueSoon: true, statusChips: false })))).toBe('Due soon needs Full.')
+
+    expect(contentConflictFor('rss', 'compact', selectedContent('rss', rss(2)))).toBeNull()
+    expect(contentConflictFor('rss', 'compact', selectedContent('rss', rss(3)))).toBe('1 additional configured headline needs Standard or Full.')
+    expect(contentConflictFor('rss', 'standard', selectedContent('rss', rss(6)))).toBeNull()
+    expect(contentConflictFor('rss', 'compact', selectedContent('rss', rss(7)))).toBe('5 additional configured headlines need Standard or Full. 1 remaining configured headline needs Full.')
+    expect(contentConflictFor('rss', 'standard', selectedContent('rss', rss(10)))).toBe('4 remaining configured headlines need Full.')
   })
 
   it('resolves every registry renderer exhaustively with exact key set equality', () => {

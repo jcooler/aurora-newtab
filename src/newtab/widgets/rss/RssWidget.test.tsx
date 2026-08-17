@@ -201,6 +201,23 @@ describe('RssWidget', () => {
     )
   })
 
+  it('uses the Full Canvas variant cap for all 10 configured headlines', async () => {
+    const ten: Headline[] = Array.from({ length: 10 }, (_, i) => ({
+      source: 'Example',
+      title: `Full headline ${i}`,
+      url: `https://example.test/${i}`,
+      publishedAt: 50 - i,
+    }))
+    const storage = await seededStorage(
+      { enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 10 },
+      ten,
+    )
+    mount(storage, 'expanded')
+
+    await screen.findByText('Full headline 0')
+    expect(document.querySelectorAll('section[aria-label="Headlines"] li')).toHaveLength(10)
+  })
+
   it("each headline is an external link (target=_blank, rel carries noopener + noreferrer)", async () => {
     const storage = await seededStorage({ enabled: true, feeds: ['https://news.ycombinator.com/rss'], shownCount: 5 })
     mount(storage)

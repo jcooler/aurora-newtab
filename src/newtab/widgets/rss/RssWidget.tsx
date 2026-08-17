@@ -7,7 +7,7 @@ import type { WidgetVariant } from '../../../lib/layout/types'
 const RSS_VARIANT_ROWS: Readonly<Record<WidgetVariant, number>> = {
   compact: 2,
   standard: 6,
-  expanded: 8,
+  expanded: 10,
 }
 
 export default function RssWidget({
@@ -56,10 +56,10 @@ const RSS_SHORT_ROWS = 4
 // THIS card as the left column's lowest — its bottom is what must clear the pill.
 // MEASURED (scripts/preview.mjs's short|mid fencepost, 1600x601): with the dense
 // skin (row ~36px, p-2 chrome ~12px => N rows = 12 + 36N) and the compact
-// calendar above it (rss top ~206), the FULL 8-row card bottoms at ~506 —
+// calendar above it (rss top ~206), the 8-row mid-tier card bottoms at ~506 —
 // clearing the 547 pill by 41px. So the compact card fits every headline on mid
-// with room to spare and needs no trim: the cap is the display max (8), and the
-// row-hide below never engages on mid (shownCount is itself <=8). `short`
+// with room to spare and needs no trim: the mid-tier cap is 8. Full Canvas can
+// use its taller allocation for 10 configured headlines; `short`
 // (RSS_SHORT_ROWS=4) trims because its 451px floor puts the pill ~150px higher;
 // `xshort` hides the whole card. The three tiers are disjoint (index.css), so
 // only one row cap ever applies at a time.
@@ -89,8 +89,8 @@ function RssInner({ rss, stageVariant }: { rss: RssConfig; stageVariant: WidgetV
     // surface rather than bare photo-floating text. `p-2.5` + `gap-1`
     // (tighter than GitHub's own p-3/gap-2) is deliberate and LOAD-BEARING,
     // not cosmetic: carding adds padding+radius height, and the left column's
-    // measured floors are pinned against this card's WORST case — shownCount
-    // 8, its tallest — clearing the calendar card above and vercel's slot
+    // measured mid-height floors are pinned against its 8-row mid-tier cap;
+    // the 10-row Full Canvas allocation is used only above that constrained tier.
     // below by >=16px each (scripts/preview.mjs's ics + vercel gap probes,
     // and the combined-defaults gate's 190-pair check, all re-measured for
     // this batch). w-72 is unchanged (the horizontal extent, and the ~380px

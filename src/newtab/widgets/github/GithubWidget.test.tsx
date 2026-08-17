@@ -75,16 +75,25 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GithubWidget', () => {
-  it('Compact keeps the real selected-work count as its primary value without rendering rows', async () => {
-    mount(await seededStorage(CONNECTED, DATA), 'compact')
-    expect(await screen.findByLabelText('GitHub: 3 need attention')).toBeTruthy()
+  it('Compact derives attention from selected PR and issue rows when notifications are zero', async () => {
+    const selectedRows: GithubConfig = {
+      ...CONNECTED,
+      views: { commitGraph: false, pulls: true, issues: true, notifications: true },
+    }
+    mount(await seededStorage(selectedRows, { ...DATA, notifications: 0 }), 'compact')
+    expect(await screen.findByLabelText('GitHub: 3 open items')).toBeTruthy()
+    expect(screen.queryByText('All clear')).toBeNull()
     expect(screen.queryByText('Fix the flaky login test')).toBeNull()
   })
 
-  it('Full keeps a selected graph visible without a legacy height-tier class', async () => {
-    mount(await seededStorage({ ...CONNECTED, views: { commitGraph: true, pulls: false, issues: false, notifications: false } }, DATA_WITH_GRAPH), 'full')
+  it('Full keeps a graph with selected rows visible without a legacy height-tier class', async () => {
+    mount(await seededStorage({ ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: false } }, DATA_WITH_GRAPH), 'full')
     const graph = await screen.findByRole('img', { name: /contribution activity/i })
-    expect(graph.parentElement?.className).not.toContain('hidden')
+    const container = graph.closest('[data-work-pulse-detail]')
+    expect(container?.className).not.toContain('hidden')
+    expect(container?.className).not.toContain('taller:block')
+    expect(container?.className).not.toContain('grand:block')
+    expect(screen.getByText('Fix the flaky login test')).toBeTruthy()
   })
   it('renders PR and issue rows plus the unread count from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)

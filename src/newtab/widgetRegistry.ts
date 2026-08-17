@@ -8,7 +8,7 @@ import type {
   Zone,
 } from '../lib/layout/types'
 import type { Settings, WidgetToggles } from '../lib/storage/schema'
-import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConfig, VercelConfig } from '../services/connectors/types'
+import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
 import { WIDGET_SIZE_CONTRACTS, type SelectedCanvasContent, type WidgetSizeContract } from './widgetSizeContracts'
 import { resolveGithubViews } from '../services/connectors/github'
@@ -139,6 +139,7 @@ export const WIDGET_REGISTRY_BY_ID: Readonly<Record<BlockId, WidgetRegistryEntry
 
 function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | undefined): readonly SelectedCanvasContent[] {
   const selected = (label: string, minimumSize: CanvasSize): SelectedCanvasContent => ({ label, minimumSize })
+  const headlines = (count: number, qualifier: string) => `${count} ${qualifier} configured headline${count === 1 ? '' : 's'}`
   switch (id) {
     case 'github': {
       const views = resolveGithubViews(config as GithubConfig | undefined)
@@ -150,13 +151,24 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
     }
     case 'jira': {
       const views = resolveViews(DEFAULT_JIRA_VIEWS, (config as JiraConfig | undefined)?.views)
-      return [views.assigned && selected('Assigned', 'standard'), views.dueSoon && selected('Due soon', 'standard'), views.statusChips && selected('Status counts', 'compact')].filter(Boolean) as SelectedCanvasContent[]
+      return [
+        views.assigned && selected('Assigned', 'standard'),
+        views.dueSoon && selected('Due soon', views.assigned ? 'full' : 'standard'),
+        views.statusChips && selected('Status counts', 'compact'),
+      ].filter(Boolean) as SelectedCanvasContent[]
     }
     case 'vercel': {
       const views = resolveViews(DEFAULT_VERCEL_VIEWS, (config as VercelConfig | undefined)?.views)
       return [views.deployments && selected('Deployments', 'compact'), views.statusSummary && selected('Status summary', 'compact')].filter(Boolean) as SelectedCanvasContent[]
     }
-    case 'rss': return [selected('Headlines', 'compact')]
+    case 'rss': {
+      const shownCount = Math.max(0, Math.floor((config as RssConfig | undefined)?.shownCount ?? 0))
+      return [
+        selected('Headlines', 'compact'),
+        shownCount > 2 && selected(headlines(shownCount - 2, 'additional'), 'standard'),
+        shownCount > 6 && selected(headlines(shownCount - 6, 'remaining'), 'full'),
+      ].filter(Boolean) as SelectedCanvasContent[]
+    }
     case 'crypto': return [selected('Selected coins', 'compact')]
     case 'status': return [selected('Service status', 'compact')]
     case 'homeassistant': {
