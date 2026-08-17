@@ -242,14 +242,16 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - Compact exposes identity plus one useful primary value/action; Standard adds selected rows or visual; Full exposes the complete selected composition that fits.
 - Existing `Show on your board` choices remain authoritative. Canvas size neither resets nor overrides connector settings.
 
-- [ ] Write RED registry/inspector tests proving visually identical or unsupported choices are absent and size conflicts explain which selected content needs a larger size.
-- [ ] Write table-driven RED component tests for every connector contract, with complete real snapshot fixtures and explicit selected-view combinations.
-- [ ] Prove GitHub graph/count and selected rows, Jira real issue rows, GitLab, Vercel, Status, RSS, Crypto, and Home Assistant preserve their selected sections at every size claiming support.
-- [ ] Prove Large and Wide reveal useful detail or legibility and do not merely spread Compact content.
-- [ ] Implement explicit Canvas size inputs and content contracts. Remove CSS-only hiding that violates a supported size contract; retain safe reflow/truncation that does not erase selected sections.
-- [ ] Run the focused widget, registry, Arrange, and App tests for the changed files.
-- [ ] Commit `feat(widgets): make Canvas sizes meaningful`.
-- [ ] Run one Packet 5 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P5`, push, and prove both repository states.
+- [x] Write RED registry/inspector tests proving visually identical or unsupported choices are absent and size conflicts explain which selected content needs a larger size.
+- [x] Write table-driven RED component tests for every connector contract, with complete real snapshot fixtures and explicit selected-view combinations.
+- [x] Prove GitHub graph/count and selected rows, Jira real issue rows, GitLab, Vercel, Status, RSS, Crypto, and Home Assistant preserve their selected sections at every size claiming support.
+- [x] Prove Large and Wide reveal useful detail or legibility and do not merely spread Compact content.
+- [x] Implement explicit Canvas size inputs and content contracts. Remove CSS-only hiding that violates a supported size contract; retain safe reflow/truncation that does not erase selected sections.
+- [x] Run the focused widget, registry, Arrange, and App tests for the changed files.
+- [x] Commit `feat(widgets): make Canvas sizes meaningful`.
+- [x] Run one Packet 5 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P5`, push, and prove both repository states.
+
+**Packet 5 evidence:** Implemented in `10ff533`, with the bounded review fix in `484cd63` and configuration-aware residual closure in `121da8d`. The final focused gate passed 15 files / 317 tests, TypeScript, and `git diff --check`. Registry and Arrange now expose only materially distinct sizes and exact selected-section conflicts. GitHub, GitLab, Jira, Vercel, Status, RSS, Crypto, and Home Assistant receive Canvas size without changing their configuration authority; compact summaries remain truthful, Standard preserves prioritized selected rows or visuals, and Full bypasses legacy hides for complete selected compositions. The owner-approved compact Weather, folder-monogram, and Small Search-clearance refinements are included. The single review/fix/rereview cycle closed three Important findings; its two residual configuration/test branches were closed with focused evidence under the exhausted cycle and no second rereview. Canvas/viewport folder glyph duplication remains Minor, and exact Small clearance remains a Packet 7 browser witness.
 
 ## Packet 6: Calendar Completion
 

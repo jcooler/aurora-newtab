@@ -1,11 +1,11 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-16<br>
+**Updated:** 2026-08-17<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
-**Last verified packet:** `Canvas-P4` - V1 interaction restoration<br>
-**Current packet:** Owner visual approval gate - Canvas-P4
+**Last verified packet:** `Canvas-P5` - Meaningful widget sizes<br>
+**Current packet:** `Canvas-P6` - Calendar completion
 
 ## Packet envelope
 
@@ -17,7 +17,8 @@
 - **Canvas-P2 evidence:** One normalized Canvas now renders V1, V2, and V3 profiles with source-owned V1 anchors, Small/Desktop/Large/Wide selection, safe fitted geometry, optional Bottom bar ownership, preserved compact presentations, and no semantic Day/Now/Work Pulse/Signal Dock presentation regions. Custom saved blocks remain exact while newly enabled identities find a safe snapped position. `Use Desktop layout everywhere` is an in-memory fitted preview with no write. The final focused gate passed 8 files / 71 tests, TypeScript, and diff hygiene; the bounded rereview returned Ready with no findings open.
 - **Canvas-P3 evidence:** Direct Arrange now owns one explicit-save draft with measured Canvas-local pointer geometry, grid and magnetic guides, 8px-bounded keyboard and size changes, collision/layer feedback, undo/reset, four real profile previews, draft visibility, a non-occluding inspector/Small sheet, exact Cancel, one authority-backed Save, real-invoker focus restoration, and durable terminal announcements. The final focused gate passed 6 files / 79 tests, TypeScript, and diff hygiene. The one review/fix/rereview cycle closed five Important findings; the rereview's remaining restored-size branch was reproduced and fixed under the exhausted cycle. No Minor issue was reported.
 - **Canvas-P4 evidence:** The V1 hierarchy now keeps Bookmarks at the top, Clock and one stable Focus footprint centered, movable Timer/Tasks/Notes launchers opening direct contained panels, and Briefing absent unless explicitly enabled with real signals. The optional Utility Tray exposes only working Home Assistant and Refresh commands. The exact focused gate passed 7 files / 332 tests, TypeScript, and diff hygiene. The focused real-Chromium probe exercised direct panels, pointer drag, guides, keyboard movement, selection, inspector, exact Cancel, Small sheet containment, overflow, focus restoration, and Timer continuation with no runtime errors or failed requests. One review/fix/rereview cycle closed the blank Utility Tray regression. Minor observations remain for the exercised Clock overlap warning and existing Settings test `act(...)` hydration warnings.
-- **Remaining gates:** Owner approval of the four Canvas-P4 captures; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
+- **Canvas-P5 evidence:** The owner approved the Canvas-P4 direction and refined compact Weather, bookmark marks, Small Search clearance, and connector-size expectations. Each registry identity now declares only materially distinct sizes with explicit content contracts. Canvas size reaches GitHub, GitLab, Jira, Vercel, Status, RSS, Crypto, and Home Assistant without changing connector settings; Compact preserves truthful primary state, Standard preserves selected rows or visuals, and Full preserves complete selected compositions. Inspector conflicts are derived from actual selected sections, including conditional Jira and RSS requirements. Compact Weather retains icon, temperature, condition/location, and chevron; named folders gain one- or two-character marks; Small Search reserves utility-control clearance. The final focused gate passed 15 files / 317 tests, TypeScript, and diff hygiene. One review/fix/rereview cycle closed three Important issues; its two residual Important branches were closed with focused evidence under the exhausted cycle and no second rereview. Minor: a Compact Canvas folder may paint both glyph and monogram when viewport and Canvas size disagree. Exact Small clearance remains a Packet 7 real-browser witness.
+- **Remaining gates:** Canvas-P6 and Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 
@@ -28,6 +29,7 @@
 
 ## Last completed commits
 
+- `10ff5334567664965eae7518c9c34f88b2c9ce35`, `484cd633958f3a739affd8c7617ef7cf3b152239`, and `121da8d8658c55d6898f70173ad705b97f8cefa7` - truthful Canvas size contracts, review fixes, and configuration-aware residual closure.
 - `6403b26198dd3f94742316850ae1a1564c1492ee` and `045ed09` - restored V1 interactions and the bounded Utility Tray rereview fix.
 - `5aa01e532b3e286195407d2a8cbd6dfb0b7f80b8`, `96482b8495c5da50206cd39a4492d68a5eb09558`, and `8996b15a3f2084d21b41f4dab9db10c7b00e8f63` - direct Canvas editing, bounded review fixes, and the restored-size safe-margin regression.
 - `eb1354b6a5b041fb6d494655c3dae1862572bc51` — audited V1.14.0 base (`test(ha): the drawer sits for its portrait`).
@@ -386,13 +388,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint Canvas P4 visual gate`. Packet 5 remains blocked until explicit owner approval of the early visual gate.
+- None expected after `docs: checkpoint Canvas P5`.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** Owner visual approval gate - Canvas-P4
+- **Packet:** `Canvas-P6` - Calendar completion
 - **Plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`
-- **State:** Canvas-P1 through Canvas-P4 are verified. Stop at the required early visual gate with four original-resolution captures; do not begin Canvas-P5 without explicit owner approval.
+- **State:** The owner approved the Canvas-P4 direction. Canvas-P1 through Canvas-P5 are verified; execute Canvas-P6, then Canvas-P7 and stop at the connector/calendar visual gate.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep the approved eight-packet plan, one implementation envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
