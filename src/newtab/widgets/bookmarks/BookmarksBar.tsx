@@ -9,6 +9,7 @@ import {
 } from '../../../services/bookmarks'
 import { faviconUrl } from '../links/linksLogic'
 import FolderPopover, { FolderIcon } from './FolderPopover'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 const MAX_VISIBLE_CHIPS = 8
 const OVERFLOW_ID = '__overflow__'
@@ -146,14 +147,18 @@ const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-onl
  *  Split on code points, not UTF-16 units, so an emoji-prefixed folder
  *  ("📚 Reading") keeps its emoji instead of half a surrogate pair.
  *  toUpperCase() is the identity for CJK and emoji. */
-function folderInitial(title: string): string {
-  return Array.from(title.trim())[0]?.toUpperCase() ?? '•'
+export function folderMonogram(title: string): string {
+  const words = title.trim().split(/\s+/).filter(Boolean)
+  if (words.length === 0) return '📁'
+  if (words.length === 1) return Array.from(words[0])[0]?.toUpperCase() ?? '📁'
+  return words.slice(0, 2).map((word) => Array.from(word)[0]?.toUpperCase() ?? '').join('') || '📁'
 }
 
 type ChipEntry = { kind: 'folder'; folder: BookmarkFolder } | { kind: 'bookmark'; item: BookmarkItem }
 
 export default function BookmarksBar({
   onPopoverOpenChange,
+  canvasSize,
 }: {
   // Bookmarks-stacking bug fix, part 2: notifies App.tsx whenever a
   // popover opens/closes (see the `toggle`/`setOpen` helper below for why
@@ -165,6 +170,7 @@ export default function BookmarksBar({
   // Optional so every existing call site/test that doesn't care about this
   // (nothing before this fix did) keeps compiling unchanged.
   onPopoverOpenChange?: (open: boolean) => void
+  canvasSize?: CanvasSize
 } = {}) {
   // Gate BEFORE the model-loading effect exists: disabled tabs (the default —
   // settings.widgets.bookmarks starts false) never call chrome.bookmarks at
@@ -172,13 +178,15 @@ export default function BookmarksBar({
   // satisfied regardless of the toggle.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.bookmarks) return null
-  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} />
+  return <BookmarksBarInner onPopoverOpenChange={onPopoverOpenChange} canvasSize={canvasSize} />
 }
 
 function BookmarksBarInner({
   onPopoverOpenChange,
+  canvasSize,
 }: {
   onPopoverOpenChange?: (open: boolean) => void
+  canvasSize?: CanvasSize
 }) {
   const [model, setModel] = useState<BarModel | null>(null)
   // One popover open at a time: a folder chip's id, or OVERFLOW_ID, or null.
@@ -260,6 +268,7 @@ function BookmarksBarInner({
 
   return (
     <nav
+      data-canvas-size={canvasSize}
       aria-label="Bookmarks bar"
       // `relative` (bookmarks-stacking bug fix): z-index only has any effect
       // on a positioned element (CSS: "on non-positioned elements it will
@@ -333,7 +342,7 @@ function BookmarksBarInner({
                 data-chip-mark
                 className="hidden compact:block font-display font-medium"
               >
-                {folderInitial(chip.folder.title)}
+                {folderMonogram(chip.folder.title)}
               </span>
               <span data-chip-label className={CHIP_LABEL}>
                 {chip.folder.title}

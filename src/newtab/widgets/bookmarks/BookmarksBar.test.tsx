@@ -8,6 +8,7 @@ import { defaults } from '../../../lib/storage/schema'
 import type { BarModel } from '../../../services/bookmarks'
 import { hasBookmarksPermission, loadBarModel } from '../../../services/bookmarks'
 import BookmarksBar from './BookmarksBar'
+import { folderMonogram } from './BookmarksBar'
 
 // loadBarModel and hasBookmarksPermission are the only chrome.* touches
 // (chrome.bookmarks.getTree and chrome.permissions.contains respectively);
@@ -58,6 +59,11 @@ async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) 
 }
 
 describe('BookmarksBar', () => {
+  it('uses recognizable folder monograms and a neutral folder glyph for unnamed folders', () => {
+    expect(folderMonogram('Project Aurora')).toBe('PA')
+    expect(folderMonogram('Reading')).toBe('R')
+    expect(folderMonogram('   ')).toBe('\ud83d\udcc1')
+  })
   it('renders nothing while settings.widgets.bookmarks is off', async () => {
     vi.mocked(loadBarModel).mockResolvedValue(nestedModel)
     const storage = createStorage(memoryDriver())
@@ -279,7 +285,7 @@ describe('BookmarksBar', () => {
     // Eight identical folder glyphs in a row say nothing. The initial says
     // which folder — the one thing the label was there to tell you.
     const mark = reading.querySelector('[data-chip-mark]')!
-    expect(mark.textContent).toBe('R')
+    expect(mark.textContent).toBe('RL')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
     expect(mark.classList.contains('hidden')).toBe(true)
     expect(mark.classList.contains('compact:block')).toBe(true)

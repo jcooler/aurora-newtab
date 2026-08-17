@@ -4,6 +4,7 @@ import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } fro
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // Display cap for the unread count — mirrors the service's per_page=50 fetch,
 // so a full page reads as "50+" rather than an exact-but-misleading number.
@@ -63,7 +64,7 @@ function connectedGithub(config: ConnectorConfig | undefined): GithubConfig | nu
   return github
 }
 
-export default function GithubWidget() {
+export default function GithubWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as RssWidget: the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled/
   // unconnected connector never mounts GithubInner and therefore never runs
@@ -80,10 +81,10 @@ export default function GithubWidget() {
   // laps the Tasks pill). This governs the graph's reveal tier — see GithubInner
   // and App.tsx's right-rail comment.
   const forgeSiblings = (connectors?.gitlab?.enabled ? 1 : 0) + (connectors?.jira?.enabled ? 1 : 0)
-  return <GithubInner github={github} forgeSiblings={forgeSiblings} />
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} />
 }
 
-function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSiblings: number }) {
+function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
@@ -106,7 +107,8 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   // section only appears when commitGraph is on AND there are real days.
   const contributions = data.contributions ?? null
   const graph =
-    views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
+    views.commitGraph && (canvasSize !== 'compact' || (!views.pulls && !views.issues && !views.notifications))
+      && contributions !== null && contributions.days.length > 0 ? contributions : null
 
   // STRICTLY graph-only composition (commitGraph on, every other section off —
   // Jon's "just my commit graph"). The graph is then the card's ONLY content, so
@@ -153,8 +155,9 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
   const innerGraphClass = graphOnly ? undefined : graphWrap
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const prs = views.pulls ? (data.prs ?? []).slice(0, MAX_PRS) : []
-  const issues = views.issues ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
+  const rowCap = canvasSize === 'standard' ? 1 : MAX_PRS
+  const prs = canvasSize !== 'compact' && views.pulls ? (data.prs ?? []).slice(0, rowCap) : []
+  const issues = canvasSize !== 'compact' && views.issues ? (data.issues ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_ISSUES) : []
   const notifications = data.notifications
 
   // The celebratory empty line ("No PRs waiting on you") shows whenever a LIST
@@ -203,7 +206,7 @@ function GithubInner({ github, forgeSiblings }: { github: GithubConfig; forgeSib
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <section aria-label="GitHub" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the notifications view is on AND the

@@ -6,6 +6,7 @@ import { resolveGithubViews } from '../../../services/connectors/github'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // GLANCE cap (Task 55 fix round) — this is a glance panel, not a full list
 // (the counts line above already says "there's more"), and it shares the
@@ -75,7 +76,7 @@ function connectedJira(config: ConnectorConfig | undefined): JiraConfig | null {
   return jira
 }
 
-export default function JiraWidget() {
+export default function JiraWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts JiraInner and therefore
@@ -120,6 +121,7 @@ export default function JiraWidget() {
       gitlabEnabled={gitlabEnabled}
       gitlabReviewAsksEnabled={gitlabReviewAsksEnabled}
       anyGraphEnabled={anyGraphEnabled}
+      canvasSize={canvasSize}
     />
   )
 }
@@ -133,6 +135,7 @@ function JiraInner({
   gitlabEnabled,
   gitlabReviewAsksEnabled,
   anyGraphEnabled,
+  canvasSize,
 }: {
   jira: JiraConfig
   site: string
@@ -142,6 +145,7 @@ function JiraInner({
   gitlabEnabled: boolean
   gitlabReviewAsksEnabled: boolean
   anyGraphEnabled: boolean
+  canvasSize?: CanvasSize
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so the two-section fetch's
@@ -157,8 +161,10 @@ function JiraInner({
   if (!data) return null
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const issues = views.assigned ? (data.issues ?? []).slice(0, MAX_ISSUES) : []
-  const dueSoon = views.dueSoon ? (data.dueSoon ?? []).slice(0, MAX_DUE_SOON) : []
+  const compact = canvasSize === 'compact'
+  const standard = canvasSize === 'standard'
+  const issues = !compact && views.assigned ? (data.issues ?? []).slice(0, standard ? 2 : MAX_ISSUES) : []
+  const dueSoon = !compact && !standard && views.dueSoon ? (data.dueSoon ?? []).slice(0, MAX_DUE_SOON) : []
   const counts = data.counts ?? {}
   const countEntries = Object.entries(counts)
 
@@ -251,7 +257,7 @@ function JiraInner({
     // `p-4`->`p-3` (Task 55 fix round 2 — see GithubWidget.tsx's own
     // MAX_PRS comment): a modest, right-column-only chrome trim, not a
     // shape change.
-    <section aria-label="Jira" className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    <section aria-label="Jira" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">Jira</h2>
         {/* Counts line renders only when the view is on AND there's at least
@@ -318,6 +324,7 @@ function ItemRow({ item }: { item: JiraIssue }) {
         className="group block cursor-pointer rounded-sm focus-visible:outline-2 focus-visible:outline-accent"
       >
         <span data-work-pulse-detail data-stage-text-tier="metadata" className="block truncate text-xs text-fg-muted font-medium">{prefix}</span>
+        <span data-work-pulse-detail className="block truncate text-xs text-fg-muted">{item.status}</span>
         <span className="block truncate text-sm dense:text-xs text-fg transition-colors group-hover:text-accent motion-reduce:transition-none">
           {item.summary}
         </span>

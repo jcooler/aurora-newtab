@@ -2,6 +2,7 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchCrypto, type CoinRow, type CryptoData } from '../../../services/connectors/crypto'
 import type { CryptoConfig } from '../../../services/connectors/types'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // CryptoConfig caps at 5 coins (types.ts's own comment) and the service's
 // own PER_PAGE mirrors it — this is a defensive re-slice at the display
@@ -9,7 +10,7 @@ import type { CryptoConfig } from '../../../services/connectors/types'
 // re-slice of a service result that's already capped.
 const MAX_COINS = 5
 
-export default function CryptoWidget() {
+export default function CryptoWidget({ canvasSize = 'standard' }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget: the
   // one useStoredKey read runs every render (Rules of Hooks stay satisfied),
   // but a disabled connector, or an enabled one with no coins configured yet,
@@ -22,10 +23,10 @@ export default function CryptoWidget() {
   const [connectors] = useStoredKey('connectors')
   const crypto = connectors?.crypto as CryptoConfig | undefined
   if (!crypto?.enabled || !Array.isArray(crypto.coins) || crypto.coins.length === 0) return null
-  return <CryptoInner crypto={crypto} />
+  return <CryptoInner crypto={crypto} canvasSize={canvasSize} />
 }
 
-function CryptoInner({ crypto }: { crypto: CryptoConfig }) {
+function CryptoInner({ crypto, canvasSize }: { crypto: CryptoConfig; canvasSize: CanvasSize }) {
   const { coins } = crypto
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchCrypto's
@@ -42,7 +43,7 @@ function CryptoInner({ crypto }: { crypto: CryptoConfig }) {
   // crypto.ts's own doc comment) — this widget renders that order as-is
   // rather than re-sorting, same division of labor as every other connector
   // widget (the service owns ordering, the widget owns display).
-  const rows = (data.coins ?? []).slice(0, MAX_COINS)
+  const rows = (data.coins ?? []).slice(0, canvasSize === 'compact' ? 1 : MAX_COINS)
   const empty = rows.length === 0
 
   return (
@@ -56,7 +57,7 @@ function CryptoInner({ crypto }: { crypto: CryptoConfig }) {
     // crypto PositionedBlock's className now carries only the `hidden
     // taller:block` height-tier gate — see App.tsx's own comment on the
     // crypto PositionedBlock for the tier rationale.
-    <section aria-label="Crypto" className="w-88 text-center">
+    <section aria-label="Crypto" data-canvas-size={canvasSize} className="w-88 text-center">
       {empty ? (
         <p className="text-photo text-sm text-canvas-fg-muted">No prices right now.</p>
       ) : (

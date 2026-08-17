@@ -4,6 +4,7 @@ import { defaults, type Settings, type WidgetToggles } from '../lib/storage/sche
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from '../services/connectors/types'
 import { resolveWidgetRenderer, WIDGET_RENDERER_KEYS } from './widgetRenderers'
 import { WIDGET_REGISTRY, selectActiveWidgetRegistry, type WidgetRegistryEntry } from './widgetRegistry'
+import { WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 
 const EXPECTED = [
   ['weather', 'Weather', 'day', 0, 'automatic', ['day'], 'standard', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
@@ -88,9 +89,7 @@ describe('source-owned widget registry', () => {
     for (const [index, expected] of EXPECTED.entries()) {
       const [id, , zone, order, priority, , standardVariant, footprints] = expected
       const row = WIDGET_REGISTRY[index]
-      expect(row.canvasSizes, `${id}/canvas sizes`).toEqual(
-        (Object.keys(footprints) as WidgetVariant[]).map((variant) => variant === 'expanded' ? 'full' : variant),
-      )
+      expect(row.canvasSizes, `${id}/canvas sizes`).toEqual(WIDGET_SIZE_CONTRACTS[id].sizes)
       for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
         const target: WidgetVariant = profile === 'compact' ? 'compact' : profile === 'standard' ? standardVariant : 'expanded'
         const allowed = Object.keys(footprints) as WidgetVariant[]
@@ -100,6 +99,13 @@ describe('source-owned widget registry', () => {
       }
     }
     expect(WIDGET_REGISTRY.find((row) => row.id === 'clock')?.protectedClock).toBe(true)
+  })
+
+  it('uses the content contract rather than legacy footprint variants to offer Canvas sizes', () => {
+    for (const row of WIDGET_REGISTRY) {
+      expect(row.canvasSizes, row.id).toEqual(WIDGET_SIZE_CONTRACTS[row.id].sizes)
+      expect(row.contentContract).toBe(WIDGET_SIZE_CONTRACTS[row.id])
+    }
   })
 
   it('freezes registry identity, availability, defaults, zone arrays, and footprints', () => {

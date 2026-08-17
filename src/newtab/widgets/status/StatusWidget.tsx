@@ -9,6 +9,7 @@ import {
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
 // no-auth one (crypto.ts/ics.ts's own company) to reach the newtab page.
@@ -30,7 +31,7 @@ const SEVERITY_RANK: Record<'critical' | 'major' | 'minor', number> = {
   minor: 2,
 }
 
-export default function StatusWidget() {
+export default function StatusWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (CryptoWidget.tsx's own doc comment, the Task 84 brief's named
   // template): the one useStoredKey read runs every render (Rules of Hooks
@@ -60,6 +61,7 @@ export default function StatusWidget() {
       key={services.map((service) => service.url).join('\n')}
       config={status}
       services={services}
+      canvasSize={canvasSize}
     />
   )
 }
@@ -67,9 +69,11 @@ export default function StatusWidget() {
 function StatusInner({
   config,
   services,
+  canvasSize,
 }: {
   config: StatusConfig
   services: { name: string; url: string }[]
+  canvasSize?: CanvasSize
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` forward (though fetchStatus
@@ -115,7 +119,7 @@ function StatusInner({
     // for why: centering is the bottom band's job via its own `items-center`,
     // not this widget's or the PositionedBlock className's). FIRST child of
     // the bottom band (App.tsx), above crypto.
-    <section aria-label="Service status" className="w-88 text-center">
+    <section aria-label="Service status" data-canvas-size={canvasSize} className="w-88 text-center">
       <h2 className="text-sm font-semibold text-fg">Service status</h2>
       <WorkPulseSummary
         label="Service status"
@@ -123,12 +127,12 @@ function StatusInner({
         tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
         metadata={`${rows.length} services`}
       />
-      <div data-work-pulse-detail data-work-pulse-status-dots className="flex justify-center gap-2">
+      {canvasSize !== 'compact' && <div data-work-pulse-detail data-work-pulse-status-dots className="flex justify-center gap-2">
         {rows.map((s, i) => (
           <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
         ))}
-      </div>
-      {trouble.map((s, i) => (
+      </div>}
+      {canvasSize !== 'compact' && trouble.map((s, i) => (
         // FIX ROUND (post-Task 86, controller-approved): the OUTER
         // PositionedBlock (App.tsx) now reveals this whole section at a
         // NEW, LOWER `ampler` floor (>=922h — see index.css's own doc

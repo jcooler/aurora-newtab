@@ -4,6 +4,7 @@ import { fetchVercel, DEFAULT_VERCEL_VIEWS, relAge, type VercelData, type Vercel
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 const MAX_DEPLOYMENTS = 5
 
@@ -53,7 +54,7 @@ function connectedVercel(config: ConnectorConfig | undefined): VercelConfig | nu
   return vercel
 }
 
-export default function VercelWidget() {
+export default function VercelWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget/JiraWidget:
   // the one useStoredKey read runs every render (Rules of Hooks stay
   // satisfied), but a disabled/unconnected connector never mounts VercelInner
@@ -66,6 +67,7 @@ export default function VercelWidget() {
       vercel={vercel}
       token={vercel.token}
       views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
+      canvasSize={canvasSize}
     />
   )
 }
@@ -74,10 +76,12 @@ function VercelInner({
   vercel,
   token,
   views,
+  canvasSize,
 }: {
   vercel: VercelConfig
   token: string
   views: VercelViews
+  canvasSize?: CanvasSize
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
@@ -103,7 +107,7 @@ function VercelInner({
   // order as-is rather than re-sorting, same division of labor as every
   // other connector widget (the service owns ordering, the widget owns
   // display).
-  const deployments = views.deployments ? allDeployments.slice(0, MAX_DEPLOYMENTS) : []
+  const deployments = canvasSize === 'compact' ? [] : views.deployments ? allDeployments.slice(0, canvasSize === 'standard' ? 2 : MAX_DEPLOYMENTS) : []
   // The empty-connected copy is gated on the ROWS section being on AND
   // truly empty — same "a disabled section shows neither its rows nor its
   // own empty line" rule github/gitlab/jira apply.
@@ -150,7 +154,7 @@ function VercelInner({
     // token, rounded-2xl/shadow-lg/p-4, w-80 fixed card width. Vercel sits in
     // the LEFT column (not the right rail's Task 55 budget), so its p-4/mb-2
     // chrome stays untouched — see GithubWidget.tsx's own MAX_PRS comment.
-    <section aria-label="Vercel" className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
+    <section aria-label="Vercel" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-4 dense:p-2 text-fg shadow-lg">
       <h2 className="mb-2 dense:mb-1 text-sm font-semibold text-fg">Vercel</h2>
 
       <WorkPulseSummary

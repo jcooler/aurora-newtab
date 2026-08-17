@@ -30,6 +30,7 @@ import {
 import { canvasKeyboardDelta, clampCanvasTopLeft, snapCanvasPosition, type CanvasGuide, type SnapNeighbor } from './canvasSnap'
 import { useLongPress } from './useLongPress'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
+import { contentConflictFor } from '../widgetSizeContracts'
 
 const PROFILE_KEYS: readonly CanvasProfileKey[] = ['compact', 'standard', 'display', 'ultrawide']
 const BOTTOM_BAR_IDS: ReadonlySet<BlockId> = new Set(['bookmarks', 'links', 'timer', 'tasks', 'notes'])
@@ -412,6 +413,9 @@ export default function ArrangeController({
 
   const selectedEntry = sessionEntriesRef.current.find((entry) => entry.id === draft.selectedId) ?? null
   const selectedPlacement = selectedEntry ? draft.placements[selectedEntry.id] : null
+  const sizeConflict = selectedEntry && selectedPlacement?.kind === 'canvas'
+    ? contentConflictFor(selectedEntry.id, selectedPlacement.size, selectedEntry.selectedContent ?? [])
+    : null
   const defaults = canvasDefaults(draft.profile, sessionEntriesRef.current)
   const canvasBounds = surfaceRect
     ? { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
@@ -608,6 +612,7 @@ export default function ArrangeController({
                     >{size === 'full' ? 'Full' : size[0].toUpperCase() + size.slice(1)}</button>
                   ))}
                 </div>
+                {sizeConflict ? <p className="arrange-size-conflict" role="status">{sizeConflict}</p> : null}
                 <button type="button" className={buttonClass()} onClick={() => replaceDraft(restoreCanvasItemDefault(
                   draft,
                   selectedEntry.id,

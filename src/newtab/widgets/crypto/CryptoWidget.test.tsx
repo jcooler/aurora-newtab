@@ -137,6 +137,13 @@ describe('CryptoWidget', () => {
     expect(screen.queryByText('c5')).toBeNull()
   })
 
+  it('uses Compact for one useful primary coin instead of shrinking every selected price into the same strip', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(<StorageProvider storage={storage}><CryptoWidget canvasSize="compact" /></StorageProvider>)
+    expect(await screen.findByText('doge')).toBeTruthy()
+    expect(screen.queryByText('btc')).toBeNull()
+  })
+
   it('renders nothing — and never runs the snapshot refresh — when the connector is disabled', async () => {
     const storage = await seededStorage({ ...CONNECTED, enabled: false }, null)
     const { container } = mount(storage)

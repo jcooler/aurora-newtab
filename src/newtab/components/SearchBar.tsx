@@ -1,13 +1,15 @@
 import { searchWeb } from '../../services/search'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
 
-export default function SearchBar() {
+export default function SearchBar({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.search) return null
   return (
     <form
       role="search"
-      className="mt-8 mid:mt-4 short:mt-2 xshort:mt-1"
+      data-canvas-size={canvasSize}
+      className="mt-8 mid:mt-4 short:mt-2 xshort:mt-1 max-[420px]:mb-3"
       onSubmit={(e) => {
         e.preventDefault()
         const q = String(new FormData(e.currentTarget).get('q') ?? '').trim()

@@ -8,8 +8,14 @@ import type {
   Zone,
 } from '../lib/layout/types'
 import type { Settings, WidgetToggles } from '../lib/storage/schema'
-import type { ConnectorConfig, ConnectorId } from '../services/connectors/types'
+import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConfig, VercelConfig } from '../services/connectors/types'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
+import { WIDGET_SIZE_CONTRACTS, type WidgetSizeContract } from './widgetSizeContracts'
+import { resolveGithubViews } from '../services/connectors/github'
+import { DEFAULT_GITLAB_VIEWS } from '../services/connectors/gitlab'
+import { DEFAULT_JIRA_VIEWS } from '../services/connectors/jira'
+import { DEFAULT_VERCEL_VIEWS } from '../services/connectors/vercel'
+import { resolveViews } from '../services/connectors/views'
 
 export type WidgetAvailability =
   | Readonly<{ kind: 'always' }>
@@ -21,6 +27,8 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   rendererKey: BlockId
   availability: WidgetAvailability
   canvasSizes: readonly CanvasSize[]
+  contentContract: WidgetSizeContract
+  selectedContent?: readonly string[]
 }
 
 interface RegistrySource {
@@ -91,11 +99,8 @@ function profileVariant(source: RegistrySource, profile: LayoutProfile): WidgetV
 
 function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegistryEntry {
   const footprints = freezeFootprints(source.footprints)
-  const canvasSizes = Object.freeze(
-    VARIANT_ORDER
-      .filter((variant) => footprints[variant] !== undefined)
-      .map((variant): CanvasSize => variant === 'expanded' ? 'full' : variant),
-  )
+  const contentContract = WIDGET_SIZE_CONTRACTS[source.id]
+  const canvasSizes = contentContract.sizes
   const defaultPlacements = {} as Record<LayoutProfile, Placement>
   for (const profile of PROFILE_ORDER) {
     const variant = profileVariant(source, profile)
@@ -116,6 +121,7 @@ function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegis
     availability: source.availability,
     sourceOrder,
     canvasSizes,
+    contentContract,
     eligibleZones: Object.freeze([...source.eligibleZones]),
     allowedVariants: Object.freeze(VARIANT_ORDER.filter((variant) => footprints[variant] !== undefined)),
     footprints,
@@ -130,16 +136,44 @@ export const WIDGET_REGISTRY_BY_ID: Readonly<Record<BlockId, WidgetRegistryEntry
   Object.fromEntries(WIDGET_REGISTRY.map((entry) => [entry.id, entry])) as Record<BlockId, WidgetRegistryEntry>,
 )
 
+function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | undefined): readonly string[] {
+  switch (id) {
+    case 'github': {
+      const views = resolveGithubViews(config as GithubConfig | undefined)
+      return [views.commitGraph && 'Contribution graph', views.pulls && 'Pull requests', views.issues && 'Issues', views.notifications && 'Notifications'].filter(Boolean) as string[]
+    }
+    case 'gitlab': {
+      const views = resolveViews(DEFAULT_GITLAB_VIEWS, (config as GitlabConfig | undefined)?.views)
+      return [views.activityGraph && 'Activity graph', views.mergeRequests && 'Merge requests', views.reviewAsks && 'Review asks', views.todos && 'To-dos'].filter(Boolean) as string[]
+    }
+    case 'jira': {
+      const views = resolveViews(DEFAULT_JIRA_VIEWS, (config as JiraConfig | undefined)?.views)
+      return [views.assigned && 'Assigned', views.dueSoon && 'Due soon', views.statusChips && 'Status counts'].filter(Boolean) as string[]
+    }
+    case 'vercel': {
+      const views = resolveViews(DEFAULT_VERCEL_VIEWS, (config as VercelConfig | undefined)?.views)
+      return [views.deployments && 'Deployments', views.statusSummary && 'Status summary'].filter(Boolean) as string[]
+    }
+    case 'rss': return ['Headlines']
+    case 'crypto': return ['Selected coins']
+    case 'status': return ['Service issues']
+    case 'homeassistant': return ['Selected entities']
+    case 'ics': return ['Selected calendar view']
+  }
+}
+
 export type WidgetRendererKey = WidgetRegistryEntry['rendererKey']
 
 export function selectActiveWidgetRegistry(
   settings: Settings,
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>,
 ): WidgetRegistryEntry[] {
-  return WIDGET_REGISTRY.filter((entry) => {
+  return WIDGET_REGISTRY.flatMap((entry) => {
     const availability = entry.availability
-    if (availability.kind === 'always') return true
-    if (availability.kind === 'widget') return settings.widgets[availability.key]
-    return connectors[availability.id]?.enabled === true
+    if (availability.kind === 'always') return [entry]
+    if (availability.kind === 'widget') return settings.widgets[availability.key] ? [entry] : []
+    const config = connectors[availability.id]
+    if (config?.enabled !== true) return []
+    return [Object.freeze({ ...entry, selectedContent: Object.freeze([...selectedConnectorContent(availability.id, config)]) })]
   })
 }

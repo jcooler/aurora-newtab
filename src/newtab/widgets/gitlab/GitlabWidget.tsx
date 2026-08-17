@@ -7,6 +7,7 @@ import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
+import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // Display cap for the to-dos count — mirrors the service's per_page=20 fetch,
 // so a full page reads as "20+" rather than an exact-but-misleading number.
@@ -93,7 +94,7 @@ function connectedGitlab(config: ConnectorConfig | undefined): GitlabConfig | nu
   return gitlab
 }
 
-export default function GitlabWidget() {
+export default function GitlabWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/RssWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts GitlabInner and therefore
@@ -147,6 +148,7 @@ export default function GitlabWidget() {
       githubGraphEnabled={githubGraphEnabled}
       jiraEnabled={jiraEnabled}
       jiraDueSoonEnabled={jiraDueSoonEnabled}
+      canvasSize={canvasSize}
     />
   )
 }
@@ -161,6 +163,7 @@ function GitlabInner({
   githubGraphEnabled,
   jiraEnabled,
   jiraDueSoonEnabled,
+  canvasSize,
 }: {
   gitlab: GitlabConfig
   token: string
@@ -171,6 +174,7 @@ function GitlabInner({
   githubGraphEnabled: boolean
   jiraEnabled: boolean
   jiraDueSoonEnabled: boolean
+  canvasSize?: CanvasSize
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -221,8 +225,9 @@ function GitlabInner({
   const graphSep = soleForgeCard ? GRAPH_SEP_TALLER : GRAPH_SEP_GRAND
 
   // A disabled list is empty regardless of what the snapshot still carries.
-  const mrs = views.mergeRequests ? (data.mrs ?? []).slice(0, MAX_MRS) : []
-  const reviewMrs = views.reviewAsks ? (data.reviewMrs ?? []).slice(0, MAX_REVIEW_ASKS) : []
+  const compact = canvasSize === 'compact'
+  const mrs = !compact && views.mergeRequests ? (data.mrs ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_MRS) : []
+  const reviewMrs = !compact && views.reviewAsks ? (data.reviewMrs ?? []).slice(0, canvasSize === 'standard' ? 1 : MAX_REVIEW_ASKS) : []
   const todos = data.todos
 
   // Task 77 — review-asks yields under height pressure too, the SAME "extra
@@ -334,6 +339,7 @@ function GitlabInner({
     // github's is the hero) for the harness probe.
     <section
       aria-label="GitLab"
+      data-canvas-size={canvasSize}
       {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
       className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg"
     >

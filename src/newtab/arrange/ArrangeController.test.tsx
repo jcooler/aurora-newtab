@@ -10,7 +10,11 @@ import { WIDGET_REGISTRY } from '../widgetRegistry'
 import type { ArrangePreview } from './arrangePreview'
 import ArrangeController from './ArrangeController'
 
-const ENTRIES = WIDGET_REGISTRY.filter((entry) => ['weather', 'clock', 'focus', 'notes'].includes(entry.id))
+const ENTRIES = WIDGET_REGISTRY
+  .filter((entry) => ['weather', 'clock', 'focus', 'notes', 'github'].includes(entry.id))
+  .map((entry) => entry.id === 'github'
+    ? { ...entry, selectedContent: ['Contribution graph', 'Pull requests'] }
+    : entry)
 
 function rect(left: number, top: number, width = 180, height = 90): DOMRect {
   return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) } as DOMRect
@@ -161,6 +165,14 @@ describe('Canvas ArrangeController', () => {
     expect(within(inspector).getByRole('button', { name: 'Restore default size' })).toBeTruthy()
     expect(within(inspector).getByRole('button', { name: 'Move to Bottom bar' })).toBeTruthy()
     expect(within(inspector).queryByRole('button', { name: 'Bring forward' })).toBeNull()
+  })
+
+  it('explains selected connector content that cannot fit the currently chosen Canvas size', async () => {
+    await setup({ version: 3, profiles: { standard: { mode: 'custom', placements: {
+      github: { kind: 'canvas', x: 80, y: 40, size: 'compact', layer: 0 },
+    } } } })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit GitHub' }))
+    expect(screen.getByText('Contribution graph and Pull requests need Standard or Full.')).toBeTruthy()
   })
 
   it('previews visibility in the undoable draft and atomically disables the widget only on Save', async () => {
