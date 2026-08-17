@@ -3,8 +3,9 @@
 > **STAGED SOURCE ONLY — DO NOT PASTE OR MUTATE THE LIVE STORE BEFORE W6-P5 APPROVAL.**
 >
 > W6-P3 verified this source against official Chrome Web Store policy current
-> on 2026-08-16. The current live version and dashboard values still require
-> the user's read-only dashboard evidence before this file is submission-ready.
+> on 2026-08-16 and transcribed the signed-in live 1.2.1 dashboard read-only on
+> 2026-08-17. Exact live differences are recorded in the W6-P3 reconciliation
+> report and remain deferred to W6-P5 approval.
 
 ## Item name
 
@@ -81,7 +82,7 @@ Select `No, I am not using remote code.` Aurora executes only code packaged with
 
 ## Privacy practices / Data Usage recommendation
 
-These are W6-P3 source recommendations. The user's current live dashboard selections must be transcribed and compared before W6-P3 can close.
+These are the W6-P3 reconciled 2.0 recommendations. The live 1.2.1 selections and exact deferred changes are recorded in `docs/superpowers/aurora-2/W6-P3-POLICY-DASHBOARD-RECONCILIATION.md`.
 
 | Dashboard category | Recommended answer | Behavior basis |
 |---|---|---|
@@ -95,12 +96,13 @@ These are W6-P3 source recommendations. The user's current live dashboard select
 | User activity | No | Aurora does not log or transmit clicks, keystrokes, scrolling, browsing behavior, or usage analytics. |
 | Website content | Yes | Configured feeds/providers return headlines, repository work, tickets, deployments, calendar events, status, coin prices, and Home Assistant state directly to the dashboard and local cache. |
 
-Certify the current Limited Use statements only if the live form text matches current official policy and the answers above:
+The current live form exposes three certifications. Keep all three checked only if the final behavior and dashboard answers remain as reconciled:
 
 - Aurora does not sell or transfer user data outside functionality-necessary, user-requested provider/Chrome transfers and other policy-approved cases.
 - Aurora does not use or transfer user data for a purpose unrelated to its disclosed single purpose.
 - Aurora does not use or transfer user data to determine creditworthiness or for lending.
-- Aurora's use of data complies with the Chrome Web Store User Data Policy, including the Limited Use requirements.
+
+Aurora's public privacy policy separately affirms compliance with the Chrome Web Store User Data Policy, including its Limited Use requirements.
 
 ## URLs and support
 
@@ -108,4 +110,4 @@ Certify the current Limited Use statements only if the live form text matches cu
 - Homepage recommendation: `https://github.com/jcooler/aurora-newtab`
 - Support recommendation: `https://github.com/jcooler/aurora-newtab/issues`
 
-The live values for these fields are dashboard evidence, not inferred facts. Do not edit them before W6-P5 approval.
+The live 1.2.1 privacy-policy URL matches. Homepage and support are empty and remain deferred dashboard changes. Do not edit them before W6-P5 approval.

@@ -3,9 +3,9 @@
 **Updated:** 2026-08-17<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
-**Last verified packet:** `Canvas-P8` - Final gates<br>
-**Current packet:** V1 Canvas recovery verified; next release work is W6-P3 policy and dashboard reconciliation
+**Current wave:** Wave 6 - Full product QA and Store release candidate<br>
+**Last verified packet:** `W6-P3` - Official policy and dashboard reconciliation<br>
+**Current packet:** `W6-P4` - 2.0.0 package and release dossier
 
 ## Packet envelope
 
@@ -21,7 +21,8 @@
 - **Canvas-P6 evidence:** Month now offers only Compact and Standard. Its default and Today Compact state is one complete Sunday-to-Saturday week, navigation remains coherent with complete seven-day rows, and Standard renders the natural complete four-, five-, or six-row month without the rejected CSS fragment. ICS feeds have optional identity-owned colors, exact legacy Auto ordering, one closed palette, matching Settings and event dots, and accessible named controls. Color-only edits preserve URLs, permissions, cached events, omitted optional fields, and in-flight refresh ownership. The final packet gate passed 7 files / 445 tests, the focused snapshot gate passed 3 files / 76 tests, TypeScript and diff hygiene passed, and the single review/fix/rereview cycle plus exact residual legacy-default closure left no Critical or Important issue open. Existing Settings test `act(...)` warnings remain Minor harness noise; visual proof is assigned to Packet 7.
 - **Canvas-P7 evidence:** The focused real-Chromium gate produced three separate DSF-1 owner captures at 1600x900, 2560x1440, and 3440x1440. Desktop shows top Bookmarks plus rich GitHub/Jira content; independent Large and Wide profiles show all nine connector families, visibly named multi-calendar sources, and a complete Month. Direct evidence covers all visible Arrange identities, long press, active pointer capture, guides, keyboard movement, overlap/layers, Undo/Cancel/Save, profile previews, nested local scrolling, cursor semantics, Small containment/clearance, Focus lifecycle, and cache-neutral persisted ICS color changes. The Calendar attribution and incomplete-evidence review findings were closed in the single fix/rereview cycle; rereview returned Ready. The owner then correctly rejected the submitted Desktop capture because Compact Month dates were vertically stacked. `01f5076` removed the Compact table-cell layout override and added an exact Chromium row-geometry regression. The regenerated Desktop capture now shows `16 17 18 19 20 21 22` left to right, Large/Wide remain complete, and all three corrected captures have zero intersections, clipped blocks, missing images, runtime errors, and failed requests. The compact folder glyph/monogram duplication remains Minor, and the documented native/live-service ceilings remain manual.
 - **Canvas-P8 evidence:** The owner approved the corrected Packet 7 captures. The one full unit run exposed only an obsolete source-text assertion for the retired Day presentation; the affected behavior family passed 2 files / 29 tests after its removal and the full suite was not repeated. Production and preview builds each transformed 193 modules, and the production bridge scan was clean. The canonical harness run and its one permitted rerun both stopped in the same stale Utility Tray/direct Timer harness family; the rerun passed its first six product assertions before a leftover `timerDialog` reference stopped traversal. The corrected W1-P7-only Chromium family then passed all seven reported checks, including exact restoration and a real advancing clock. No third canonical run occurred. Final original-resolution inspection reconfirmed the accepted captures and `errors: []`; one final review returned Ready with no Critical or Important blocker. The incomplete later canonical traversal is Minor procedural evidence debt under the explicit no-third-run limit.
-- **Remaining gates:** V1 Canvas recovery is verified. W6-P3 policy and dashboard reconciliation is the next release packet. Chrome Web Store actions remain blocked through W6-P5.
+- **W6-P3 evidence:** Current official Chrome Web Store policy is mapped to Aurora's executable data-flow inventory. Canonical privacy/listing/Data Usage source was reconciled after two Important disclosure fixes and a Ready rereview. The signed-in live dashboard was then transcribed read-only: publisher `jcooler`, Aurora item `akjalbmacojpmebkgohhcaaiacicpgkh`, live/draft version `1.2.1`, status `Published - public`, five V1 screenshots, and five live 2.0 Data Usage category changes. The privacy URL, remote-code answer, and all three current certifications match. Exact differences are assigned to W6-P4 preparation or W6-P5 action; no dashboard field, package, draft, submission, publication, or rollout changed.
+- **Remaining gates:** W6-P4 owns the local 2.0.0 package, current screenshots, release dossier, and exact manual submission copy. W6-P5 remains the hard external-action approval boundary.
 
 ## Previous packet envelope
 
@@ -32,6 +33,7 @@
 
 ## Last completed commits
 
+- `19771f0` - current-policy/source reconciliation and bounded disclosure review fixes; W6-P3 checkpoint subject is `docs: checkpoint W6-P3`.
 - `01f5076` - owner-reported Compact Month row-geometry correction and real Chromium regression witness.
 - `cb58bd2db35557e884008e683d64687548e1d146` and `73b279431fb868f5d31ec628a5d8c2b6579052b2` - integrated Canvas Chromium evidence, visible calendar-source attribution, and the bounded review fix/rereview closure.
 - `c774b57` - Packet 8 stale semantic/source assertions and direct-panel canonical harness alignment.
@@ -371,8 +373,8 @@
 - Isolated baseline rebuild: same byte size; SHA-256 `0c46ecbaab9329e9933cc96d3edbb2eb4eb988e6e797a5dbc251702ba4fff9b7`; baseline-only and not a replacement artifact.
 - Tracked release files: `release/LAUNCH-CHECKLIST.md`, `release/RESUBMISSION-NOTES.md`, `release/store-listing.md`.
 - Local original release inventory includes ZIPs 1.2.0, 1.2.1, and 1.3.0 through 1.14.0 plus five stale v1.2-era Store screenshots.
-- Exact live Chrome Web Store V1.x version and dashboard answers: **user/dashboard verification required**.
-- No Store dashboard, listing, upload, submission, or rollout action has occurred.
+- Live Chrome Web Store item: Aurora `1.2.1`, item ID `akjalbmacojpmebkgohhcaaiacicpgkh`, `Published - public`; signed-in dashboard values were transcribed read-only on 2026-08-17.
+- No Store dashboard field, listing, package, draft, submission, publication, or rollout state has been changed.
 
 ## Visual artifacts inspected
 
@@ -396,16 +398,16 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint Canvas P5`.
+- None expected after `docs: checkpoint W6-P3`.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `Canvas-P6` - Calendar completion
-- **Plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`
-- **State:** The owner approved the Canvas-P4 direction. Canvas-P1 through Canvas-P5 are verified; execute Canvas-P6, then Canvas-P7 and stop at the connector/calendar visual gate.
+- **Packet:** `W6-P4` - 2.0.0 package and release dossier
+- **Plan:** Create just in time after the clean W6-P3 checkpoint.
+- **State:** Canvas-P1 through Canvas-P8 and W6-P3 are verified. Prepare and inspect only local release artifacts and exact submission copy. Do not cross the W6-P5 external-action gate.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
-- Keep the approved eight-packet plan, one implementation envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
+- Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
 - Pause only for a genuine blocker, a material decision requiring new authority, either written owner visual gate, an explicit handoff request, or the W6-P5 Store approval boundary. W6-P5 must stop before any upload, submission, publication, rollout, or live-listing change unless contemporaneous explicit approval is received.
 - Historical packet plans remain evidence; their previous handoff wording does not override the newer continuous-run protocol.
 
@@ -414,9 +416,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: W4-P5
-Verified W4-P4 implementation SHA: 049be58
-Expected next checkpoint subject: docs: checkpoint W4-P3
+Starting packet: W6-P4
+Verified release checkpoint: W6-P3
+Expected next checkpoint subject: docs: checkpoint W6-P4
 Execution: continue sequentially through all remaining ROADMAP packets, preserving one just-in-time plan and one checkpoint at a time; do not create per-packet continuation prompts.
 Hard stop: W6-P5 before any Chrome Web Store external action unless explicit approval is given at that time.
 ```

@@ -2,9 +2,11 @@
 
 **Policy check date:** 2026-08-16
 
-**Repository-side status:** Ready after one implementation review and one fix/rereview cycle. Two Important disclosure issues were fixed. Current official-policy requirements are mapped, canonical Store source is staged, and no product/permission/schema/Store behavior changed.
+**Live dashboard evidence date:** 2026-08-17
 
-**Acceptance gate still open:** The current live Aurora item version and dashboard field values require the user's read-only signed-in evidence. Nothing in this report authorizes a live dashboard edit.
+**Status:** Ready after one implementation review and one fix/rereview cycle. Two Important source-disclosure issues were fixed, the signed-in live dashboard was transcribed read-only, every material difference is assigned to W6-P4 or W6-P5, and no product, permission, schema, package, or Store state changed.
+
+**Store boundary:** Nothing in this report authorizes a live dashboard edit. No field was typed into, no draft was saved, and no package was uploaded, submitted, published, or rolled out. All listed changes remain blocked until W6-P5 and contemporaneous explicit approval.
 
 ## Current official sources
 
@@ -23,14 +25,14 @@
 | One narrow purpose | Compliant in source | Canonical statement defines one browser function: a local-first new-tab dashboard. All widgets, connectors, Settings, and tools feed that workspace. |
 | Search respects Chrome choice | Compliant | Production uses `chrome.search.query()` and has no provider picker or provider URL construction. |
 | Collected/handled data is necessary | Compliant in behavior | Executable inventory maps every stored/transmitted value to a visible dashboard, connector, search, navigation, backup, or background feature. No analytics, profiling, ads, telemetry, or developer backend exists. |
-| Prominent accurate disclosure | Source change completed; dashboard evidence required | Canonical detailed description now discloses local data, approximate location, credentials/capability URLs, provider-direct requests, connector response data, and Home Assistant's click-only write path. Current live text remains unknown. |
-| Accurate privacy policy | Source change completed; dashboard URL evidence required | `PRIVACY.md` now distinguishes functionality-necessary provider transfers from prohibited/unrelated transfers and has an effective date of 2026-08-16. |
+| Prominent accurate disclosure | Source ready; live change deferred | Canonical detailed description discloses local data, approximate location, credentials/capability URLs, provider-direct requests, connector response data, and Home Assistant's click-only write path. The live 1.2.1 description is stale; replace it only at W6-P5. |
+| Accurate privacy policy | Match | `PRIVACY.md` distinguishes functionality-necessary provider transfers from prohibited/unrelated transfers. The live dashboard already points to the canonical GitHub privacy-policy URL. |
 | Affirmative Limited Use statement | Source change completed | `PRIVACY.md` expressly affirms compliance with the Chrome Web Store User Data Policy and Limited Use requirements. |
-| Narrowest permissions | Compliant in source; dashboard evidence required | Install-time `storage`, `favicon`, `geolocation`, and `search`; runtime `bookmarks`; per-origin grants through request-only `https://*/*`. Canonical justifications explain why each is required now. |
-| Remote code declaration | Compliant recommendation; dashboard evidence required | Aurora executes packaged Manifest V3 code only. Recommended dashboard answer: `No, I am not using remote code.` |
-| Data Usage selections/certifications | Canonical recommendation ready; dashboard evidence required | `release/store-listing.md` maps each current dashboard category and four Limited Use statements to final behavior. |
-| Listing accuracy/current assets | Canonical copy ready; live values/assets require dashboard evidence | Final 2.0 source replaces the historical additive v1.x staging document. W6-P4 owns new package/screenshots/dossier. |
-| Version monotonicity | Dashboard evidence required | The repository cannot reveal the currently published Store version. W6-P4 cannot prove `2.0.0` is greater until the user confirms it. |
+| Narrowest permissions | Compliant; one deferred 2.0 dashboard field | Live 1.2.1 has `storage`, `favicon`, `geolocation`, `search`, and optional `bookmarks`. The 2.0 package adds request-only `https://*/*`; W6-P5 must add its justification after upload exposes that field. |
+| Remote code declaration | Match | Live `No, I am not using Remote code` matches packaged Manifest V3 behavior and the canonical answer. |
+| Data Usage selections/certifications | Deferred category changes; certifications match | Five live categories are under-disclosed for 2.0. All three currently visible Limited Use certifications are checked and match the recommendation. |
+| Listing accuracy/current assets | Copy/assets changes deferred | Final 2.0 copy is staged. The live listing and five screenshots describe V1; W6-P4 prepares current assets and W6-P5 is the only packet allowed to change the dashboard. |
+| Version monotonicity | Match | Live and draft package version is `1.2.1`; staged `2.0.0` is greater. |
 
 ## Repository reconciliation
 
@@ -65,41 +67,93 @@ These recommendations deliberately disclose local handling as well as provider-d
 | User activity | No | No click, keystroke, scrolling, browsing, or analytics logging. |
 | Website content | Yes | Selected providers return feeds, work items, deployments, calendar events, status, market data, and Home Assistant state. |
 
-## Read-only live dashboard evidence required from the user
+## Read-only live dashboard evidence
 
-Please provide screenshots or exact transcriptions of these current fields. Do not change or save anything in the dashboard for W6-P3.
+The signed-in dashboard was navigated and transcribed without typing into a field or invoking Upload, Save draft, Submit for review, Publish, or rollout controls.
 
-1. **Item/package overview**
-   - Current published/live version.
-   - Current item status and item ID/name sufficient to confirm this is the preserved Aurora V1 listing.
+### Item, package, status, and distribution
 
-2. **Store listing tab**
-   - Item name, summary, detailed description, category, homepage URL, support URL, and privacy policy URL if shown there.
-   - The current screenshot/promo asset thumbnails and their order. Asset quality is evaluated in W6-P4; W6-P3 only records current state.
+- Publisher: `jcooler`.
+- Item: `Aurora`; item ID `akjalbmacojpmebkgohhcaaiacicpgkh`.
+- Live version: `1.2.1`; created 2026-08-01; last updated 2026-08-07; three users.
+- Status: `Published - public`. The Published panel says, `This draft is published and available to the public.` The Distribution page has `Public` selected and shows all regions/countries enabled.
+- Draft and Published package panels both show version `1.2.1`, extension type, and permissions `storage`, `favicon`, `geolocation`, `search`, and `bookmarks`. No host permission is present in the live 1.2.1 package.
 
-3. **Privacy practices tab**
-   - Single-purpose description.
-   - Exact visible permission list and every current justification (`storage`, `favicon`, `geolocation`, `search`, `bookmarks`, and host access if present).
-   - Remote-code selection and explanation, if any.
-   - All data-type checkbox labels and selected/unselected values.
-   - Every Limited Use certification's exact text and checked/unchecked value.
-   - Privacy policy URL.
+### Store listing
+
+- Title: `Aurora`.
+- Summary: `A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.`
+- Category: `Functionality & UI`; language: English; mature-content control off.
+- Official URL: None. Homepage and support URLs: empty.
+- Detailed description: 3,252 of 16,000 characters. It is the V1 description and materially says Aurora offers a Google/DuckDuckGo/Bing provider choice, three themes, no data collection, and only Open-Meteo/BigDataCloud network calls. It does not disclose Aurora 2 connectors, local credentials/capability URLs, provider-returned content, or Home Assistant's user-triggered write path.
+- Assets: one 128x128 Store icon and five screenshots in the visible order `Screenshot 1` through `Screenshot 5`. The small promo tile, marquee promo tile, and global promo video are absent. W6-P4 owns inspection/replacement asset preparation.
+
+### Privacy practices
+
+Live single-purpose text:
+
+> Aurora replaces the new-tab page with a local-first personal dashboard — clock, weather, quick links, to-dos, a focus timer, notes, and an optional bookmarks bar — with no accounts, no backend, and no data collection.
+
+The live statement describes V1's feature scope but is not suitable for 2.0: it omits connectors and its `no data collection` claim conflicts with the current policy definition and disclosed local/provider handling.
+
+| Permission | Live justification outcome | Reconciliation |
+|---|---|---|
+| `storage` | Says settings, links, to-dos, notes, and layout stay in `chrome.storage.local`, with no backend. | Change at W6-P5. Replace with canonical 2.0 copy covering all current local dashboard/configuration data without the stale `never reads ... sites' data` implication. |
+| `favicon` | Local Chrome favicon cache for the user's Quick Links/bookmarks; no external favicon request. | Match in substance. Canonical copy may replace it with no policy-changing claim. |
+| `geolocation` | Click-only `Use my location`; install-time because Chrome does not permit it as optional; manual city search does not use it. | Match in substance. Canonical copy adds rounding/storage/transmission detail. |
+| `search` | `chrome.search.query()` respects Chrome's selected engine; Aurora offers no provider choice and does not build provider URLs. | Match. |
+| `bookmarks` | Optional runtime request, read-only rendering, never modified or transmitted. | Match. |
+| `https://*/*` host access | Not present in the live 1.2.1 package/form. | Not applicable to live 1.2.1. Add the canonical request-only exact-origin justification at W6-P5 after the 2.0 package exposes it. |
+
+Remote code is `No, I am not using Remote code`; its explanation field is disabled and empty. This matches 2.0 behavior.
+
+| Data Usage category | Live | Canonical 2.0 | Result |
+|---|---:|---:|---|
+| Personally identifiable information | No | Yes | Change at W6-P5 |
+| Health information | No | Yes | Change at W6-P5 |
+| Financial and payment information | No | No | Match |
+| Authentication information | No | Yes | Change at W6-P5 |
+| Personal communications | No | No | Match |
+| Location | Yes | Yes | Match |
+| Web history | No | Yes | Change at W6-P5 |
+| User activity | No | No | Match |
+| Website content | No | Yes | Change at W6-P5 |
+
+All three certifications currently visible in the dashboard are checked:
+
+1. `I do not sell or transfer user data to third parties, outside of approved use cases`.
+2. `I do not use or transfer user data for purposes unrelated to single purpose`.
+3. `I do not use or transfer user data to determine creditworthiness/lending`.
+
+Privacy policy URL: `https://github.com/jcooler/aurora-newtab/blob/main/PRIVACY.md`.
 
 ## Dashboard comparison worksheet
 
 | Field | Live value | Canonical/recommended value | Result |
 |---|---|---|---|
-| Published version | Manual evidence required | Must be lower than staged `2.0.0` | Dashboard evidence required |
-| Item identity/name | Manual evidence required | Existing Aurora V1 item / `Aurora` | Dashboard evidence required |
-| Summary | Manual evidence required | `A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend.` | Dashboard evidence required |
-| Detailed description | Manual evidence required | Canonical `release/store-listing.md` description | Dashboard evidence required |
-| Category | Manual evidence required | `Productivity` | Dashboard evidence required |
-| Single purpose | Manual evidence required | Canonical new-tab-dashboard statement | Dashboard evidence required |
-| Permission justifications | Manual evidence required | Canonical per-permission blocks | Dashboard evidence required |
-| Remote code | Manual evidence required | `No` | Dashboard evidence required |
-| Data Usage categories | Manual evidence required | Yes: PII, health, authentication, location, web history, website content; No: financial/payment, personal communications, user activity | Dashboard evidence required |
-| Limited Use certifications | Manual evidence required | All applicable current certifications true | Dashboard evidence required |
-| Privacy policy URL | Manual evidence required | `https://github.com/jcooler/aurora-newtab/blob/main/PRIVACY.md` | Dashboard evidence required |
-| Homepage/support URLs | Manual evidence required | Repository root / issue tracker recommendations | Dashboard evidence required |
+| Published version | `1.2.1` | Staged `2.0.0` | Match; monotonic package version proved |
+| Item identity/name | `Aurora`; `akjalbmacojpmebkgohhcaaiacicpgkh` | Preserve existing item / `Aurora` | Match |
+| Status/distribution | `Published - public`; Public; all regions/countries enabled | Preserve until explicitly approved release action | Match; no W6-P3 action |
+| Summary | `A calm, local-first new-tab dashboard. No accounts, no tracking, no backend.` | `A calm, local-first new-tab dashboard. No Aurora account, no tracking, no backend.` | Change at W6-P5 |
+| Detailed description | 3,252-character V1 description with stale provider/theme/network claims | Canonical `release/store-listing.md` description | Change at W6-P5 |
+| Category | `Functionality & UI` | `Productivity` | Change at W6-P5 |
+| Screenshot assets | Five V1 screenshots; no promo tiles/video | Current W6-P4 release captures | W6-P4 prepares; change at W6-P5 |
+| Single purpose | V1-only statement ending `no data collection` | Canonical 2.0 new-tab-dashboard statement | Change at W6-P5 |
+| Permission justifications | Five live-package justifications; no host-access field | Canonical per-permission blocks including request-only host access | Four match in substance; storage and future host field change at W6-P5 |
+| Remote code | `No` | `No` | Match |
+| Data Usage categories | Yes: location. No: all other eight. | Yes: PII, health, authentication, location, web history, website content. No: financial/payment, personal communications, user activity. | Five changes at W6-P5 |
+| Limited Use certifications | All three currently visible statements checked | All three current statements checked | Match |
+| Privacy policy URL | `https://github.com/jcooler/aurora-newtab/blob/main/PRIVACY.md` | Same | Match |
+| Homepage/support URLs | Empty / empty | Repository root / issue tracker | Change at W6-P5 |
+
+## Acceptance review
+
+The bounded acceptance review covered only current official-policy coverage, exact live-dashboard evidence, mutual source consistency, Store non-mutation, and protected-contract preservation.
+
+- Current official policy and the executable data-flow inventory support the canonical privacy, listing, permission, and Data Usage recommendations.
+- The live worksheet assigns every material mismatch to W6-P4 preparation or a W6-P5 dashboard action. None is hidden as a current match.
+- `PRIVACY.md`, `release/store-listing.md`, and `src/privacy/dataFlows.ts` consistently disclose the no-Aurora-account/backend/tracking posture, local data and backup exclusions, credentials/capability URLs, provider-direct transfers and returned content, permissions, and Home Assistant's click-only action.
+- Dashboard/package/listing navigation was read-only. The active item remains 1.2.1, public, and unchanged.
+- The earlier repository review fixed two Important disclosure issues and its rereview returned Ready. This final evidence review found no Critical or Important W6-P3 defect. No Minor issue is being promoted into a blocker.
 
 Chrome Web Store upload, listing edit, submission, rollout, and publication remain blocked until W6-P5 and contemporaneous explicit approval.

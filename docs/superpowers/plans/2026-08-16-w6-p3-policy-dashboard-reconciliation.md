@@ -89,15 +89,15 @@ If executable copy changed, run `npx vitest run src/privacy/dataFlows.test.ts` o
 - Consumes: the user's read-only live-dashboard values and Task 2's exact recommended values.
 - Produces: a field-by-field `Match`, `Change at W6-P5`, or `Not applicable` reconciliation without performing any change.
 
-- [ ] **Step 1: Obtain manual dashboard evidence**
+- [x] **Step 1: Obtain manual dashboard evidence**
 
 Collect the current live version and screenshots/transcriptions of the listing, privacy, permissions/single-purpose, and Data Usage sections. Stop here if only the user can access them.
 
-- [ ] **Step 2: Record exact differences**
+- [x] **Step 2: Record exact differences**
 
 For each dashboard field, record current value, required/recommended value, basis, and deferred W6-P5 action. Do not edit the dashboard.
 
-- [ ] **Step 3: Confirm mutual consistency**
+- [x] **Step 3: Confirm mutual consistency**
 
 Confirm `PRIVACY.md`, `release/store-listing.md`, executable inventory, and dashboard-ready answers describe the same data categories, transfers, credentials/capability URLs, permissions, backup exclusions, Home Assistant action, and no-Aurora-account/backend/tracking posture.
 
@@ -113,10 +113,10 @@ Confirm `PRIVACY.md`, `release/store-listing.md`, executable inventory, and dash
 - Consumes: completed policy report and dashboard reconciliation.
 - Produces: verified W6-P3 checkpoint and W6-P4 start state.
 
-- [ ] **Step 1: Perform one acceptance review**
+- [x] **Step 1: Perform one acceptance review**
 
 Review only current-policy coverage, exact live-dashboard evidence, mutual source consistency, Store non-mutation, and protected-contract preservation. Record Minor wording/cosmetic items without reopening.
 
-- [ ] **Step 2: Update ledgers and checkpoint**
+- [x] **Step 2: Update ledgers and checkpoint**
 
 Mark W6-P3 Verified only after the manual dashboard evidence is present. Commit the packet, push, prove clean/upstream equality and protected-original integrity, then begin W6-P4 automatically.
