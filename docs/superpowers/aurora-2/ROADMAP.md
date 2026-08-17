@@ -152,9 +152,24 @@ Defects in components scheduled for replacement retain open acceptance contracts
 |---|---|---|---|---|---|
 | W6-P1 Migration, regression, offline/stale/error QA | Verified | W5-P4 | Four focused recovery families passed first-run: migration/stored-data 7 files / 317 tests; permission/secret recovery 7 / 219; offline/stale/error/persistence 13 / 190; civil-time/open-tab recovery 6 / 94. The unchanged W5-P4 full gate remains authoritative and was not repeated for report-only changes. Every result/manual ceiling is tracked in `W6-P1-QA-MATRIX.md`; one bounded review returned Ready with no Critical/Important issue and no product change was required. | [`2026-08-16-w6-p1-migration-regression-recovery-qa.md`](../plans/2026-08-16-w6-p1-migration-regression-recovery-qa.md) | checkpoint subject `docs: checkpoint W6-P1` |
 | W6-P2 Responsive, mixed-DPI, zoom, keyboard, and accessibility QA | Verified | W6-P1 | Every named viewport/state and 100/125/150/200/400% CSS-space witness was covered once and inspected in three bounded batches. One Important compact Weather overlap was fixed with unchanged accessible naming and 36px controls. Focused replay, keyboard/restoration, reduced motion, Chromium AX, touch input, 137 files / 2,264 tests, clean 189-module production/preview builds, and bridge scan passed. The permitted full-harness rerun retained one Minor stale W2-P3 backdrop-discovery line and its W3-P2 cascade; the source was corrected without a third run. Native zoom, mixed-DPI, real screen-reader, hardware, permission, and live-service ceilings are explicit in `W6-P2-QA-MATRIX.md`. | [`2026-08-16-w6-p2-responsive-zoom-keyboard-a11y-qa.md`](../plans/2026-08-16-w6-p2-responsive-zoom-keyboard-a11y-qa.md) | `7c51e78`, `931400c`, `cf3d212`; checkpoint subject `docs: checkpoint W6-P2` |
-| W6-P3 Official policy and dashboard reconciliation | Planned | W6-P2 | Current official Chrome/Google policy checked; live V1 version/dashboard answers verified with user; privacy/Data Usage/listing mutually consistent | [`2026-08-16-w6-p3-policy-dashboard-reconciliation.md`](../plans/2026-08-16-w6-p3-policy-dashboard-reconciliation.md) | — |
+| W6-P3 Official policy and dashboard reconciliation | Not started | Canvas-P8 | Current official Chrome/Google policy checked; live V1 version/dashboard answers verified with user; privacy/Data Usage/listing mutually consistent | [`2026-08-16-w6-p3-policy-dashboard-reconciliation.md`](../plans/2026-08-16-w6-p3-policy-dashboard-reconciliation.md) | — |
 | W6-P4 2.0.0 package and release dossier | Not started | W6-P3 | Minimal ZIP inspected and hashed; current screenshots/listing/release notes/checklist staged; exact manual submission copy | Create just in time | — |
 | W6-P5 Explicit Store approval gate | Not started | W6-P4 | Stop before upload/submission/rollout; execute external action only after explicit approval at that moment | Create just in time | — |
+
+## V1 Canvas & Adaptive Safety Rails recovery
+
+This owner-approved recovery supersedes the rejected Calm Canvas and the user-facing semantic layout requirements where they conflict. It preserves all frozen correctness and Store boundaries. The full executable plan is [`2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`](../plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md).
+
+| Packet | State | Depends on | Acceptance summary | Plan | Finishing commit |
+|---|---|---|---|---|---|
+| Canvas-P1 V3 layout foundation | In progress | `03bca3b` approved design | Schema v12, V1/V2/V3 in-memory adapters, exact recovery, explicit-save-only atomic persistence, no boot rewrite, no presentation change | Eight-packet Canvas plan | Pending |
+| Canvas-P2 Canvas renderer | Not started | Canvas-P1 | V1 anchors, four real profiles, safe margins, fitting, selection geometry, no widget-content change | Eight-packet Canvas plan | Pending |
+| Canvas-P3 Direct Arrange | Not started | Canvas-P2 | Direct drag, snap/guides, keyboard movement, collisions/layers, toolbar, inspector/Small sheet, atomic Save and exact Cancel | Eight-packet Canvas plan | Pending |
+| Canvas-P4 V1 interaction restoration | Not started | Canvas-P3 | Top Bookmarks, movable Timer/Tasks/Notes, direct panels, centered Focus, conditional Briefing, four-capture early owner gate | Eight-packet Canvas plan | Pending |
+| Canvas-P5 Meaningful widget sizes | Not started | Canvas-P4 owner approval | Truthful distinct sizes and preserved user-selected connector content | Eight-packet Canvas plan | Pending |
+| Canvas-P6 Calendar completion | Not started | Canvas-P5 | Seven-day/full Month and backward-compatible identity-owned ICS colors | Eight-packet Canvas plan | Pending |
+| Canvas-P7 Integrated visual QA | Not started | Canvas-P6 | Representative real Chromium interaction QA and three-capture connector/calendar owner gate | Eight-packet Canvas plan | Pending |
+| Canvas-P8 Final gates | Not started | Canvas-P7 owner approval | One full unit/build/bridge/browser gate, final review, ledger/push proof, no Store action | Eight-packet Canvas plan | Pending |
 
 ## Program definition of done
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-16
 
-**Status:** Owner approved Option 1 in chat. Written specification awaiting owner review before implementation planning.
+**Status:** Owner approved for implementation on 2026-08-16.
 
 **Supersedes:** `2026-08-16-aurora-2-calm-canvas-remediation-design.md` and the user-facing layout, arrangement, and presentation parts of the Observatory design where they conflict with this document.
 
@@ -19,7 +19,7 @@ The new architecture is a V1 canvas with adaptive safety rails:
 - Snap guides, safe margins, responsive profiles, and collision feedback help users compose a clean page without taking control away from them.
 - Responsive behavior adapts a user's composition. It does not silently replace it with Day, Now, Work Pulse, or Signal Dock concepts.
 
-No production implementation begins until the owner reviews and approves this written specification.
+The owner approved this written specification on 2026-08-16. The bounded implementation plan is `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`.
 
 ## 2. Product north star
 

@@ -3,16 +3,17 @@
 **Updated:** 2026-08-16<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Wave 6 - Full product QA and Store release candidate<br>
+**Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** V1 Canvas & Adaptive Safety Rails architectural recovery; Option 1 approved and written specification awaiting owner review
+**Current packet:** `Canvas-P1` - V3 layout foundation; approved design and eight-packet executable plan checkpoint in progress
 
 ## Packet envelope
 
 - **Acceptance:** Restore Aurora's approved V1 photo-first composition and direct free placement while retaining Aurora 2's security, privacy, storage, migration, connector, accessibility, and recovery foundation. Every visible widget must be movable; Bookmarks return to the top; tools return to direct launchers; Focus stays centered; widget sizes must be materially distinct; rich connector content and complete calendars must be restored.
-- **Written design:** `docs/superpowers/specs/2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md` defines the selected Option 1 direction for owner review. Internal profile keys remain compatible while the user-facing canvas uses Small, Desktop, Large, and Wide layouts with direct drag, safety rails, and non-occluding editing.
+- **Written design:** The owner approved `docs/superpowers/specs/2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md` on 2026-08-16. Internal profile keys remain compatible while the user-facing canvas uses Small, Desktop, Large, and Wide layouts with direct drag, safety rails, and non-occluding editing.
+- **Executable plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md` defines eight bounded packets, two owner visual gates, one review/fix cycle per packet, checkpoint pushes, and the single post-approval final gate.
 - **Rejected candidate:** Calm Canvas commits through `3c5015a` remain recoverable historical evidence but are not visually accepted, release-ready, or a foundation to continue polishing. Their full gates were correctly withheld.
-- **Remaining gates:** Owner review of the written specification; implementation plan; bounded implementation packets; early real-content visual approval; one final full unit/build/browser gate after stabilization; checkpoint/push/equality proof; then roadmap reconciliation. Chrome Web Store actions remain blocked through W6-P5.
+- **Remaining gates:** Canvas-P1 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 
@@ -383,13 +384,13 @@
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA
-- **Plan:** Create just in time after the W6-P1 checkpoint/equality proof.
-- **State:** Planning active. Execute the written named matrix without inventing cross-products; preserve explicit hardware/manual ceilings and fix only demonstrated blocking failures.
+- **Packet:** `Canvas-P1` - V3 layout foundation
+- **Plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`
+- **State:** Owner-approved implementation planning is checkpointing. Execute Canvas-P1 through Canvas-P4 continuously, then stop at the required early visual gate with four original-resolution captures.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
-- Keep one plan, implementation envelope, independent review/fix round, verification set, and checkpoint per packet. Do not combine packets or skip their gates.
-- Pause only for a genuine blocker, a material decision requiring new authority, required user/manual evidence, an explicit handoff request, or the W6-P5 Store approval boundary. W6-P5 must stop before any upload, submission, publication, rollout, or live-listing change unless contemporaneous explicit approval is received.
+- Keep the approved eight-packet plan, one implementation envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
+- Pause only for a genuine blocker, a material decision requiring new authority, either written owner visual gate, an explicit handoff request, or the W6-P5 Store approval boundary. W6-P5 must stop before any upload, submission, publication, rollout, or live-listing change unless contemporaneous explicit approval is received.
 - Historical packet plans remain evidence; their previous handoff wording does not override the newer continuous-run protocol.
 
 ## Single continuous-run seed
