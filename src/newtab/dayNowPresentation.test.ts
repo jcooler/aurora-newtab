@@ -2,19 +2,11 @@ import { describe, expect, it } from 'vitest'
 import appSource from './App.tsx?raw'
 import clockSource from './components/Clock.tsx?raw'
 import briefingSource from './components/AuroraBriefing.tsx?raw'
-import dayContextSource from './components/DayContext.tsx?raw'
 import greetingSource from './components/Greeting.tsx?raw'
 import indexCss from './index.css?raw'
 import registrySource from './widgetRegistry.ts?raw'
 
 describe('W4-P1 Day and Now presentation boundary', () => {
-  it('adds empty-Day context as render-only zone chrome, never a registry identity', () => {
-    expect(appSource).toContain("zone === 'day' && allocations.length === 0 ? <DayContext /> : null")
-    expect(dayContextSource).toContain('data-day-context=""')
-    expect(dayContextSource).not.toContain('useStoredKey')
-    expect(registrySource).not.toContain("id: 'day-context'")
-  })
-
   it('keeps Now photo-forward and reveals Clock date detail only for Expanded', () => {
     expect(indexCss).toMatch(/\.stage-zone--now\s*\{[\s\S]*?border-color: transparent;[\s\S]*?box-shadow: none;/)
     expect(clockSource).toContain('data-clock-date=""')

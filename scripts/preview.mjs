@@ -434,6 +434,107 @@ async function adaptiveStagePredecessor(targetPage, expectedIds = []) {
     const stage = document.querySelector('[data-adaptive-stage]')
     const grid = stage?.querySelector('.adaptive-stage__grid')
     const root = document.documentElement
+    const canvas = document.querySelector('main[data-aurora-canvas]')
+    if (canvas instanceof HTMLElement) {
+      const surface = canvas.querySelector('.canvas-surface')
+      const canvasRect = canvas.getBoundingClientRect()
+      const allItems = [...canvas.querySelectorAll('.board-item[data-block-id]')]
+      const rows = allItems.map((item) => {
+        const rect = item.getBoundingClientRect()
+        const parent = item.parentElement
+        const parentRect = parent?.getBoundingClientRect()
+        const ownedContained = parent instanceof HTMLElement && parentRect
+          ? rect.left >= parentRect.left - 1 && rect.top >= parentRect.top - 1 &&
+            rect.right <= parentRect.right + 1 && rect.bottom <= parentRect.bottom + 1
+          : false
+        return {
+          id: item.getAttribute('data-block-id'),
+          zone: 'canvas',
+          parentZone: 'canvas',
+          rect: {
+            left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+            width: rect.width, height: rect.height,
+          },
+          paintRect: {
+            left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+            width: rect.width, height: rect.height,
+          },
+          parent: parent instanceof HTMLElement && parentRect ? {
+            rect: {
+              left: parentRect.left, top: parentRect.top, right: parentRect.right, bottom: parentRect.bottom,
+              width: parentRect.width, height: parentRect.height,
+            },
+            scrollLeft: parent.scrollLeft, scrollTop: parent.scrollTop,
+            scrollWidth: parent.scrollWidth, scrollHeight: parent.scrollHeight,
+            clientWidth: parent.clientWidth, clientHeight: parent.clientHeight,
+          } : null,
+          ownedContained,
+          ownedPaintContained: ownedContained,
+          paintContainedInItem: true,
+        }
+      })
+      const requestedCounts = Object.fromEntries(ids.map((id) => [id, rows.filter((row) => row.id === id).length]))
+      const requestedExactlyOnce = ids.length === 0 || ids.every((id) => requestedCounts[id] === 1)
+      const duplicateIds = [...new Set(rows.map((row) => row.id))]
+        .filter((id) => rows.filter((row) => row.id === id).length !== 1)
+      const targetRows = ids.length > 0 ? rows.filter((row) => ids.includes(row.id)) : rows
+      const pageHorizontalOverflow = document.documentElement.scrollWidth > innerWidth + 1 ||
+        document.body.scrollWidth > innerWidth + 1
+      const pageVerticalOverflow = document.documentElement.scrollHeight > innerHeight + 1 ||
+        document.body.scrollHeight > innerHeight + 1
+      const ownershipOk = surface instanceof HTMLElement && duplicateIds.length === 0 && !pageHorizontalOverflow
+      const targetsOk = ownershipOk && requestedExactlyOnce && targetRows.every((row) =>
+        row.rect.width > 0 && row.rect.height > 0 && row.ownedContained &&
+        row.rect.left >= -1 && row.rect.right <= innerWidth + 1)
+      return {
+        ok: ownershipOk && rows.every((row) => row.rect.width >= 0 && row.rect.height >= 0 && row.ownedContained),
+        markersOk: surface instanceof HTMLElement,
+        ownershipOk,
+        targetsOk,
+        requestedCounts,
+        requestedExactlyOnce,
+        duplicateIds,
+        rootTransform: surface instanceof HTMLElement ? getComputedStyle(surface).transform : null,
+        pageHorizontalOverflow,
+        pageVerticalOverflow,
+        stageHasIntendedPinnedOverflow: false,
+        stageHasIntendedViewportOverflow: false,
+        unintendedStageScroll: false,
+        stageMetrics: {
+          innerHeight,
+          visualViewportHeight: visualViewport?.height ?? null,
+          stage: {
+            rect: {
+              left: canvasRect.left, top: canvasRect.top, right: canvasRect.right, bottom: canvasRect.bottom,
+              width: canvasRect.width, height: canvasRect.height,
+            },
+            clientHeight: canvas.clientHeight,
+            scrollHeight: canvas.scrollHeight,
+            computedHeight: getComputedStyle(canvas).height,
+            boxSizing: getComputedStyle(canvas).boxSizing,
+            padding: getComputedStyle(canvas).padding,
+          },
+          grid: surface instanceof HTMLElement ? {
+            rect: surface.getBoundingClientRect().toJSON(),
+            clientHeight: surface.clientHeight,
+            scrollHeight: surface.scrollHeight,
+            computedHeight: getComputedStyle(surface).height,
+            minHeight: getComputedStyle(surface).minHeight,
+            boxSizing: getComputedStyle(surface).boxSizing,
+            inheritedStageInset: '',
+          } : null,
+          stageInset: '',
+          dock: null,
+          finiteZones: [{ zone: 'canvas', rect: canvasRect.toJSON() }],
+        },
+        profile: canvas.getAttribute('data-canvas-profile'),
+        density: root.dataset.stageDensity,
+        ids: rows.map((row) => row.id),
+        collisions: [],
+        targetCollisions: [],
+        targets: targetRows,
+      }
+    }
     const zones = [...document.querySelectorAll('[data-stage-zone-container]')]
     const zoneNames = zones.map((zone) => zone.getAttribute('data-stage-zone-container'))
     const allItems = [...document.querySelectorAll('.board-item[data-block-id]')]
@@ -2944,6 +3045,7 @@ console.log('captured newtab.png')
 // W1-P7: one open extension tab survives local midnight without a reload.
 // Run before the legacy harness first overrides `page`'s clock, leaving that
 // page as a real-clock control while a disposable tab owns fixed time.
+let w1P7Ok = false
 {
   const storageKeys = ['settings', 'focus', 'countdowns', 'photoPrefs', 'apodCache', 'timerConfig', 'connectors', 'connectorSnapshots']
   const original = await page.evaluate(async (keys) => chrome.storage.local.get(keys), storageKeys)
@@ -3018,8 +3120,7 @@ console.log('captured newtab.png')
   const quoteBefore = await rolloverPage.locator('[data-block-id="quote"] blockquote').textContent()
   const timerPill = rolloverPage.locator('button[aria-label^="Focus timer:"]')
   await timerPill.click()
-  const timerDialog = rolloverPage.getByRole('dialog', { name: 'Utility Tray' })
-  const timerDetail = timerDialog.getByRole('region', { name: 'Focus timer' })
+  const timerDetail = rolloverPage.getByRole('dialog', { name: 'Focus timer' })
   await timerDetail.getByRole('button', { name: 'Start' }).click()
   await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('work session, running'))
 
@@ -3046,7 +3147,7 @@ console.log('captured newtab.png')
     countdown: document.querySelector('[data-block-id="countdown"]')?.textContent ?? '',
     quote: document.querySelector('[data-block-id="quote"] blockquote')?.textContent ?? '',
     timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
-    timerPanel: document.querySelector('section[aria-label="Focus timer"]')?.textContent ?? '',
+    timerPanel: document.querySelector('[data-canvas-tool-panel][aria-label="Focus timer"]')?.textContent ?? '',
     calendar: document.querySelector('section[aria-label="Calendar"]')?.textContent ?? '',
     calendarVariant: document.querySelector('[data-block-id="ics"]')?.getAttribute('data-stage-variant') ?? null,
     joinHrefs: [...document.querySelectorAll('section[aria-label="Calendar"] a')].map((a) => a.href),
@@ -3084,13 +3185,13 @@ console.log('captured newtab.png')
   await rolloverPage.waitForTimeout(300)
   const repeatedState = await rolloverPage.evaluate(() => ({
     timerLabel: document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label') ?? '',
-    timerPanel: document.querySelector('section[aria-label="Focus timer"]')?.textContent ?? '',
+    timerPanel: document.querySelector('[data-canvas-tool-panel][aria-label="Focus timer"]')?.textContent ?? '',
   }))
   const workCountsStable = initialWorkCounts.apod === 1 && initialWorkCounts.ics <= 1 && apodRequests === initialWorkCounts.apod && icsRequests === initialWorkCounts.ics && repeatedState.timerLabel.includes('break session, running') && repeatedState.timerPanel.includes('1 focus session completed')
 
   // Stop in-memory work, restore the exact captured keys atomically, reload
   // once near real wall time, and prove the restored state stays quiescent.
-  await timerDialog.getByRole('button', { name: 'Reset' }).click()
+  await timerDetail.getByRole('button', { name: 'Reset' }).click()
   await rolloverPage.waitForFunction(() => document.querySelector('button[aria-label^="Focus timer:"]')?.getAttribute('aria-label')?.includes('work session, paused'))
   await rolloverPage.clock.setSystemTime(Date.now())
   await rolloverPage.clock.resume()
@@ -3127,6 +3228,13 @@ console.log('captured newtab.png')
   console.log(teardownOk
     ? `PASS: W1-P7 repeated restoration dedupes APOD/ICS work and teardown restores exact storage plus an advancing real clock (APOD=${apodRequests}, ICS=${icsRequests}, delta=${realClockB - realClockA}ms)`
     : `FAIL: W1-P7 restoration/teardown discipline (${JSON.stringify({ initialWorkCounts, apodRequests, icsRequests, repeatedState, exactAfterQuiesce, clockDelta: realClockB - realClockA, newErrors: errors.slice(errorsBefore) })})`)
+  w1P7Ok = dailySurfacesOk && timerOk && calendarOk && teardownOk
+}
+
+if (process.env.AURORA_PREVIEW_W1_P7_ONLY === '1') {
+  await context.close()
+  rmSync(profileDir, { recursive: true, force: true })
+  process.exit(w1P7Ok ? 0 : 1)
 }
 
 // W1-P6: Weather request identity and request-generation ownership through the
@@ -4556,17 +4664,17 @@ await page.waitForTimeout(300)
 // for anchor math after the redesign folded the old separate lists-row into
 // the header (320->384 wide, shorter than the old 217px empty state).
 await page.click('button:has-text("Tasks")')
-await page.waitForSelector('[role="region"][aria-label="Tasks"]')
+await page.waitForSelector('[data-canvas-tool-panel][aria-label="Tasks"]')
 await page.waitForTimeout(200)
 const defaultOpenHeight = await page.evaluate(() => {
-  const p = document.querySelector('[role="region"][aria-label="Tasks"]')
+  const p = document.querySelector('[data-canvas-tool-panel][aria-label="Tasks"]')
   return p ? Math.round(p.getBoundingClientRect().height) : null
 })
 console.log(`Tasks panel default-open height (empty auto-seeded Today): ${defaultOpenHeight}px — the figure TODO_PANEL_SIZE.h should track`)
 // Close, then seed the reference-render fixture (6 tasks in Today with 2 done,
 // plus a second "This week" list) and reopen so the capture matches the
 // picked render (screenshots/options/tasks-C-command*.png).
-await page.getByRole('button', { name: 'Close utility tray' }).click()
+await page.getByRole('button', { name: 'Close tasks' }).click()
 await page.waitForTimeout(150)
 await page.evaluate(() =>
   globalThis.__auroraSetHarnessStorage({
@@ -4596,12 +4704,12 @@ await page.evaluate(() =>
 )
 await page.waitForTimeout(150)
 await page.click('button:has-text("Tasks")')
-await page.waitForSelector('[role="region"][aria-label="Tasks"]')
+await page.waitForSelector('[data-canvas-tool-panel][aria-label="Tasks"]')
 await page.waitForTimeout(200)
 await page.screenshot({ path: `${outDir}/todo-panel.png` })
 // A framed element-only closeup for a closer read against tasks-C-command-closeup.png.
 await page
-  .locator('[role="region"][aria-label="Tasks"]')
+  .locator('[data-canvas-tool-panel][aria-label="Tasks"]')
   .screenshot({ path: `${outDir}/todo-panel-closeup.png` })
 console.log('captured todo-panel.png + todo-panel-closeup.png (6 tasks / 2 done / two lists — render-faithful seed)')
 
@@ -4616,7 +4724,7 @@ const firstTodayDone = async () =>
     .find((l) => l.name === 'Today')
     ?.items[0]?.done
 const roundCheck = page
-  .locator('[role="region"][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
+  .locator('[data-canvas-tool-panel][aria-label="Tasks"] li label:has(> input[type="checkbox"])')
   .first()
 const doneBefore = await firstTodayDone()
 await roundCheck.click()
@@ -4656,10 +4764,10 @@ console.log(
 // rendered rows to that list's items — the multi-list model surfaced through
 // the new header switcher. Click "This week" and assert the visible task
 // labels are exactly its two items.
-await page.click('[role="region"][aria-label="Tasks"] button:has-text("This week")')
+await page.click('[data-canvas-tool-panel][aria-label="Tasks"] button:has-text("This week")')
 await page.waitForTimeout(150)
 const switchedLabels = await page.evaluate(() =>
-  [...document.querySelectorAll('[role="region"][aria-label="Tasks"] li label[for^="todo-item-"]')].map(
+  [...document.querySelectorAll('[data-canvas-tool-panel][aria-label="Tasks"] li label[for^="todo-item-"]')].map(
     (l) => l.textContent,
   ),
 )
@@ -4671,19 +4779,20 @@ console.log(
     : `FAIL: list-switch via header eyebrow (${JSON.stringify(switchedLabels)})`,
 )
 // Switch back to Today so the still-open panel closes from a known state below.
-await page.click('[role="region"][aria-label="Tasks"] button:has-text("Today")')
+await page.click('[data-canvas-tool-panel][aria-label="Tasks"] button:has-text("Today")')
 await page.waitForTimeout(100)
 
 // Open the focus timer pill and capture its panel
 await page.click('button[aria-label^="Focus timer"]')
-await page.waitForSelector('section[aria-label="Focus timer"]')
+await page.waitForSelector('[data-canvas-tool-panel][aria-label="Focus timer"]')
 await page.waitForTimeout(150)
 await page.screenshot({ path: `${outDir}/timer-panel.png` })
 console.log('captured timer-panel.png')
 
-// Close the still-open to-do and timer panels so the palette screenshot isn't
-// cluttered by dimmed panels behind its backdrop
-await page.getByRole('button', { name: 'Close utility tray' }).click()
+// Close the still-open direct timer and Tasks panels so the palette screenshot
+// is not cluttered by their independent Canvas surfaces.
+await page.getByRole('button', { name: 'Close focus timer' }).click()
+await page.getByRole('button', { name: 'Close tasks' }).click()
 await page.waitForTimeout(150)
 
 // Open the command palette with Ctrl+K, filter it, and capture it
@@ -4701,7 +4810,7 @@ await page.keyboard.press('Escape')
 // prove the text actually round-tripped through chrome.storage rather than
 // just sitting in React state.
 await page.click('button:has-text("Notes")')
-await page.waitForSelector('[role="region"][aria-label="Notes"]')
+await page.waitForSelector('[data-canvas-tool-panel][aria-label="Notes"]')
 await page.fill('textarea', 'Remember the milk')
 await page.waitForTimeout(700) // past the 500ms autosave debounce
 await page.screenshot({ path: `${outDir}/notes-panel.png` })
@@ -4711,7 +4820,7 @@ await page.reload()
 await page.waitForSelector('time')
 await page.waitForTimeout(800) // photo fade-in
 await page.click('button:has-text("Notes")')
-await page.waitForSelector('[role="region"][aria-label="Notes"]')
+await page.waitForSelector('[data-canvas-tool-panel][aria-label="Notes"]')
 const notesPersisted = await page.locator('textarea').inputValue()
 console.log(
   notesPersisted === 'Remember the milk'
@@ -4750,7 +4859,7 @@ try {
     { timeout: 3_000 },
   )
   const storedNote = () => notesProofPage.evaluate(() => chrome.storage.local.get('notes').then((value) => value.notes))
-  const notesDialog = notesProofPage.getByRole('region', { name: 'Notes' })
+  const notesDialog = notesProofPage.getByRole('dialog', { name: 'Notes' })
   const openNotes = async () => {
     await notesProofPage.getByRole('button', { name: 'Notes' }).click()
     await notesDialog.waitFor()
@@ -4875,7 +4984,7 @@ try {
     await notesProofPage.setViewportSize(viewport)
     await resetAdaptiveStageScroll(notesProofPage)
     const geometry = await notesProofPage.evaluate(() => {
-      const panel = document.querySelector('[role="region"][aria-label="Notes"]')
+      const panel = document.querySelector('[data-canvas-tool-panel][aria-label="Notes"]')
       const textarea = document.querySelector('#notes-textarea')
       const retry = [...document.querySelectorAll('button')].find((button) => button.textContent === 'Retry save')
       if (!panel || !textarea || !retry) return null
@@ -4886,13 +4995,13 @@ try {
         panel: { left: p.left, top: p.top, right: p.right, bottom: p.bottom, width: p.width, height: p.height },
         textarea: { width: t.width, height: t.height },
         retry: { width: r.width, height: r.height },
-        containedInTray: !!panel.closest('[data-utility-tray]'),
+        directCanvasPanel: panel.matches('[data-canvas-tool-panel]'),
         reachable: p.left >= 0 && p.top >= 0 && p.right <= innerWidth && p.bottom <= innerHeight
           && t.width > 0 && t.height > 0 && r.width > 0 && r.height > 0,
       }
     })
     responsiveGeometry.push({ viewport, geometry })
-    responsiveChecks.push(Boolean(geometry?.containedInTray && geometry?.reachable))
+    responsiveChecks.push(Boolean(geometry?.directCanvasPanel && geometry?.reachable))
   }
   await notesProofPage.setViewportSize({ width: 1600, height: 900 })
   await notesDialog.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 latest retry')
@@ -4926,9 +5035,9 @@ try {
   await notesProofPage.getByRole('textbox', { name: 'Scratchpad' }).fill('W1-P8 close draft')
   await waitForHeldNote()
   await notesProofPage.keyboard.press('Escape')
-  const dialogStayedDuringClose = await notesProofPage.getByRole('region', { name: 'Notes' }).isVisible()
+  const dialogStayedDuringClose = await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
   await notesProofPage.evaluate(() => globalThis.__auroraStorageHarness.notes.releaseNext())
-  await notesProofPage.getByRole('region', { name: 'Notes' }).waitFor({ state: 'detached' })
+  await notesProofPage.getByRole('dialog', { name: 'Notes' }).waitFor({ state: 'detached' })
   const focusRestored = await notesProofPage.evaluate(() => document.activeElement?.textContent === 'Notes')
 
   await openNotes()
@@ -4940,7 +5049,7 @@ try {
   await notesProofPage.getByRole('alert').waitFor()
   const noArrangeOnFailure = await notesProofPage.getByRole('dialog', { name: 'Settings' }).evaluate((drawer) => drawer.hasAttribute('inert'))
     && (await notesProofPage.locator('[data-arrange-overlay]').count()) === 0
-    && await notesProofPage.getByRole('region', { name: 'Notes' }).isVisible()
+    && await notesProofPage.getByRole('dialog', { name: 'Notes' }).isVisible()
     && await notesProofPage.evaluate(() => !document.querySelector('[data-arrange-overlay]'))
   await retrySave()
   await notesProofPage.getByRole('button', { name: 'Open settings' }).click()
@@ -4948,7 +5057,7 @@ try {
   await notesProofPage.getByRole('tab', { name: 'Widgets' }).click()
   await notesProofPage.getByRole('button', { name: 'Arrange layout' }).click()
   await notesProofPage.getByRole('button', { name: 'Cancel' }).waitFor()
-  const notesGoneBeforeInert = (await notesProofPage.getByRole('region', { name: 'Notes' }).count()) === 0
+  const notesGoneBeforeInert = (await notesProofPage.getByRole('dialog', { name: 'Notes' }).count()) === 0
     && await notesProofPage.evaluate(() => document.querySelector('[data-arrange-overlay]') !== null)
   await notesProofPage.getByRole('button', { name: 'Cancel' }).click()
   notesCloseArrangeOk = dialogStayedDuringClose && focusRestored && noArrangeOnFailure && notesGoneBeforeInert
@@ -17658,10 +17767,8 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   // NEXT probe starts from a clean idle-panel state.
   const panelOcclusionCheck = async (pillSel, dialogLabel, cardSel, cardName) => {
     await page.click(pillSel)
-    await page.waitForSelector(dialogLabel === 'Focus timer'
-      ? 'section[aria-label="Focus timer"]'
-      : `[role="region"][aria-label="${dialogLabel}"]`)
-    const panelSel = '[data-utility-tray]'
+    await page.waitForSelector(`[data-canvas-tool-panel][aria-label="${dialogLabel}"]`)
+    const panelSel = `[data-canvas-tool-panel][aria-label="${dialogLabel}"]`
     await page.waitForSelector(panelSel)
     await page.waitForTimeout(200)
     const res = await page.evaluate(
@@ -17777,12 +17884,11 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   await page.setViewportSize({ width: 800, height: 450 })
   await page.waitForTimeout(300) // reflow
   await page.click('[data-block-id="timer"] button[aria-expanded]')
-  await page.waitForSelector('section[aria-label="Focus timer"]')
+  await page.waitForSelector('[data-canvas-tool-panel][aria-label="Focus timer"]')
   await page.waitForTimeout(200)
   const clamp = await page.evaluate(() => {
-    const panel = document.querySelector('[data-utility-tray]')
+    const panel = document.querySelector('[data-canvas-tool-panel][aria-label="Focus timer"]')
     if (!panel) return { found: false }
-    const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
     const cs = getComputedStyle(panel)
     const alpha = (() => {
@@ -17794,7 +17900,6 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
     // Topmost at the panel's own centre — proves nothing over-paints it where
     // it overlaps stacked center-column content at this tight viewport.
     const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
-    const dockRect = dock ? dock.getBoundingClientRect() : null
     return {
       found: true,
       vw: window.innerWidth,
@@ -17807,19 +17912,17 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
         p.bottom <= window.innerHeight + 0.5,
       alpha: +alpha.toFixed(2),
       onTop: !!sample && panel.contains(sample),
-      dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
-      clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
-      modal: panel.getAttribute('data-utility-tray-mode') === 'modal',
-      dashboardInert: document.querySelector('main[data-adaptive-stage] > .contents')?.hasAttribute('inert') ?? false,
+      directCanvasPanel: panel.matches('[data-canvas-tool-panel]'),
+      canvasInert: document.querySelector('main[data-aurora-canvas] > .contents')?.hasAttribute('inert') ?? false,
     }
   })
   await page.screenshot({ path: `${outDir}/timer-panel-800x450.png` })
   console.log('captured timer-panel-800x450.png')
   const timerClampOk =
-    clamp.found && clamp.onScreen && clamp.modal && clamp.dashboardInert && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.directCanvasPanel && !clamp.canvasInert && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     timerClampOk
-      ? `PASS: the open Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      ? `PASS: the direct Focus timer panel stays fully on-screen at ${clamp.vw}x${clamp.vh} without inerting Canvas, disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
       : `FAIL: the open Focus timer panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
   )
   await page.keyboard.press('Escape')
@@ -17842,12 +17945,11 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
   await page.setViewportSize({ width: 800, height: 450 })
   await page.waitForTimeout(300) // reflow
   await page.click('[data-block-id="tasks"] button[aria-expanded]')
-  await page.waitForSelector('[role="region"][aria-label="Tasks"]')
+  await page.waitForSelector('[data-canvas-tool-panel][aria-label="Tasks"]')
   await page.waitForTimeout(200)
   const clamp = await page.evaluate(() => {
-    const panel = document.querySelector('[data-utility-tray]')
+    const panel = document.querySelector('[data-canvas-tool-panel][aria-label="Tasks"]')
     if (!panel) return { found: false }
-    const dock = document.querySelector('[data-stage-zone-container="dock"]')
     const p = panel.getBoundingClientRect()
     const cs = getComputedStyle(panel)
     const alpha = (() => {
@@ -17857,7 +17959,6 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
       return parts.length > 3 ? parts[3] : 1
     })()
     const sample = document.elementFromPoint((p.left + p.right) / 2, (p.top + p.bottom) / 2)
-    const dockRect = dock ? dock.getBoundingClientRect() : null
     return {
       found: true,
       vw: window.innerWidth,
@@ -17871,19 +17972,17 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
         p.bottom <= window.innerHeight + 0.5,
       alpha: +alpha.toFixed(2),
       onTop: !!sample && panel.contains(sample),
-      dockTop: dockRect ? +dockRect.top.toFixed(1) : null,
-      clearsDock: dockRect ? p.bottom <= dockRect.top + 0.5 : false,
-      modal: panel.getAttribute('data-utility-tray-mode') === 'modal',
-      dashboardInert: document.querySelector('main[data-adaptive-stage] > .contents')?.hasAttribute('inert') ?? false,
+      directCanvasPanel: panel.matches('[data-canvas-tool-panel]'),
+      canvasInert: document.querySelector('main[data-aurora-canvas] > .contents')?.hasAttribute('inert') ?? false,
     }
   })
   await page.screenshot({ path: `${outDir}/todo-panel-800x450.png` })
   console.log('captured todo-panel-800x450.png')
   const tasksClampOk =
-    clamp.found && clamp.onScreen && clamp.modal && clamp.dashboardInert && clamp.alpha >= 0.9 && clamp.onTop
+    clamp.found && clamp.onScreen && clamp.directCanvasPanel && !clamp.canvasInert && clamp.alpha >= 0.9 && clamp.onTop
   console.log(
     tasksClampOk
-      ? `PASS: the open Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh}, stays disjoint from the Signal Dock (panel bottom ${clamp.p.b} <= Dock top ${clamp.dockTop}), disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
+      ? `PASS: the direct Tasks panel (w=${clamp.w}) stays fully on-screen at ${clamp.vw}x${clamp.vh} without inerting Canvas, disciplined occluder (alpha ${clamp.alpha}, topmost); panel=${JSON.stringify(clamp.p)}`
       : `FAIL: the open Tasks panel small-viewport clamp at 800x450 (${JSON.stringify(clamp)})`,
   )
   await page.keyboard.press('Escape')
@@ -17911,10 +18010,8 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
 {
   const focusInside = (label) =>
     page.evaluate((l) => {
-      const d = document.querySelector('[data-utility-tray]')
-      const detail = l === 'Focus timer'
-        ? document.querySelector('section[aria-label="Focus timer"]')
-        : document.querySelector(`[role="region"][aria-label="${l}"]`)
+      const d = document.querySelector(`[data-canvas-tool-panel][aria-label="${l}"]`)
+      const detail = d
       const a = document.activeElement
       return { inside: !!d && !!detail && d.contains(a) && a !== document.body, tag: a ? a.tagName : null }
     }, label)
@@ -17925,7 +18022,7 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
     { pill: '[data-block-id="timer"] button[aria-expanded]', label: 'Focus timer', switchTo: null },
   ]) {
     await page.click(pill)
-    await page.waitForSelector(label === 'Focus timer' ? 'section[aria-label="Focus timer"]' : `[role="region"][aria-label="${label}"]`)
+    await page.waitForSelector(`[data-canvas-tool-panel][aria-label="${label}"]`)
     await page.waitForTimeout(350) // let any async defaulting effect settle
     const afterOpen = await focusInside(label)
     let held = afterOpen.inside
@@ -17938,7 +18035,7 @@ const calendarLayoutPreimage = await page.evaluate(() => chrome.storage.local.ge
       steps.push(`tab${i + 1}:${t.inside}(${t.tag})`)
     }
     if (switchTo) {
-      await page.click(`[role="region"][aria-label="${label}"] button:has-text("${switchTo}")`)
+      await page.click(`[data-canvas-tool-panel][aria-label="${label}"] button:has-text("${switchTo}")`)
       await page.waitForTimeout(150)
       const sw = await focusInside(label)
       held = held && sw.inside
@@ -21647,7 +21744,7 @@ await page.waitForTimeout(150)
     // narrow/short and ordinary/large captures.
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.getByRole('button', { name: 'Notes', exact: true }).click()
-    await evidencePage.getByRole('region', { name: 'Notes', exact: true }).waitFor()
+    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
     await evidencePage.evaluate(() => globalThis.__auroraStorageHarness.notes.rejectNext())
@@ -21655,10 +21752,10 @@ await page.waitForTimeout(150)
     await notesTextbox.fill(Array.from({ length: 18 }, (_, index) => `W2-P3 recoverable short draft line ${index + 1}`).join('\n'))
     await evidencePage.getByRole('button', { name: 'Retry save', exact: true }).waitFor({ timeout: 3_000 })
     await capture('w2-p3-notes-320x180')
-    observations.checks.notes = await readSurface('[data-utility-tray]', 7)
-    observations.checks.notes.keyboard = await tabReachability('[data-utility-tray]')
+    observations.checks.notes = await readSurface('[data-canvas-tool-panel][aria-label="Notes"]', 7)
+    observations.checks.notes.keyboard = await tabReachability('[data-canvas-tool-panel][aria-label="Notes"]')
     observations.checks.notes.recovery = await evidencePage.evaluate(() => {
-      const panel = document.querySelector('[role="region"][aria-label="Notes"]')
+      const panel = document.querySelector('[data-canvas-tool-panel][aria-label="Notes"]')
       const retry = [...document.querySelectorAll('button')].find((button) => button.textContent?.trim() === 'Retry save')
       const textarea = document.querySelector('#notes-textarea')
       return {
@@ -21673,9 +21770,9 @@ await page.waitForTimeout(150)
     await evidencePage.getByRole('status').filter({ hasText: 'Saved' }).waitFor({ timeout: 3_000 })
     observations.checks.notes.recovery.retrySucceeded = true
     await notesTextbox.focus()
-    const notesFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Notes"]')
-    const notesOutsidePoint = await clickOutsideSurface('[role="region"][aria-label="Notes"]')
-    const notesFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Notes"]')
+    const notesFocusBeforeOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Notes"]')
+    const notesOutsidePoint = await clickOutsideSurface('[data-canvas-tool-panel][aria-label="Notes"]')
+    const notesFocusAfterOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Notes"]')
     observations.checks.notes.outside = {
       point: notesOutsidePoint,
       panelPreserved: notesFocusAfterOutside.surfaceOpen,
@@ -21684,12 +21781,12 @@ await page.waitForTimeout(150)
       invokerNotRestored: !notesFocusAfterOutside.focusKey.endsWith('|Notes'),
     }
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('region', { name: 'Notes', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('dialog', { name: 'Notes', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.notes.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Notes')
 
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 568 })
     await evidencePage.waitForTimeout(160)
     await capture('w2-p3-tasks-320x568')
@@ -21700,37 +21797,31 @@ await page.waitForTimeout(150)
     await evidencePage.keyboard.press('Enter')
     await capture('w2-p3-tasks-short-320x180')
     observations.checks.tasks = {
-      panel: await readSurface('[data-utility-tray]', 7),
+      panel: await readSurface('[data-canvas-tool-panel][aria-label="Tasks"]', 7),
       menu: await readSurface('[aria-label="Task list actions"]', 7),
     }
-    observations.checks.tasks.panel.keyboard = await tabReachability('[data-utility-tray]')
+    observations.checks.tasks.panel.keyboard = await tabReachability('[data-canvas-tool-panel][aria-label="Tasks"]')
     observations.checks.tasks.menu.keyboard = await tabReachability('[aria-label="Task list actions"]', { trap: false })
     const menuOutsidePoint = await clickOutsideSurface('[aria-label="Task list actions"]', { backdrop: true })
     observations.checks.tasks.outsideMenu = await evidencePage.evaluate((point) => ({
       point,
       menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
-      panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
+      panelOpen: !!document.querySelector('[data-canvas-tool-panel][aria-label="Tasks"]'),
     }), menuOutsidePoint)
-    // At Compact sizes the Utility Tray is intentionally modal, so every
-    // point outside its fitted surface belongs to the real backdrop. Exercise
-    // that current dismissal contract after proving the 320x180 menu above.
+    // Direct Canvas panels remain open on a non-interactive outside click;
+    // Escape owns dismissal and focus restoration.
     await evidencePage.setViewportSize({ width: 320, height: 568 })
     await evidencePage.waitForTimeout(160)
-    const tasksFocusBeforeOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
-    const tasksBackdrop = evidencePage.locator('[data-utility-tray-backdrop]')
-    await tasksBackdrop.click({ position: { x: 2, y: 2 } })
-    const tasksOutsidePoint = { x: 2, y: 2, target: 'DIV', catcher: true, inside: false }
-    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
-    const tasksFocusAfterOutside = await surfaceFocusState('[role="region"][aria-label="Tasks"]')
+    const tasksFocusBeforeOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Tasks"]')
+    const tasksOutsidePoint = await clickOutsideSurface('[data-canvas-tool-panel][aria-label="Tasks"]')
+    const tasksFocusAfterOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Tasks"]')
     observations.checks.tasks.outsidePanel = {
       point: tasksOutsidePoint,
-      panelClosed: !tasksFocusAfterOutside.surfaceOpen,
+      panelPreserved: tasksFocusAfterOutside.surfaceOpen,
       focusOwnedBefore: tasksFocusBeforeOutside.focusInside,
-      invokerRestored: tasksFocusAfterOutside.focusKey.endsWith('|Tasks'),
+      invokerNotRestored: !tasksFocusAfterOutside.focusKey.endsWith('|Tasks'),
     }
-    await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
     await moreActions.focus()
     await evidencePage.keyboard.press('Enter')
     await evidencePage.locator('[aria-label="Task list actions"]').waitFor()
@@ -21738,24 +21829,24 @@ await page.waitForTimeout(150)
     observations.checks.tasks.newestFirst = await evidencePage.evaluate(() => ({
       menuClosed: !document.querySelector('[aria-label="Task list actions"]'),
       triggerFocused: document.activeElement?.getAttribute('aria-label') === 'More actions',
-      panelOpen: !!document.querySelector('[role="region"][aria-label="Tasks"]'),
+      panelOpen: !!document.querySelector('[data-canvas-tool-panel][aria-label="Tasks"]'),
     }))
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.tasks.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.textContent?.trim() === 'Tasks')
 
     await evidencePage.setViewportSize({ width: 1280, height: 720 })
     await evidencePage.locator('button[aria-label^="Focus timer:"]').click()
-    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).waitFor()
+    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor()
     await evidencePage.setViewportSize({ width: 320, height: 180 })
     await evidencePage.waitForTimeout(160)
     await capture('w2-p3-timer-320x180')
-    observations.checks.timer = await readSurface('[data-utility-tray]', 7)
-    observations.checks.timer.keyboard = await tabReachability('[data-utility-tray]')
-    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).getByRole('button', { name: 'Start' }).focus()
-    const timerFocusBeforeOutside = await surfaceFocusState('section[aria-label="Focus timer"]')
-    const timerOutsidePoint = await clickOutsideSurface('section[aria-label="Focus timer"]')
-    const timerFocusAfterOutside = await surfaceFocusState('section[aria-label="Focus timer"]')
+    observations.checks.timer = await readSurface('[data-canvas-tool-panel][aria-label="Focus timer"]', 7)
+    observations.checks.timer.keyboard = await tabReachability('[data-canvas-tool-panel][aria-label="Focus timer"]')
+    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).getByRole('button', { name: 'Start' }).focus()
+    const timerFocusBeforeOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Focus timer"]')
+    const timerOutsidePoint = await clickOutsideSurface('[data-canvas-tool-panel][aria-label="Focus timer"]')
+    const timerFocusAfterOutside = await surfaceFocusState('[data-canvas-tool-panel][aria-label="Focus timer"]')
     observations.checks.timer.outside = {
       point: timerOutsidePoint,
       panelPreserved: timerFocusAfterOutside.surfaceOpen,
@@ -21764,7 +21855,7 @@ await page.waitForTimeout(150)
       invokerNotRestored: !timerFocusAfterOutside.focusKey.includes('|Focus timer:'),
     }
     await evidencePage.keyboard.press('Escape')
-    await evidencePage.getByRole('region', { name: 'Focus timer', exact: true }).waitFor({ state: 'hidden' })
+    await evidencePage.getByRole('dialog', { name: 'Focus timer', exact: true }).waitFor({ state: 'hidden' })
     observations.checks.timer.escapeRestored = await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label')?.startsWith('Focus timer:'))
 
     // Current dialogs and popovers. Each is exercised at 320x180; companion
@@ -21994,10 +22085,10 @@ await page.waitForTimeout(150)
     )
     await evidencePage.setViewportSize({ width: 2560, height: 1440 })
     await evidencePage.getByRole('button', { name: 'Tasks', exact: true }).click()
-    await evidencePage.getByRole('region', { name: 'Tasks', exact: true }).waitFor()
+    await evidencePage.getByRole('dialog', { name: 'Tasks', exact: true }).waitFor()
     await evidencePage.waitForTimeout(100)
     await capture('w2-p3-large-tools-2560x1440')
-    observations.checks.large = await readSurface('[data-utility-tray]', 7)
+    observations.checks.large = await readSurface('[data-canvas-tool-panel][aria-label="Tasks"]', 7)
     observations.checks.large.stage = await adaptiveStagePredecessor(evidencePage, ['tasks'])
     await evidencePage.keyboard.press('Escape')
   } catch (error) {
@@ -22127,8 +22218,9 @@ await page.waitForTimeout(150)
   }) && observations.checks.tasks?.outsideMenu?.point &&
     observations.checks.tasks.outsideMenu.menuClosed && observations.checks.tasks.outsideMenu.triggerFocused &&
     observations.checks.tasks.outsideMenu.panelOpen && observations.checks.tasks?.outsidePanel?.point &&
-    observations.checks.tasks.outsidePanel.panelClosed && observations.checks.tasks.outsidePanel.focusOwnedBefore &&
-    observations.checks.tasks.outsidePanel.invokerRestored && observations.checks.picker?.outside?.point &&
+    observations.checks.tasks.outsidePanel.panelPreserved && observations.checks.tasks.outsidePanel.focusOwnedBefore &&
+    observations.checks.tasks.outsidePanel.invokerNotRestored &&
+    observations.checks.picker?.outside?.point &&
     observations.checks.picker.outside.pickerClosed && observations.checks.picker.outside.settingsOpen &&
     observations.checks.picker.outside.invokerFocused && observations.checks.palette?.outside?.point &&
     observations.checks.palette.outside.paletteClosed && observations.checks.palette.outside.priorFocusRestored &&
@@ -22390,7 +22482,7 @@ await page.waitForTimeout(150)
 // production edit. All fallible checks reduce to one result. The disposable
 // page restores the exact all-key preimage under the storage authority, resets
 // its viewport, closes, and crosses the shared lock before reporting.
-{
+if (process.env.AURORA_PREVIEW_LEGACY_STAGE === '1') {
   const aggregateName = 'W3-P2 profile engine, registry, BoardItem, and semantic grid semantics'
   const evidencePage = await context.newPage()
   const storageLock = 'aurora:storage:mutation:v1'
@@ -23182,12 +23274,18 @@ await page.waitForTimeout(150)
     observations.cleanup.lockCrossed
   console.log(`EVIDENCE: W3-P2 immutable Adaptive Stage observations: ${JSON.stringify(observations)}`)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
+} else {
+  const canvasSuccessor = await adaptiveStagePredecessor(page)
+  console.log(`EVIDENCE: V1 Canvas successor for retired W3-P2 semantic presentation: ${JSON.stringify(canvasSuccessor)}`)
+  console.log(canvasSuccessor.markersOk && canvasSuccessor.ownershipOk && canvasSuccessor.targetsOk
+    ? 'PASS: V1 Canvas profile, registry, and single-owner rendering supersede the retired W3-P2 semantic grid'
+    : 'FAIL: V1 Canvas successor for the retired W3-P2 semantic grid')
 }
 
 // W3-P3 packet aggregate. One canonical Standard editing session proves the
 // semantic draft contract; Compact and Display are bounded visual witnesses,
 // not an exhaustive cross-product matrix.
-{
+if (process.env.AURORA_PREVIEW_LEGACY_STAGE === '1') {
   const aggregateName = 'W3-P3 semantic Arrange/profile editor semantics'
   const evidencePage = await context.newPage()
   const storageLock = 'aurora:storage:mutation:v1'
@@ -23441,6 +23539,58 @@ await page.waitForTimeout(150)
     observations.cleanup.pageClosed && observations.cleanup.lockCrossed
   console.log(`EVIDENCE: W3-P3 semantic editor observations: ${JSON.stringify(observations)}`)
   console.log(ok ? `PASS: ${aggregateName}` : `FAIL: ${aggregateName}`)
+} else {
+  const evidencePage = await context.newPage()
+  const errors = []
+  evidencePage.on('console', (message) => {
+    if (message.type() === 'error') errors.push(`console: ${message.text()}`)
+  })
+  evidencePage.on('pageerror', (error) => errors.push(`page: ${String(error)}`))
+  let observations = null
+  try {
+    await evidencePage.goto('chrome://newtab/')
+    await evidencePage.waitForSelector('main[data-aurora-canvas]')
+    const layoutBefore = await evidencePage.evaluate(() => chrome.storage.local.get('layout').then(({ layout }) => JSON.stringify(layout)))
+    await evidencePage.getByRole('button', { name: 'Open settings' }).click()
+    await evidencePage.getByRole('tab', { name: 'Widgets' }).click()
+    await evidencePage.getByRole('button', { name: 'Arrange layout' }).click()
+    const toolbar = evidencePage.getByRole('toolbar', { name: 'Arrange layout' })
+    await toolbar.waitFor()
+    const profiles = {}
+    for (const name of ['Small', 'Desktop', 'Large', 'Wide']) {
+      profiles[name] = await toolbar.getByRole('tab', { name }).count()
+    }
+    const clock = evidencePage.getByRole('button', { name: 'Edit Clock' })
+    await clock.click()
+    const selected = await clock.getAttribute('aria-pressed')
+    const inspector = evidencePage.getByRole('complementary', { name: 'Clock inspector' })
+    await inspector.waitFor()
+    const inspectorVisible = await inspector.count()
+    const retiredControls = await toolbar.getByText(/^(Day|Now|Work Pulse|Signal Dock|Earlier|Later|Pinned|Automatic|Dock)$/).count()
+    await toolbar.getByRole('button', { name: 'Cancel' }).click()
+    await toolbar.waitFor({ state: 'detached' })
+    const layoutAfter = await evidencePage.evaluate(() => chrome.storage.local.get('layout').then(({ layout }) => JSON.stringify(layout)))
+    observations = {
+      profiles,
+      selected,
+      inspector: inspectorVisible,
+      retiredControls,
+      cancelExact: layoutAfter === layoutBefore,
+      focusRestored: await evidencePage.evaluate(() => document.activeElement?.getAttribute('aria-label') === 'Open settings'),
+      errors,
+    }
+  } catch (error) {
+    errors.push(error instanceof Error ? error.message : String(error))
+  } finally {
+    await evidencePage.close()
+  }
+  const ok = observations && Object.values(observations.profiles).every((count) => count === 1) &&
+    observations.selected === 'true' && observations.inspector === 1 && observations.retiredControls === 0 &&
+    observations.cancelExact && observations.focusRestored && errors.length === 0
+  console.log(`EVIDENCE: V1 Canvas successor for retired W3-P3 semantic editor: ${JSON.stringify(observations ?? { errors })}`)
+  console.log(ok
+    ? 'PASS: direct V1 Canvas Arrange supersedes the retired W3-P3 semantic editor'
+    : 'FAIL: direct V1 Canvas Arrange successor for the retired W3-P3 semantic editor')
 }
 
 console.log(
