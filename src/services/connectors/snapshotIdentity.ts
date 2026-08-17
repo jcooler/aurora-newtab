@@ -30,7 +30,7 @@ export function canonicalConnectorRuntimeScope(value: unknown): string {
 }
 
 /** ICS color is presentation metadata, not a fetched-event identity input. */
-function snapshotConfig(id: ConnectorId, config: ConnectorConfig): ConnectorConfig {
+function eventConfig(id: ConnectorId, config: ConnectorConfig): ConnectorConfig {
   if (id !== 'ics') return config
   const ics = config as IcsConfig
   if (!Array.isArray(ics.calendars)) return ics
@@ -44,12 +44,20 @@ function snapshotConfig(id: ConnectorId, config: ConnectorConfig): ConnectorConf
   }
 }
 
+/**
+ * Canonical fetched-event identity. ICS color is intentionally excluded so a
+ * display-only edit cannot create a new refresh generation or cache scope.
+ */
+export function canonicalConnectorEventConfig(id: ConnectorId, config: ConnectorConfig): string {
+  return canonicalConnectorConfig(eventConfig(id, config))
+}
+
 export async function connectorSnapshotScope(
   id: ConnectorId,
   config: ConnectorConfig,
   runtimeScope?: unknown,
 ): Promise<string> {
-  const canonical = canonicalConnectorConfig(snapshotConfig(id, config))
+  const canonical = canonicalConnectorEventConfig(id, config)
   const identity =
     runtimeScope === undefined ? `${id}\n${canonical}` : `${id}\n${canonical}\n${canonicalSerializable(runtimeScope)}`
   const bytes = new TextEncoder().encode(identity)

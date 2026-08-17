@@ -3,7 +3,7 @@ import { useStorage } from '../storage/context'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 import { getConnector } from '../../services/connectors/registry'
 import {
-  canonicalConnectorConfig,
+  canonicalConnectorEventConfig,
   canonicalConnectorRuntimeScope,
   connectorSnapshotScope,
 } from '../../services/connectors/snapshotIdentity'
@@ -54,7 +54,7 @@ export function useConnectorSnapshot<T>(
 } {
   const storage = useStorage()
   const runtimeKey = runtimeScope === undefined ? '' : canonicalConnectorRuntimeScope(runtimeScope)
-  const configKey = `${canonicalConnectorConfig(config)}\n${runtimeKey}`
+  const configKey = `${canonicalConnectorEventConfig(id, config)}\n${runtimeKey}`
   const [state, setState] = useState<SnapshotState<T>>(EMPTY_STATE)
 
   const refreshRef = useRef(refresh)
@@ -144,7 +144,7 @@ export function useConnectorSnapshot<T>(
             await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
               const authoritativeConfig = connectors[id]
               const authoritativeConfigKey = authoritativeConfig
-                ? `${canonicalConnectorConfig(authoritativeConfig)}\n${runtimeKey}`
+                ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
                 : null
               // A restore/config save can commit before React propagates the
               // new props into this mounted owner. Revalidate against the

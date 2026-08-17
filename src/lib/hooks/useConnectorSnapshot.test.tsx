@@ -5,7 +5,7 @@ import { act, render, screen } from '@testing-library/react'
 import { createStorage, type AuroraStorage } from '../storage/index'
 import { memoryDriver } from '../storage/driver'
 import { StorageProvider } from '../storage/context'
-import type { RssConfig } from '../../services/connectors/types'
+import type { IcsConfig, RssConfig } from '../../services/connectors/types'
 import { connectorSnapshotScope } from '../../services/connectors/snapshotIdentity'
 import { useConnectorSnapshot, __resetInFlight } from './useConnectorSnapshot'
 
@@ -18,6 +18,15 @@ const configB: RssConfig = {
   enabled: true,
   feeds: ['https://feeds.example/account-b'],
   shownCount: 5,
+}
+
+const icsConfig: IcsConfig = {
+  enabled: true,
+  calendars: [{ name: 'Work', url: 'https://calendar.example/work.ics' }],
+}
+const icsConfigWithColor: IcsConfig = {
+  ...icsConfig,
+  calendars: [{ ...icsConfig.calendars![0]!, color: 'fuchsia' }],
 }
 
 beforeAll(() => {
@@ -125,6 +134,47 @@ function mount(
   return render(
     <StorageProvider storage={storage}>
       <Probe config={config} refresh={refresh} ttl={ttl} runtimeScope={runtimeScope} isData={isData} />
+    </StorageProvider>,
+  )
+}
+
+function IcsProbe({
+  config,
+  refresh,
+  ttl,
+}: {
+  config: IcsConfig
+  refresh: (prev: string | null) => Promise<string>
+  ttl?: number
+}) {
+  const { data, refreshing } = useConnectorSnapshot('ics', config, refresh, ttl)
+  return <p>{`ics:${data ?? 'none'}:${refreshing}`}</p>
+}
+
+async function freshIcsStorage(
+  config: IcsConfig = icsConfig,
+  seed?: { fetchedAt: number; data: string },
+): Promise<AuroraStorage> {
+  const storage = createStorage(memoryDriver())
+  await storage.init()
+  await storage.set('connectors', { ics: config })
+  if (seed) {
+    await storage.set('connectorSnapshots', {
+      ics: { ...seed, scope: await connectorSnapshotScope('ics', config) },
+    })
+  }
+  return storage
+}
+
+function mountIcs(
+  storage: AuroraStorage,
+  refresh: (prev: string | null) => Promise<string>,
+  ttl: number,
+  config: IcsConfig,
+) {
+  return render(
+    <StorageProvider storage={storage}>
+      <IcsProbe config={config} refresh={refresh} ttl={ttl} />
     </StorageProvider>,
   )
 }
@@ -377,6 +427,40 @@ describe('useConnectorSnapshot', () => {
       pending.resolve('account-b')
       await tick()
     })
+  })
+
+  it('color-only ICS config changes keep an in-flight refresh owned and publish its result', async () => {
+    const storage = await freshIcsStorage(icsConfig, {
+      fetchedAt: Date.now() - 10_000,
+      data: 'stale-event-data',
+    })
+    const pending = deferred<string>()
+    const refresh = vi.fn(() => pending.promise)
+    const view = mountIcs(storage, refresh, 1_000, icsConfig)
+
+    await screen.findByText('ics:stale-event-data:true')
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    await storage.set('connectors', { ics: icsConfigWithColor })
+    view.rerender(
+      <StorageProvider storage={storage}>
+        <IcsProbe config={icsConfigWithColor} refresh={refresh} ttl={1_000} />
+      </StorageProvider>,
+    )
+    await act(async () => {
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      pending.resolve('fresh-event-data')
+      await tick()
+    })
+
+    await screen.findByText('ics:fresh-event-data:false')
+    const snapshot = (await storage.get('connectorSnapshots')).ics
+    expect(snapshot?.scope).toBe(await connectorSnapshotScope('ics', icsConfigWithColor))
+    expect(snapshot?.data).toBe('fresh-event-data')
   })
 
   it('commit-time invalidation rejects A when it resolves immediately after the B rerender', async () => {

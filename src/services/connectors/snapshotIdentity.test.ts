@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { HomeAssistantConfig } from './homeassistant'
 import type { GithubConfig, RssConfig } from './types'
-import { canonicalConnectorConfig, connectorSnapshotScope, newSnapshotEpoch } from './snapshotIdentity'
+import { canonicalConnectorConfig, canonicalConnectorEventConfig, connectorSnapshotScope, newSnapshotEpoch } from './snapshotIdentity'
 
 describe('connector snapshot identity', () => {
   it('canonicalizes object key order but preserves array order', () => {
@@ -113,6 +113,28 @@ describe('connector snapshot identity', () => {
       calendars: [{ ...base.calendars[0], color: 'fuchsia' as const }],
     }
     expect(await connectorSnapshotScope('ics', colored)).toBe(await connectorSnapshotScope('ics', base))
+  })
+
+  it('uses a single exported event identity for color-neutral ICS refresh ownership', () => {
+    const base = {
+      enabled: true,
+      calendars: [{ name: 'Work', url: 'https://calendar.example/private' }],
+    } as const
+    const colored = {
+      ...base,
+      calendars: [{ ...base.calendars[0], color: 'fuchsia' as const }],
+    }
+
+    expect(canonicalConnectorEventConfig('ics', colored)).toBe(canonicalConnectorEventConfig('ics', base))
+    expect(canonicalConnectorEventConfig('rss', {
+      enabled: true,
+      feeds: ['https://one.example/a'],
+      shownCount: 5,
+    })).toBe(canonicalConnectorConfig({
+      enabled: true,
+      feeds: ['https://one.example/a'],
+      shownCount: 5,
+    }))
   })
 
   it('keeps malformed calendar entries serializable while ignoring a color field', async () => {
