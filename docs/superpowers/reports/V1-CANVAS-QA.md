@@ -6,13 +6,13 @@ Harness: `node scripts/preview-v1-canvas.mjs`
 
 ## Result
 
-PASS. The one-shot real Chromium probe completed with no console errors, page errors, failed requests, missing images, document horizontal overflow, intersections, or clipped owner blocks. Each regenerated PNG was inspected at original resolution; no Critical or Important visual finding remains.
+PASS after owner-reported residual correction. The first submitted Desktop capture exposed a malformed Compact Month: seven dates existed in the DOM but stacked vertically because a Compact CSS rule replaced native table-cell layout. Commit `01f5076` removes only that override and adds a real geometry assertion. The corrected one-shot Chromium probe completed with no console errors, page errors, failed requests, missing images, document horizontal overflow, intersections, or clipped owner blocks. Each corrected PNG was inspected at original resolution; no Critical or Important visual finding remains.
 
 ## Owner captures
 
 | Capture | Exact original dimensions | Observation |
 | --- | --- | --- |
-| `C:\Users\SickT\Documents\Codex\2026-08-16\aurora-v1-canvas-implementation-session-prompt\outputs\canvas-p7\canvas-p7-desktop-1600x900-bookmarks-github-jira.png` | 1600x900 | Top Bookmarks, centered Clock/Focus, direct tools, compact Month, rich GitHub graph/rows, and rich Jira rows are visible. Evidence records zero intersections and zero clipped blocks. |
+| `C:\Users\SickT\Documents\Codex\2026-08-16\aurora-v1-canvas-implementation-session-prompt\outputs\canvas-p7\canvas-p7-desktop-1600x900-bookmarks-github-jira.png` | 1600x900 | Top Bookmarks, centered Clock/Focus, direct tools, Compact Month with `16 17 18 19 20 21 22` in one left-to-right row, rich GitHub graph/rows, and rich Jira rows are visible. Evidence records zero intersections and zero clipped blocks. |
 | `C:\Users\SickT\Documents\Codex\2026-08-16\aurora-v1-canvas-implementation-session-prompt\outputs\canvas-p7\canvas-p7-large-2560x1440-dense.png` | 2560x1440 | Dense readable composition shows ICS, Status, GitHub, GitLab, Jira, Vercel, Home Assistant, RSS, Crypto, and a full natural Month. Evidence records zero intersections and zero clipped blocks. |
 | `C:\Users\SickT\Documents\Codex\2026-08-16\aurora-v1-canvas-implementation-session-prompt\outputs\canvas-p7\canvas-p7-wide-3440x1440-dense.png` | 3440x1440 | Wide profile preserves the same complete connector composition with added whitespace. Evidence records zero intersections and zero clipped blocks. |
 
@@ -36,7 +36,7 @@ The disposable Playwright extension profile receives deterministic bookmarks and
 - Verified top Bookmarks, centered Clock/Focus, direct Timer/Tasks/Notes, absent empty Briefing, transparent empty Focus prompt, and no retired layout copy.
 - Clicked nested Bookmarks popover and dismissed it with focus restoration; confirmed folder popovers are viewport-contained and the 882px client-height nested list scrolls locally through its 1092px content.
 - Clicked, typed in, and dismissed Notes; opened/dismissed Tasks and Timer; Timer continued after panel close; all panels restored invoking focus.
-- Used Compact Month Previous, Next, and Today. Confirmed exactly seven Compact days. Confirmed Standard Month has at least four natural full rows.
+- Used Compact Month Previous, Next, and Today. Confirmed exactly seven Compact days whose cell tops match within 1px and whose left coordinates strictly increase. Confirmed Standard Month has at least four natural full rows.
 - A real 650ms long-press on Clock time entered Arrange. Drag recorded `gotpointercapture` with active capture, two guides, keyboard movement, selected state, Compact/Standard/Full inspector choices, deliberate overlap feedback, Bring forward layer control, Undo, profile tabs, Desktop-everywhere preview, Copy Desktop layout, exact Cancel, and a separate explicit Save.
 - Arrange clicked and asserted `aria-pressed="true"` for every visible `[data-block-id]` on Desktop, Large, and Wide. Large/Wide include all nine connector identities: Calendar, Service status, GitHub, GitLab, Jira, Deploys, Home Assistant, Headlines, and Crypto.
 - Computed cursors are explicit: Bookmarks folder and Weather disclosure toggle are `pointer`; Weather's passive surface is `default`; passive Month data is non-pointer.
@@ -72,7 +72,7 @@ The disposable Playwright extension profile receives deterministic bookmarks and
 - Missing images: none.
 - Owner-capture intersections: none.
 - Critical findings: none.
-- Important findings: none open. The earlier browser-proven Small compact Weather defect (condition/location and chevron CSS-hidden) was corrected and re-proven. Independent review then found two further Important gaps: multi-calendar source identity was color/aria-only, and the harness had incomplete direct interaction/color evidence. Visible bounded source attribution, focused Calendar RED/GREEN coverage, real long-press/pointer-capture/cursor/scroll/selection/Focus-lifecycle assertions, and snapshot-neutral live-dot color proof close both review findings in this final Chromium run.
+- Important findings: none open. The earlier browser-proven Small compact Weather defect (condition/location and chevron CSS-hidden) was corrected and re-proven. Independent review then found two further Important gaps: multi-calendar source identity was color/aria-only, and the harness had incomplete direct interaction/color evidence. Visible bounded source attribution, focused Calendar RED/GREEN coverage, real long-press/pointer-capture/cursor/scroll/selection/Focus-lifecycle assertions, and snapshot-neutral live-dot color proof closed both review findings. After the first owner submission, the owner correctly rejected the malformed Desktop Compact Month. The RED Chromium run recorded all seven cells at `left: 72px` with vertically increasing tops; the corrected run records one shared top and strictly increasing left coordinates. The refreshed three-image gate is awaiting renewed owner approval.
 
 ## Minor ledger and manual ceilings
 
