@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** V1 Canvas & Adaptive Safety Rails recovery<br>
-**Last verified packet:** `Canvas-P2` - Canvas renderer<br>
-**Current packet:** `Canvas-P3` - Direct Arrange
+**Last verified packet:** `Canvas-P3` - Direct Arrange<br>
+**Current packet:** `Canvas-P4` - V1 interaction restoration
 
 ## Packet envelope
 
@@ -15,7 +15,8 @@
 - **Rejected candidate:** Calm Canvas commits through `3c5015a` remain recoverable historical evidence but are not visually accepted, release-ready, or a foundation to continue polishing. Their full gates were correctly withheld.
 - **Canvas-P1 evidence:** Schema v12 and the additive V1/V2/V3 union are implemented without eager layout rewrite. V1/V2 recovery is exact, V3 Save is explicit, active block corruption falls back per block, backup validation remains strict, and legacy Settings/Arrange paths cannot destroy V3. The final focused gate passed 9 files / 609 tests, TypeScript, and diff hygiene. One review/fix/rereview cycle closed all blocking findings; repeated Settings test `act(...)` warnings remain Minor harness noise.
 - **Canvas-P2 evidence:** One normalized Canvas now renders V1, V2, and V3 profiles with source-owned V1 anchors, Small/Desktop/Large/Wide selection, safe fitted geometry, optional Bottom bar ownership, preserved compact presentations, and no semantic Day/Now/Work Pulse/Signal Dock presentation regions. Custom saved blocks remain exact while newly enabled identities find a safe snapped position. `Use Desktop layout everywhere` is an in-memory fitted preview with no write. The final focused gate passed 8 files / 71 tests, TypeScript, and diff hygiene; the bounded rereview returned Ready with no findings open.
-- **Remaining gates:** Canvas-P3 through Canvas-P4; early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
+- **Canvas-P3 evidence:** Direct Arrange now owns one explicit-save draft with measured Canvas-local pointer geometry, grid and magnetic guides, 8px-bounded keyboard and size changes, collision/layer feedback, undo/reset, four real profile previews, draft visibility, a non-occluding inspector/Small sheet, exact Cancel, one authority-backed Save, real-invoker focus restoration, and durable terminal announcements. The final focused gate passed 6 files / 79 tests, TypeScript, and diff hygiene. The one review/fix/rereview cycle closed five Important findings; the rereview's remaining restored-size branch was reproduced and fixed under the exhausted cycle. No Minor issue was reported.
+- **Remaining gates:** Canvas-P4 and its early real-content visual approval; Canvas-P5 through Canvas-P7; connector/calendar visual approval; Canvas-P8's one final full unit/build/browser gate; checkpoint/push/equality proof; then release-path reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 
@@ -26,6 +27,7 @@
 
 ## Last completed commits
 
+- `5aa01e532b3e286195407d2a8cbd6dfb0b7f80b8`, `96482b8495c5da50206cd39a4492d68a5eb09558`, and `8996b15a3f2084d21b41f4dab9db10c7b00e8f63` - direct Canvas editing, bounded review fixes, and the restored-size safe-margin regression.
 - `eb1354b6a5b041fb6d494655c3dae1862572bc51` — audited V1.14.0 base (`test(ha): the drawer sits for its portrait`).
 - `0ae676905fd54d3acf3aaf2cdcb79d13e4b47f7e` — reviewed master specification and executable W1-P1 plan (`docs: establish Aurora 2 observatory program`).
 - `87a8aa93dfd5544322daf855d10e780f64d1e882` — isolated Wave 0 ledger checkpoint (`docs: checkpoint A2-W0`).
@@ -382,13 +384,13 @@
 
 ## Files intentionally dirty
 
-- None expected after `docs: checkpoint Canvas P2`. If `git status --short` is non-empty during Canvas-P3, reconcile only generated evidence or packet-owned changes.
+- None expected after `docs: checkpoint Canvas P3`. If `git status --short` is non-empty during Canvas-P4, reconcile only generated evidence or packet-owned changes.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `Canvas-P3` - Direct Arrange
+- **Packet:** `Canvas-P4` - V1 interaction restoration
 - **Plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md`
-- **State:** Canvas-P1 and Canvas-P2 are verified. Execute Canvas-P3 and Canvas-P4 continuously, then stop at the required early visual gate with four original-resolution captures.
+- **State:** Canvas-P1 through Canvas-P3 are verified. Execute Canvas-P4, then stop at the required early visual gate with four original-resolution captures.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep the approved eight-packet plan, one implementation envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.

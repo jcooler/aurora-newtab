@@ -149,15 +149,17 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - Pointer drag uses pointer capture. Arrow keys move 8px, Shift+Arrow moves 1px, and Escape cancels the active move before it cancels the session.
 - Save validates the complete draft and performs one authority-backed V3 update. Cancel writes nothing and restores the snapshot. A failed Save leaves the draft/editor open.
 
-- [ ] Write RED pure-draft tests for select, move, resize to supported choices only, Bottom bar move, overlap detection, bring forward/send backward only while overlapping, undo, reset profile, copy profile, `Use Desktop layout everywhere`, normalized layers, Cancel identity, and immutability.
-- [ ] Write RED snap/geometry tests for 8px grid, magnetic canvas/neighbor guides, 8px safe margins, pointer offsets, keyboard deltas, collisions allowed with warnings, and guide cleanup after movement.
-- [ ] Write RED component tests for entry by Settings and long press, direct selection of every visible item, pointer capture, real-content inertness during editing, toolbar profile tabs labelled Small/Desktop/Large/Wide, Undo/Reset/Cancel/Save, and one live preview with zero writes.
-- [ ] Write RED inspector tests for position/coordinates, supported sizes only, applicable display/visibility/default controls, overlap warning and layer controls, a reduced Canvas width on larger profiles, and a dismissible Small sheet that replaces rather than covers the preview.
-- [ ] Write RED accessibility/lifecycle tests for selection and movement announcements, visible keyboard focus, Escape hierarchy, exact Cancel restore, invoking focus restore, failed Save alert, one atomic successful Save, fresh re-entry from storage, and reduced motion.
-- [ ] Implement the draft model and controller by recovering only the approved direct-manipulation behavior from the protected V1 reference. Do not copy its immediate storage writes.
-- [ ] Run `npx vitest run src/newtab/arrange/canvasDraft.test.ts src/newtab/arrange/canvasSnap.test.ts src/newtab/arrange/useLongPress.test.tsx src/newtab/arrange/ArrangeController.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/App.test.tsx`.
-- [ ] Commit `feat(arrange): add direct Canvas editing`.
-- [ ] Run one Packet 3 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P3`, push, and prove both repository states.
+- [x] Write RED pure-draft tests for select, move, resize to supported choices only, Bottom bar move, overlap detection, bring forward/send backward only while overlapping, undo, reset profile, copy profile, `Use Desktop layout everywhere`, normalized layers, Cancel identity, and immutability.
+- [x] Write RED snap/geometry tests for 8px grid, magnetic canvas/neighbor guides, 8px safe margins, pointer offsets, keyboard deltas, collisions allowed with warnings, and guide cleanup after movement.
+- [x] Write RED component tests for entry by Settings and long press, direct selection of every visible item, pointer capture, real-content inertness during editing, toolbar profile tabs labelled Small/Desktop/Large/Wide, Undo/Reset/Cancel/Save, and one live preview with zero writes.
+- [x] Write RED inspector tests for position/coordinates, supported sizes only, applicable display/visibility/default controls, overlap warning and layer controls, a reduced Canvas width on larger profiles, and a dismissible Small sheet that replaces rather than covers the preview.
+- [x] Write RED accessibility/lifecycle tests for selection and movement announcements, visible keyboard focus, Escape hierarchy, exact Cancel restore, invoking focus restore, failed Save alert, one atomic successful Save, fresh re-entry from storage, and reduced motion.
+- [x] Implement the draft model and controller by recovering only the approved direct-manipulation behavior from the protected V1 reference. Do not copy its immediate storage writes.
+- [x] Run `npx vitest run src/newtab/arrange/canvasDraft.test.ts src/newtab/arrange/canvasSnap.test.ts src/newtab/arrange/useLongPress.test.tsx src/newtab/arrange/ArrangeController.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/App.test.tsx`.
+- [x] Commit `feat(arrange): add direct Canvas editing`.
+- [x] Run one Packet 3 implementation review, one Critical/Important fix and focused rereview cycle if needed, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P3`, push, and prove both repository states.
+
+**Packet 3 evidence:** Implemented in `5aa01e5`, with the bounded review fixes in `96482b8` and the rereview's remaining restored-size clamp in `8996b15`. The final focused gate passed 6 files / 79 tests, TypeScript, and `git diff --check`. Direct pointer and keyboard editing now share measured Canvas-local geometry, all size paths preserve the 8px safe margin, profile-wide preview state survives tab changes, long-press focus returns to the real invoker, and terminal Save/Cancel announcements survive editor teardown. The single review/fix/rereview cycle found no Minor issue; its final residual Important branch was reproduced and closed under the exhausted cycle without requesting another rereview.
 
 ## Packet 4: V1 Interaction Restoration
 
