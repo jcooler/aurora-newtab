@@ -8,6 +8,7 @@ import { defaults } from '../lib/storage/schema'
 import type { LayoutV3 } from '../lib/layout/canvasTypes'
 import { emptyLayoutV2 } from '../lib/layout/v2'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
+import { weatherRequestIdentity } from '../services/weather/identity'
 import App from './App'
 
 vi.mock('../services/bookmarks', () => ({
@@ -26,6 +27,20 @@ async function renderApp(storage?: ReturnType<typeof createStorage>) {
 
 function canvasItem(id: string): HTMLElement {
   return document.querySelector<HTMLElement>(`[data-block-id="${id}"]`)!
+}
+
+function canvasGeometry(id: string) {
+  const item = canvasItem(id)
+  return {
+    x: item.dataset.canvasX,
+    y: item.dataset.canvasY,
+    size: item.dataset.canvasSize,
+    left: item.style.left,
+    top: item.style.top,
+    width: item.style.width,
+    minHeight: item.style.minHeight,
+    layer: item.style.zIndex,
+  }
 }
 
 describe('App Canvas composition', () => {
@@ -190,6 +205,73 @@ describe('App Canvas composition', () => {
     expect(document.querySelectorAll('[data-block-id="search"]')).toHaveLength(1)
   })
 
+  it('changes only the toggled identity and never writes layout while settings and connectors change', async () => {
+    const storage = await renderApp()
+    const layoutBefore = JSON.stringify(await storage.get('layout'))
+    const survivors = ['clock', 'focus', 'search', 'tasks', 'notes']
+    const geometryBefore = Object.fromEntries(survivors.map((id) => [id, canvasGeometry(id)]))
+
+    await act(async () => {
+      await storage.set('settings', {
+        ...defaults().settings,
+        widgets: { ...defaults().settings.widgets, weather: false },
+      })
+    })
+
+    expect(document.querySelector('[data-block-id="weather"]')).toBeNull()
+    expect(Object.fromEntries(survivors.map((id) => [id, canvasGeometry(id)]))).toEqual(geometryBefore)
+    expect(JSON.stringify(await storage.get('layout'))).toBe(layoutBefore)
+
+    await act(async () => {
+      await storage.set('connectors', {
+        github: { enabled: true, username: '' },
+      })
+    })
+
+    expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
+    expect(Object.fromEntries(survivors.map((id) => [id, canvasGeometry(id)]))).toEqual(geometryBefore)
+    expect(JSON.stringify(await storage.get('layout'))).toBe(layoutBefore)
+
+    await act(async () => {
+      await storage.set('connectors', {})
+    })
+
+    expect(document.querySelector('[data-block-id="github"]')).toBeNull()
+    expect(Object.fromEntries(survivors.map((id) => [id, canvasGeometry(id)]))).toEqual(geometryBefore)
+    expect(JSON.stringify(await storage.get('layout'))).toBe(layoutBefore)
+  })
+
+  it('opens viewport-owned Weather details without moving its Canvas item or any sibling', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const location = { lat: 33.75, lon: -84.39, label: 'Atlanta', manual: true }
+    await storage.set('location', location)
+    await storage.set('weatherCache', {
+      current: { tempC: 24, feelsLikeC: 25, code: 0, windKmh: 8, humidity: 52, isDay: true },
+      hourly: [{ time: '2026-08-17T12:00', tempC: 24, precipProb: 0, code: 0, isDay: true }],
+      fetchedAt: Date.now(),
+      locationLabel: 'Atlanta',
+      requestIdentity: weatherRequestIdentity(location.lat, location.lon),
+      sunriseISO: '2026-08-17T07:02',
+      sunsetISO: '2026-08-17T20:23',
+    })
+    await renderApp(storage)
+    const ids = ['weather', 'clock', 'focus', 'search', 'tasks']
+    const before = Object.fromEntries(ids.map((id) => [id, canvasGeometry(id)]))
+    const canvas = screen.getByRole('region', { name: 'Canvas' }) as HTMLElement
+    const canvasHeight = canvas.style.height
+
+    fireEvent.click(within(canvasItem('weather')).getByRole('button', { expanded: false }))
+
+    const details = screen.getByRole('dialog', { name: 'Weather details' })
+    expect(details.parentElement).toBe(document.body)
+    expect(Object.fromEntries(ids.map((id) => [id, canvasGeometry(id)]))).toEqual(before)
+    expect(canvas.style.height).toBe(canvasHeight)
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+  })
+
   it('updates one mounted Canvas for connector availability and active-profile V3 placement', async () => {
     const storage = await renderApp()
     expect(document.querySelector('[data-block-id="rss"]')).toBeNull()
@@ -334,7 +416,8 @@ describe('App Canvas composition', () => {
         frame?.(0)
         await Promise.resolve()
       })
-      expect(document.documentElement.dataset.stageProfile).toBe(profile)
+      expect(document.documentElement.dataset.stageProfile).toBeUndefined()
+      expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-profile')).toBe(profile)
       expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe(label)
       expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
     }
@@ -393,7 +476,7 @@ describe('App Canvas composition', () => {
     fireEvent.click(notes)
     const sheet = await screen.findByRole('dialog', { name: 'Notes' })
 
-    expect(document.documentElement.dataset.stageProfile).toBe('compact')
+    expect(document.documentElement.dataset.stageProfile).toBeUndefined()
     expect(sheet.getAttribute('data-canvas-tool-panel')).toBe('')
     expect(sheet.parentElement).toBe(document.body)
     expect(document.querySelectorAll('[data-canvas-tool-panel]')).toHaveLength(1)
@@ -515,7 +598,7 @@ describe('App Canvas composition', () => {
     const main = document.querySelector<HTMLElement>('main[data-aurora-canvas]')!
     expect(main.style.transform).toBe('')
     expect(main.dataset.canvasProfile).toBe('standard')
-    expect(document.documentElement.dataset.stageProfile).toBe('standard')
+    expect(document.documentElement.dataset.stageProfile).toBeUndefined()
     expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-profile')).toBe('standard')
   })
 })

@@ -1,5 +1,7 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ResourceFeedback } from '../../../components/StateFeedback'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
@@ -15,6 +17,7 @@ import {
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
+import { weatherPanelAnchor, type WeatherPanelAnchor } from './weatherPanelAnchor'
 import type { WidgetVariant } from '../../../lib/layout/types'
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
@@ -49,7 +52,11 @@ export default function WeatherWidget({
   const { snapshot, stale, loading, error, refresh, state } = useWeather()
   const [expanded, setExpanded] = useState(stageVariant === 'expanded')
   const [retrying, setRetrying] = useState(false)
+  const [panelAnchor, setPanelAnchor] = useState<WeatherPanelAnchor | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const panelRef = useRef<HTMLElement>(null)
   const feedbackId = useId()
+  const detailsId = useId()
 
   // A Stage variant transition resets the disclosure to that variant's useful
   // default: Expanded spends its extra footprint on the already-held trend,
@@ -58,6 +65,87 @@ export default function WeatherWidget({
   useEffect(() => {
     setExpanded(stageVariant === 'expanded')
   }, [stageVariant])
+
+  const closeExpanded = useCallback(() => {
+    setExpanded(false)
+    triggerRef.current?.focus()
+  }, [])
+
+  useDialogEscape(closeExpanded, expanded)
+
+  const updatePanelAnchor = useCallback(() => {
+    const trigger = triggerRef.current
+    const panel = panelRef.current
+    if (!trigger || !panel) return
+    const panelRect = panel.getBoundingClientRect()
+    const utilityRects = [...document.querySelectorAll<HTMLElement>('.utility-tray-trigger, .settings-gear')]
+      .map((element) => element.getBoundingClientRect())
+      .filter((rect) => rect.width > 0 && rect.height > 0)
+    const utilityExclusion = utilityRects.length > 0
+      ? ({
+          left: Math.min(...utilityRects.map((rect) => rect.left)),
+          top: Math.min(...utilityRects.map((rect) => rect.top)),
+          right: Math.max(...utilityRects.map((rect) => rect.right)),
+          bottom: Math.max(...utilityRects.map((rect) => rect.bottom)),
+          width: Math.max(...utilityRects.map((rect) => rect.right)) - Math.min(...utilityRects.map((rect) => rect.left)),
+          height: Math.max(...utilityRects.map((rect) => rect.bottom)) - Math.min(...utilityRects.map((rect) => rect.top)),
+          x: Math.min(...utilityRects.map((rect) => rect.left)),
+          y: Math.min(...utilityRects.map((rect) => rect.top)),
+          toJSON: () => ({}),
+        } as DOMRectReadOnly)
+      : undefined
+    const next = weatherPanelAnchor({
+      trigger: trigger.getBoundingClientRect(),
+      panel: {
+        width: panelRect.width || Math.min(384, Math.max(0, window.innerWidth - 16)),
+        height: panel.scrollHeight || panelRect.height || 420,
+      },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      safeMargin: 8,
+      utilityExclusion,
+    })
+    setPanelAnchor((current) => current
+      && current.left === next.left
+      && current.top === next.top
+      && current.maxHeight === next.maxHeight
+      && current.vertical === next.vertical
+      && current.horizontal === next.horizontal
+      ? current
+      : next)
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      setPanelAnchor(null)
+      return
+    }
+    updatePanelAnchor()
+    const observer = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePanelAnchor)
+    if (panelRef.current) observer?.observe(panelRef.current)
+    if (triggerRef.current) observer?.observe(triggerRef.current)
+    window.addEventListener('resize', updatePanelAnchor)
+    window.addEventListener('scroll', updatePanelAnchor, true)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', updatePanelAnchor)
+      window.removeEventListener('scroll', updatePanelAnchor, true)
+    }
+  }, [expanded, updatePanelAnchor])
+
+  useEffect(() => {
+    if (!expanded) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)
+        || panelRef.current?.contains(target)
+        || triggerRef.current?.contains(target)) return
+      closeExpanded()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [closeExpanded, expanded])
 
   const requestRefresh = () => {
     setRetrying(true)
@@ -226,9 +314,14 @@ export default function WeatherWidget({
   // class name assembled at runtime is never generated at build time.
   const widthClass = location === null
     ? 'w-[min(20rem,calc(100vw_-_2rem))]'
-    : expanded
-      ? 'w-[min(24rem,calc(24vw_-_2rem))] tight:w-[min(30vw,calc(50vw_-_10.5rem))] compact:w-[min(20rem,calc(100vw_-_8.5rem))]'
-      : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
+    : 'w-max max-w-[min(24rem,calc(100vw_-_8.5rem))] xshort:max-w-[min(24rem,calc(100vw_-_8.5rem),calc(50vw_-_2rem_-_var(--clock-half-w)))]'
+  const effectiveAnchor = panelAnchor ?? {
+    left: 8,
+    top: 8,
+    maxHeight: Math.max(0, window.innerHeight - 16),
+    vertical: 'below' as const,
+    horizontal: 'inward-right' as const,
+  }
 
   return (
     <section
@@ -293,9 +386,11 @@ export default function WeatherWidget({
               including the rain callout — lives inside the button, so there
               is no dead pixel anywhere on the collapsed chip. */}
           <button
+            ref={triggerRef}
             type="button"
             aria-expanded={expanded}
-            onClick={() => setExpanded((v) => !v)}
+            aria-controls={expanded ? detailsId : undefined}
+            onClick={() => expanded ? closeExpanded() : setExpanded(true)}
             // The `short`/`xshort` steps repeated across this panel are one
             // decision, not eight: expanded, this card is ~383px tall, and
             // the viewports the app is tuned for include 1420x437 and
@@ -308,9 +403,7 @@ export default function WeatherWidget({
             // heights. Both variants carry the same value (they're disjoint
             // ranges covering height <= 600px together), so there is no
             // source-order tie to break between them.
-            className={`flex w-full cursor-pointer flex-col gap-1 px-4 py-3 short:py-2 xshort:py-2 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${
-              expanded ? 'rounded-t-panel' : 'rounded-panel'
-            }`}
+            className="flex w-full cursor-pointer flex-col gap-1 rounded-panel px-4 py-3 short:py-2 xshort:py-2 text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
           >
             <span className="flex w-full items-center gap-3">
               <WeatherIcon
@@ -363,8 +456,23 @@ export default function WeatherWidget({
             />
           </button>
 
-          {expanded && (
-            <div className="px-4 pb-4 short:pb-3 xshort:pb-3">
+          {expanded && createPortal(
+            <section
+              ref={panelRef}
+              id={detailsId}
+              role="dialog"
+              aria-label="Weather details"
+              data-weather-details=""
+              data-weather-vertical={effectiveAnchor.vertical}
+              data-weather-horizontal={effectiveAnchor.horizontal}
+              className="fixed z-[70] w-96 max-w-[calc(100vw-1rem)] cursor-default overflow-y-auto rounded-panel border border-panel-border bg-panel-solid text-fg shadow-2xl shadow-black/35 backdrop-blur-[var(--panel-blur)]"
+              style={{
+                left: `${effectiveAnchor.left}px`,
+                top: `${effectiveAnchor.top}px`,
+                maxHeight: `${effectiveAnchor.maxHeight}px`,
+              }}
+            >
+            <div className="px-4 py-4 short:py-3 xshort:py-3">
               {range && slots.length > 0 && (
                 <div className="border-t border-panel-border pt-3 short:pt-2 xshort:pt-2">
                   <div data-stage-text-tier="metadata" className="flex items-baseline justify-between gap-3 text-[11px] text-fg-muted">
@@ -521,6 +629,8 @@ export default function WeatherWidget({
                 </a>
               </div>
             </div>
+            </section>,
+            document.body,
           )}
         </>
       )}

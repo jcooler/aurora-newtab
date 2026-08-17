@@ -18,7 +18,7 @@ import CanvasSurface from './canvas/CanvasSurface'
 import PaletteHost from './widgets/palette/PaletteHost'
 import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
-import { useAdaptiveStageViewport } from './useAdaptiveStageViewport'
+import { useCanvasViewport } from './useCanvasViewport'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -48,7 +48,6 @@ export default function App() {
   const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
   const [arranging, setArranging] = useState(false)
   const [arrangeSignal, setArrangeSignal] = useState(0)
-  const [weatherExpanded, setWeatherExpanded] = useState(false)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
@@ -57,12 +56,7 @@ export default function App() {
   const wasArrangingRef = useRef(false)
 
   const storedLayout = useMemo(() => usableStoredLayout(layout), [layout])
-  const density = settings?.layoutDensity === 'compact'
-    || settings?.layoutDensity === 'balanced'
-    || settings?.layoutDensity === 'spacious'
-    ? settings.layoutDensity
-    : 'balanced'
-  const viewport = useAdaptiveStageViewport(density)
+  const viewport = useCanvasViewport()
 
   useEffect(() => {
     if (settings) applyPanelColor(document.documentElement, settings.panelColor)
@@ -182,12 +176,10 @@ export default function App() {
     registerCloseGuard: registerUtilityCloseGuard,
   }
   const rendererProps: WidgetRendererProps = {
-    onWeatherExpandedChange: setWeatherExpanded,
     onBookmarksPopoverOpenChange: setBookmarksPopoverOpen,
     utilityTray,
   }
   const elevatedIds = new Set<BlockId>([
-    ...(weatherExpanded ? ['weather' as const] : []),
     ...(bookmarksPopoverOpen ? ['bookmarks' as const] : []),
   ])
   const renderWidget = (entry: (typeof activeEntries)[number], size: CanvasSize) => {

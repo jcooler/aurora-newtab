@@ -59,6 +59,59 @@ describe('source-owned V1 Canvas defaults', () => {
       .map((placement) => placement.kind === 'canvas' ? placement.x : -1)).size).toBeGreaterThan(4)
   })
 
+  it.each(['compact', 'standard', 'display', 'ultrawide'] as const)(
+    'keeps every surviving %s source slot unchanged when siblings are toggled',
+    (profile) => {
+      const survivingIds = ['clock', 'focus', 'ics', 'github'] as const
+      const expected = {
+        compact: {
+          clock: { kind: 'canvas', x: 50, y: 14.28, size: 'compact', layer: 6 },
+          focus: { kind: 'canvas', x: 50, y: 33.08, size: 'compact', layer: 11 },
+          ics: { kind: 'canvas', x: 50, y: 40.6, size: 'compact', layer: 1 },
+          github: { kind: 'canvas', x: 50, y: 63.16, size: 'compact', layer: 16 },
+        },
+        standard: {
+          clock: { kind: 'canvas', x: 50, y: 24, size: 'full', layer: 6 },
+          focus: { kind: 'canvas', x: 50, y: 62, size: 'standard', layer: 11 },
+          ics: { kind: 'canvas', x: 13, y: 23, size: 'standard', layer: 1 },
+          github: { kind: 'canvas', x: 87, y: 30.857142857142858, size: 'standard', layer: 16 },
+        },
+        display: {
+          clock: { kind: 'canvas', x: 50, y: 24, size: 'full', layer: 6 },
+          focus: { kind: 'canvas', x: 50, y: 62, size: 'standard', layer: 11 },
+          ics: { kind: 'canvas', x: 9, y: 22, size: 'standard', layer: 1 },
+          github: { kind: 'canvas', x: 77, y: 22, size: 'full', layer: 16 },
+        },
+        ultrawide: {
+          clock: { kind: 'canvas', x: 50, y: 24, size: 'full', layer: 6 },
+          focus: { kind: 'canvas', x: 50, y: 62, size: 'standard', layer: 11 },
+          ics: { kind: 'canvas', x: 6, y: 22, size: 'standard', layer: 1 },
+          github: { kind: 'canvas', x: 83, y: 22, size: 'full', layer: 16 },
+        },
+      } as const
+      const survivingSet = new Set<string>(survivingIds)
+      const sparse = WIDGET_REGISTRY.filter(({ id }) => survivingSet.has(id))
+      const dense = WIDGET_REGISTRY.filter(({ id }) => [
+        ...survivingIds,
+        'weather',
+        'monthCal',
+        'sun',
+        'status',
+        'gitlab',
+        'jira',
+        'rss',
+      ].includes(id))
+
+      const sparsePlacements = canvasDefaults(profile, sparse).placements
+      const densePlacements = canvasDefaults(profile, dense).placements
+      const sparseSurvivors = Object.fromEntries(survivingIds.map((id) => [id, sparsePlacements[id]]))
+      const denseSurvivors = Object.fromEntries(survivingIds.map((id) => [id, densePlacements[id]]))
+
+      expect(sparseSurvivors).toEqual(expected[profile])
+      expect(denseSurvivors).toEqual(expected[profile])
+    },
+  )
+
   it('merges a custom profile without moving saved blocks and defaults only missing active identities', () => {
     const entries = WIDGET_REGISTRY.filter(({ id }) => ['clock', 'focus', 'weather'].includes(id))
     const saved = {

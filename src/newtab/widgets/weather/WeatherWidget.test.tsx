@@ -90,6 +90,20 @@ async function activateWithModeledNativeClick(button: HTMLButtonElement) {
   fireEvent.click(button)
 }
 
+function domRect(left: number, top: number, right: number, bottom: number): DOMRect {
+  return {
+    left,
+    top,
+    right,
+    bottom,
+    width: right - left,
+    height: bottom - top,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect
+}
+
 describe('WeatherWidget collapsed chip', () => {
   it('reveals the existing fuller trend immediately for an Expanded allocation without another request', async () => {
     const fetchSpy = vi.spyOn(globalThis, 'fetch')
@@ -237,14 +251,19 @@ describe('WeatherWidget collapsed chip', () => {
     )
   })
 
-  it('opens as a compact sheet rather than a sliver below the compact threshold', async () => {
+  it('opens as a viewport-owned finite sheet rather than a narrow Canvas sliver', async () => {
     await renderWidget()
     await expandPanel()
     const section = screen.getByRole('region', { name: 'Weather' })
     // 30vw of a 500px window is 150px — narrower than the panel's own
     // header furniture. Below `compact` the panel takes a real width
     // instead, still stopping short of the timer pill.
-    expect(section.className).toContain('compact:w-[min(20rem,calc(100vw_-_8.5rem))]')
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(section.children).toHaveLength(1)
+    expect(details.parentElement).toBe(document.body)
+    expect(details.className).toContain('w-96')
+    expect(details.className).toContain('max-w-[calc(100vw-1rem)]')
+    expect(Number.parseFloat(details.style.maxHeight)).toBeGreaterThan(0)
   })
 
   // Measured regression (730x900): 30vw alone put the expanded panel's left
@@ -254,12 +273,15 @@ describe('WeatherWidget collapsed chip', () => {
   // type. The second term states the rule the first only approximated: stay
   // out of the centred column's half of the page, plus that greeting's
   // overhang.
-  it('keeps the expanded panel clear of the centred column in the tight band, not just of 30vw', async () => {
+  it('removes expanded details from the centred Canvas geometry entirely', async () => {
     await renderWidget()
-    await expandPanel()
     const section = screen.getByRole('region', { name: 'Weather' })
-    expect(section.className).toContain('tight:w-[min(30vw,calc(50vw_-_10.5rem))]')
-    expect(section.className).not.toContain('tight:w-[30vw]')
+    const classBefore = section.className
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' })
+    expect(details.parentElement).toBe(document.body)
+    expect(section.className).toBe(classBefore)
+    expect(section.contains(details)).toBe(false)
   })
 
   it('keeps the rain callout visible even while collapsed', async () => {
@@ -337,13 +359,17 @@ describe('WeatherWidget affordances', () => {
     }
   })
 
-  it('carries no scrollable region in either state', async () => {
+  it('keeps the Canvas chip non-scrollable and gives details one finite vertical scrollport', async () => {
     await renderWidget()
     const section = screen.getByRole('region', { name: 'Weather' })
     const scrolly = /overflow-(x-|y-)?(auto|scroll)/
     expect(section.outerHTML).not.toMatch(scrolly)
     await expandPanel()
     expect(section.outerHTML).not.toMatch(scrolly)
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(details.className).toContain('overflow-y-auto')
+    expect(details.querySelectorAll('.overflow-y-auto')).toHaveLength(0)
+    expect(Number.parseFloat(details.style.maxHeight)).toBeGreaterThan(0)
   })
 })
 
@@ -602,6 +628,92 @@ describe('WeatherWidget stale data', () => {
     expect(openToggle().textContent).toContain('24\u00b0')
     view.unmount()
     fetchSpy.mockRestore()
+  })
+})
+
+describe('WeatherWidget viewport-owned details', () => {
+  it('portals details without changing the collapsed Canvas footprint', async () => {
+    await renderWidget()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    const classBefore = section.className
+
+    await expandPanel()
+
+    const details = screen.getByRole('dialog', { name: 'Weather details' })
+    expect(details.parentElement).toBe(document.body)
+    expect(section.children).toHaveLength(1)
+    expect(section.firstElementChild).toBe(openToggle())
+    expect(section.className).toBe(classBefore)
+    expect(details.className).toContain('overflow-y-auto')
+  })
+
+  it('anchors down and inward at the legal top-right edge', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('button[aria-expanded]')) return domRect(792, 8, 992, 88)
+      if (this.matches('[data-weather-details]')) return domRect(0, 0, 320, 400)
+      return domRect(0, 0, 0, 0)
+    })
+    await renderWidget()
+
+    await expandPanel()
+
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(details.dataset.weatherVertical).toBe('below')
+    expect(details.dataset.weatherHorizontal).toBe('inward-left')
+    expect(details.style.left).toBe('672px')
+    expect(details.style.top).toBe('96px')
+    expect(details.style.maxHeight).toBe('784px')
+  })
+
+  it('re-anchors after a physical viewport resize without changing its Canvas owner', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1000 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    let triggerRect = domRect(792, 8, 992, 88)
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.matches('button[aria-expanded]')) return triggerRect
+      if (this.matches('[data-weather-details]')) return domRect(0, 0, 320, 400)
+      return domRect(0, 0, 0, 0)
+    })
+    await renderWidget()
+    const section = screen.getByRole('region', { name: 'Weather' })
+    const ownerClass = section.className
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(details.style.left).toBe('672px')
+    expect(details.style.top).toBe('96px')
+
+    triggerRect = domRect(8, 700, 208, 780)
+    act(() => window.dispatchEvent(new Event('resize')))
+
+    expect(details.dataset.weatherVertical).toBe('above')
+    expect(details.dataset.weatherHorizontal).toBe('inward-right')
+    expect(details.style.left).toBe('8px')
+    expect(details.style.top).toBe('292px')
+    expect(section.className).toBe(ownerClass)
+    expect(section.contains(details)).toBe(false)
+  })
+
+  it('closes on Escape, outside pointer, and second activation while restoring the trigger', async () => {
+    await renderWidget()
+    const trigger = toggle()
+
+    trigger.focus()
+    await expandPanel()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+
+    await expandPanel()
+    fireEvent.pointerDown(document.body)
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+
+    await expandPanel()
+    fireEvent.click(openToggle())
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
   })
 })
 

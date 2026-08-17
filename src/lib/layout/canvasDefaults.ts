@@ -77,18 +77,16 @@ function edgePosition(
 function desktopPosition(
   id: WidgetRegistryEntry['id'],
   profile: Exclude<CanvasProfileKey, 'compact'>,
-  personal: readonly WidgetRegistryEntry[],
-  work: readonly WidgetRegistryEntry[],
 ): Pick<CanvasPlacement, 'x' | 'y'> {
   if (id === 'timer') return { x: profile === 'ultrawide' ? 4 : 7, y: 13 }
   if (id === 'weather') return { x: profile === 'ultrawide' ? 96 : 93, y: 13 }
   if (id === 'notes') return { x: profile === 'ultrawide' ? 4 : 7, y: 91 }
   if (id === 'tasks') return { x: profile === 'ultrawide' ? 96 : 93, y: 91 }
   if ((CENTER_IDS as readonly string[]).includes(id)) return { x: 50, y: CENTER_Y[id] ?? 50 }
-  const personalIndex = personal.findIndex((entry) => entry.id === id)
-  if (personalIndex >= 0) return edgePosition(profile, 'left', personalIndex, personal.length)
-  const workIndex = work.findIndex((entry) => entry.id === id)
-  if (workIndex >= 0) return edgePosition(profile, 'right', workIndex, work.length)
+  const personalIndex = (PERSONAL_IDS as readonly string[]).indexOf(id)
+  if (personalIndex >= 0) return edgePosition(profile, 'left', personalIndex, PERSONAL_IDS.length)
+  const workIndex = (WORK_IDS as readonly string[]).indexOf(id)
+  if (workIndex >= 0) return edgePosition(profile, 'right', workIndex, WORK_IDS.length)
   return { x: 50, y: 50 }
 }
 
@@ -97,19 +95,12 @@ export function canvasDefaults(
   entries: readonly WidgetRegistryEntry[],
 ): CanvasProfile {
   const placements: CanvasProfile['placements'] = {}
-  const personal = entries.filter((entry) => (PERSONAL_IDS as readonly string[]).includes(entry.id))
-  const work = entries.filter((entry) => (WORK_IDS as readonly string[]).includes(entry.id))
   const smallOrder = new Map(SMALL_ORDER.map((id, index) => [id, index]))
-  const orderedSmall = [...entries].sort((a, b) => (
-    (smallOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (smallOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER)
-      || a.sourceOrder - b.sourceOrder
-  ))
-  const smallIndex = new Map(orderedSmall.map((entry, index) => [entry.id, index]))
 
   for (const entry of entries) {
     const position = profile === 'compact'
-      ? { x: 50, y: spread(smallIndex.get(entry.id) ?? 0, orderedSmall.length, 3, 97) }
-      : desktopPosition(entry.id, profile, personal, work)
+      ? { x: 50, y: spread(smallOrder.get(entry.id) ?? 0, SMALL_ORDER.length, 3, 97) }
+      : desktopPosition(entry.id, profile)
     placements[entry.id] = {
       kind: 'canvas',
       ...position,

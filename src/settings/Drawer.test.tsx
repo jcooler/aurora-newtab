@@ -28,4 +28,18 @@ describe('Drawer narrow reflow', () => {
     expect(classes).toContain('min-h-9')
     expect(classes).toContain('min-w-9')
   })
+
+  it('paints and hits nothing when closed, including beyond the roomy inset', () => {
+    render(<Drawer open={false} onClose={() => {}} title="Settings"><button>Focusable content</button></Drawer>)
+
+    const drawer = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Settings"]')!
+    const classes = drawer.className.split(/\s+/)
+    expect(drawer.getAttribute('aria-hidden')).toBe('true')
+    expect(drawer.hasAttribute('inert')).toBe(true)
+    expect(classes).toContain('invisible')
+    expect(classes).toContain('pointer-events-none')
+    expect(classes).toContain('translate-x-[calc(100%+1rem)]')
+    expect(screen.queryByRole('button', { name: 'Focusable content' })).toBeNull()
+    expect(document.querySelector('.fixed.inset-0.z-40')).toBeNull()
+  })
 })
