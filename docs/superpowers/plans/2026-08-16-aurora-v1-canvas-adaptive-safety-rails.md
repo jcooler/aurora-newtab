@@ -299,15 +299,17 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - Create: `docs/superpowers/reports/V1-CANVAS-QA.md`
 - Modify: packet-local production/tests only if a real browser failure proves an explicit criterion is broken
 
-- [ ] Extend the focused Canvas probe with deterministic real Bookmarks plus rich GitHub/Jira fixtures, Calendar color witnesses, Timer/Tasks/Notes panels, selected and overlapping blocks, drag with guides, keyboard movement, Undo/Cancel/Save, profile copy, inspector sizing, and Small sheet behavior.
-- [ ] Exercise visible-state changes, pointer capture, long press, focus restoration, menus/popovers/panels, scrollability, hit coverage, cursor state, clipping, overflow, and console/page errors. Do not add an exhaustive cross-product.
-- [ ] Capture and inspect separately at original resolution: Desktop 1600x900 with Bookmarks plus rich GitHub/Jira; Large 2560x1440 dense; Wide 3440x1440 dense.
-- [ ] Verify all 18 acceptance criteria against direct DOM, storage, interaction, and visual evidence. Keep unsupported native/manual ceilings explicit.
-- [ ] Run one integrated implementation review. Fix only Critical/Important findings with a failing regression test, rerun only the affected focused family, and perform one focused rereview. Ledger Minor/cosmetic findings.
-- [ ] Write the QA report with capture paths, original dimensions, interaction witnesses, error state, review findings, and manual ceilings.
-- [ ] Commit `test(canvas): verify integrated V1 Canvas`.
-- [ ] Update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P7 visual gate`, push, and prove both repository states.
-- [ ] Stop at the connector/calendar owner visual gate. Present the three separate original-resolution captures and await explicit approval before Packet 8.
+- [x] Extend the focused Canvas probe with deterministic real Bookmarks plus rich GitHub/Jira fixtures, Calendar color witnesses, Timer/Tasks/Notes panels, selected and overlapping blocks, drag with guides, keyboard movement, Undo/Cancel/Save, profile copy, inspector sizing, and Small sheet behavior.
+- [x] Exercise visible-state changes, pointer capture, long press, focus restoration, menus/popovers/panels, scrollability, hit coverage, cursor state, clipping, overflow, and console/page errors. Do not add an exhaustive cross-product.
+- [x] Capture and inspect separately at original resolution: Desktop 1600x900 with Bookmarks plus rich GitHub/Jira; Large 2560x1440 dense; Wide 3440x1440 dense.
+- [x] Verify all 18 acceptance criteria against direct DOM, storage, interaction, and visual evidence. Keep unsupported native/manual ceilings explicit.
+- [x] Run one integrated implementation review. Fix only Critical/Important findings with a failing regression test, rerun only the affected focused family, and perform one focused rereview. Ledger Minor/cosmetic findings.
+- [x] Write the QA report with capture paths, original dimensions, interaction witnesses, error state, review findings, and manual ceilings.
+- [x] Commit `test(canvas): verify integrated V1 Canvas`.
+- [x] Update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P7 visual gate`, push, and prove both repository states.
+- [x] Stop at the connector/calendar owner visual gate. Present the three separate original-resolution captures and await explicit approval before Packet 8.
+
+**Packet 7 evidence:** Implemented in `cb58bd2` with the single review fix in `73b2794`. The focused Calendar test passed 44/44, real Chromium generated the three exact DSF-1 captures with zero intersections, clipped blocks, missing images, runtime errors, or failed requests, and TypeScript/diff hygiene passed. Multi-calendar events visibly name their source, all nine connector families render meaningful content across independent Large/Wide profiles, and exact snapshot preservation accompanies the persisted Emerald/Auto color witness. Direct Chromium evidence covers every visible Arrange identity, long press, active pointer capture, cursor and local-scroll semantics, Focus's complete centered lifecycle, Small clearance/containment, and the required editor operations. The single implementation review found two Important gaps; the focused fix and rereview closed both with no fix-caused Critical/Important regression. Compact folder glyph/monogram duplication remains Minor, and native zoom/DPI, physical touch, real screen-reader speech, live services/permissions, sleep/wake, and unload timing remain manual ceilings. Packet 8 is blocked pending explicit owner approval of the three captures.
 
 ## Packet 8: Final Gates
 
