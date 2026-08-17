@@ -192,16 +192,18 @@ The visual contract deliberately preserves Aurora's own photo-first identity. It
 - Focus keeps one centered footprint in empty, editing, committed, completed, and edit-again states.
 - Bookmarks and Timer/Tasks/Notes remain movable Canvas identities; their popovers/panels anchor to the launcher when space permits and use one Small sheet when it does not.
 
-- [ ] Write RED Focus tests for one stable centered footprint across all states, edit-again behavior, visible focus, and no opaque prompt surface.
-- [ ] Write RED Briefing tests proving absent/off renders nothing, no signals renders nothing, `Nothing urgent.` is never returned or painted, enabling writes only after user action, and no boot or Settings-open migration write occurs.
-- [ ] Write RED launcher tests proving Bookmarks default top-center and movable, Timer/Tasks/Notes render visible movable launchers, each direct activation opens its existing function, panels remain in the viewport, Small uses one document-safe sheet, Escape/close restores launcher focus, and Timer/Notes/Tasks persistence ownership is unchanged.
-- [ ] Implement the centered hierarchy, restrained V1 surfaces, anchored panels, conditional Briefing, and stable Focus footprint. Preserve existing async data and permission behavior.
-- [ ] Add a focused Chromium script that uses deterministic real-content fixtures and exercises default, Arrange entry, pointer drag, keyboard movement, selection, inspector, panel open/close, overflow, and console/page errors.
-- [ ] Capture and inspect at original resolution: Desktop 1600x900 default; Desktop 1600x900 Arrange with Clock selected and inspector visible; Small 375x812 default; Small 375x812 Arrange.
-- [ ] Run `npx vitest run src/lib/briefing.test.ts src/newtab/components/AuroraBriefing.test.tsx src/newtab/components/Greeting.test.tsx src/newtab/components/FocusLine.test.tsx src/newtab/widgets/bookmarks/BookmarksBar.test.tsx src/newtab/App.test.tsx src/settings/SettingsPanel.test.tsx` and the focused `scripts/preview-v1-canvas.mjs` probe only.
-- [ ] Commit `feat(canvas): restore V1 interactions and focus`.
-- [ ] Run one Packet 4 implementation review, one Critical/Important fix and focused rereview cycle if needed, inspect all four captures again, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P4 visual gate`, push, and prove both repository states.
-- [ ] Stop at the required early owner visual gate. Present the four separate original-resolution captures with interaction/error evidence and await explicit approval before Packet 5.
+- [x] Write RED Focus tests for one stable centered footprint across all states, edit-again behavior, visible focus, and no opaque prompt surface.
+- [x] Write RED Briefing tests proving absent/off renders nothing, no signals renders nothing, `Nothing urgent.` is never returned or painted, enabling writes only after user action, and no boot or Settings-open migration write occurs.
+- [x] Write RED launcher tests proving Bookmarks default top-center and movable, Timer/Tasks/Notes render visible movable launchers, each direct activation opens its existing function, panels remain in the viewport, Small uses one document-safe sheet, Escape/close restores launcher focus, and Timer/Notes/Tasks persistence ownership is unchanged.
+- [x] Implement the centered hierarchy, restrained V1 surfaces, anchored panels, conditional Briefing, and stable Focus footprint. Preserve existing async data and permission behavior.
+- [x] Add a focused Chromium script that uses deterministic real-content fixtures and exercises default, Arrange entry, pointer drag, keyboard movement, selection, inspector, panel open/close, overflow, and console/page errors.
+- [x] Capture and inspect at original resolution: Desktop 1600x900 default; Desktop 1600x900 Arrange with Clock selected and inspector visible; Small 375x812 default; Small 375x812 Arrange.
+- [x] Run `npx vitest run src/lib/briefing.test.ts src/newtab/components/AuroraBriefing.test.tsx src/newtab/components/Greeting.test.tsx src/newtab/components/FocusLine.test.tsx src/newtab/widgets/bookmarks/BookmarksBar.test.tsx src/newtab/App.test.tsx src/settings/SettingsPanel.test.tsx` and the focused `scripts/preview-v1-canvas.mjs` probe only.
+- [x] Commit `feat(canvas): restore V1 interactions and focus`.
+- [x] Run one Packet 4 implementation review, one Critical/Important fix and focused rereview cycle if needed, inspect all four captures again, update ledgers, run `git diff --check`, commit `docs: checkpoint Canvas P4 visual gate`, push, and prove both repository states.
+- [x] Stop at the required early owner visual gate. Present the four separate original-resolution captures with interaction/error evidence and await explicit approval before Packet 5.
+
+**Packet 4 evidence:** Implemented in `6403b26`, with the single review finding fixed in `045ed09`. The exact focused gate passed 7 files / 332 tests, TypeScript, and `git diff --check`. The focused Chromium probe regenerated and directly inspected the four required original-resolution captures after exercising bookmarks, direct Notes/Tasks/Timer panels, Timer continuation, transparent empty Focus, pointer drag, live guides, keyboard movement, selection, the side inspector, collision feedback, exact Cancel, and the Small document-safe sheet. Runtime errors, failed requests, and horizontal overflow were empty. The rereview returned Ready with no Critical or Important finding open. The exercised Clock overlap warning and existing Settings test `act(...)` hydration warnings remain Minor.
 
 ## Packet 5: Meaningful Widget Sizes
 
