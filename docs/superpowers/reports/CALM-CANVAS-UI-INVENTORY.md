@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-16  
 **Branch:** `feat/aurora-2-observatory`  
-**Result:** Complete for owner visual review. No Critical or Important product defect remains open.
+**Result:** Historical evidence only. The owner rejected the candidate after visual and interaction review because it failed the product vision and arrangement requirements.
 
 ## Frozen registry inventory
 

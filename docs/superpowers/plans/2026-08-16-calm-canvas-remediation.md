@@ -10,6 +10,8 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-16-aurora-2-calm-canvas-remediation-design.md`
 
+**Status:** Stopped. The owner rejected the candidate after visual and interaction review. Do not resume this plan. Continue only from the approved V1 Canvas & Adaptive Safety Rails design after written-spec review.
+
 ## Global Constraints
 
 - Do not change storage schema v11, migrations, `LayoutV2`, registry entries, profile thresholds, density tokens, capacity tables, planner output, connector behavior, permissions, secrets, backup content, or external endpoints.

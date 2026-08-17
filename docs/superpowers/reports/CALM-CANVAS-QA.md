@@ -1,10 +1,12 @@
 # Calm Canvas QA Report
 
 **Date:** 2026-08-16  
-**Result:** Ready for owner visual approval  
-**Final full gate:** Deliberately pending owner visual approval
+**Result:** Rejected by the owner after visual and interaction review<br>
+**Final full gate:** Not run; the rejected candidate must not advance
 
 ## Outcome
+
+This report records the candidate's bounded technical evidence, not product acceptance. Owner review found architectural regressions outside the candidate's too-narrow acceptance framing: loss of V1 free placement, inaccessible or obscured arrangement targets, confusing semantic-zone vocabulary, ineffective profile and size choices, degraded Focus behavior, incomplete calendar presentation, fixed ICS colors, and gutted connector compositions. The replacement direction is specified in `2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md`.
 
 The stretched three-column dashboard was replaced with the approved photo-forward Calm Canvas. Now is centered, Day and Work Pulse shrink-wrap their real content, the Signal Dock stays compact and owns its horizontal overflow, and Compact reflows through one Stage-owned vertical scrollport.
 

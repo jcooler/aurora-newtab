@@ -5,14 +5,14 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** Release-blocking Calm Canvas visual remediation; implementation and complete UI audit are ready for owner visual approval
+**Current packet:** V1 Canvas & Adaptive Safety Rails architectural recovery; Option 1 approved and written specification awaiting owner review
 
 ## Packet envelope
 
-- **Acceptance:** Replace the visually unacceptable stretched Adaptive Stage composition with the owner-approved V1-first Calm Canvas while preserving frozen data, migration, registry, profile, density, capacity, accessibility, privacy, permission, and Store boundaries.
-- **Implementation scope:** Centered Now anchor; content-sized Day and Work Pulse clusters; compact launcher and bottom surfaces; inventory-driven real-browser coverage of every shipped UI surface and meaningful state. No Store action, schema change, migration change, registry identity change, stored-data rewrite, permission change, credential/capability handling change, or protected-original mutation.
-- **Current evidence:** 17 composition witnesses and 24 interaction/state captures were inspected at original resolution. All 26 registry identities rendered without duplicates. Focused implementation passed 4 files / 83 tests; the review fix passed 31/31 bookmark tests; preview TypeScript/build transformed 189 modules; corrected bookmark and Weather browser families passed. One review/fix-rereview cycle is Ready with no Critical or Important issue open. See `docs/superpowers/reports/CALM-CANVAS-UI-INVENTORY.md` and `docs/superpowers/reports/CALM-CANVAS-QA.md`.
-- **Remaining gates:** Owner visual approval; then the full unit suite, production/preview builds, and canonical browser harness once; final ledger/checkpoint/push/equality proof; automatic W6-P3 continuation. Chrome Web Store actions remain blocked through W6-P5.
+- **Acceptance:** Restore Aurora's approved V1 photo-first composition and direct free placement while retaining Aurora 2's security, privacy, storage, migration, connector, accessibility, and recovery foundation. Every visible widget must be movable; Bookmarks return to the top; tools return to direct launchers; Focus stays centered; widget sizes must be materially distinct; rich connector content and complete calendars must be restored.
+- **Written design:** `docs/superpowers/specs/2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md` defines the selected Option 1 direction for owner review. Internal profile keys remain compatible while the user-facing canvas uses Small, Desktop, Large, and Wide layouts with direct drag, safety rails, and non-occluding editing.
+- **Rejected candidate:** Calm Canvas commits through `3c5015a` remain recoverable historical evidence but are not visually accepted, release-ready, or a foundation to continue polishing. Their full gates were correctly withheld.
+- **Remaining gates:** Owner review of the written specification; implementation plan; bounded implementation packets; early real-content visual approval; one final full unit/build/browser gate after stabilization; checkpoint/push/equality proof; then roadmap reconciliation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 

@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-16
 
-**Status:** Owner approved the V1-first direction and UI-completeness verification revision in chat; implementation in progress.
+**Status:** Rejected by the owner after visual and interaction review. Superseded by `2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md`. Retained as historical evidence only.
 
 ## 1. Problem
 
