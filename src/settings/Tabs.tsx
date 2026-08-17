@@ -86,14 +86,14 @@ export default function Tabs<T extends string>({
   }
 
   return (
-    <div className="flex flex-col gap-6 min-[900px]:grid min-[900px]:grid-cols-[12rem_minmax(0,1fr)] min-[900px]:items-start">
+    <div className="flex flex-col gap-5 min-[900px]:grid min-[900px]:grid-cols-[9rem_minmax(0,1fr)] min-[900px]:items-start">
       <div
         role="tablist"
         aria-label="Settings sections"
         aria-orientation={roomy ? 'vertical' : 'horizontal'}
         ref={listRef}
         onKeyDown={onKeyDown}
-        className="flex gap-1 border-b border-panel-border max-[420px]:grid max-[420px]:grid-cols-2 min-[900px]:sticky min-[900px]:top-0 min-[900px]:flex-col min-[900px]:border-r min-[900px]:border-b-0 min-[900px]:pr-4"
+        className="flex gap-1 border-b border-panel-border min-[900px]:sticky min-[900px]:top-0 min-[900px]:flex-col min-[900px]:border-r min-[900px]:border-b-0 min-[900px]:pr-3"
       >
         {tabs.map((t) => {
           const selected = t.id === active
@@ -116,7 +116,7 @@ export default function Tabs<T extends string>({
               // preflight sets `button { cursor: default }` — the inverted
               // affordance already fixed on the weather chip and the bookmarks
               // chips, and these are the drawer's primary navigation.
-              className={`-mb-px min-h-9 min-w-9 cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:w-full min-[900px]:mb-0 min-[900px]:w-full min-[900px]:border-b-0 min-[900px]:border-l-2 min-[900px]:text-left ${
+              className={`-mb-px min-h-9 min-w-9 cursor-pointer border-b-2 px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-w-0 max-[420px]:flex-1 max-[420px]:px-1 max-[420px]:text-xs min-[900px]:mb-0 min-[900px]:w-full min-[900px]:border-b-0 min-[900px]:border-l-2 min-[900px]:text-left ${
                 selected
                   ? 'border-accent text-fg'
                   : 'border-transparent text-fg-muted hover:text-fg'
@@ -136,7 +136,7 @@ export default function Tabs<T extends string>({
         role="tabpanel"
         id={`settings-tabpanel-${active}`}
         aria-labelledby={`settings-tab-${active}`}
-        className="min-w-0 flex flex-col divide-y divide-hairline"
+        className="mx-auto flex w-full min-w-0 max-w-[38rem] flex-col divide-y divide-hairline min-[900px]:mx-0"
       >
         {children}
       </div>

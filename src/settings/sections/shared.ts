@@ -11,13 +11,13 @@
 
 // One settings row: label on the left, control on the right, at a comfortable
 // 36px hit area so a switch row and an input row share the same vertical rhythm.
-export const row = 'flex min-h-9 items-center justify-between gap-4 py-1.5 max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:gap-2'
+export const row = 'flex min-h-9 items-center justify-between gap-4 py-1 max-[420px]:flex-col max-[420px]:items-stretch max-[420px]:gap-2'
 
 // The readable control label on a row's left.
 export const label = 'text-sm text-fg-muted'
 
 // Section header — a quiet uppercase eyebrow, the signature of the rhythm pass.
-export const eyebrow = 'mb-3 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted'
+export const eyebrow = 'mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-muted'
 
 // Text / date / url inputs: a min-h-9 rounded field on a fg-derived fill + border,
 // with an accent focus ring. Append width utilities (`${control} w-28`) as

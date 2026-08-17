@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { StoredLocation } from '../../lib/storage/schema'
-import Section from '../Section'
 import { row, label, btnQuiet } from './shared'
 
 /** Shows the current weather location with a one-click way to clear it
@@ -31,7 +30,7 @@ export default function Weather({
   }
 
   return (
-    <Section title="Weather">
+    <>
       <div className={row}>
         <span className={label}>Location</span>
         <button
@@ -49,6 +48,6 @@ export default function Weather({
           {error}
         </p>
       )}
-    </Section>
+    </>
   )
 }

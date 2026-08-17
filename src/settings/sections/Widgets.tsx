@@ -1,78 +1,86 @@
 import { useState } from 'react'
 import { ensureBookmarksPermission } from '../../services/bookmarks'
 import type { AuroraStorage } from '../../lib/storage/index'
-import type { Habit, Settings, StoredLocation, WidgetToggles } from '../../lib/storage/schema'
+import type {
+  Countdown,
+  Habit,
+  Settings,
+  StoredLocation,
+  WidgetToggles,
+  WorldClock,
+} from '../../lib/storage/schema'
+import DisclosureSection from '../DisclosureSection'
 import Section from '../Section'
 import Switch from '../Switch'
+import Countdowns from './Countdowns'
+import Weather from './Weather'
+import WorldClocks from './WorldClocks'
 import { row, label, control, submitBtn } from './shared'
 
-const WIDGET_LABELS: Record<keyof WidgetToggles, string> = {
-  search: 'Search bar',
-  weather: 'Weather',
-  links: 'Quick links',
-  todo: 'To-do lists',
-  timer: 'Focus timer',
-  quote: 'Daily quote',
-  bookmarks: 'Bookmarks bar',
-  notes: 'Notes',
-  clocks: 'World clocks',
-  countdown: 'Countdown',
-  habits: 'Habits',
-  monthCal: 'Month calendar',
-  sun: 'Sun times',
-  moon: 'Moon phase',
+interface WidgetGroup {
+  title: string
+  widgets: readonly (readonly [keyof WidgetToggles, string])[]
 }
 
-// Both toggles gate on settings.widgets.<key> AND location != null (SunWidget/
-// MoonWidget's own doc comments) — the weather widget's own StoredLocation,
-// not the weather TOGGLE (location outlives it). This hint id is shared by
-// both switches' aria-describedby so a screen reader gets the explanation
-// exactly once, not duplicated per row.
-const SKY_LOCATION_HINT_ID = 'w-sky-location-hint'
+const WIDGET_GROUPS: readonly WidgetGroup[] = [
+  {
+    title: 'Core',
+    widgets: [
+      ['search', 'Search'],
+      ['bookmarks', 'Bookmarks'],
+      ['links', 'Quick links'],
+      ['timer', 'Focus timer'],
+      ['todo', 'Tasks'],
+      ['notes', 'Notes'],
+    ],
+  },
+  {
+    title: 'Personal',
+    widgets: [
+      ['weather', 'Weather'],
+      ['quote', 'Daily quote'],
+      ['habits', 'Habits'],
+      ['monthCal', 'Month calendar'],
+    ],
+  },
+  {
+    title: 'Time & sky',
+    widgets: [
+      ['clocks', 'World clocks'],
+      ['countdown', 'Countdown'],
+      ['sun', 'Sun times'],
+      ['moon', 'Moon phase'],
+    ],
+  },
+]
 
-// Editor-side cap — independent of HabitsWidget.tsx's own MAX_HABIT_CHIPS
-// display cap (same widget-owns-its-cap convention as WorldClocks.tsx's
-// MAX_WORLD_CLOCKS vs. WorldClocks.tsx the widget). Both happen to be 6
-// today because the brief pins the widget's chip column at that count; a
-// hand-edited backup can still legally exceed it (Habit's own doc comment in
-// schema.ts), which is exactly why the widget re-enforces its own slice
-// rather than trusting this editor's cap to hold.
+const SKY_LOCATION_HINT_ID = 'w-sky-location-hint'
 const MAX_HABITS = 6
 
-/** One checkbox per widget. `settings`/`patch` are shared with General
- *  (SettingsPanel owns the underlying useStoredKey call); the bookmarks
- *  permission-denied flag is section-local — nothing outside this toggle
- *  cares about it. */
 export default function Widgets({
   settings,
   patch,
   habits,
+  worldClocks,
+  countdowns,
   storage,
   location,
 }: {
   settings: Settings
   patch: (p: Partial<Settings>) => void
-  // Habits editor's own data — owned by SettingsPanel (its useStoredKey
-  // read), same as WorldClocks/Countdowns' own list props, just threaded
-  // through this file instead of a dedicated section component: the brief
-  // scopes the habits editor to LIVE INSIDE the toggle list here rather than
-  // getting its own always-mounted section file.
   habits: Habit[] | undefined
+  worldClocks: WorldClock[] | undefined
+  countdowns: Countdown[] | undefined
   storage: AuroraStorage
-  // SettingsPanel's own useStoredKey('location') read, threaded through the
-  // same way `habits` is — `undefined` (not yet loaded) is treated the same
-  // as `null` (unset): the hint shows and both switches carry describedBy,
-  // same as SunWidget/MoonWidget treating "not yet loaded" as "not set" on
-  // the render side.
   location: StoredLocation | null | undefined
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
 
   const updateHabits = (fn: (list: Habit[]) => Habit[]) => void storage.update('habits', fn)
 
-  function handleAddHabit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault()
-    const data = new FormData(e.currentTarget)
+  function handleAddHabit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
     const name = String(data.get('name') ?? '').trim()
     if (!name) return
     updateHabits((list) =>
@@ -80,23 +88,11 @@ export default function Widgets({
         ? list
         : [...list, { id: crypto.randomUUID(), name, createdAt: Date.now(), log: [] }],
     )
-    e.currentTarget.reset()
+    event.currentTarget.reset()
   }
 
-  // Every other widget toggle is a plain, synchronous patch. Bookmarks is
-  // the one exception: turning it ON must first request the optional
-  // 'bookmarks' permission from this click handler (a user gesture — the
-  // only context Chrome will show its prompt in). Denied -> the toggle
-  // stays off and an inline alert explains why; turning it back OFF never
-  // needs the permission at all.
   async function handleWidgetToggle(key: keyof WidgetToggles, checked: boolean) {
     if (key === 'bookmarks' && checked) {
-      // ensureBookmarksPermission can REJECT, not just resolve false (e.g.
-      // the gesture context was somehow already lost by the time the
-      // permission prompt would show) — without a catch here, that's an
-      // unhandled promise rejection with no alert shown at all, which is
-      // worse than the ordinary denial path below. Route both outcomes to
-      // the same inline alert.
       let granted: boolean
       try {
         granted = await ensureBookmarksPermission()
@@ -114,105 +110,127 @@ export default function Widgets({
 
   return (
     <Section title="Widgets">
-      {(Object.entries(WIDGET_LABELS) as [keyof WidgetToggles, string][]).map(
-        ([key, widgetLabel]) => (
-          <div key={key} className={row}>
-            <label htmlFor={`w-${key}`} className={label}>
-              {widgetLabel}
-            </label>
-            <Switch
-              id={`w-${key}`}
-              checked={settings.widgets[key]}
-              // The bookmarks branch of handleWidgetToggle awaits
-              // ensureBookmarksPermission FIRST inside this click gesture — the
-              // Switch's onClick calls onChange synchronously with zero awaits
-              // ahead of it, so chrome.permissions.request stays gesture-bound
-              // exactly as it was for the checkbox.
-              onChange={(checked) => void handleWidgetToggle(key, checked)}
-              describedBy={
-                key === 'bookmarks' && bookmarksPermissionDenied
-                  ? 'w-bookmarks-error'
-                  : (key === 'sun' || key === 'moon') && !location
-                    ? SKY_LOCATION_HINT_ID
-                    : undefined
-              }
-            />
-          </div>
-        ),
-      )}
-      {bookmarksPermissionDenied && (
-        <p id="w-bookmarks-error" role="alert" className="text-xs text-fg-muted">
+      <div data-widget-toggle-groups="" className="space-y-4">
+        {WIDGET_GROUPS.map((group) => (
+          <section key={group.title} aria-label={group.title}>
+            <h4 className="mb-1.5 text-xs font-medium text-fg">{group.title}</h4>
+            <div
+              data-widget-toggle-grid=""
+              className="grid grid-cols-1 gap-x-4 min-[900px]:grid-cols-2"
+            >
+              {group.widgets.map(([key, widgetLabel]) => (
+                <div
+                  key={key}
+                  className="flex min-h-10 items-center justify-between gap-3 rounded-lg px-2 py-0.5 transition-colors hover:bg-control-bg/60"
+                >
+                  <label htmlFor={`w-${key}`} className={label}>
+                    {widgetLabel}
+                  </label>
+                  <Switch
+                    id={`w-${key}`}
+                    checked={settings.widgets[key]}
+                    onChange={(checked) => void handleWidgetToggle(key, checked)}
+                    describedBy={
+                      key === 'bookmarks' && bookmarksPermissionDenied
+                        ? 'w-bookmarks-error'
+                        : (key === 'sun' || key === 'moon') && !location
+                          ? SKY_LOCATION_HINT_ID
+                          : undefined
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+            {group.title === 'Time & sky' && !location ? (
+              <p
+                id={SKY_LOCATION_HINT_ID}
+                className="mt-1 px-2 text-xs leading-relaxed text-fg-muted"
+              >
+                Sun times and moon phase use the weather location. Turn on the
+                weather widget and set a location first.
+              </p>
+            ) : null}
+          </section>
+        ))}
+      </div>
+
+      {bookmarksPermissionDenied ? (
+        <p id="w-bookmarks-error" role="alert" className="mt-2 text-xs text-fg-muted">
           Bookmarks permission was denied, so the widget stays off. Turn it on
           again to re-request it.
         </p>
-      )}
-      {/* Below the moon row (WIDGET_LABELS' last two entries), once, shared by
-          both switches' aria-describedby above — not per-toggle, so a screen
-          reader announces the explanation exactly once rather than twice. */}
-      {!location && (
-        <p id={SKY_LOCATION_HINT_ID} className="text-xs text-fg-muted">
-          Sun times and moon phase use the weather location. Turn on the
-          weather widget and set a location first.
-        </p>
-      )}
+      ) : null}
 
-      {/* Only mounted while the toggle above is ON (per the brief) — unlike
-          World clocks/Countdowns, which stay mounted regardless so a user can
-          pre-populate them before enabling the widget, habits scopes its
-          editor to the toggled-on state specifically. A nested landmark
-          (rather than a plain div) keeps this queryable the same way every
-          other list editor on this tab is (worldClocksRegion/
-          countdownsRegion in SettingsPanel.test.tsx). */}
-      {settings.widgets.habits && (
-        <section aria-label="Habits" className="mt-3 border-t border-hairline pt-3">
-          {(habits ?? []).map((h) => (
-            <div key={h.id} className={row}>
-              <label htmlFor={`habit-name-${h.id}`} className="sr-only">
-                Habit name
-              </label>
-              <input
-                id={`habit-name-${h.id}`}
-                key={h.name} // remount on external change, same as World clocks/Countdowns' own rename inputs
-                defaultValue={h.name}
-                onBlur={(e) => {
-                  const value = e.currentTarget.value.trim()
-                  if (!value || value === h.name) return
-                  updateHabits((list) =>
-                    list.map((x) => (x.id === h.id ? { ...x, name: value } : x)),
-                  )
-                }}
-                className={`${control} w-32`}
-              />
-              <button
-                type="button"
-                aria-label={`Remove ${h.name}`}
-                onClick={() => updateHabits((list) => list.filter((x) => x.id !== h.id))}
-                className="rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent max-[420px]:min-h-9 max-[420px]:min-w-9"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          {(habits?.length ?? 0) < MAX_HABITS ? (
-            <form className={row} onSubmit={handleAddHabit}>
-              <label htmlFor="habit-new-name" className="sr-only">
-                New habit name
-              </label>
-              <input
-                id="habit-new-name"
-                name="name"
-                placeholder="Habit name"
-                className={`${control} w-32`}
-              />
-              <button type="submit" className={submitBtn}>
-                Add
-              </button>
-            </form>
-          ) : (
-            <p className="text-xs text-fg-muted">Max 6 habits.</p>
-          )}
-        </section>
-      )}
+      <div data-widget-editors="" className="mt-4 space-y-2 border-t border-hairline pt-4">
+        {location ? (
+          <DisclosureSection title="Weather location">
+            <Weather location={location} storage={storage} />
+          </DisclosureSection>
+        ) : null}
+
+        <DisclosureSection title="World clocks">
+          <WorldClocks worldClocks={worldClocks} storage={storage} />
+        </DisclosureSection>
+
+        <DisclosureSection title="Countdowns">
+          <Countdowns countdowns={countdowns} storage={storage} />
+        </DisclosureSection>
+
+        {settings.widgets.habits ? (
+          <DisclosureSection title="Habits">
+            {(habits ?? []).map((habit) => (
+              <div key={habit.id} className={row}>
+                <label htmlFor={`habit-name-${habit.id}`} className="sr-only">
+                  Habit name
+                </label>
+                <input
+                  id={`habit-name-${habit.id}`}
+                  key={habit.name}
+                  defaultValue={habit.name}
+                  onBlur={(event) => {
+                    const value = event.currentTarget.value.trim()
+                    if (!value || value === habit.name) return
+                    updateHabits((list) =>
+                      list.map((item) =>
+                        item.id === habit.id ? { ...item, name: value } : item,
+                      ),
+                    )
+                  }}
+                  className={`${control} w-32`}
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove ${habit.name}`}
+                  onClick={() =>
+                    updateHabits((list) => list.filter((item) => item.id !== habit.id))
+                  }
+                  className="min-h-9 min-w-9 cursor-pointer rounded p-1 text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {(habits?.length ?? 0) < MAX_HABITS ? (
+              <form className={row} onSubmit={handleAddHabit}>
+                <label htmlFor="habit-new-name" className="sr-only">
+                  New habit name
+                </label>
+                <input
+                  id="habit-new-name"
+                  name="name"
+                  placeholder="Habit name"
+                  className={`${control} w-32`}
+                />
+                <button type="submit" className={submitBtn}>
+                  Add
+                </button>
+              </form>
+            ) : (
+              <p className="text-xs text-fg-muted">Max 6 habits.</p>
+            )}
+          </DisclosureSection>
+        ) : null}
+      </div>
     </Section>
   )
 }

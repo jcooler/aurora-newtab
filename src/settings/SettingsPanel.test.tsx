@@ -268,6 +268,11 @@ function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
+function openWidgetEditor(name: 'Weather location' | 'World clocks' | 'Countdowns' | 'Habits') {
+  const button = screen.getByRole('button', { name })
+  if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button)
+}
+
 describe('SettingsPanel tabs (General / Widgets / Data)', () => {
   it('applies the shared row/control contract with a 36px floor and narrow reflow', async () => {
     await renderPanel()
@@ -310,7 +315,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
 
     // The other tabs' sections are UNMOUNTED, not hidden — the whole reason
     // this shell swaps children instead of toggling visibility.
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
     expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
     expect(screen.queryByRole('region', { name: 'Layout' })).toBeNull()
@@ -331,20 +336,46 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(screen.getByText(LOCAL_SECRET_STORAGE_NOTICE)).toBeTruthy()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
     expect(screen.queryByRole('region', { name: 'Data' })).toBeNull()
     expect(document.querySelector('footer')).toBeNull()
   })
 
-  it('the Widgets tab holds the toggles, world clocks, countdowns and Layout', async () => {
+  it('groups compact Widget toggles and keeps editor bodies closed until requested', async () => {
     await renderPanel()
     openTab('Widgets')
 
     expect(screen.getByRole('region', { name: 'Widgets' })).toBeTruthy()
-    expect(screen.getByLabelText('Bookmarks bar')).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'World clocks' })).toBeTruthy()
-    expect(screen.getByRole('region', { name: 'Countdowns' })).toBeTruthy()
+    const core = within(screen.getByRole('region', { name: 'Core' }))
+    const personal = within(screen.getByRole('region', { name: 'Personal' }))
+    const timeAndSky = within(screen.getByRole('region', { name: 'Time & sky' }))
+    expect(core.getAllByRole('switch')).toHaveLength(6)
+    for (const name of ['Search', 'Bookmarks', 'Quick links', 'Focus timer', 'Tasks', 'Notes']) {
+      expect(core.getByRole('switch', { name })).toBeTruthy()
+    }
+    expect(personal.getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['Weather', 'Daily quote', 'Habits', 'Month calendar']) {
+      expect(personal.getByRole('switch', { name })).toBeTruthy()
+    }
+    expect(timeAndSky.getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['World clocks', 'Countdown', 'Sun times', 'Moon phase']) {
+      expect(timeAndSky.getByRole('switch', { name })).toBeTruthy()
+    }
+    const grids = document.querySelectorAll('[data-widget-toggle-grid]')
+    expect(grids).toHaveLength(3)
+    for (const grid of grids) {
+      expect(grid.className).toContain('grid-cols-1')
+      expect(grid.className).toContain('min-[900px]:grid-cols-2')
+    }
+    expect(screen.getByRole('button', { name: 'World clocks' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Countdowns' })).toBeTruthy()
+    expect(screen.queryByRole('region', { name: 'World clocks' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Countdowns' })).toBeNull()
     expect(screen.getByRole('region', { name: 'Layout' })).toBeTruthy()
+
+    const groups = document.querySelector('[data-widget-toggle-groups]')!
+    const editors = document.querySelector('[data-widget-editors]')!
+    expect(groups.compareDocumentPosition(editors) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0)
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
     expect(screen.queryByRole('region', { name: 'Background' })).toBeNull()
@@ -364,7 +395,10 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
 
     expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull() // not on General
     openTab('Widgets')
-    expect(screen.getByRole('region', { name: 'Weather' })).toBeTruthy()
+    const disclosure = screen.getByRole('button', { name: 'Weather location' })
+    expect(screen.queryByRole('region', { name: 'Weather location' })).toBeNull()
+    fireEvent.click(disclosure)
+    expect(screen.getByRole('region', { name: 'Weather location' })).toBeTruthy()
   })
 
   it('the Data tab holds Data and the About footer', async () => {
@@ -376,7 +410,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     expect(document.querySelector('footer')).not.toBeNull()
 
     expect(screen.queryByLabelText('Your name')).toBeNull()
-    expect(screen.queryByLabelText('Bookmarks bar')).toBeNull()
+    expect(screen.queryByLabelText('Bookmarks')).toBeNull()
   })
 })
 
@@ -440,7 +474,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
   it('is absent when no location is stored', async () => {
     await renderPanel()
     openTab('Widgets')
-    expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Weather location' })).toBeNull()
   })
 
   it('clearing the location resets both location and weatherCache', async () => {
@@ -462,6 +496,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Weather location')
 
     const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
     write.mockClear()
@@ -506,6 +541,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Weather location')
 
     const clearButton = await screen.findByRole('button', { name: 'Springfield — clear' })
     await act(async () => {
@@ -535,7 +571,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(false)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
 
     await act(async () => {
@@ -554,7 +590,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockRejectedValue(new Error('gesture context lost'))
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -571,7 +607,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     vi.mocked(ensureBookmarksPermission).mockResolvedValue(true)
     const storage = await renderPanel()
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
 
     await act(async () => {
       fireEvent.click(toggle)
@@ -597,7 +633,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
-    const toggle = screen.getByLabelText('Bookmarks bar') as HTMLButtonElement
+    const toggle = screen.getByLabelText('Bookmarks') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('true')
 
     await act(async () => {
@@ -1969,6 +2005,7 @@ describe('SettingsPanel World clocks section', () => {
   it('typing a zone defaults the label to its city segment; submitting persists both and resets the form', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone') as HTMLInputElement
 
     await act(async () => {
@@ -1988,6 +2025,7 @@ describe('SettingsPanel World clocks section', () => {
   it('editing the label field overrides the city-segment default', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone')
     const labelInput = screen.getByLabelText('Label') as HTMLInputElement
 
@@ -2003,6 +2041,7 @@ describe('SettingsPanel World clocks section', () => {
   it('an unrecognized zone shows an inline error and persists nothing', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('World clocks')
     const zoneInput = screen.getByLabelText('Time zone')
 
     await act(async () => {
@@ -2031,6 +2070,7 @@ describe('SettingsPanel World clocks section', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('World clocks')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Tokyo' }))
@@ -2055,6 +2095,7 @@ describe('SettingsPanel World clocks section', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('World clocks')
 
     expect(await screen.findByText('Australia/Sydney')).toBeTruthy()
     expect(screen.queryByLabelText('Time zone')).toBeNull()
@@ -2069,6 +2110,7 @@ describe('SettingsPanel Countdowns section', () => {
   it('adding a countdown persists it and resets the form', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
     const nameInput = screen.getByLabelText('New countdown name') as HTMLInputElement
     const dateInput = screen.getByLabelText('New countdown date') as HTMLInputElement
 
@@ -2088,6 +2130,7 @@ describe('SettingsPanel Countdowns section', () => {
   it('a blank name or date is not added', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
     const dateInput = screen.getByLabelText('New countdown date')
 
     await act(async () => {
@@ -2112,6 +2155,7 @@ describe('SettingsPanel Countdowns section', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Remove Launch' }))
@@ -2131,6 +2175,7 @@ describe('SettingsPanel Countdowns section', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Countdowns')
 
     const dateInput = screen.getByLabelText('Countdown date')
     await act(async () => {
@@ -2158,7 +2203,7 @@ describe('SettingsPanel Habits section', () => {
     expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
   })
 
-  it('turning the toggle on writes widgets.habits and reveals the editor below it', async () => {
+  it('turning the toggle on writes widgets.habits and offers a closed editor below it', async () => {
     const storage = await renderPanel()
     openTab('Widgets')
     const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
@@ -2169,6 +2214,9 @@ describe('SettingsPanel Habits section', () => {
 
     expect(attr(toggle, 'aria-checked')).toBe('true')
     expect((await storage.get('settings')).widgets.habits).toBe(true)
+    expect(screen.getByRole('button', { name: 'Habits' }).getAttribute('aria-expanded')).toBe('false')
+    expect(screen.queryByRole('region', { name: 'Habits' })).toBeNull()
+    openWidgetEditor('Habits')
     expect(habitsRegion()).toBeTruthy()
 
     await act(async () => {
@@ -2193,6 +2241,7 @@ describe('SettingsPanel Habits section', () => {
     )
     await screen.findByLabelText('Your name')
     openTab('Widgets')
+    openWidgetEditor('Habits')
     return storage
   }
 
@@ -2362,7 +2411,7 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     expect(hints).toHaveLength(1) // renders ONCE, not once per switch
     const hint = hints[0]!
     expect(hint.id).toBe('w-sky-location-hint')
-    expect(hint.className).toBe('text-xs text-fg-muted')
+    expect(hint.className.split(/\s+/)).toEqual(expect.arrayContaining(['text-xs', 'text-fg-muted']))
 
     expect(attr(sun, 'aria-describedby')).toBe(hint.id)
     expect(attr(moon, 'aria-describedby')).toBe(hint.id)
@@ -2413,6 +2462,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(region.queryByLabelText('Layout density')).toBeNull()
     expect(region.queryByLabelText('Show briefing')).toBeNull()
     expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
+    expect(region.getByText('Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.')).toBeTruthy()
     expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
   })
 

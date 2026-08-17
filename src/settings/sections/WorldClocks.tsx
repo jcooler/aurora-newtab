@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { WorldClock } from '../../lib/storage/schema'
-import Section from '../Section'
 import { row, label, control, submitBtn } from './shared'
 
 const MAX_WORLD_CLOCKS = 4
@@ -52,7 +51,7 @@ export default function WorldClocks({
   }
 
   return (
-    <Section title="World clocks">
+    <>
       {(worldClocks ?? []).map((wc, i) => (
         <div key={`${wc.zone}-${i}`} className={row}>
           <span className={label}>{wc.zone}</span>
@@ -135,6 +134,6 @@ export default function WorldClocks({
           Pick a time zone from the list.
         </p>
       )}
-    </Section>
+    </>
   )
 }

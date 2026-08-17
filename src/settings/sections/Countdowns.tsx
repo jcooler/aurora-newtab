@@ -1,6 +1,5 @@
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { Countdown } from '../../lib/storage/schema'
-import Section from '../Section'
 import { row, control, submitBtn } from './shared'
 
 /** Existing countdowns (edit date / remove) plus the add-countdown form.
@@ -28,7 +27,7 @@ export default function Countdowns({
   }
 
   return (
-    <Section title="Countdowns">
+    <>
       {(countdowns ?? []).map((c) => (
         <div key={c.id} className={row}>
           <label htmlFor={`cd-name-${c.id}`} className="sr-only">
@@ -94,6 +93,6 @@ export default function Countdowns({
           </button>
         </div>
       </form>
-    </Section>
+    </>
   )
 }

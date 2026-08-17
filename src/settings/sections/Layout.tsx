@@ -76,6 +76,9 @@ export default function Layout({
 
   return (
     <Section title="Layout">
+      <p className="mb-3 text-sm leading-relaxed text-fg-muted">
+        Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.
+      </p>
       <div className={row}>
         <span className={label}>Widget positions</span>
         <div className="flex gap-2">

@@ -65,7 +65,24 @@ function setRoomy(matches: boolean) {
   })
 }
 
+function setViewportWidth(width: number) {
+  setRoomy(width >= 900)
+}
+
 describe('Tabs (ARIA tabs pattern)', () => {
+  it.each([
+    { width: 899, orientation: 'horizontal', key: 'ArrowRight' },
+    { width: 900, orientation: 'vertical', key: 'ArrowDown' },
+  ])('switches navigation exactly at the $width px boundary', ({ width, orientation, key }) => {
+    setViewportWidth(width)
+    render(<Host />)
+
+    expect(attr(tablist(), 'aria-orientation')).toBe(orientation)
+    fireEvent.keyDown(tablist(), { key })
+    expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(tab('Widgets'))
+  })
+
   it('uses vertical navigation and vertical arrow keys on roomy screens', () => {
     setRoomy(true)
     render(<Host />)
@@ -90,20 +107,21 @@ describe('Tabs (ARIA tabs pattern)', () => {
     expect(attr(tab('Widgets'), 'aria-selected')).toBe('true')
   })
 
-  it('reflows both free three-tab and premium four-tab sets as a bounded narrow grid while preserving 36px targets', () => {
+  it('keeps both free three-tab and premium four-tab sets in one bounded horizontal row', () => {
     const { rerender } = render(<Host />)
-    const assertNarrowGrid = (expected: number) => {
-      expect(tablist().className).toContain('max-[420px]:grid')
-      expect(tablist().className).toContain('max-[420px]:grid-cols-2')
+    const assertNarrowRow = (expected: number) => {
+      expect(tablist().className).not.toContain('max-[420px]:grid')
+      expect(tablist().className).not.toContain('max-[420px]:grid-cols-2')
       expect(screen.getAllByRole('tab')).toHaveLength(expected)
       for (const item of screen.getAllByRole('tab')) {
         expect(item.className.split(/\s+/)).toContain('min-h-9')
         expect(item.className.split(/\s+/)).toContain('min-w-9')
-        expect(item.className).toContain('max-[420px]:w-full')
+        expect(item.className).toContain('max-[420px]:flex-1')
+        expect(item.className).toContain('max-[420px]:min-w-0')
       }
     }
 
-    assertNarrowGrid(3)
+    assertNarrowRow(3)
     rerender(
       <Tabs
         tabs={[...TABS, { id: 'connectors' as Id, label: 'Connectors' }]}
@@ -113,7 +131,18 @@ describe('Tabs (ARIA tabs pattern)', () => {
         <p>general content</p>
       </Tabs>,
     )
-    assertNarrowGrid(4)
+    assertNarrowRow(4)
+  })
+
+  it('uses a 9rem roomy rail and a bounded readable content measure', () => {
+    render(<Host />)
+
+    const shell = tablist().parentElement!
+    expect(shell.className).toContain('min-[900px]:grid-cols-[9rem_minmax(0,1fr)]')
+    const panel = screen.getByRole('tabpanel')
+    expect(panel.className).toContain('max-w-[38rem]')
+    expect(panel.className).toContain('mx-auto')
+    expect(panel.className).not.toContain('overflow-y-auto')
   })
 
   it('renders one tab per entry; only the active one is selected and a tab stop', () => {

@@ -5,10 +5,7 @@ import { useUploads } from '../lib/hooks/useUploads'
 import type { Settings } from '../lib/storage/schema'
 import General from './sections/General'
 import Background from './sections/Background'
-import Weather from './sections/Weather'
 import Widgets from './sections/Widgets'
-import WorldClocks from './sections/WorldClocks'
-import Countdowns from './sections/Countdowns'
 import Data from './sections/Data'
 import Layout from './sections/Layout'
 import About from './sections/About'
@@ -130,13 +127,15 @@ export default function SettingsPanel({
 
       {tab === 'widgets' && (
         <>
-          <Widgets settings={settings} patch={patch} habits={habits} storage={storage} location={location} />
-
-          {location && <Weather location={location} storage={storage} />}
-
-          <WorldClocks worldClocks={worldClocks} storage={storage} />
-
-          <Countdowns countdowns={countdowns} storage={storage} />
+          <Widgets
+            settings={settings}
+            patch={patch}
+            habits={habits}
+            worldClocks={worldClocks}
+            countdowns={countdowns}
+            storage={storage}
+            location={location}
+          />
 
           <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
         </>
