@@ -162,9 +162,6 @@ export default function App() {
 
   const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
   const utilityTools: { id: UtilityToolId; label: string }[] = [
-    ...(settings.widgets.todo ? [{ id: 'tasks' as const, label: 'Tasks' }] : []),
-    ...(settings.widgets.notes ? [{ id: 'notes' as const, label: 'Notes' }] : []),
-    ...(settings.widgets.timer ? [{ id: 'timer' as const, label: 'Timer' }] : []),
     ...(homeAssistant?.enabled && typeof homeAssistant.instanceUrl === 'string' && homeAssistant.instanceUrl.length > 0
       && typeof homeAssistant.token === 'string' && homeAssistant.token.length > 0 && haActionsOf(homeAssistant).length > 0
       ? [{ id: 'homeassistant' as const, label: 'Home Assistant' }]

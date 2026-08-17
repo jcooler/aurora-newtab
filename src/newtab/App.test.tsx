@@ -51,7 +51,7 @@ describe('App Canvas composition', () => {
     }
   })
 
-  it('opens a modeless Utility Tray without making the Desktop Canvas inert', async () => {
+  it('opens a functional modeless Utility Tray without duplicating the direct Canvas tools', async () => {
     await renderApp()
     const invoker = screen.getByRole('button', { name: 'Open utility tray' })
     const dashboard = invoker.closest('.contents')
@@ -62,6 +62,11 @@ describe('App Canvas composition', () => {
     expect(tray.getAttribute('data-utility-tray-mode')).toBe('modeless')
     expect(tray.getAttribute('aria-modal')).toBeNull()
     expect(dashboard?.hasAttribute('inert')).toBe(false)
+    for (const directTool of ['Tasks', 'Notes', 'Timer']) {
+      expect(within(tray).queryByRole('button', { name: directTool })).toBeNull()
+    }
+    expect(within(tray).getByRole('button', { name: 'Refresh' }).getAttribute('aria-pressed')).toBe('true')
+    expect(within(tray).getByRole('region', { name: 'Background refresh' })).toBeTruthy()
   })
 
   it('derives a modal Small Utility Tray, inerts only the Canvas host, and restores its invoker', async () => {
