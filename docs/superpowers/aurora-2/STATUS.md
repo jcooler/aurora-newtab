@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Information-first production readiness remediation<br>
-**Last verified packet:** `PR-P1` - Runtime stability & viewport containment<br>
-**Current packet:** `PR-P2` - Information hierarchy & legibility
+**Last verified packet:** `PR-P2` - Information hierarchy & legibility<br>
+**Current packet:** `PR-P3` - Settings workspace
 
 ## Packet envelope
 
@@ -13,8 +13,9 @@
 - **Current acceptance:** Aurora is information-first. Time, Focus, selected widgets, connectors, and useful actions define the new-tab experience; photography supports atmosphere and legibility. Correct the demonstrated Settings, Weather, toggle stability, typography, contrast, Connector, and Arrange defects, then converge the UI and prove all 23 written common displays.
 - **Approved written design:** The owner approved `docs/superpowers/specs/2026-08-17-aurora-information-first-production-readiness-remediation-design.md` on 2026-08-17. It combines the immediate defect correction and coherent UX cleanup paths, defines five required states at every common viewport, and preserves frozen correctness boundaries.
 - **Executable plan:** `docs/superpowers/plans/2026-08-17-aurora-information-first-production-readiness-remediation.md` defines seven bounded TDD packets, the exact 23-display matrix, the PR-P6 owner visual gate, one final stabilized gate, and the unchanged Store boundary.
-- **Implementation state:** PR-P1 is verified. PR-P2 is current and owns information-first typography, 4K Text size projection, background legibility, meaningful Weather sizes, Bookmark marks, Search clearance, and truthful setting labels.
+- **Implementation state:** PR-P2 is verified. PR-P3 is current and owns the bounded Settings shell, responsive navigation, grouped compact Widget controls, labelled editor disclosures, and concise Layout guidance.
 - **PR-P1 evidence:** Stable identity-owned source slots now preserve exact x, y, size, and layer through widget and connector toggles without layout writes. Runtime viewport ownership publishes only width, height, and Canvas profile. The closed Settings drawer is inert, invisible, non-hit-testable, and fully beyond its inset. Weather details are body-portaled, 8px-clamped, internally scrollable, resize-aware, directionally anchored at every corner, and geometry-neutral to the Canvas. The exact final gate passed 7 files / 103 tests, TypeScript, and diff hygiene. The focused built-extension probe passed four representative displays and eight corner activations with no horizontal overflow, runtime error, or failed request. One Important missing resize witness was closed by mutation-proven focused coverage; no Critical or Important finding remains. Minor stale Weather elevation commentary is assigned to PR-P5 cleanup.
+- **PR-P2 evidence:** Canvas presentation now projects legacy-compatible Standard/Large text without writing storage or changing geometry, exposes shared role typography through explicit Canvas attributes, and uses one pointer-transparent token-based four-wash legibility layer without passive cards. Weather Compact, Standard, and Full now add literal useful rows without blank padding; Bookmark identity marks are mutually exclusive; Search clears fixed controls and its focus outline; `Timer completion sound`, `Daily summary`, and `Text size` replace the unclear prior labels. The exact focused gate passed 12 files / 408 tests plus the 1 file / 3 retired-cascade regression, TypeScript, and diff hygiene. Twelve original Chromium captures across four displays and three background families were inspected individually with recorded type floors, contrast, Search clearance, Weather occupancy, no horizontal overflow, and zero runtime errors or failed requests. The bounded review returned Ready with no Critical or Important defect open. Existing Settings hydration warnings and stale retired Weather commentary remain Minor.
 - **Prior Canvas acceptance (historical):** Restore Aurora's V1 composition and direct free placement while retaining Aurora 2's security, privacy, storage, migration, connector, accessibility, and recovery foundation. Every visible widget must be movable; Bookmarks return to the top; tools return to direct launchers; Focus stays centered; widget sizes must be materially distinct; rich connector content and complete calendars must be restored.
 - **Written design:** The owner approved `docs/superpowers/specs/2026-08-16-aurora-v1-canvas-adaptive-safety-rails-design.md` on 2026-08-16. Internal profile keys remain compatible while the user-facing canvas uses Small, Desktop, Large, and Wide layouts with direct drag, safety rails, and non-occluding editing.
 - **Executable plan:** `docs/superpowers/plans/2026-08-16-aurora-v1-canvas-adaptive-safety-rails.md` defines eight bounded packets, two owner visual gates, one review/fix cycle per packet, checkpoint pushes, and the single post-approval final gate.
@@ -29,7 +30,7 @@
 - **Canvas-P8 evidence:** The owner approved the corrected Packet 7 captures. The one full unit run exposed only an obsolete source-text assertion for the retired Day presentation; the affected behavior family passed 2 files / 29 tests after its removal and the full suite was not repeated. Production and preview builds each transformed 193 modules, and the production bridge scan was clean. The canonical harness run and its one permitted rerun both stopped in the same stale Utility Tray/direct Timer harness family; the rerun passed its first six product assertions before a leftover `timerDialog` reference stopped traversal. The corrected W1-P7-only Chromium family then passed all seven reported checks, including exact restoration and a real advancing clock. No third canonical run occurred. Final original-resolution inspection reconfirmed the accepted captures and `errors: []`; one final review returned Ready with no Critical or Important blocker. The incomplete later canonical traversal is Minor procedural evidence debt under the explicit no-third-run limit.
 - **W6-P3 evidence:** Current official Chrome Web Store policy is mapped to Aurora's executable data-flow inventory. Canonical privacy/listing/Data Usage source was reconciled after two Important disclosure fixes and a Ready rereview. The signed-in live dashboard was then transcribed read-only: publisher `jcooler`, Aurora item `akjalbmacojpmebkgohhcaaiacicpgkh`, live/draft version `1.2.1`, status `Published - public`, five V1 screenshots, and five live 2.0 Data Usage category changes. The privacy URL, remote-code answer, and all three current certifications match. Exact differences are assigned to W6-P4 preparation or W6-P5 action; no dashboard field, package, draft, submission, publication, or rollout changed.
 - **W6-P4 evidence:** Version 2.0.0 is synchronized. `release/aurora-2.0.0.zip` was built once from clean source commit `6fae415`, is 60,443,024 bytes with 59 entries and SHA-256 `31930FEC4A288992EC74FD3173F08FE444D132A00FA7EF51C0900B629F356116`, and passed production manifest/root/leakage guards. Five current 1280x800 Store screenshots passed the real-extension capture gate with zero console/page/request errors and were inspected separately. Listing, release/reviewer notes, checklist, exact field map, and dossier are staged. One Important routable Jira fixture namespace was changed to `.invalid` in `f6d0b6f`; regenerated evidence and the single rereview are Ready with no Critical/Important issue. The live Store remains unchanged.
-- **Remaining gate:** PR-P2 through PR-P7 and a new action-specific W6-P5 approval all remain. Stop before upload, field typing/save, submission, publication, distribution, or rollout.
+- **Remaining gate:** PR-P3 through PR-P7 and a new action-specific W6-P5 approval all remain. Stop before upload, field typing/save, submission, publication, distribution, or rollout.
 
 ## Previous packet envelope
 
@@ -40,6 +41,7 @@
 
 ## Last completed commits
 
+- `077ab0d` - information-first role typography, legibility, meaningful Weather sizes, Bookmark identity, Search safe zone, and truthful setting labels.
 - `8081f9d` - withdrawn release candidate and approved information-first design checkpoint.
 - Plan checkpoint subject: `docs: approve information-first implementation plan`.
 - `2e194bc` - synchronized Aurora 2.0.0 version metadata.
@@ -414,13 +416,13 @@
 
 ## Files intentionally dirty
 
-- None at the PR-P1 checkpoint.
+- None at the PR-P2 checkpoint.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** `PR-P2` - Information hierarchy & legibility
-- **Plan:** Execute the approved PR-P2 acceptance boundary from the seven-packet information-first remediation plan with focused TDD and real Chromium evidence.
-- **State:** PR-P1 is verified. The W6-P4 presentation package remains rejected for release. Do not mutate Store state.
+- **Packet:** `PR-P3` - Settings workspace
+- **Plan:** Execute the approved PR-P3 acceptance boundary from the seven-packet information-first remediation plan with focused TDD and real Chromium evidence.
+- **State:** PR-P2 is verified. The W6-P4 presentation package remains rejected for release. Do not mutate Store state.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -432,9 +434,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: PR-P2
+Starting packet: PR-P3
 Verified historical checkpoint: W6-P4
-Expected next checkpoint subject: docs: checkpoint information-first PR-P2
-Execution: execute PR-P2 through PR-P6 to the owner visual gate, then stop for approval before PR-P7.
+Expected next checkpoint subject: docs: checkpoint information-first PR-P3
+Execution: execute PR-P3 through PR-P6 to the owner visual gate, then stop for approval before PR-P7.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```
