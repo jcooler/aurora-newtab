@@ -5,7 +5,7 @@ import {
   layoutV2FromLegacy,
 } from '../layout/v2'
 import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
-import { migrate, type Migration } from './migrations'
+import { migrate, migrations, type Migration } from './migrations'
 import type { LayoutV2 } from '../layout/types'
 
 const EMPTY_MIGRATED_LAYOUT = {
@@ -724,6 +724,26 @@ describe('v12 -> v13', () => {
   it('a v9 legacy snapshot still migrates to the current version with layouts null', () => {
     const migrated = migrate({ ...defaults(), layout: { clock: { x: 50, y: 20 } } }, 9)
     expect(migrated.layouts).toBeNull()
+  })
+
+  // Guard for index.ts's METADATA_ONLY_FLOOR (11, mirrored here by value):
+  // live init stamps only `aurora:version` for any stored version >= that
+  // floor, which is safe ONLY while every migration step in the range is the
+  // identity. A future packet that adds a NON-identity step without raising
+  // the floor would silently stamp stores whose data was never migrated —
+  // this test makes that mistake fail loudly instead (review fix I1).
+  it('every migration step from the metadata-only floor on is the identity', () => {
+    const probe = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Floor probe' },
+      layout: { clock: { x: 12.25, y: 34.75 } },
+      unknownStore: { future: ['keep'] },
+    }
+    for (let v = 11; v < CURRENT_VERSION; v++) {
+      const before = structuredClone(probe)
+      const out = migrations[v](structuredClone(probe))
+      expect(out, `migrations[${v}] must be the identity`).toEqual(before)
+    }
   })
 })
 

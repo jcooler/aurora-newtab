@@ -17,6 +17,16 @@ function requireFreshId(doc: LayoutsDocument, id: string): void {
   }
 }
 
+/** One name policy for every operation that accepts a name (review fix I2):
+ *  trimmed, and a whitespace-only result is rejected before any document is
+ *  built, so the NL-P3 switcher UI gets identical behavior from create,
+ *  duplicate, and rename. */
+function requireName(name: string): string {
+  const trimmed = name.trim()
+  if (trimmed === '') throw new Error('Layout name cannot be empty')
+  return trimmed
+}
+
 /** Every operation returns a freshly validated document (cleanLayoutsDocument
  *  deep-clones), so callers can hand the result straight to the explicit-save
  *  write path without aliasing the input. */
@@ -34,7 +44,7 @@ export function createLayout(
   next: { id: string; name: string },
 ): LayoutsDocument {
   requireFreshId(doc, next.id)
-  const layout: NamedLayout = { id: next.id, name: next.name, widgets: {} }
+  const layout: NamedLayout = { id: next.id, name: requireName(next.name), widgets: {} }
   return finish({ ...doc, layouts: [...doc.layouts, layout] })
 }
 
@@ -47,7 +57,7 @@ export function duplicateLayout(
   requireFreshId(doc, next.id)
   return finish({
     ...doc,
-    layouts: [...doc.layouts, { ...source, id: next.id, name: next.name }],
+    layouts: [...doc.layouts, { ...source, id: next.id, name: requireName(next.name) }],
   })
 }
 
@@ -57,8 +67,7 @@ export function renameLayout(
   name: string,
 ): LayoutsDocument {
   const index = requireIndex(doc, layoutId)
-  const trimmed = name.trim()
-  if (trimmed === '') throw new Error('Layout name cannot be empty')
+  const trimmed = requireName(name)
   const layouts = doc.layouts.map((layout, i) => (
     i === index ? { ...layout, name: trimmed } : layout
   ))

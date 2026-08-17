@@ -56,6 +56,13 @@ describe('createLayout / duplicateLayout', () => {
     expect(() => createLayout(doc(), { id: 'a', name: 'X' })).toThrow('Layout id "a" already exists')
     expect(() => duplicateLayout(doc(), 'zz', { id: 'c', name: 'X' })).toThrow('No layout with id "zz"')
   })
+
+  it('applies the same trim-and-reject name policy as renameLayout', () => {
+    expect(createLayout(doc(), { id: 'c', name: '  Personal  ' }).layouts[2].name).toBe('Personal')
+    expect(() => createLayout(doc(), { id: 'c', name: '   ' })).toThrow('Layout name cannot be empty')
+    expect(duplicateLayout(doc(), 'a', { id: 'c', name: '  Copy  ' }).layouts[2].name).toBe('Copy')
+    expect(() => duplicateLayout(doc(), 'a', { id: 'c', name: '   ' })).toThrow('Layout name cannot be empty')
+  })
 })
 
 describe('renameLayout', () => {

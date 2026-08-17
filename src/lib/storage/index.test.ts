@@ -414,6 +414,8 @@ describe('createStorage', () => {
       'aurora:version': 11,
       unknown: { sentinel: 'keep' },
     }
+    // A real v11 store predates the layouts key entirely (review fix M5).
+    delete (seed as Record<string, unknown>).layouts
     const before = structuredClone(seed)
     const controlled = controllableDriver(seed, {
       async read(keys, _call, proceed) {
