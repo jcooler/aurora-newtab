@@ -1,87 +1,100 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { BlockId, LayoutProfile, LayoutV2, Priority, WidgetVariant, Zone } from '../../lib/layout/types'
-import { semanticLayoutV2 } from '../../lib/layout/canvasAdapter'
-import { withProfileOverrides } from '../../lib/layout/v2'
-import { closeAllDialogs, hasOpenDialogs, useDialogEscape } from '../../lib/dialogStack'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { adaptStoredLayout, saveCanvasProfile } from '../../lib/layout/canvasAdapter'
+import { CANVAS_PROFILE_LABELS, canvasDefaults, resolveCanvasProfile } from '../../lib/layout/canvasDefaults'
+import type { CanvasProfile, CanvasProfileKey, StoredLayout } from '../../lib/layout/canvasTypes'
+import type { BlockId } from '../../lib/layout/types'
+import { closeAllDialogs, hasOpenDialogs } from '../../lib/dialogStack'
 import { isPremium } from '../../lib/premium'
 import { useStorage } from '../../lib/storage/context'
-import { useLongPress } from './useLongPress'
 import type { ArrangePreview } from './arrangePreview'
 import {
-  applyArrangeEdit,
-  copyProfileDraft,
-  createProfileDraft,
-  effectiveEditablePlacement,
-  resetProfileDraft,
-  undoArrangeEdit,
-  type ArrangeEdit,
-  type ProfileDraft,
-} from './profileEditor'
-import { WIDGET_REGISTRY, type WidgetRegistryEntry } from '../widgetRegistry'
+  bringCanvasItemForward,
+  copyCanvasProfileIntoDraft,
+  createCanvasDraft,
+  moveCanvasItem,
+  moveCanvasItemToBottomBar,
+  moveCanvasItemToCanvas,
+  normalizeCanvasDraft,
+  overlappingCanvasIds,
+  resetCanvasDraft,
+  resizeCanvasItem,
+  restoreCanvasItemDefault,
+  selectCanvasItem,
+  sendCanvasItemBackward,
+  setCanvasItemVisibility,
+  setDesktopEverywhere,
+  undoCanvasDraft,
+  type CanvasDraft,
+} from './canvasDraft'
+import { canvasKeyboardDelta, snapCanvasPosition, type CanvasGuide, type SnapNeighbor } from './canvasSnap'
+import { useLongPress } from './useLongPress'
+import type { WidgetRegistryEntry } from '../widgetRegistry'
 
-const PROFILE_LABELS: Readonly<Record<LayoutProfile, string>> = {
-  compact: 'Compact', standard: 'Standard', display: 'Display', ultrawide: 'Ultrawide',
-}
-const ZONE_LABELS: Readonly<Record<Zone, string>> = {
-  day: 'Day', now: 'Now', pulse: 'Work Pulse', dock: 'Signal Dock',
-}
-const PRIORITY_LABELS: Readonly<Record<Priority, string>> = {
-  pinned: 'Pinned', automatic: 'Automatic', dock: 'Dock',
-}
-const VARIANT_LABELS: Readonly<Record<WidgetVariant, string>> = {
-  compact: 'Compact', standard: 'Standard', expanded: 'Expanded',
-}
+const PROFILE_KEYS: readonly CanvasProfileKey[] = ['compact', 'standard', 'display', 'ultrawide']
+const BOTTOM_BAR_IDS: ReadonlySet<BlockId> = new Set(['bookmarks', 'links', 'timer', 'tasks', 'notes'])
 
 interface ArrangeControllerProps {
-  profile: LayoutProfile
-  layout: LayoutV2
+  profile: CanvasProfileKey
+  layout: StoredLayout
   entries: readonly WidgetRegistryEntry[]
+  viewport: { width: number; height: number }
   onPreviewChange: (preview: ArrangePreview | null) => void
   onModeChange?: (arranging: boolean) => void
+  returnFocusRef?: RefObject<HTMLElement | null>
   openSignal?: number
 }
 
-function fixedButton(active = false): string {
-  return `min-h-9 rounded-md border px-2 py-1 text-sm focus-visible:outline-2 focus-visible:outline-accent ${
-    active ? 'border-accent bg-accent/15 text-accent' : 'border-panel-border text-fg hover:border-accent/60'
-  } disabled:cursor-not-allowed disabled:opacity-40`
+interface DragState {
+  id: BlockId
+  pointerId: number
+  startDraft: CanvasDraft
+  pointerOffset: { x: number; y: number }
+}
+
+function buttonClass(active = false): string {
+  return `arrange-button${active ? ' arrange-button--active' : ''}`
+}
+
+function profileFromDraft(draft: CanvasDraft): CanvasProfile {
+  return normalizeCanvasDraft(draft)
 }
 
 export default function ArrangeController({
   profile,
   layout,
   entries,
+  viewport,
   onPreviewChange,
   onModeChange,
+  returnFocusRef,
   openSignal,
 }: ArrangeControllerProps) {
   const storage = useStorage()
   const [mode, setMode] = useState<'off' | 'on'>('off')
-  const [sessionProfile, setSessionProfile] = useState<LayoutProfile | null>(null)
-  const [sessionEntries, setSessionEntries] = useState<readonly WidgetRegistryEntry[]>([])
-  const [draft, setDraft] = useState<ProfileDraft | null>(null)
-  const [selectedId, setSelectedId] = useState<BlockId | null>(null)
+  const [draft, setDraft] = useState<CanvasDraft | null>(null)
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
-  const [copySource, setCopySource] = useState<LayoutProfile>('compact')
+  const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'pending' | 'error'>('idle')
-  const [useDesktopLayoutEverywhere, setUseDesktopLayoutEverywhere] = useState(false)
-  const overlayRef = useRef<HTMLDivElement>(null)
-  const mountedRef = useRef(true)
-  const modeRef = useRef<'off' | 'on'>('off')
-  const profileRef = useRef(profile)
+  const [announcement, setAnnouncement] = useState('')
+  const modeRef = useRef(mode)
+  const draftRef = useRef<CanvasDraft | null>(draft)
+  const draftsRef = useRef<Partial<Record<CanvasProfileKey, CanvasDraft>>>({})
   const layoutRef = useRef(layout)
   const entriesRef = useRef(entries)
-  const sessionLayoutRef = useRef(layout)
-  const sessionProfileRef = useRef<LayoutProfile | null>(null)
-  const draftRef = useRef<ProfileDraft | null>(null)
+  const profileRef = useRef(profile)
+  const sessionLayoutRef = useRef<StoredLayout | null>(null)
+  const sessionEntriesRef = useRef<readonly WidgetRegistryEntry[]>([])
   const pendingFocusRef = useRef<BlockId | null>(null)
   const entryPromiseRef = useRef<Promise<void> | null>(null)
+  const mountedRef = useRef(true)
+  const dragRef = useRef<DragState | null>(null)
 
-  profileRef.current = profile
-  layoutRef.current = layout
-  entriesRef.current = entries
   modeRef.current = mode
   draftRef.current = draft
+  layoutRef.current = layout
+  entriesRef.current = entries
+  profileRef.current = profile
 
   useEffect(() => {
     mountedRef.current = true
@@ -92,16 +105,61 @@ export default function ArrangeController({
     onModeChange?.(mode === 'on')
   }, [mode, onModeChange])
 
+  const buildDraft = useCallback((target: CanvasProfileKey, preferredId?: BlockId): CanvasDraft => {
+    const sourceLayout = sessionLayoutRef.current ?? layoutRef.current
+    const activeEntries = sessionEntriesRef.current.length > 0 ? sessionEntriesRef.current : entriesRef.current
+    const normalized = adaptStoredLayout(sourceLayout)
+    const saved = normalized.profiles[target]
+    const resolved = resolveCanvasProfile(target, activeEntries, saved)
+    const effective: CanvasProfile = {
+      mode: saved?.mode ?? resolved.mode,
+      placements: { ...saved?.placements, ...resolved.placements },
+    }
+    const defaults = canvasDefaults(target, activeEntries)
+    const selected = preferredId && activeEntries.some((entry) => entry.id === preferredId)
+      ? preferredId
+      : activeEntries[0]?.id ?? null
+    return createCanvasDraft(target, effective, defaults, selected)
+  }, [])
+
+  const previewFor = useCallback((current: CanvasDraft): ArrangePreview => {
+    let source = current
+    if (current.useDesktopLayoutEverywhere && current.profile !== 'standard') {
+      source = draftsRef.current.standard ?? buildDraft('standard', current.selectedId ?? undefined)
+      draftsRef.current.standard = source
+    }
+    return {
+      profile: current.profile,
+      canvas: profileFromDraft(source),
+      inspectorOpen,
+      guides,
+      hiddenIds: [...current.hiddenIds],
+      ...(current.useDesktopLayoutEverywhere ? { useDesktopLayoutEverywhere: true as const } : {}),
+    }
+  }, [buildDraft, guides, inspectorOpen])
+
+  useEffect(() => {
+    if (mode !== 'on' || !draft) return
+    onPreviewChange(previewFor(draft))
+  }, [draft, mode, onPreviewChange, previewFor])
+
+  const replaceDraft = useCallback((next: CanvasDraft) => {
+    draftRef.current = next
+    draftsRef.current[next.profile] = next
+    setDraft(next)
+    setSaveState('idle')
+  }, [])
+
   const measureAll = useCallback(() => {
     const next: Partial<Record<BlockId, DOMRect>> = {}
-    for (const entry of sessionEntries) {
+    for (const entry of sessionEntriesRef.current) {
       const element = document.querySelector<HTMLElement>(`[data-block-id="${entry.id}"]`)
       if (!element) continue
       const rect = element.getBoundingClientRect()
       if (rect.width > 0 || rect.height > 0) next[entry.id] = rect
     }
     setRects(next)
-  }, [sessionEntries])
+  }, [])
 
   useLayoutEffect(() => {
     if (mode !== 'on') return
@@ -112,78 +170,58 @@ export default function ArrangeController({
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', measureAll)
     }
-  }, [mode, draft?.overrides, measureAll])
+  }, [draft?.hiddenIds, draft?.profile, draft?.placements, measureAll, mode])
 
   useEffect(() => {
     if (mode !== 'on' || !pendingFocusRef.current) return
-    const target = overlayRef.current?.querySelector<HTMLButtonElement>(
-      `[aria-label="Edit ${sessionEntries.find((entry) => entry.id === pendingFocusRef.current)?.label ?? ''}"]`,
-    )
+    const entry = sessionEntriesRef.current.find((candidate) => candidate.id === pendingFocusRef.current)
+    const target = entry
+      ? document.querySelector<HTMLButtonElement>(`[aria-label="Edit ${entry.label}"]`)
+      : null
     if (!target) return
     target.focus()
     pendingFocusRef.current = null
-  }, [mode, rects, sessionEntries])
-
-  const publishPreview = useCallback((activeProfile: LayoutProfile, next: ProfileDraft, desktopEverywhere: boolean) => {
-    onPreviewChange({
-      profile: activeProfile,
-      overrides: next.overrides,
-      ...(desktopEverywhere ? { useDesktopLayoutEverywhere: true as const } : {}),
-    })
-  }, [onPreviewChange])
-
-  const publish = useCallback((next: ProfileDraft) => {
-    const activeProfile = sessionProfileRef.current
-    draftRef.current = next
-    setDraft(next)
-    if (activeProfile) publishPreview(activeProfile, next, useDesktopLayoutEverywhere)
-  }, [publishPreview, useDesktopLayoutEverywhere])
+  }, [mode, rects])
 
   const exit = useCallback(() => {
     modeRef.current = 'off'
-    sessionProfileRef.current = null
     draftRef.current = null
+    draftsRef.current = {}
+    sessionLayoutRef.current = null
+    sessionEntriesRef.current = []
+    dragRef.current = null
     setMode('off')
-    setSessionProfile(null)
-    setSessionEntries([])
     setDraft(null)
-    setSelectedId(null)
     setRects({})
+    setInspectorOpen(true)
+    setGuides([])
     setSaveState('idle')
-    setUseDesktopLayoutEverywhere(false)
+    setAnnouncement('')
     onPreviewChange(null)
-  }, [onPreviewChange])
+    returnFocusRef?.current?.focus()
+  }, [onPreviewChange, returnFocusRef])
 
   const cancel = useCallback(() => {
     if (saveState !== 'pending') exit()
   }, [exit, saveState])
 
-  useDialogEscape(cancel, mode === 'on')
-
   const begin = useCallback((preferredId?: BlockId) => {
     if (!isPremium() || modeRef.current === 'on') return
     const start = () => {
       const nextProfile = profileRef.current
-      const nextLayout = layoutRef.current
-      const nextEntries = [...entriesRef.current]
-      const nextDraft = createProfileDraft(nextLayout, nextProfile)
-      const firstId = preferredId && nextEntries.some((entry) => entry.id === preferredId)
-        ? preferredId
-        : nextEntries[0]?.id ?? null
-      sessionLayoutRef.current = nextLayout
-      sessionProfileRef.current = nextProfile
-      draftRef.current = nextDraft
-      pendingFocusRef.current = firstId
-      setSessionProfile(nextProfile)
-      setSessionEntries(nextEntries)
-      setDraft(nextDraft)
-      setSelectedId(firstId)
-      setCopySource(nextProfile === 'compact' ? 'standard' : 'compact')
+      sessionLayoutRef.current = layoutRef.current
+      sessionEntriesRef.current = [...entriesRef.current]
+      const next = buildDraft(nextProfile, preferredId)
+      draftsRef.current = { [nextProfile]: next }
+      draftRef.current = next
+      pendingFocusRef.current = next.selectedId
+      setDraft(next)
+      setInspectorOpen(true)
+      setGuides([])
       setSaveState('idle')
-      setUseDesktopLayoutEverywhere(false)
+      setAnnouncement(next.selectedId ? `${sessionEntriesRef.current.find((entry) => entry.id === next.selectedId)?.label ?? 'Widget'} selected.` : '')
       modeRef.current = 'on'
       setMode('on')
-      onPreviewChange({ profile: nextProfile, overrides: nextDraft.overrides })
     }
     if (!hasOpenDialogs()) {
       start()
@@ -193,7 +231,7 @@ export default function ArrangeController({
     entryPromiseRef.current = closeAllDialogs().then((closed) => {
       if (closed && mountedRef.current && modeRef.current === 'off') start()
     }).finally(() => { entryPromiseRef.current = null })
-  }, [onPreviewChange])
+  }, [buildDraft])
 
   useLongPress(useCallback((blockId: BlockId) => begin(blockId), [begin]))
 
@@ -204,162 +242,348 @@ export default function ArrangeController({
     begin()
   }, [begin, openSignal])
 
-  const edit = useCallback((change: ArrangeEdit) => {
-    const current = draftRef.current
-    const activeProfile = sessionProfileRef.current
-    if (!current || !activeProfile) return
-    const next = applyArrangeEdit(current, activeProfile, sessionEntries, change)
-    if (next !== current) {
-      setSaveState('idle')
-      publish(next)
+  useEffect(() => {
+    if (mode !== 'on') return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      const drag = dragRef.current
+      if (drag) {
+        dragRef.current = null
+        replaceDraft(drag.startDraft)
+        setGuides([])
+        setAnnouncement('Move cancelled.')
+        return
+      }
+      cancel()
     }
-  }, [publish, sessionEntries])
+    document.addEventListener('keydown', onKeyDown, true)
+    return () => document.removeEventListener('keydown', onKeyDown, true)
+  }, [cancel, mode, replaceDraft])
+
+  const select = useCallback((id: BlockId) => {
+    const current = draftRef.current
+    if (!current) return
+    const next = selectCanvasItem(current, id)
+    if (next !== current) {
+      replaceDraft(next)
+      const label = sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? 'Widget'
+      setAnnouncement(`${label} selected.`)
+    }
+    setInspectorOpen(true)
+  }, [replaceDraft])
+
+  const announceMove = useCallback((next: CanvasDraft, id: BlockId) => {
+    const label = sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? 'Widget'
+    const overlaps = overlappingCanvasIds(next, viewport, id)
+      .map((candidate) => sessionEntriesRef.current.find((entry) => entry.id === candidate)?.label ?? candidate)
+    setAnnouncement(`${label} moved.${overlaps.length > 0 ? ` Overlaps ${overlaps.join(', ')}.` : ''}`)
+  }, [viewport])
+
+  const keyboardMove = useCallback((id: BlockId, key: string, fine: boolean) => {
+    const delta = canvasKeyboardDelta(key, fine)
+    const current = draftRef.current
+    const placement = current?.placements[id]
+    if (!delta || !current || placement?.kind !== 'canvas') return false
+    const next = moveCanvasItem(current, id, {
+      x: placement.x + delta.x / viewport.width * 100,
+      y: placement.y + delta.y / viewport.height * 100,
+    })
+    replaceDraft(next)
+    announceMove(next, id)
+    return true
+  }, [announceMove, replaceDraft, viewport.height, viewport.width])
+
+  const switchProfile = useCallback((target: CanvasProfileKey) => {
+    const current = draftRef.current
+    if (!current || current.profile === target) return
+    draftsRef.current[current.profile] = current
+    const stored = draftsRef.current[target] ?? buildDraft(target, current.selectedId ?? undefined)
+    const next = { ...stored, hiddenIds: [...current.hiddenIds] }
+    draftsRef.current[target] = next
+    replaceDraft(next)
+    pendingFocusRef.current = next.selectedId
+    setInspectorOpen(true)
+    setAnnouncement(`${CANVAS_PROFILE_LABELS[target]} preview selected.`)
+  }, [buildDraft, replaceDraft])
 
   const save = useCallback(async () => {
     const current = draftRef.current
-    const activeProfile = sessionProfileRef.current
-    if (!current || !activeProfile || saveState === 'pending') return
+    if (!current || saveState === 'pending') return
     setSaveState('pending')
     try {
-      await storage.update('layout', (stored) => {
-        // This semantic editor is retained only until the Canvas editor lands.
-        // It cannot represent V3 coordinates, layers, or independent profiles,
-        // so fail closed instead of destructively downgrading current Canvas data.
-        if ('version' in stored && stored.version === 3) {
-          throw new Error('Canvas V3 requires the Canvas editor.')
+      const saveLayout = (stored: StoredLayout) => {
+        let next: StoredLayout = stored
+        if (current.useDesktopLayoutEverywhere) {
+          const desktop = draftsRef.current.standard ?? buildDraft('standard')
+          const profileValue = profileFromDraft(desktop)
+          for (const key of PROFILE_KEYS) next = saveCanvasProfile(next, key, profileValue)
+          return next
         }
-        return withProfileOverrides(semanticLayoutV2(stored), activeProfile, current.overrides)
-      })
+        const candidates = Object.values(draftsRef.current)
+          .filter((candidate): candidate is CanvasDraft => Boolean(candidate))
+          .filter((candidate) => candidate.profile === current.profile || candidate.history.length > 0)
+        for (const candidate of candidates) {
+          next = saveCanvasProfile(next, candidate.profile, profileFromDraft(candidate))
+        }
+        return next
+      }
+      if (current.hiddenIds.length > 0) {
+        await storage.updateMany(['layout', 'settings', 'connectors'], ({ layout: stored, settings, connectors }) => {
+          let nextSettings = settings
+          let nextConnectors = connectors
+          for (const id of current.hiddenIds) {
+            const availability = sessionEntriesRef.current.find((entry) => entry.id === id)?.availability
+            if (availability?.kind === 'widget' && nextSettings.widgets[availability.key]) {
+              nextSettings = {
+                ...nextSettings,
+                widgets: { ...nextSettings.widgets, [availability.key]: false },
+              }
+            } else if (availability?.kind === 'connector') {
+              const config = nextConnectors[availability.id]
+              if (config?.enabled === true) {
+                nextConnectors = {
+                  ...nextConnectors,
+                  [availability.id]: { ...config, enabled: false },
+                }
+              }
+            }
+          }
+          return {
+            layout: saveLayout(stored),
+            ...(nextSettings === settings ? {} : { settings: nextSettings }),
+            ...(nextConnectors === connectors ? {} : { connectors: nextConnectors }),
+          }
+        })
+      } else {
+        await storage.update('layout', saveLayout)
+      }
       if (mountedRef.current) exit()
     } catch {
       if (mountedRef.current) setSaveState('error')
     }
-  }, [exit, saveState, storage])
+  }, [buildDraft, exit, saveState, storage])
 
-  if (mode !== 'on' || !sessionProfile || !draft) return null
+  if (mode !== 'on' || !draft) return null
 
-  const selectedEntry = sessionEntries.find((entry) => entry.id === selectedId) ?? null
-  const selectedPlacement = selectedEntry
-    ? effectiveEditablePlacement(sessionProfile, selectedEntry, draft.overrides)
-    : null
-  const locked = selectedPlacement?.locked === true
+  const selectedEntry = sessionEntriesRef.current.find((entry) => entry.id === draft.selectedId) ?? null
+  const selectedPlacement = selectedEntry ? draft.placements[selectedEntry.id] : null
+  const defaults = canvasDefaults(draft.profile, sessionEntriesRef.current)
+  const overlapIds = selectedEntry ? overlappingCanvasIds(draft, viewport, selectedEntry.id) : []
+  const small = draft.profile === 'compact'
 
   return (
     <div
-      ref={overlayRef}
       data-arrange-overlay=""
-      className="fixed inset-0 z-[60] bg-black/10 motion-reduce:transition-none"
+      data-arrange-profile={draft.profile}
+      data-arrange-small-sheet={small && inspectorOpen ? 'true' : undefined}
+      className="arrange-overlay"
     >
-      {sessionEntries.map((entry) => {
-        const rect = rects[entry.id]
-        if (!rect) return null
-        const selected = entry.id === selectedId
+      <div role="toolbar" aria-label="Arrange layout" className="arrange-toolbar">
+        <div role="tablist" aria-label="Canvas previews" className="arrange-profile-tabs">
+          {PROFILE_KEYS.map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={draft.profile === key}
+              className={buttonClass(draft.profile === key)}
+              onClick={() => switchProfile(key)}
+            >{CANVAS_PROFILE_LABELS[key]}</button>
+          ))}
+        </div>
+        <button
+          type="button"
+          aria-pressed={draft.useDesktopLayoutEverywhere}
+          className={buttonClass(draft.useDesktopLayoutEverywhere)}
+          disabled={saveState === 'pending'}
+          onClick={() => replaceDraft(setDesktopEverywhere(draft, !draft.useDesktopLayoutEverywhere))}
+        >Use Desktop layout everywhere</button>
+        {draft.profile !== 'standard' ? (
+          <button
+            type="button"
+            className={buttonClass()}
+            disabled={saveState === 'pending'}
+            onClick={() => {
+              const source = draftsRef.current.standard ?? buildDraft('standard')
+              draftsRef.current.standard = source
+              replaceDraft(copyCanvasProfileIntoDraft(draft, sessionEntriesRef.current.map((entry) => entry.id), profileFromDraft(source)))
+            }}
+          >Copy Desktop layout</button>
+        ) : null}
+        <span className="arrange-toolbar-spacer" />
+        <button type="button" className={buttonClass()} disabled={draft.history.length === 0 || saveState === 'pending'} onClick={() => replaceDraft(undoCanvasDraft(draft))}>Undo</button>
+        <button type="button" className={buttonClass()} disabled={saveState === 'pending'} onClick={() => replaceDraft(resetCanvasDraft(draft, sessionEntriesRef.current.map((entry) => entry.id), defaults))}>Reset</button>
+        <button type="button" className={buttonClass()} disabled={saveState === 'pending'} onClick={cancel}>Cancel</button>
+        <button type="button" className={buttonClass(true)} disabled={saveState === 'pending'} onClick={() => void save()}>{saveState === 'pending' ? 'Saving...' : 'Save'}</button>
+      </div>
+
+      {saveState === 'error' ? <p role="alert" className="arrange-save-error">Layout could not be saved. Review your changes and try again.</p> : null}
+
+      {Object.entries(rects).map(([rawId, rect]) => {
+        const id = rawId as BlockId
+        const entry = sessionEntriesRef.current.find((candidate) => candidate.id === id)
+        if (!entry || !rect) return null
+        const selected = draft.selectedId === id
         return (
           <button
-            key={entry.id}
+            key={id}
             type="button"
             aria-label={`Edit ${entry.label}`}
             aria-pressed={selected}
-            onClick={() => setSelectedId(entry.id)}
-            onKeyDown={(event) => {
-              if (!['ArrowUp', 'ArrowLeft', 'ArrowDown', 'ArrowRight'].includes(event.key)) return
-              event.preventDefault()
-              setSelectedId(entry.id)
-              edit({
-                kind: 'move-order',
-                id: entry.id,
-                delta: event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1,
-              })
-            }}
+            className={`arrange-target${selected ? ' arrange-target--selected' : ''}`}
             style={{ position: 'fixed', left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
-            className={`rounded-md border-2 bg-accent/10 transition-colors motion-reduce:transition-none focus-visible:outline-2 focus-visible:outline-accent ${
-              selected ? 'border-accent' : 'border-accent/55 hover:border-accent'
-            }`}
+            onClick={() => select(id)}
+            onKeyDown={(event) => {
+              select(id)
+              if (!keyboardMove(id, event.key, event.shiftKey)) return
+              event.preventDefault()
+            }}
+            onPointerDown={(event) => {
+              if (event.button !== 0) return
+              event.preventDefault()
+              select(id)
+              event.currentTarget.setPointerCapture?.(event.pointerId)
+              dragRef.current = {
+                id,
+                pointerId: event.pointerId,
+                startDraft: draftRef.current ?? draft,
+                pointerOffset: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+              }
+              setGuides([])
+            }}
+            onPointerMove={(event) => {
+              const drag = dragRef.current
+              if (!drag || drag.id !== id || drag.pointerId !== event.pointerId) return
+              const neighbors: SnapNeighbor[] = Object.entries(rects).flatMap(([candidate, candidateRect]) => (
+                candidate !== id && candidateRect
+                  ? [{ id: candidate as BlockId, left: candidateRect.left, top: candidateRect.top, width: candidateRect.width, height: candidateRect.height }]
+                  : []
+              ))
+              const snapped = snapCanvasPosition({
+                pointer: { x: event.clientX, y: event.clientY },
+                pointerOffset: drag.pointerOffset,
+                box: { width: rect.width, height: rect.height },
+                bounds: viewport,
+                neighbors,
+              })
+              const next = moveCanvasItem(drag.startDraft, id, {
+                x: (snapped.left + rect.width / 2) / viewport.width * 100,
+                y: (snapped.top + rect.height / 2) / viewport.height * 100,
+              })
+              replaceDraft(next)
+              setGuides(snapped.guides)
+            }}
+            onPointerUp={(event) => {
+              const drag = dragRef.current
+              if (!drag || drag.id !== id || drag.pointerId !== event.pointerId) return
+              event.currentTarget.releasePointerCapture?.(event.pointerId)
+              dragRef.current = null
+              setGuides([])
+              if (draftRef.current) announceMove(draftRef.current, id)
+            }}
+            onPointerCancel={() => {
+              const drag = dragRef.current
+              if (!drag || drag.id !== id) return
+              dragRef.current = null
+              replaceDraft(drag.startDraft)
+              setGuides([])
+              setAnnouncement('Move cancelled.')
+            }}
           />
         )
       })}
 
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Arrange ${PROFILE_LABELS[sessionProfile]} profile`}
-        className="fixed bottom-3 left-1/2 max-h-[min(26rem,calc(100vh-1.5rem))] w-[min(58rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-3 text-fg shadow-2xl motion-reduce:transition-none"
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="font-display text-base">Arrange {PROFILE_LABELS[sessionProfile]} profile</h2>
-            <p className="text-sm text-fg-muted">Preview only until Save.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              aria-pressed={useDesktopLayoutEverywhere}
-              className={fixedButton(useDesktopLayoutEverywhere)}
-              disabled={saveState === 'pending'}
-              onClick={() => {
-                const next = !useDesktopLayoutEverywhere
-                setUseDesktopLayoutEverywhere(next)
-                publishPreview(sessionProfile, draft, next)
-              }}
-            >Use Desktop layout everywhere</button>
-            <button type="button" className={fixedButton()} disabled={draft.history.length === 0 || saveState === 'pending'} onClick={() => publish(undoArrangeEdit(draft))}>Undo</button>
-            <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(resetProfileDraft(draft))}>Reset profile</button>
-            <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={cancel}>Cancel</button>
-            <button type="button" className={fixedButton(true)} disabled={saveState === 'pending'} onClick={() => void save()}>{saveState === 'pending' ? 'Saving…' : 'Save'}</button>
-          </div>
-        </div>
+      {guides.map((guide, index) => (
+        <div
+          key={`${guide.axis}-${guide.value}-${index}`}
+          data-canvas-guide={guide.kind}
+          className={`arrange-guide arrange-guide--${guide.axis}`}
+          style={guide.axis === 'x' ? { left: guide.value } : { top: guide.value }}
+        />
+      ))}
 
-        {saveState === 'error' ? <p role="alert" className="mt-2 rounded-md border border-red-400/50 px-3 py-2 text-sm text-red-200">Layout could not be saved. Review your changes and try again.</p> : null}
-
-        <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-panel-border pt-3">
-          <label className="grid gap-1 text-sm">
-            <span>Copy from profile</span>
-            <select className="min-h-9 rounded-md border border-panel-border bg-panel-solid px-2" value={copySource} onChange={(event) => setCopySource(event.target.value as LayoutProfile)}>
-              {(['compact', 'standard', 'display', 'ultrawide'] as const).filter((value) => value !== sessionProfile).map((value) => <option key={value} value={value}>{PROFILE_LABELS[value]}</option>)}
-            </select>
-          </label>
-          <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(copyProfileDraft(draft, sessionLayoutRef.current, copySource, WIDGET_REGISTRY))}>Copy profile</button>
-        </div>
-
-        {selectedEntry && selectedPlacement ? (
-          <section aria-label={`${selectedEntry.label} placement`} className="mt-3 grid gap-3 border-t border-panel-border pt-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-display text-sm">{selectedEntry.label}</h3>
-              <button type="button" aria-pressed={locked} className={fixedButton(locked)} onClick={() => edit({ kind: 'set-locked', id: selectedEntry.id, locked: !locked })}>{locked ? 'Unlock placement' : 'Lock placement'}</button>
+      {inspectorOpen && selectedEntry && selectedPlacement ? (
+        <aside
+          role="complementary"
+          aria-label={`${selectedEntry.label} inspector`}
+          data-arrange-inspector-mode={small ? 'sheet' : 'side'}
+          className={`arrange-inspector${small ? ' arrange-inspector--sheet' : ''}`}
+        >
+          <header className="arrange-inspector-header">
+            <div>
+              <p className="arrange-inspector-eyebrow">Selected widget</p>
+              <h2>{selectedEntry.label}</h2>
             </div>
+            {small ? <button type="button" className={buttonClass()} onClick={() => setInspectorOpen(false)}>Close inspector</button> : null}
+          </header>
 
-            <fieldset disabled={locked || saveState === 'pending'} className="grid gap-3 disabled:opacity-50">
-              <legend className="sr-only">Edit {selectedEntry.label}</legend>
-              <div className="flex flex-wrap gap-2" aria-label="Zone targets">
-                {selectedEntry.eligibleZones.map((zone) => (
-                  <button key={zone} type="button" className={fixedButton(selectedPlacement.zone === zone)} disabled={selectedPlacement.zone === zone} onClick={() => edit({ kind: 'set-zone', id: selectedEntry.id, zone })}>Move to {ZONE_LABELS[zone]}</button>
-                ))}
+          {selectedPlacement.kind === 'canvas' ? (
+            <>
+              <section aria-label="Position" className="arrange-inspector-section">
+                <h3>Position</h3>
+                <p className="arrange-coordinates"><span>X {selectedPlacement.x.toFixed(1)}%</span><span>Y {selectedPlacement.y.toFixed(1)}%</span></p>
+                <div className="arrange-nudge-grid">
+                  {[
+                    ['Move up', 'ArrowUp'], ['Move left', 'ArrowLeft'], ['Move right', 'ArrowRight'], ['Move down', 'ArrowDown'],
+                  ].map(([label, key]) => <button key={key} type="button" className={buttonClass()} onClick={() => keyboardMove(selectedEntry.id, key, false)}>{label}</button>)}
+                </div>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(restoreCanvasItemDefault(draft, selectedEntry.id, defaults.placements[selectedEntry.id], 'position'))}>Restore default position</button>
+              </section>
+
+              <section aria-label="Size" className="arrange-inspector-section">
+                <h3>Size</h3>
+                <div role="radiogroup" aria-label="Widget size" className="arrange-size-options">
+                  {selectedEntry.canvasSizes.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedPlacement.size === size}
+                      className={buttonClass(selectedPlacement.size === size)}
+                      onClick={() => replaceDraft(resizeCanvasItem(draft, selectedEntry, size))}
+                    >{size === 'full' ? 'Full' : size[0].toUpperCase() + size.slice(1)}</button>
+                  ))}
+                </div>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(restoreCanvasItemDefault(draft, selectedEntry.id, defaults.placements[selectedEntry.id], 'size'))}>Restore default size</button>
+              </section>
+            </>
+          ) : <p>Bottom bar position {selectedPlacement.order + 1}</p>}
+
+          {selectedEntry.availability.kind !== 'always' ? (
+            <label className="arrange-visibility">
+              <input
+                type="checkbox"
+                checked={!draft.hiddenIds.includes(selectedEntry.id)}
+                onChange={(event) => {
+                  const next = setCanvasItemVisibility(draft, selectedEntry.id, event.currentTarget.checked)
+                  replaceDraft(next)
+                  setAnnouncement(`${selectedEntry.label} ${event.currentTarget.checked ? 'shown' : 'hidden'} in the preview.`)
+                }}
+              /> Visible
+            </label>
+          ) : null}
+
+          {overlapIds.length > 0 ? (
+            <section aria-label="Overlap" className="arrange-overlap-warning">
+              <p>Overlaps {overlapIds.map((id) => sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? id).join(', ')}.</p>
+              <div>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(bringCanvasItemForward(draft, selectedEntry.id, viewport))}>Bring forward</button>
+                <button type="button" className={buttonClass()} onClick={() => replaceDraft(sendCanvasItemBackward(draft, selectedEntry.id, viewport))}>Send backward</button>
               </div>
-              <div className="flex flex-wrap gap-2" aria-label="Order controls">
-                <button type="button" className={fixedButton()} onClick={() => edit({ kind: 'move-order', id: selectedEntry.id, delta: -1 })}>Move earlier</button>
-                <button type="button" className={fixedButton()} onClick={() => edit({ kind: 'move-order', id: selectedEntry.id, delta: 1 })}>Move later</button>
-              </div>
-              <div className="flex flex-wrap gap-2" aria-label="Presentation variants">
-                {selectedEntry.allowedVariants.map((variant) => (
-                  <button key={variant} type="button" className={fixedButton(selectedPlacement.variant === variant)} disabled={selectedPlacement.variant === variant} onClick={() => edit({ kind: 'set-variant', id: selectedEntry.id, variant })}>{VARIANT_LABELS[variant]}</button>
-                ))}
-              </div>
-              <div className="flex flex-wrap gap-2" aria-label="Priority controls">
-                {(['pinned', 'automatic', 'dock'] as const).map((priority) => (
-                  <button key={priority} type="button" className={fixedButton(selectedPlacement.priority === priority)} disabled={selectedPlacement.priority === priority || (priority === 'dock' && !selectedEntry.eligibleZones.includes('dock'))} onClick={() => edit({ kind: 'set-priority', id: selectedEntry.id, priority })}>{PRIORITY_LABELS[priority]}</button>
-                ))}
-              </div>
-              <div className="flex flex-wrap items-center gap-2" aria-label="Resize controls">
-                <span className="text-sm text-fg-muted">{selectedPlacement.colSpan} columns × {selectedPlacement.rowSpan} rows</span>
-                <button type="button" className={fixedButton()} disabled={selectedPlacement.colSpan <= 1} onClick={() => edit({ kind: 'resize', id: selectedEntry.id, colSpan: selectedPlacement.colSpan - 1 })}>Narrower</button>
-                <button type="button" className={fixedButton()} onClick={() => edit({ kind: 'resize', id: selectedEntry.id, colSpan: selectedPlacement.colSpan + 1 })}>Wider</button>
-                <button type="button" className={fixedButton()} disabled={selectedPlacement.rowSpan <= 1} onClick={() => edit({ kind: 'resize', id: selectedEntry.id, rowSpan: selectedPlacement.rowSpan - 1 })}>Shorter</button>
-                <button type="button" className={fixedButton()} onClick={() => edit({ kind: 'resize', id: selectedEntry.id, rowSpan: selectedPlacement.rowSpan + 1 })}>Taller</button>
-              </div>
-            </fieldset>
-          </section>
-        ) : null}
-      </aside>
+            </section>
+          ) : null}
+
+          {BOTTOM_BAR_IDS.has(selectedEntry.id) ? (
+            selectedPlacement.kind === 'canvas'
+              ? <button type="button" className={buttonClass()} onClick={() => replaceDraft(moveCanvasItemToBottomBar(draft, selectedEntry.id))}>Move to Bottom bar</button>
+              : <button type="button" className={buttonClass()} onClick={() => replaceDraft(moveCanvasItemToCanvas(draft, selectedEntry.id, defaults.placements[selectedEntry.id]))}>Move to Canvas</button>
+          ) : null}
+        </aside>
+      ) : null}
+
+      <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
     </div>
   )
 }

@@ -361,11 +361,14 @@ describe('App Canvas composition', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
     expect(await screen.findByRole('button', { name: 'Edit Weather' })).toBe(document.activeElement)
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasViewportWidth).toBe('1280')
+    fireEvent.click(screen.getByRole('tab', { name: 'Small' }))
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasViewportWidth).toBe('375')
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(document.activeElement).toBe(gear)
   })
 
-  it('keeps the exact stored Canvas layout when the temporary semantic Arrange session is cancelled', async () => {
+  it('previews a Canvas size edit and restores the exact stored layout on Cancel', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const active = this.hasAttribute('data-block-id')
       return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
@@ -380,13 +383,36 @@ describe('App Canvas composition', () => {
     fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Weather' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
-    expect(canvasItem('weather').dataset.canvasSize).toBe(before)
+    fireEvent.click(within(screen.getByRole('complementary', { name: 'Weather inspector' })).getByRole('radio', { name: 'Compact' }))
+    expect(canvasItem('weather').dataset.canvasSize).toBe('compact')
     expect(await storage.get('layout')).toEqual(stored)
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(canvasItem('weather').dataset.canvasSize).toBe(before)
     expect(await storage.get('layout')).toEqual(stored)
+  })
+
+  it('hides a non-required widget only in the live preview until the Arrange session is saved', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const active = this.hasAttribute('data-block-id')
+      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
+    })
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await renderApp(storage)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
+    const inspector = await screen.findByRole('complementary', { name: 'Weather inspector' })
+    fireEvent.click(within(inspector).getByRole('checkbox', { name: 'Visible' }))
+
+    expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
+    expect((await storage.get('settings')).widgets.weather).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(await screen.findByTestId('canvas-item-weather')).toBeTruthy()
+    expect((await storage.get('settings')).widgets.weather).toBe(true)
   })
 
   it('previews Use Desktop layout everywhere on Small without writing', async () => {

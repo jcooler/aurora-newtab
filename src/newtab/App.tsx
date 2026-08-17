@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
-import { adaptStoredLayout, semanticLayoutV2 } from '../lib/layout/canvasAdapter'
+import { adaptStoredLayout } from '../lib/layout/canvasAdapter'
 import type { CanvasSize, StoredLayout } from '../lib/layout/canvasTypes'
-import type { BlockId, LayoutV2 } from '../lib/layout/types'
+import type { BlockId } from '../lib/layout/types'
 import { applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
@@ -36,15 +36,6 @@ function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayou
   }
 }
 
-function semanticLayoutOrNull(value: StoredLayout | null | undefined): LayoutV2 | null {
-  if (!value) return null
-  try {
-    return semanticLayoutV2(value)
-  } catch {
-    return null
-  }
-}
-
 export default function App() {
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
@@ -66,7 +57,6 @@ export default function App() {
   const wasArrangingRef = useRef(false)
 
   const storedLayout = useMemo(() => usableStoredLayout(layout), [layout])
-  const semanticLayout = useMemo(() => semanticLayoutOrNull(storedLayout), [storedLayout])
   const density = settings?.layoutDensity === 'compact'
     || settings?.layoutDensity === 'balanced'
     || settings?.layoutDensity === 'spacious'
@@ -161,14 +151,14 @@ export default function App() {
 
   const inputsReady = Boolean(
     settings && isRecord(settings.widgets) && DENSITY_PREFERENCES.has(settings.layoutDensity)
-      && storedLayout && semanticLayout && connectors && isRecord(connectors),
+      && storedLayout && connectors && isRecord(connectors),
   )
   const activeEntries = useMemo(
     () => inputsReady && settings && connectors ? selectActiveWidgetRegistry(settings, connectors) : [],
     [connectors, inputsReady, settings],
   )
 
-  if (!inputsReady || !settings || !photoPrefs || !storedLayout || !semanticLayout || !connectors) return null
+  if (!inputsReady || !settings || !photoPrefs || !storedLayout || !connectors) return null
 
   const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
   const utilityTools: { id: UtilityToolId; label: string }[] = [
@@ -207,21 +197,36 @@ export default function App() {
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
     return <Renderer {...rendererProps} canvasSize={size} />
   }
+  const previewProfile = arrangePreview?.profile ?? viewport.profile
+  const previewViewport = arrangePreview
+    ? {
+        width: previewProfile === 'compact'
+          ? Math.min(375, viewport.width)
+          : Math.max(1, viewport.width - 320),
+        height: viewport.height,
+      }
+    : viewport
+  const visibleCanvasEntries = arrangePreview?.hiddenIds.length
+    ? activeEntries.filter((entry) => !arrangePreview.hiddenIds.includes(entry.id))
+    : activeEntries
 
   return (
     <main
       data-aurora-canvas=""
-      data-canvas-profile={viewport.profile}
+      data-canvas-profile={previewProfile}
+      data-arranging={arranging ? 'true' : undefined}
+      data-arrange-profile={arranging ? previewProfile : undefined}
+      data-arrange-small-sheet={arranging && previewProfile === 'compact' && arrangePreview?.inspectorOpen ? 'true' : undefined}
       className="aurora-canvas text-fg"
     >
       <div className="contents" inert={arranging || (utilityTrayOpen && viewport.profile === 'compact')}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
         <CanvasSurface
           layout={storedLayout}
-          profileKey={viewport.profile}
-          sourceProfileKey={arrangePreview?.useDesktopLayoutEverywhere ? 'standard' : undefined}
-          entries={activeEntries}
-          viewport={viewport}
+          profileKey={previewProfile}
+          profileOverride={arrangePreview?.canvas}
+          entries={visibleCanvasEntries}
+          viewport={previewViewport}
           elevatedIds={elevatedIds}
           renderWidget={renderWidget}
         />
@@ -277,10 +282,12 @@ export default function App() {
       ><></></UtilityTray>
       <ArrangeController
         profile={viewport.profile}
-        layout={semanticLayout}
+        layout={storedLayout}
         entries={activeEntries}
+        viewport={previewViewport}
         onPreviewChange={setArrangePreview}
         onModeChange={setArranging}
+        returnFocusRef={settingsButtonRef}
         openSignal={arrangeSignal}
       />
     </main>

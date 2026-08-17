@@ -58,6 +58,7 @@ export default function CanvasItem({
       ref={ref}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
+      data-arrange-long-press-controls="true"
       data-canvas-profile={profile}
       data-canvas-size={placement.size}
       data-canvas-kind={placement.kind}

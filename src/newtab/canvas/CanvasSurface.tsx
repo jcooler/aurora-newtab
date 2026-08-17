@@ -2,7 +2,7 @@ import { useMemo, type ReactNode } from 'react'
 import { adaptStoredLayout } from '../../lib/layout/canvasAdapter'
 import { CANVAS_PROFILE_LABELS, resolveCanvasProfile } from '../../lib/layout/canvasDefaults'
 import { canvasMinimumHeight, fitCanvasProfile } from '../../lib/layout/canvasGeometry'
-import type { CanvasProfileKey, CanvasSize, StoredLayout } from '../../lib/layout/canvasTypes'
+import type { CanvasProfile, CanvasProfileKey, CanvasSize, StoredLayout } from '../../lib/layout/canvasTypes'
 import CanvasItem from './CanvasItem'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 
@@ -10,6 +10,7 @@ interface CanvasSurfaceProps {
   layout: StoredLayout
   profileKey: CanvasProfileKey
   sourceProfileKey?: CanvasProfileKey
+  profileOverride?: CanvasProfile
   entries: readonly WidgetRegistryEntry[]
   viewport?: { width: number; height: number }
   elevatedIds?: ReadonlySet<WidgetRegistryEntry['id']>
@@ -28,6 +29,7 @@ export default function CanvasSurface({
   layout,
   profileKey,
   sourceProfileKey,
+  profileOverride,
   entries,
   viewport = liveViewport(),
   elevatedIds,
@@ -37,17 +39,18 @@ export default function CanvasSurface({
   const normalized = useMemo(() => adaptStoredLayout(layout), [layout])
   const resolvedSource = sourceProfileKey ?? profileKey
   const preliminary = useMemo(() => {
+    if (profileOverride) return profileOverride
     return resolveCanvasProfile(resolvedSource, entries, normalized.profiles[resolvedSource])
-  }, [entries, normalized, resolvedSource])
+  }, [entries, normalized, profileOverride, resolvedSource])
   const canvasHeight = canvasMinimumHeight(profileKey, preliminary, viewport.height)
   const resolved = useMemo(() => (
-    resolveCanvasProfile(
+    profileOverride ?? resolveCanvasProfile(
       resolvedSource,
       entries,
       normalized.profiles[resolvedSource],
       { width: viewport.width, height: canvasHeight },
     )
-  ), [canvasHeight, entries, normalized, resolvedSource, viewport.width])
+  ), [canvasHeight, entries, normalized, profileOverride, resolvedSource, viewport.width])
   const fitted = useMemo(
     () => fitCanvasProfile(resolved, { width: viewport.width, height: canvasHeight }),
     [canvasHeight, resolved, viewport.width],
@@ -70,6 +73,8 @@ export default function CanvasSurface({
         data-canvas-source-profile={resolvedSource}
         data-canvas-layout={CANVAS_PROFILE_LABELS[profileKey]}
         data-canvas-mode={fitted.mode}
+        data-canvas-viewport-width={viewport.width}
+        data-canvas-viewport-height={canvasHeight}
         className="canvas-surface"
         style={{ minHeight: `${canvasHeight}px`, height: `${canvasHeight}px` }}
       >

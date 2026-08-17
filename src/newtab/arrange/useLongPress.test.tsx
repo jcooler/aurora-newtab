@@ -196,6 +196,30 @@ describe('useLongPress', () => {
   // fast ALSO started this timer; 500ms later it fired mid-hold, silently
   // dragging the whole Timer widget into arrange mode.
   describe('interactive elements never arm the timer', () => {
+    it('allows the marked direct launcher button to enter Arrange while suppressing its click', () => {
+      const onEngage = vi.fn()
+      const clickSpy = vi.fn()
+      function LauncherHarness() {
+        useLongPress(onEngage as never)
+        return (
+          <div data-block-id="timer" data-arrange-long-press-controls="true">
+            <button type="button" onClick={clickSpy}>Open Timer</button>
+          </div>
+        )
+      }
+      render(<LauncherHarness />)
+      const launcher = screen.getByRole('button', { name: 'Open Timer' })
+
+      fireEvent.pointerDown(launcher, { pointerId: 1, clientX: 100, clientY: 100 })
+      vi.advanceTimersByTime(500)
+      expect(onEngage).toHaveBeenCalledOnce()
+      expect(onEngage.mock.calls[0]![0]).toBe('timer')
+
+      fireEvent.pointerUp(launcher, { pointerId: 1 })
+      fireEvent.click(launcher)
+      expect(clickSpy).not.toHaveBeenCalled()
+    })
+
     it('does NOT engage after a 500ms hold on a <button>, and the button behaves exactly as if long-press did not exist', () => {
       const onEngage = vi.fn()
       render(<Harness onEngage={onEngage} />)

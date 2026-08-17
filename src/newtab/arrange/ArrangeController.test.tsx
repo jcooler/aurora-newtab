@@ -1,222 +1,276 @@
 // @vitest-environment jsdom
-import { useState } from 'react'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createRef, useState } from 'react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { createStorage } from '../../lib/storage/index'
 import { memoryDriver } from '../../lib/storage/driver'
 import { StorageProvider } from '../../lib/storage/context'
-import type { LayoutV2 } from '../../lib/layout/types'
-import type { LayoutV3 } from '../../lib/layout/canvasTypes'
+import type { StoredLayout } from '../../lib/layout/canvasTypes'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
 import type { ArrangePreview } from './arrangePreview'
 import ArrangeController from './ArrangeController'
 
-const ENTRIES = WIDGET_REGISTRY.filter((entry) => ['weather', 'ics', 'monthCal', 'clock', 'habits'].includes(entry.id))
+const ENTRIES = WIDGET_REGISTRY.filter((entry) => ['weather', 'clock', 'focus', 'notes'].includes(entry.id))
 
-function rect(left: number, top: number): DOMRect {
-  return { left, top, width: 180, height: 90, right: left + 180, bottom: top + 90, x: left, y: top, toJSON: () => ({}) } as DOMRect
+function rect(left: number, top: number, width = 180, height = 90): DOMRect {
+  return { left, top, width, height, right: left + width, bottom: top + height, x: left, y: top, toJSON: () => ({}) } as DOMRect
 }
 
 function Fixture({
   layout,
   onPreviewChange,
+  returnFocusRef,
 }: {
-  layout: LayoutV2
+  layout: StoredLayout
   onPreviewChange: (preview: ArrangePreview | null) => void
+  returnFocusRef: ReturnType<typeof createRef<HTMLButtonElement>>
 }) {
   const [signal, setSignal] = useState(0)
+  const [arranging, setArranging] = useState(false)
   return (
     <>
-      <button type="button" onClick={() => setSignal((value) => value + 1)}>Open editor</button>
-      {ENTRIES.map((entry, index) => <div key={entry.id} data-block-id={entry.id} data-test-index={index}>{entry.label}</div>)}
+      <button ref={returnFocusRef} type="button" onClick={() => setSignal((value) => value + 1)}>Open editor</button>
+      <div data-canvas-content="" inert={arranging}>
+        <div data-canvas-surface="" data-test-surface="">
+          {ENTRIES.map((entry, index) => (
+            <div key={entry.id} data-block-id={entry.id} data-test-index={index}>
+              <span data-testid={`surface-${entry.id}`}>{entry.label} surface</span>
+              <button type="button">{entry.label} content</button>
+            </div>
+          ))}
+        </div>
+      </div>
       <ArrangeController
         profile="standard"
         layout={layout}
         entries={ENTRIES}
+        viewport={{ width: 1200, height: 800 }}
         onPreviewChange={onPreviewChange}
+        onModeChange={setArranging}
+        returnFocusRef={returnFocusRef}
         openSignal={signal}
       />
     </>
   )
 }
 
-async function setup(seed: LayoutV2 = { version: 2, profiles: {} }) {
+async function setup(seed: StoredLayout = { version: 3, profiles: {} }) {
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.hasAttribute('data-test-surface')) return rect(0, 0, 1200, 800)
     const index = Number(this.getAttribute('data-test-index') ?? -1)
-    return index >= 0 ? rect(24 + index * 190, 40 + (index % 2) * 110) : rect(0, 0)
+    return index >= 0 ? rect(24 + index * 230, 120 + (index % 2) * 150, 200, 100) : rect(0, 0)
   })
   const storage = createStorage(memoryDriver())
   await storage.init()
   await storage.set('layout', seed)
   const onPreviewChange = vi.fn<(preview: ArrangePreview | null) => void>()
+  const returnFocusRef = createRef<HTMLButtonElement>()
   render(
     <StorageProvider storage={storage}>
-      <Fixture layout={seed} onPreviewChange={onPreviewChange} />
+      <Fixture layout={seed} onPreviewChange={onPreviewChange} returnFocusRef={returnFocusRef} />
     </StorageProvider>,
   )
-  fireEvent.click(screen.getByRole('button', { name: 'Open editor' }))
-  await screen.findByRole('dialog', { name: 'Arrange Standard profile' })
-  return { storage, onPreviewChange }
+  const open = screen.getByRole('button', { name: 'Open editor' })
+  open.focus()
+  fireEvent.click(open)
+  await screen.findByRole('toolbar', { name: 'Arrange layout' })
+  return { storage, onPreviewChange, open }
 }
 
 function latestPreview(spy: ReturnType<typeof vi.fn>): ArrangePreview | null {
   return spy.mock.calls.at(-1)?.[0] as ArrangePreview | null
 }
 
-describe('semantic ArrangeController', () => {
+describe('Canvas ArrangeController', () => {
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+    Object.defineProperty(HTMLElement.prototype, 'releasePointerCapture', { configurable: true, value: vi.fn() })
+  })
+
   afterEach(() => {
     cleanup()
     vi.restoreAllMocks()
   })
 
-  it('opens a preview-only active-profile session with logical focus and visible edit targets', async () => {
-    const seed: LayoutV2 = { version: 2, profiles: { compact: {
-      weather: { zone: 'day', order: 3, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' },
-    } } }
-    const { storage, onPreviewChange } = await setup(seed)
-    const update = vi.spyOn(storage, 'update')
-
-    const weather = await screen.findByRole('button', { name: 'Edit Weather' })
-    expect(weather).toBe(document.activeElement)
-    expect(latestPreview(onPreviewChange)).toEqual({ profile: 'standard', overrides: {} })
-    expect(screen.getByRole('button', { name: 'Move to Day' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Wider' })).toBeTruthy()
-    expect(update).not.toHaveBeenCalled()
-  })
-
-  it('previews zone, variant, priority, span, lock, keyboard reorder, and Undo without writing', async () => {
+  it('opens from Settings with one inert real-content preview, every visible edit target, and the four real profile tabs', async () => {
     const { storage, onPreviewChange } = await setup()
     const update = vi.spyOn(storage, 'update')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Habits' }))
-    const region = screen.getByRole('region', { name: 'Habits placement' })
 
-    fireEvent.click(within(region).getByRole('button', { name: 'Move to Day' }))
-    fireEvent.click(within(region).getByRole('button', { name: 'Compact' }))
-    fireEvent.click(within(region).getByRole('button', { name: 'Pinned' }))
-    fireEvent.click(within(region).getByRole('button', { name: 'Wider' }))
-    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Habits' }), { key: 'ArrowUp' })
-    fireEvent.click(within(region).getByRole('button', { name: 'Lock placement' }))
-
-    expect(latestPreview(onPreviewChange)?.overrides.habits).toMatchObject({
-      zone: 'day', variant: 'compact', priority: 'pinned', colSpan: 2, locked: true,
-    })
+    expect(document.querySelector('[data-canvas-content]')?.hasAttribute('inert')).toBe(true)
+    for (const entry of ENTRIES) expect(screen.getByRole('button', { name: `Edit ${entry.label}` })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Edit Weather' })).toBe(document.activeElement)
+    const toolbar = screen.getByRole('toolbar', { name: 'Arrange layout' })
+    expect(within(toolbar).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Small', 'Desktop', 'Large', 'Wide'])
+    for (const name of ['Undo', 'Reset', 'Cancel', 'Save']) expect(within(toolbar).getByRole('button', { name })).toBeTruthy()
+    expect(latestPreview(onPreviewChange)?.profile).toBe('standard')
     expect(update).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-    expect(latestPreview(onPreviewChange)?.overrides.habits?.locked).not.toBe(true)
   })
 
-  it('copies another profile, resets the draft, and restores the latest edit with Undo', async () => {
-    const seed: LayoutV2 = { version: 2, profiles: { compact: {
-      weather: { zone: 'day', order: 9, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' },
-    } } }
-    const { onPreviewChange } = await setup(seed)
-    fireEvent.click(screen.getByRole('button', { name: 'Copy profile' }))
-    expect(latestPreview(onPreviewChange)?.overrides.weather).toEqual(seed.profiles.compact?.weather)
-    fireEvent.click(screen.getByRole('button', { name: 'Reset profile' }))
-    expect(latestPreview(onPreviewChange)?.overrides).toEqual({})
-    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
-    expect(latestPreview(onPreviewChange)?.overrides.weather).toEqual(seed.profiles.compact?.weather)
-  })
-
-  it('Cancel performs no write and clears the preview exactly', async () => {
-    const seed: LayoutV2 = { version: 2, profiles: { standard: {
-      weather: { zone: 'day', order: 4, colSpan: 2, rowSpan: 2, variant: 'standard', priority: 'automatic' },
-    } }, legacy: { weather: { x: 12, y: 34 } } }
-    const { storage, onPreviewChange } = await setup(seed)
-    const update = vi.spyOn(storage, 'update')
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Weather' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
+  it('opens from a long press on visible widget content', async () => {
+    await setup()
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-
-    expect(update).not.toHaveBeenCalled()
-    expect(await storage.get('layout')).toEqual(seed)
-    expect(latestPreview(onPreviewChange)).toBeNull()
-    expect(screen.queryByRole('dialog', { name: 'Arrange Standard profile' })).toBeNull()
+    vi.useFakeTimers()
+    try {
+      fireEvent.pointerDown(screen.getByTestId('surface-clock'), { pointerId: 4, clientX: 100, clientY: 100 })
+      act(() => vi.advanceTimersByTime(500))
+      expect(screen.getByRole('toolbar', { name: 'Arrange layout' })).toBeTruthy()
+      expect(screen.getByRole('button', { name: 'Edit Clock' })).toBe(document.activeElement)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it('Save commits only the edited profile and preserves other profiles plus legacy', async () => {
-    const seed: LayoutV2 = { version: 2, profiles: {
-      compact: { clock: { zone: 'now', order: 0, colSpan: 2, rowSpan: 2, variant: 'compact', priority: 'pinned' } },
-      standard: {},
-      display: { weather: { zone: 'day', order: 7, colSpan: 3, rowSpan: 2, variant: 'expanded', priority: 'automatic' } },
-    }, legacy: { weather: { x: 10, y: 20 } } }
-    const { storage, onPreviewChange } = await setup(seed)
+  it('switches actual preview profiles and previews Desktop everywhere with zero writes', async () => {
+    const { storage, onPreviewChange } = await setup()
     const update = vi.spyOn(storage, 'update')
-    fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Small' }))
+    expect(latestPreview(onPreviewChange)?.profile).toBe('compact')
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ size: 'compact' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Use Desktop layout everywhere' }))
+    expect(latestPreview(onPreviewChange)?.profile).toBe('compact')
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ size: 'full' })
+    expect(latestPreview(onPreviewChange)?.useDesktopLayoutEverywhere).toBe(true)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('selects every item directly and exposes only applicable inspector controls', async () => {
+    await setup()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Notes' }))
+    const inspector = screen.getByRole('complementary', { name: 'Notes inspector' })
+    expect(within(inspector).getByText(/X \d/)).toBeTruthy()
+    expect(within(inspector).getByText(/Y \d/)).toBeTruthy()
+    expect(within(inspector).getAllByRole('radio').map((radio) => radio.textContent)).toEqual(['Compact'])
+    expect(within(inspector).getByRole('checkbox', { name: 'Visible' })).toBeTruthy()
+    expect(within(inspector).getByRole('button', { name: 'Restore default position' })).toBeTruthy()
+    expect(within(inspector).getByRole('button', { name: 'Restore default size' })).toBeTruthy()
+    expect(within(inspector).getByRole('button', { name: 'Move to Bottom bar' })).toBeTruthy()
+    expect(within(inspector).queryByRole('button', { name: 'Bring forward' })).toBeNull()
+  })
+
+  it('previews visibility in the undoable draft and atomically disables the widget only on Save', async () => {
+    const { storage, onPreviewChange } = await setup()
+    const update = vi.spyOn(storage, 'update')
+    const updateMany = vi.spyOn(storage, 'updateMany')
+    const inspector = screen.getByRole('complementary', { name: 'Weather inspector' })
+    const visible = within(inspector).getByRole('checkbox', { name: 'Visible' })
+
+    fireEvent.click(visible)
+    expect(latestPreview(onPreviewChange)?.hiddenIds).toEqual(['weather'])
+    expect(update).not.toHaveBeenCalled()
+    expect(updateMany).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    expect(latestPreview(onPreviewChange)?.hiddenIds).toEqual([])
+    fireEvent.click(visible)
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await act(async () => {})
 
-    const saved = await storage.get('layout') as LayoutV2
-    expect(update).toHaveBeenCalledTimes(1)
-    expect(saved.profiles.standard?.weather).toMatchObject({ variant: 'compact', colSpan: 1, rowSpan: 1 })
-    expect(saved.profiles.compact).toEqual(seed.profiles.compact)
-    expect(saved.profiles.display).toEqual(seed.profiles.display)
-    expect(saved.legacy).toEqual(seed.legacy)
-    expect(latestPreview(onPreviewChange)).toBeNull()
+    expect(update).not.toHaveBeenCalled()
+    expect(updateMany).toHaveBeenCalledTimes(1)
+    expect((await storage.get('settings')).widgets.weather).toBe(false)
+    expect(await storage.get('layout')).toMatchObject({ version: 3 })
   })
 
-  it('refuses a legacy semantic Save when Canvas V3 is current and preserves it exactly', async () => {
-    const { storage } = await setup()
-    const canvas: LayoutV3 = {
+  it('captures pointer drag, keeps the real content mounted, publishes live draft movement, and clears guides', async () => {
+    const { storage, onPreviewChange } = await setup()
+    const update = vi.spyOn(storage, 'update')
+    const target = screen.getByRole('button', { name: 'Edit Weather' })
+    const before = latestPreview(onPreviewChange)?.canvas.placements.weather
+
+    fireEvent.pointerDown(target, { pointerId: 7, clientX: 80, clientY: 150 })
+    expect(target.setPointerCapture).toHaveBeenCalledWith(7)
+    fireEvent.pointerMove(target, { pointerId: 7, clientX: 510, clientY: 400 })
+    expect(latestPreview(onPreviewChange)?.canvas.placements.weather).not.toEqual(before)
+    expect(screen.getByRole('button', { name: 'Weather content' })).toBeTruthy()
+    fireEvent.pointerUp(target, { pointerId: 7, clientX: 510, clientY: 400 })
+    expect(document.querySelectorAll('[data-canvas-guide]')).toHaveLength(0)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('moves by 8px or 1px from the keyboard and announces movement and overlap', async () => {
+    const seed: StoredLayout = {
       version: 3,
-      profiles: {
-        standard: {
-          mode: 'custom',
-          placements: {
-            clock: { kind: 'canvas', x: 50, y: 38, size: 'full', layer: 0 },
-            notes: { kind: 'canvas', x: 84, y: 74, size: 'standard', layer: 1 },
-          },
-        },
-        display: {
-          mode: 'custom',
-          placements: {
-            weather: { kind: 'canvas', x: 12, y: 18, size: 'standard', layer: 0 },
-          },
-        },
-      },
-      recovery: { semanticV2: { version: 2, profiles: {} } },
+      profiles: { standard: { mode: 'custom', placements: {
+        clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 0 },
+        focus: { kind: 'canvas', x: 50, y: 40, size: 'standard', layer: 1 },
+      } } },
     }
-    await storage.set('layout', canvas)
-    const before = JSON.stringify(await storage.get('layout'))
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    const alert = await screen.findByRole('alert')
-
-    expect(alert.textContent).toBe('Layout could not be saved. Review your changes and try again.')
-    expect(JSON.stringify(await storage.get('layout'))).toBe(before)
-    expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
+    const { onPreviewChange } = await setup(seed)
+    const target = screen.getByRole('button', { name: 'Edit Clock' })
+    fireEvent.keyDown(target, { key: 'ArrowRight' })
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ x: 50 + 8 / 1200 * 100 })
+    fireEvent.keyDown(target, { key: 'ArrowDown', shiftKey: true })
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).toMatchObject({ y: 40 + 1 / 800 * 100 })
+    expect(screen.getByRole('status').textContent).toMatch(/Clock moved.*overlaps Focus/i)
+    const inspector = screen.getByRole('complementary', { name: 'Clock inspector' })
+    expect(within(inspector).getByRole('button', { name: 'Bring forward' })).toBeTruthy()
+    expect(within(inspector).getByRole('button', { name: 'Send backward' })).toBeTruthy()
   })
 
-  it('keeps a rejected Save editable and never exposes the thrown value', async () => {
-    const { storage } = await setup()
+  it('uses Escape to cancel an active move before cancelling the whole session', async () => {
+    const { storage, onPreviewChange } = await setup()
+    const update = vi.spyOn(storage, 'update')
+    const target = screen.getByRole('button', { name: 'Edit Weather' })
+    const before = latestPreview(onPreviewChange)?.canvas.placements.weather
+    fireEvent.pointerDown(target, { pointerId: 3, clientX: 80, clientY: 150 })
+    fireEvent.pointerMove(target, { pointerId: 3, clientX: 600, clientY: 500 })
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.getByRole('toolbar', { name: 'Arrange layout' })).toBeTruthy()
+    expect(latestPreview(onPreviewChange)?.canvas.placements.weather).toEqual(before)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('toolbar', { name: 'Arrange layout' })).toBeNull()
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('Cancel restores the exact stored value and the invoking focus', async () => {
+    const seed: StoredLayout = { clock: { x: 33, y: 44 } }
+    const { storage, onPreviewChange, open } = await setup(seed)
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Clock' }), { key: 'ArrowRight' })
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    expect(await storage.get('layout')).toEqual(seed)
+    expect(latestPreview(onPreviewChange)).toBeNull()
+    expect(document.activeElement).toBe(open)
+  })
+
+  it('performs one atomic successful Save, writes V3 recovery, and re-enters from the saved profile', async () => {
+    const seed: StoredLayout = { version: 2, profiles: {} }
+    const { storage } = await setup(seed)
+    const update = vi.spyOn(storage, 'update')
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Clock' }), { key: 'ArrowRight' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await act(async () => {})
+
+    expect(update).toHaveBeenCalledTimes(1)
+    const saved = await storage.get('layout')
+    expect(saved).toMatchObject({ version: 3, recovery: { semanticV2: seed } })
+    expect(screen.queryByRole('toolbar', { name: 'Arrange layout' })).toBeNull()
+  })
+
+  it('keeps a failed Save open with a sanitized alert and the complete draft', async () => {
+    const { storage, onPreviewChange } = await setup()
+    const before = latestPreview(onPreviewChange)?.canvas.placements.clock
     vi.spyOn(storage, 'update').mockRejectedValueOnce(new Error('secret-token capability://private'))
+    fireEvent.keyDown(screen.getByRole('button', { name: 'Edit Clock' }), { key: 'ArrowRight' })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     const alert = await screen.findByRole('alert')
 
     expect(alert.textContent).toBe('Layout could not be saved. Review your changes and try again.')
     expect(document.body.textContent).not.toContain('secret-token')
-    expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
+    expect(latestPreview(onPreviewChange)?.canvas.placements.clock).not.toEqual(before)
+    expect(screen.getByRole('toolbar', { name: 'Arrange layout' })).toBeTruthy()
   })
 
-  it('does not let Escape turn an in-flight Save into an apparent Cancel', async () => {
-    const { storage } = await setup()
-    let release!: (value: LayoutV2) => void
-    const pending = new Promise<LayoutV2>((resolve) => { release = resolve })
-    vi.spyOn(storage, 'update').mockImplementationOnce(() => pending)
-    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
-    expect(screen.getByRole('button', { name: 'Saving…' }).hasAttribute('disabled')).toBe(true)
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(screen.getByRole('dialog', { name: 'Arrange Standard profile' })).toBeTruthy()
-    release({ version: 2, profiles: {} })
-    await act(async () => {})
-    expect(screen.queryByRole('dialog', { name: 'Arrange Standard profile' })).toBeNull()
-  })
-
-  it('Escape cancels the preview without persistence', async () => {
-    const { storage, onPreviewChange } = await setup()
-    const update = vi.spyOn(storage, 'update')
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(update).not.toHaveBeenCalled()
-    expect(latestPreview(onPreviewChange)).toBeNull()
+  it('uses a dismissible Small inspector sheet that replaces the preview', async () => {
+    await setup()
+    fireEvent.click(screen.getByRole('tab', { name: 'Small' }))
+    const inspector = screen.getByRole('complementary', { name: 'Weather inspector' })
+    expect(inspector.getAttribute('data-arrange-inspector-mode')).toBe('sheet')
+    expect(document.querySelector('[data-arrange-small-sheet="true"]')).toBeTruthy()
+    fireEvent.click(within(inspector).getByRole('button', { name: 'Close inspector' }))
+    expect(screen.queryByRole('complementary')).toBeNull()
+    expect(document.querySelector('[data-arrange-small-sheet="true"]')).toBeNull()
   })
 })
