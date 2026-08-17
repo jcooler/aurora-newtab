@@ -5,6 +5,7 @@ import type { StoredLayout } from '../../lib/layout/canvasTypes'
 import type { LayoutV2 } from '../../lib/layout/types'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
 import CanvasSurface from './CanvasSurface'
+import indexCss from '../index.css?raw'
 
 const ENTRIES = WIDGET_REGISTRY.filter(({ id }) => ['bookmarks', 'clock', 'focus', 'weather', 'timer'].includes(id))
 
@@ -106,6 +107,10 @@ describe('CanvasSurface', () => {
     })
     expect(within(screen.getByRole('navigation', { name: 'Bottom bar' })).getByTestId('canvas-item-timer')).toBeTruthy()
     expect(screen.getAllByTestId('canvas-item-timer')).toHaveLength(1)
+  })
+
+  it('preserves intrinsic Bottom bar item widths so sibling launchers cannot paint over each other', () => {
+    expect(indexCss).toMatch(/\.canvas-bottom-bar \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
   })
 
   it('falls back only a corrupt block and does not render disabled identities', () => {

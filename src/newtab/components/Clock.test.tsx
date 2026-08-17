@@ -69,6 +69,10 @@ describe('index.css - Canvas type roles', () => {
   it('shows the useful date for Standard and Full Canvas clock sizes', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-block-id="clock"\]:not\(\[data-canvas-size="compact"\]\)[^{]*\[data-clock-date\][^{]*\{[\s\S]*?display: block;/)
   })
+
+  it('does not apply the finite-width glyph cap to the large Full Clock', () => {
+    expect(indexCss).toMatch(/\.board-item:not\(\.board-item--dock\):not\(\[data-stage-variant="expanded"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*calc\(37\.6471cqi - 0\.7529px\)\);/)
+  })
 })
 
 describe('index.css — .text-photo utility', () => {
@@ -119,7 +123,7 @@ describe('index.css — responsive custom variants', () => {
     expect(indexCss).toMatch(/--bookmarks-chip-px: 0\.625rem;/)
     expect(indexCss).toMatch(/--bookmarks-gap: 0\.375rem;/)
     const narrowStep = indexCss.indexOf('@media (max-width: 1024px)')
-    const compactStep = indexCss.indexOf('@media (max-width: 720px)')
+    const compactStep = indexCss.indexOf('@media (max-width: 720px)', narrowStep)
     expect(narrowStep).toBeGreaterThan(-1)
     expect(compactStep).toBeGreaterThan(narrowStep)
     expect(indexCss.slice(compactStep)).toMatch(/--bookmarks-chip-px: 0;/)

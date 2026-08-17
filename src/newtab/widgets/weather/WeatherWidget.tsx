@@ -135,6 +135,11 @@ export default function WeatherWidget({
         || panelRef.current?.contains(target)
         || triggerRef.current?.contains(target)) return
       closeExpanded()
+      // A pointer's native focus action runs after pointerdown dispatch and
+      // can overwrite closeExpanded's immediate restoration. Reassert on the
+      // next task so outside-click dismissal ends on the disclosure trigger
+      // just like Escape and second activation do.
+      window.setTimeout(() => triggerRef.current?.focus(), 0)
     }
     document.addEventListener('pointerdown', onPointerDown)
     return () => document.removeEventListener('pointerdown', onPointerDown)

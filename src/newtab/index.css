@@ -92,6 +92,14 @@
   scrollbar-width: thin;
 }
 
+/* Bottom-bar launchers participate in a flex row, so they must publish their
+   intrinsic button width. Inline-size containment makes every wrapper report
+   a zero flex base and lets later launchers paint over earlier siblings. */
+.canvas-bottom-bar .canvas-item {
+  container-type: normal;
+  width: max-content;
+}
+
 .arrange-artboard-workspace {
   position: fixed;
   z-index: 1;
@@ -1920,12 +1928,13 @@ select > option {
   padding-inline: 8px;
 }
 
-/* A finite Board Clock footprint can be narrower than the legacy
-   viewport-derived two-digit glyph box (the compact 800x600 allocation and a
-   user-pinned 3x2 Day override are both causal fixtures). Preserve the same
-   typeface and scale curve, but cap its local type size by the BoardItem's
-   actual inline container so the digits paint inside their allocation. */
-.board-item:not(.board-item--dock)[data-block-id="clock"] time {
+/* A finite Compact or Standard Board Clock footprint can be narrower than
+   the viewport-derived two-digit glyph box (the compact 800x600 allocation
+   and a user-pinned 3x2 Day override are both causal fixtures). Preserve the
+   same typeface and scale curve, but cap those smaller variants by their real
+   inline container. Full is the intentionally large 4K presentation and must
+   retain --clock-font instead of inheriting this compact safety ceiling. */
+.board-item:not(.board-item--dock):not([data-stage-variant="expanded"])[data-block-id="clock"] time {
   font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px));
 }
 

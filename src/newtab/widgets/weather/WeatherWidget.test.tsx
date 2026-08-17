@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
@@ -746,6 +746,22 @@ describe('WeatherWidget viewport-owned details', () => {
     fireEvent.click(openToggle())
     expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
     expect(document.activeElement).toBe(trigger)
+  })
+
+  it('reasserts trigger focus after an outside pointer default action moves it', async () => {
+    await renderWidget()
+    const trigger = toggle()
+    trigger.focus()
+    await expandPanel()
+
+    act(() => {
+      fireEvent.pointerDown(document.body)
+      document.body.tabIndex = -1
+      document.body.focus()
+    })
+    expect(document.activeElement).toBe(document.body)
+
+    await waitFor(() => expect(document.activeElement).toBe(trigger))
   })
 })
 
