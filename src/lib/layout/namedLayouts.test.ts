@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  ANCHOR_POINTS,
   LAYOUTS_DOCUMENT_VALIDATION_MESSAGE,
   LayoutsDocumentValidationError,
+  anchorForPoint,
   cleanLayoutsDocument,
+  freePlacementFromPoint,
   isLayoutsDocument,
+  pointFromFreePlacement,
   type LayoutsDocument,
 } from './namedLayouts'
 
@@ -92,6 +96,33 @@ describe('cleanLayoutsDocument', () => {
     badOffset.layouts[0].widgets.clock = { kind: 'free', anchor: 'center', offsetX: Infinity, offsetY: 0, tier: 'full', layer: 0 }
     for (const bad of [badBulk, badOrder, badOffset]) {
       expect(() => cleanLayoutsDocument(bad)).toThrow(LayoutsDocumentValidationError)
+    }
+  })
+})
+
+describe('anchor math', () => {
+  it('picks the nearest of nine anchors per axis with 25/75 boundaries', () => {
+    expect(anchorForPoint(0, 0)).toBe('top-left')
+    expect(anchorForPoint(50, 50)).toBe('center')
+    expect(anchorForPoint(100, 100)).toBe('bottom-right')
+    expect(anchorForPoint(24.9, 50)).toBe('left')
+    expect(anchorForPoint(25, 50)).toBe('left') // tie goes to the edge
+    expect(anchorForPoint(25.1, 50)).toBe('center')
+    expect(anchorForPoint(50, 75)).toBe('bottom') // tie goes to the edge
+    expect(anchorForPoint(74.9, 10)).toBe('top')
+    expect(anchorForPoint(75, 10)).toBe('top-right')
+  })
+
+  it('round-trips every quadrant point exactly through placement and back', () => {
+    for (const point of [
+      { x: 12.25, y: 88.5 }, { x: 50, y: 50 }, { x: 0, y: 0 },
+      { x: 99.9, y: 3.2 }, { x: 33.4, y: 66.6 },
+    ]) {
+      const placement = freePlacementFromPoint({ ...point, tier: 'standard', layer: 3 })
+      expect(pointFromFreePlacement(placement)).toEqual({ x: point.x, y: point.y })
+      expect(placement.tier).toBe('standard')
+      expect(placement.layer).toBe(3)
+      expect(ANCHOR_POINTS[placement.anchor]).toBeDefined()
     }
   })
 })

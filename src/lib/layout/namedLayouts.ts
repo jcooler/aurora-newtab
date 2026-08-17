@@ -163,3 +163,53 @@ export function isLayoutsDocument(value: unknown): value is LayoutsDocument {
     return false
   }
 }
+
+export const ANCHOR_POINTS: Readonly<Record<LayoutAnchor, { x: number; y: number }>> = Object.freeze({
+  'top-left': { x: 0, y: 0 },
+  top: { x: 50, y: 0 },
+  'top-right': { x: 100, y: 0 },
+  left: { x: 0, y: 50 },
+  center: { x: 50, y: 50 },
+  right: { x: 100, y: 50 },
+  'bottom-left': { x: 0, y: 100 },
+  bottom: { x: 50, y: 100 },
+  'bottom-right': { x: 100, y: 100 },
+})
+
+/** Nearest of {0, 50, 100} per axis; 25/75 are the equidistance boundaries
+ *  and ties go to the edge. */
+function axisBucket(value: number): 0 | 1 | 2 {
+  if (value <= 25) return 0
+  if (value >= 75) return 2
+  return 1
+}
+
+const ANCHOR_GRID: readonly (readonly LayoutAnchor[])[] = [
+  ['top-left', 'top', 'top-right'],
+  ['left', 'center', 'right'],
+  ['bottom-left', 'bottom', 'bottom-right'],
+]
+
+export function anchorForPoint(x: number, y: number): LayoutAnchor {
+  return ANCHOR_GRID[axisBucket(y)][axisBucket(x)]
+}
+
+export function freePlacementFromPoint(
+  point: { x: number; y: number; tier: WidgetTier; layer: number },
+): FreeWidgetPlacement {
+  const anchor = anchorForPoint(point.x, point.y)
+  const reference = ANCHOR_POINTS[anchor]
+  return {
+    kind: 'free',
+    anchor,
+    offsetX: point.x - reference.x,
+    offsetY: point.y - reference.y,
+    tier: point.tier,
+    layer: point.layer,
+  }
+}
+
+export function pointFromFreePlacement(placement: FreeWidgetPlacement): { x: number; y: number } {
+  const reference = ANCHOR_POINTS[placement.anchor]
+  return { x: reference.x + placement.offsetX, y: reference.y + placement.offsetY }
+}
