@@ -933,7 +933,11 @@ select > option {
     minmax(0, clamp(15rem, 22vw, 28rem))
     minmax(20rem, 1fr)
     minmax(0, clamp(15rem, 22vw, 28rem));
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* The first semantic row fills spare height, but its real rendered content
+     is the minimum. If Now is taller than the remaining viewport, it pushes
+     Dock below itself and the Stage's single vertical scrollport owns the
+     excess instead of the two regions painting through each other. */
+  grid-template-rows: minmax(max-content, 1fr) auto;
   grid-template-areas: "day now pulse" "dock dock dock";
   align-items: start;
 }
@@ -1062,7 +1066,10 @@ select > option {
   grid-area: dock;
   grid-auto-flow: column;
   grid-template-rows: minmax(var(--stage-track-min), auto);
-  min-block-size: var(--stage-dock-block-size);
+  /* The planner reservation belongs to the parent Stage row. Painting that
+     entire reservation here creates a large empty slab when compact Dock
+     content needs only one real row. Let this surface shrink-wrap its row. */
+  min-block-size: 0;
   width: max-content;
   max-width: 100%;
   justify-self: center;
@@ -1216,26 +1223,23 @@ select > option {
   outline-offset: 2px;
 }
 
-/* The Dock's horizontal scroller would otherwise clip an anchored
-   Bookmarks folder at the emergency-height tier. Keep the normal-height
-   scroller intact so its launcher cannot jump when the panel opens. */
 @media (max-height: 200px) {
   .stage-zone--dock.stage-zone--elevated-high {
     overflow: visible;
     z-index: 50;
   }
 
-  /* A location search is an open Weather surface, not a passive card. The
-     emergency-height grid may compress Day to zero before the Dock yields;
-     anchor that active surface to the viewport so its two entry controls do
-     not end up above the visible canvas while the results list stays below. */
+  /* Calm Canvas keeps the semantic Now -> Day -> Pulse -> Dock order even at
+     the 180px emergency fencepost. The Stage owns vertical scrolling, so an
+     open Weather setup stays in normal grid flow instead of becoming a fixed
+     overlay across the Clock and Dock. Relative positioning preserves its
+     elevated suggestion-list stack without taking it out of that flow. */
   .board-item[data-block-id="weather"].z-30 {
-    position: fixed;
-    top: 8px;
-    left: 8px;
-    width: min(20rem, calc(100vw - 1rem));
+    position: relative;
+    inset: auto;
+    width: auto;
     height: max-content;
-    z-index: 40;
+    z-index: 30;
   }
 }
 
@@ -2166,6 +2170,20 @@ select > option {
 .adaptive-stage .board-item[data-block-id="links"] > section > div > span {
   box-sizing: border-box;
   width: var(--stage-control-target);
+}
+/* The Now launcher shelf is a labeled destination surface, not a condensed
+   Dock instrument. Preserve a readable label measure for Compact, Standard,
+   and Expanded allocations; the horizontal Dock keeps its deliberate 36px
+   condensed tiles and owned scroll behavior. */
+.stage-zone--now .board-item[data-block-id="links"] > section > div {
+  width: 80px;
+  min-width: 80px;
+}
+.stage-zone--now .board-item[data-block-id="links"] > section > div > span {
+  width: 80px;
+}
+.stage-zone--now .board-item[data-block-id="habits"] > div {
+  margin-inline: auto;
 }
 .adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "] {
   /* Keep the 36/44px removal target in the label band. Only its top 8px

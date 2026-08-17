@@ -21,6 +21,7 @@ describe('LinkTile navigation', () => {
     )
     const anchor = container.querySelector('a')
     expect(anchor?.getAttribute('href')).toBe('https://example.test/path')
+    expect(anchor?.getAttribute('aria-label')).toBe('Destination')
     expect(anchor?.getAttribute('target')).toBeNull()
   })
 

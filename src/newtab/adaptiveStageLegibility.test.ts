@@ -42,10 +42,18 @@ describe('Adaptive Stage compact legibility contract', () => {
       .toMatch(/display:\s*inline\s*;/)
   })
 
-  it('sizes the Stage grid to the padded viewport content box without intrinsic growth', () => {
+  it('sizes the Stage grid to the padded viewport and lets a content-tall first row push Dock into Stage scroll', () => {
     const declarations = declarationBlock('.adaptive-stage__grid')
     expect(declarations).toMatch(/height:\s*calc\(100dvh - var\(--stage-inset\) - var\(--stage-inset\)\)\s*;/)
     expect(declarations).toMatch(/min-height:\s*0\s*;/)
+    expect(declarations).toMatch(/grid-template-rows:\s*minmax\(max-content,\s*1fr\) auto\s*;/)
+  })
+
+  it('keeps the open compact Weather setup in semantic flow at emergency heights', () => {
+    const declarations = declarationBlock('.board-item[data-block-id="weather"].z-30')
+    expect(declarations).toMatch(/position:\s*relative\s*;/)
+    expect(declarations).toMatch(/inset:\s*auto\s*;/)
+    expect(declarations).not.toMatch(/position:\s*fixed\s*;/)
   })
 
   it.each([
@@ -148,6 +156,25 @@ describe('Adaptive Stage compact legibility contract', () => {
     expect(remove).toMatch(/top:\s*calc\(var\(--stage-control-target\) - 8px\)\s*;/)
     expect(remove).toMatch(/width:\s*var\(--stage-control-target\)\s*;/)
     expect(remove).toMatch(/height:\s*var\(--stage-control-target\)\s*;/)
+  })
+
+  it('keeps every Now launcher label on a readable 80px measure across variants', () => {
+    const tile = lastDeclarationBlock('.stage-zone--now .board-item[data-block-id="links"] > section > div')
+    expect(tile).toMatch(/width:\s*80px\s*;/)
+    expect(tile).toMatch(/min-width:\s*80px\s*;/)
+    expect(lastDeclarationBlock('.stage-zone--now .board-item[data-block-id="links"] > section > div > span'))
+      .toMatch(/width:\s*80px\s*;/)
+  })
+
+  it('lets the Dock surface shrink to its real content instead of painting its planner reservation', () => {
+    const dock = declarationBlock('.stage-zone--dock')
+    expect(dock).toMatch(/min-block-size:\s*0\s*;/)
+    expect(dock).not.toMatch(/min-block-size:\s*var\(--stage-dock-block-size\)/)
+  })
+
+  it('keeps the fixed-width Habits stack on the centered Now axis', () => {
+    expect(declarationBlock('.stage-zone--now .board-item[data-block-id="habits"] > div'))
+      .toMatch(/margin-inline:\s*auto\s*;/)
   })
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {

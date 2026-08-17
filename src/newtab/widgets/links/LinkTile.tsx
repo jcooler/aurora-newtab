@@ -35,6 +35,7 @@ export default function LinkTile({
     >
       <a
         href={link.url}
+        aria-label={link.title}
         onKeyDown={(e) => {
           // Keyboard reorder: Alt+Arrow moves the tile
           if (e.altKey && e.key === 'ArrowLeft' && index > 0) {

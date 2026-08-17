@@ -395,9 +395,9 @@ export default function LocationSetup() {
                   i === activeIndex ? 'bg-control-bg-hover text-fg' : 'text-fg-muted'
                 }`}
               >
-                <span className="truncate">{m.name}</span>
+                <span className="shrink-0">{m.name}</span>
                 {secondary && (
-                  <span className="truncate text-xs text-fg-muted">— {secondary}</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-fg-muted">— {secondary}</span>
                 )}
               </li>
             )

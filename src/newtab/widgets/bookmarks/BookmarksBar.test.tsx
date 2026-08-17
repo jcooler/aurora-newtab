@@ -586,28 +586,22 @@ describe('BookmarksBar', () => {
     // and this rect (width 256px, matching the w-64 panel) sits far enough
     // right that its right edge (1156) overflows by 140px once the 8px
     // margin is accounted for.
-    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
-      left: 900,
-      right: 1156,
-      top: 0,
-      bottom: 0,
-      width: 256,
-      height: 0,
-      x: 900,
-      y: 0,
-      toJSON() {},
-    })
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        if (this === folderChip) {
+          return { left: 950, right: 1000, top: 20, bottom: 56, width: 50, height: 36, x: 950, y: 20, toJSON() {} } as DOMRect
+        }
+        return { left: 0, right: 256, top: 0, bottom: 100, width: 256, height: 100, x: 0, y: 0, toJSON() {} } as DOMRect
+      },
+    )
 
     await act(async () => {
       fireEvent.click(folderChip)
     })
     const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
 
-    // Nudged left by exactly the overflow amount, on top of the default
-    // -50% centering (Tailwind v4 compiles -translate-x-1/2 to the CSS
-    // `translate` property, not `transform` — see the comment in
-    // FolderPopover.tsx on why the inline style targets `translate`).
-    expect(dialog.style.translate).toBe('calc(-50% - 140px) 0')
+    expect(dialog.style.left).toBe('760px')
+    expect(dialog.style.top).toBe('62px')
 
     rectSpy.mockRestore()
   })
@@ -619,16 +613,12 @@ describe('BookmarksBar', () => {
     const originalHeight = window.innerHeight
     Object.defineProperty(window, 'innerWidth', { value: 320, configurable: true })
     Object.defineProperty(window, 'innerHeight', { value: 180, configurable: true })
-    const rectSpy = vi.spyOn(HTMLDivElement.prototype, 'getBoundingClientRect').mockImplementation(
-      function (this: HTMLDivElement) {
-        const translate = this.style.translate
-        const xMatch = translate.match(/([+-])\s(\d+)px\)/)
-        const yMatch = this.style.transform.match(/translateY\((-?\d+)px\)/)
-        const appliedX = xMatch ? (xMatch[1] === '+' ? 1 : -1) * Number(xMatch[2]) : 0
-        const appliedY = yMatch ? Number(yMatch[1]) : 0
-        const left = 120 + appliedX
-        const top = 150 + appliedY
-        return { left, right: left + 256, top, bottom: top + 164, width: 256, height: 164, x: left, y: top, toJSON() {} } as DOMRect
+    const rectSpy = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(
+      function (this: Element) {
+        if (this === folderChip) {
+          return { left: 280, right: 320, top: 140, bottom: 176, width: 40, height: 36, x: 280, y: 140, toJSON() {} } as DOMRect
+        }
+        return { left: 0, right: 256, top: 0, bottom: 164, width: 256, height: 164, x: 0, y: 0, toJSON() {} } as DOMRect
       },
     )
 
@@ -637,14 +627,14 @@ describe('BookmarksBar', () => {
     })
     const dialog = await screen.findByRole('dialog', { name: 'Work bookmarks' })
     expect(dialog.classList.contains('max-h-[calc(100dvh-1rem)]')).toBe(true)
-    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
-    expect(dialog.style.transform).toBe('translateY(-142px)')
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
 
     await act(async () => {
       fireEvent(window, new Event('resize'))
     })
-    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
-    expect(dialog.style.transform).toBe('translateY(-142px)')
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
 
     const focused = screen.getByRole('button', { name: 'Projects' })
     focused.focus()
@@ -656,8 +646,8 @@ describe('BookmarksBar', () => {
       fireEvent.click(focused)
     })
     expect(await screen.findByRole('dialog', { name: 'Projects bookmarks' })).toBe(dialog)
-    expect(dialog.style.translate).toBe('calc(-50% - 64px) 0')
-    expect(dialog.style.transform).toBe('translateY(-142px)')
+    expect(dialog.style.left).toBe('56px')
+    expect(dialog.style.top).toBe('8px')
 
     rectSpy.mockRestore()
     Object.defineProperty(window, 'innerWidth', { value: originalWidth, configurable: true })
@@ -676,7 +666,7 @@ describe('BookmarksBar', () => {
     }
   })
 
-  it('renders no fixed-position element inside the bar; backdrop portals to <body>', async () => {
+  it('closes on an outside pointer without installing a viewport click interceptor', async () => {
     await renderBar(nestedModel)
     const folderChip = await screen.findByRole('button', { name: 'Work' })
 
@@ -695,35 +685,49 @@ describe('BookmarksBar', () => {
     // inside the nav may be position-fixed, ever.
     expect(nav.querySelector('.fixed')).toBeNull()
 
-    // The popover panel anchors to its chip wrapper (absolute), not the
-    // viewport (fixed) — that's what pins it visually under the clicked chip.
-    expect(dialog.classList.contains('absolute')).toBe(true)
-    expect(dialog.classList.contains('fixed')).toBe(false)
+    // The panel is portaled to body and positioned from its chip. Keeping it
+    // outside the Dock scrollport prevents a visible menu from being clipped
+    // or sending focus-driven horizontal scroll into the entire Stage.
+    expect(dialog.classList.contains('fixed')).toBe(true)
+    expect(dialog.parentElement).toBe(document.body)
 
-    // The click-outside catcher escapes the bar's subtree via a portal to
-    // <body>, where fixed inset-0 really means the whole viewport.
+    // A body-level fixed backdrop can still outrank the bar when an ancestor
+    // creates a stacking context. That makes a visibly-open popover entirely
+    // unclickable in Chromium, so outside dismissal must not rely on one.
     const bodyBackdrop = [...document.body.children].find(
       (el) => el.matches('div[aria-hidden="true"]') && el.classList.contains('fixed'),
     )
-    expect(bodyBackdrop).toBeTruthy()
+    expect(bodyBackdrop).toBeUndefined()
 
-    // And it still closes the popover.
+    // The document-level pointer handler still provides native-menu-style
+    // outside dismissal without covering any interactive content.
     await act(async () => {
-      fireEvent.click(bodyBackdrop!)
+      fireEvent.pointerDown(document.body)
     })
     expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
   })
 
-  // Bookmarks-stacking bug fix (bug: popovers opened but nothing inside was
-  // clickable — see App.tsx's comment on the bookmarks PositionedBlock for
-  // the full root-cause writeup). The nav lost `position: fixed` when its
-  // placement classes moved out to the App.tsx wrapper (commit 1125413),
-  // leaving its conditional z-20/z-50 classes sitting on a `position:
-  // static` element, where z-index has no effect at all — chips would stay
-  // under FolderPopover's z-40 body-portaled catcher even once the wrapper
-  // itself stopped being a transform-created stacking context. `relative`
-  // (no visual offset, just a `position` value) is what makes those
-  // z-index classes apply again.
+  it('lets the active folder chip close its own popover without reopening it', async () => {
+    await renderBar(nestedModel)
+    const folderChip = await screen.findByRole('button', { name: 'Work' })
+
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Work bookmarks' })).toBeTruthy()
+
+    await act(async () => {
+      fireEvent.pointerDown(folderChip)
+    })
+    await act(async () => {
+      fireEvent.click(folderChip)
+    })
+    expect(screen.queryByRole('dialog', { name: 'Work bookmarks' })).toBeNull()
+  })
+
+  // The nav's local z-20/z-50 classes still require a positioned element.
+  // The portaled panel owns global layering; this class only orders the
+  // active chip against its sibling launchers.
   it('the nav carries `relative` so its z-20/z-50 classes actually apply (bookmarks-stacking bug fix)', async () => {
     await renderBar(nestedModel)
     const nav = await screen.findByRole('navigation', { name: 'Bookmarks bar' })

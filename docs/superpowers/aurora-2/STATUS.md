@@ -5,13 +5,14 @@
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Wave 6 - Full product QA and Store release candidate<br>
 **Last verified packet:** `W6-P2` - Responsive, mixed-DPI, zoom, keyboard, and accessibility QA<br>
-**Current packet:** Release-blocking Calm Canvas visual remediation; revised specification approved and executable implementation plan in progress
+**Current packet:** Release-blocking Calm Canvas visual remediation; implementation and complete UI audit are ready for owner visual approval
 
 ## Packet envelope
 
 - **Acceptance:** Replace the visually unacceptable stretched Adaptive Stage composition with the owner-approved V1-first Calm Canvas while preserving frozen data, migration, registry, profile, density, capacity, accessibility, privacy, permission, and Store boundaries.
 - **Implementation scope:** Centered Now anchor; content-sized Day and Work Pulse clusters; compact launcher and bottom surfaces; inventory-driven real-browser coverage of every shipped UI surface and meaningful state. No Store action, schema change, migration change, registry identity change, stored-data rewrite, permission change, credential/capability handling change, or protected-original mutation.
-- **Remaining gates:** RED-first implementation from `docs/superpowers/plans/2026-08-16-calm-canvas-remediation.md`; 17 representative full-page witnesses plus indexed surface/state interaction evidence; one review/fix-rereview cycle; owner visual approval; final gates once; checkpoint/push. W6-P3 dashboard reconciliation resumes afterward.
+- **Current evidence:** 17 composition witnesses and 24 interaction/state captures were inspected at original resolution. All 26 registry identities rendered without duplicates. Focused implementation passed 4 files / 83 tests; the review fix passed 31/31 bookmark tests; preview TypeScript/build transformed 189 modules; corrected bookmark and Weather browser families passed. One review/fix-rereview cycle is Ready with no Critical or Important issue open. See `docs/superpowers/reports/CALM-CANVAS-UI-INVENTORY.md` and `docs/superpowers/reports/CALM-CANVAS-QA.md`.
+- **Remaining gates:** Owner visual approval; then the full unit suite, production/preview builds, and canonical browser harness once; final ledger/checkpoint/push/equality proof; automatic W6-P3 continuation. Chrome Web Store actions remain blocked through W6-P5.
 
 ## Previous packet envelope
 

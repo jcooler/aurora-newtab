@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
@@ -36,17 +36,18 @@ export default function FolderPopover({
   title,
   items,
   folders,
+  anchor,
   onClose,
 }: {
   title: string
   items: BookmarkItem[]
   folders: BookmarkFolder[]
+  anchor: HTMLElement
   onClose: () => void
 }) {
   const panelRef = useRef<HTMLDivElement>(null)
   const [stack, setStack] = useState<BookmarkFolder[]>([])
-  const [edgeShift, setEdgeShift] = useState({ x: 0, y: 0 })
-  const appliedShiftRef = useRef({ x: 0, y: 0 })
+  const [position, setPosition] = useState({ left: EDGE_MARGIN, top: EDGE_MARGIN })
   const top = stack[stack.length - 1]
   const currentTitle = top ? top.title : title
   const currentItems = top ? top.items : items
@@ -56,37 +57,49 @@ export default function FolderPopover({
   // Newest-first shared stack (src/lib/dialogStack.ts).
   useDialogEscape(onClose)
 
-  // The panel is centered under its chip by default (left-1/2 -translate-x-1/2
-  // below) — CSS alone can't correct for a chip near the left/right edge of
-  // the viewport, since that centering is relative to the chip, not the
-  // viewport. Measure once per open/drill (jsdom has no layout engine, so
-  // getBoundingClientRect() is an all-zero rect there — the width===0 guard
-  // makes this a no-op in tests unless a test deliberately mocks it) and
-  // nudge horizontally by the smallest amount that brings both edges back
-  // within EDGE_MARGIN of the viewport.
+  // A full-viewport backdrop can sit above this anchored popover when any
+  // ancestor creates a stacking context. Chromium then paints the menu but
+  // routes every pointer event to the backdrop, making the visible controls
+  // unusable. Listen for outside pointers instead, so dismissal never places
+  // an element over the menu itself.
+  useEffect(() => {
+    const handleOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (
+        target instanceof Node
+        && !panelRef.current?.contains(target)
+        && !anchor.contains(target)
+      ) onClose()
+    }
+    document.addEventListener('pointerdown', handleOutsidePointer)
+    return () => document.removeEventListener('pointerdown', handleOutsidePointer)
+  }, [anchor, onClose])
+
+  // The menu is portaled out of the Dock's horizontal scrollport. Position
+  // it from the live chip rectangle and clamp it to the viewport on every
+  // open, drill, resize, or content-size change.
   useLayoutEffect(() => {
     let frame: number | null = null
     const measure = () => {
       frame = null
       const el = panelRef.current
       if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (rect.width === 0) return
-      const applied = appliedShiftRef.current
-      const baseLeft = rect.left - applied.x
-      const baseRight = rect.right - applied.x
-      const baseTop = rect.top - applied.y
-      const baseBottom = rect.bottom - applied.y
-      let x = 0
-      let y = 0
-      if (baseLeft < EDGE_MARGIN) x = EDGE_MARGIN - baseLeft
-      else if (baseRight > window.innerWidth - EDGE_MARGIN) x = window.innerWidth - EDGE_MARGIN - baseRight
-      if (rect.height > 0) {
-        if (baseTop < EDGE_MARGIN) y = EDGE_MARGIN - baseTop
-        else if (baseBottom > window.innerHeight - EDGE_MARGIN) y = window.innerHeight - EDGE_MARGIN - baseBottom
-      }
-      appliedShiftRef.current = { x, y }
-      setEdgeShift((current) => current.x === x && current.y === y ? current : { x, y })
+      const panelRect = el.getBoundingClientRect()
+      const anchorRect = anchor.getBoundingClientRect()
+      if (panelRect.width === 0 || anchorRect.width === 0) return
+      const maxLeft = Math.max(EDGE_MARGIN, window.innerWidth - EDGE_MARGIN - panelRect.width)
+      const left = Math.min(
+        maxLeft,
+        Math.max(EDGE_MARGIN, anchorRect.left + anchorRect.width / 2 - panelRect.width / 2),
+      )
+      const belowTop = anchorRect.bottom + 6
+      const aboveTop = anchorRect.top - 6 - panelRect.height
+      const belowSpace = window.innerHeight - EDGE_MARGIN - belowTop
+      const aboveSpace = anchorRect.top - EDGE_MARGIN - 6
+      const preferredTop = panelRect.height <= belowSpace || belowSpace >= aboveSpace ? belowTop : aboveTop
+      const maxTop = Math.max(EDGE_MARGIN, window.innerHeight - EDGE_MARGIN - panelRect.height)
+      const next = { left, top: Math.min(maxTop, Math.max(EDGE_MARGIN, preferredTop)) }
+      setPosition((current) => current?.left === next.left && current.top === next.top ? current : next)
     }
     const schedule = () => {
       if (frame !== null) return
@@ -96,54 +109,25 @@ export default function FolderPopover({
     window.addEventListener('resize', schedule)
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule)
     observer?.observe(panelRef.current!)
+    observer?.observe(anchor)
     return () => {
       window.removeEventListener('resize', schedule)
       observer?.disconnect()
       if (frame !== null) window.cancelAnimationFrame(frame)
     }
-  }, [currentTitle, currentItems.length, currentFolders.length])
+  }, [anchor, currentTitle, currentItems.length, currentFolders.length])
 
-  return (
-    <>
-      {/* The click-outside catcher must NOT render inside the bar: the nav's
-          -translate-x-1/2 transform makes it the containing block for fixed
-          descendants, which would shrink "inset-0" to the bar's own box and
-          stack the catcher ABOVE the sibling chips — turning every chip click
-          into a close. Portal to <body>, where fixed inset-0 is really the
-          viewport. Transparent (no dim): this is a dropdown menu, not a
-          modal — the first outside click just dismisses, like the native
-          bookmarks bar. Kept a SIBLING of the dialog, not an ancestor —
-          nesting role="dialog" inside an aria-hidden element trips Chrome's
-          "Blocked aria-hidden" warning when useFocusTrap moves focus in. */}
-      {createPortal(
-        <div aria-hidden onClick={onClose} className="fixed inset-0 z-40" />,
-        document.body,
-      )}
-      {/* Anchored under the clicked chip via its `relative` wrapper —
-          absolute positioning resolves against that wrapper, so the nav's
-          transform is harmless here (unlike position:fixed). z-50 inside the
-          nav's stacking context (the nav itself is z-50 while open), above
-          the body-level z-40 catcher. */}
+  return createPortal(
       <div
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-label={`${currentTitle} bookmarks`}
-        // Tailwind v4 compiles -translate-x-1/2 to the native CSS `translate`
-        // property (not `transform`), so overriding it here — rather than
-        // `style.transform` — is what actually wins over the class. Only set
-        // when a shift is needed: leaving it undefined otherwise means the
-        // class alone controls centering, unchanged from before this effect
-        // existed.
-        style={
-          edgeShift.x || edgeShift.y
-            ? {
-              ...(edgeShift.x ? { translate: `calc(-50% ${edgeShift.x >= 0 ? '+' : '-'} ${Math.abs(edgeShift.x)}px) 0` } : {}),
-              ...(edgeShift.y ? { transform: `translateY(${edgeShift.y}px)` } : {}),
-            }
-            : undefined
-        }
-        className="absolute left-1/2 top-full z-50 mt-1.5 max-h-[calc(100dvh-1rem)] w-64 -translate-x-1/2 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+        style={{
+          left: position.left,
+          top: position.top,
+        }}
+        className="fixed z-50 max-h-[calc(100dvh-1rem)] w-64 overflow-y-auto rounded-panel border border-panel-border bg-panel-solid p-1 text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
       >
           {top && (
             <button
@@ -189,7 +173,7 @@ export default function FolderPopover({
               ))}
             </ul>
           )}
-      </div>
-    </>
+      </div>,
+    document.body,
   )
 }

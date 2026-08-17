@@ -183,6 +183,7 @@ function BookmarksBarInner({
   const [model, setModel] = useState<BarModel | null>(null)
   // One popover open at a time: a folder chip's id, or OVERFLOW_ID, or null.
   const [openId, setOpenId] = useState<string | null>(null)
+  const [openAnchor, setOpenAnchor] = useState<HTMLElement | null>(null)
 
   // Read through a ref (same idiom as dialogStack.ts's useDialogEscape and
   // useLongPress.ts's onEngageRef) so the mount-once/unmount-once effect
@@ -250,11 +251,12 @@ function BookmarksBarInner({
   // useEffect keyed on `openId`) so App's mirrored state — and the wrapper
   // z-index it drives — updates in the SAME commit as the popover itself,
   // never a frame behind.
-  const setOpen = (next: string | null) => {
+  const setOpen = (next: string | null, anchor: HTMLElement | null = null) => {
     setOpenId(next)
+    setOpenAnchor(next === null ? null : anchor)
     onPopoverOpenChange?.(next !== null)
   }
-  const toggle = (id: string) => setOpen(openId === id ? null : id)
+  const toggle = (id: string, anchor: HTMLElement) => setOpen(openId === id ? null : id, anchor)
 
   return (
     <nav
@@ -272,47 +274,9 @@ function BookmarksBarInner({
       // does nothing regardless of value, so z-20/z-50 below have been
       // silently inert since that commit.
       //
-      // IMPORTANT — `relative` here is necessary but NOT sufficient on its
-      // own (found via the real-Chromium preview probe, not by inspection):
-      // `position: fixed` on the WRAPPER (App.tsx's PositionedBlock, still
-      // `fixed` after the transform-removal fix — it has to be, that's what
-      // makes the bar viewport-anchored at all) unconditionally creates a
-      // NEW STACKING CONTEXT for that wrapper, with NO explicit z-index of
-      // its own (CSS: `position: fixed`/`sticky` establishes a stacking
-      // context regardless of z-index — unlike `position: relative`, which
-      // only does when z-index isn't `auto`). Every explicit z-index inside
-      // that wrapper — this nav's z-20/z-50 included — is scoped to
-      // compete ONLY against the wrapper's own other descendants; from
-      // OUTSIDE, the whole wrapper subtree paints as a single atomic layer
-      // at z-index:auto (effectively 0), which ALWAYS loses to
-      // FolderPopover's body-portaled z-40 catcher, no matter what
-      // z-index anything inside the wrapper carries. `relative` fixes the
-      // LOCAL ordering this file can see (the open popover's own panel,
-      // z-50, painting above ITS sibling chips within this nav) — the
-      // wrapper itself also has to gain a matching elevated z-index while a
-      // popover is open, which is what `onPopoverOpenChange` above and
-      // App.tsx's conditional wrapper className are for. See the
-      // bookmarks PositionedBlock's comment in App.tsx for the full
-      // writeup and the minimal-repro measurements that found this.
-      //
-      // z-20 normally, z-50 while a popover is open — but (reviewer-noted
-      // stale comment, corrected) by ITSELF this only wins LOCAL
-      // comparisons inside the wrapper's own stacking context: concretely,
-      // the open popover's own panel (z-50) painting above ITS sibling
-      // chips within this nav. Outranking FolderPopover's z-40
-      // body-portaled catcher — and TodoPanel/TimerWidget's z-30 panels —
-      // while a popover is open is now the WRAPPER's job (App.tsx's
-      // `bookmarksPopoverOpen`-gated className, fed by `onPopoverOpenChange`
-      // above), not this class's; see the big comment above for why a class
-      // in here can never reach outside the wrapper on its own. Kept
-      // `openId`-scoped (matching the wrapper's own open-only elevation)
-      // rather than permanent for the same reason the wrapper is scoped
-      // that way: permanently at z-50, this nav would win its OWN local
-      // popover-vs-sibling-chip comparison even with nothing open (harmless
-      // there) but would also be one more thing to keep in sync with the
-      // wrapper's condition for no benefit — `openId` is already the single
-      // source of truth this reads from, so mirroring it here costs
-      // nothing and keeps both classes legible together.
+      // z-20 normally, z-50 while a popover is open. FolderPopover itself is
+      // portaled to body so the Dock scrollport cannot clip it; this local
+      // elevation only keeps the active chip above its sibling launchers.
       // WIDTH + ONE ROW, ALWAYS. This bar now owns the top band alone (the
       // timer pill and weather chip default BELOW it — see App.tsx and
       // index.css's `--top-band`), which changes both halves of the old
@@ -360,7 +324,7 @@ function BookmarksBarInner({
               // compact mode, where there is no label at all, this and the
               // popover are the only ways to read the name.
               title={chip.folder.title}
-              onClick={() => toggle(chip.folder.id)}
+              onClick={(event) => toggle(chip.folder.id, event.currentTarget)}
               className={CHIP}
             >
               <FolderIcon className="compact:hidden" />
@@ -375,11 +339,12 @@ function BookmarksBarInner({
                 {chip.folder.title}
               </span>
             </button>
-            {openId === chip.folder.id && (
+            {openId === chip.folder.id && openAnchor && (
               <FolderPopover
                 title={chip.folder.title}
                 items={chip.folder.items}
                 folders={chip.folder.folders}
+                anchor={openAnchor}
                 onClose={() => setOpen(null)}
               />
             )}
@@ -422,7 +387,7 @@ function BookmarksBarInner({
             aria-expanded={openId === OVERFLOW_ID}
             aria-label="More bookmarks"
             title="More bookmarks"
-            onClick={() => toggle(OVERFLOW_ID)}
+            onClick={(event) => toggle(OVERFLOW_ID, event.currentTarget)}
             className={CHIP}
           >
             {/* Wrapped rather than a bare text node so the compact-mode
@@ -432,11 +397,12 @@ function BookmarksBarInner({
               »
             </span>
           </button>
-          {openId === OVERFLOW_ID && (
+          {openId === OVERFLOW_ID && openAnchor && (
             <FolderPopover
               title="More"
               items={overflow.flatMap((c) => (c.kind === 'bookmark' ? [c.item] : []))}
               folders={overflow.flatMap((c) => (c.kind === 'folder' ? [c.folder] : []))}
+              anchor={openAnchor}
               onClose={() => setOpen(null)}
             />
           )}

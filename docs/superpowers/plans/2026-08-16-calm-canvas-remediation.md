@@ -225,7 +225,7 @@ git commit -m "feat(stage): compose the Calm Canvas"
 - Consumes: preview fixtures, frozen registry/connector identities, real UI roles and names, the approved 17-view witness list.
 - Produces: one indexed audit with a direct result or grounded not-applicable reason for every required surface/state row.
 
-- [ ] **Step 1: Expand the browser script from the actual registries**
+- [x] **Step 1: Expand the browser script from the actual registries**
 
 Add the 17 full-page witnesses from the spec. Seed sparse and dense data through the existing preview bridge. For each page collect:
 
@@ -250,13 +250,13 @@ Add the 17 full-page witnesses from the spec. Seed sparse and dense data through
 
 Generate individual PNGs and an `evidence.json` index.
 
-- [ ] **Step 2: Add the registry and state inventory interactions**
+- [x] **Step 2: Add the registry and state inventory interactions**
 
 Exercise all 26 registry identities at least once and the following real paths: Search/Focus entry, launcher add/edit/remove, Bookmark drill/back, Palette open/close, Weather location, Calendar source, every connector identity and Signal Dock disclosure, Tasks edit, Notes dirty/save/error/retry guard, Timer run/close/reopen, Home Assistant pending/error/action isolation, Refresh, all four Settings tabs in roomy/narrow Drawers, Data confirmation/error surfaces, and Arrange preview/Undo/Cancel/Save/reset/copy.
 
 Use visibility assertions before every click/tap. Use Tab, Shift+Tab, Enter, Space, Escape, scroll, resize, and touch for the applicable owners. Restore storage and remove profiles in `finally`.
 
-- [ ] **Step 3: Run the comprehensive replay once after stabilization**
+- [x] **Step 3: Run the comprehensive replay once after stabilization**
 
 Run: `npm run build:preview`
 
@@ -264,15 +264,15 @@ Run: `node scripts/preview-calm-canvas.mjs`
 
 Expected: all inventory rows and 17 composition witnesses pass with zero unexpected external requests, failed requests, runtime errors, duplicate identities, collisions, paint escapes, missing images, or document-level horizontal overflow.
 
-- [ ] **Step 4: Inspect every screenshot at original resolution**
+- [x] **Step 4: Inspect every screenshot at original resolution**
 
 Use the local image viewer on every generated PNG. Produce a contact sheet only as navigation; do not substitute it for original-resolution inspection. Record Critical/Important failures for immediate correction and Minor/cosmetic observations in the ledger.
 
-- [ ] **Step 5: Diagnose and fix only genuine blocking families with RED tests**
+- [x] **Step 5: Diagnose and fix only genuine blocking families with RED tests**
 
 For each Critical/Important failure, first add a focused failing unit or browser assertion, observe RED, implement the smallest correction, and rerun only that failing family once. Do not rerun the comprehensive replay incrementally.
 
-- [ ] **Step 6: Write the evidence reports and commit Task 3**
+- [x] **Step 6: Write the evidence reports and commit Task 3**
 
 Record the exact command, fixture, viewport, interaction, screenshot, geometry, accessibility, runtime, cleanup, and manual-ceiling result for each inventory row.
 
@@ -291,7 +291,7 @@ git commit -m "test(stage): audit the complete Calm Canvas UI"
 - Consumes: stable implementation, complete UI inventory, owner visual decision.
 - Produces: one reviewed, verified, pushed remediation checkpoint or a precise blocking report.
 
-- [ ] **Step 1: Perform the single implementation review**
+- [x] **Step 1: Perform the single implementation review**
 
 Review only the written acceptance criteria and classify findings as Critical, Important, or Minor under the owner's pragmatic-delivery rule. If Critical/Important findings exist, complete one RED-first fix and one rereview. Ledger Minor findings without reopening the remediation.
 

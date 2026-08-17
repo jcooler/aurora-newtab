@@ -134,6 +134,10 @@ describe('LocationSetup typeahead', () => {
     expect(options[0].textContent).toContain('Dallas')
     expect(options[0].textContent).toContain('Texas')
     expect(options[0].textContent).toContain('United States')
+    const [name, secondary] = options[0].querySelectorAll('span')
+    expect(name.classList.contains('shrink-0')).toBe(true)
+    expect(secondary.classList.contains('min-w-0')).toBe(true)
+    expect(secondary.classList.contains('flex-1')).toBe(true)
   })
 
   it('a stale response arriving after a newer one does not clobber the newer results (abort/race safety)', async () => {
