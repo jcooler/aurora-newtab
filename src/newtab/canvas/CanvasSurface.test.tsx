@@ -63,6 +63,33 @@ describe('CanvasSurface', () => {
     expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasLayout).toBe('Desktop')
   })
 
+  it('previews a fitted Desktop source on Small without changing the target profile or stored value', () => {
+    const layout = {
+      version: 3 as const,
+      profiles: {
+        compact: { mode: 'custom' as const, placements: { clock: { kind: 'canvas' as const, x: 50, y: 12, size: 'compact' as const, layer: 0 } } },
+        standard: { mode: 'custom' as const, placements: { clock: { kind: 'canvas' as const, x: 61, y: 44, size: 'full' as const, layer: 0 } } },
+      },
+    }
+    const before = JSON.stringify(layout)
+    render(
+      <CanvasSurface
+        layout={layout}
+        profileKey="compact"
+        sourceProfileKey="standard"
+        entries={ENTRIES}
+        viewport={{ width: 375, height: 812 }}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasLayout).toBe('Small')
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasSourceProfile).toBe('standard')
+    expect(screen.getByTestId('canvas-item-clock').dataset.canvasX).toBe('61')
+    expect(screen.getByTestId('canvas-item-clock').dataset.canvasSize).toBe('full')
+    expect(JSON.stringify(layout)).toBe(before)
+  })
+
   it('keeps Bottom bar optional and unpainted until a launcher is explicitly placed there', () => {
     const empty = renderSurface({ version: 3, profiles: {} })
     expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()

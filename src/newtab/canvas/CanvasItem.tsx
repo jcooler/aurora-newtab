@@ -39,6 +39,7 @@ export default function CanvasItem({
   }, [entry.id, onGeometryChange])
 
   const canvas = placement.kind === 'canvas'
+  const stageVariant = placement.size === 'full' ? 'expanded' : placement.size
   const style: CSSProperties = canvas ? {
     position: 'absolute',
     left: `${placement.left}px`,
@@ -62,7 +63,8 @@ export default function CanvasItem({
       data-canvas-kind={placement.kind}
       data-canvas-x={canvas ? placement.x : undefined}
       data-canvas-y={canvas ? placement.y : undefined}
-      className={`canvas-item${className ? ` ${className}` : ''}`}
+      data-stage-variant={stageVariant}
+      className={`canvas-item board-item${canvas ? '' : ' board-item--dock'}${className ? ` ${className}` : ''}`}
       style={style}
     >
       <WidgetBoundary name={entry.label}>{children}</WidgetBoundary>

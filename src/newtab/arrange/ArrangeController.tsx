@@ -64,6 +64,7 @@ export default function ArrangeController({
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
   const [copySource, setCopySource] = useState<LayoutProfile>('compact')
   const [saveState, setSaveState] = useState<'idle' | 'pending' | 'error'>('idle')
+  const [useDesktopLayoutEverywhere, setUseDesktopLayoutEverywhere] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const mountedRef = useRef(true)
   const modeRef = useRef<'off' | 'on'>('off')
@@ -123,12 +124,20 @@ export default function ArrangeController({
     pendingFocusRef.current = null
   }, [mode, rects, sessionEntries])
 
+  const publishPreview = useCallback((activeProfile: LayoutProfile, next: ProfileDraft, desktopEverywhere: boolean) => {
+    onPreviewChange({
+      profile: activeProfile,
+      overrides: next.overrides,
+      ...(desktopEverywhere ? { useDesktopLayoutEverywhere: true as const } : {}),
+    })
+  }, [onPreviewChange])
+
   const publish = useCallback((next: ProfileDraft) => {
     const activeProfile = sessionProfileRef.current
     draftRef.current = next
     setDraft(next)
-    if (activeProfile) onPreviewChange({ profile: activeProfile, overrides: next.overrides })
-  }, [onPreviewChange])
+    if (activeProfile) publishPreview(activeProfile, next, useDesktopLayoutEverywhere)
+  }, [publishPreview, useDesktopLayoutEverywhere])
 
   const exit = useCallback(() => {
     modeRef.current = 'off'
@@ -141,6 +150,7 @@ export default function ArrangeController({
     setSelectedId(null)
     setRects({})
     setSaveState('idle')
+    setUseDesktopLayoutEverywhere(false)
     onPreviewChange(null)
   }, [onPreviewChange])
 
@@ -170,6 +180,7 @@ export default function ArrangeController({
       setSelectedId(firstId)
       setCopySource(nextProfile === 'compact' ? 'standard' : 'compact')
       setSaveState('idle')
+      setUseDesktopLayoutEverywhere(false)
       modeRef.current = 'on'
       setMode('on')
       onPreviewChange({ profile: nextProfile, overrides: nextDraft.overrides })
@@ -280,6 +291,17 @@ export default function ArrangeController({
             <p className="text-sm text-fg-muted">Preview only until Save.</p>
           </div>
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              aria-pressed={useDesktopLayoutEverywhere}
+              className={fixedButton(useDesktopLayoutEverywhere)}
+              disabled={saveState === 'pending'}
+              onClick={() => {
+                const next = !useDesktopLayoutEverywhere
+                setUseDesktopLayoutEverywhere(next)
+                publishPreview(sessionProfile, draft, next)
+              }}
+            >Use Desktop layout everywhere</button>
             <button type="button" className={fixedButton()} disabled={draft.history.length === 0 || saveState === 'pending'} onClick={() => publish(undoArrangeEdit(draft))}>Undo</button>
             <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={() => publish(resetProfileDraft(draft))}>Reset profile</button>
             <button type="button" className={fixedButton()} disabled={saveState === 'pending'} onClick={cancel}>Cancel</button>

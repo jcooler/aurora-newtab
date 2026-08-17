@@ -5,4 +5,5 @@ import type { ProfileOverrides } from './profileEditor'
 export interface ArrangePreview {
   profile: LayoutProfile
   overrides: ProfileOverrides
+  useDesktopLayoutEverywhere?: true
 }

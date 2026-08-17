@@ -389,6 +389,28 @@ describe('App Canvas composition', () => {
     expect(await storage.get('layout')).toEqual(stored)
   })
 
+  it('previews Use Desktop layout everywhere on Small without writing', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const active = this.hasAttribute('data-block-id')
+      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
+    })
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const before = await storage.get('layout')
+    await renderApp(storage)
+    expect(canvasItem('clock').dataset.canvasSize).toBe('compact')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
+    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Use Desktop layout everywhere' }))
+
+    expect(canvasItem('clock').dataset.canvasSize).toBe('full')
+    expect(await storage.get('layout')).toEqual(before)
+  })
+
   it('Reset layout preserves a manual density choice', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

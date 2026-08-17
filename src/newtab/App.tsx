@@ -54,7 +54,7 @@ export default function App() {
   const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
   const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
-  const [, setArrangePreview] = useState<ArrangePreview | null>(null)
+  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
   const [arranging, setArranging] = useState(false)
   const [arrangeSignal, setArrangeSignal] = useState(0)
   const [weatherExpanded, setWeatherExpanded] = useState(false)
@@ -219,6 +219,7 @@ export default function App() {
         <CanvasSurface
           layout={storedLayout}
           profileKey={viewport.profile}
+          sourceProfileKey={arrangePreview?.useDesktopLayoutEverywhere ? 'standard' : undefined}
           entries={activeEntries}
           viewport={viewport}
           elevatedIds={elevatedIds}

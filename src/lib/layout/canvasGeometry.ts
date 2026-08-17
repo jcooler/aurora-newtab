@@ -37,6 +37,12 @@ const BASE_BOXES: Readonly<Record<CanvasSize, CanvasBox>> = Object.freeze({
 })
 
 const ITEM_BOXES: Readonly<Partial<Record<BlockId, Partial<Record<CanvasSize, CanvasBox>>>>> = Object.freeze({
+  weather: { compact: { width: 224, height: 96 } },
+  ics: { compact: { width: 240, height: 104 } },
+  monthCal: { compact: { width: 240, height: 144 } },
+  sun: { compact: { width: 192, height: 72 } },
+  moon: { compact: { width: 192, height: 72 } },
+  quote: { compact: { width: 240, height: 88 }, standard: { width: 560, height: 120 } },
   bookmarks: { compact: { width: 320, height: 48 }, standard: { width: 880, height: 56 } },
   clock: { compact: { width: 264, height: 112 }, standard: { width: 344, height: 152 }, full: { width: 448, height: 208 } },
   greeting: { compact: { width: 300, height: 48 }, standard: { width: 480, height: 64 }, full: { width: 600, height: 80 } },
@@ -45,7 +51,15 @@ const ITEM_BOXES: Readonly<Partial<Record<BlockId, Partial<Record<CanvasSize, Ca
   search: { compact: { width: 280, height: 52 }, standard: { width: 352, height: 56 } },
   focus: { compact: { width: 288, height: 72 }, standard: { width: 360, height: 80 } },
   links: { compact: { width: 300, height: 88 }, standard: { width: 520, height: 112 } },
-  quote: { compact: { width: 300, height: 96 }, standard: { width: 560, height: 120 } },
+  habits: { compact: { width: 224, height: 64 } },
+  status: { compact: { width: 224, height: 96 } },
+  github: { compact: { width: 240, height: 128 } },
+  gitlab: { compact: { width: 240, height: 128 } },
+  jira: { compact: { width: 240, height: 128 } },
+  vercel: { compact: { width: 240, height: 120 } },
+  homeassistant: { compact: { width: 240, height: 144 } },
+  rss: { compact: { width: 240, height: 112 } },
+  crypto: { compact: { width: 240, height: 80 } },
   timer: { compact: { width: 112, height: 48 } },
   tasks: { compact: { width: 112, height: 48 } },
   notes: { compact: { width: 112, height: 48 } },
@@ -85,7 +99,7 @@ export function canvasMinimumHeight(
     return placement?.kind === 'canvas' ? [{ id, placement }] : []
   })
   if (profile === 'compact') {
-    const content = rows.reduce((height, { id, placement }) => height + canvasBoxFor(id, placement.size).height + 20, 16)
+    const content = rows.reduce((height, { id, placement }) => height + canvasBoxFor(id, placement.size).height + 32, 16)
     return Math.max(base, content)
   }
   if (canvas.mode !== 'derived') return base

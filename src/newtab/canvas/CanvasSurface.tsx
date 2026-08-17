@@ -9,6 +9,7 @@ import type { WidgetRegistryEntry } from '../widgetRegistry'
 interface CanvasSurfaceProps {
   layout: StoredLayout
   profileKey: CanvasProfileKey
+  sourceProfileKey?: CanvasProfileKey
   entries: readonly WidgetRegistryEntry[]
   viewport?: { width: number; height: number }
   elevatedIds?: ReadonlySet<WidgetRegistryEntry['id']>
@@ -26,17 +27,27 @@ function liveViewport(): { width: number; height: number } {
 export default function CanvasSurface({
   layout,
   profileKey,
+  sourceProfileKey,
   entries,
   viewport = liveViewport(),
   elevatedIds,
   onItemGeometryChange,
   renderWidget,
 }: CanvasSurfaceProps) {
-  const resolved = useMemo(() => {
-    const normalized = adaptStoredLayout(layout)
-    return resolveCanvasProfile(profileKey, entries, normalized.profiles[profileKey])
-  }, [entries, layout, profileKey])
-  const canvasHeight = canvasMinimumHeight(profileKey, resolved, viewport.height)
+  const normalized = useMemo(() => adaptStoredLayout(layout), [layout])
+  const resolvedSource = sourceProfileKey ?? profileKey
+  const preliminary = useMemo(() => {
+    return resolveCanvasProfile(resolvedSource, entries, normalized.profiles[resolvedSource])
+  }, [entries, normalized, resolvedSource])
+  const canvasHeight = canvasMinimumHeight(profileKey, preliminary, viewport.height)
+  const resolved = useMemo(() => (
+    resolveCanvasProfile(
+      resolvedSource,
+      entries,
+      normalized.profiles[resolvedSource],
+      { width: viewport.width, height: canvasHeight },
+    )
+  ), [canvasHeight, entries, normalized, resolvedSource, viewport.width])
   const fitted = useMemo(
     () => fitCanvasProfile(resolved, { width: viewport.width, height: canvasHeight }),
     [canvasHeight, resolved, viewport.width],
@@ -56,6 +67,7 @@ export default function CanvasSurface({
         aria-label="Canvas"
         data-canvas-surface=""
         data-canvas-profile={profileKey}
+        data-canvas-source-profile={resolvedSource}
         data-canvas-layout={CANVAS_PROFILE_LABELS[profileKey]}
         data-canvas-mode={fitted.mode}
         className="canvas-surface"

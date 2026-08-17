@@ -1,4 +1,5 @@
 import type { WidgetRegistryEntry } from '../../newtab/widgetRegistry'
+import { canvasBoxFor, type CanvasBounds, type CanvasBox } from './canvasGeometry'
 import type {
   CanvasPlacement,
   CanvasProfile,
@@ -119,15 +120,105 @@ export function canvasDefaults(
   return { mode: 'derived', placements }
 }
 
+const PROFILE_BOUNDS: Readonly<Record<CanvasProfileKey, Readonly<CanvasBounds>>> = Object.freeze({
+  compact: Object.freeze({ width: 375, height: 3200, inset: 8 }),
+  standard: Object.freeze({ width: 1600, height: 900, inset: 8 }),
+  display: Object.freeze({ width: 2560, height: 1440, inset: 8 }),
+  ultrawide: Object.freeze({ width: 1800, height: 700, inset: 8 }),
+})
+
+interface PixelRect {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  if (maximum < minimum) return minimum
+  return Math.min(maximum, Math.max(minimum, value))
+}
+
+function pixelRect(
+  placement: Extract<CanvasPlacement, { kind: 'canvas' }>,
+  box: CanvasBox,
+  bounds: CanvasBounds,
+): PixelRect {
+  const inset = bounds.inset ?? 8
+  const left = clamp(bounds.width * placement.x / 100 - box.width / 2, inset, bounds.width - inset - box.width)
+  const top = clamp(bounds.height * placement.y / 100 - box.height / 2, inset, bounds.height - inset - box.height)
+  return { left, top, right: left + box.width, bottom: top + box.height }
+}
+
+function overlaps(left: PixelRect, right: PixelRect): boolean {
+  const gap = 8
+  return left.left < right.right + gap
+    && left.right + gap > right.left
+    && left.top < right.bottom + gap
+    && left.bottom + gap > right.top
+}
+
+function nearestSafePlacement(
+  id: WidgetRegistryEntry['id'],
+  placement: Extract<CanvasPlacement, { kind: 'canvas' }>,
+  occupied: readonly PixelRect[],
+  bounds: CanvasBounds,
+): Extract<CanvasPlacement, { kind: 'canvas' }> {
+  const inset = bounds.inset ?? 8
+  const box = canvasBoxFor(id, placement.size, bounds)
+  const preferred = pixelRect(placement, box, bounds)
+  if (!occupied.some((rect) => overlaps(preferred, rect))) return placement
+
+  const maxColumn = Math.max(0, Math.floor((bounds.width - inset * 2 - box.width) / 8))
+  const maxRow = Math.max(0, Math.floor((bounds.height - inset * 2 - box.height) / 8))
+  let best: { rect: PixelRect; distance: number } | null = null
+  for (let row = 0; row <= maxRow; row += 1) {
+    const top = inset + row * 8
+    for (let column = 0; column <= maxColumn; column += 1) {
+      const left = inset + column * 8
+      const rect = { left, top, right: left + box.width, bottom: top + box.height }
+      if (occupied.some((candidate) => overlaps(rect, candidate))) continue
+      const distance = (left - preferred.left) ** 2 + (top - preferred.top) ** 2
+      if (!best || distance < best.distance) best = { rect, distance }
+    }
+  }
+  if (!best) return placement
+  return {
+    ...placement,
+    x: (best.rect.left + box.width / 2) / bounds.width * 100,
+    y: (best.rect.top + box.height / 2) / bounds.height * 100,
+  }
+}
+
 export function resolveCanvasProfile(
   profile: CanvasProfileKey,
   entries: readonly WidgetRegistryEntry[],
   saved?: CanvasProfile,
+  bounds: CanvasBounds = PROFILE_BOUNDS[profile],
 ): CanvasProfile {
   const defaults = canvasDefaults(profile, entries)
   const placements: CanvasProfile['placements'] = {}
+  const occupied: PixelRect[] = entries.flatMap((entry) => {
+    const existing = saved?.placements[entry.id]
+    return existing?.kind === 'canvas'
+      ? [pixelRect(existing, canvasBoxFor(entry.id, existing.size, bounds), bounds)]
+      : []
+  })
   for (const entry of entries) {
-    placements[entry.id] = saved?.placements[entry.id] ?? defaults.placements[entry.id]
+    const existing = saved?.placements[entry.id]
+    if (existing) {
+      placements[entry.id] = existing
+      continue
+    }
+    const fallback = defaults.placements[entry.id]
+    if (!fallback) continue
+    const placed = saved?.mode === 'custom' && fallback.kind === 'canvas'
+      ? nearestSafePlacement(entry.id, fallback, occupied, bounds)
+      : fallback
+    placements[entry.id] = placed
+    if (placed.kind === 'canvas') {
+      occupied.push(pixelRect(placed, canvasBoxFor(entry.id, placed.size, bounds), bounds))
+    }
   }
   return { mode: saved?.mode ?? 'derived', placements }
 }

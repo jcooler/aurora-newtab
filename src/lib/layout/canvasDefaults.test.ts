@@ -76,4 +76,21 @@ describe('source-owned V1 Canvas defaults', () => {
     expect(resolved.placements.weather).toBeDefined()
     expect(Object.keys(resolved.placements)).toEqual(['weather', 'clock', 'focus'])
   })
+
+  it('places only a newly enabled identity at the nearest safe snapped position when its custom default is occupied', () => {
+    const entries = WIDGET_REGISTRY.filter(({ id }) => ['clock', 'focus'].includes(id))
+    const saved = {
+      mode: 'custom' as const,
+      placements: {
+        clock: { kind: 'canvas' as const, x: 50, y: 62, size: 'standard' as const, layer: 7 },
+      },
+    }
+
+    const resolved = resolveCanvasProfile('standard', entries, saved)
+    const focus = resolved.placements.focus
+
+    expect(resolved.placements.clock).toEqual(saved.placements.clock)
+    expect(focus?.kind).toBe('canvas')
+    expect(focus).not.toMatchObject({ x: 50, y: 62 })
+  })
 })
