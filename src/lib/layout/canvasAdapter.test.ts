@@ -138,6 +138,36 @@ describe('explicit Canvas save and recovery', () => {
     })
   })
 
+  it('persists an explicit Small coordinate plane while leaving legacy custom profiles unmarked', () => {
+    const legacyCustom = {
+      version: 3 as const,
+      profiles: {
+        compact: {
+          mode: 'custom' as const,
+          placements: { clock: { kind: 'canvas' as const, x: 50, y: 30, size: 'compact' as const, layer: 0 } },
+        },
+      },
+    }
+
+    const saved = saveCanvasProfile(legacyCustom, 'standard', draft)
+    expect(saved.profiles.compact).toEqual(legacyCustom.profiles.compact)
+
+    const fixed = saveCanvasProfile(saved, 'compact', {
+      mode: 'custom',
+      coordinateHeight: 3200,
+      placements: { clock: { kind: 'canvas', x: 50, y: 7.5, size: 'compact', layer: 0 } },
+    })
+    expect(fixed.profiles.compact?.coordinateHeight).toBe(3200)
+  })
+
+  it('rejects an invalid explicit coordinate plane', () => {
+    expect(() => saveCanvasProfile({ version: 3, profiles: {} }, 'compact', {
+      mode: 'custom',
+      coordinateHeight: 0,
+      placements: {},
+    })).toThrow('Canvas layout data is invalid.')
+  })
+
   it('preserves the exact serialized V2 recovery shape through Save and Restore', () => {
     const semantic = {
       legacy: {

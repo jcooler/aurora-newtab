@@ -167,4 +167,21 @@ describe('Canvas Arrange draft', () => {
     expect(normalized.mode).toBe('custom')
     expect(JSON.stringify(current)).toBe(before)
   })
+
+  it('keeps an explicit coordinate plane through the draft and normalized Save profile', () => {
+    const fixedProfile: CanvasProfile = {
+      mode: 'derived',
+      coordinateHeight: 3200,
+      placements: PROFILE.placements,
+    }
+    const current = createCanvasDraft('compact', fixedProfile, fixedProfile, 'clock')
+
+    expect(current.coordinateHeight).toBe(3200)
+    expect(normalizeCanvasDraft(current).coordinateHeight).toBe(3200)
+
+    const legacy = createCanvasDraft('compact', PROFILE, fixedProfile, 'clock')
+    const reset = resetCanvasDraft(legacy, ['clock'], fixedProfile)
+    expect(reset.coordinateHeight).toBe(3200)
+    expect(undoCanvasDraft(reset).coordinateHeight).toBeUndefined()
+  })
 })

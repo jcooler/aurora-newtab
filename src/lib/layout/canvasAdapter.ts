@@ -144,7 +144,11 @@ function normalizeProfile(value: CanvasProfile): CanvasProfile {
     const placement = normalized.get(id)
     if (placement) placements[id] = placement
   }
-  return { mode: cleaned.mode, placements }
+  return {
+    mode: cleaned.mode,
+    ...(cleaned.coordinateHeight === undefined ? {} : { coordinateHeight: cleaned.coordinateHeight }),
+    placements,
+  }
 }
 
 export function saveCanvasProfile(

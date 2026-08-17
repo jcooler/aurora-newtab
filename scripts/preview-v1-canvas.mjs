@@ -276,8 +276,10 @@ const assertArrangeSelections = async (profile) => {
   const ids = await page.locator('[data-block-id]').evaluateAll((nodes) => nodes
     .filter((node) => {
       const rect = node.getBoundingClientRect()
+      const clip = document.querySelector('[data-arrange-artboard-viewport]')?.getBoundingClientRect()
       const style = getComputedStyle(node)
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
+      const intersects = !clip || (rect.left < clip.right && rect.right > clip.left && rect.top < clip.bottom && rect.bottom > clip.top)
+      return rect.width > 0 && rect.height > 0 && intersects && style.display !== 'none' && style.visibility !== 'hidden'
     })
     .map((node) => node.getAttribute('data-block-id')))
   const selections = {}
@@ -655,7 +657,8 @@ try {
   const smallInspector = page.getByRole('complementary')
   if (await smallInspector.count()) {
     await smallInspector.getByRole('button', { name: 'Close inspector' }).click()
-    await page.waitForFunction(() => !document.querySelector('main[data-arrange-small-sheet="true"]'))
+    await smallInspector.waitFor({ state: 'detached' })
+    assert(await page.locator('[data-arrange-artboard]').isVisible(), 'Small Arrange hid its artboard when the inspector closed')
   }
   const smallClockText = await page.locator('[data-block-id="clock"] time').innerText()
   assert(smallClockText.includes(':'), `Small Arrange lost real Clock content: ${smallClockText}`)

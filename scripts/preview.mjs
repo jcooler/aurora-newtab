@@ -23557,8 +23557,31 @@ if (process.env.AURORA_PREVIEW_LEGACY_STAGE === '1') {
     const toolbar = evidencePage.getByRole('toolbar', { name: 'Arrange layout' })
     await toolbar.waitFor()
     const profiles = {}
-    for (const name of ['Small', 'Desktop', 'Large', 'Wide']) {
-      profiles[name] = await toolbar.getByRole('tab', { name }).count()
+    const expectedArtboards = {
+      Small: ['compact', 390, 844],
+      Desktop: ['standard', 1440, 900],
+      Large: ['display', 2560, 1440],
+      Wide: ['ultrawide', 3440, 1440],
+    }
+    for (const [name, [key, width, height]] of Object.entries(expectedArtboards)) {
+      const tab = toolbar.getByRole('tab', { name })
+      await tab.click()
+      await evidencePage.waitForFunction((profile) => document.querySelector('[data-arrange-artboard]')?.getAttribute('data-arrange-profile') === profile, key)
+      profiles[name] = await evidencePage.evaluate(({ width, height }) => {
+        const frame = document.querySelector('[data-arrange-artboard]')
+        const logical = document.querySelector('[data-arrange-artboard-logical]')
+        const root = document.querySelector('[data-canvas-root]')
+        return {
+          count: document.querySelectorAll('[role="tab"]').length,
+          width: logical?.style.width,
+          height: logical?.style.height,
+          scale: Number(logical?.getAttribute('data-arrange-scale')),
+          mode: frame?.getAttribute('data-arrange-viewport-mode'),
+          expectedMode: innerWidth >= 1100 ? 'side' : 'sheet',
+          rootTransform: root?.style.transform,
+          exact: logical?.style.width === `${width}px` && logical?.style.height === `${height}px`,
+        }
+      }, { width, height })
     }
     const clock = evidencePage.getByRole('button', { name: 'Edit Clock' })
     await clock.click()
@@ -23584,7 +23607,9 @@ if (process.env.AURORA_PREVIEW_LEGACY_STAGE === '1') {
   } finally {
     await evidencePage.close()
   }
-  const ok = observations && Object.values(observations.profiles).every((count) => count === 1) &&
+  const ok = observations && Object.values(observations.profiles).every((profile) => profile.count === 4
+      && profile.exact && profile.scale > 0 && profile.scale <= 1
+      && profile.mode === profile.expectedMode && profile.rootTransform === '') &&
     observations.selected === 'true' && observations.inspector === 1 && observations.retiredControls === 0 &&
     observations.cancelExact && observations.focusRestored && errors.length === 0
   console.log(`EVIDENCE: V1 Canvas successor for retired W3-P3 semantic editor: ${JSON.stringify(observations ?? { errors })}`)

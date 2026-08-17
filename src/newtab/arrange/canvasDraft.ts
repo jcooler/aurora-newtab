@@ -10,6 +10,7 @@ import type { WidgetRegistryEntry } from '../widgetRegistry'
 
 export interface CanvasDraftFrame {
   placements: CanvasProfile['placements']
+  coordinateHeight?: number
   selectedId: BlockId | null
   useDesktopLayoutEverywhere: boolean
   hiddenIds: readonly BlockId[]
@@ -34,6 +35,7 @@ function clonePlacements(placements: CanvasProfile['placements']): CanvasProfile
 function frameOf(draft: CanvasDraft): CanvasDraftFrame {
   return {
     placements: clonePlacements(draft.placements),
+    coordinateHeight: draft.coordinateHeight,
     selectedId: draft.selectedId,
     useDesktopLayoutEverywhere: draft.useDesktopLayoutEverywhere,
     hiddenIds: [...draft.hiddenIds],
@@ -46,14 +48,18 @@ function samePlacement(left: CanvasBlockPlacement | undefined, right: CanvasBloc
 
 function commit(
   draft: CanvasDraft,
-  next: Partial<Pick<CanvasDraft, 'placements' | 'selectedId' | 'useDesktopLayoutEverywhere' | 'hiddenIds'>>,
+  next: Partial<Pick<CanvasDraft, 'placements' | 'coordinateHeight' | 'selectedId' | 'useDesktopLayoutEverywhere' | 'hiddenIds'>>,
 ): CanvasDraft {
   const placements = next.placements ?? draft.placements
+  const coordinateHeight = Object.prototype.hasOwnProperty.call(next, 'coordinateHeight')
+    ? next.coordinateHeight
+    : draft.coordinateHeight
   const selectedId = next.selectedId === undefined ? draft.selectedId : next.selectedId
   const desktopEverywhere = next.useDesktopLayoutEverywhere ?? draft.useDesktopLayoutEverywhere
   const hiddenIds = next.hiddenIds ?? draft.hiddenIds
   const placementIds = new Set([...Object.keys(draft.placements), ...Object.keys(placements)] as BlockId[])
   const unchanged = [...placementIds].every((id) => samePlacement(draft.placements[id], placements[id]))
+    && coordinateHeight === draft.coordinateHeight
     && selectedId === draft.selectedId
     && desktopEverywhere === draft.useDesktopLayoutEverywhere
     && hiddenIds.length === draft.hiddenIds.length
@@ -62,6 +68,7 @@ function commit(
   return {
     ...draft,
     placements: clonePlacements(placements),
+    coordinateHeight,
     selectedId,
     useDesktopLayoutEverywhere: desktopEverywhere,
     hiddenIds: [...hiddenIds],
@@ -78,6 +85,7 @@ export function createCanvasDraft(
   return {
     profile,
     placements: clonePlacements(effective.placements),
+    ...(effective.coordinateHeight === undefined ? {} : { coordinateHeight: effective.coordinateHeight }),
     history: [],
     selectedId,
     useDesktopLayoutEverywhere: false,
@@ -239,6 +247,7 @@ export function resetCanvasDraft(
   const active = new Set(activeIds)
   return commit(draft, {
     placements,
+    coordinateHeight: defaults.coordinateHeight,
     useDesktopLayoutEverywhere: false,
     hiddenIds: draft.hiddenIds.filter((id) => !active.has(id)),
   })
@@ -283,5 +292,9 @@ export function normalizeCanvasDraft(draft: CanvasDraft): CanvasProfile {
     const placement = normalized.get(id)
     if (placement) placements[id] = placement
   }
-  return { mode: 'custom', placements }
+  return {
+    mode: 'custom',
+    ...(draft.coordinateHeight === undefined ? {} : { coordinateHeight: draft.coordinateHeight }),
+    placements,
+  }
 }

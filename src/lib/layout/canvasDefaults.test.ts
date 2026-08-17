@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { WIDGET_REGISTRY } from '../../newtab/widgetRegistry'
-import { CANVAS_PROFILE_LABELS, canvasDefaults, resolveCanvasProfile } from './canvasDefaults'
+import { CANVAS_PROFILE_LABELS, canvasDefaults, resolveCanvasProfile, SMALL_CANVAS_COORDINATE_HEIGHT } from './canvasDefaults'
+import { fitCanvasProfile } from './canvasGeometry'
 
 describe('source-owned V1 Canvas defaults', () => {
   it('names the four compatibility profiles as real user-facing canvases', () => {
@@ -59,16 +60,35 @@ describe('source-owned V1 Canvas defaults', () => {
       .map((placement) => placement.kind === 'canvas' ? placement.x : -1)).size).toBeGreaterThan(4)
   })
 
+  it('gives the common Small information set stable non-overlapping source slots without a 3200px trailing gap', () => {
+    const common = WIDGET_REGISTRY.filter(({ id }) => [
+      'weather', 'clock', 'greeting', 'search', 'focus', 'links', 'quote', 'timer', 'tasks', 'notes', 'bookmarks', 'monthCal',
+    ].includes(id))
+    const fitted = fitCanvasProfile(canvasDefaults('compact', common), { width: 390, height: SMALL_CANVAS_COORDINATE_HEIGHT, inset: 8 })
+    const boxes = Object.values(fitted.placements).flatMap((placement) => placement?.kind === 'canvas' ? [placement] : [])
+    for (let left = 0; left < boxes.length; left += 1) {
+      for (let right = left + 1; right < boxes.length; right += 1) {
+        const a = boxes[left]
+        const b = boxes[right]
+        expect(a.left - a.width / 2 < b.left + b.width / 2
+          && a.left + a.width / 2 > b.left - b.width / 2
+          && a.top - a.height / 2 < b.top + b.height / 2
+          && a.top + a.height / 2 > b.top - b.height / 2).toBe(false)
+      }
+    }
+    expect(Math.max(...boxes.map((box) => box.top + box.height / 2))).toBeLessThan(1400)
+  })
+
   it.each(['compact', 'standard', 'display', 'ultrawide'] as const)(
     'keeps every surviving %s source slot unchanged when siblings are toggled',
     (profile) => {
       const survivingIds = ['clock', 'focus', 'ics', 'github'] as const
       const expected = {
         compact: {
-          clock: { kind: 'canvas', x: 50, y: 14.28, size: 'compact', layer: 6 },
-          focus: { kind: 'canvas', x: 50, y: 33.08, size: 'compact', layer: 11 },
-          ics: { kind: 'canvas', x: 50, y: 40.6, size: 'compact', layer: 1 },
-          github: { kind: 'canvas', x: 50, y: 63.16, size: 'compact', layer: 16 },
+          clock: { kind: 'canvas', x: 50, y: 7.5, size: 'compact', layer: 6 },
+          focus: { kind: 'canvas', x: 50, y: 14.625, size: 'compact', layer: 11 },
+          ics: { kind: 'canvas', x: 50, y: 33.375, size: 'compact', layer: 1 },
+          github: { kind: 'canvas', x: 50, y: 53.25, size: 'compact', layer: 16 },
         },
         standard: {
           clock: { kind: 'canvas', x: 50, y: 24, size: 'full', layer: 6 },

@@ -31,6 +31,7 @@ import { canvasKeyboardDelta, clampCanvasTopLeft, snapCanvasPosition, type Canva
 import { useLongPress } from './useLongPress'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 import { contentConflictFor } from '../widgetSizeContracts'
+import { arrangeArtboardSize, arrangeViewportMode, clientToLogicalPoint } from './arrangeViewport'
 
 const PROFILE_KEYS: readonly CanvasProfileKey[] = ['compact', 'standard', 'display', 'ultrawide']
 const BOTTOM_BAR_IDS: ReadonlySet<BlockId> = new Set(['bookmarks', 'links', 'timer', 'tasks', 'notes'])
@@ -52,6 +53,8 @@ interface DragState {
   startDraft: CanvasDraft
   pointerOffset: { x: number; y: number }
   canvasRect: DOMRect
+  scale: number
+  coordinateBounds: { width: number; height: number }
 }
 
 function buttonClass(active = false): string {
@@ -77,6 +80,9 @@ export default function ArrangeController({
   const [draft, setDraft] = useState<CanvasDraft | null>(null)
   const [rects, setRects] = useState<Partial<Record<BlockId, DOMRect>>>({})
   const [surfaceRect, setSurfaceRect] = useState<DOMRect | null>(null)
+  const [artboardViewportRect, setArtboardViewportRect] = useState<DOMRect | null>(null)
+  const [surfaceScale, setSurfaceScale] = useState(1)
+  const [surfaceCoordinates, setSurfaceCoordinates] = useState<{ width: number; height: number } | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
   const [saveState, setSaveState] = useState<'idle' | 'pending' | 'error'>('idle')
@@ -128,6 +134,9 @@ export default function ArrangeController({
     const resolved = resolveCanvasProfile(target, activeEntries, saved)
     const effective: CanvasProfile = {
       mode: saved?.mode ?? resolved.mode,
+      ...((saved?.coordinateHeight ?? resolved.coordinateHeight) === undefined
+        ? {}
+        : { coordinateHeight: saved?.coordinateHeight ?? resolved.coordinateHeight }),
       placements: { ...saved?.placements, ...resolved.placements },
     }
     const defaults = canvasDefaults(target, activeEntries)
@@ -147,11 +156,13 @@ export default function ArrangeController({
       profile: current.profile,
       canvas: profileFromDraft(source),
       inspectorOpen,
+      viewportMode: arrangeViewportMode(viewport.width),
+      artboard: arrangeArtboardSize(current.profile),
       guides,
       hiddenIds: [...current.hiddenIds],
       ...(current.useDesktopLayoutEverywhere ? { useDesktopLayoutEverywhere: true as const } : {}),
     }
-  }, [buildDraft, guides, inspectorOpen])
+  }, [buildDraft, guides, inspectorOpen, viewport.width])
 
   useEffect(() => {
     if (mode !== 'on' || !draft) return
@@ -169,6 +180,16 @@ export default function ArrangeController({
     const next: Partial<Record<BlockId, DOMRect>> = {}
     const surface = document.querySelector<HTMLElement>('[data-canvas-surface]')
     setSurfaceRect(surface?.getBoundingClientRect() ?? null)
+    const artboardViewport = document.querySelector<HTMLElement>('[data-arrange-artboard-viewport]')
+    setArtboardViewportRect(artboardViewport?.getBoundingClientRect() ?? null)
+    const coordinateWidth = Number(surface?.dataset.canvasCoordinateWidth)
+    const coordinateHeight = Number(surface?.dataset.canvasCoordinateHeight)
+    setSurfaceCoordinates(Number.isFinite(coordinateWidth) && coordinateWidth > 0
+      && Number.isFinite(coordinateHeight) && coordinateHeight > 0
+      ? { width: coordinateWidth, height: coordinateHeight }
+      : null)
+    const rawScale = Number(document.querySelector<HTMLElement>('[data-arrange-artboard-logical]')?.dataset.arrangeScale)
+    setSurfaceScale(Number.isFinite(rawScale) && rawScale > 0 ? rawScale : 1)
     for (const entry of sessionEntriesRef.current) {
       const element = document.querySelector<HTMLElement>(`[data-block-id="${entry.id}"]`)
       if (!element) continue
@@ -182,12 +203,15 @@ export default function ArrangeController({
     if (mode !== 'on') return
     measureAll()
     const frame = requestAnimationFrame(measureAll)
+    const artboardViewport = document.querySelector<HTMLElement>('[data-arrange-artboard-viewport]')
     window.addEventListener('resize', measureAll)
+    artboardViewport?.addEventListener('scroll', measureAll, { passive: true })
     return () => {
       cancelAnimationFrame(frame)
       window.removeEventListener('resize', measureAll)
+      artboardViewport?.removeEventListener('scroll', measureAll)
     }
-  }, [draft?.hiddenIds, draft?.profile, draft?.placements, measureAll, mode])
+  }, [draft?.hiddenIds, draft?.profile, draft?.placements, inspectorOpen, measureAll, mode])
 
   useEffect(() => {
     if (mode !== 'on' || !pendingFocusRef.current) return
@@ -213,6 +237,9 @@ export default function ArrangeController({
     setDraft(null)
     setRects({})
     setSurfaceRect(null)
+    setArtboardViewportRect(null)
+    setSurfaceScale(1)
+    setSurfaceCoordinates(null)
     setInspectorOpen(true)
     setGuides([])
     setSaveState('idle')
@@ -301,13 +328,11 @@ export default function ArrangeController({
 
   const announceMove = useCallback((next: CanvasDraft, id: BlockId) => {
     const label = sessionEntriesRef.current.find((entry) => entry.id === id)?.label ?? 'Widget'
-    const bounds = surfaceRect
-      ? { width: surfaceRect.width, height: surfaceRect.height }
-      : viewport
+    const bounds = surfaceCoordinates ?? arrangeArtboardSize(next.profile)
     const overlaps = overlappingCanvasIds(next, bounds, id)
       .map((candidate) => sessionEntriesRef.current.find((entry) => entry.id === candidate)?.label ?? candidate)
     setAnnouncement(`${label} moved.${overlaps.length > 0 ? ` Overlaps ${overlaps.join(', ')}.` : ''}`)
-  }, [surfaceRect, viewport])
+  }, [surfaceCoordinates])
 
   const keyboardMove = useCallback((id: BlockId, key: string, fine: boolean) => {
     const delta = canvasKeyboardDelta(key, fine)
@@ -315,24 +340,25 @@ export default function ArrangeController({
     const placement = current?.placements[id]
     if (!delta || !current || placement?.kind !== 'canvas') return false
     const measured = rects[id]
-    const bounds = surfaceRect
-      ? { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
-      : { ...viewport, inset: 8 }
+    const visibleBounds = surfaceRect
+      ? { width: surfaceRect.width / surfaceScale, height: surfaceRect.height / surfaceScale, inset: 8 }
+      : { ...arrangeArtboardSize(current.profile), inset: 8 }
+    const coordinates = surfaceCoordinates ?? visibleBounds
     const box = measured
-      ? { width: measured.width, height: measured.height }
-      : canvasBoxFor(id, placement.size, bounds)
+      ? { width: measured.width / surfaceScale, height: measured.height / surfaceScale }
+      : canvasBoxFor(id, placement.size, visibleBounds)
     const clamped = clampCanvasTopLeft({
-      left: placement.x / 100 * bounds.width - box.width / 2 + delta.x,
-      top: placement.y / 100 * bounds.height - box.height / 2 + delta.y,
-    }, box, bounds)
+      left: placement.x / 100 * coordinates.width - box.width / 2 + delta.x,
+      top: placement.y / 100 * coordinates.height - box.height / 2 + delta.y,
+    }, box, visibleBounds)
     const next = moveCanvasItem(current, id, {
-      x: (clamped.left + box.width / 2) / bounds.width * 100,
-      y: (clamped.top + box.height / 2) / bounds.height * 100,
+      x: (clamped.left + box.width / 2) / coordinates.width * 100,
+      y: (clamped.top + box.height / 2) / coordinates.height * 100,
     })
     replaceDraft(next)
     announceMove(next, id)
     return true
-  }, [announceMove, rects, replaceDraft, surfaceRect, viewport])
+  }, [announceMove, rects, replaceDraft, surfaceCoordinates, surfaceRect, surfaceScale])
 
   const switchProfile = useCallback((target: CanvasProfileKey) => {
     const current = draftRef.current
@@ -417,18 +443,21 @@ export default function ArrangeController({
     ? contentConflictFor(selectedEntry.id, selectedPlacement.size, selectedEntry.selectedContent ?? [])
     : null
   const defaults = canvasDefaults(draft.profile, sessionEntriesRef.current)
-  const canvasBounds = surfaceRect
-    ? { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
-    : { ...viewport, inset: 8 }
+  const canvasBounds = {
+    ...(surfaceCoordinates ?? arrangeArtboardSize(draft.profile)),
+    inset: 8,
+  }
   const overlapIds = selectedEntry ? overlappingCanvasIds(draft, canvasBounds, selectedEntry.id) : []
-  const small = draft.profile === 'compact'
+  const viewportMode = arrangeViewportMode(viewport.width)
+  const sheet = viewportMode === 'sheet'
 
   return (
     <div data-arrange-controller="">
       <div
         data-arrange-overlay=""
         data-arrange-profile={draft.profile}
-        data-arrange-small-sheet={small && inspectorOpen ? 'true' : undefined}
+        data-arrange-viewport-mode={viewportMode}
+        data-arrange-inspector-open={inspectorOpen ? 'true' : 'false'}
         className="arrange-overlay"
       >
       <div role="toolbar" aria-label="Arrange layout" className="arrange-toolbar">
@@ -476,6 +505,15 @@ export default function ArrangeController({
         const id = rawId as BlockId
         const entry = sessionEntriesRef.current.find((candidate) => candidate.id === id)
         if (!entry || !rect) return null
+        const visible = artboardViewportRect ? {
+          left: Math.max(rect.left, artboardViewportRect.left),
+          top: Math.max(rect.top, artboardViewportRect.top),
+          right: Math.min(rect.right, artboardViewportRect.right),
+          bottom: Math.min(rect.bottom, artboardViewportRect.bottom),
+        } : rect
+        const visibleWidth = visible.right - visible.left
+        const visibleHeight = visible.bottom - visible.top
+        if (visibleWidth <= 0 || visibleHeight <= 0) return null
         const selected = draft.selectedId === id
         return (
           <button
@@ -484,7 +522,7 @@ export default function ArrangeController({
             aria-label={`Edit ${entry.label}`}
             aria-pressed={selected}
             className={`arrange-target${selected ? ' arrange-target--selected' : ''}`}
-            style={{ position: 'fixed', left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+            style={{ position: 'fixed', left: visible.left, top: visible.top, width: visibleWidth, height: visibleHeight }}
             onClick={() => select(id)}
             onKeyDown={(event) => {
               select(id)
@@ -503,8 +541,16 @@ export default function ArrangeController({
                 id,
                 pointerId: event.pointerId,
                 startDraft: draftRef.current ?? draft,
-                pointerOffset: { x: event.clientX - rect.left, y: event.clientY - rect.top },
+                pointerOffset: {
+                  x: (event.clientX - rect.left) / surfaceScale,
+                  y: (event.clientY - rect.top) / surfaceScale,
+                },
                 canvasRect,
+                scale: surfaceScale,
+                coordinateBounds: surfaceCoordinates ?? {
+                  width: canvasRect.width / surfaceScale,
+                  height: canvasRect.height / surfaceScale,
+                },
               }
               setGuides([])
             }}
@@ -515,26 +561,34 @@ export default function ArrangeController({
                 candidate !== id && candidateRect
                   ? [{
                       id: candidate as BlockId,
-                      left: candidateRect.left - drag.canvasRect.left,
-                      top: candidateRect.top - drag.canvasRect.top,
-                      width: candidateRect.width,
-                      height: candidateRect.height,
+                      left: (candidateRect.left - drag.canvasRect.left) / drag.scale,
+                      top: (candidateRect.top - drag.canvasRect.top) / drag.scale,
+                      width: candidateRect.width / drag.scale,
+                      height: candidateRect.height / drag.scale,
                     }]
                   : []
               ))
+              const pointer = clientToLogicalPoint(
+                { x: event.clientX, y: event.clientY },
+                drag.canvasRect,
+                drag.scale,
+              )
+              const box = { width: rect.width / drag.scale, height: rect.height / drag.scale }
+              const bounds = {
+                width: drag.canvasRect.width / drag.scale,
+                height: drag.canvasRect.height / drag.scale,
+                inset: 8,
+              }
               const snapped = snapCanvasPosition({
-                pointer: {
-                  x: event.clientX - drag.canvasRect.left,
-                  y: event.clientY - drag.canvasRect.top,
-                },
+                pointer,
                 pointerOffset: drag.pointerOffset,
-                box: { width: rect.width, height: rect.height },
-                bounds: { width: drag.canvasRect.width, height: drag.canvasRect.height, inset: 8 },
+                box,
+                bounds,
                 neighbors,
               })
               const next = moveCanvasItem(drag.startDraft, id, {
-                x: (snapped.left + rect.width / 2) / drag.canvasRect.width * 100,
-                y: (snapped.top + rect.height / 2) / drag.canvasRect.height * 100,
+                x: (snapped.left + box.width / 2) / drag.coordinateBounds.width * 100,
+                y: (snapped.top + box.height / 2) / drag.coordinateBounds.height * 100,
               })
               replaceDraft(next)
               setGuides(snapped.guides)
@@ -565,8 +619,16 @@ export default function ArrangeController({
           data-canvas-guide={guide.kind}
           className={`arrange-guide arrange-guide--${guide.axis}`}
           style={guide.axis === 'x'
-            ? { left: (surfaceRect?.left ?? 0) + guide.value }
-            : { top: (surfaceRect?.top ?? 0) + guide.value }}
+            ? {
+                left: (surfaceRect?.left ?? 0) + guide.value * surfaceScale,
+                top: artboardViewportRect?.top,
+                height: artboardViewportRect?.height,
+              }
+            : {
+                top: (surfaceRect?.top ?? 0) + guide.value * surfaceScale,
+                left: artboardViewportRect?.left,
+                width: artboardViewportRect?.width,
+              }}
         />
       ))}
 
@@ -574,15 +636,15 @@ export default function ArrangeController({
         <aside
           role="complementary"
           aria-label={`${selectedEntry.label} inspector`}
-          data-arrange-inspector-mode={small ? 'sheet' : 'side'}
-          className={`arrange-inspector${small ? ' arrange-inspector--sheet' : ''}`}
+          data-arrange-inspector-mode={viewportMode}
+          className={`arrange-inspector${sheet ? ' arrange-inspector--sheet' : ''}`}
         >
           <header className="arrange-inspector-header">
             <div>
               <p className="arrange-inspector-eyebrow">Selected widget</p>
               <h2>{selectedEntry.label}</h2>
             </div>
-            {small ? <button type="button" className={buttonClass()} onClick={() => setInspectorOpen(false)}>Close inspector</button> : null}
+            {sheet ? <button type="button" className={buttonClass()} onClick={() => setInspectorOpen(false)}>Close inspector</button> : null}
           </header>
 
           {selectedPlacement.kind === 'canvas' ? (

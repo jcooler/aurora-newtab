@@ -37,6 +37,7 @@ export type CanvasBlockPlacement = CanvasPlacement | BottomBarPlacement
 
 export interface CanvasProfile {
   mode: CanvasMode
+  coordinateHeight?: number
   placements: Partial<Record<BlockId, CanvasBlockPlacement>>
 }
 
@@ -168,7 +169,16 @@ export function cleanCanvasProfile(
     }
     placements[id] = cloneBlockPlacement(placement)
   }
-  return { mode: value.mode as CanvasMode, placements }
+  let coordinateHeight: number | undefined
+  if (Object.prototype.hasOwnProperty.call(value, 'coordinateHeight')) {
+    if (!finite(value.coordinateHeight) || value.coordinateHeight <= 0) invalid()
+    coordinateHeight = value.coordinateHeight
+  }
+  return {
+    mode: value.mode as CanvasMode,
+    ...(coordinateHeight === undefined ? {} : { coordinateHeight }),
+    placements,
+  }
 }
 
 function cleanLayoutV3(value: Record<string, unknown>, invalidPlacement: 'reject' | 'drop'): LayoutV3 {

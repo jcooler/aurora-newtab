@@ -92,19 +92,50 @@
   scrollbar-width: thin;
 }
 
-.aurora-canvas[data-arranging="true"] .canvas-root {
+.arrange-artboard-workspace {
+  position: fixed;
+  z-index: 1;
+  top: 48px;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
   box-sizing: border-box;
-  width: calc(100% - 320px);
-  padding-top: 56px;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 12px;
+  pointer-events: auto;
 }
 
-.aurora-canvas[data-arranging="true"][data-arrange-profile="compact"] .canvas-root {
-  width: min(375px, 100%);
-  margin-inline: auto;
+.arrange-artboard-workspace[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] {
+  right: 328px;
 }
 
-.aurora-canvas[data-arrange-small-sheet="true"] > .contents {
-  visibility: hidden;
+.arrange-artboard-workspace[data-arrange-viewport-mode="sheet"] {
+  align-items: flex-start;
+}
+
+.arrange-artboard-viewport {
+  position: relative;
+  flex: 0 0 auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--panel-border));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--panel-solid) 8%, transparent);
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
+}
+
+.arrange-artboard-logical {
+  position: relative;
+  transform-origin: top left;
+}
+
+.arrange-artboard-logical .canvas-root,
+.arrange-artboard-logical .canvas-surface {
+  width: 100%;
 }
 
 /* Direct tool panels anchor to their launchers on roomy canvases. Small uses
@@ -130,7 +161,7 @@
   position: fixed;
   z-index: 64;
   top: 0;
-  right: 320px;
+  right: 0;
   left: 0;
   display: flex;
   min-height: 48px;
@@ -210,14 +241,10 @@
 }
 
 .arrange-guide--x {
-  top: 48px;
-  bottom: 0;
   width: 1px;
 }
 
 .arrange-guide--y {
-  right: 320px;
-  left: 0;
   height: 1px;
 }
 
@@ -227,7 +254,7 @@
   top: 0;
   right: 0;
   bottom: 0;
-  width: 320px;
+  width: 328px;
   overflow-y: auto;
   padding: 16px;
   border-left: 1px solid var(--panel-border);
@@ -316,19 +343,38 @@
 }
 
 .arrange-inspector--sheet {
-  top: 48px;
-  width: 100%;
-  border-left: 0;
-  box-shadow: none;
-}
-
-.arrange-overlay[data-arrange-small-sheet="true"] .arrange-target,
-.arrange-overlay[data-arrange-small-sheet="true"] .arrange-guide {
-  display: none;
-}
-
-.arrange-overlay[data-arrange-profile="compact"] .arrange-toolbar {
+  top: auto;
   right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  max-height: 50dvh;
+  display: grid;
+  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(240px, 1fr)) minmax(180px, 0.7fr);
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 12px;
+  border-top: 1px solid var(--panel-border);
+  border-left: 0;
+  box-shadow: 0 -16px 40px rgb(0 0 0 / 0.22);
+}
+
+.arrange-inspector--sheet .arrange-inspector-section {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.arrange-overlay[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] .arrange-toolbar,
+.arrange-overlay[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] .arrange-guide--y {
+  right: 328px;
+}
+
+@media (max-width: 720px) {
+  .arrange-inspector--sheet {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

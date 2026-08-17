@@ -20,6 +20,7 @@ import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
+import ArrangeArtboard from './arrange/ArrangeArtboard'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -188,15 +189,12 @@ export default function App() {
     return <Renderer {...rendererProps} canvasSize={size} />
   }
   const previewProfile = arrangePreview?.profile ?? viewport.profile
-  const textScale = projectTextScale(settings.layoutDensity, viewport)
-  const previewViewport = arrangePreview
-    ? {
-        width: previewProfile === 'compact'
-          ? Math.min(375, viewport.width)
-          : Math.max(1, viewport.width - 320),
-        height: viewport.height,
-      }
-    : viewport
+  const textScale = projectTextScale(
+    settings.layoutDensity,
+    arrangePreview
+      ? { ...arrangePreview.artboard, profile: arrangePreview.profile }
+      : viewport,
+  )
   const visibleCanvasEntries = arrangePreview?.hiddenIds.length
     ? activeEntries.filter((entry) => !arrangePreview.hiddenIds.includes(entry.id))
     : activeEntries
@@ -208,20 +206,21 @@ export default function App() {
       data-canvas-text-scale={textScale}
       data-arranging={arranging ? 'true' : undefined}
       data-arrange-profile={arranging ? previewProfile : undefined}
-      data-arrange-small-sheet={arranging && previewProfile === 'compact' && arrangePreview?.inspectorOpen ? 'true' : undefined}
+      data-arrange-viewport-mode={arrangePreview?.viewportMode}
       className="aurora-canvas text-fg"
     >
       <div className="contents" inert={arranging || (utilityTrayOpen && viewport.profile === 'compact')}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
-        <CanvasSurface
-          layout={storedLayout}
-          profileKey={previewProfile}
-          profileOverride={arrangePreview?.canvas}
-          entries={visibleCanvasEntries}
-          viewport={previewViewport}
-          elevatedIds={elevatedIds}
-          renderWidget={renderWidget}
-        />
+        {!arrangePreview ? (
+          <CanvasSurface
+            layout={storedLayout}
+            profileKey={previewProfile}
+            entries={visibleCanvasEntries}
+            viewport={viewport}
+            elevatedIds={elevatedIds}
+            renderWidget={renderWidget}
+          />
+        ) : null}
 
         <button
           type="button"
@@ -262,6 +261,24 @@ export default function App() {
         </WidgetBoundary>
       </div>
 
+      {arrangePreview ? (
+        <ArrangeArtboard
+          profile={arrangePreview.profile}
+          physicalViewport={viewport}
+          inspectorOpen={arrangePreview.inspectorOpen}
+        >
+          <CanvasSurface
+            layout={storedLayout}
+            profileKey={arrangePreview.profile}
+            profileOverride={arrangePreview.canvas}
+            entries={visibleCanvasEntries}
+            viewport={arrangePreview.artboard}
+            elevatedIds={elevatedIds}
+            renderWidget={renderWidget}
+          />
+        </ArrangeArtboard>
+      ) : null}
+
       <UtilityTray
         open={utilityTrayOpen}
         modal={viewport.profile === 'compact'}
@@ -276,7 +293,7 @@ export default function App() {
         profile={viewport.profile}
         layout={storedLayout}
         entries={activeEntries}
-        viewport={previewViewport}
+        viewport={viewport}
         onPreviewChange={setArrangePreview}
         onModeChange={setArranging}
         returnFocusRef={settingsButtonRef}

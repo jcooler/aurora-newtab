@@ -33,11 +33,24 @@ const CENTER_Y: Readonly<Record<string, number>> = Object.freeze({
 })
 
 const SMALL_ORDER = [
-  'bookmarks', 'timer', 'weather', 'clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links',
-  'ics', 'monthCal', 'habits', 'sun', 'moon',
+  'bookmarks', 'weather', 'clock', 'greeting', 'search', 'focus', 'links', 'quote', 'timer', 'tasks', 'notes',
+  'worldClocks', 'countdown', 'ics', 'monthCal', 'habits', 'sun', 'moon',
   'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
-  'quote', 'notes', 'tasks',
 ] as const
+
+export const SMALL_CANVAS_COORDINATE_HEIGHT = 3200
+const SMALL_SLOT_GAP = 12
+const SMALL_SLOT_CENTERS = (() => {
+  const centers = new Map<WidgetRegistryEntry['id'], number>()
+  let cursor = 16
+  for (const id of SMALL_ORDER) {
+    const box = canvasBoxFor(id, 'compact', { width: 390, height: SMALL_CANVAS_COORDINATE_HEIGHT, inset: 8 })
+    centers.set(id, cursor + box.height / 2)
+    cursor += box.height + SMALL_SLOT_GAP
+  }
+  if (cursor > SMALL_CANVAS_COORDINATE_HEIGHT) throw new Error('Small Canvas source slots exceed the coordinate plane')
+  return centers
+})()
 
 function preferredSize(entry: WidgetRegistryEntry, profile: CanvasProfileKey): CanvasSize {
   const target: CanvasSize = profile === 'compact'
@@ -95,11 +108,9 @@ export function canvasDefaults(
   entries: readonly WidgetRegistryEntry[],
 ): CanvasProfile {
   const placements: CanvasProfile['placements'] = {}
-  const smallOrder = new Map(SMALL_ORDER.map((id, index) => [id, index]))
-
   for (const entry of entries) {
     const position = profile === 'compact'
-      ? { x: 50, y: spread(smallOrder.get(entry.id) ?? 0, SMALL_ORDER.length, 3, 97) }
+      ? { x: 50, y: (SMALL_SLOT_CENTERS.get(entry.id) ?? 16) / SMALL_CANVAS_COORDINATE_HEIGHT * 100 }
       : desktopPosition(entry.id, profile)
     placements[entry.id] = {
       kind: 'canvas',
@@ -108,11 +119,15 @@ export function canvasDefaults(
       layer: entry.sourceOrder,
     }
   }
-  return { mode: 'derived', placements }
+  return {
+    mode: 'derived',
+    ...(profile === 'compact' ? { coordinateHeight: SMALL_CANVAS_COORDINATE_HEIGHT } : {}),
+    placements,
+  }
 }
 
 const PROFILE_BOUNDS: Readonly<Record<CanvasProfileKey, Readonly<CanvasBounds>>> = Object.freeze({
-  compact: Object.freeze({ width: 375, height: 3200, inset: 8 }),
+  compact: Object.freeze({ width: 390, height: SMALL_CANVAS_COORDINATE_HEIGHT, inset: 8 }),
   standard: Object.freeze({ width: 1600, height: 900, inset: 8 }),
   display: Object.freeze({ width: 2560, height: 1440, inset: 8 }),
   ultrawide: Object.freeze({ width: 1800, height: 700, inset: 8 }),
@@ -211,5 +226,11 @@ export function resolveCanvasProfile(
       occupied.push(pixelRect(placed, canvasBoxFor(entry.id, placed.size, bounds), bounds))
     }
   }
-  return { mode: saved?.mode ?? 'derived', placements }
+  const coordinateHeight = saved?.coordinateHeight
+    ?? (saved?.mode === 'custom' ? undefined : defaults.coordinateHeight)
+  return {
+    mode: saved?.mode ?? 'derived',
+    ...(coordinateHeight === undefined ? {} : { coordinateHeight }),
+    placements,
+  }
 }

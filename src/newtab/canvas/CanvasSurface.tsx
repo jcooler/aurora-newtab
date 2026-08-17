@@ -43,19 +43,26 @@ export default function CanvasSurface({
     if (profileOverride) return profileOverride
     return resolveCanvasProfile(resolvedSource, entries, normalized.profiles[resolvedSource])
   }, [entries, normalized, profileOverride, resolvedSource])
-  const canvasHeight = canvasMinimumHeight(profileKey, preliminary, viewport.height)
+  const coordinateHeight = profileKey === 'compact' && preliminary.coordinateHeight !== undefined
+    ? preliminary.coordinateHeight
+    : canvasMinimumHeight(profileKey, preliminary, viewport.height)
   const resolved = useMemo(() => (
     profileOverride ?? resolveCanvasProfile(
       resolvedSource,
       entries,
       normalized.profiles[resolvedSource],
-      { width: viewport.width, height: canvasHeight },
+      { width: viewport.width, height: coordinateHeight },
     )
-  ), [canvasHeight, entries, normalized, profileOverride, resolvedSource, viewport.width])
+  ), [coordinateHeight, entries, normalized, profileOverride, resolvedSource, viewport.width])
   const fitted = useMemo(
-    () => fitCanvasProfile(resolved, { width: viewport.width, height: canvasHeight }),
-    [canvasHeight, resolved, viewport.width],
+    () => fitCanvasProfile(resolved, { width: viewport.width, height: coordinateHeight }),
+    [coordinateHeight, resolved, viewport.width],
   )
+  const canvasHeight = profileKey === 'compact'
+    ? Math.max(viewport.height, ...Object.values(fitted.placements).flatMap((placement) => (
+        placement?.kind === 'canvas' ? [placement.top + placement.height / 2 + 16] : []
+      )))
+    : coordinateHeight
   const canvasEntries = entries.filter((entry) => fitted.placements[entry.id]?.kind === 'canvas')
   const bottomEntries = entries
     .filter((entry) => fitted.placements[entry.id]?.kind === 'bottom-bar')
@@ -76,6 +83,8 @@ export default function CanvasSurface({
         data-canvas-mode={fitted.mode}
         data-canvas-viewport-width={viewport.width}
         data-canvas-viewport-height={canvasHeight}
+        data-canvas-coordinate-width={viewport.width}
+        data-canvas-coordinate-height={coordinateHeight}
         className="canvas-surface"
         style={{ minHeight: `${canvasHeight}px`, height: `${canvasHeight}px` }}
       >

@@ -27,31 +27,46 @@ function Fixture({
   layout,
   onPreviewChange,
   returnFocusRef,
+  viewport,
+  scale,
+  coordinates,
 }: {
   layout: StoredLayout
   onPreviewChange: (preview: ArrangePreview | null) => void
   returnFocusRef: ReturnType<typeof createRef<HTMLButtonElement>>
+  viewport: { width: number; height: number }
+  scale: number
+  coordinates?: { width: number; height: number }
 }) {
   const [signal, setSignal] = useState(0)
   const [arranging, setArranging] = useState(false)
   return (
     <>
       <button ref={returnFocusRef} type="button" onClick={() => setSignal((value) => value + 1)}>Open editor</button>
-      <div data-canvas-content="" inert={arranging}>
-        <div data-canvas-surface="" data-test-surface="">
-          {ENTRIES.map((entry, index) => (
-            <div key={entry.id} data-block-id={entry.id} data-arrange-long-press-controls="true" data-test-index={index} tabIndex={-1}>
-              <span data-testid={`surface-${entry.id}`}>{entry.label} surface</span>
-              <button type="button">{entry.label} content</button>
+      <div data-arrange-artboard-viewport="" data-test-artboard="">
+        <div data-arrange-artboard-logical="" data-arrange-scale={scale}>
+          <div data-canvas-content="" inert={arranging}>
+            <div
+              data-canvas-surface=""
+              data-test-surface=""
+              data-canvas-coordinate-width={coordinates?.width}
+              data-canvas-coordinate-height={coordinates?.height}
+            >
+              {ENTRIES.map((entry, index) => (
+                <div key={entry.id} data-block-id={entry.id} data-arrange-long-press-controls="true" data-test-index={index} tabIndex={-1}>
+                  <span data-testid={`surface-${entry.id}`}>{entry.label} surface</span>
+                  <button type="button">{entry.label} content</button>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
       <ArrangeController
         profile="standard"
         layout={layout}
         entries={ENTRIES}
-        viewport={{ width: 1200, height: 800 }}
+        viewport={viewport}
         onPreviewChange={onPreviewChange}
         onModeChange={setArranging}
         returnFocusRef={returnFocusRef}
@@ -63,10 +78,18 @@ function Fixture({
 
 async function setup(
   seed: StoredLayout = { version: 3, profiles: {} },
-  options: { surface?: DOMRect; itemRects?: Partial<Record<string, DOMRect>> } = {},
+  options: {
+    surface?: DOMRect
+    itemRects?: Partial<Record<string, DOMRect>>
+    viewport?: { width: number; height: number }
+    scale?: number
+    artboard?: DOMRect
+    coordinates?: { width: number; height: number }
+  } = {},
 ) {
   const surface = options.surface ?? rect(0, 0, 1200, 800)
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.hasAttribute('data-test-artboard')) return options.artboard ?? surface
     if (this.hasAttribute('data-test-surface')) return surface
     const id = this.getAttribute('data-block-id')
     if (id && options.itemRects?.[id]) return options.itemRects[id]
@@ -80,7 +103,14 @@ async function setup(
   const returnFocusRef = createRef<HTMLButtonElement>()
   render(
     <StorageProvider storage={storage}>
-      <Fixture layout={seed} onPreviewChange={onPreviewChange} returnFocusRef={returnFocusRef} />
+      <Fixture
+        layout={seed}
+        onPreviewChange={onPreviewChange}
+        returnFocusRef={returnFocusRef}
+        viewport={options.viewport ?? { width: 1200, height: 800 }}
+        scale={options.scale ?? 1}
+        coordinates={options.coordinates}
+      />
     </StorageProvider>,
   )
   const open = screen.getByRole('button', { name: 'Open editor' })
@@ -218,6 +248,22 @@ describe('Canvas ArrangeController', () => {
     expect(update).not.toHaveBeenCalled()
   })
 
+  it('clips edit targets to the visible scrollable artboard and omits fully off-screen items', async () => {
+    await setup({ version: 3, profiles: {} }, {
+      surface: rect(100, 56, 390, 1200),
+      artboard: rect(100, 56, 390, 400),
+      itemRects: {
+        weather: rect(124, 430, 200, 100),
+        clock: rect(124, 600, 200, 100),
+      },
+    })
+
+    const partial = screen.getByRole('button', { name: 'Edit Weather' })
+    expect(partial.style.top).toBe('430px')
+    expect(partial.style.height).toBe('26px')
+    expect(screen.queryByRole('button', { name: 'Edit Clock' })).toBeNull()
+  })
+
   it('converts offset Canvas pointer, neighbors, and guides into one local coordinate space', async () => {
     const surface = rect(100, 56, 1200, 800)
     const { onPreviewChange } = await setup({ version: 3, profiles: {} }, { surface })
@@ -228,6 +274,42 @@ describe('Canvas ArrangeController', () => {
 
     expect(latestPreview(onPreviewChange)?.canvas.placements.weather).toMatchObject({ x: 50, y: 52.5 })
     expect(document.querySelector<HTMLElement>('[data-canvas-guide="canvas-center"]')?.style.left).toBe('700px')
+  })
+
+  it('converts a uniformly scaled artboard drag and guide back through logical Canvas coordinates', async () => {
+    const surface = rect(100, 56, 720, 450)
+    const { onPreviewChange } = await setup(
+      { version: 3, profiles: {} },
+      { surface, scale: 0.5, itemRects: { weather: rect(112, 116, 100, 50) } },
+    )
+    const target = screen.getByRole('button', { name: 'Edit Weather' })
+
+    fireEvent.pointerDown(target, { pointerId: 11, clientX: 137, clientY: 131 })
+    fireEvent.pointerMove(target, { pointerId: 11, clientX: 435, clientY: 282.25 })
+
+    expect(latestPreview(onPreviewChange)?.canvas.placements.weather).toMatchObject({ x: 50, y: 52.666666666666664 })
+    expect(document.querySelector<HTMLElement>('[data-canvas-guide="canvas-center"]')?.style.left).toBe('460px')
+  })
+
+  it('persists Small pointer movement against its stable coordinate plane instead of its shorter scroll extent', async () => {
+    const surface = rect(100, 56, 390, 1000)
+    const { onPreviewChange } = await setup(
+      { version: 3, profiles: {} },
+      {
+        surface,
+        artboard: rect(100, 56, 390, 844),
+        coordinates: { width: 390, height: 3200 },
+        itemRects: { weather: rect(124, 120, 200, 100) },
+      },
+    )
+    const target = screen.getByRole('button', { name: 'Edit Weather' })
+
+    fireEvent.pointerDown(target, { pointerId: 13, clientX: 174, clientY: 150 })
+    fireEvent.pointerMove(target, { pointerId: 13, clientX: 245, clientY: 436 })
+
+    const placement = latestPreview(onPreviewChange)?.canvas.placements.weather
+    expect(placement).toMatchObject({ kind: 'canvas', x: 50 })
+    expect(placement?.kind === 'canvas' ? placement.y : Number.NaN).toBeCloseTo(12.5625)
   })
 
   it('moves by 8px or 1px from the keyboard and announces movement and overlap', async () => {
@@ -319,14 +401,26 @@ describe('Canvas ArrangeController', () => {
     expect(screen.getByRole('toolbar', { name: 'Arrange layout' })).toBeTruthy()
   })
 
-  it('uses a dismissible Small inspector sheet that replaces the preview', async () => {
-    await setup()
-    fireEvent.click(screen.getByRole('tab', { name: 'Small' }))
+  it('uses physical viewport width for a dismissible inspector sheet and keeps every logical preview visible', async () => {
+    const { onPreviewChange } = await setup({ version: 3, profiles: {} }, { viewport: { width: 1099, height: 800 } })
     const inspector = screen.getByRole('complementary', { name: 'Weather inspector' })
     expect(inspector.getAttribute('data-arrange-inspector-mode')).toBe('sheet')
-    expect(document.querySelector('[data-arrange-small-sheet="true"]')).toBeTruthy()
+    for (const name of ['Small', 'Desktop', 'Large', 'Wide']) {
+      fireEvent.click(screen.getByRole('tab', { name }))
+      expect(latestPreview(onPreviewChange)?.viewportMode).toBe('sheet')
+      expect(screen.getByRole('complementary').getAttribute('data-arrange-inspector-mode')).toBe('sheet')
+    }
     fireEvent.click(within(inspector).getByRole('button', { name: 'Close inspector' }))
     expect(screen.queryByRole('complementary')).toBeNull()
-    expect(document.querySelector('[data-arrange-small-sheet="true"]')).toBeNull()
+    expect(latestPreview(onPreviewChange)?.inspectorOpen).toBe(false)
+  })
+
+  it('uses a bounded side inspector at 1100px for every logical profile', async () => {
+    const { onPreviewChange } = await setup({ version: 3, profiles: {} }, { viewport: { width: 1100, height: 800 } })
+    for (const name of ['Small', 'Desktop', 'Large', 'Wide']) {
+      fireEvent.click(screen.getByRole('tab', { name }))
+      expect(latestPreview(onPreviewChange)?.viewportMode).toBe('side')
+      expect(screen.getByRole('complementary').getAttribute('data-arrange-inspector-mode')).toBe('side')
+    }
   })
 })

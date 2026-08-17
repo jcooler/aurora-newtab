@@ -136,4 +136,49 @@ describe('CanvasSurface', () => {
     expect(screen.getByTestId('canvas-item-focus')).toBeTruthy()
     expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
   })
+
+  it('keeps a taller Small information path without transforming the production Canvas root', () => {
+    render(
+      <CanvasSurface
+        layout={{ version: 3, profiles: {} }}
+        profileKey="compact"
+        entries={WIDGET_REGISTRY}
+        viewport={{ width: 390, height: 844 }}
+        renderWidget={(entry) => <span>{entry.label}</span>}
+      />,
+    )
+
+    const canvas = screen.getByRole('region', { name: 'Canvas' })
+    const root = document.querySelector<HTMLElement>('[data-canvas-root]')!
+    expect(canvas.dataset.canvasViewportWidth).toBe('390')
+    expect(Number(canvas.dataset.canvasViewportHeight)).toBeGreaterThan(844)
+    expect(Number.parseFloat(canvas.style.height)).toBeGreaterThan(844)
+    expect(root.style.transform).toBe('')
+  })
+
+  it('keeps legacy custom Small coordinates dynamic until an explicit fixed-plane Save', () => {
+    const legacyCustom = {
+      version: 3 as const,
+      profiles: {
+        compact: {
+          mode: 'custom' as const,
+          placements: { clock: { kind: 'canvas' as const, x: 50, y: 30, size: 'compact' as const, layer: 0 } },
+        },
+      },
+    }
+    const view = renderSurface(legacyCustom, 'compact')
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasCoordinateHeight).toBe('812')
+    view.unmount()
+
+    renderSurface({
+      version: 3,
+      profiles: {
+        compact: {
+          ...legacyCustom.profiles.compact,
+          coordinateHeight: 3200,
+        },
+      },
+    }, 'compact')
+    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasCoordinateHeight).toBe('3200')
+  })
 })
