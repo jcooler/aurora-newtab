@@ -9,6 +9,7 @@ import type {
 } from '../lib/layout/types'
 import type { Settings, WidgetToggles } from '../lib/storage/schema'
 import type { ConnectorConfig, ConnectorId } from '../services/connectors/types'
+import type { CanvasSize } from '../lib/layout/canvasTypes'
 
 export type WidgetAvailability =
   | Readonly<{ kind: 'always' }>
@@ -19,6 +20,7 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   label: string
   rendererKey: BlockId
   availability: WidgetAvailability
+  canvasSizes: readonly CanvasSize[]
 }
 
 interface RegistrySource {
@@ -89,6 +91,11 @@ function profileVariant(source: RegistrySource, profile: LayoutProfile): WidgetV
 
 function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegistryEntry {
   const footprints = freezeFootprints(source.footprints)
+  const canvasSizes = Object.freeze(
+    VARIANT_ORDER
+      .filter((variant) => footprints[variant] !== undefined)
+      .map((variant): CanvasSize => variant === 'expanded' ? 'full' : variant),
+  )
   const defaultPlacements = {} as Record<LayoutProfile, Placement>
   for (const profile of PROFILE_ORDER) {
     const variant = profileVariant(source, profile)
@@ -108,6 +115,7 @@ function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegis
     rendererKey: source.id,
     availability: source.availability,
     sourceOrder,
+    canvasSizes,
     eligibleZones: Object.freeze([...source.eligibleZones]),
     allowedVariants: Object.freeze(VARIANT_ORDER.filter((variant) => footprints[variant] !== undefined)),
     footprints,

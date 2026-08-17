@@ -5,6 +5,7 @@ import { StorageProvider } from '../lib/storage/context'
 import { memoryDriver } from '../lib/storage/driver'
 import { createStorage } from '../lib/storage/index'
 import { defaults } from '../lib/storage/schema'
+import type { LayoutV3 } from '../lib/layout/canvasTypes'
 import { emptyLayoutV2 } from '../lib/layout/v2'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import App from './App'
@@ -23,7 +24,11 @@ async function renderApp(storage?: ReturnType<typeof createStorage>) {
   return value
 }
 
-describe('App — Adaptive Stage composition', () => {
+function canvasItem(id: string): HTMLElement {
+  return document.querySelector<HTMLElement>(`[data-block-id="${id}"]`)!
+}
+
+describe('App Canvas composition', () => {
   beforeEach(() => {
     vi.mocked(hasBookmarksPermission).mockResolvedValue(false)
     vi.mocked(loadBarModel).mockResolvedValue({ folders: [], loose: [] })
@@ -37,15 +42,16 @@ describe('App — Adaptive Stage composition', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('owns the semantic root and keeps all four named zones structurally present', async () => {
+  it('owns one V1 Canvas and retires the rejected semantic presentation regions', async () => {
     await renderApp()
-    expect(document.querySelector('main[data-adaptive-stage]')).toBeTruthy()
+    expect(document.querySelectorAll('main[data-aurora-canvas]')).toHaveLength(1)
+    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe('Desktop')
     for (const name of ['Day', 'Now', 'Work Pulse', 'Signal Dock']) {
-      expect(screen.getByRole('region', { name })).toBeTruthy()
+      expect(screen.queryByRole('region', { name })).toBeNull()
     }
   })
 
-  it('opens a modeless Utility Tray without making the Standard dashboard inert', async () => {
+  it('opens a modeless Utility Tray without making the Desktop Canvas inert', async () => {
     await renderApp()
     const invoker = screen.getByRole('button', { name: 'Open utility tray' })
     const dashboard = invoker.closest('.contents')
@@ -58,7 +64,7 @@ describe('App — Adaptive Stage composition', () => {
     expect(dashboard?.hasAttribute('inert')).toBe(false)
   })
 
-  it('derives a modal Compact Utility Tray, inerts only the dashboard, and restores its invoker', async () => {
+  it('derives a modal Small Utility Tray, inerts only the Canvas host, and restores its invoker', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
     await renderApp()
@@ -75,122 +81,99 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.activeElement).toBe(invoker)
   })
 
-  it('shows render-only date context only when Day has no semantic allocation', async () => {
+  it('renders no synthetic Day context when all optional widgets are off', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const settings = defaults().settings
     const widgetsOff = Object.fromEntries(
       Object.keys(settings.widgets).map((key) => [key, false]),
     ) as unknown as typeof settings.widgets
-    await storage.set('settings', {
-      ...settings,
-      widgets: widgetsOff,
-    })
+    await storage.set('settings', { ...settings, widgets: widgetsOff })
     await storage.set('connectors', {})
     await renderApp(storage)
 
-    const day = screen.getByRole('region', { name: 'Day' })
-    expect(day.querySelector('[data-day-context]')).toBeTruthy()
-    expect(day.querySelectorAll(':scope > [data-block-id]')).toHaveLength(0)
+    expect(screen.getByRole('region', { name: 'Canvas' })).toBeTruthy()
+    expect(document.querySelector('[data-day-context]')).toBeNull()
     expect(document.querySelector('[data-block-id="day-context"]')).toBeNull()
+  })
 
-    await act(async () => {
-      await storage.set('settings', { ...settings, widgets: { ...widgetsOff, weather: true } })
+  it('restores the source V1 anchors with Bookmarks at the top and the ritual centered', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, bookmarks: true },
     })
-    expect(day.querySelector('[data-day-context]')).toBeNull()
-    expect(day.querySelectorAll(':scope > [data-block-id]')).toHaveLength(1)
-  })
-
-  it('keeps the source-default Now hierarchy in semantic order', async () => {
-    await renderApp()
-    const nowIds = [...screen.getByRole('region', { name: 'Now' }).querySelectorAll<HTMLElement>(':scope > [data-block-id]')]
-      .map((node) => node.dataset.blockId)
-    expect(nowIds).toEqual(['clock', 'greeting', 'search', 'focus', 'links'])
+    await renderApp(storage)
+    expect(Number(canvasItem('bookmarks').dataset.canvasY)).toBeLessThan(10)
+    for (const id of ['clock', 'greeting', 'search', 'focus', 'links']) {
+      expect(canvasItem(id).dataset.canvasX).toBe('50')
+    }
+    expect(Number(canvasItem('clock').dataset.canvasY)).toBeLessThan(Number(canvasItem('focus').dataset.canvasY))
     expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(1)
-    expect(document.querySelector('[data-aurora-briefing]')?.closest('[data-block-id]')?.getAttribute('data-block-id')).toBe('greeting')
   })
 
-  it('consolidates adjacent Quick Links and Bookmarks without duplicating either allocation', async () => {
+  it('renders adjacent Quick Links and Bookmarks exactly once without a synthetic launcher shelf', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const settings = defaults().settings
     await storage.set('settings', {
       ...settings,
-      layoutDensity: 'balanced',
       widgets: { ...settings.widgets, links: true, bookmarks: true, habits: false },
-    })
-    await storage.set('layout', {
-      version: 2,
-      profiles: { standard: {
-        links: { zone: 'now', order: 6, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'automatic' },
-        bookmarks: { zone: 'now', order: 7, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'automatic' },
-      } },
     })
     await renderApp(storage)
 
-    const shelf = screen.getByRole('group', { name: 'Launchers' })
-    expect(shelf.closest('[data-stage-zone="now"]')).toBeTruthy()
-    expect(shelf.querySelectorAll('[data-block-id="links"]')).toHaveLength(1)
-    expect(shelf.querySelectorAll('[data-block-id="bookmarks"]')).toHaveLength(1)
     expect(document.querySelectorAll('[data-block-id="links"]')).toHaveLength(1)
     expect(document.querySelectorAll('[data-block-id="bookmarks"]')).toHaveLength(1)
+    expect(screen.queryByRole('group', { name: 'Launchers' })).toBeNull()
   })
 
-  it('renders each active registry ID exactly once on the board or in the Dock', async () => {
+  it('renders each active registry identity exactly once on the Canvas', async () => {
     await renderApp()
     for (const id of ['clock', 'greeting', 'focus', 'weather', 'search', 'links', 'tasks', 'notes']) {
       expect(document.querySelectorAll(`[data-block-id="${id}"]`)).toHaveLength(1)
+      expect(canvasItem(id).dataset.canvasKind).toBe('canvas')
     }
-    expect(document.querySelector('[data-block-id="clock"]')?.getAttribute('data-stage-zone')).toBe('now')
-    expect(document.querySelector('[data-block-id="notes"]')?.getAttribute('data-stage-zone')).toBe('dock')
+    expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()
   })
 
-  it('flows finite canvas zones from semantic order without explicit planner start lines', async () => {
+  it('fits active Canvas items to finite absolute geometry with the frozen safe inset', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', { github: { enabled: true, username: '' } })
     await renderApp(storage)
 
-    for (const id of ['weather', 'clock', 'github']) {
-      const item = document.querySelector<HTMLElement>(`[data-block-id="${id}"]`)!
-      expect(item.style.gridColumn).toMatch(/^span \d+$/)
-      expect(item.style.gridRow).toMatch(/^span \d+$/)
+    for (const id of ['weather', 'clock', 'github', 'notes']) {
+      const item = canvasItem(id)
+      expect(item.style.position).toBe('absolute')
+      expect(Number.parseFloat(item.style.left)).toBeGreaterThanOrEqual(8)
+      expect(Number.parseFloat(item.style.top)).toBeGreaterThanOrEqual(8)
+      expect(item.style.gridColumn).toBe('')
+      expect(item.style.gridRow).toBe('')
     }
-    expect(document.querySelectorAll('[data-block-id="notes"]')).toHaveLength(1)
-    expect(document.querySelector<HTMLElement>('[data-block-id="notes"]')!.style.gridColumn).toBe('span 1')
   })
 
-  it('publishes finite Dock geometry with inline container ownership and explicit sizing', async () => {
-    await renderApp()
-    const dock = screen.getByRole('region', { name: 'Signal Dock' })
-    const dockItems = [...dock.querySelectorAll<HTMLElement>(':scope > [data-block-id]')]
-    const plannedTracks = dockItems.reduce(
-      (total, item) => total + Number(item.style.getPropertyValue('--board-col-span')),
-      0,
-    )
-    expect(dock.style.getPropertyValue('--stage-dock-track-count')).toBe(String(plannedTracks))
-    const notes = document.querySelector<HTMLElement>('[data-block-id="notes"]')!
-    expect(notes.style.getPropertyValue('--board-col-span')).toBe('1')
-    expect(notes.style.getPropertyValue('--board-row-span')).toBe('1')
-    expect(notes.style.containerType).toBe('inline-size')
-    expect(notes.style.inlineSize).toBe('var(--stage-track-min)')
-  })
-
-  it('publishes zero explicit Dock tracks when no allocation belongs to the Dock', async () => {
+  it('renders an optional Bottom bar only for explicitly stored bottom-bar placements', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    const settings = defaults().settings
-    await storage.set('settings', {
-      ...settings,
-      widgets: { ...settings.widgets, notes: false, todo: false, timer: false },
-    })
+    const layout: LayoutV3 = {
+      version: 3,
+      profiles: { standard: { mode: 'custom', placements: {
+        notes: { kind: 'bottom-bar', order: 0, size: 'compact' },
+        clock: { kind: 'canvas', x: 50, y: 24, size: 'full', layer: 0 },
+      } } },
+    }
+    await storage.set('layout', layout)
     await renderApp(storage)
-    const dock = screen.getByRole('region', { name: 'Signal Dock' })
-    expect(dock.querySelectorAll(':scope > [data-block-id]')).toHaveLength(0)
-    expect(dock.style.getPropertyValue('--stage-dock-track-count')).toBe('0')
+
+    const bottomBar = screen.getByRole('navigation', { name: 'Bottom bar' })
+    expect(within(bottomBar).getByTestId('canvas-item-notes')).toBeTruthy()
+    expect(document.querySelectorAll('[data-block-id="notes"]')).toHaveLength(1)
+    expect(canvasItem('notes').dataset.canvasKind).toBe('bottom-bar')
+    expect(canvasItem('clock').dataset.canvasKind).toBe('canvas')
   })
 
-  it('replans in the same update when widget settings change', async () => {
+  it('replans on the same mount when widget settings change', async () => {
     const storage = await renderApp()
     await act(async () => {
       await storage.set('settings', { ...defaults().settings, widgets: { ...defaults().settings.widgets, search: false } })
@@ -202,10 +185,10 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelectorAll('[data-block-id="search"]')).toHaveLength(1)
   })
 
-  it('replans one mounted Stage for connector availability, active-profile layout, and density changes', async () => {
+  it('updates one mounted Canvas for connector availability and active-profile V3 placement', async () => {
     const storage = await renderApp()
-
     expect(document.querySelector('[data-block-id="rss"]')).toBeNull()
+
     await act(async () => {
       await storage.set('connectors', { rss: { enabled: true, feeds: [], shownCount: 5 } })
     })
@@ -213,42 +196,38 @@ describe('App — Adaptive Stage composition', () => {
 
     await act(async () => {
       await storage.set('layout', {
-        version: 2,
-        profiles: { standard: { focus: {
-          zone: 'day', order: 99, colSpan: 1, rowSpan: 1,
-          variant: 'compact', priority: 'pinned',
+        version: 3,
+        profiles: { standard: { mode: 'custom', placements: {
+          focus: { kind: 'canvas', x: 50, y: 70, size: 'compact', layer: 7 },
         } } },
       })
     })
-    expect(document.querySelector('[data-block-id="focus"]')?.getAttribute('data-stage-zone')).toBe('day')
-
-    await act(async () => {
-      await storage.set('settings', { ...defaults().settings, layoutDensity: 'compact' })
-    })
-    expect(document.documentElement.dataset.stageDensity).toBe('compact')
-    expect(document.documentElement.style.getPropertyValue('--stage-gap')).toBe('12px')
+    expect(canvasItem('focus').dataset.canvasX).toBe('50')
+    expect(canvasItem('focus').dataset.canvasY).toBe('70')
+    expect(canvasItem('focus').dataset.canvasSize).toBe('compact')
+    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-mode')).toBe('custom')
   })
 
   it('waits through transient raw settings and layout shapes, then recovers on the same mount', async () => {
     const driver = memoryDriver()
     const storage = createStorage(driver)
     await renderApp(storage)
-    expect(document.querySelector('main[data-adaptive-stage]')).toBeTruthy()
+    expect(document.querySelector('main[data-aurora-canvas]')).toBeTruthy()
 
     await act(async () => {
       await driver.write({ settings: { layoutDensity: 'auto' } })
     })
-    expect(document.querySelector('main[data-adaptive-stage]')).toBeNull()
+    expect(document.querySelector('main[data-aurora-canvas]')).toBeNull()
 
     await act(async () => {
       await driver.write({ settings: defaults().settings, layout: { version: 2 } })
     })
-    expect(document.querySelector('main[data-adaptive-stage]')).toBeNull()
+    expect(document.querySelector('main[data-aurora-canvas]')).toBeNull()
 
     await act(async () => {
       await driver.write({ layout: emptyLayoutV2() })
     })
-    expect(document.querySelector('main[data-adaptive-stage]')).toBeTruthy()
+    expect(document.querySelector('main[data-aurora-canvas]')).toBeTruthy()
   })
 
   it('keeps enabled incomplete connector wrappers instead of hiding setup states', async () => {
@@ -263,147 +242,100 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.querySelectorAll('[data-block-id="rss"]')).toHaveLength(1)
   })
 
-  it('gives a Docked connector one operable entry and removes the wrapper when it returns to Work Pulse', async () => {
+  it('moves a connector between the Canvas and Bottom bar without duplicating it', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', { github: { enabled: true, username: '' } })
     await storage.set('layout', {
-      version: 2,
-      profiles: { standard: { github: {
-        zone: 'dock', order: 3, colSpan: 1, rowSpan: 1,
-        variant: 'compact', priority: 'dock',
+      version: 3,
+      profiles: { standard: { mode: 'custom', placements: {
+        github: { kind: 'bottom-bar', order: 0, size: 'compact' },
       } } },
     })
     await renderApp(storage)
 
     expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
-    expect(document.querySelectorAll('[data-signal-dock-entry]')).toHaveLength(1)
-    expect(document.querySelector('[data-block-id="notes"] [data-signal-dock-entry]')).toBeNull()
-    const open = screen.getByRole('button', { name: 'Open GitHub details' })
-    fireEvent.click(open)
-    expect(open.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.keyDown(document.querySelector('[data-signal-dock-content]') as HTMLElement, { key: 'Escape' })
-    expect(screen.getByRole('button', { name: 'Open GitHub details' })).toBe(document.activeElement)
+    expect(canvasItem('github').dataset.canvasKind).toBe('bottom-bar')
+    expect(screen.getByRole('navigation', { name: 'Bottom bar' })).toBeTruthy()
 
     await act(async () => {
       await storage.set('layout', {
-        version: 2,
-        profiles: { standard: { github: {
-          zone: 'pulse', order: 1, colSpan: 1, rowSpan: 1,
-          variant: 'compact', priority: 'automatic',
+        version: 3,
+        profiles: { standard: { mode: 'custom', placements: {
+          github: { kind: 'canvas', x: 87, y: 42, size: 'compact', layer: 0 },
         } } },
       })
     })
     expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
-    expect(document.querySelector('[data-block-id="github"]')?.getAttribute('data-stage-zone')).toBe('pulse')
-    expect(document.querySelector('[data-signal-dock-entry]')).toBeNull()
+    expect(canvasItem('github').dataset.canvasKind).toBe('canvas')
+    expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()
   })
 
-  it('uses only the active-profile override and ignores legacy for committed rendering', async () => {
+  it('uses the active V2 profile adapter and ignores legacy coordinates for committed rendering', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('layout', {
       version: 2,
-      profiles: { standard: { focus: { zone: 'day', order: 99, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } },
+      profiles: { standard: { focus: {
+        zone: 'day', order: 2, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned',
+      } } },
       legacy: { focus: { x: -10_000, y: 10_000 } },
     })
     await renderApp(storage)
-    const focus = document.querySelector<HTMLElement>('[data-block-id="focus"]')!
-    expect(focus.dataset.stageZone).toBe('day')
-    expect(focus.style.position).toBe('')
-    expect(focus.style.left).toBe('')
-    expect(focus.style.top).toBe('')
-    const semanticStyle = focus.style.cssText
-
-    await act(async () => {
-      await storage.set('layout', {
-        version: 2,
-        profiles: { standard: { focus: { zone: 'day', order: 99, colSpan: 1, rowSpan: 1, variant: 'compact', priority: 'pinned' } } },
-      })
-    })
-    expect(focus.dataset.stageZone).toBe('day')
-    expect(focus.style.cssText).toBe(semanticStyle)
+    expect(canvasItem('focus').dataset.canvasX).toBe('16.667')
+    expect(canvasItem('focus').dataset.canvasY).toBe('62')
+    expect(canvasItem('focus').dataset.canvasSize).toBe('compact')
+    expect(Number.parseFloat(canvasItem('focus').style.left)).toBeGreaterThanOrEqual(8)
   })
 
-  it('preserves a migrated pinned Clock override while canonical Now protection stays separate', async () => {
+  it('preserves a migrated V1 Clock coordinate when adapting a legacy layout', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
-    await storage.set('settings', { ...defaults().settings, layoutDensity: 'compact' })
-    await storage.set('layout', {
-      version: 2,
-      profiles: { standard: { clock: {
-        zone: 'day', order: 0, colSpan: 1, rowSpan: 1,
-        variant: 'compact', priority: 'pinned',
-      } } },
-      legacy: { clock: { x: 25, y: 50 } },
-    })
+    await storage.set('layout', { clock: { x: 25, y: 50 } })
     await renderApp(storage)
-    const clock = document.querySelector<HTMLElement>('[data-block-id="clock"]')!
-    expect(clock.dataset.stageZone).toBe('day')
-    expect(clock.dataset.stageVariant).toBe('compact')
-    expect(clock.style.getPropertyValue('--board-col-span')).toBe('1')
-    expect(clock.style.getPropertyValue('--board-row-span')).toBe('1')
+    expect(canvasItem('clock').dataset.canvasX).toBe('25')
+    expect(canvasItem('clock').dataset.canvasY).toBe('50')
+    expect(canvasItem('clock').dataset.canvasSize).toBe('standard')
   })
 
-  it('marks explicit pinned implicit rows for Stage-owned vertical overflow', async () => {
-    const storage = createStorage(memoryDriver())
-    await storage.init()
-    const pinned = Object.fromEntries(['clock', 'greeting', 'focus'].map((id, order) => [id, {
-      zone: 'now', order, colSpan: 4, rowSpan: 4,
-      variant: id === 'clock' ? 'expanded' : 'standard', priority: 'pinned',
-    }]))
-    await storage.set('settings', { ...defaults().settings, layoutDensity: 'compact' })
-    await storage.set('layout', { version: 2, profiles: { standard: pinned } })
-    await renderApp(storage)
-    expect(document.querySelector('main[data-adaptive-stage]')?.getAttribute('data-stage-pinned-overflow')).toBe('true')
+  it('gives Small a vertical document path with no horizontal document overflow', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+    await renderApp()
+    const canvas = screen.getByRole('region', { name: 'Canvas' })
+    expect(canvas.getAttribute('data-canvas-layout')).toBe('Small')
+    expect(Number.parseFloat((canvas as HTMLElement).style.height)).toBeGreaterThan(600)
+    for (const item of document.querySelectorAll<HTMLElement>('[data-canvas-kind="canvas"]')) {
+      expect(item.dataset.canvasX).toBe('50')
+      expect(Number.parseFloat(item.style.width)).toBeLessThanOrEqual(784)
+    }
   })
 
-  it('replans across viewport profile changes without duplicating active IDs', async () => {
+  it('replans across all four viewport profiles without duplicating active identities', async () => {
     await renderApp()
     let frame: FrameRequestCallback | undefined
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frame = callback; return 1 })
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
-    await act(async () => {
-      window.dispatchEvent(new Event('resize'))
-      frame?.(0)
-      await Promise.resolve()
-    })
-    expect(document.documentElement.dataset.stageProfile).toBe('compact')
-    expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
+
+    for (const [width, height, profile, label] of [
+      [800, 600, 'compact', 'Small'],
+      [1400, 900, 'standard', 'Desktop'],
+      [2560, 1440, 'display', 'Large'],
+      [1800, 700, 'ultrawide', 'Wide'],
+    ] as const) {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
+      await act(async () => {
+        window.dispatchEvent(new Event('resize'))
+        frame?.(0)
+        await Promise.resolve()
+      })
+      expect(document.documentElement.dataset.stageProfile).toBe(profile)
+      expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe(label)
+      expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
+    }
   })
 
-  it('reveals a focused Dock control with the frozen minimum-scroll alignment', async () => {
-    await renderApp()
-    const notes = await screen.findByRole('button', { name: 'Notes' })
-    notes.focus()
-    expect(notes.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
-  })
-
-  it('resolves Tab focus from the pre-keyboard Dock offset before applying nearest alignment', async () => {
-    await renderApp()
-    const dock = screen.getByRole('region', { name: 'Signal Dock' }) as HTMLElement
-    const notes = await screen.findByRole('button', { name: 'Notes' })
-    dock.scrollLeft = 37
-    fireEvent.keyDown(notes, { key: 'Tab' })
-    // Chromium may scroll during its native focus step before React receives
-    // focus. The handler must replay nearest from the keyboard-start offset.
-    dock.scrollLeft = 900
-    fireEvent.focus(notes)
-    expect(dock.scrollLeft).toBe(37)
-    expect(notes.scrollIntoView).toHaveBeenCalledWith({ block: 'nearest', inline: 'nearest' })
-  })
-
-  it('does not move a Dock control between pointer down and click', async () => {
-    await renderApp()
-    const notes = await screen.findByRole('button', { name: 'Notes' })
-    fireEvent.pointerDown(notes)
-    notes.focus()
-    expect(notes.scrollIntoView).not.toHaveBeenCalled()
-    fireEvent.pointerUp(notes)
-  })
-
-  it('routes a working-tool pill into the single Utility Tray surface', async () => {
+  it('routes a movable Notes launcher into the single Utility Tray surface', async () => {
     await renderApp()
     const notes = await screen.findByRole('button', { name: 'Notes' })
     fireEvent.click(notes)
@@ -411,14 +343,13 @@ describe('App — Adaptive Stage composition', () => {
     expect(await screen.findByRole('region', { name: 'Notes' })).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Tasks' })).toBeNull()
     expect(screen.getAllByRole('button', { name: 'Notes' }).some((button) => button.getAttribute('aria-pressed') === 'true')).toBe(true)
-    expect(document.querySelector('[data-block-id="notes"]')?.classList.contains('z-30')).toBe(false)
-    expect(screen.getByRole('region', { name: 'Signal Dock' }).classList.contains('stage-zone--elevated')).toBe(false)
+    expect(canvasItem('notes').dataset.canvasKind).toBe('canvas')
     await act(async () => fireEvent.click(screen.getByRole('button', { name: 'Close utility tray' })))
     expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
     expect(document.activeElement).toBe(notes)
   })
 
-  it('keeps Settings focus restoration and Arrange entry/exit behavior', async () => {
+  it('keeps Settings focus restoration and the temporary Arrange entry and exit behavior', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const active = this.hasAttribute('data-block-id')
       return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
@@ -434,7 +365,7 @@ describe('App — Adaptive Stage composition', () => {
     expect(document.activeElement).toBe(gear)
   })
 
-  it('replans from the semantic Arrange preview and restores the exact stored profile on Cancel', async () => {
+  it('keeps the exact stored Canvas layout when the temporary semantic Arrange session is cancelled', async () => {
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const active = this.hasAttribute('data-block-id')
       return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
@@ -443,19 +374,18 @@ describe('App — Adaptive Stage composition', () => {
     await storage.init()
     const stored = await storage.get('layout')
     await renderApp(storage)
-    const weather = () => document.querySelector<HTMLElement>('[data-block-id="weather"]')!
-    const before = weather().dataset.stageVariant
+    const before = canvasItem('weather').dataset.canvasSize
 
     fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
     fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Edit Weather' }))
     fireEvent.click(screen.getByRole('button', { name: 'Compact' }))
-    expect(weather().dataset.stageVariant).toBe('compact')
+    expect(canvasItem('weather').dataset.canvasSize).toBe(before)
     expect(await storage.get('layout')).toEqual(stored)
 
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(weather().dataset.stageVariant).toBe(before)
+    expect(canvasItem('weather').dataset.canvasSize).toBe(before)
     expect(await storage.get('layout')).toEqual(stored)
   })
 
@@ -479,9 +409,10 @@ describe('App — Adaptive Stage composition', () => {
 
   it('does not introduce a root transform or duplicate profile authority', async () => {
     await renderApp()
-    const main = document.querySelector<HTMLElement>('main[data-adaptive-stage]')!
+    const main = document.querySelector<HTMLElement>('main[data-aurora-canvas]')!
     expect(main.style.transform).toBe('')
-    expect(main.dataset.stageProfile).toBeUndefined()
+    expect(main.dataset.canvasProfile).toBe('standard')
     expect(document.documentElement.dataset.stageProfile).toBe('standard')
+    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-profile')).toBe('standard')
   })
 })

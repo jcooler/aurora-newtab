@@ -1,6 +1,56 @@
 @import "tailwindcss";
 @import "../theme/themes.css";
 
+.aurora-canvas {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+.canvas-root,
+.canvas-surface {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.canvas-surface {
+  isolation: isolate;
+}
+
+.canvas-item {
+  box-sizing: border-box;
+  display: flex;
+  max-width: calc(100vw - 16px);
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  container-type: inline-size;
+}
+
+.canvas-item > * {
+  max-width: 100%;
+}
+
+.canvas-item--elevated {
+  z-index: 50 !important;
+}
+
+.canvas-bottom-bar {
+  position: fixed;
+  z-index: 30;
+  right: 50%;
+  bottom: 16px;
+  display: flex;
+  max-width: calc(100vw - 144px);
+  translate: 50% 0;
+  gap: 8px;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+
 /* Locally-bundled fonts (SIL OFL — see README's Font credits section). Both
    are variable-font woff2 files (latin subset only — this is an English-first
    UI; see the type-scale comment further down), fetched once at build time

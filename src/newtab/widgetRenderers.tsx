@@ -28,9 +28,11 @@ import WeatherWidget from './widgets/weather/WeatherWidget'
 import { WIDGET_REGISTRY, type WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
+import type { CanvasSize } from '../lib/layout/canvasTypes'
 
 export interface WidgetRendererProps {
   stageVariant?: WidgetVariant
+  canvasSize?: CanvasSize
   onWeatherExpandedChange?: (open: boolean) => void
   onBookmarksPopoverOpenChange?: (open: boolean) => void
   onNotesOpenChange?: (open: boolean) => void
@@ -41,11 +43,17 @@ export interface WidgetRendererProps {
 
 export type WidgetRenderer = ComponentType<WidgetRendererProps>
 
+function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): WidgetVariant | undefined {
+  if (stageVariant) return stageVariant
+  if (canvasSize === 'full') return 'expanded'
+  return canvasSize
+}
+
 const RENDERERS = {
-  weather: ({ onWeatherExpandedChange, stageVariant }) => (
-    <WeatherWidget onExpandedChange={onWeatherExpandedChange} stageVariant={stageVariant} />
+  weather: (props) => (
+    <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} />
   ),
-  ics: ({ stageVariant }) => <CalendarWidget stageVariant={stageVariant} />,
+  ics: (props) => <CalendarWidget stageVariant={effectiveVariant(props)} />,
   monthCal: () => <MonthCalWidget />,
   sun: () => <SunWidget />,
   moon: () => <MoonWidget />,
@@ -64,8 +72,8 @@ const RENDERERS = {
   gitlab: () => <GitlabWidget />,
   jira: () => <JiraWidget />,
   vercel: () => <VercelWidget />,
-  homeassistant: ({ stageVariant, utilityTray }) => <HomeAssistantWidget stageVariant={stageVariant} utilityTray={utilityTray} />,
-  rss: ({ stageVariant }) => <RssWidget stageVariant={stageVariant} />,
+  homeassistant: (props) => <HomeAssistantWidget stageVariant={effectiveVariant(props)} utilityTray={props.utilityTray} />,
+  rss: (props) => <RssWidget stageVariant={effectiveVariant(props)} />,
   crypto: () => <CryptoWidget />,
   timer: ({ onTimerOpenChange, utilityTray }) => <TimerWidget onOpenChange={onTimerOpenChange} utilityTray={utilityTray} />,
   tasks: ({ onTasksOpenChange, utilityTray }) => <TodoWidget onOpenChange={onTasksOpenChange} utilityTray={utilityTray} />,

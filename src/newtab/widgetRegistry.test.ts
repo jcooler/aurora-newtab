@@ -88,6 +88,9 @@ describe('source-owned widget registry', () => {
     for (const [index, expected] of EXPECTED.entries()) {
       const [id, , zone, order, priority, , standardVariant, footprints] = expected
       const row = WIDGET_REGISTRY[index]
+      expect(row.canvasSizes, `${id}/canvas sizes`).toEqual(
+        (Object.keys(footprints) as WidgetVariant[]).map((variant) => variant === 'expanded' ? 'full' : variant),
+      )
       for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
         const target: WidgetVariant = profile === 'compact' ? 'compact' : profile === 'standard' ? standardVariant : 'expanded'
         const allowed = Object.keys(footprints) as WidgetVariant[]
@@ -106,6 +109,7 @@ describe('source-owned widget registry', () => {
       expect(Object.isFrozen(row.availability)).toBe(true)
       expect(Object.isFrozen(row.eligibleZones)).toBe(true)
       expect(Object.isFrozen(row.allowedVariants)).toBe(true)
+      expect(Object.isFrozen(row.canvasSizes)).toBe(true)
       expect(Object.isFrozen(row.footprints)).toBe(true)
       expect(Object.isFrozen(row.defaultPlacements)).toBe(true)
       for (const placement of Object.values(row.defaultPlacements)) expect(Object.isFrozen(placement)).toBe(true)
