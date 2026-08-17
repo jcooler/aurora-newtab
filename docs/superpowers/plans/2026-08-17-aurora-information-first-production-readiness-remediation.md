@@ -254,8 +254,10 @@ export interface ArrangeViewportMode {
 - Create: `src/settings/connectors/ConnectorCardShell.tsx`
 - Create: `src/settings/connectors/ConnectorCardShell.test.tsx`
 - Modify: `src/settings/sections/Connectors.tsx`
+- Modify: `src/settings/sections/TokenConnectForm.tsx`
 - Modify: `src/settings/SettingsPanel.test.tsx`
 - Modify: `src/newtab/index.css`
+- Create: `scripts/preview-information-first-p4.mjs`
 
 **Implementation contracts:**
 
@@ -267,16 +269,18 @@ export interface ArrangeViewportMode {
 - RSS, Calendar, Crypto, and Status derive configured state from meaningful local fields rather than `enabled` alone.
 - Default grouping is On canvas and Available by existing category. Search is registry-driven and includes every shipped connector.
 
-- [ ] Add RED pure state tables for RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, and Home Assistant across unconfigured, configured-hidden, configured-visible, and reconnect-required inputs. Hand-write expected primary action, switch visibility, mode, and group.
-- [ ] Run the pure test and observe the missing state model, then implement it without changing persisted connector shapes.
-- [ ] Add RED privacy disclosure tests for concise always-visible copy, complete protected guidance in the disclosure, keyboard operation, and absence of credential/capability values in DOM or logs.
-- [ ] Add RED shell tests for truthful labels, Set up/Edit/Show on Canvas behavior, one open body, Cancel/close focus restoration, and reconnect body immediacy.
-- [ ] Integrate the shell into `Connectors.tsx`, leaving existing permission, disconnect, token, URL, refresh, and storage functions unchanged beneath the presentation boundary.
-- [ ] Add RED integration tests that configure then hide each local-input connector, verify configuration remains, reopen Edit, and verify no unconfigured Show on Canvas switch. Add authenticated connector reconnect and disconnect regression cases using complete existing fixtures.
-- [ ] Add RED grouping/search tests proving all nine families are reachable, configured-visible cards are in On canvas, all others are in Available/category groups, and search returns matching identities regardless of group.
-- [ ] Run `npx vitest run src/settings/connectors/connectorCardState.test.ts src/settings/connectors/ConnectorPrivacyDisclosure.test.tsx src/settings/connectors/ConnectorCardShell.test.tsx src/settings/SettingsPanel.test.tsx src/settings/sections/TokenConnectForm.test.tsx src/settings/sections/EntityPickerDialog.test.tsx src/lib/permissions/optionalTransactions.test.ts src/services/connectors/snapshotIdentity.test.ts`.
-- [ ] Run a focused Chromium Connector probe at 375x812, 1024x768, 1366x768, 1920x1080, and 3840x2160 with non-personal fixtures. Exercise search, all nine cards, Setup/Edit/Cancel, hide/show, reconnect, disclosure, scrolling, focus, errors, and black-slab absence without live requests.
-- [ ] Run TypeScript and `git diff --check`, commit `feat(connectors): clarify setup visibility and editing`, complete one bounded review/fix/rereview cycle, update ledgers, commit `docs: checkpoint information-first PR-P4`, push, and prove both repositories.
+- [x] Add RED pure state tables for RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, and Home Assistant across unconfigured, configured-hidden, configured-visible, and reconnect-required inputs. Hand-write expected primary action, switch visibility, mode, and group.
+- [x] Run the pure test and observe the missing state model, then implement it without changing persisted connector shapes.
+- [x] Add RED privacy disclosure tests for concise always-visible copy, complete protected guidance in the disclosure, keyboard operation, and absence of credential/capability values in DOM or logs.
+- [x] Add RED shell tests for truthful labels, Set up/Edit/Show on Canvas behavior, one open body, Cancel/close focus restoration, and reconnect body immediacy.
+- [x] Integrate the shell into `Connectors.tsx`, leaving existing permission, disconnect, token, URL, refresh, and storage functions unchanged beneath the presentation boundary.
+- [x] Add RED integration tests that configure then hide each local-input connector, verify configuration remains, reopen Edit, and verify no unconfigured Show on Canvas switch. Add authenticated connector reconnect and disconnect regression cases using complete existing fixtures.
+- [x] Add RED grouping/search tests proving all nine families are reachable, configured-visible cards are in On canvas, all others are in Available/category groups, and search returns matching identities regardless of group.
+- [x] Run `npx vitest run src/settings/connectors/connectorCardState.test.ts src/settings/connectors/ConnectorPrivacyDisclosure.test.tsx src/settings/connectors/ConnectorCardShell.test.tsx src/settings/SettingsPanel.test.tsx src/settings/sections/TokenConnectForm.test.tsx src/settings/sections/EntityPickerDialog.test.tsx src/lib/permissions/optionalTransactions.test.ts src/services/connectors/snapshotIdentity.test.ts`.
+- [x] Run a focused Chromium Connector probe at 375x812, 1024x768, 1366x768, 1920x1080, and 3840x2160 with non-personal fixtures. Exercise search, all nine cards, Setup/Edit/Cancel, hide/show, reconnect, disclosure, scrolling, focus, errors, and black-slab absence without live requests.
+- [x] Run TypeScript and `git diff --check`, commit `feat(connectors): clarify setup visibility and editing`, complete one bounded review/fix/rereview cycle, update ledgers, commit `docs: checkpoint information-first PR-P4`, push, and prove both repositories.
+
+**Evidence:** Implemented in `7e16c12`. The exact present-file command passed 7 files / 353 tests; the written `src/lib/permissions/optionalTransactions.test.ts` filter has no repository file, so the live `src/services/permissionTransactions.test.ts` authority suite was included in a focused permission/reconnect/disconnect review slice that passed 3 files / 57 tests. TypeScript and diff hygiene passed. The built-extension probe exercised all nine registry identities and every written interaction at 375x812, 1024x768, 1366x768, 1920x1080, and 3840x2160 with no live external request, runtime error, failed request, nested scroll owner, or horizontal overflow. Five original-resolution captures were inspected individually. RED/GREEN visual coverage corrected the sticky header's inherited alpha before review, preventing the prior double-composited slab. The bounded review returned Ready with no Critical or Important defect; existing Settings hydration warnings and legacy connector presentation helpers/comments remain Minor for PR-P5.
 
 ---
 
