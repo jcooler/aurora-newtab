@@ -4,8 +4,8 @@
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
 **Current wave:** Information-first production readiness remediation<br>
-**Last verified packet:** `Short-height recovery` - owner-rejection forensics and root-cause fixes (`a325891`)<br>
-**Current packet:** `PR-P6 (reopened)` - rebuild the common-display gate with short-height and existing-layout coverage
+**Last verified packet:** `Named-layouts design checkpoint` - owner-approved spec and handoff (A2-D061)<br>
+**Current packet:** `NL-P1 layouts foundation` - fresh session starts from `docs/superpowers/HANDOFF-NAMED-LAYOUTS.md` with a written NL-P1 plan; the reopened common-display gate becomes NL-P6
 
 ## Packet envelope
 
