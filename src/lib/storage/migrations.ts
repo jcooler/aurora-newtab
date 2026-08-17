@@ -180,6 +180,13 @@ export const migrations: Record<number, Migration> = {
   // handles this version boundary as a metadata-only transaction so no
   // Aurora data key is rewritten merely because the extension booted.
   11: (data) => data,
+  // v12 -> v13: the named-layouts document key (NL-P1). Intentionally the
+  // identity, exactly like 11: live initialization treats every boundary from
+  // v11 on as a metadata-only version stamp (index.ts METADATA_ONLY_FLOOR) so
+  // no Aurora data key is rewritten merely because the extension booted.
+  // `layouts` itself is a brand-new top-level key backfilled to null by
+  // migrate()'s default-merge, the same way apodCache arrived.
+  12: (data) => data,
 }
 
 export function migrate(

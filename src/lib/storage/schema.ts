@@ -1,8 +1,9 @@
 import { emptyLayoutV3, type StoredLayout } from '../layout/canvasTypes'
+import type { LayoutsDocument } from '../layout/namedLayouts'
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 12
+export const CURRENT_VERSION = 13
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -217,6 +218,16 @@ export interface AuroraData {
   worldClocks: WorldClock[]
   countdowns: Countdown[]
   layout: StoredLayout
+  /** Named-layouts document (NL-P1, 2026-08-17 named-layouts design spec §4).
+   *  A TOP-LEVEL key: like apodCache, missing values are backfilled by
+   *  migrate()'s default-merge, so no data-rewriting migration step exists
+   *  (migrations[12] is the identity and live init stamps only the version).
+   *  `null` means the user has never explicitly saved a layouts document; the
+   *  runtime derives an in-memory "My layout" from the legacy `layout` key
+   *  (lib/layout/myLayoutAdapter.ts) and MUST NOT write it at boot. The
+   *  legacy `layout` key above stays byte-for-byte as recovery input and is
+   *  never written by named-layouts code. */
+  layouts: LayoutsDocument | null
   connectors: Partial<Record<ConnectorId, ConnectorConfig>>
   connectorSnapshots: Partial<Record<ConnectorId, ConnectorSnapshot>>
   habits: Habit[]
@@ -270,6 +281,7 @@ export function defaults(): AuroraData {
     worldClocks: [],
     countdowns: [],
     layout: emptyLayoutV3(),
+    layouts: null,
     connectors: {},
     connectorSnapshots: {},
     habits: [],

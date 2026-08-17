@@ -35,6 +35,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   worldClocks: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Selected world-clock cities.' },
   countdowns: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'User-authored countdown labels and dates.' },
   layout: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Dashboard layout and widget visibility.' },
+  layouts: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Named layout documents: layout names, widget placement, tiers, and dock order.' },
   connectors: { storage: 'chrome.storage.local', sensitivity: ['preferences', 'authentication', 'capability-url', 'public-selection'], export: 'redacted', transmission: 'provider-direct', description: 'Connector configuration, credentials, capability URLs, and selected resources.' },
   connectorSnapshots: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Rebuildable connector response cache.' },
   habits: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Habit names and completion history.' },

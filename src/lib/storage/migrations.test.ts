@@ -33,7 +33,7 @@ describe('migrate', () => {
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
       // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9,
       // registry[9] upgrades v9 -> v10, registry[10] upgrades v10 -> v11,
-      // registry[11] upgrades v11 -> v12
+      // registry[11] upgrades v11 -> v12, registry[12] upgrades v12 -> v13
       // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
@@ -83,9 +83,13 @@ describe('migrate', () => {
         calls.push(11)
         return data
       },
+      12: (data) => {
+        calls.push(12)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -601,7 +605,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(12)
+    expect(CURRENT_VERSION).toBe(13)
     expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
   })
 
@@ -685,7 +689,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(12)
+    expect(CURRENT_VERSION).toBe(13)
     expect(out.layout).toEqual(layout)
     expect(out.settings).toEqual(snapshot.settings)
     expect(out.unknownStore).toEqual(snapshot.unknownStore)
@@ -695,6 +699,31 @@ describe('v11 -> v12', () => {
   it('requires the identity v11 migration step', () => {
     expect(() => migrate({ layout: { version: 2, profiles: {} } }, 11, {}))
       .toThrow('No migration from schema v11')
+  })
+})
+
+describe('v12 -> v13', () => {
+  it('is the identity: layouts arrives as null via the default merge only', () => {
+    const snapshot = { ...defaults(), settings: { ...defaults().settings, name: 'Kept' } } as Record<string, unknown>
+    delete snapshot.layouts
+    const migrated = migrate(snapshot, 12)
+    expect(migrated.layouts).toBeNull()
+    expect(migrated.settings.name).toBe('Kept')
+  })
+
+  it('a stored layouts document survives migrate untouched', () => {
+    const document = {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{ id: 'a', name: 'Desktop', widgets: {} }],
+    }
+    const migrated = migrate({ ...defaults(), layouts: document }, 12)
+    expect(migrated.layouts).toEqual(document)
+  })
+
+  it('a v9 legacy snapshot still migrates to the current version with layouts null', () => {
+    const migrated = migrate({ ...defaults(), layout: { clock: { x: 50, y: 20 } } }, 9)
+    expect(migrated.layouts).toBeNull()
   })
 })
 

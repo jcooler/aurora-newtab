@@ -13,6 +13,12 @@ import { isPlainObject } from '../object'
 
 const VERSION_KEY = 'aurora:version'
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
+
+/** Every migration step from this version on is the identity function, so a
+ *  boot from any of these versions writes only the version stamp. Raising
+ *  CURRENT_VERSION past a NON-identity migration requires moving this floor
+ *  up to that migration's target version. */
+const METADATA_ONLY_FLOOR = 11
 const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 export class AtomicRestoreRollbackError extends Error {
@@ -231,9 +237,9 @@ export function createStorage(
     throw new StorageInitializationError(primaryError)
   }
 
-  async function upgradeV11MetadataOnly(): Promise<void> {
+  async function upgradeMetadataOnly(storedVersion: number): Promise<void> {
     const target = { [VERSION_KEY]: CURRENT_VERSION }
-    const previous = { [VERSION_KEY]: 11 }
+    const previous = { [VERSION_KEY]: storedVersion }
     let primaryError: unknown
     try {
       await driver.write(target)
@@ -383,8 +389,8 @@ export function createStorage(
           || !Number.isInteger(stored) || stored < 1) {
           throw new StorageInitializationError(undefined)
         }
-        if (stored === 11 && CURRENT_VERSION === 12) {
-          await upgradeV11MetadataOnly()
+        if (stored >= METADATA_ONLY_FLOOR && stored < CURRENT_VERSION) {
+          await upgradeMetadataOnly(stored)
           return
         }
         if (stored < CURRENT_VERSION) {

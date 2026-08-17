@@ -27,6 +27,7 @@ const DATA_KEYS = [
   'worldClocks',
   'countdowns',
   'layout',
+  'layouts',
   'connectors',
   'connectorSnapshots',
   'habits',

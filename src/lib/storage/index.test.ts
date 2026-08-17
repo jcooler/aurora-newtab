@@ -38,6 +38,7 @@ const KNOWN_KEYS = [
   'worldClocks',
   'countdowns',
   'layout',
+  'layouts',
   'connectors',
   'connectorSnapshots',
   'habits',
@@ -432,6 +433,32 @@ describe('createStorage', () => {
     expect(events).toEqual([
       'lock:enter', 'read:null', 'write', 'read:aurora:version', 'lock:exit',
     ])
+  })
+
+  it('upgrades v12 by writing only version metadata and leaves every data key byte-for-byte unchanged', async () => {
+    const seed = {
+      ...defaults(),
+      layout: { version: 3 as const, profiles: {} },
+      settings: { ...defaults().settings, name: 'Exact v12' },
+      'aurora:version': 12,
+      unknown: { sentinel: 'keep' },
+    }
+    // A real v12 store predates the layouts key entirely.
+    delete (seed as Record<string, unknown>).layouts
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed)
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    expect(controlled.writes).toEqual([{ 'aurora:version': CURRENT_VERSION }])
+    expect(controlled.base.dump()).toEqual({ ...before, 'aurora:version': CURRENT_VERSION })
+  })
+
+  it('fresh defaults include layouts: null', async () => {
+    const controlled = controllableDriver({})
+    const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
+    await storage.init()
+    expect(await storage.get('layouts')).toBeNull()
   })
 
   it('rolls a failed v11 metadata verification back without writing any data key', async () => {

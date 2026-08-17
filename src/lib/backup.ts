@@ -9,6 +9,7 @@ import { isPlainObject } from './object'
 import { isPanelColor } from './color'
 import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
 import { cleanStoredLayout, type StoredLayout } from './layout/canvasTypes'
+import { isLayoutsDocument } from './layout/namedLayouts'
 import { LegacyLayoutValidationError } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
@@ -422,6 +423,10 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   worldClocks: isWorldClocks,
   countdowns: isCountdowns,
   layout: isLayout,
+  // null = never explicitly saved (the pre-v13 and fresh-install state).
+  // Deep cleaning (unknown-widget-id dropping) is validateBackupShape's
+  // cleanLayoutsKey branch.
+  layouts: (v) => v === null || isLayoutsDocument(v),
   connectors: isConnectors,
   habits: isHabits,
 }
