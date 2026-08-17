@@ -42,6 +42,14 @@ describe('Adaptive Stage compact legibility contract', () => {
       .toMatch(/display:\s*inline\s*;/)
   })
 
+  it('keeps compact Canvas Weather condition, location, and disclosure visible', () => {
+    const summary = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span')
+    expect(summary).toMatch(/flex-wrap:\s*wrap\s*;/)
+    const condition = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3)')
+    expect(condition).toMatch(/flex-basis:\s*100%\s*;/)
+    expect(indexCss).not.toMatch(/span:nth-child\(3\),\s*\.board-item\[data-stage-variant="compact"\]\[data-block-id="weather"\]:not\(\.z-30\) > section > button > span > svg:last-child\s*\{\s*display:\s*none\s*;/)
+  })
+
   it('sizes the Stage grid to the padded viewport and lets a content-tall first row push Dock into Stage scroll', () => {
     const declarations = declarationBlock('.adaptive-stage__grid')
     expect(declarations).toMatch(/height:\s*calc\(100dvh - var\(--stage-inset\) - var\(--stage-inset\)\)\s*;/)
@@ -80,7 +88,7 @@ describe('Adaptive Stage compact legibility contract', () => {
       .toMatch(/padding:\s*0\s*;/)
   })
 
-  it('uses an accessible compact Month label and a single four-day glance row', () => {
+  it('uses an accessible compact Month label and a complete seven-day week', () => {
     const row = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span')
     expect(row).toMatch(/display:\s*grid\s*;/)
     expect(row).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) auto\s*;/)
@@ -99,11 +107,8 @@ describe('Adaptive Stage compact legibility contract', () => {
       .toMatch(/content:\s*attr\(data-label\)\s*;/)
     expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] table'))
       .toMatch(/margin-top:\s*0\s*;/)
-    const week = declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr:first-child,\n.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr[data-current-week]')
-    expect(week).toMatch(/display:\s*grid\s*;/)
-    expect(week).toMatch(/grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)\s*;/)
-    expect(declarationBlock('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5)'))
-      .toMatch(/display:\s*none\s*;/)
+    expect(indexCss).not.toContain('.board-item[data-stage-variant="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5) {')
+    expect(indexCss).not.toMatch(/data-block-id="monthCal"\][\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/)
   })
 
   it('stacks all compact Month actions in a complete target column below two target widths', () => {

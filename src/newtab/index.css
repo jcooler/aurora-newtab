@@ -1730,10 +1730,11 @@ select > option {
 }
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span {
   gap: 4px;
+  flex-wrap: wrap;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3),
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > svg:last-child {
-  display: none;
+.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
+  order: 2;
+  flex-basis: 100%;
 }
 .board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
   width: 20px;

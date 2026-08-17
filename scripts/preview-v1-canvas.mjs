@@ -1,4 +1,4 @@
-// One-shot real-Chromium proof for the Aurora V1 Canvas early visual gate.
+// One-shot real-Chromium proof for the Aurora V1 Canvas connector/calendar gate.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -7,7 +7,7 @@ import { chromium } from 'playwright'
 const repoRoot = process.cwd()
 const dist = resolve('.preview-v1-canvas-dist')
 const profileDir = resolve('.playwright-profile-v1-canvas')
-const outDir = 'C:/Users/SickT/Documents/Codex/2026-08-16/aurora-v1-canvas-implementation-session-prompt/outputs/canvas-p4'
+const outDir = 'C:/Users/SickT/Documents/Codex/2026-08-16/aurora-v1-canvas-implementation-session-prompt/outputs/canvas-p7'
 const headed = process.argv.includes('--headed')
 
 const assert = (condition, message) => { if (!condition) throw new Error(message) }
@@ -30,6 +30,7 @@ if (build.status !== 0) {
 }
 
 const evidence = {
+  packet: 'Canvas-P7',
   captures: [],
   interactions: {},
   layout: {},
@@ -43,6 +44,7 @@ const context = await chromium.launchPersistentContext(profileDir, {
   headless: !headed,
   viewport: { width: 1600, height: 900 },
   deviceScaleFactor: 1,
+  hasTouch: true,
   reducedMotion: 'reduce',
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 })
@@ -73,7 +75,7 @@ async function seedRealContent() {
   await page.evaluate(async ({ day }) => {
     const { settings } = await chrome.storage.local.get('settings')
     const widgets = Object.fromEntries(Object.keys(settings.widgets).map((key) => [key, false]))
-    for (const key of ['search', 'weather', 'links', 'todo', 'timer', 'bookmarks', 'notes', 'clocks', 'countdown', 'monthCal']) {
+    for (const key of ['search', 'weather', 'todo', 'timer', 'bookmarks', 'notes', 'monthCal']) {
       widgets[key] = true
     }
 
@@ -99,6 +101,64 @@ async function seedRealContent() {
     }
     const location = { lat: 40.7128, lon: -74.006, label: 'New York', manual: true }
     const now = Date.now()
+    const configs = {
+      ics: {
+        enabled: true,
+        calendars: [
+          { name: 'Studio', url: 'https://calendar.invalid/studio.ics', color: 'fuchsia' },
+          { name: 'Family', url: 'https://calendar.invalid/family.ics' },
+        ],
+        view: 'upcoming', upcomingCount: 3, meetLinks: true,
+      },
+      status: { enabled: true, services: [{ name: 'GitHub', url: 'https://status.invalid/github.json' }, { name: 'Vercel', url: 'https://status.invalid/vercel.json' }] },
+      github: { enabled: true, token: 'fixture-github-token', username: 'fixture-jon', views: { commitGraph: true, pulls: true, issues: true, notifications: true } },
+      gitlab: { enabled: true, token: 'fixture-gitlab-token', instanceUrl: 'https://gitlab.invalid', username: 'fixture-jon', views: { mergeRequests: true, reviewAsks: true, todos: true, activityGraph: true } },
+      jira: { enabled: true, email: 'fixture@example.invalid', apiToken: 'fixture-jira-token', site: 'fixture.atlassian.net', displayName: 'Fixture Jon', views: { assigned: true, dueSoon: true, statusChips: true } },
+      vercel: { enabled: true, token: 'fixture-vercel-token', username: 'fixture-jon', views: { deployments: true, statusSummary: true } },
+      homeassistant: {
+        enabled: true, instanceUrl: 'https://home.invalid', token: 'fixture-ha-token', locationName: 'Fixture Home',
+        entities: [{ id: 'sensor.studio_temperature', name: 'Studio temperature' }, { id: 'light.desk', name: 'Desk light' }],
+        actions: [{ id: 'scene.focus', name: 'Focus scene', domain: 'scene' }, { id: 'switch.office', name: 'Office switch', domain: 'switch' }],
+      },
+      rss: { enabled: true, feeds: ['https://feeds.invalid/aurora.xml', 'https://feeds.invalid/release.xml'], shownCount: 5 },
+      crypto: { enabled: true, coins: ['bitcoin', 'ethereum', 'solana'] },
+    }
+    const canonical = (value) => {
+      if (value === null || typeof value === 'string' || typeof value === 'boolean' || typeof value === 'number') return JSON.stringify(value)
+      if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`
+      return `{${Object.keys(value).filter((key) => value[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(',')}}`
+    }
+    const scope = async (id, config, runtimeScope) => {
+      const eventConfig = id === 'ics' && Array.isArray(config.calendars)
+        ? { ...config, calendars: config.calendars.map(({ color, ...calendar }) => calendar) }
+        : config
+      const runtime = runtimeScope === undefined ? '' : `\n${canonical(runtimeScope)}`
+      const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${id}\n${canonical(eventConfig)}${runtime}`))
+      const hash = [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
+      return `${id}:${id === 'homeassistant' || id === 'ics' ? 'v2' : 'v1'}:${hash}`
+    }
+    const at = Date.now()
+    const noon = new Date(`${day}T12:00:00`).getTime()
+    const contributionDays = (modulus) => Array.from({ length: 28 }, (_, index) => {
+      const date = new Date(`${day}T12:00:00`)
+      date.setDate(date.getDate() - 27 + index)
+      return { date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`, count: index % modulus }
+    })
+    const snapshots = {
+      ics: { fetchedAt: at, scope: await scope('ics', configs.ics, { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }), data: { events: [
+        { summary: 'Studio review', start: noon + 60 * 60_000, end: noon + 90 * 60_000, allDay: false, cal: 0 },
+        { summary: 'Family dinner', start: noon + 3 * 60 * 60_000, end: noon + 4 * 60 * 60_000, allDay: false, cal: 1 },
+        { summary: 'Release planning', start: noon + 25 * 60 * 60_000, end: noon + 26 * 60 * 60_000, allDay: false, cal: 0 },
+      ] } },
+      status: { fetchedAt: at, scope: await scope('status', configs.status), data: { services: [{ name: 'GitHub', indicator: 'none', description: 'All systems operational' }, { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' }] } },
+      github: { fetchedAt: at, scope: await scope('github', configs.github), data: { prs: [{ title: 'Ship the Canvas owner gate', url: 'https://github.invalid/aurora/pull/7', repo: 'aurora/canvas' }, { title: 'Preserve visual regression evidence', url: 'https://github.invalid/aurora/pull/8', repo: 'aurora/canvas' }], issues: [{ title: 'Verify screenshot metadata', url: 'https://github.invalid/aurora/issues/21', repo: 'aurora/qa' }], notifications: 4, contributions: { total: 42, days: contributionDays(5) }, etags: {} } },
+      gitlab: { fetchedAt: at, scope: await scope('gitlab', configs.gitlab), data: { mrs: [{ title: 'Review compact layout', url: 'https://gitlab.invalid/aurora/-/merge_requests/1', project: 'aurora/web' }], reviewMrs: [{ title: 'Approve calendar colors', url: 'https://gitlab.invalid/aurora/-/merge_requests/2', project: 'aurora/web' }], todos: 3, contributions: { total: 18, days: contributionDays(4) } } },
+      jira: { fetchedAt: at, scope: await scope('jira', configs.jira), data: { issues: [{ key: 'AUR-101', summary: 'Prove the dense connector composition', status: 'In Progress', url: 'https://fixture.atlassian.net/browse/AUR-101' }, { key: 'AUR-102', summary: 'Inspect direct interaction traces', status: 'To Do', url: 'https://fixture.atlassian.net/browse/AUR-102' }], counts: { 'In Progress': 1, 'To Do': 1 }, dueSoon: [{ key: 'AUR-103', summary: 'Owner capture review', status: 'To Do', due: day, url: 'https://fixture.atlassian.net/browse/AUR-103' }] } },
+      vercel: { fetchedAt: at, scope: await scope('vercel', configs.vercel), data: { deployments: [{ project: 'aurora', state: 'READY', url: 'aurora-fixture.vercel.app', createdAt: at }, { project: 'canvas-lab', state: 'ERROR', url: 'canvas-fixture.vercel.app', createdAt: at - 60_000 }] } },
+      homeassistant: { fetchedAt: at, scope: await scope('homeassistant', configs.homeassistant), data: { entities: [{ id: 'sensor.studio_temperature', state: '22.4', unit: '°C', friendlyName: 'Studio temperature', domain: 'sensor' }, { id: 'light.desk', state: 'on', unit: null, friendlyName: 'Desk light', domain: 'light' }] } },
+      rss: { fetchedAt: at, scope: await scope('rss', configs.rss), data: [{ source: 'Aurora', title: 'Canvas gate opens', url: 'https://news.invalid/canvas-gate', publishedAt: at }, { source: 'Release', title: 'Calendar colors land', url: 'https://news.invalid/calendar-colors', publishedAt: at - 60_000 }] },
+      crypto: { fetchedAt: at, scope: await scope('crypto', configs.crypto), data: { coins: [{ id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', price: 102400, change24h: 2.4 }, { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', price: 3900, change24h: -1.1 }, { id: 'solana', symbol: 'SOL', name: 'Solana', price: 180, change24h: 4.2 }] } },
+    }
     await chrome.storage.local.set({
       settings: { ...settings, name: 'Jon', briefingEnabled: false, widgets },
       focus: { text: 'Ship Aurora Canvas', date: day, done: false },
@@ -136,20 +196,40 @@ async function seedRealContent() {
         sunriseISO: `${day}T06:11`,
         sunsetISO: `${day}T19:52`,
       },
-      connectors: {},
-      connectorSnapshots: {},
+      connectors: Object.fromEntries(Object.entries(configs).map(([id, config]) => [id, { ...config, enabled: id === 'github' || id === 'jira' }])),
+      connectorSnapshots: snapshots,
+      canvasP7FixtureConfigs: configs,
       photoPrefs: { mode: 'auto', index: 3, lastRotated: day },
-      layout: { version: 3, profiles: {} },
+      layout: { version: 3, profiles: {
+        standard: { mode: 'custom', placements: {
+          bookmarks: { kind: 'canvas', x: 50, y: 7, size: 'standard', layer: 1 }, weather: { kind: 'canvas', x: 89, y: 12, size: 'standard', layer: 2 }, timer: { kind: 'canvas', x: 7, y: 17, size: 'compact', layer: 3 },
+          clock: { kind: 'canvas', x: 50, y: 31, size: 'full', layer: 4 }, focus: { kind: 'canvas', x: 50, y: 51, size: 'standard', layer: 5 }, search: { kind: 'canvas', x: 50, y: 60, size: 'standard', layer: 6 },
+          monthCal: { kind: 'canvas', x: 12, y: 52, size: 'compact', layer: 7 }, github: { kind: 'canvas', x: 84, y: 45, size: 'full', layer: 8 }, jira: { kind: 'canvas', x: 84, y: 84, size: 'full', layer: 9 },
+          notes: { kind: 'canvas', x: 7, y: 92, size: 'compact', layer: 10 }, tasks: { kind: 'canvas', x: 7, y: 83, size: 'compact', layer: 11 }, greeting: { kind: 'canvas', x: 50, y: 69, size: 'standard', layer: 12 },
+        } },
+        display: { mode: 'derived', placements: {
+          ics: { kind: 'canvas', x: 7, y: 35, size: 'standard', layer: 20 }, status: { kind: 'canvas', x: 20, y: 35, size: 'standard', layer: 21 }, github: { kind: 'canvas', x: 33, y: 35, size: 'standard', layer: 22 },
+          gitlab: { kind: 'canvas', x: 67, y: 35, size: 'standard', layer: 23 }, jira: { kind: 'canvas', x: 80, y: 35, size: 'standard', layer: 24 }, vercel: { kind: 'canvas', x: 93, y: 35, size: 'standard', layer: 25 },
+          homeassistant: { kind: 'canvas', x: 7, y: 70, size: 'standard', layer: 26 }, rss: { kind: 'canvas', x: 20, y: 70, size: 'standard', layer: 27 }, crypto: { kind: 'canvas', x: 33, y: 70, size: 'standard', layer: 28 }, monthCal: { kind: 'canvas', x: 67, y: 70, size: 'standard', layer: 29 },
+        } },
+        ultrawide: { mode: 'derived', placements: {
+          ics: { kind: 'canvas', x: 7, y: 35, size: 'standard', layer: 20 }, status: { kind: 'canvas', x: 20, y: 35, size: 'standard', layer: 21 }, github: { kind: 'canvas', x: 33, y: 35, size: 'standard', layer: 22 },
+          gitlab: { kind: 'canvas', x: 67, y: 35, size: 'standard', layer: 23 }, jira: { kind: 'canvas', x: 80, y: 35, size: 'standard', layer: 24 }, vercel: { kind: 'canvas', x: 93, y: 35, size: 'standard', layer: 25 },
+          homeassistant: { kind: 'canvas', x: 7, y: 70, size: 'standard', layer: 26 }, rss: { kind: 'canvas', x: 20, y: 70, size: 'standard', layer: 27 }, crypto: { kind: 'canvas', x: 33, y: 70, size: 'standard', layer: 28 }, monthCal: { kind: 'canvas', x: 67, y: 70, size: 'standard', layer: 29 },
+        } },
+      } },
     })
 
     if (chrome.bookmarks) {
       const tree = await chrome.bookmarks.getTree()
       const bar = tree[0]?.children?.find((node) => node.id === '1') ?? tree[0]?.children?.[0]
-      if (bar && !(bar.children ?? []).some((node) => node.title === 'Aurora')) {
-        const folder = await chrome.bookmarks.create({ parentId: bar.id, title: 'Aurora' })
-        await chrome.bookmarks.create({ parentId: folder.id, title: 'Canvas plan', url: 'https://example.com/canvas-plan' })
-        await chrome.bookmarks.create({ parentId: folder.id, title: 'QA evidence', url: 'https://example.com/qa-evidence' })
-        await chrome.bookmarks.create({ parentId: bar.id, title: 'Reference', url: 'https://example.com/reference' })
+      if (bar) {
+        const folder = await chrome.bookmarks.create({ parentId: bar.id, title: 'A' })
+        const nested = await chrome.bookmarks.create({ parentId: folder.id, title: 'QA' })
+        await chrome.bookmarks.create({ parentId: nested.id, title: 'Capture ledger', url: 'https://example.invalid/capture-ledger' })
+        await chrome.bookmarks.create({ parentId: folder.id, title: 'Canvas plan', url: 'https://example.invalid/canvas-plan' })
+        await chrome.bookmarks.create({ parentId: bar.id, title: 'Loose reference', url: 'https://example.invalid/reference' })
+        await chrome.bookmarks.create({ parentId: bar.id, title: '   ' })
       }
     }
   }, { day })
@@ -183,7 +263,34 @@ const assertNoHorizontalOverflow = async (label) => {
 const capture = async (label, file) => {
   const path = `${outDir}/${file}`
   await page.screenshot({ path, fullPage: false })
-  evidence.captures.push({ label, path, viewport: page.viewportSize() })
+  const inspection = await page.evaluate(() => {
+    const viewport = { width: innerWidth, height: innerHeight }
+    const blocks = [...document.querySelectorAll('[data-block-id]')]
+      .filter((node) => {
+        const style = getComputedStyle(node)
+        return style.display !== 'none' && style.visibility !== 'hidden'
+      })
+      .map((node) => {
+        const rect = node.getBoundingClientRect()
+        return { id: node.getAttribute('data-block-id'), size: node.getAttribute('data-canvas-size'), rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height } }
+      })
+    const intersections = []
+    for (let i = 0; i < blocks.length; i += 1) for (let j = i + 1; j < blocks.length; j += 1) {
+      const a = blocks[i].rect; const b = blocks[j].rect
+      if (a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y) intersections.push([blocks[i].id, blocks[j].id])
+    }
+    const controls = [...document.querySelectorAll('button, a, input, select, textarea')]
+      .filter((node) => { const s = getComputedStyle(node); return s.display !== 'none' && s.visibility !== 'hidden' })
+      .map((node) => { const r = node.getBoundingClientRect(); return { name: node.getAttribute('aria-label') ?? node.textContent?.trim() ?? '', width: r.width, height: r.height } })
+    return {
+      viewport, blocks, intersections,
+      overflow: { document: document.documentElement.scrollWidth, viewport: document.documentElement.clientWidth },
+      missingImages: [...document.images].filter((image) => !image.complete || image.naturalWidth === 0).map((image) => image.currentSrc || image.src),
+      unnamedActions: controls.filter((control) => !control.name).length,
+      controls,
+    }
+  })
+  evidence.captures.push({ label, path, viewport: page.viewportSize(), originalDimensions: inspection.viewport, ...inspection })
 }
 
 let caughtError
@@ -214,13 +321,31 @@ try {
     assert(!visibleText.includes(retired), `retired copy is visible: ${retired}`)
   }
   await assertNoHorizontalOverflow('Desktop default')
-  await capture('Desktop 1600x900 default', 'canvas-p4-desktop-1600x900-default.png')
+  for (const witness of ['Ship the Canvas owner gate', 'Prove the dense connector composition']) {
+    assert(visibleText.includes(witness), `Desktop is missing fixture witness: ${witness}`)
+  }
+  await capture('Desktop 1600x900 bookmarks, GitHub, and Jira', 'canvas-p7-desktop-1600x900-bookmarks-github-jira.png')
+  const desktopCapture = evidence.captures.at(-1)
+  assert(desktopCapture.intersections.length === 0, `Desktop owner capture intersects: ${JSON.stringify(desktopCapture.intersections)}`)
+  assert(desktopCapture.blocks.every((block) => block.rect.y >= 0 && block.rect.y + block.rect.height <= 900), 'Desktop owner capture has an off-viewport block')
+  const compactMonth = page.locator('[data-block-id="monthCal"]')
+  assert(await compactMonth.locator('tbody tr').count() === 1 && await compactMonth.locator('tbody tr td').count() === 7, 'Compact Month is not exactly seven days')
+  await compactMonth.getByRole('button', { name: 'Next month' }).click()
+  await compactMonth.getByRole('button', { name: 'Previous month' }).click()
+  await compactMonth.getByRole('button', { name: 'Next month' }).click()
+  await compactMonth.getByRole('button', { name: 'Back to today' }).click()
+  evidence.interactions.month = { compactDays: await compactMonth.locator('tbody tr td').count(), controls: 'Previous, Next, Today' }
 
-  const folder = page.getByRole('button', { name: 'Aurora' })
+  const folder = page.getByRole('button', { name: 'A', exact: true })
   await folder.click()
-  const bookmarkPopover = page.getByRole('dialog', { name: 'Aurora' })
+  const bookmarkPopover = page.getByRole('dialog', { name: 'A bookmarks' })
   await bookmarkPopover.waitFor()
   evidence.interactions.bookmarks = await assertInsideViewport(bookmarkPopover, 'Bookmarks popover')
+  const nestedFolder = bookmarkPopover.getByRole('button', { name: 'QA', exact: true })
+  await nestedFolder.click()
+  const nestedPopover = page.getByRole('dialog', { name: 'QA bookmarks' })
+  await nestedPopover.waitFor()
+  evidence.interactions.nestedBookmarks = await assertInsideViewport(nestedPopover, 'Nested bookmarks popover')
   await page.keyboard.press('Escape')
   assert(await folder.evaluate((node) => node === document.activeElement), 'Bookmarks did not restore invoker focus')
 
@@ -297,14 +422,32 @@ try {
   assert(Number.isFinite(afterPointerX) && afterPointerX === beforePointerX, 'vertical pointer drag changed Clock x unexpectedly')
   assert(afterKeyboardLeft > beforeKeyboardLeft, `ArrowRight did not move Clock: ${beforeKeyboardLeft} -> ${afterKeyboardLeft}`)
   assert(await inspector.getByText(/X \d+\.\d%/).count(), 'Clock inspector coordinates are not visible')
+  await inspector.getByRole('radio', { name: 'Standard' }).click()
+  await inspector.getByRole('radio', { name: 'Full' }).click()
+  const focusTarget = page.getByRole('button', { name: 'Edit Focus' })
+  const focusTargetBox = await rectOf(focusTarget)
+  await page.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + targetBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(focusTargetBox.x + focusTargetBox.width / 2, focusTargetBox.y + focusTargetBox.height / 2, { steps: 4 })
+  await page.mouse.up()
+  const overlap = inspector.getByRole('region', { name: 'Overlap' })
+  await overlap.waitFor()
+  await overlap.getByRole('button', { name: 'Bring forward' }).click()
+  await toolbar.getByRole('tab', { name: 'Large' }).click()
+  await toolbar.getByRole('button', { name: 'Use Desktop layout everywhere' }).click()
+  await toolbar.getByRole('button', { name: 'Copy Desktop layout' }).click()
+  await toolbar.getByRole('tab', { name: 'Desktop' }).click()
   evidence.interactions.arrange = {
     pointer: { beforeX: beforePointerX, afterX: afterPointerX },
     keyboard: { beforeLeft: beforeKeyboardLeft, afterLeft: afterKeyboardLeft },
     guidesDuringDrag,
     selected: await clockTarget.getAttribute('aria-pressed'),
     inspectorMode: await inspector.getAttribute('data-arrange-inspector-mode'),
+    overlap: await overlap.innerText(),
+    profilePreview: 'Large, Desktop-everywhere, Copy Desktop, Desktop',
   }
-  await capture('Desktop 1600x900 Arrange with Clock selected', 'canvas-p4-desktop-1600x900-arrange-clock.png')
+  assert(guidesDuringDrag >= 0, 'pointer drag did not complete')
+  await toolbar.getByRole('button', { name: 'Undo' }).click()
   await toolbar.getByRole('button', { name: 'Cancel' }).click()
   await toolbar.waitFor({ state: 'detached' })
   const layoutAfterCancel = await page.evaluate(async () => JSON.stringify((await chrome.storage.local.get('layout')).layout))
@@ -314,7 +457,19 @@ try {
   await page.reload({ waitUntil: 'domcontentloaded' })
   await waitForCanvas('Small')
   await assertNoHorizontalOverflow('Small default')
-  await capture('Small 375x812 default', 'canvas-p4-small-375x812-default.png')
+  const searchBox = page.getByRole('searchbox', { name: 'Search the web' })
+  const utilityButton = page.getByRole('button', { name: 'Open utility tray' })
+  const smallGap = await page.evaluate(() => {
+    const search = document.querySelector('[aria-label="Search the web"]')
+    const utility = document.querySelector('[aria-label="Open utility tray"]')
+    if (!search || !utility) throw new Error('Small clearance controls missing')
+    const a = search.getBoundingClientRect(); const b = utility.getBoundingClientRect()
+    return Math.max(a.left - b.right, b.left - a.right, a.top - b.bottom, b.top - a.bottom)
+  })
+  assert(smallGap >= 8, `Small Search/Utility clearance is below 8px: ${smallGap}`)
+  const weatherText = await page.locator('[data-block-id="weather"]').innerText()
+  assert(/New York/.test(weatherText) && /24/.test(weatherText) && /·/.test(weatherText), `Compact Weather contract missing: ${weatherText}`)
+  evidence.interactions.small = { searchUtilityGap: smallGap, weatherText }
 
   const smallNotes = page.locator('[data-block-id="notes"]').getByRole('button', { name: 'Notes', exact: true })
   await smallNotes.scrollIntoViewIfNeeded()
@@ -351,15 +506,62 @@ try {
   assert(smallClockText.includes(':'), `Small Arrange lost real Clock content: ${smallClockText}`)
   await page.evaluate(() => window.scrollTo(0, 0))
   await assertNoHorizontalOverflow('Small Arrange')
-  await capture('Small 375x812 Arrange', 'canvas-p4-small-375x812-arrange.png')
   await smallToolbar.getByRole('button', { name: 'Cancel' }).click()
+
+  await page.evaluate(async () => {
+    const { canvasP7FixtureConfigs } = await chrome.storage.local.get('canvasP7FixtureConfigs')
+    await chrome.storage.local.set({ connectors: canvasP7FixtureConfigs })
+  })
+  await page.setViewportSize({ width: 2560, height: 1440 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas('Large')
+  await assertNoHorizontalOverflow('Large default')
+  const largeMonth = page.locator('[data-block-id="monthCal"]')
+  assert(await largeMonth.locator('tbody tr').count() >= 4, 'Large Month does not show a natural full month')
+  assert(await page.getByText('Studio review').count() > 0 && await page.getByText('Family dinner').count() > 0, 'Large Calendar is missing named multi-feed events')
+  await capture('Large 2560x1440 dense connectors', 'canvas-p7-large-2560x1440-dense.png')
+  assert(evidence.captures.at(-1).intersections.length === 0, `Large owner capture intersects: ${JSON.stringify(evidence.captures.at(-1).intersections)}`)
+
+  await page.setViewportSize({ width: 3440, height: 1440 })
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas('Wide')
+  await assertNoHorizontalOverflow('Wide default')
+  for (const id of ['ics', 'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto']) {
+    assert(await page.locator(`[data-block-id="${id}"]`).count() === 1, `Wide is missing ${id}`)
+  }
+  await capture('Wide 3440x1440 dense connectors', 'canvas-p7-wide-3440x1440-dense.png')
+  assert(evidence.captures.at(-1).intersections.length === 0, `Wide owner capture intersects: ${JSON.stringify(evidence.captures.at(-1).intersections)}`)
+
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  const connectorSettings = page.getByRole('dialog', { name: 'Settings' })
+  await connectorSettings.getByRole('tab', { name: 'Connectors' }).click()
+  const studioColor = connectorSettings.getByLabel('Color for Studio')
+  await studioColor.selectOption('emerald')
+  await page.waitForFunction(() => document.querySelector('[aria-label="Color for Studio"]')?.value === 'emerald')
+  assert(await studioColor.inputValue() === 'emerald', 'Calendar Settings color did not update')
+  evidence.interactions.calendarColor = { studio: await studioColor.inputValue(), family: await connectorSettings.getByLabel('Color for Family').inputValue() }
+  await connectorSettings.getByRole('button', { name: 'Close settings' }).click()
+
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  const saveSettings = page.getByRole('dialog', { name: 'Settings' })
+  await saveSettings.getByRole('tab', { name: 'Widgets' }).click()
+  await saveSettings.getByRole('button', { name: 'Arrange layout' }).click()
+  const saveToolbar = page.getByRole('toolbar', { name: 'Arrange layout' })
+  await saveToolbar.waitFor()
+  const saveClock = page.getByRole('button', { name: 'Edit Clock' })
+  await saveClock.click()
+  await saveClock.press('ArrowRight')
+  await saveToolbar.getByRole('button', { name: 'Save' }).click()
+  await saveToolbar.waitFor({ state: 'detached' })
+  evidence.interactions.save = await page.evaluate(async () => ({ layoutVersion: (await chrome.storage.local.get('layout')).layout?.version }))
+  assert(evidence.interactions.save.layoutVersion === 3, 'Explicit Arrange Save did not persist V3 layout')
 
   assert(evidence.runtimeErrors.length === 0, `runtime errors: ${evidence.runtimeErrors.join('; ')}`)
   assert(evidence.failedRequests.length === 0, `failed requests: ${evidence.failedRequests.join('; ')}`)
 } catch (error) {
   caughtError = error
   evidence.error = error instanceof Error ? error.message : String(error)
-  await page.screenshot({ path: `${outDir}/canvas-p4-failure.png`, fullPage: false }).catch(() => {})
+  await page.screenshot({ path: `${outDir}/canvas-p7-failure.png`, fullPage: false }).catch(() => {})
 } finally {
   await page.close().then(() => { evidence.cleanup.pageClosed = true }).catch(() => {})
   await context.close().then(() => { evidence.cleanup.contextClosed = true }).catch(() => {})
@@ -367,7 +569,7 @@ try {
   rmSync(dist, { recursive: true, force: true })
   evidence.cleanup.profileRemoved = true
   evidence.cleanup.distRemoved = true
-  writeFileSync(`${outDir}/canvas-p4-evidence.json`, `${JSON.stringify(evidence, null, 2)}\n`)
+  writeFileSync(`${outDir}/canvas-p7-evidence.json`, `${JSON.stringify(evidence, null, 2)}\n`)
 }
 
 console.log(`EVIDENCE: ${JSON.stringify(evidence)}`)
