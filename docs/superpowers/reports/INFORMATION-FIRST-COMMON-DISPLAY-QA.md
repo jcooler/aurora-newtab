@@ -4,9 +4,17 @@ Date: 2026-08-17<br>
 Packet: PR-P6<br>
 Harness: `npm run qa:information-first`
 
+> **WITHDRAWN 2026-08-17 (A2-D060):** The owner rejected the installed
+> extension at 1408x445, disproving this report's PASS conclusion. The
+> matrix contained no short-height desktop viewport, seeded fixture
+> layouts in place of user-shaped storage, and could not reproduce classic
+> scrollbar geometry. This document is preserved as rejected historical
+> evidence; see `SHORT-HEIGHT-RECOVERY-FORENSICS.md` for the reproduced
+> root causes and the corrected QA standard.
+
 ## Result
 
-PASS at the implementation and evidence boundary. Owner visual approval remains pending.
+PASS at the implementation and evidence boundary. Owner visual approval remains pending. **(Withdrawn - see banner above.)**
 
 The canonical evidence contains all 115 required original-resolution Chromium captures: 23 exact CSS viewports multiplied by the five required states. Every original was opened and inspected individually. The run also contains six deep-interaction fenceposts, 24 registry-promised connector-size captures, four connector-state captures, and four Weather-corner captures. There were no runtime errors, failed requests, unexpected external requests, missing images, document horizontal overflows, or information-rich Canvas intersections.
 
