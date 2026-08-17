@@ -361,18 +361,18 @@ export interface ArrangeViewportMode {
 - Connector matrix covers RSS, GitHub, GitLab, Jira, Vercel, Crypto, Calendar, Status, and Home Assistant at every registry-promised Compact, Standard, and Full size and representative ready/loading/stale/empty/error states.
 - Weather corner matrix covers four legal corners at representative narrow and roomy widths with real activation, direction, 8px margins, sibling stability, Escape/outside close, and focus restore.
 
-- [ ] Add script-level tests that validate the exact 23 unique viewports, five exact state names, 115 expected image paths, six deep-interaction fenceposts, nine connector identities, promised size enumeration from the registry fixture, and four Weather corners. Run `node --test scripts/preview-information-first.test.mjs` and observe the missing harness modules.
-- [ ] Implement deterministic fixture seeding and harness orchestration. Add `qa:information-first` to `package.json` as `node scripts/preview-information-first.mjs`.
-- [ ] Run focused component/unit tests affected since PR-P5, then build the preview artifact once for this gate.
-- [ ] Run `npm run qa:information-first` once. If it fails, diagnose the first actual failure family with screenshots/geometry, add a focused failing regression, fix that family, and rerun only its focused viewport/state until green. Do not restart the complete matrix after cosmetic or report edits.
-- [ ] Inspect each of the 115 original-resolution images individually with image viewing, recording pass/fail and concrete observations in `INFORMATION-FIRST-COMMON-DISPLAY-QA.md`. Contact sheets may navigate but cannot substitute for individual inspection.
-- [ ] Inspect every connector size capture individually and record whether each larger size adds useful content rather than padding.
-- [ ] Compare harness geometry against the written type floors, Weather safe margins, sibling stability, Settings containment, Arrange modality, and local-scroll contracts.
-- [ ] Run the exact affected focused unit/component tests, `node --test scripts/preview-information-first.test.mjs`, TypeScript, and `git diff --check`.
-- [ ] Commit `test(ui): prove information-first common displays`.
-- [ ] Run one PR-P6 implementation/evidence review. Fix only Critical/Important defects with focused RED/GREEN evidence and perform one focused rereview. Do not rerun the complete matrix for report-only changes.
-- [ ] Update ledgers and the report, commit `docs: checkpoint information-first PR-P6 visual gate`, push, and prove both repositories.
-- [ ] Present these original files without resizing: 375x812 information-rich Canvas; 1024x768 Settings Widgets; 1366x768 Settings Connectors; 1920x1080 top-right expanded Weather; 1920x1080 Small Arrange plus side inspector; 2560x1440 information-rich Large; 3440x1440 information-rich Wide; and 3840x2160 information-rich Canvas with measured supporting type.
+- [x] Add script-level tests that validate the exact 23 unique viewports, five exact state names, 115 expected image paths, six deep-interaction fenceposts, nine connector identities, promised size enumeration from the registry fixture, and four Weather corners. Run `node --test scripts/preview-information-first.test.mjs` and observe the missing harness modules.
+- [x] Implement deterministic fixture seeding and harness orchestration. Add `qa:information-first` to `package.json` as `node scripts/preview-information-first.mjs`.
+- [x] Run focused component/unit tests affected since PR-P5, then build the preview artifact once for this gate.
+- [x] Run `npm run qa:information-first` once. If it fails, diagnose the first actual failure family with screenshots/geometry, add a focused failing regression, fix that family, and rerun only its focused viewport/state until green. Do not restart the complete matrix after cosmetic or report edits.
+- [x] Inspect each of the 115 original-resolution images individually with image viewing, recording pass/fail and concrete observations in `INFORMATION-FIRST-COMMON-DISPLAY-QA.md`. Contact sheets may navigate but cannot substitute for individual inspection.
+- [x] Inspect every connector size capture individually and record whether each larger size adds useful content rather than padding.
+- [x] Compare harness geometry against the written type floors, Weather safe margins, sibling stability, Settings containment, Arrange modality, and local-scroll contracts.
+- [x] Run the exact affected focused unit/component tests, `node --test scripts/preview-information-first.test.mjs`, TypeScript, and `git diff --check`.
+- [x] Commit `test(ui): prove information-first common displays`.
+- [x] Run one PR-P6 implementation/evidence review. Fix only Critical/Important defects with focused RED/GREEN evidence and perform one focused rereview. Do not rerun the complete matrix for report-only changes.
+- [x] Update ledgers and the report, commit `docs: checkpoint information-first PR-P6 visual gate`, push, and prove both repositories.
+- [x] Present these original files without resizing: 375x812 information-rich Canvas; 1024x768 Settings Widgets; 1366x768 Settings Connectors; 1920x1080 top-right expanded Weather; 1920x1080 Small Arrange plus side inspector; 2560x1440 information-rich Large; 3440x1440 information-rich Wide; and 3840x2160 information-rich Canvas with measured supporting type.
 - [ ] Stop and wait for explicit owner visual approval. Do not begin PR-P7 and do not change Store state.
 
 ---
