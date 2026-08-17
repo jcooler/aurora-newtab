@@ -36,7 +36,7 @@
 - Consumes: live `1.2.1` version evidence and the existing package script's manifest/package equality guard.
 - Produces: one synchronized `2.0.0` source version consumed by Vite and `scripts/package.mjs`.
 
-- [ ] **Step 1: Prove the current version sources**
+- [x] **Step 1: Prove the current version sources**
 
 Run:
 
@@ -46,7 +46,7 @@ rg -n '"version": "1\.14\.0"|version: ''1\.14\.0''' package.json package-lock.js
 
 Expected: exactly the package version, two root lockfile records, and manifest source version are `1.14.0`; dependency versions are out of scope.
 
-- [ ] **Step 2: Set only release metadata to 2.0.0**
+- [x] **Step 2: Set only release metadata to 2.0.0**
 
 Apply these exact replacements:
 
@@ -59,7 +59,7 @@ src/manifest.ts              manifest version -> 2.0.0
 
 Do not change dependencies, permissions, description, schema, or product code.
 
-- [ ] **Step 3: Verify version consistency and production build**
+- [x] **Step 3: Verify version consistency and production build**
 
 Run:
 
@@ -71,7 +71,7 @@ Get-Content -Raw dist/manifest.json
 
 Expected: four source records and the built manifest say `2.0.0`; production permissions are `storage`, `favicon`, `geolocation`, and `search`; `bookmarks` is optional; `https://*/*` is optional host access.
 
-- [ ] **Step 4: Commit the synchronized version**
+- [x] **Step 4: Commit the synchronized version**
 
 ```powershell
 git add package.json package-lock.json src/manifest.ts
@@ -93,7 +93,7 @@ git commit -m "build: stage Aurora 2.0.0"
 - Consumes: the preview build, Chrome extension storage, the accepted Canvas V3 placement shape, connector snapshot scope rules, and the real bookmarks API.
 - Produces: `seedStoreShotHero(page)`, `seedStoreShotCalendar(page)`, and five deterministic current-product captures.
 
-- [ ] **Step 1: Run the stale capture flow and record the focused RED**
+- [x] **Step 1: Run the stale capture flow and record the focused RED**
 
 Run:
 
@@ -104,18 +104,15 @@ npm run store-shots
 
 Expected: FAIL in the retired semantic Arrange/reset or another directly adjacent stale V1 selector/state. Do not broaden the failure into a product regression; the existing script predates Canvas V3.
 
-- [ ] **Step 2: Add a release-only representative fixture**
+- [x] **Step 2: Add a release-only representative fixture**
 
-Create `scripts/store-shot-fixtures.mjs` with these exact public wrappers over one private state seeder:
+Create `scripts/store-shot-fixtures.mjs` with public seeders for the distinct hero, Arrange, calendar, and tool compositions:
 
 ```js
-export async function seedStoreShotHero(page) {
-  await seedStoreShotState(page, 'hero')
-}
-
-export async function seedStoreShotCalendar(page) {
-  await seedStoreShotState(page, 'calendar')
-}
+export async function seedStoreShotHero(page) { /* representative hero state */ }
+export async function seedStoreShotArrange(page) { /* uncluttered Arrange state */ }
+export async function seedStoreShotCalendar(page) { /* calendar/connector state */ }
+export async function seedStoreShotTools(page) { /* unobstructed direct-tool state */ }
 ```
 
 The fixture must:
@@ -126,19 +123,19 @@ The fixture must:
 - create named bookmark folders and links through `chrome.bookmarks` only when preview permission is held;
 - write Canvas V3 profiles without changing schema/migration code or exporting any fixture to production.
 
-- [ ] **Step 3: Update the five real interaction captures**
+- [x] **Step 3: Update the five real interaction captures**
 
 Modify `scripts/store-shots.mjs` so the exact numbered set is:
 
 1. `1-hero.png`: photo-first Desktop with top Bookmarks, centered Clock/Focus/Search, Weather with condition/location, Month, GitHub/Jira content, and movable Timer/Tasks/Notes launchers.
 2. `2-arrange-mode.png`: enter Arrange by real long press, drag with real pointer events until a guide and non-occluding inspector are visible, capture before pointer-up, then Cancel and prove the stored layout is unchanged.
 3. `3-calendar-connectors.png`: apply the calendar fixture, reload, and show named ICS sources, complete Month content, and representative connector rows at truthful sizes.
-4. `4-direct-tools.png`: open Tasks, Timer, and Notes through their Canvas launchers and show contained direct panels with representative local content.
+4. `4-direct-tools.png`: open Notes through its Canvas launcher, show its contained representative local content, and keep the independent Tasks and Timer launchers visible and unobstructed. Concurrently stacking all three panels is not a valid presentation composition.
 5. `5-bookmarks-popover.png`: close the tools and open a named folder through the real Bookmarks bar.
 
 Replace all retired `Done`, reset-confirmation, semantic-zone, weather-geocoder, and text-only launcher assumptions. Add failing exit status for any console error, page error, failed request, missing image, horizontal overflow, clipped capture-owned Canvas block, missing expected witness, or wrong PNG dimension.
 
-- [ ] **Step 4: Run the focused GREEN capture gate**
+- [x] **Step 4: Run the focused GREEN capture gate**
 
 Run:
 
@@ -149,11 +146,11 @@ npm run store-shots
 
 Expected: exit 0; five named 1280x800 PNGs; no console/page/request errors; exact hero, Arrange, calendar/connector, direct-tool, and bookmark witnesses; the temporary browser profile is removed.
 
-- [ ] **Step 5: Inspect every PNG separately at original resolution**
+- [x] **Step 5: Inspect every PNG separately at original resolution**
 
 Open each of the five PNGs directly, not as a contact sheet. Reject unreadable text, malformed calendar rows, clipped/overlapping product blocks, empty connector states, stale Calm Canvas concepts, missing images, weak contrast, or accidental personal data. Cosmetic observations may be ledgered Minor without reopening accepted product packets.
 
-- [ ] **Step 6: Commit the reproducible capture source**
+- [x] **Step 6: Commit the reproducible capture source**
 
 ```powershell
 git add scripts/store-shot-fixtures.mjs scripts/store-shots.mjs
