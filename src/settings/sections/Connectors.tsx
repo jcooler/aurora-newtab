@@ -1313,13 +1313,29 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
     })
 
   const updateCalendarColor = (target: string, value: 'auto' | CalendarColor) =>
-    updateIcs((cals) =>
-      cals.map((calendar) => {
+    storage.update('connectors', (prev) => {
+      const previous = prev.ics as IcsConfig | undefined
+      if (!previous) return prev
+      let changed = false
+      const nextCalendars = icsCalendarsOf(previous).map((calendar) => {
         if (calendar.url !== target) return calendar
-        if (value === 'auto') return { name: calendar.name, url: calendar.url }
+        if (value === 'auto') {
+          if (calendar.color === undefined) return calendar
+          changed = true
+          return { name: calendar.name, url: calendar.url }
+        }
+        if (calendar.color === value) return calendar
+        changed = true
         return { ...calendar, color: value }
-      }),
-    )
+      })
+      if (!changed) return prev
+
+      // A color-only edit must not materialize optional view defaults. Keeping
+      // the prior shape stable also keeps the fetched-event generation and
+      // persisted snapshot scope stable for backward-compatible configs.
+      const { url: _legacyUrl, ...preserved } = previous
+      return { ...prev, ics: { ...preserved, enabled: true, calendars: nextCalendars } }
+    })
 
   // WHY: CalendarWidget.tsx's own gate remounts CalendarInner on every
   // calendars/view/upcomingCount change (its key includes both), but a

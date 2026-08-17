@@ -4755,15 +4755,19 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
       enabled: true,
       calendars: [{ name: 'Personal', url }],
     }, true)
+    const beforeSnapshot = (await storage.get('connectorSnapshots')).ics
 
     await act(async () => {
       fireEvent.change(screen.getByRole('combobox', { name: 'Color for Personal' }), { target: { value: 'emerald' } })
     })
 
-    expect((await readIcs(storage))?.calendars).toEqual([{ name: 'Personal', url, color: 'emerald' }])
+    expect(await readIcs(storage)).toEqual({
+      enabled: true,
+      calendars: [{ name: 'Personal', url, color: 'emerald' }],
+    })
     expect(ensureOrigin).not.toHaveBeenCalled()
     expect(removeOrigin).not.toHaveBeenCalled()
-    expect((await storage.get('connectorSnapshots')).ics).toBeTruthy()
+    expect((await storage.get('connectorSnapshots')).ics).toEqual(beforeSnapshot)
     expect(within(connectorsRegion()).getByRole('listitem').querySelector('.bg-emerald-400')).toBeTruthy()
   })
 
