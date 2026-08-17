@@ -145,7 +145,7 @@ describe('semantic ArrangeController', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     await act(async () => {})
 
-    const saved = await storage.get('layout')
+    const saved = await storage.get('layout') as LayoutV2
     expect(update).toHaveBeenCalledTimes(1)
     expect(saved.profiles.standard?.weather).toMatchObject({ variant: 'compact', colSpan: 1, rowSpan: 1 })
     expect(saved.profiles.compact).toEqual(seed.profiles.compact)

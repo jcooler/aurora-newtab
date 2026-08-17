@@ -6,6 +6,7 @@ import {
 } from '../layout/v2'
 import { CURRENT_VERSION, defaults, type AuroraData } from './schema'
 import { migrate, type Migration } from './migrations'
+import type { LayoutV2 } from '../layout/types'
 
 const EMPTY_MIGRATED_LAYOUT = {
   version: 2,
@@ -31,7 +32,8 @@ describe('migrate', () => {
       // upgrades v2 -> v3, registry[3] upgrades v3 -> v4, registry[4] upgrades
       // v4 -> v5, registry[5] upgrades v5 -> v6, registry[6] upgrades v6 -> v7,
       // registry[7] upgrades v7 -> v8, registry[8] upgrades v8 -> v9,
-      // registry[9] upgrades v9 -> v10, registry[10] upgrades v10 -> v11
+      // registry[9] upgrades v9 -> v10, registry[10] upgrades v10 -> v11,
+      // registry[11] upgrades v11 -> v12
       // (CURRENT_VERSION)
       0: (data) => {
         calls.push(0)
@@ -77,9 +79,13 @@ describe('migrate', () => {
         calls.push(10)
         return data
       },
+      11: (data) => {
+        calls.push(11)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -533,12 +539,12 @@ describe('v9 -> v10', () => {
       weather: { x: 10, y: 20 },
       sun: { x: 10, y: 20 },
       clock: { x: 50, y: 50 },
-    } }, 9).layout
+    } }, 9).layout as LayoutV2
     const reordered = migrate({ layout: {
       clock: { x: 50, y: 50 },
       sun: { x: 10, y: 20 },
       weather: { x: 10, y: 20 },
-    } }, 9).layout
+    } }, 9).layout as LayoutV2
 
     expect(reordered).toEqual(first)
     expect(migrate({ layout: first.legacy }, 9).layout).toEqual(first)
@@ -565,11 +571,11 @@ describe('v9 -> v10', () => {
   })
 
   it('drops valid or malformed unknown IDs only after validating every known row', () => {
-    expect(migrate({ layout: {
+    expect((migrate({ layout: {
       weather: { x: 10, y: 20 },
       unknownValid: { x: 1, y: 2 },
       unknownMalformed: 'ignored',
-    } }, 9).layout.legacy).toEqual({ weather: { x: 10, y: 20 } })
+    } }, 9).layout as LayoutV2).legacy).toEqual({ weather: { x: 10, y: 20 } })
 
     expect(() => migrate({ layout: {
       weather: { x: 'bad', y: 20 },
@@ -595,7 +601,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(11)
+    expect(CURRENT_VERSION).toBe(12)
     expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
   })
 
@@ -634,7 +640,7 @@ describe('v10 -> v11', () => {
 
     expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
     expect(out.layout).toEqual(layout)
-    expect(out.layout.legacy).toEqual({ clock: { x: 12, y: 34 } })
+    expect((out.layout as LayoutV2).legacy).toEqual({ clock: { x: 12, y: 34 } })
     expect(out.connectors).toEqual(connectors)
     expect(out.unknownStore).toEqual(unknownStore)
   })
@@ -659,8 +665,36 @@ describe('v10 -> v11', () => {
 
     const fromV9 = migrate({ settings: v10Settings(), layout: { clock: { x: 50, y: 50 } } }, 9)
     expect(fromV9.settings.layoutDensity).toBe('auto')
-    expect(fromV9.layout.version).toBe(2)
-    expect(fromV9.layout.legacy).toEqual({ clock: { x: 50, y: 50 } })
+    expect((fromV9.layout as LayoutV2).version).toBe(2)
+    expect((fromV9.layout as LayoutV2).legacy).toEqual({ clock: { x: 50, y: 50 } })
+  })
+})
+
+describe('v11 -> v12', () => {
+  it.each([
+    ['V1', { clock: { x: 12.25, y: 34.75 } }],
+    ['V2', { version: 2, profiles: {}, legacy: { focus: { x: 50, y: 60 } } }],
+  ])('preserves the exact %s layout value and every sibling', (_label, layout) => {
+    const snapshot = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Keep me' },
+      layout,
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(CURRENT_VERSION).toBe(12)
+    expect(out.layout).toEqual(layout)
+    expect(out.settings).toEqual(snapshot.settings)
+    expect(out.unknownStore).toEqual(snapshot.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+
+  it('requires the identity v11 migration step', () => {
+    expect(() => migrate({ layout: { version: 2, profiles: {} } }, 11, {}))
+      .toThrow('No migration from schema v11')
   })
 })
 

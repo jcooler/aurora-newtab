@@ -5,6 +5,7 @@ import { StorageProvider } from '../lib/storage/context'
 import { memoryDriver } from '../lib/storage/driver'
 import { createStorage } from '../lib/storage/index'
 import { defaults } from '../lib/storage/schema'
+import { emptyLayoutV3 } from '../lib/layout/canvasTypes'
 import { emptyLayoutV2 } from '../lib/layout/v2'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import App from './App'
@@ -472,7 +473,7 @@ describe('App — Adaptive Stage composition', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' }))
     await act(async () => {})
     expect((await storage.get('settings')).layoutDensity).toBe('spacious')
-    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
+    expect(await storage.get('layout')).toEqual(emptyLayoutV3())
   })
 
   it('does not introduce a root transform or duplicate profile authority', async () => {

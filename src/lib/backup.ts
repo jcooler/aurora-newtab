@@ -7,8 +7,9 @@
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './storage/schema'
 import { isPlainObject } from './object'
 import { isPanelColor } from './color'
-import { BLOCK_IDS, LAYOUT_DENSITY_PREFERENCES, LAYOUT_PROFILES, type BlockId, type LayoutV2, type Placement } from './layout/types'
-import { isValidPlacement, LegacyLayoutValidationError, validateLegacyLayout } from './layout/v2'
+import { LAYOUT_DENSITY_PREFERENCES } from './layout/types'
+import { cleanStoredLayout, type StoredLayout } from './layout/canvasTypes'
+import { LegacyLayoutValidationError } from './layout/v2'
 import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorDescriptor, type ConnectorId } from '../services/connectors/types'
 import { CONNECTORS } from '../services/connectors/registry'
 import { ownedOriginPatterns } from '../services/originOwnership'
@@ -424,30 +425,9 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   habits: isHabits,
 }
 
-/** Strictly validates known V2 members while dropping future profile/block ids. */
-function cleanLayout(v: unknown): LayoutV2 {
-  if (!isPlainObject(v) || v.version !== 2 || !isPlainObject(v.profiles)) {
-    throw new Error('invalid layout')
-  }
-  const profiles: LayoutV2['profiles'] = {}
-  for (const profileName of LAYOUT_PROFILES) {
-    if (!Object.prototype.hasOwnProperty.call(v.profiles, profileName)) continue
-    const rawProfile = v.profiles[profileName]
-    if (!isPlainObject(rawProfile)) throw new Error('invalid layout')
-    const profile: Partial<Record<BlockId, Placement>> = {}
-    for (const id of BLOCK_IDS) {
-      if (!Object.prototype.hasOwnProperty.call(rawProfile, id)) continue
-      const placement = rawProfile[id]
-      if (!isValidPlacement(placement)) throw new Error('invalid layout')
-      profile[id] = { ...placement }
-    }
-    profiles[profileName] = profile
-  }
-  const cleaned: LayoutV2 = { version: 2, profiles }
-  if (Object.prototype.hasOwnProperty.call(v, 'legacy')) {
-    cleaned.legacy = validateLegacyLayout(v.legacy)
-  }
-  return cleaned
+/** Strictly validates V1/V2/V3 known members while dropping future ids. */
+function cleanLayout(v: unknown): StoredLayout {
+  return cleanStoredLayout(v)
 }
 
 const CONNECTOR_ID_SET: ReadonlySet<string> = new Set(CONNECTOR_IDS)

@@ -7,7 +7,9 @@ import { createInProcessStorageAuthority } from '../lib/storage/authority'
 import { StorageProvider } from '../lib/storage/context'
 import { BACKUP_REDACTION_NOTICE, parseBackup, serializeBackup } from '../lib/backup'
 import { CURRENT_VERSION, defaults, type AuroraData } from '../lib/storage/schema'
-import { emptyLayoutV2, layoutV2FromLegacy } from '../lib/layout/v2'
+import { layoutV2FromLegacy } from '../lib/layout/v2'
+import { emptyLayoutV3 } from '../lib/layout/canvasTypes'
+import { saveCanvasProfile } from '../lib/layout/canvasAdapter'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, StatusConfig, VercelConfig } from '../services/connectors/types'
 import { CURATED_STATUS } from '../services/connectors/status'
 import type { HaAction, HaEntityRef, HaState, HomeAssistantConfig } from '../services/connectors/homeassistant'
@@ -2464,7 +2466,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(onArrangeLayout).toHaveBeenCalledOnce()
   })
 
-  it('Reset layout Cancel writes neither key; confirm clears only Layout V2 and preserves Settings byte-for-byte', async () => {
+  it('Reset layout Cancel writes neither key; confirm clears only Canvas layout and preserves Settings byte-for-byte', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const positioned = layoutV2FromLegacy({ clock: { x: 10, y: 10 } })
@@ -2504,10 +2506,54 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     dialog = screen.getByRole('dialog', { name: 'Reset layout?' })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reset layout' })) // the dialog's own confirm button
     await act(async () => {})
-    expect(await storage.get('layout')).toEqual(emptyLayoutV2())
+    expect(await storage.get('layout')).toEqual(emptyLayoutV3())
     expect(await storage.get('settings')).toEqual(settings)
     expect(set).toHaveBeenCalledOnce()
-    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV2())
+    expect(set).toHaveBeenCalledWith('layout', emptyLayoutV3())
+  })
+
+  it('offers exact previous-layout recovery only while V3 recovery exists', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const previous = layoutV2FromLegacy({ clock: { x: 12.25, y: 34.75 } })
+    const saved = saveCanvasProfile(previous, 'standard', {
+      mode: 'custom',
+      placements: {
+        clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 0 },
+      },
+    })
+    await storage.set('layout', saved)
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    const restore = within(layoutRegion()).getByRole('button', { name: 'Restore previous layout' })
+    await act(async () => {
+      fireEvent.click(restore)
+    })
+
+    expect(await storage.get('layout')).toEqual(previous)
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Restore previous layout' })).toBeNull()
+  })
+
+  it('does not show or write recovery for a layout without recovery data', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const update = vi.spyOn(storage, 'update')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel onArrangeLayout={() => {}} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Restore previous layout' })).toBeNull()
+    expect(update).not.toHaveBeenCalled()
   })
 
   it('Escape cancels the confirm dialog without writing anything', async () => {

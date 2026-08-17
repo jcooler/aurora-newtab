@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { BlockId, LayoutProfile, LayoutV2, Priority, WidgetVariant, Zone } from '../../lib/layout/types'
+import { semanticLayoutV2 } from '../../lib/layout/canvasAdapter'
 import { withProfileOverrides } from '../../lib/layout/v2'
 import { closeAllDialogs, hasOpenDialogs, useDialogEscape } from '../../lib/dialogStack'
 import { isPremium } from '../../lib/premium'
@@ -209,7 +210,9 @@ export default function ArrangeController({
     if (!current || !activeProfile || saveState === 'pending') return
     setSaveState('pending')
     try {
-      await storage.update('layout', (stored) => withProfileOverrides(stored, activeProfile, current.overrides))
+      await storage.update('layout', (stored) => (
+        withProfileOverrides(semanticLayoutV2(stored), activeProfile, current.overrides)
+      ))
       if (mountedRef.current) exit()
     } catch {
       if (mountedRef.current) setSaveState('error')

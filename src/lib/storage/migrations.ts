@@ -175,6 +175,11 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v11 -> v12: the stored layout key becomes an explicit V1/V2/V3 union.
+  // This step is intentionally the identity function. Live initialization
+  // handles this version boundary as a metadata-only transaction so no
+  // Aurora data key is rewritten merely because the extension booted.
+  11: (data) => data,
 }
 
 export function migrate(

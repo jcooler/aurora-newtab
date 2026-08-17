@@ -231,6 +231,33 @@ export function createStorage(
     throw new StorageInitializationError(primaryError)
   }
 
+  async function upgradeV11MetadataOnly(): Promise<void> {
+    const target = { [VERSION_KEY]: CURRENT_VERSION }
+    const previous = { [VERSION_KEY]: 11 }
+    let primaryError: unknown
+    try {
+      await driver.write(target)
+      const verified = await driver.read([VERSION_KEY])
+      if (!structurallyEqual(verified, target)) {
+        throw new Error('Aurora storage version migration verification failed')
+      }
+      return
+    } catch (caught) {
+      primaryError = caught
+    }
+
+    try {
+      await driver.write(previous)
+      const rolledBack = await driver.read([VERSION_KEY])
+      if (!structurallyEqual(rolledBack, previous)) {
+        throw new Error('Aurora storage version migration rollback verification failed')
+      }
+    } catch (rollbackError) {
+      throw new AtomicMigrationRollbackError(primaryError, rollbackError)
+    }
+    throw new StorageInitializationError(primaryError)
+  }
+
   async function repairCurrentDensity(all: Record<string, unknown>): Promise<void> {
     const settings = all.settings
     if (!isPlainObject(settings) || LAYOUT_DENSITY_SET.has(settings.layoutDensity)) return
@@ -355,6 +382,10 @@ export function createStorage(
         if (typeof stored !== 'number' || !Number.isFinite(stored)
           || !Number.isInteger(stored) || stored < 1) {
           throw new StorageInitializationError(undefined)
+        }
+        if (stored === 11 && CURRENT_VERSION === 12) {
+          await upgradeV11MetadataOnly()
+          return
         }
         if (stored < CURRENT_VERSION) {
           await migrateAndVerify(all, stored)

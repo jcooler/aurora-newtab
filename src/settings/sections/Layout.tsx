@@ -3,7 +3,8 @@ import { isPremium } from '../../lib/premium'
 import ResetLayoutDialog from '../../lib/ResetLayoutDialog'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { LayoutDensityPreference } from '../../lib/layout/types'
-import { emptyLayoutV2 } from '../../lib/layout/v2'
+import { emptyLayoutV3, type StoredLayout } from '../../lib/layout/canvasTypes'
+import { restorePreviousLayout } from '../../lib/layout/canvasAdapter'
 import Section from '../Section'
 import { row, label, select, btnQuiet, btnDanger } from './shared'
 
@@ -45,6 +46,7 @@ export default function Layout({
 }) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
   const [density, setDensity] = useState<LayoutDensityPreference>('auto')
+  const [canRestore, setCanRestore] = useState(false)
   const densityId = useId()
   const densityDescriptionId = `${densityId}-description`
 
@@ -61,6 +63,29 @@ export default function Layout({
     })
     void storage.get('settings').then((settings) => {
       if (live && !gotUpdate) setDensity(settings.layoutDensity)
+    })
+    return () => {
+      live = false
+      unsubscribe()
+    }
+  }, [storage])
+
+  useEffect(() => {
+    let live = true
+    let gotUpdate = false
+    const updateAvailability = (layout: StoredLayout) => {
+      setCanRestore(
+        'version' in layout
+        && layout.version === 3
+        && Boolean(layout.recovery?.semanticV2 || layout.recovery?.legacyV1),
+      )
+    }
+    const unsubscribe = storage.subscribe('layout', (layout) => {
+      gotUpdate = true
+      updateAvailability(layout)
+    })
+    void storage.get('layout').then((layout) => {
+      if (live && !gotUpdate) updateAvailability(layout)
     })
     return () => {
       live = false
@@ -112,13 +137,27 @@ export default function Layout({
           </button>
         </div>
       </div>
+      {canRestore ? (
+        <div className={row}>
+          <span className={label}>Previous layout</span>
+          <button
+            type="button"
+            className={btnQuiet}
+            onClick={() => {
+              void storage.update('layout', (layout) => restorePreviousLayout(layout) ?? layout)
+            }}
+          >
+            Restore previous layout
+          </button>
+        </div>
+      ) : null}
 
       <ResetLayoutDialog
         open={resetDialogOpen}
         onCancel={() => setResetDialogOpen(false)}
         onConfirm={() => {
           setResetDialogOpen(false)
-          void storage.set('layout', emptyLayoutV2())
+          void storage.set('layout', emptyLayoutV3())
         }}
       />
     </Section>

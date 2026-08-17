@@ -11,6 +11,7 @@ import {
 import { CURRENT_VERSION, defaults, type AuroraData } from './storage/schema'
 import { migrate, migrations } from './storage/migrations'
 import type { LayoutV2, Placement } from './layout/types'
+import type { LayoutV3 } from './layout/canvasTypes'
 import { layoutV2FromLegacy } from './layout/v2'
 import type { ConnectorDescriptor, CryptoConfig, GithubConfig, GitlabConfig, IcsConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 
@@ -917,7 +918,7 @@ describe('schema v11 layout density backup boundary', () => {
     (layoutDensity) => {
       const input = { ...defaults(), settings: { ...defaults().settings, layoutDensity } }
       const envelope = JSON.parse(serializeBackup(input))
-      expect(envelope.version).toBe(11)
+      expect(envelope.version).toBe(CURRENT_VERSION)
       expect(envelope.data.settings.layoutDensity).toBe(layoutDensity)
 
       const prepared = prepareBackup(JSON.stringify(envelope))
@@ -987,10 +988,10 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
     return JSON.stringify({ app: 'aurora', version, data })
   }
 
-  it('exports schema 11 with only the supplied V2 overrides and exact optional legacy map', () => {
+  it('exports the current schema with only the supplied V2 overrides and exact optional legacy map', () => {
     const layout: LayoutV2 = { version: 2, profiles: { display: { notes: placement } }, legacy: { notes: { x: 12, y: 34 } } }
     const parsed = JSON.parse(serializeBackup({ ...defaults(), layout }))
-    expect(parsed.version).toBe(11)
+    expect(parsed.version).toBe(CURRENT_VERSION)
     expect(parsed.data.layout).toEqual(layout)
     expect(Object.keys(parsed.data.layout.profiles)).toEqual(['display'])
   })
@@ -1000,12 +1001,13 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
     const result = prepareBackup(envelope(version, legacy))
     expect(result.ok).toBe(true)
     if (!result.ok) return
+    const migratedLayout = result.data.layout as LayoutV2
     const expectedLegacy = version <= 2 ? {} : legacy
-    expect(result.data.layout).toEqual(layoutV2FromLegacy(expectedLegacy))
-    expect(result.data.layout.legacy).toEqual(expectedLegacy)
-    expect(Object.keys(result.data.layout.profiles)).toEqual(['compact', 'standard', 'display', 'ultrawide'])
+    expect(migratedLayout).toEqual(layoutV2FromLegacy(expectedLegacy))
+    expect(migratedLayout.legacy).toEqual(expectedLegacy)
+    expect(Object.keys(migratedLayout.profiles)).toEqual(['compact', 'standard', 'display', 'ultrawide'])
     for (const profile of ['compact', 'standard', 'display', 'ultrawide'] as const) {
-      expect(result.data.layout.profiles[profile]).toEqual(layoutV2FromLegacy(expectedLegacy).profiles[profile])
+      expect(migratedLayout.profiles[profile]).toEqual(layoutV2FromLegacy(expectedLegacy).profiles[profile])
     }
   })
 
@@ -1020,7 +1022,7 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
   it('drops malformed unknown legacy ids only after validating every known row', () => {
     const result = prepareBackup(envelope(9, { clock: { x: 10, y: 20 }, bogus: 'malformed' }))
     expect(result.ok).toBe(true)
-    if (result.ok) expect(result.data.layout.legacy).toEqual({ clock: { x: 10, y: 20 } })
+    if (result.ok) expect((result.data.layout as LayoutV2).legacy).toEqual({ clock: { x: 10, y: 20 } })
 
     expect(prepareBackup(envelope(9, { clock: { x: 'bad', y: 20 }, bogus: { x: 1, y: 2 } }))).toEqual({
       ok: false,
@@ -1035,11 +1037,90 @@ describe('W3-P1 Layout V2 backup compatibility', () => {
     if (result.ok) expect(result.data.layout).toEqual(layout)
   })
 
+  it('round-trips a valid V3 layout with exact V2 recovery', () => {
+    const semanticV2: LayoutV2 = {
+      version: 2,
+      profiles: { standard: { notes: placement } },
+      legacy: { notes: { x: 15.25, y: 25.75 } },
+    }
+    const layout: LayoutV3 = {
+      version: 3,
+      profiles: {
+        compact: {
+          mode: 'derived',
+          placements: {},
+        },
+        standard: {
+          mode: 'custom',
+          placements: {
+            clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            timer: { kind: 'bottom-bar', order: 0, size: 'compact' },
+          },
+        },
+      },
+      recovery: { semanticV2 },
+    }
+
+    const result = prepareBackup(envelope(CURRENT_VERSION, layout))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.layout).toEqual(layout)
+  })
+
+  it('drops unknown V3 profiles and block IDs while retaining valid known siblings', () => {
+    const layout = {
+      version: 3,
+      profiles: {
+        standard: {
+          mode: 'custom',
+          placements: {
+            clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            futureWidget: { kind: 'canvas', x: 'malformed but unknown', y: 4, size: 'compact', layer: 0 },
+          },
+        },
+        futureProfile: { mode: 'custom', placements: { clock: 'ignored' } },
+      },
+    }
+
+    const result = prepareBackup(envelope(CURRENT_VERSION, layout))
+
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.layout).toEqual({
+        version: 3,
+        profiles: {
+          standard: {
+            mode: 'custom',
+            placements: {
+              clock: { kind: 'canvas', x: 50, y: 40, size: 'full', layer: 2 },
+            },
+          },
+        },
+      })
+    }
+  })
+
+  it.each([
+    ['non-finite coordinate', { kind: 'canvas', x: 1e400, y: 40, size: 'full', layer: 0 }],
+    ['invalid size', { kind: 'canvas', x: 50, y: 40, size: 'expanded', layer: 0 }],
+    ['invalid Bottom bar size', { kind: 'bottom-bar', order: 0, size: 'standard' }],
+  ])('rejects current V3 %s before restore', (_label, placement) => {
+    const layout = {
+      version: 3,
+      profiles: { standard: { mode: 'custom', placements: { clock: placement } } },
+    }
+
+    expect(prepareBackup(envelope(CURRENT_VERSION, layout))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layout" data is invalid.',
+    })
+  })
+
   it.each([
     ['primitive layout', 'bad'],
     ['array layout', []],
-    ['missing version', { profiles: {} }],
-    ['wrong version', { version: 3, profiles: {} }],
+    ['malformed V1 known row', { clock: { x: 1 } }],
+    ['wrong version', { version: 4, profiles: {} }],
     ['primitive profiles', { version: 2, profiles: 'bad' }],
     ['malformed known profile', { version: 2, profiles: { standard: [] } }],
     ['malformed known placement', { version: 2, profiles: { standard: { clock: { ...placement, zone: 'future' } } } }],

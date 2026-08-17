@@ -5,6 +5,7 @@ import { migrations, type Migration } from './migrations'
 import { memoryDriver, type StorageDriver } from './driver'
 import { CURRENT_VERSION, defaults, type AuroraData, type DataKey } from './schema'
 import { LegacyLayoutValidationError } from '../layout/v2'
+import type { LayoutV2 } from '../layout/types'
 import {
   createInProcessStorageAuthority,
   type StorageAuthority,
@@ -345,7 +346,7 @@ describe('createStorage', () => {
     expect(controlled.writes).toHaveLength(1)
     expect(Object.keys(controlled.writes[0])).toEqual([...KNOWN_KEYS, 'aurora:version'])
     expect(controlled.writes[0]['aurora:version']).toBe(CURRENT_VERSION)
-    expect((controlled.writes[0].layout as AuroraData['layout']).legacy).toEqual({ weather: { x: 12, y: 20 } })
+    expect((controlled.writes[0].layout as LayoutV2).legacy).toEqual({ weather: { x: 12, y: 20 } })
     expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
     expect(events).toEqual([
       'lock:enter', 'read:null', 'write',
@@ -365,7 +366,7 @@ describe('createStorage', () => {
     expect(controlled.writes).toEqual([])
   })
 
-  it('migrates v10 to v11 with Auto Fit in one authority-held target write and verified readback', async () => {
+  it('migrates v10 through v12 with Auto Fit in one authority-held target write and verified readback', async () => {
     const events: string[] = []
     const seed = v10Seed({
       settings: v10Settings({ name: 'Migrated density', muted: true }),
@@ -385,7 +386,7 @@ describe('createStorage', () => {
     await createStorage(controlled.driver, recordingAuthority(events)).init()
 
     expect(controlled.writes).toHaveLength(1)
-    expect(controlled.writes[0]['aurora:version']).toBe(11)
+    expect(controlled.writes[0]['aurora:version']).toBe(CURRENT_VERSION)
     expect((controlled.writes[0].settings as Record<string, unknown>)).toEqual({
       ...seed.settings as Record<string, unknown>,
       layoutDensity: 'auto',
@@ -396,6 +397,61 @@ describe('createStorage', () => {
       `read:${[...KNOWN_KEYS, 'aurora:version'].join(',')}`,
       'lock:exit',
     ])
+  })
+
+  it('upgrades v11 by writing only version metadata and leaves every data key byte-for-byte unchanged', async () => {
+    const events: string[] = []
+    const layout = {
+      version: 2 as const,
+      profiles: {},
+      legacy: { clock: { x: 12.25, y: 34.75 } },
+    }
+    const seed = {
+      ...defaults(),
+      layout,
+      settings: { ...defaults().settings, name: 'Exact v11' },
+      'aurora:version': 11,
+      unknown: { sentinel: 'keep' },
+    }
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed, {
+      async read(keys, _call, proceed) {
+        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
+        return proceed()
+      },
+      async write(_patch, _call, apply) {
+        events.push('write')
+        await apply()
+      },
+    })
+
+    await createStorage(controlled.driver, recordingAuthority(events)).init()
+
+    expect(controlled.writes).toEqual([{ 'aurora:version': CURRENT_VERSION }])
+    expect(controlled.base.dump()).toEqual({ ...before, 'aurora:version': CURRENT_VERSION })
+    expect(events).toEqual([
+      'lock:enter', 'read:null', 'write', 'read:aurora:version', 'lock:exit',
+    ])
+  })
+
+  it('rolls a failed v11 metadata verification back without writing any data key', async () => {
+    const seed = { ...defaults(), 'aurora:version': 11 }
+    const controlled = controllableDriver(seed, {
+      async read(keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2 && keys?.includes('aurora:version')) return { 'aurora:version': 11 }
+        return found
+      },
+    })
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+
+    expect(controlled.writes).toEqual([
+      { 'aurora:version': CURRENT_VERSION },
+      { 'aurora:version': 11 },
+    ])
+    expect(controlled.base.dump()).toEqual(seed)
   })
 
   it.each([
@@ -425,7 +481,7 @@ describe('createStorage', () => {
     ['null', null],
     ['non-string', 7],
     ['unknown', 'dense'],
-  ])('repairs a current-v11 %s density only, verifies it under authority, and notifies settings subscribers', async (_label, density) => {
+  ])('repairs a current-v12 %s density only, verifies it under authority, and notifies settings subscribers', async (_label, density) => {
     const events: string[] = []
     const settings = { ...defaults().settings, name: 'Keep every sibling', muted: true } as unknown as Record<string, unknown>
     if (density === undefined) delete settings.layoutDensity
@@ -433,7 +489,7 @@ describe('createStorage', () => {
     const controlled = controllableDriver({
       ...defaults(),
       settings,
-      'aurora:version': 11,
+      'aurora:version': CURRENT_VERSION,
       unknown: { sentinel: 'keep' },
     }, {
       async read(keys, _call, proceed) {
@@ -464,10 +520,10 @@ describe('createStorage', () => {
   })
 
   it.each(['auto', 'compact', 'balanced', 'spacious'] as const)(
-    'leaves valid current-v11 density %s byte-for-byte unchanged',
+    'leaves valid current-v12 density %s byte-for-byte unchanged',
     async (layoutDensity) => {
       const settings = { ...defaults().settings, name: 'Current', layoutDensity }
-      const controlled = controllableDriver({ settings, 'aurora:version': 11 })
+      const controlled = controllableDriver({ settings, 'aurora:version': CURRENT_VERSION })
 
       await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
 
@@ -476,10 +532,10 @@ describe('createStorage', () => {
     },
   )
 
-  it('rolls back a rejected current-v11 repair and succeeds on retry without changing Settings siblings', async () => {
+  it('rolls back a rejected current-v12 repair and succeeds on retry without changing Settings siblings', async () => {
     const settings = v10Settings({ name: 'Rollback me', panelColor: '#123456' })
     let rejectFirst = true
-    const controlled = controllableDriver({ settings, 'aurora:version': 11 }, {
+    const controlled = controllableDriver({ settings, 'aurora:version': CURRENT_VERSION }, {
       async write(_patch, _call, apply) {
         if (rejectFirst) {
           rejectFirst = false
@@ -499,9 +555,9 @@ describe('createStorage', () => {
     expect((await storage.get('settings'))).toEqual({ ...settings, layoutDensity: 'auto' })
   })
 
-  it('rolls back a mismatched current-v11 repair readback and reports fatal rollback failure distinctly', async () => {
+  it('rolls back a mismatched current-v12 repair readback and reports fatal rollback failure distinctly', async () => {
     const settings = v10Settings({ name: 'Fatal rollback' })
-    const controlled = controllableDriver({ settings, 'aurora:version': 11 }, {
+    const controlled = controllableDriver({ settings, 'aurora:version': CURRENT_VERSION }, {
       async read(_keys, call, proceed) {
         const found = await proceed()
         if (call === 2) return { settings: { ...settings, layoutDensity: 'dense' } }
@@ -542,12 +598,12 @@ describe('createStorage', () => {
     })
     await expect(storage.init()).resolves.toBeUndefined()
     expect((await storage.get('settings')).layoutDensity).toBe('auto')
-    expect(controlled.base.dump()['aurora:version']).toBe(11)
+    expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
   })
 
   it('does not repair invalid density in a future-version store', async () => {
     const settings = v10Settings({ layoutDensity: 'dense' })
-    const controlled = controllableDriver({ settings, 'aurora:version': 12 })
+    const controlled = controllableDriver({ settings, 'aurora:version': CURRENT_VERSION + 1 })
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
     await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
@@ -804,7 +860,7 @@ describe('createStorage', () => {
     await expect(storage.init()).rejects.toBeInstanceOf(storageModule.StorageInitializationError)
     await expect(storage.init()).resolves.toBeUndefined()
     expect(controlled.base.dump()['aurora:version']).toBe(CURRENT_VERSION)
-    expect((controlled.base.dump().layout as AuroraData['layout']).legacy).toEqual({
+    expect((controlled.base.dump().layout as LayoutV2).legacy).toEqual({
       weather: { x: 12, y: 20 }, focus: { x: 50, y: 50 },
     })
   })

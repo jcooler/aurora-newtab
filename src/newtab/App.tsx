@@ -22,12 +22,23 @@ import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRendere
 import { useAdaptiveStageViewport } from './useAdaptiveStageViewport'
 import { DOCK_BLOCK_SIZES } from './dockBlockSizes'
 import { haActionsOf, type HomeAssistantConfig } from '../services/connectors/homeassistant'
+import { semanticLayoutV2 } from '../lib/layout/canvasAdapter'
+import type { LayoutV2 } from '../lib/layout/types'
 
 const ZONES = ['day', 'now', 'pulse', 'dock'] as const
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function semanticLayoutOrNull(value: Parameters<typeof semanticLayoutV2>[0] | null | undefined): LayoutV2 | null {
+  if (!value) return null
+  try {
+    return semanticLayoutV2(value)
+  } catch {
+    return null
+  }
 }
 
 export default function App() {
@@ -53,6 +64,7 @@ export default function App() {
   const wasArrangingRef = useRef(false)
   const dockPointerDownRef = useRef(false)
   const dockKeyboardScrollRef = useRef<number | null>(null)
+  const semanticLayout = useMemo(() => semanticLayoutOrNull(layout), [layout])
 
   useEffect(() => {
     if (settings) applyPanelColor(document.documentElement, settings.panelColor)
@@ -150,7 +162,7 @@ export default function App() {
   // mounted App without ever indexing a missing widget map/profile envelope.
   const stageInputsReady = Boolean(
     settings && isRecord(settings.widgets) && DENSITY_PREFERENCES.has(settings.layoutDensity) &&
-    layout && isRecord(layout.profiles) && connectors && isRecord(connectors),
+    semanticLayout && isRecord(semanticLayout.profiles) && connectors && isRecord(connectors),
   )
 
   const activeEntries = useMemo(
@@ -158,7 +170,7 @@ export default function App() {
     [stageInputsReady, settings, connectors],
   )
   const viewport = useAdaptiveStageViewport(useCallback((size: ViewportSize): Density => {
-    if (!stageInputsReady || !settings || !layout) return 'compact'
+    if (!stageInputsReady || !settings || !semanticLayout) return 'compact'
     const profile = size.width < 900 || size.height < 700
       ? 'compact'
       : size.width >= 1600 && size.width / size.height >= 2.1
@@ -166,7 +178,7 @@ export default function App() {
         : size.width >= 2200 && size.height >= 1100 ? 'display' : 'standard'
     const overrides = arrangePreview?.profile === profile
       ? arrangePreview.overrides
-      : layout.profiles[profile]
+      : semanticLayout.profiles[profile]
     return resolveStageDensity({
       preference: settings.layoutDensity,
       viewport: size,
@@ -175,13 +187,13 @@ export default function App() {
       overrides,
       dockBlockSizes: DOCK_BLOCK_SIZES,
     }).density
-  }, [activeEntries, arrangePreview, layout, settings, stageInputsReady]))
+  }, [activeEntries, arrangePreview, semanticLayout, settings, stageInputsReady]))
 
   const resolution = useMemo(() => {
-    if (!stageInputsReady || !settings || !layout) return null
+    if (!stageInputsReady || !settings || !semanticLayout) return null
     const overrides = arrangePreview?.profile === viewport.profile
       ? arrangePreview.overrides
-      : layout.profiles[viewport.profile]
+      : semanticLayout.profiles[viewport.profile]
     return resolveStageDensity({
       preference: settings.layoutDensity,
       viewport,
@@ -190,7 +202,7 @@ export default function App() {
       overrides,
       dockBlockSizes: DOCK_BLOCK_SIZES,
     })
-  }, [activeEntries, arrangePreview, layout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
+  }, [activeEntries, arrangePreview, semanticLayout, settings, stageInputsReady, viewport.height, viewport.profile, viewport.width])
 
   useEffect(() => {
     if (!openSignalDockId || !resolution) return
@@ -199,7 +211,7 @@ export default function App() {
     if (allocation?.zone !== 'dock' || entry.availability.kind !== 'connector') setOpenSignalDockId(null)
   }, [openSignalDockId, resolution])
 
-  if (!stageInputsReady || !settings || !photoPrefs || !layout || !connectors || !resolution) return null
+  if (!stageInputsReady || !settings || !photoPrefs || !semanticLayout || !connectors || !resolution) return null
 
   const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
   const utilityTools: { id: UtilityToolId; label: string }[] = [
@@ -400,7 +412,7 @@ export default function App() {
       ><></></UtilityTray>
       <ArrangeController
         profile={viewport.profile}
-        layout={layout}
+        layout={semanticLayout}
         entries={activeEntries}
         onPreviewChange={setArrangePreview}
         onModeChange={setArranging}
