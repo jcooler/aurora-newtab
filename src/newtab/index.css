@@ -64,18 +64,24 @@
   box-sizing: border-box;
   display: flex;
   /* Content-tight (named-layouts spec 2.2): the item box is the rendered
-     content, never an imposed geometry table. */
+     content, never an imposed geometry table. NO container-type here:
+     inline-size containment zeroes an element's intrinsic inline size (the
+     bottom-bar rule below documents the same trap), which would collapse
+     every max-content wrapper to 0. The old emergency-fit @container rules
+     targeted the deleted imposed boxes; content-tight boxes cannot clip
+     their own content, and the NL-P5 tier catalog owns per-tier interiors. */
   width: max-content;
   max-width: calc(100vw - 16px);
   align-items: center;
   justify-content: center;
   overflow: visible;
-  container-type: inline-size;
 }
 
-.canvas-item > * {
-  max-width: 100%;
-}
+/* The old `.canvas-item > * { max-width: 100% }` fitted interiors into the
+   deleted imposed boxes. Against a content-tight max-content wrapper that
+   percentage resolves cyclically and collapses text widgets (the Quote
+   rendered 8px wide); interiors now own their measure (e.g. Quote's
+   max-w-xl), and the wrapper's own viewport max-width still bounds them. */
 
 .canvas-item--elevated {
   z-index: 50 !important;
