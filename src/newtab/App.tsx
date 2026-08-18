@@ -7,13 +7,18 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  hideSelected,
   moveSelected,
   moveSelectedLive,
   nudgeSelected,
   resetSession,
+  restoreSelectedDefaults,
   selectWidget,
+  setSelectedTier,
+  stepSelectedLayer,
   undo,
 } from '../lib/layout/editSession'
+import WidgetInspector from './edit/WidgetInspector'
 import { useCanvasDrag } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
 import { switchActiveLayout } from '../lib/layout/layoutOperations'
@@ -324,6 +329,32 @@ export default function App() {
           renderWidget={renderWidget}
         />
         {session ? <div className="edit-scrim" aria-hidden /> : null}
+        {session && session.selectedId ? (() => {
+          const selectedId = session.selectedId
+          const entry = activeEntries.find((candidate) => candidate.id === selectedId)
+          const placement = activeDraftLayout(session).widgets[selectedId]
+          const anchorRect = itemRectsRef.current.get(selectedId)
+          if (!entry || !placement || !anchorRect) return null
+          const overlapLabels = [...itemRectsRef.current]
+            .filter(([id, rect]) => (
+              id !== selectedId
+              && rect.left < anchorRect.right && rect.right > anchorRect.left
+              && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
+            ))
+            .map(([id]) => activeEntries.find((candidate) => candidate.id === id)?.label ?? id)
+          return (
+            <WidgetInspector
+              entry={entry}
+              placement={placement}
+              anchorRect={anchorRect}
+              overlapLabels={overlapLabels}
+              onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
+              onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
+              onHide={() => editMode.dispatch(hideSelected)}
+              onRestore={() => editMode.dispatch(restoreSelectedDefaults)}
+            />
+          )
+        })() : null}
         {session ? (
           <EditToolbar
             session={session}

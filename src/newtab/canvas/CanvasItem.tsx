@@ -103,6 +103,22 @@ export default function CanvasItem({
       style={style}
     >
       <WidgetBoundary name={entry.label}>{children}</WidgetBoundary>
+      {editing && entry.expandedFootprint && item.mode === 'anchored' ? (
+        // Dashed expansion footprint (spec 2.6): opens the way the real
+        // panel does — toward the horizontal center, downward from the top
+        // half — and renders at EVERY position including corners.
+        <span
+          className="canvas-item-footprint"
+          data-testid={`canvas-footprint-${entry.id}`}
+          aria-hidden
+          style={{
+            width: entry.expandedFootprint.width,
+            height: entry.expandedFootprint.height,
+            ...(item.leftPct < 50 ? { left: 0 } : { right: 0 }),
+            ...(item.topPct < 50 ? { top: '100%' } : { bottom: '100%' }),
+          }}
+        />
+      ) : null}
       {chrome === 'normal' ? (
         <span className="canvas-item-chrome">
           <button

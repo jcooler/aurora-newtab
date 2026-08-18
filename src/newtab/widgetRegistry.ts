@@ -30,6 +30,11 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   canvasSizes: readonly CanvasSize[]
   contentContract: WidgetSizeContract
   selectedContent?: readonly SelectedCanvasContent[]
+  /** Nominal expansion box for expandable widgets (named-layouts spec 2.6):
+   *  edit mode shows this as a dashed footprint outline so placement
+   *  decisions account for it. Advisory chrome, never geometry authority,
+   *  and never a placement restriction. */
+  expandedFootprint?: Readonly<{ width: number; height: number }>
 }
 
 interface RegistrySource {
@@ -43,6 +48,7 @@ interface RegistrySource {
   footprints: Readonly<Partial<Record<WidgetVariant, readonly [number, number]>>>
   availability: WidgetAvailability
   protectedClock?: boolean
+  expandedFootprint?: Readonly<{ width: number; height: number }>
 }
 
 const always = (): WidgetAvailability => Object.freeze({ kind: 'always' })
@@ -50,7 +56,9 @@ const widget = (key: keyof WidgetToggles): WidgetAvailability => Object.freeze({
 const connector = (id: ConnectorId): WidgetAvailability => Object.freeze({ kind: 'connector', id })
 
 const SOURCES: readonly RegistrySource[] = [
-  { id: 'weather', label: 'Weather', zone: 'day', order: 0, priority: 'automatic', eligibleZones: ['day'], defaultVariant: 'standard', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: widget('weather') },
+  // expandedFootprint: the Weather details panel's nominal box (22rem wide,
+  // its typical clamped height) for the edit-mode dashed outline (spec 2.6).
+  { id: 'weather', label: 'Weather', zone: 'day', order: 0, priority: 'automatic', eligibleZones: ['day'], defaultVariant: 'standard', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: widget('weather'), expandedFootprint: Object.freeze({ width: 352, height: 430 }) },
   { id: 'ics', label: 'Calendar', zone: 'day', order: 1, priority: 'automatic', eligibleZones: ['day', 'dock'], defaultVariant: 'standard', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('ics') },
   { id: 'monthCal', label: 'Month', zone: 'day', order: 2, priority: 'automatic', eligibleZones: ['day', 'dock'], defaultVariant: 'standard', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: widget('monthCal') },
   { id: 'sun', label: 'Sun times', zone: 'day', order: 3, priority: 'automatic', eligibleZones: ['day', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 1] }, availability: widget('sun') },
@@ -128,6 +136,7 @@ function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegis
     footprints,
     defaultPlacements: Object.freeze(defaultPlacements),
     ...(source.protectedClock ? { protectedClock: true } : {}),
+    ...(source.expandedFootprint ? { expandedFootprint: source.expandedFootprint } : {}),
   })
 }
 

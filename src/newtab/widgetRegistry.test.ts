@@ -68,6 +68,16 @@ function selectedContent(id: ConnectorId, config: ConnectorConfig) {
 }
 
 describe('source-owned widget registry', () => {
+  it('declares the Weather expansion footprint exactly once (named-layouts spec 2.6)', () => {
+    for (const entry of WIDGET_REGISTRY) {
+      if (entry.id === 'weather') {
+        expect(entry.expandedFootprint).toEqual({ width: 352, height: 430 })
+      } else {
+        expect(entry.expandedFootprint, `${entry.id} must not declare a footprint`).toBeUndefined()
+      }
+    }
+  })
+
   it('contains the exact BLOCK_IDS set once in deterministic semantic source order', () => {
     const actualIds = ids(WIDGET_REGISTRY)
     expect(actualIds).toEqual(EXPECTED.map(([id]) => id))

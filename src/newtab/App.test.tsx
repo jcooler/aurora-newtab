@@ -553,6 +553,40 @@ describe('App Canvas composition', () => {
     await act(async () => {})
   })
 
+  it('selecting Weather shows the inspector and its dashed expansion footprint anywhere, and Hide persists as hidden (spec 2.5/2.6)', async () => {
+    const storage = await renderApp()
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }))
+    await act(async () => {})
+    fireEvent.click(canvasItem('weather'))
+    await act(async () => {})
+
+    expect(screen.getByRole('dialog', { name: 'Weather inspector' })).toBeTruthy()
+    expect(screen.getByTestId('canvas-footprint-weather')).toBeTruthy()
+    // The Clock has no expansion footprint.
+    fireEvent.click(canvasItem('clock'))
+    await act(async () => {})
+    expect(screen.queryByTestId('canvas-footprint-clock')).toBeNull()
+
+    // Never placement-restricted: park Weather in the bottom-right corner —
+    // still selected, footprint still rendered (AC6).
+    fireEvent.click(canvasItem('weather'))
+    await act(async () => {})
+    fireEvent.keyDown(window, { key: 'ArrowDown' })
+    await act(async () => {})
+    expect(screen.getByTestId('canvas-footprint-weather')).toBeTruthy()
+
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Weather inspector' })).getByRole('button', { name: 'Hide' }))
+    await act(async () => {})
+    expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await act(async () => {})
+    const stored = await storage.get('layouts')
+    expect(stored?.layouts[0].widgets.weather).toEqual({ kind: 'hidden' })
+    // The global toggle is untouched — hide is per-layout (spec 2.1).
+    expect((await storage.get('settings')).widgets.weather).toBe(true)
+  })
+
   it('the gear on a widget opens Settings focused on that widget\'s own section (spec 2.5)', async () => {
     await renderApp()
 

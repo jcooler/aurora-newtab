@@ -154,6 +154,30 @@
   outline-offset: 2px;
 }
 
+/* Dashed expansion footprint (spec 2.6): advisory edit-mode chrome for
+   expandable widgets, pointer-transparent, never a placement restriction. */
+.canvas-item-footprint {
+  position: absolute;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: var(--radius-panel);
+  pointer-events: none;
+}
+
+/* The floating inspector beside the selection (spec 2.5). */
+.edit-inspector {
+  position: fixed;
+  z-index: 60;
+  display: flex;
+  width: 240px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
 /* Magnetic alignment guides (spec 2.5): surface-local hairlines. */
 .edit-guides {
   position: absolute;
