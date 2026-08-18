@@ -22,15 +22,23 @@ describe('Canvas widget size contracts', () => {
   })
 })
 
-describe('Docked tier contracts (NL-P5 batch 1)', () => {
-  it('declares the batch-1 Docked contracts and no others yet', () => {
+describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
+  it('declares the batch-1 and batch-2 Docked contracts and no others', () => {
     const docked = Object.entries(WIDGET_SIZE_CONTRACTS)
       .filter(([, contract]) => contract.docked !== undefined)
       .map(([id]) => id)
       .sort()
-    expect(docked).toEqual(['bookmarks', 'clock', 'focus', 'notes', 'tasks', 'timer', 'weather'])
+    expect(docked).toEqual([
+      'bookmarks', 'clock', 'countdown', 'crypto', 'focus', 'github', 'gitlab',
+      'habits', 'homeassistant', 'ics', 'jira', 'moon', 'notes', 'rss',
+      'status', 'sun', 'tasks', 'timer', 'vercel', 'weather', 'worldClocks',
+    ])
     expect(WIDGET_SIZE_CONTRACTS.weather.docked).toBe('Temperature · location · condition')
     expect(WIDGET_SIZE_CONTRACTS.clock.docked).toBe('Time · date')
     expect(WIDGET_SIZE_CONTRACTS.bookmarks.docked).toBe('Full readable bookmark bar')
+    expect(WIDGET_SIZE_CONTRACTS.github.docked).toBe('Selected activity counts')
+    expect(WIDGET_SIZE_CONTRACTS.rss.docked).toBe('Top headline')
+    expect(WIDGET_SIZE_CONTRACTS.monthCal.docked).toBeUndefined()
+    expect(WIDGET_SIZE_CONTRACTS.links.docked).toBeUndefined()
   })
 })
