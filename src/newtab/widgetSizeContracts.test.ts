@@ -21,3 +21,16 @@ describe('Canvas widget size contracts', () => {
     expect(contentConflictFor('homeassistant', 'compact', [action])).toBe('Actions need Standard or Full.')
   })
 })
+
+describe('Docked tier contracts (NL-P5 batch 1)', () => {
+  it('declares the batch-1 Docked contracts and no others yet', () => {
+    const docked = Object.entries(WIDGET_SIZE_CONTRACTS)
+      .filter(([, contract]) => contract.docked !== undefined)
+      .map(([id]) => id)
+      .sort()
+    expect(docked).toEqual(['bookmarks', 'clock', 'focus', 'notes', 'tasks', 'timer', 'weather'])
+    expect(WIDGET_SIZE_CONTRACTS.weather.docked).toBe('Temperature · location · condition')
+    expect(WIDGET_SIZE_CONTRACTS.clock.docked).toBe('Time · date')
+    expect(WIDGET_SIZE_CONTRACTS.bookmarks.docked).toBe('Full readable bookmark bar')
+  })
+})

@@ -195,3 +195,14 @@ describe('source-owned widget registry', () => {
     for (const key of registryKeys) expect(typeof resolveWidgetRenderer(key), key).toBe('function')
   })
 })
+
+describe('supportsDocked (NL-P5 batch 1)', () => {
+  it('exposes supportsDocked from the size contracts', () => {
+    const byId = Object.fromEntries(WIDGET_REGISTRY.map((entry) => [entry.id, entry]))
+    expect(byId.weather.supportsDocked).toBe(true)
+    expect(byId.clock.supportsDocked).toBe(true)
+    expect(byId.bookmarks.supportsDocked).toBe(true)
+    expect(byId.quote.supportsDocked).toBe(false)
+    expect(byId.search.supportsDocked).toBe(false)
+  })
+})

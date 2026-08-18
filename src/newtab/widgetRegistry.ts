@@ -28,6 +28,9 @@ export interface WidgetRegistryEntry extends AdaptiveStageEntry {
   rendererKey: BlockId
   availability: WidgetAvailability
   canvasSizes: readonly CanvasSize[]
+  /** Whether the widget declares a Docked-tier line (named-layouts spec 2.3),
+   *  derived from its size contract's `docked` member. */
+  supportsDocked: boolean
   contentContract: WidgetSizeContract
   selectedContent?: readonly SelectedCanvasContent[]
   /** Nominal expansion box for expandable widgets (named-layouts spec 2.6):
@@ -130,6 +133,7 @@ function registryEntry(source: RegistrySource, sourceOrder: number): WidgetRegis
     availability: source.availability,
     sourceOrder,
     canvasSizes,
+    supportsDocked: contentContract.docked !== undefined,
     contentContract,
     eligibleZones: Object.freeze([...source.eligibleZones]),
     allowedVariants: Object.freeze(VARIANT_ORDER.filter((variant) => footprints[variant] !== undefined)),
