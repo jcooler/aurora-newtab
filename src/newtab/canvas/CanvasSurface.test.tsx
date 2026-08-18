@@ -143,6 +143,64 @@ describe('CanvasSurface (anchored named layout)', () => {
   })
 })
 
+describe('Docked item chrome and safety (owner-reported 2026-08-18)', () => {
+  afterEach(cleanup)
+
+  it('docked items get the same hover grip and gear as anchored items in normal chrome', () => {
+    // Spec 2.5 says "hovering a widget fades in two small controls" — it
+    // never restricts the grip/gear to anchored items. Without them a docked
+    // widget has no visible way out of the dock and no settings entry.
+    render(
+      <CanvasSurface
+        activeLayout={LAYOUT}
+        entries={ENTRIES}
+        viewport={{ width: 1408, height: 445 }}
+        chrome="normal"
+        renderWidget={(entry) => <span>{entry.label}</span>}
+      />,
+    )
+    const docked = screen.getByTestId('canvas-item-bookmarks')
+    expect(within(docked).getByRole('button', { name: 'Move Bookmarks' })).toBeTruthy()
+    expect(within(docked).getByRole('button', { name: 'Bookmarks settings' })).toBeTruthy()
+    const anchored = screen.getByTestId('canvas-item-clock')
+    expect(within(anchored).getByRole('button', { name: 'Move Clock' })).toBeTruthy()
+  })
+
+  it('the narrow stack stays chrome-free', () => {
+    render(
+      <CanvasSurface
+        activeLayout={LAYOUT}
+        entries={ENTRIES}
+        viewport={{ width: 599, height: 800 }}
+        chrome="normal"
+        renderWidget={(entry) => <span>{entry.label}</span>}
+      />,
+    )
+    expect(screen.queryByRole('button', { name: 'Move Clock' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Move Bookmarks' })).toBeNull()
+  })
+
+  it('a stored docked placement for a widget with no Docked tier renders free at its default slot, never in the strip', () => {
+    const badDock: NamedLayout = {
+      ...LAYOUT,
+      widgets: { ...LAYOUT.widgets, monthCal: { kind: 'docked', dock: 'bottom', order: 1 } },
+    }
+    render(
+      <CanvasSurface
+        activeLayout={badDock}
+        entries={WIDGET_REGISTRY.filter(({ id }) => ['bookmarks', 'clock', 'monthCal'].includes(id))}
+        viewport={{ width: 1408, height: 445 }}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+    const month = screen.getByTestId('canvas-item-monthCal')
+    expect(month.dataset.canvasMode).toBe('anchored')
+    const nav = screen.getByRole('navigation', { name: 'Bottom bar' })
+    expect(within(nav).queryByTestId('canvas-item-monthCal')).toBeNull()
+    expect(within(nav).getByTestId('canvas-item-bookmarks')).toBeTruthy()
+  })
+})
+
 describe('Docked render flag (NL-P5 batch 1)', () => {
   it('passes docked=true to the renderer only for strip members', () => {
     const seen = new Map<string, boolean>()

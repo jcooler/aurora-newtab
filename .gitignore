@@ -58,3 +58,8 @@ output/
 # NL-P5 catalog scratch (script rebuilds these; catalog output itself is tracked)
 .preview-nl-p5-dist/
 .playwright-profile-nl-p5/
+
+# NL-P5 hotfix witness (scripts/preview-nl-p5-hotfix.mjs) scratch output.
+.playwright-profile-nl-p5-hotfix/
+.preview-nl-p5-hotfix-dist/
+.preview-nl-p5-hotfix-out/

@@ -1,6 +1,7 @@
 import {
   ANCHOR_POINTS,
   type DockEdge,
+  type LayoutsDocument,
   type NamedLayout,
   type WidgetTier,
 } from './namedLayouts'
@@ -50,6 +51,38 @@ function clampPct(value: number): number {
   return Math.min(100, Math.max(0, value))
 }
 
+/** Corrects invalid docked placements ONCE at document resolve time (spec
+ *  2.3, owner-reported 2026-08-18: docked Month): a widget with no Docked
+ *  tier has no honest strip form, so its docked placement becomes the
+ *  identity's designed free default slot. Everything downstream — rendering,
+ *  edit sessions, the inspector — then sees one truthful placement. Pure and
+ *  identity-stable: the input is never mutated, and the SAME document comes
+ *  back when nothing needs correcting. Nothing is written here; a corrected
+ *  placement persists only through the user's own explicit Save. */
+export function enforceDockEligibility(
+  document: LayoutsDocument,
+  dockableIds: ReadonlySet<BlockId>,
+): LayoutsDocument {
+  let changed = false
+  const layouts = document.layouts.map((layout) => {
+    let maxLayer = -1
+    const invalid: BlockId[] = []
+    for (const id of BLOCK_IDS) {
+      const placement = layout.widgets[id]
+      if (placement?.kind === 'free') maxLayer = Math.max(maxLayer, placement.layer)
+      if (placement?.kind === 'docked' && !dockableIds.has(id)) invalid.push(id)
+    }
+    if (invalid.length === 0) return layout
+    changed = true
+    const widgets = { ...layout.widgets }
+    for (const id of invalid) {
+      widgets[id] = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
+    }
+    return { ...layout, widgets }
+  })
+  return changed ? { ...document, layouts } : document
+}
+
 interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number }
 interface PlannedDock { id: BlockId; dock: DockEdge; order: number }
 
@@ -57,10 +90,18 @@ export function planLayoutRender(
   layout: NamedLayout,
   enabledIds: readonly BlockId[],
   viewportWidth: number,
+  /** Widgets that declare a Docked tier. When provided, a stored docked
+   *  placement for any OTHER widget is invalid contract data (it has no
+   *  honest strip form) and renders FREE at the identity's designed static
+   *  default slot instead — the safety half of the law: deterministic, never
+   *  guessed, never written back. Omitted = every docked placement honored
+   *  (pure-model callers with no registry knowledge). */
+  dockableIds?: ReadonlySet<BlockId>,
 ): LayoutRenderPlan {
   const enabled = new Set<BlockId>(enabledIds)
   const free: PlannedFree[] = []
   const docked: PlannedDock[] = []
+  const undockable: BlockId[] = []
   let maxLayer = -1
 
   for (const id of BLOCK_IDS) {
@@ -72,7 +113,8 @@ export function planLayoutRender(
     // the widget.
     if (placement.kind === 'hidden') continue
     if (placement.kind === 'docked') {
-      docked.push({ id, dock: placement.dock, order: placement.order })
+      if (dockableIds && !dockableIds.has(id)) undockable.push(id)
+      else docked.push({ id, dock: placement.dock, order: placement.order })
       continue
     }
     const anchor = ANCHOR_POINTS[placement.anchor]
@@ -98,7 +140,7 @@ export function planLayoutRender(
   // membership persists at the user's next explicit save.
   for (const id of BLOCK_IDS) {
     if (!enabled.has(id)) continue
-    if (layout.widgets[id]) continue
+    if (layout.widgets[id] && !undockable.includes(id)) continue
     const placement = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
     const anchor = ANCHOR_POINTS[placement.anchor]
     free.push({

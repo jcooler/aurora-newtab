@@ -81,25 +81,15 @@ describe('MonthCalWidget', () => {
     expect(container.querySelectorAll('tr[data-current-week]')).toHaveLength(1)
   })
 
-  it('renders Compact as exactly the current Sunday-through-Saturday week, including today', async () => {
+  it('renders the complete month at EVERY size — the week form is retired (batch-2 owner review)', async () => {
+    // "The compact month is a joke... just remove it." Month declares only
+    // the standard tier now; even a stale 'compact' prop (a legacy stored
+    // tier, or the docked size fallback) must render the complete month,
+    // never a single stretched week.
     const { container } = await renderWithMonthCal({ canvasSize: 'compact' })
-    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(7)
-    expect([...container.querySelectorAll('[data-cell-key]')].map((entry) => entry.getAttribute('data-cell-key'))).toEqual([
-      '2026-05-10', '2026-05-11', '2026-05-12', '2026-05-13', '2026-05-14', '2026-05-15', '2026-05-16',
-    ])
+    expect(container.querySelectorAll('[data-cell-key]')).toHaveLength(42)
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(6)
     expect(cell(container, TODAY_KEY)).toBeTruthy()
-  })
-
-  it('keeps Compact navigation coherent by showing a complete week from the viewed month', async () => {
-    const { container } = await renderWithMonthCal({ canvasSize: 'compact' })
-    await act(async () => {
-      screen.getByRole('button', { name: 'Previous month' }).click()
-    })
-    expect(screen.getByText('April 2026')).toBeTruthy()
-    expect([...container.querySelectorAll('[data-cell-key]')].map((entry) => entry.getAttribute('data-cell-key'))).toEqual([
-      '2026-03-29', '2026-03-30', '2026-03-31', '2026-04-01', '2026-04-02', '2026-04-03', '2026-04-04',
-    ])
-    expect(screen.getByRole('button', { name: 'Back to today' })).toBeTruthy()
   })
 
   it('renders Standard as the complete viewed month, including all six May rows', async () => {
@@ -114,7 +104,8 @@ describe('MonthCalWidget', () => {
     const label = container.querySelector('[data-monthcal-label]')
     expect(label?.getAttribute('data-stage-text-tier')).toBeNull()
     expect(label?.getAttribute('aria-label')).toBe(label?.textContent)
-    expect(label?.querySelector('[data-monthcal-label-short]')?.getAttribute('data-label')).toHaveLength(3)
+    // The compact-only short-label span retired with the compact tier.
+    expect(label?.querySelector('[data-monthcal-label-short]')).toBeNull()
     expect(container.querySelector('[data-cell-key] span')?.getAttribute('data-stage-text-tier')).toBeNull()
   })
 

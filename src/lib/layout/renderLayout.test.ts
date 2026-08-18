@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  enforceDockEligibility,
   NARROW_FLOOR_WIDTH,
   planLayoutRender,
   resolveRenderTier,
@@ -92,6 +93,64 @@ describe('hidden placements', () => {
     expect(plan.items.some((item) => item.id === 'notes')).toBe(false)
     const narrow = planLayoutRender(withHidden, [...ENABLED], 599)
     expect(narrow.items.some((item) => item.id === 'notes')).toBe(false)
+  })
+})
+
+describe('dock eligibility safety (owner-reported 2026-08-18: docked Month)', () => {
+  // A stored docked placement for a widget that declares NO Docked tier is
+  // invalid contract data (a month grid has no honest strip form). The safety
+  // half of the law: it renders FREE at the widget's designed static default
+  // slot — deterministic, never guessed, never written back.
+  const withDockedMonth: NamedLayout = {
+    ...LAYOUT,
+    widgets: { ...LAYOUT.widgets, monthCal: { kind: 'docked', dock: 'bottom', order: 1 } },
+  }
+  const dockable = new Set<BlockId>(['bookmarks', 'timer', 'tasks', 'notes'])
+
+  it('renders a docked placement for a non-dockable widget free at its static default slot', () => {
+    const plan = planLayoutRender(withDockedMonth, [...ENABLED, 'monthCal'], 1408, dockable)
+    const month = plan.items.find((item) => item.id === 'monthCal') as AnchoredRenderItem
+    // defaultFreePlacement('monthCal'): the identity's designed point, above
+    // every stored layer (maxStoredLayer 2 + 1 + BLOCK_IDS index).
+    expect(month.mode).toBe('anchored')
+    expect(month.layer).toBeGreaterThan(2)
+    expect(plan.items.filter((item) => item.mode === 'docked').map((item) => item.id).sort())
+      .toEqual(['bookmarks', 'tasks', 'timer'])
+  })
+
+  it('keeps legitimate docked placements docked and stays exact without the eligibility set', () => {
+    const gated = planLayoutRender(withDockedMonth, [...ENABLED, 'monthCal'], 1408, dockable)
+    expect(gated.items.find((item) => item.id === 'bookmarks')?.mode).toBe('docked')
+    const ungated = planLayoutRender(withDockedMonth, [...ENABLED, 'monthCal'], 1408)
+    expect(ungated.items.find((item) => item.id === 'monthCal')?.mode).toBe('docked')
+  })
+})
+
+describe('enforceDockEligibility', () => {
+  const dockable = new Set<BlockId>(['bookmarks', 'timer', 'tasks'])
+  const document = {
+    version: 1 as const,
+    activeLayoutId: 'a',
+    layouts: [{
+      ...LAYOUT,
+      id: 'a',
+      widgets: { ...LAYOUT.widgets, monthCal: { kind: 'docked' as const, dock: 'bottom' as const, order: 1 } },
+    }],
+  }
+
+  it('converts an invalid docked placement to the free default slot so edit sessions see the truth', () => {
+    const normalized = enforceDockEligibility(document, dockable)
+    const month = normalized.layouts[0].widgets.monthCal
+    expect(month?.kind).toBe('free')
+    // Legitimate docked members and every free placement stay identical.
+    expect(normalized.layouts[0].widgets.bookmarks).toBe(document.layouts[0].widgets.bookmarks)
+    expect(normalized.layouts[0].widgets.clock).toBe(document.layouts[0].widgets.clock)
+    expect(document.layouts[0].widgets.monthCal?.kind).toBe('docked') // input untouched
+  })
+
+  it('returns the document IDENTITY when nothing needs correcting', () => {
+    const clean = { ...document, layouts: [{ ...LAYOUT, id: 'a' }] }
+    expect(enforceDockEligibility(clean, dockable)).toBe(clean)
   })
 })
 

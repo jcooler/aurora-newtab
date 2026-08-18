@@ -177,11 +177,13 @@ try {
   await page.evaluate(async () => {
     const { layouts, settings } = await chrome.storage.local.get(['layouts', 'settings'])
     const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
-    const docked = ['timer', 'tasks', 'notes', 'quote', 'search', 'focus', 'monthCal', 'sun', 'moon', 'links']
+    // Dock-eligible widgets only (the NL-P5 hotfix gate: a widget with no
+    // Docked tier renders free, so seeding one here would thin the overflow).
+    const docked = ['timer', 'tasks', 'notes', 'focus', 'sun', 'moon', 'worldClocks', 'countdown', 'habits', 'weather']
     docked.forEach((id, order) => {
       active.widgets[id] = { kind: 'docked', dock: 'bottom', order }
     })
-    for (const key of ['timer', 'todo', 'notes', 'quote', 'search', 'monthCal', 'sun', 'moon', 'links']) {
+    for (const key of ['timer', 'todo', 'notes', 'sun', 'moon', 'clocks', 'countdown', 'habits', 'weather']) {
       settings.widgets[key] = true
     }
     await chrome.storage.local.set({ layouts, settings })
@@ -223,7 +225,7 @@ try {
   await page.evaluate(async () => {
     const { layouts } = await chrome.storage.local.get('layouts')
     const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
-    for (const id of ['quote', 'search', 'focus', 'monthCal', 'sun', 'moon', 'links']) {
+    for (const id of ['focus', 'sun', 'moon', 'worldClocks', 'countdown', 'habits', 'weather']) {
       delete active.widgets[id]
     }
     await chrome.storage.local.set({ layouts })

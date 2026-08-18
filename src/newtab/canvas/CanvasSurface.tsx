@@ -21,8 +21,9 @@ interface CanvasSurfaceProps {
   entries: readonly WidgetRegistryEntry[]
   viewport: { width: number; height: number }
   elevatedIds?: ReadonlySet<WidgetRegistryEntry['id']>
-  /** Hover chrome for ANCHORED items only (spec 2.5); strips and the narrow
-   *  stack stay chrome-free. */
+  /** Hover chrome for anchored AND docked items (spec 2.5: "hovering a
+   *  widget fades in two small controls" — the grip is also the visible way
+   *  out of a dock); only the mechanical narrow stack stays chrome-free. */
   chrome?: 'none' | 'normal' | 'editing'
   selectedId?: WidgetRegistryEntry['id'] | null
   guides?: readonly CanvasGuide[]
@@ -121,7 +122,10 @@ export default function CanvasSurface({
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries])
   const plan = useMemo(() => {
     const enabledIds = entries.map((entry) => entry.id)
-    const raw = planLayoutRender(activeLayout, enabledIds, viewport.width)
+    // Dock eligibility (spec 2.3): a stored docked placement for a widget
+    // with no Docked tier renders free at its default slot (planner safety).
+    const dockableIds = new Set(entries.filter((entry) => entry.supportsDocked).map((entry) => entry.id))
+    const raw = planLayoutRender(activeLayout, enabledIds, viewport.width, dockableIds)
     // Resolve stored tiers against each widget's declared sizes exactly once.
     const items = raw.items.map((item): LayoutRenderItem => {
       if (!('tier' in item)) return item
@@ -150,10 +154,11 @@ export default function CanvasSurface({
         entry={entry}
         item={item}
         className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
-        // Hover grip/gear stays anchored-only; the EDITING chrome (inert
-        // interiors, selection, drag handle) applies to docked items too
-        // (spec 2.4: order is draggable, dragging out undocks).
-        chrome={item.mode === 'anchored' ? chrome : chrome === 'editing' ? 'editing' : 'none'}
+        // Spec 2.5's "hovering a widget fades in two small controls" applies
+        // to docked members too — the grip is the visible way OUT of a dock
+        // (owner-reported 2026-08-18). Only the mechanical narrow stack is
+        // chrome-free: it has no placement to edit.
+        chrome={item.mode === 'stacked' ? 'none' : chrome}
         selected={selectedId === entry.id}
         onSelect={onSelectItem}
         onGripPointerDown={onGripPointerDown}

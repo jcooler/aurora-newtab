@@ -28,7 +28,7 @@ import { useLongPress } from './arrange/useLongPress'
 import { createLayout, saveLayoutsDocument, switchActiveLayout } from '../lib/layout/layoutOperations'
 import LayoutBadge from './edit/LayoutBadge'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
-import { NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
+import { enforceDockEligibility, NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
 import { restoreHiddenWidget } from '../lib/layout/editSession'
 import { useDialogEscape } from '../lib/dialogStack'
 import { isPremium } from '../lib/premium'
@@ -186,11 +186,18 @@ export default function App() {
   // the first explicit save (NL-P3 switcher) the in-memory "My layout" is
   // derived from the legacy stored layout through the frozen migration
   // profile rule. Nothing here ever writes storage.
-  const layoutsDocument = useMemo(() => (
-    inputsReady && storedLayout && layouts !== undefined
-      ? resolveLayoutsDocument(layouts, storedLayout, migrationSourceProfile(viewport), enabledBlockIds)
-      : null
-  ), [enabledBlockIds, inputsReady, layouts, storedLayout, viewport.width, viewport.height])
+  const layoutsDocument = useMemo(() => {
+    if (!inputsReady || !storedLayout || layouts === undefined) return null
+    const resolved = resolveLayoutsDocument(layouts, storedLayout, migrationSourceProfile(viewport), enabledBlockIds)
+    // Dock eligibility (spec 2.3, owner-reported 2026-08-18): an invalid
+    // docked placement is corrected to the free default slot HERE, so
+    // rendering, edit sessions, and the inspector all see one truthful
+    // placement. Pure — persists only through the user's own explicit Save.
+    return enforceDockEligibility(
+      resolved,
+      new Set(activeEntries.filter((entry) => entry.supportsDocked).map((entry) => entry.id)),
+    )
+  }, [activeEntries, enabledBlockIds, inputsReady, layouts, storedLayout, viewport.width, viewport.height])
   const activeLayout = layoutsDocument
     ? layoutsDocument.layouts.find((candidate) => candidate.id === layoutsDocument.activeLayoutId) ?? null
     : null
@@ -227,6 +234,10 @@ export default function App() {
       })
     },
     onZoneChange: setDragZone,
+    // Dock eligibility (spec 2.3, owner-reported 2026-08-18): a widget with
+    // no Docked tier is never offered a dock zone — its edge drop is an
+    // ordinary free placement.
+    canDock: (id) => activeEntries.some((entry) => entry.id === id && entry.supportsDocked),
     onDrop: ({ zone, pointerX }) => {
       const id = draggingIdRef.current
       draggingIdRef.current = null

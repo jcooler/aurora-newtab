@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useLocalDay } from '../../../lib/hooks/useLocalDay'
-import { monthGrid, weekContainingDate, type MonthCell } from '../../../lib/monthGrid'
+import { monthGrid, type MonthCell } from '../../../lib/monthGrid'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import type { WidgetVariant } from '../../../lib/layout/types'
 
@@ -17,13 +17,14 @@ function monthLabel(y: number, m0: number): string {
   return `${MONTH_NAMES[m0]} ${y}`
 }
 
-export default function MonthCalWidget({
-  canvasSize,
-  stageVariant,
-}: {
-  canvasSize?: CanvasSize
-  stageVariant?: WidgetVariant
-} = {}) {
+export default function MonthCalWidget(
+  // Size props are accepted for renderer-interface parity but content is
+  // size-invariant: the complete month is Month's only composition.
+  _props: {
+    canvasSize?: CanvasSize
+    stageVariant?: WidgetVariant
+  } = {},
+) {
   // Gate BEFORE any other hook exists — same "zero hooks in the gate" split
   // every other toggle-gated widget in this app uses (RssWidget/HabitsWidget
   // own doc comments): the one useStoredKey read runs unconditionally every
@@ -31,10 +32,10 @@ export default function MonthCalWidget({
   // mounts MonthCalInner and therefore never starts useNow's 60s interval.
   const [settings] = useStoredKey('settings')
   if (!settings?.widgets.monthCal) return null
-  return <MonthCalInner canvasSize={canvasSize} stageVariant={stageVariant} />
+  return <MonthCalInner />
 }
 
-function MonthCalInner({ canvasSize, stageVariant }: { canvasSize?: CanvasSize; stageVariant?: WidgetVariant }) {
+function MonthCalInner() {
   const [countdowns] = useStoredKey('countdowns')
   // Coherent local-day identity for the ring and current-month control. The
   // scheduler covers midnight, restoration, and runtime timezone changes.
@@ -77,15 +78,14 @@ function MonthCalInner({ canvasSize, stageVariant }: { canvasSize?: CanvasSize; 
     })
   const goToday = () => setView({ y: todayYear, m0: todayMonth - 1 })
 
-  // Canvas owns the chosen content size. Adaptive Stage retains its legacy
-  // compact fallback only when Canvas has not supplied a saved size.
-  const compact = canvasSize ? canvasSize === 'compact' : stageVariant === 'compact'
-  const weeks = compact
-    ? [weekContainingDate(view.y, view.m0, isCurrentMonth ? Number(todayKey.slice(-2)) : 1)]
-    : monthGrid(view.y, view.m0)
+  // The complete month is Month's ONLY composition (batch-2 owner review
+  // removed the compact week: "takes up way too much space, just remove
+  // it"). Size props are accepted for renderer-interface parity but never
+  // change what renders — a stale stored 'compact' tier or the docked size
+  // fallback still gets the real month.
+  const weeks = monthGrid(view.y, view.m0)
   const countdownKeys = new Set((countdowns ?? []).map((c) => c.date))
   const label = monthLabel(view.y, view.m0)
-  const compactLabel = MONTH_NAMES[view.m0].slice(0, 3)
 
   return (
     <div className="w-[200px] rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
@@ -149,8 +149,7 @@ function MonthCalInner({ canvasSize, stageVariant }: { canvasSize?: CanvasSize; 
             designed, not stretched or squeezed to fit. */}
         <span className="flex min-w-0 items-center justify-center gap-1.5">
           <span data-monthcal-label aria-label={label} className="truncate text-xs font-medium text-fg">
-            <span data-monthcal-label-full>{label}</span>
-            <span data-monthcal-label-short data-label={compactLabel} aria-hidden />
+            {label}
           </span>
           {/* Re-derived from the ticking `now` (not the mount-time `view`
               seed), so it's correct even across a midnight rollover while
@@ -219,7 +218,7 @@ function MonthCalInner({ canvasSize, stageVariant }: { canvasSize?: CanvasSize; 
                 <MonthCalCell
                   key={c.key}
                   cell={c}
-                  isToday={(compact || isCurrentMonth) && c.key === todayKey}
+                  isToday={isCurrentMonth && c.key === todayKey}
                   hasCountdown={countdownKeys.has(c.key)}
                 />
               ))}

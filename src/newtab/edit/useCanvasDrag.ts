@@ -29,6 +29,11 @@ export function useCanvasDrag(input: {
   onPreviewMove: (id: BlockId, point: { xPct: number; yPct: number }, first: boolean) => void
   onZoneChange?: (zone: DockEdge | null) => void
   onDrop: (context: { zone: DockEdge | null; pointerX: number }) => void
+  /** Dock eligibility (spec 2.3: a widget without a Docked tier has no
+   *  honest strip form). A widget this predicate rejects is never offered a
+   *  dock zone — its edge drop is an ordinary free placement. Omitted =
+   *  every widget dockable. */
+  canDock?: (id: BlockId) => boolean
 }): CanvasDragApi {
   const [dragging, setDragging] = useState<BlockId | null>(null)
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
@@ -62,16 +67,20 @@ export function useCanvasDrag(input: {
       // requirement — move/up listeners below still complete the drag.
     }
 
+    const dockable = inputRef.current.canDock?.(id) ?? true
+
     const onMove = (event: PointerEvent) => {
       if (event.pointerId !== start.pointerId) return
       lastPointerX = event.clientX
       const surfaceY = event.clientY - surfaceRect.top
       setZone(
-        surfaceY < DOCK_ZONE_THRESHOLD
-          ? 'top'
-          : surfaceY > surfaceRect.height - DOCK_ZONE_THRESHOLD
-            ? 'bottom'
-            : null,
+        !dockable
+          ? null
+          : surfaceY < DOCK_ZONE_THRESHOLD
+            ? 'top'
+            : surfaceY > surfaceRect.height - DOCK_ZONE_THRESHOLD
+              ? 'bottom'
+              : null,
       )
       const bounds = { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
       const neighbors: SnapNeighbor[] = []

@@ -13,13 +13,14 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
   } as DOMRectReadOnly
 }
 
-function setup() {
+function setup(canDock?: (id: BlockId) => boolean) {
   const surface = document.createElement('section')
   document.body.append(surface)
   vi.spyOn(surface, 'getBoundingClientRect').mockReturnValue(rect(0, 0, 1000, 500))
   const itemRects = new Map<BlockId, DOMRectReadOnly>([
     ['clock', rect(100, 100, 200, 100)],
     ['weather', rect(500, 100, 200, 100)],
+    ['monthCal', rect(100, 300, 200, 100)],
   ])
   const onPreviewMove = vi.fn()
   const onDrop = vi.fn()
@@ -30,6 +31,7 @@ function setup() {
     onPreviewMove,
     onDrop,
     onZoneChange,
+    canDock,
   }))
   return { surface, rendered, onPreviewMove, onDrop, onZoneChange }
 }
@@ -85,6 +87,25 @@ describe('useCanvasDrag', () => {
     expect(onDrop).toHaveBeenLastCalledWith({ zone: 'top', pointerX: 300 })
     // Zone state clears with the drop.
     expect(onZoneChange).toHaveBeenLastCalledWith(null)
+  })
+
+  it('never offers a dock zone for a widget canDock rejects (owner-reported 2026-08-18: docked Month)', () => {
+    const { surface, rendered, onDrop, onZoneChange } = setup((id) => id !== 'monthCal')
+
+    // monthCal dragged to the very top edge: no zone, and the drop carries
+    // zone null — the widget simply lands free where it was dropped.
+    act(() => rendered.result.current.startDrag('monthCal', { clientX: 110, clientY: 310, pointerId: 9 }))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 20, pointerId: 9 })) })
+    expect(onZoneChange).not.toHaveBeenCalledWith('top')
+    act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 300, clientY: 20, pointerId: 9 })) })
+    expect(onDrop).toHaveBeenLastCalledWith({ zone: null, pointerX: 300 })
+
+    // A dockable widget still gets the zone under the same predicate.
+    act(() => rendered.result.current.startDrag('clock', { clientX: 110, clientY: 110, pointerId: 10 }))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 20, pointerId: 10 })) })
+    expect(onZoneChange).toHaveBeenLastCalledWith('top')
+    act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 300, clientY: 20, pointerId: 10 })) })
+    expect(onDrop).toHaveBeenLastCalledWith({ zone: 'top', pointerX: 300 })
   })
 
   it('publishes magnetic guides when aligned with a neighbor edge and clamps to the surface inset', () => {

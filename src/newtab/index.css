@@ -118,6 +118,15 @@
   opacity: 1;
   pointer-events: auto;
 }
+/* Docked members keep the same grip + gear (spec 2.5: the grip is the
+   visible way OUT of a dock), but the strip's scroller clips vertical
+   overhang — the chrome sits INSIDE the slim row, vertically centered over
+   the member's trailing edge. */
+.canvas-item[data-canvas-mode="docked"] > .canvas-item-chrome {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
 @media (prefers-reduced-motion: reduce) {
   .canvas-item-chrome { transition: none; }
 }
@@ -1589,10 +1598,6 @@ select > option {
 .canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > ul {
   display: none;
 }
-.canvas-item[data-block-id="monthCal"] [data-monthcal-label-short] {
-  display: none;
-}
-
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
   padding: 8px;
   font-size: 11px;
