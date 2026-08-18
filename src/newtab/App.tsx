@@ -7,6 +7,8 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  dockOrder,
+  dockSelected,
   hideSelected,
   moveSelected,
   moveSelectedLive,
@@ -17,7 +19,9 @@ import {
   setSelectedTier,
   stepSelectedLayer,
   undo,
+  undockSelected,
 } from '../lib/layout/editSession'
+import type { DockEdge } from '../lib/layout/namedLayouts'
 import WidgetInspector from './edit/WidgetInspector'
 import { useCanvasDrag } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
@@ -202,17 +206,43 @@ export default function App() {
     else itemRectsRef.current.delete(id)
   }, [])
 
+  const [dragZone, setDragZone] = useState<DockEdge | null>(null)
+  const draggingIdRef = useRef<BlockId | null>(null)
   const drag = useCanvasDrag({
     getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
     getItemRects: () => itemRectsRef.current,
     onPreviewMove: (id, point, first) => {
-      editMode.dispatch((current) => (
-        first
-          ? moveSelected(selectWidget(current, id), point)
-          : moveSelectedLive(selectWidget(current, id), point)
-      ))
+      draggingIdRef.current = id
+      editMode.dispatch((current) => {
+        const selected = selectWidget(current, id)
+        // Dragging a DOCKED item undocks it on the first real move (spec
+        // 2.4 one-mechanism rule: reorder = drop back into a zone; undock =
+        // drop on the canvas).
+        if (activeDraftLayout(selected).widgets[id]?.kind === 'docked') {
+          return undockSelected(selected, point)
+        }
+        return first
+          ? moveSelected(selected, point)
+          : moveSelectedLive(selected, point)
+      })
     },
-    onDrop: () => {},
+    onZoneChange: setDragZone,
+    onDrop: ({ zone, pointerX }) => {
+      const id = draggingIdRef.current
+      draggingIdRef.current = null
+      if (!zone || !id) return
+      editMode.dispatch((current) => {
+        const selected = selectWidget(current, id)
+        // Insertion index: members of this dock whose center-x sits left of
+        // the pointer (spec 2.4: order is draggable).
+        const members = dockOrder(activeDraftLayout(selected), zone).filter((memberId) => memberId !== id)
+        const index = members.filter((memberId) => {
+          const rect = itemRectsRef.current.get(memberId)
+          return rect ? rect.left + rect.width / 2 < pointerX : false
+        }).length
+        return dockSelected(selected, zone, index)
+      })
+    },
   })
 
   // Long-press enters edit mode on TOUCH ONLY (spec 2.5, review fix I3) —
@@ -358,6 +388,7 @@ export default function App() {
           />
         ) : null}
         {session ? <div className="edit-scrim" aria-hidden /> : null}
+        {session && dragZone ? <div className="dock-drop-zone" data-edge={dragZone} aria-hidden /> : null}
         {session && session.selectedId ? (() => {
           const selectedId = session.selectedId
           const entry = activeEntries.find((candidate) => candidate.id === selectedId)

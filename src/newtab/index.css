@@ -199,6 +199,21 @@
   pointer-events: none;
 }
 
+/* Dock drop zones during an edit-mode drag (spec 2.5): dragging near the
+   top or bottom edge offers the zone; nothing docks without this drop. */
+.dock-drop-zone {
+  position: fixed;
+  z-index: 45;
+  right: 0;
+  left: 0;
+  height: 56px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  pointer-events: none;
+}
+.dock-drop-zone[data-edge="top"] { top: 0; }
+.dock-drop-zone[data-edge="bottom"] { bottom: 0; }
+
 /* The floating inspector beside the selection (spec 2.5). */
 .edit-inspector {
   position: fixed;

@@ -23,13 +23,15 @@ function setup() {
   ])
   const onPreviewMove = vi.fn()
   const onDrop = vi.fn()
+  const onZoneChange = vi.fn()
   const rendered = renderHook(() => useCanvasDrag({
     getSurface: () => surface,
     getItemRects: () => itemRects,
     onPreviewMove,
     onDrop,
+    onZoneChange,
   }))
-  return { surface, rendered, onPreviewMove, onDrop }
+  return { surface, rendered, onPreviewMove, onDrop, onZoneChange }
 }
 
 function pointerEvent(type: string, init: { clientX: number; clientY: number; pointerId: number }) {
@@ -64,8 +66,25 @@ describe('useCanvasDrag', () => {
 
     act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 250, clientY: 250, pointerId: 1 })) })
     expect(onDrop).toHaveBeenCalledOnce()
+    expect(onDrop).toHaveBeenCalledWith({ zone: null, pointerX: 250 })
     expect(rendered.result.current.dragging).toBeNull()
     expect(rendered.result.current.guides).toEqual([])
+  })
+
+  it('reports dock zones near the top and bottom edges and the drop context', () => {
+    const { surface, rendered, onDrop, onZoneChange } = setup()
+    act(() => rendered.result.current.startDrag('clock', { clientX: 110, clientY: 110, pointerId: 3 }))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 20, pointerId: 3 })) })
+    expect(onZoneChange).toHaveBeenLastCalledWith('top')
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 480, pointerId: 3 })) })
+    expect(onZoneChange).toHaveBeenLastCalledWith('bottom')
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 250, pointerId: 3 })) })
+    expect(onZoneChange).toHaveBeenLastCalledWith(null)
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 15, pointerId: 3 })) })
+    act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 300, clientY: 15, pointerId: 3 })) })
+    expect(onDrop).toHaveBeenLastCalledWith({ zone: 'top', pointerX: 300 })
+    // Zone state clears with the drop.
+    expect(onZoneChange).toHaveBeenLastCalledWith(null)
   })
 
   it('publishes magnetic guides when aligned with a neighbor edge and clamps to the surface inset', () => {

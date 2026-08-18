@@ -4,7 +4,12 @@ import {
   type CanvasGuide,
   type SnapNeighbor,
 } from '../arrange/canvasSnap'
+import type { DockEdge } from '../../lib/layout/namedLayouts'
 import type { BlockId } from '../../lib/layout/types'
+
+/** Dragging within this many CSS px of the surface's top/bottom edge offers
+ *  the dock drop zone (named-layouts spec 2.5). */
+export const DOCK_ZONE_THRESHOLD = 56
 
 export interface CanvasDragApi {
   dragging: BlockId | null
@@ -22,7 +27,8 @@ export function useCanvasDrag(input: {
   getSurface: () => HTMLElement | null
   getItemRects: () => ReadonlyMap<BlockId, DOMRectReadOnly>
   onPreviewMove: (id: BlockId, point: { xPct: number; yPct: number }, first: boolean) => void
-  onDrop: () => void
+  onZoneChange?: (zone: DockEdge | null) => void
+  onDrop: (context: { zone: DockEdge | null; pointerX: number }) => void
 }): CanvasDragApi {
   const [dragging, setDragging] = useState<BlockId | null>(null)
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
@@ -40,6 +46,14 @@ export function useCanvasDrag(input: {
     }
     const box = { width: itemRect.width, height: itemRect.height }
     let moved = false
+    let zone: DockEdge | null = null
+    let lastPointerX = start.clientX
+
+    const setZone = (next: DockEdge | null) => {
+      if (next === zone) return
+      zone = next
+      inputRef.current.onZoneChange?.(next)
+    }
 
     try {
       surface.setPointerCapture?.(start.pointerId)
@@ -50,6 +64,15 @@ export function useCanvasDrag(input: {
 
     const onMove = (event: PointerEvent) => {
       if (event.pointerId !== start.pointerId) return
+      lastPointerX = event.clientX
+      const surfaceY = event.clientY - surfaceRect.top
+      setZone(
+        surfaceY < DOCK_ZONE_THRESHOLD
+          ? 'top'
+          : surfaceY > surfaceRect.height - DOCK_ZONE_THRESHOLD
+            ? 'bottom'
+            : null,
+      )
       const bounds = { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
       const neighbors: SnapNeighbor[] = []
       for (const [neighborId, rect] of inputRef.current.getItemRects()) {
@@ -90,7 +113,9 @@ export function useCanvasDrag(input: {
       }
       setDragging(null)
       setGuides([])
-      inputRef.current.onDrop()
+      const droppedZone = zone
+      setZone(null)
+      inputRef.current.onDrop({ zone: droppedZone, pointerX: lastPointerX })
     }
 
     surface.addEventListener('pointermove', onMove)

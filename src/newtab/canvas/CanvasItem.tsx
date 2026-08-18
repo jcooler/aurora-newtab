@@ -97,8 +97,9 @@ export default function CanvasItem({
       onClick={editing ? () => onSelect?.(entry.id) : undefined}
       // In edit mode the whole widget is the drag handle (spec 2.5: "drag
       // moves with pointer capture"); a press with no movement is a click,
-      // which selects.
-      onPointerDown={editing && item.mode === 'anchored'
+      // which selects. Docked items are draggable too (spec 2.4: order is
+      // draggable; dragging out undocks).
+      onPointerDown={editing && (item.mode === 'anchored' || item.mode === 'docked')
         ? (event) => onGripPointerDown?.(entry.id, event)
         : undefined}
       data-testid={`canvas-item-${entry.id}`}
