@@ -57,8 +57,10 @@ export function deriveMyLayout(
   }
   // Enabled widgets without a stored placement: the designed STATIC default
   // slot for that identity (defaultPlacements.ts). The layer is identity-
-  // stable (BLOCK_IDS position offset above every stored layer), so toggling
-  // one widget never renumbers its neighbours (the PR-P1 stability contract).
+  // stable RELATIVE ordering (BLOCK_IDS position offset above every stored
+  // layer): toggling one widget never reorders its neighbours (the PR-P1
+  // stability contract), though the absolute number can shift when the
+  // stored widget carrying maxLayer is disabled — see renderLayout.ts.
   for (const id of BLOCK_IDS) {
     if (!enabled.has(id) || widgets[id]) continue
     widgets[id] = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))

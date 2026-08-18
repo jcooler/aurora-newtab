@@ -80,8 +80,7 @@ describe('NL-P2 named-layouts retirement boundary', () => {
       'ArrangeController',
       'ArrangeArtboard',
       'data-stage-variant',
-      "'board-item",
-      'board-item ',
+      'board-item',
     ]
     for (const [path, source] of Object.entries(liveSource)) {
       for (const token of forbidden) {

@@ -110,7 +110,8 @@ const V3_CUSTOM = {
   },
 }
 
-// A stored v13 layouts document: anchored items plus BOTH docks.
+// A stored layouts document (schema-v13 `layouts` key, document version 1):
+// anchored items plus BOTH docks.
 const LAYOUTS_DOCUMENT = {
   version: 1,
   activeLayoutId: 'witness',

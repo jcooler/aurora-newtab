@@ -70,8 +70,14 @@ describe('index.css - Canvas type roles', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-block-id="clock"\]:not\(\[data-canvas-size="compact"\]\)[^{]*\[data-clock-date\][^{]*\{[\s\S]*?display: block;/)
   })
 
-  it('does not apply the finite-width glyph cap to the large Full Clock', () => {
-    expect(indexCss).toMatch(/\.canvas-item:not\(\[data-canvas-mode="docked"\]\):not\(\[data-canvas-size="full"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*calc\(37\.6471cqi - 0\.7529px\)\);/)
+  it('keeps only the viewport-height compact cap — the container-relative glyph cap died with the imposed boxes', () => {
+    // A content-tight wrapper sizes to the clock, so a container-relative
+    // (cqi) cap would be circular; the retirement scan in
+    // adaptiveStageLegibility.test.ts pins that no cqi term survives. Full
+    // and standard render at --clock-font; compact keeps the real safety
+    // cap, which is vertical.
+    expect(indexCss).not.toContain('cqi')
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*17vh\);/)
   })
 })
 

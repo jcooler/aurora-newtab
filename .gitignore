@@ -38,3 +38,9 @@ output/
 .playwright-profile-forensic-weather/
 .preview-forensic-dist/
 .forensic-short-height-out/
+
+# NL-P2 anchored-canvas witness (scripts/preview-nl-p2.mjs) scratch output.
+.playwright-profile-nl-p2/
+.playwright-profile-nl-p2-debug/
+.preview-nl-p2-dist/
+.preview-nl-p2-out/

@@ -67,7 +67,7 @@
      content, never an imposed geometry table. NO container-type here:
      inline-size containment zeroes an element's intrinsic inline size (the
      bottom-bar rule below documents the same trap), which would collapse
-     every max-content wrapper to 0. The old emergency-fit @container rules
+     every max-content wrapper to 0. The old emergency-fit container queries
      targeted the deleted imposed boxes; content-tight boxes cannot clip
      their own content, and the NL-P5 tier catalog owns per-tier interiors. */
   width: max-content;
@@ -1262,21 +1262,6 @@ select > option {
   max-width: none;
 }
 
-@container (max-width: 319px) {
-  .canvas-item[data-block-id="weather"]:not(.z-30) > section,
-  .canvas-item[data-block-id="weather"]:not(.z-30) > section > div,
-  .canvas-item[data-block-id="weather"]:not(.z-30) > section > div > div {
-    width: 100%;
-    max-width: 100%;
-  }
-  .canvas-item[data-block-id="weather"]:not(.z-30) input,
-  .canvas-item[data-block-id="weather"]:not(.z-30) button,
-  .canvas-item[data-block-id="weather"]:not(.z-30) [role="listbox"] {
-    width: 100%;
-    max-width: 100%;
-  }
-
-}
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section,
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
 .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
@@ -1313,26 +1298,16 @@ select > option {
   padding-inline: 8px;
 }
 
-/* A finite Compact or Standard Board Clock footprint can be narrower than
-   the viewport-derived two-digit glyph box (the compact 800x600 allocation
-   and a user-pinned 3x2 Day override are both causal fixtures). Preserve the
-   same typeface and scale curve, but cap those smaller variants by their real
-   inline container. Full is the intentionally large 4K presentation and must
-   retain --clock-font instead of inheriting this compact safety ceiling. */
-.canvas-item:not([data-canvas-mode="docked"]):not([data-canvas-size="full"])[data-block-id="clock"] time {
-  font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px));
-}
-
-/* At the compact height fence, the Clock's legacy 20vh curve can make its
-   line box taller than the planner's finite two-row allocation even when the
-   inline container cap is satisfied. Limit only that compact Board renderer
-   to 17vh: at the causal 1420x550 fixture this changes 110px to 93.5px and
-   leaves both the complete glyph box and its wrapper scroll box inside the
-   allocation with measured vertical headroom.
-   Dock content remains preserved, and standard/expanded Board renderers keep
-   the canvas Clock's existing scale. */
+/* The retired container-width glyph cap (37.6471% of the imposed box's
+   inline size) died with the box tables and its size container: a
+   content-tight wrapper sizes to the clock, so a container-relative cap is
+   circular by definition.
+   Full keeps the intentionally large presentation. The one real remaining
+   safety cap is vertical: a compact Board clock stays within short windows
+   via 17vh (the 1420x550 causal fixture: 110px -> 93.5px). The NL-P5 tier
+   catalog owns the designed compact/standard clock scales. */
 .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
-  font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px), 17vh);
+  font-size: min(var(--clock-font), 17vh);
 }
 
 /* A compact allocation is a real renderer variant, not a smaller hole cut
@@ -1451,40 +1426,6 @@ select > option {
   content: attr(data-label);
 }
 
-/* Below 72px, three 36px actions cannot share a row. Use three stable rows in
-   one target-width column and place the compact month abbreviation beside
-   them. The optional Today action owns the reserved third row, so navigation
-   still has zero height shift while every target remains complete. */
-@container (inline-size < 72px) {
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] {
-    display: grid;
-    grid-template-columns: 36px minmax(0, 1fr);
-    grid-template-rows: repeat(3, 36px);
-    min-height: 108px;
-  }
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:first-child {
-    grid-column: 1;
-    grid-row: 1;
-  }
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:last-child {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
-    display: contents;
-  }
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label] {
-    grid-column: 2;
-    grid-row: 1 / -1;
-    align-self: center;
-  }
-  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"] {
-    grid-column: 1;
-    grid-row: 3;
-  }
-
-}
-
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
   padding: 8px;
   font-size: 11px;
@@ -1536,12 +1477,6 @@ select > option {
    the full intrinsic row and its horizontal scroller. */
 .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
   display: none;
-}
-@container (inline-size < 112px) {
-  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 3) {
-    display: none;
-  }
-
 }
 
 /* Search's legacy 16rem input is nested below the BoardItem's direct child;
@@ -1719,13 +1654,6 @@ select > option {
   white-space: nowrap;
   font-size: 14px;
 }
-@container (max-width: 100px) {
-  .canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > ul {
-    display: none;
-  }
-
-}
-
 /* Numeric cells are never truncated. A one-track Crypto glance shows the
    first configured coin; Dock and wider variants retain all five values. */
 .canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div {

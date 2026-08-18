@@ -50,6 +50,12 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
     for (const token of ['.adaptive-stage', '.stage-zone', 'data-signal-dock', 'launcher-shelf', 'board-item', 'data-stage-variant']) {
       expect(indexCss, `retired token ${token} still present`).not.toContain(token)
     }
+    // Nothing establishes a size container on the canvas anymore (inline-size
+    // containment zeroes a max-content wrapper), so container queries and
+    // container-relative units would be dead or viewport-fallback lies.
+    for (const token of ['@container', 'cqi']) {
+      expect(indexCss, `orphaned container token ${token} still present`).not.toContain(token)
+    }
   })
 
   it('the formerly stage-var-driven control minimums are now literal 36px floors', () => {
@@ -136,17 +142,11 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
     expect(indexCss).not.toMatch(/data-block-id="monthCal"\][\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/)
   })
 
-  it('stacks all compact Month actions in a complete target column below two target widths', () => {
-    expect(indexCss).toContain('@container (inline-size < 72px)')
-    const header = lastDeclarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header]')
-    expect(header).toMatch(/display:\s*grid\s*;/)
-    expect(header).toMatch(/grid-template-columns:\s*36px minmax\(0,\s*1fr\)\s*;/)
-    expect(header).toMatch(/grid-template-rows:\s*repeat\(3,\s*36px\)\s*;/)
-    expect(lastDeclarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span'))
-      .toMatch(/display:\s*contents\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"]'))
-      .toMatch(/grid-row:\s*3\s*;/)
-  })
+  // The <72px Month action-stacking and its @container siblings were
+  // emergency-fit rules for the deleted imposed boxes; with content-tight
+  // wrappers and no size container they could never match and are deleted
+  // (the orphaned-container-token check above pins that). The NL-P5 tier
+  // catalog owns any designed tiny-tier Month composition.
 
   it.each(['compact', 'standard'] as const)('condenses %s Crypto only on the Board, never in Dock', (variant) => {
     const firstHiddenCell = variant === 'compact' ? 2 : 3
@@ -173,6 +173,6 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {
     const clock = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time')
-    expect(clock).toMatch(/font-size:\s*min\(var\(--clock-font\),\s*calc\(37\.6471cqi - 0\.7529px\),\s*17vh\)\s*;/)
+    expect(clock).toMatch(/font-size:\s*min\(var\(--clock-font\),\s*17vh\)\s*;/)
   })
 })

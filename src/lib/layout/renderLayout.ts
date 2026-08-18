@@ -84,10 +84,14 @@ export function planLayoutRender(
 
   // Enabled widgets the layout doesn't know yet: the designed STATIC default
   // slot for that identity (defaultPlacements.ts), the same rule
-  // deriveMyLayout uses. The layer is identity-stable (BLOCK_IDS position
-  // offset above every stored layer), so toggling one widget never renumbers
-  // its neighbours (the PR-P1 stability contract). Nothing is written;
-  // membership persists at the user's next explicit save (NL-P3).
+  // deriveMyLayout uses. The layer is identity-stable RELATIVE ordering
+  // (BLOCK_IDS position offset above every stored layer): toggling one
+  // widget never reorders its neighbours (the PR-P1 stability contract).
+  // The ABSOLUTE number can shift when the stored widget carrying maxLayer
+  // is disabled — positions never move and stacking order is invariant, but
+  // NL-P3's save path must persist placements from the layout draft, never
+  // by reading these derived absolute layers back. Nothing is written here;
+  // membership persists at the user's next explicit save.
   for (const id of BLOCK_IDS) {
     if (!enabled.has(id)) continue
     if (layout.widgets[id]) continue
