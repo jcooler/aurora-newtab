@@ -33,6 +33,10 @@ import type { CanvasSize } from '../lib/layout/canvasTypes'
 export interface WidgetRendererProps {
   stageVariant?: WidgetVariant
   canvasSize?: CanvasSize
+  /** The Docked tier (named-layouts spec 2.3): render the one dense line.
+   *  A widget is docked OR free, never both, so the widget keeps sole
+   *  ownership of its data and panels in either presentation. */
+  docked?: boolean
   onWeatherExpandedChange?: (open: boolean) => void
   onBookmarksPopoverOpenChange?: (open: boolean) => void
   onNotesOpenChange?: (open: boolean) => void
@@ -51,14 +55,14 @@ function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): Wi
 
 const RENDERERS = {
   weather: (props) => (
-    <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} />
+    <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} docked={props.docked} />
   ),
   ics: (props) => <CalendarWidget stageVariant={effectiveVariant(props)} />,
   monthCal: (props) => <MonthCalWidget canvasSize={props.canvasSize} stageVariant={props.stageVariant} />,
   sun: () => <SunWidget />,
   moon: () => <MoonWidget />,
   quote: () => <QuoteWidget />,
-  clock: () => <Clock />,
+  clock: (props) => <Clock docked={props.docked} />,
   greeting: () => <Greeting />,
   worldClocks: () => <WorldClocks />,
   countdown: () => <CountdownLine />,

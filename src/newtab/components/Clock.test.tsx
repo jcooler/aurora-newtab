@@ -222,3 +222,23 @@ describe('index.css — --clock-half-w (the short-wide fix)', () => {
     expect(indexCss).toMatch(/--clock-half-w: calc\(1\.328125 \* var\(--clock-font\)\);/)
   })
 })
+
+describe('Clock docked line (NL-P5 batch 1)', () => {
+  it('renders one dense time-and-date line with no big-glyph face', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    render(
+      <StorageProvider storage={storage}>
+        <Clock docked />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    const line = document.querySelector('[data-dock-line]') as HTMLElement
+    expect(line).toBeTruthy()
+    expect(line.className).toContain('dock-line')
+    expect(line.textContent ?? '').toMatch(/\d{1,2}:\d{2}/)
+    expect(line.textContent).toContain('·')
+    expect(document.querySelector('.clock-face')).toBeNull()
+    expect(line.querySelector('time')).toBeTruthy()
+  })
+})

@@ -331,9 +331,9 @@ export default function App() {
   const elevatedIds = new Set<BlockId>([
     ...(bookmarksPopoverOpen ? ['bookmarks' as const] : []),
   ])
-  const renderWidget = (entry: (typeof activeEntries)[number], size: CanvasSize) => {
+  const renderWidget = (entry: (typeof activeEntries)[number], size: CanvasSize, docked = false) => {
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
-    return <Renderer {...rendererProps} canvasSize={size} />
+    return <Renderer {...rendererProps} canvasSize={size} docked={docked} />
   }
   const textScale = projectTextScale(settings.layoutDensity, viewport)
   // The pre-existing narrow Settings/Tray modality boundary (unrelated to the

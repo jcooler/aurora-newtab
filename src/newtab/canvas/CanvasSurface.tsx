@@ -30,7 +30,7 @@ interface CanvasSurfaceProps {
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
-  renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize) => ReactNode
+  renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, docked: boolean) => ReactNode
 }
 
 /** One dock strip (named-layouts spec 2.4): a clean status band. The
@@ -160,7 +160,7 @@ export default function CanvasSurface({
         onGearClick={onGearClick}
         onGeometryChange={onItemGeometryChange}
       >
-        {renderWidget(entry, size)}
+        {renderWidget(entry, size, item.mode === 'docked')}
       </CanvasItem>
     )
   }

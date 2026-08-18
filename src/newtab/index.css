@@ -77,6 +77,18 @@
   overflow: visible;
 }
 
+/* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
+   middle dots separating facts, never wrapping — the strip owns overflow. */
+.dock-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 4px 10px;
+}
+
 /* The old `.canvas-item > * { max-width: 100% }` fitted interiors into the
    deleted imposed boxes. Against a content-tight max-content wrapper that
    percentage resolves cyclically and collapses text widgets (the Quote

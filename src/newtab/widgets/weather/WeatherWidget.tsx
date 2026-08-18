@@ -46,7 +46,8 @@ function Chevron({ expanded }: { expanded: boolean }) {
 export default function WeatherWidget({
   onExpandedChange,
   stageVariant = 'standard',
-}: { onExpandedChange?: (expanded: boolean) => void; stageVariant?: WidgetVariant } = {}) {
+  docked = false,
+}: { onExpandedChange?: (expanded: boolean) => void; stageVariant?: WidgetVariant; docked?: boolean } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   const { snapshot, stale, loading, error, refresh, state } = useWeather()
@@ -387,6 +388,39 @@ export default function WeatherWidget({
       )}
       {location && snapshot && (
         <>
+          {docked ? (
+            /* The Docked tier (named-layouts spec 2.3): one dense text-first
+               line — temperature · location · condition, middle dots
+               separating facts. The SAME trigger semantics as the free chip:
+               clicking opens the identical details panel (spec 2.4), anchored
+               from this line's own rect. */
+            <button
+              ref={triggerRef}
+              type="button"
+              aria-expanded={expanded}
+              aria-controls={expanded ? detailsId : undefined}
+              onClick={() => expanded ? closeExpanded() : setExpanded(true)}
+              data-dock-line=""
+              data-weather-summary=""
+              className="dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+            >
+              <WeatherIcon
+                icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
+                size={16}
+              />
+              <span data-canvas-type-role="body" className="tabular-nums">
+                {displayTemp(snapshot.current.tempC, settings.units)}
+                <span data-canvas-type-role="metadata" className="align-baseline text-[0.75em] text-fg-muted">
+                  {unitLetter(settings.units)}
+                </span>
+              </span>
+              <span aria-hidden className="text-fg-muted">·</span>
+              <span data-canvas-type-role="body" className="text-fg-muted">{snapshot.locationLabel}</span>
+              <span aria-hidden className="text-fg-muted">·</span>
+              <span data-canvas-type-role="body" className="text-fg-muted">{describeCode(snapshot.current.code).label}</span>
+            </button>
+          ) : (
+          <>
           {/* THE toggle — one button covering the entire chip, padding and
               corners included, rather than a content-sized row floating
               inside a padded panel. The old markup put `p-3` on the section
@@ -505,6 +539,8 @@ export default function WeatherWidget({
               className="text-fg-muted"
             />
           </button>
+          </>
+          )}
 
           {expanded && createPortal(
             <section

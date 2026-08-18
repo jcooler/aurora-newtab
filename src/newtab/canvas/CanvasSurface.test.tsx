@@ -142,3 +142,20 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).not.toMatch(/:focus-within[^{]*\{[^}]*outline/)
   })
 })
+
+describe('Docked render flag (NL-P5 batch 1)', () => {
+  it('passes docked=true to the renderer only for strip members', () => {
+    const seen = new Map<string, boolean>()
+    render(
+      <CanvasSurface
+        activeLayout={LAYOUT}
+        entries={ENTRIES}
+        viewport={{ width: 1408, height: 445 }}
+        renderWidget={(entry, _size, docked) => { seen.set(entry.id, docked); return <span>{entry.label}</span> }}
+      />,
+    )
+    expect(seen.get('bookmarks')).toBe(true)
+    expect(seen.get('clock')).toBe(false)
+    expect(seen.get('weather')).toBe(false)
+  })
+})

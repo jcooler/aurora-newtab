@@ -2,10 +2,26 @@ import { formatClock, formatDayContext } from '../../lib/clock'
 import { useNow } from '../../lib/hooks/useNow'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
 
-export default function Clock() {
+export default function Clock({ docked = false }: { docked?: boolean } = {}) {
   const [settings] = useStoredKey('settings')
   const now = useNow()
   if (!settings) return null
+  if (docked) {
+    // The Docked tier (named-layouts spec 2.3): one dense text-first line —
+    // time · date, middle dots separating facts. Same clock sample and
+    // accessible <time> value as the free face; no big-glyph block.
+    return (
+      <div data-dock-line="" className="dock-line">
+        <time dateTime={now.toISOString()} data-canvas-type-role="body" className="tabular-nums font-medium">
+          {formatClock(now, settings.use24Hour)}
+        </time>
+        <span aria-hidden className="text-fg-muted">·</span>
+        <span data-canvas-type-role="body" className="text-fg-muted">
+          {formatDayContext(now, 'compact')}
+        </span>
+      </div>
+    )
+  }
   return (
     <div data-clock-face="" className="clock-face">
       <time

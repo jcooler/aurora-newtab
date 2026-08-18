@@ -40,11 +40,13 @@ async function renderWidget({
   snapshot = makeSnapshot(),
   onExpandedChange,
   stageVariant = 'standard',
+  docked = false,
 }: {
   location?: StoredLocation | null
   snapshot?: WeatherSnapshot | null
   onExpandedChange?: (expanded: boolean) => void
   stageVariant?: WidgetVariant
+  docked?: boolean
 } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -52,7 +54,7 @@ async function renderWidget({
   await storage.set('weatherCache', snapshot)
   const view = render(
     <StorageProvider storage={storage}>
-      <WeatherWidget onExpandedChange={onExpandedChange} stageVariant={stageVariant} />
+      <WeatherWidget onExpandedChange={onExpandedChange} stageVariant={stageVariant} docked={docked} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -848,5 +850,38 @@ describe('WeatherWidget onExpandedChange (Task 55)', () => {
     view.unmount()
     expect(onExpandedChange).toHaveBeenCalledTimes(1)
     expect(onExpandedChange).toHaveBeenLastCalledWith(false)
+  })
+})
+
+describe('Docked tier line (NL-P5 batch 1)', () => {
+  it('renders one dense text-first line - temperature, location, condition - separated by middle dots', async () => {
+    await renderWidget({ docked: true })
+    const line = document.querySelector('[data-dock-line]') as HTMLElement
+    expect(line).toBeTruthy()
+    expect(line.tagName).toBe('BUTTON')
+    expect(line.textContent).toContain('21')
+    expect(line.textContent).toContain('New York')
+    expect(line.textContent).toContain('Partly cloudy')
+    expect(line.textContent).toContain('·')
+    // One line by construction: the dock-line row never wraps.
+    expect(line.className).toContain('dock-line')
+    expect(document.querySelector('[data-weather-summary-row]')).toBeNull()
+  })
+
+  it('clicking the docked line opens the SAME details panel the free form offers (spec 2.4)', async () => {
+    await renderWidget({ docked: true })
+    await act(async () => {
+      fireEvent.click(document.querySelector('[data-dock-line]') as HTMLElement)
+    })
+    expect(await screen.findByRole('dialog', { name: 'Weather details' })).toBeTruthy()
+    await act(async () => {
+      fireEvent.keyDown(document, { key: 'Escape' })
+    })
+    expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
+  })
+
+  it('with no location the docked form keeps the honest setup affordance', async () => {
+    await renderWidget({ docked: true, location: null, snapshot: null })
+    expect(screen.getByText('Weather needs a location.')).toBeTruthy()
   })
 })
