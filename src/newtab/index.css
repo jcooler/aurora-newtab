@@ -147,13 +147,23 @@
   pointer-events: auto;
 }
 /* Docked members keep the same grip + gear (spec 2.5: the grip is the
-   visible way OUT of a dock), but the strip's scroller clips vertical
-   overhang — the chrome sits INSIDE the slim row, vertically centered over
-   the member's trailing edge. */
+   visible way OUT of a dock). The chrome floats ABOVE the pill — sitting
+   inside the pill covered the label on short chips like Tasks (owner-
+   reported 2026-08-18). The scroller reserves invisible headroom (its
+   transparent top padding below) so the overhang isn't clipped. */
 .canvas-item[data-canvas-mode="docked"] > .canvas-item-chrome {
-  top: 50%;
-  right: 0;
-  transform: translateY(-50%);
+  top: -12px;
+  right: -4px;
+}
+/* Normal-mode hover: a whisper of a boundary alongside the grip + gear so
+   it is always obvious WHICH widget the controls belong to — hovering near
+   a wide transparent box no longer reads as icons floating in space
+   (owner-reported 2026-08-18: quote icons "on the top left side"). Never a
+   selection ring: 1px, low-alpha, gone on mouse-out. */
+.canvas-item:not(.canvas-item--editing):hover:has(> .canvas-item-chrome) {
+  outline: 1px solid rgb(255 255 255 / 0.18);
+  outline-offset: 3px;
+  border-radius: 10px;
 }
 @media (prefers-reduced-motion: reduce) {
   .canvas-item-chrome { transition: none; }
@@ -446,7 +456,10 @@
   min-width: 0;
   max-width: 100%;
   gap: 8px;
-  padding: 2px;
+  /* The 16px top headroom is INVISIBLE reserve (the strip has no background)
+     for the hover grip + gear floating above each pill — without it the
+     scroller's clip cut them off. */
+  padding: 16px 2px 2px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
   /* The scrollbar is NEVER shown (spec 2.4). */
@@ -484,10 +497,12 @@
   width: max-content;
 }
 
-/* Subtle arrow nubs on hover at the faded edge (spec 2.4, optional). */
+/* Subtle arrow nubs on hover at the faded edge (spec 2.4, optional).
+   `top` compensates for the scroller's 16px chrome headroom so the nub
+   stays centered on the pills themselves. */
 .dock-nub {
   position: absolute;
-  top: 50%;
+  top: calc(50% + 7px);
   z-index: 1;
   display: flex;
   width: 20px;
