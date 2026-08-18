@@ -120,8 +120,19 @@ describe('CanvasSurface (anchored named layout)', () => {
   })
 
   it('preserves intrinsic strip item widths so sibling launchers cannot paint over each other', () => {
-    expect(indexCss).toMatch(/\.canvas-bottom-bar \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
-    expect(indexCss).toMatch(/\.canvas-top-bar \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
+    expect(indexCss).toMatch(/\.dock-scroller \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
+  })
+
+  it('the dock strip is a clean status band: no scrollbar ever, fades keyed on true overflow only (spec 2.4)', () => {
+    expect(indexCss).toMatch(/\.dock-scroller\s*\{[^}]*scrollbar-width:\s*none;/)
+    expect(indexCss).toMatch(/\.dock-scroller::-webkit-scrollbar\s*\{[^}]*display:\s*none;/)
+    // Every mask rule requires the measured overflow attribute.
+    const maskRules = indexCss.match(/^[^\n{}]*\{[^}]*mask-image:[^}]*\}/gm) ?? []
+    const dockMaskRules = maskRules.filter((rule) => rule.includes('dock'))
+    expect(dockMaskRules.length).toBeGreaterThanOrEqual(3)
+    for (const rule of dockMaskRules) {
+      expect(rule).toContain('[data-dock-overflow]')
+    }
   })
 
   it('never paints a container focus ring: no focus-within rule declares an outline', () => {

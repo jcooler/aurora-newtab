@@ -269,47 +269,82 @@
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
 }
 
-.canvas-bottom-bar {
-  position: fixed;
-  z-index: 30;
-  right: 50%;
-  bottom: 16px;
-  display: flex;
-  max-width: calc(100vw - 144px);
-  translate: 50% 0;
-  gap: 8px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
-}
-
-/* Bottom-bar launchers participate in a flex row, so they must publish their
-   intrinsic button width. Inline-size containment makes every wrapper report
-   a zero flex base and lets later launchers paint over earlier siblings. */
-.canvas-bottom-bar .canvas-item {
-  container-type: normal;
-  width: max-content;
-}
-
-/* Minimal top strip for top-docked widgets (named-layouts NL-P2; the real
-   Docked-tier strip with fade-masked overflow is NL-P4). Mirrors the bottom
-   strip exactly. */
+/* Dock strips (named-layouts spec 2.4): one slim row with small margins
+   that reads as a clean status band. The nav owns position; the inner
+   .dock-scroller owns the (scrollbar-less) horizontal scroll and the
+   true-overflow fade masks; the hover nubs sit on the nav, outside the
+   mask. */
+.canvas-bottom-bar,
 .canvas-top-bar {
   position: fixed;
   z-index: 30;
   right: 50%;
-  top: 16px;
   display: flex;
   max-width: calc(100vw - 144px);
   translate: 50% 0;
+}
+.canvas-bottom-bar { bottom: 16px; }
+.canvas-top-bar { top: 16px; }
+
+.dock-scroller {
+  display: flex;
   gap: 8px;
+  padding: 2px;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
+  /* The scrollbar is NEVER shown (spec 2.4). */
+  scrollbar-width: none;
 }
-.canvas-top-bar .canvas-item {
+.dock-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* True-overflow fades at the clipped edge(s) only. */
+.dock-scroller[data-dock-overflow]:not([data-dock-at-end]) {
+  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
+}
+.dock-scroller[data-dock-overflow]:not([data-dock-at-start]) {
+  mask-image: linear-gradient(to right, transparent, black 40px);
+}
+.dock-scroller[data-dock-overflow]:not([data-dock-at-start]):not([data-dock-at-end]) {
+  mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent);
+}
+
+/* Dock launchers participate in a flex row, so they must publish their
+   intrinsic button width. Inline-size containment makes every wrapper report
+   a zero flex base and lets later launchers paint over earlier siblings. */
+.dock-scroller .canvas-item {
   container-type: normal;
   width: max-content;
+}
+
+/* Subtle arrow nubs on hover at the faded edge (spec 2.4, optional). */
+.dock-nub {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: flex;
+  width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--control-border);
+  background: var(--panel-solid);
+  color: var(--fg-muted);
+  translate: 0 -50%;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 120ms ease;
+}
+.canvas-bottom-bar:hover .dock-nub,
+.canvas-top-bar:hover .dock-nub {
+  opacity: 1;
+}
+.dock-nub[data-direction="start"] { left: 2px; }
+.dock-nub[data-direction="end"] { right: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .dock-nub { transition: none; }
 }
 
 /* Narrow floor (named-layouts spec 2.2): below 600px the layout renders as

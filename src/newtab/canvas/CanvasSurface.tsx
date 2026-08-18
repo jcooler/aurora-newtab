@@ -1,4 +1,5 @@
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useRef, type ReactNode } from 'react'
+import { useDockOverflow } from '../edit/useDockOverflow'
 import {
   planLayoutRender,
   resolveRenderTier,
@@ -30,6 +31,66 @@ interface CanvasSurfaceProps {
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize) => ReactNode
+}
+
+/** One dock strip (named-layouts spec 2.4): a clean status band. The
+ *  scrollbar never shows; TRUE overflow is signaled by masked edge fades and
+ *  scrolled by wheel, trackpad, drag, and keyboard — locally, never moving
+ *  the page. Subtle arrow nubs appear on hover at the faded edge. */
+function DockStrip({
+  edge,
+  label,
+  memberCount,
+  children,
+}: {
+  edge: 'top' | 'bottom'
+  label: string
+  memberCount: number
+  children: ReactNode
+}) {
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const overflow = useDockOverflow(scrollerRef, memberCount)
+  const scrollBy = (delta: number) => {
+    scrollerRef.current?.scrollBy({ left: delta })
+  }
+  return (
+    <nav
+      aria-label={label}
+      className={edge === 'top' ? 'canvas-top-bar' : 'canvas-bottom-bar'}
+    >
+      <div
+        ref={scrollerRef}
+        className="dock-scroller"
+        data-dock-overflow={overflow.overflowing ? 'true' : undefined}
+        data-dock-at-start={overflow.atStart ? 'true' : undefined}
+        data-dock-at-end={overflow.atEnd ? 'true' : undefined}
+        onWheel={(event) => {
+          if (!overflow.overflowing) return
+          // Dock scrolling is local and never moves the page (spec 2.4).
+          event.preventDefault()
+          scrollBy(event.deltaY !== 0 ? event.deltaY : event.deltaX)
+        }}
+        onKeyDown={(event) => {
+          if (!overflow.overflowing) return
+          if (event.target instanceof Element && event.target.closest('input, textarea, select, [role="listbox"]')) return
+          if (event.key === 'ArrowLeft') { event.preventDefault(); scrollBy(-80) }
+          if (event.key === 'ArrowRight') { event.preventDefault(); scrollBy(80) }
+        }}
+      >
+        {children}
+      </div>
+      {overflow.overflowing && !overflow.atStart ? (
+        <button type="button" tabIndex={-1} aria-hidden className="dock-nub" data-direction="start" onClick={() => scrollBy(-160)}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+        </button>
+      ) : null}
+      {overflow.overflowing && !overflow.atEnd ? (
+        <button type="button" tabIndex={-1} aria-hidden className="dock-nub" data-direction="end" onClick={() => scrollBy(160)}>
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 6l6 6-6 6" /></svg>
+        </button>
+      ) : null}
+    </nav>
+  )
 }
 
 export default function CanvasSurface({
@@ -93,7 +154,9 @@ export default function CanvasSurface({
   return (
     <div data-canvas-root="" className="canvas-root">
       {topDock.length > 0 ? (
-        <nav aria-label="Top bar" className="canvas-top-bar">{topDock.map(renderItem)}</nav>
+        <DockStrip edge="top" label="Top bar" memberCount={topDock.length}>
+          {topDock.map(renderItem)}
+        </DockStrip>
       ) : null}
       <section
         aria-label="Canvas"
@@ -107,7 +170,9 @@ export default function CanvasSurface({
         <GuideOverlay guides={guides} />
       </section>
       {bottomDock.length > 0 ? (
-        <nav aria-label="Bottom bar" className="canvas-bottom-bar">{bottomDock.map(renderItem)}</nav>
+        <DockStrip edge="bottom" label="Bottom bar" memberCount={bottomDock.length}>
+          {bottomDock.map(renderItem)}
+        </DockStrip>
       ) : null}
     </div>
   )
