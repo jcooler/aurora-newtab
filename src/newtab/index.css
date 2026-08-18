@@ -425,14 +425,9 @@
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
 }
 
-/* Dock strips (named-layouts spec 2.4): one slim row with small margins
-   that reads as a clean status band. The nav owns position; the inner
-   .dock-scroller owns the (scrollbar-less) horizontal scroll and the
-   true-overflow fade masks; the hover nubs sit on the nav, outside the
-   mask. */
-/* The strips span the width (owner-refined 2026-08-18: members were all
-   forced center because the bar itself hugged its content at screen
-   center). 72px side insets keep the fixed utility cluster corners clear. */
+/* Dock strips (named-layouts spec 2.4, owner-refined 2026-08-18): a free
+   one-row lane spanning the width — members sit at their own stored x.
+   72px side insets keep the fixed utility cluster corners clear. */
 .canvas-bottom-bar,
 .canvas-top-bar {
   position: fixed;
@@ -444,89 +439,30 @@
 .canvas-bottom-bar { bottom: 16px; }
 .canvas-top-bar { top: 16px; }
 
-.dock-scroller {
-  /* Three placement sections: start hugs the left, center stays centered,
-     end hugs the right — the drop position picks the section. */
+/* The free one-row lane (owner-refined 2026-08-18: complete positional
+   control within the bar). Grid-stack: every member occupies the SAME cell,
+   offset by its own x-percent margin — the tallest member sizes the lane
+   and nothing scrolls, clips, or re-flows a neighbour. The 16px top
+   headroom is INVISIBLE reserve (the strip has no background) for the hover
+   grip + gear floating above each member. */
+.dock-lane {
   display: grid;
   width: 100%;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  /* A flex item's min-width:auto would let the scroller grow past the nav
-     instead of clipping — it must shrink so IT owns the scroll. */
-  min-width: 0;
-  max-width: 100%;
-  gap: 8px;
-  /* The 16px top headroom is INVISIBLE reserve (the strip has no background)
-     for the hover grip + gear floating above each pill — without it the
-     scroller's clip cut them off. */
+  align-items: end;
   padding: 16px 2px 2px;
-  overflow-x: auto;
-  overscroll-behavior-inline: contain;
-  /* The scrollbar is NEVER shown (spec 2.4). */
-  scrollbar-width: none;
 }
-.dock-section {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-}
-.dock-section[data-align="start"] { justify-self: start; }
-.dock-section[data-align="center"] { justify-self: center; }
-.dock-section[data-align="end"] { justify-self: end; }
-.dock-scroller::-webkit-scrollbar {
-  display: none;
-}
-
-/* True-overflow fades at the clipped edge(s) only. */
-.dock-scroller[data-dock-overflow]:not([data-dock-at-end]) {
-  mask-image: linear-gradient(to right, black calc(100% - 40px), transparent);
-}
-.dock-scroller[data-dock-overflow]:not([data-dock-at-start]) {
-  mask-image: linear-gradient(to right, transparent, black 40px);
-}
-.dock-scroller[data-dock-overflow]:not([data-dock-at-start]):not([data-dock-at-end]) {
-  mask-image: linear-gradient(to right, transparent, black 40px, black calc(100% - 40px), transparent);
-}
-
-/* Dock launchers participate in a flex row, so they must publish their
-   intrinsic button width. Inline-size containment makes every wrapper report
-   a zero flex base and lets later launchers paint over earlier siblings. */
-.dock-scroller .canvas-item {
+/* Dock launchers must publish their intrinsic button width. Inline-size
+   containment makes every wrapper report a zero base and lets later
+   launchers paint over earlier siblings. */
+.dock-lane .canvas-item {
   container-type: normal;
   width: max-content;
 }
 
-/* Subtle arrow nubs on hover at the faded edge (spec 2.4, optional).
-   `top` compensates for the scroller's 16px chrome headroom so the nub
-   stays centered on the pills themselves. */
-.dock-nub {
-  position: absolute;
-  top: calc(50% + 7px);
-  z-index: 1;
-  display: flex;
-  width: 20px;
-  height: 20px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 1px solid var(--control-border);
-  background: var(--panel-solid);
-  color: var(--fg-muted);
-  translate: 0 -50%;
-  opacity: 0;
-  cursor: pointer;
-  transition: opacity 120ms ease;
-}
-.canvas-bottom-bar:hover .dock-nub,
-.canvas-top-bar:hover .dock-nub {
-  opacity: 1;
-}
-.dock-nub[data-direction="start"] { left: 2px; }
-.dock-nub[data-direction="end"] { right: 2px; }
-@media (prefers-reduced-motion: reduce) {
-  .dock-nub { transition: none; }
-}
+/* The scroller/nub/fade machinery of the ordered-row strip died with free-x
+   placement (owner-refined 2026-08-18): members no longer flow, so nothing
+   scrolls or clips — and the top-dock weather pill can no longer be
+   squeezed into truncation by section tracks. */
 
 /* Narrow floor (named-layouts spec 2.2): below 600px the layout renders as
    one mechanical vertical stack - docks first, then free widgets in layer

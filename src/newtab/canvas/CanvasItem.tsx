@@ -68,13 +68,22 @@ export default function CanvasItem({
 
   // Content-tight (spec 2.2): the item box is the rendered content. Anchored
   // items are positioned by percent and centered on their point; no width or
-  // height is ever imposed here.
+  // height is ever imposed here. Docked members use the lane's grid-stack:
+  // every member shares the single cell and offsets by its own x percent
+  // (margin % resolves against the lane width), centered on that point —
+  // the same ownership model as the canvas (owner-refined 2026-08-18).
   const style: CSSProperties = item.mode === 'anchored' ? {
     position: 'absolute',
     left: `${item.leftPct}%`,
     top: `${item.topPct}%`,
     transform: 'translate(-50%, -50%)',
     zIndex: item.layer,
+  } : item.mode === 'docked' ? {
+    position: 'relative',
+    gridArea: '1 / 1',
+    justifySelf: 'start',
+    marginLeft: `${item.xPct}%`,
+    transform: 'translateX(-50%)',
   } : {
     position: 'relative',
     flex: '0 0 auto',

@@ -672,6 +672,23 @@ export default function WeatherWidget({
                   <dt data-canvas-type-role="metadata" className="text-fg-muted">Humidity</dt>
                   <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">{snapshot.current.humidity}%</dd>
                 </div>
+                {/* Rain outlook from the ALREADY-FETCHED hourly precipitation
+                    probabilities (owner 2026-08-18: fill the panel's empty
+                    cell with something useful, no new request fields). */}
+                <div>
+                  <dt data-canvas-type-role="metadata" className="text-fg-muted">Rain</dt>
+                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                    {(() => {
+                      const peak = snapshot.hourly.reduce(
+                        (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
+                        null as (typeof snapshot.hourly)[number] | null,
+                      )
+                      return peak && peak.precipProb >= 10
+                        ? `${peak.precipProb}% at ${compactHour(peak.time, settings.use24Hour)}`
+                        : 'None expected'
+                    })()}
+                  </dd>
+                </div>
                 {snapshot.sunriseISO && snapshot.sunsetISO && (
                   <div>
                     <dt data-canvas-type-role="metadata" className="text-fg-muted">Sun</dt>

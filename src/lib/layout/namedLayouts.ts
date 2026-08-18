@@ -29,23 +29,42 @@ export interface FreeWidgetPlacement {
   layer: number
 }
 
-/** Horizontal sections of a dock strip (owner direction 2026-08-18: the
- *  user owns placement WITHIN the bar too — "Tasks on the far left all by
- *  its lonesome"). */
+/** Legacy strip sections (the interim 2026-08-18 model, superseded the same
+ *  day by free `x` placement). Still READ from stored documents — never
+ *  written — so section-era saves keep their positions. */
 export const DOCK_ALIGNS = ['start', 'center', 'end'] as const
 export type DockAlign = (typeof DOCK_ALIGNS)[number]
+
+/** A legacy section's equivalent free position across the strip. */
+export const DOCK_ALIGN_X: Readonly<Record<DockAlign, number>> = Object.freeze({
+  start: 8,
+  center: 50,
+  end: 92,
+})
 
 export interface DockedWidgetPlacement {
   kind: 'docked'
   dock: DockEdge
   order: number
-  /** Absent = center (every pre-align document renders exactly as before). */
+  /** The member's CENTER as a percent of the strip's width (owner direction
+   *  2026-08-18: complete control — "far left, or 10 pixels to the right of
+   *  that... just like the regular screen"). Absent: a legacy `align`
+   *  resolves through DOCK_ALIGN_X, else center. */
+  x?: number
+  /** Legacy section (read-only compat; new writes store `x`). */
   align?: DockAlign
   /** The member's chosen size within the strip (owner direction 2026-08-18:
    *  docked Bookmarks compact = the one-letter mark bar). Absent = the
    *  widget's docked default: Bookmarks' full readable bar (spec 2.3
    *  exemption), every other widget's compact composition. */
   tier?: WidgetTier
+}
+
+/** The strip position a docked placement renders at (percent of the strip
+ *  width, member center). */
+export function dockedXPercent(placement: DockedWidgetPlacement): number {
+  if (typeof placement.x === 'number') return Math.min(100, Math.max(0, placement.x))
+  return placement.align ? DOCK_ALIGN_X[placement.align] : 50
 }
 
 /** Enabled globally but not shown in THIS layout (spec 2.5 "hide"). Distinct
@@ -124,6 +143,7 @@ function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
     && Number.isInteger(value.order)
     && (value.order as number) >= 0
     && (value.align === undefined || (typeof value.align === 'string' && ALIGN_SET.has(value.align)))
+    && (value.x === undefined || (typeof value.x === 'number' && Number.isFinite(value.x) && value.x >= 0 && value.x <= 100))
     && (value.tier === undefined || (typeof value.tier === 'string' && TIER_SET.has(value.tier)))
 }
 

@@ -1,9 +1,8 @@
 import {
   cleanLayoutsDocument,
-  DOCK_ALIGNS,
+  dockedXPercent,
   freePlacementFromPoint,
   pointFromFreePlacement,
-  type DockAlign,
   type DockEdge,
   type FreeWidgetPlacement,
   type LayoutsDocument,
@@ -279,71 +278,55 @@ export function dockOrder(layout: NamedLayout, dock: DockEdge): readonly BlockId
 function dockSelectedInternal(
   session: EditSession,
   dock: DockEdge,
-  index: number,
-  align: DockAlign,
+  xPct: number,
   pushUndo: boolean,
 ): EditSession {
   const id = session.selectedId
   if (!id) return session
-  const layout = activeDraftLayout(session)
-  // Members grouped by their stored section (owner direction 2026-08-18:
-  // placement WITHIN the bar is the user's too). The index is WITHIN the
-  // target section; orders renumber section-major (start, center, end) so
-  // they stay unique per dock and the narrow stack reads left-to-right.
-  const sections: Record<DockAlign, BlockId[]> = { start: [], center: [], end: [] }
-  for (const memberId of dockOrder(layout, dock)) {
-    if (memberId === id) continue
-    const placement = layout.widgets[memberId]
-    sections[placement?.kind === 'docked' ? placement.align ?? 'center' : 'center'].push(memberId)
-  }
-  const target = sections[align]
-  const clamped = Math.min(Math.max(0, Math.trunc(index)), target.length)
-  target.splice(clamped, 0, id)
-  const otherEdge: DockEdge = dock === 'top' ? 'bottom' : 'top'
-  const otherMembers = dockOrder(layout, otherEdge).filter((memberId) => memberId !== id)
+  const clampedX = Math.min(100, Math.max(0, xPct))
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
-    // Renumbering never discards a member's chosen size.
-    const tierOf = (memberId: BlockId): WidgetTier | undefined => {
-      const existing = draftLayout.widgets[memberId]
-      return existing?.kind === 'docked' ? existing.tier : undefined
+    const existing = draftLayout.widgets[id]
+    widgets[id] = {
+      kind: 'docked',
+      dock,
+      order: 0,
+      x: clampedX,
+      ...(existing?.kind === 'docked' && existing.tier ? { tier: existing.tier } : {}),
     }
-    let order = 0
-    for (const sectionAlign of DOCK_ALIGNS) {
-      for (const memberId of sections[sectionAlign]) {
-        const tier = tierOf(memberId)
-        widgets[memberId] = { kind: 'docked', dock, order: order++, align: sectionAlign, ...(tier ? { tier } : {}) }
-      }
+    // Orders are DERIVED from position (position IS the order now): both
+    // edges renumber left-to-right so the narrow stack and validation stay
+    // coherent, while every member keeps its exact x, size, and edge.
+    for (const edge of ['top', 'bottom'] as const) {
+      BLOCK_IDS
+        .flatMap((memberId) => {
+          const placement = widgets[memberId]
+          return placement?.kind === 'docked' && placement.dock === edge
+            ? [{ memberId, placement }]
+            : []
+        })
+        .sort((a, b) => dockedXPercent(a.placement) - dockedXPercent(b.placement))
+        .forEach(({ memberId, placement }, order) => {
+          widgets[memberId] = { ...placement, order }
+        })
     }
-    otherMembers.forEach((memberId, otherOrder) => {
-      const existing = draftLayout.widgets[memberId]
-      const tier = tierOf(memberId)
-      widgets[memberId] = {
-        kind: 'docked',
-        dock: otherEdge,
-        order: otherOrder,
-        align: existing?.kind === 'docked' ? existing.align ?? 'center' : 'center',
-        ...(tier ? { tier } : {}),
-      }
-    })
     return { ...draftLayout, widgets }
   }), pushUndo)
 }
 
-/** Docks the selected widget at the given index within the edge's SECTION
- *  (named-layouts spec 2.4, owner-refined 2026-08-18: a strip has start,
- *  center, and end sections; the drop position picks the section, the index
- *  orders within it). Orders in BOTH docks are renumbered compactly. Never
- *  called automatically. */
-export function dockSelected(session: EditSession, dock: DockEdge, index: number, align: DockAlign = 'center'): EditSession {
-  return dockSelectedInternal(session, dock, index, align, true)
+/** Docks the selected widget with its CENTER at `xPct` percent of the
+ *  edge's strip (named-layouts spec 2.4, owner-refined 2026-08-18: complete
+ *  control — any position within the bar, exactly like the canvas). Orders
+ *  in both docks are derived from position. Never called automatically. */
+export function dockSelected(session: EditSession, dock: DockEdge, xPct: number): EditSession {
+  return dockSelectedInternal(session, dock, xPct, true)
 }
 
 /** The drop half of a zone-drag gesture: the drag's first move already
  *  pushed the gesture's one undo entry (review fix I2 — one entry per
  *  gesture), so this variant reuses it. */
-export function dockSelectedLive(session: EditSession, dock: DockEdge, index: number, align: DockAlign = 'center'): EditSession {
-  return dockSelectedInternal(session, dock, index, align, false)
+export function dockSelectedLive(session: EditSession, dock: DockEdge, xPct: number): EditSession {
+  return dockSelectedInternal(session, dock, xPct, false)
 }
 
 function undockSelectedInternal(

@@ -63,22 +63,23 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(screen.queryByTestId('canvas-item-notes')).toBeNull()
   })
 
-  it('renders the three strip sections and places members by their stored align (owner-refined 2026-08-18)', () => {
-    const aligned: NamedLayout = {
+  it('renders each docked member at its OWN exact strip position in one free lane (owner-refined 2026-08-18)', () => {
+    const positioned: NamedLayout = {
       ...LAYOUT,
       widgets: {
         ...LAYOUT.widgets,
-        bookmarks: { kind: 'docked', dock: 'bottom', order: 1, align: 'center' },
-        timer: { kind: 'docked', dock: 'bottom', order: 0, align: 'start' },
+        bookmarks: { kind: 'docked', dock: 'bottom', order: 1 },
+        timer: { kind: 'docked', dock: 'bottom', order: 0, x: 7.25 },
       },
     }
-    renderSurface(aligned)
+    renderSurface(positioned)
     const nav = screen.getByRole('navigation', { name: 'Bottom bar' })
-    const sections = nav.querySelectorAll('.dock-section')
-    expect(sections).toHaveLength(3)
-    expect(nav.querySelector('.dock-section[data-align="start"] [data-block-id="timer"]')).toBeTruthy()
-    expect(nav.querySelector('.dock-section[data-align="center"] [data-block-id="bookmarks"]')).toBeTruthy()
-    expect(nav.querySelector('.dock-section[data-align="end"]')?.children).toHaveLength(0)
+    expect(nav.querySelector('.dock-lane')).toBeTruthy()
+    const timer = screen.getByTestId('canvas-item-timer')
+    expect(timer.style.marginLeft).toBe('7.25%')
+    expect(timer.style.transform).toBe('translateX(-50%)')
+    // A legacy placement without x renders centered.
+    expect(screen.getByTestId('canvas-item-bookmarks').style.marginLeft).toBe('50%')
   })
 
   it('renders docked items in the bottom strip in order, not in the surface', () => {
@@ -138,19 +139,16 @@ describe('CanvasSurface (anchored named layout)', () => {
   })
 
   it('preserves intrinsic strip item widths so sibling launchers cannot paint over each other', () => {
-    expect(indexCss).toMatch(/\.dock-scroller \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
+    expect(indexCss).toMatch(/\.dock-lane \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
   })
 
-  it('the dock strip is a clean status band: no scrollbar ever, fades keyed on true overflow only (spec 2.4)', () => {
-    expect(indexCss).toMatch(/\.dock-scroller\s*\{[^}]*scrollbar-width:\s*none;/)
-    expect(indexCss).toMatch(/\.dock-scroller::-webkit-scrollbar\s*\{[^}]*display:\s*none;/)
-    // Every mask rule requires the measured overflow attribute.
-    const maskRules = indexCss.match(/^[^\n{}]*\{[^}]*mask-image:[^}]*\}/gm) ?? []
-    const dockMaskRules = maskRules.filter((rule) => rule.includes('dock'))
-    expect(dockMaskRules.length).toBeGreaterThanOrEqual(3)
-    for (const rule of dockMaskRules) {
-      expect(rule).toContain('[data-dock-overflow]')
-    }
+  it('the ordered-row scroller machinery is retired, not merely unreachable (free-x docks, owner-refined 2026-08-18)', () => {
+    // Free positioning replaced the flowing row: nothing scrolls or clips,
+    // so no scroller, nub, or overflow-fade rule may survive to squeeze a
+    // member into truncation (the reported top-dock weather clipping).
+    expect(indexCss).not.toContain('.dock-scroller')
+    expect(indexCss).not.toContain('.dock-nub')
+    expect(indexCss).not.toContain('data-dock-overflow')
   })
 
   it('docked members render at their stored size; Bookmarks defaults to the full readable bar (spec 2.3 exemption)', () => {

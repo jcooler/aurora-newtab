@@ -1,6 +1,6 @@
 import {
   ANCHOR_POINTS,
-  type DockAlign,
+  dockedXPercent,
   type DockEdge,
   type LayoutsDocument,
   type NamedLayout,
@@ -23,7 +23,7 @@ export interface AnchoredRenderItem {
   layer: number
 }
 export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier }
-export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; align: DockAlign; dockTier?: WidgetTier }
+export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
 export type LayoutRenderItem = AnchoredRenderItem | StackedRenderItem | DockedRenderItem
 export interface LayoutRenderPlan { narrow: boolean; items: LayoutRenderItem[] }
 
@@ -85,7 +85,7 @@ export function enforceDockEligibility(
 }
 
 interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number }
-interface PlannedDock { id: BlockId; dock: DockEdge; order: number; align: DockAlign; dockTier?: WidgetTier }
+interface PlannedDock { id: BlockId; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
 
 /** The size a docked member renders at: its stored tier when the user chose
  *  one, else the widget's docked default — Bookmarks' full readable bar
@@ -132,7 +132,7 @@ export function planLayoutRender(
           id,
           dock: placement.dock,
           order: placement.order,
-          align: placement.align ?? 'center',
+          xPct: dockedXPercent(placement),
           ...(placement.tier ? { dockTier: placement.tier } : {}),
         })
       }
@@ -173,8 +173,12 @@ export function planLayoutRender(
     })
   }
 
+  // Left-to-right by position (free-x docks): position IS the order now;
+  // the stored order integer only breaks exact-x ties.
   const dockSorted = [...docked].sort((a, b) => (
-    a.dock === b.dock ? a.order - b.order : a.dock === 'top' ? -1 : 1
+    a.dock === b.dock
+      ? (a.xPct === b.xPct ? a.order - b.order : a.xPct - b.xPct)
+      : a.dock === 'top' ? -1 : 1
   ))
 
   if (viewportWidth < NARROW_FLOOR_WIDTH) {
@@ -202,7 +206,7 @@ export function planLayoutRender(
     narrow: false,
     items: [
       ...dockSorted.map((item): DockedRenderItem => ({
-        id: item.id, mode: 'docked', dock: item.dock, order: item.order, align: item.align,
+        id: item.id, mode: 'docked', dock: item.dock, order: item.order, xPct: item.xPct,
         ...(item.dockTier ? { dockTier: item.dockTier } : {}),
       })),
       ...free.map((item): AnchoredRenderItem => ({

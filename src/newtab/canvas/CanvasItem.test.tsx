@@ -37,7 +37,7 @@ describe('CanvasItem', () => {
     const { rerender } = render(
       <CanvasItem
         entry={WIDGET_REGISTRY_BY_ID.github}
-        item={{ id: 'github', mode: 'docked', dock: 'bottom', order: 0, align: 'center' }}
+        item={{ id: 'github', mode: 'docked', dock: 'bottom', order: 0, xPct: 50 }}
       >
         <span>GitHub content</span>
       </CanvasItem>,

@@ -117,13 +117,14 @@ try {
   if (!await page.locator('nav[aria-label="Top bar"]').count()) fail('stage1: top strip gone after reload')
   await stage('1b-top-dock-saved', 'clock docked top, persisted across reload')
 
-  // ---- Stage 2: reorder within a seeded bottom dock ----
+  // ---- Stage 2: reposition within a seeded bottom dock (free-x model:
+  // distinct x per member; order derives from position) ----
   await page.evaluate(async () => {
     const { layouts } = await chrome.storage.local.get('layouts')
     const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
-    active.widgets.timer = { kind: 'docked', dock: 'bottom', order: 0 }
-    active.widgets.tasks = { kind: 'docked', dock: 'bottom', order: 1 }
-    active.widgets.notes = { kind: 'docked', dock: 'bottom', order: 2 }
+    active.widgets.timer = { kind: 'docked', dock: 'bottom', order: 0, x: 40 }
+    active.widgets.tasks = { kind: 'docked', dock: 'bottom', order: 1, x: 52 }
+    active.widgets.notes = { kind: 'docked', dock: 'bottom', order: 2, x: 64 }
     const settings = (await chrome.storage.local.get('settings')).settings
     settings.widgets.timer = true
     await chrome.storage.local.set({ layouts, settings })
@@ -174,14 +175,17 @@ try {
   await stage('3-undocked', 'clock dragged out; empty top dock gone')
 
   // ---- Stage 4: clean overflow at 900x600 with many docked widgets ----
+  // Free-x model (owner-refined 2026-08-18): the ordered scrolling row and
+  // its overflow affordances are RETIRED — members sit at their own stored
+  // positions in one lane. This stage now proves a dense ten-member lane at
+  // a small window stays sane: every member renders at its position, the
+  // page gains no horizontal scroll, and no scroller/nub machinery exists.
   await page.evaluate(async () => {
     const { layouts, settings } = await chrome.storage.local.get(['layouts', 'settings'])
     const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
-    // Dock-eligible widgets only (the NL-P5 hotfix gate: a widget with no
-    // Docked tier renders free, so seeding one here would thin the overflow).
     const docked = ['timer', 'tasks', 'notes', 'focus', 'sun', 'moon', 'worldClocks', 'countdown', 'habits', 'weather']
-    docked.forEach((id, order) => {
-      active.widgets[id] = { kind: 'docked', dock: 'bottom', order }
+    docked.forEach((id, index) => {
+      active.widgets[id] = { kind: 'docked', dock: 'bottom', order: index, x: 5 + index * 10 }
     })
     for (const key of ['timer', 'todo', 'notes', 'sun', 'moon', 'clocks', 'countdown', 'habits', 'weather']) {
       settings.widgets[key] = true
@@ -190,54 +194,26 @@ try {
   })
   await page.setViewportSize({ width: 900, height: 600 })
   await reloadArmed()
-  const scroller = page.locator('nav[aria-label="Bottom bar"] .dock-scroller')
-  const overflowState = await scroller.evaluate((node) => ({
-    overflowing: node.scrollWidth > node.clientWidth + 1,
-    attr: node.getAttribute('data-dock-overflow'),
-    scrollbarSpace: node.offsetHeight - node.clientHeight,
-    scrollbarWidthStyle: getComputedStyle(node).scrollbarWidth,
-    mask: getComputedStyle(node).maskImage,
-    scrollY: window.scrollY,
-  }))
-  if (!overflowState.overflowing) fail('stage4: seeded dock does not truly overflow')
-  if (overflowState.attr !== 'true') fail('stage4: data-dock-overflow missing on true overflow')
-  if (overflowState.scrollbarSpace !== 0) fail(`stage4: scrollbar consumes ${overflowState.scrollbarSpace}px`)
-  if (overflowState.scrollbarWidthStyle !== 'none') fail('stage4: scrollbar-width is not none')
-  if (overflowState.mask === 'none') fail('stage4: no fade mask on the clipped edge')
-  await stage('4a-overflow-start', 'true overflow, end-side fade, no scrollbar')
-  const scrolled = await scroller.evaluate((node) => {
-    const before = { left: node.scrollLeft, pageY: window.scrollY }
-    node.dispatchEvent(new WheelEvent('wheel', { deltaY: 160, bubbles: true, cancelable: true }))
-    return { before, after: { left: node.scrollLeft, pageY: window.scrollY } }
-  })
-  if (scrolled.after.left <= scrolled.before.left) fail('stage4: wheel did not scroll the dock')
-  if (scrolled.after.pageY !== 0) fail('stage4: dock wheel moved the page')
-  await scroller.evaluate((node) => { node.scrollLeft = node.scrollWidth })
-  await page.waitForTimeout(200)
-  const endState = await scroller.evaluate((node) => ({
-    atEnd: node.getAttribute('data-dock-at-end'),
-    atStart: node.getAttribute('data-dock-at-start'),
-  }))
-  if (endState.atEnd !== 'true') fail('stage4: at-end not reported after scrolling to the end')
-  if (endState.atStart === 'true') fail('stage4: at-start incorrectly reported at the end')
-  await stage('4b-overflow-end', 'scrolled to the end: start-side fade only')
-  // Few members -> no overflow affordances at all.
-  await page.evaluate(async () => {
-    const { layouts } = await chrome.storage.local.get('layouts')
-    const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
-    for (const id of ['focus', 'sun', 'moon', 'worldClocks', 'countdown', 'habits', 'weather']) {
-      delete active.widgets[id]
+  const laneState = await page.evaluate(() => {
+    const lane = document.querySelector('nav[aria-label="Bottom bar"] .dock-lane')
+    const members = [...(lane?.querySelectorAll('[data-block-id]') ?? [])]
+    return {
+      memberCount: members.length,
+      scroller: Boolean(document.querySelector('.dock-scroller')),
+      nubs: document.querySelectorAll('.dock-nub').length,
+      pageOverflowX: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+      centers: members.map((node) => Math.round(node.getBoundingClientRect().x + node.getBoundingClientRect().width / 2)),
     }
-    await chrome.storage.local.set({ layouts })
   })
-  await reloadArmed()
-  const fitState = await page.locator('nav[aria-label="Bottom bar"] .dock-scroller').evaluate((node) => ({
-    attr: node.getAttribute('data-dock-overflow'),
-    mask: getComputedStyle(node).maskImage,
-  }))
-  if (fitState.attr === 'true') fail('stage4: overflow reported with content that fits')
-  if (fitState.mask !== 'none') fail('stage4: fade mask painted without true overflow')
-  await stage('4c-no-overflow', 'few members: no fade, no scroll affordance')
+  if (laneState.memberCount !== 10) fail(`stage4: ${laneState.memberCount}/10 members rendered in the lane`)
+  if (laneState.scroller) fail('stage4: retired scroller still renders')
+  if (laneState.nubs > 0) fail('stage4: retired nubs still render')
+  if (laneState.pageOverflowX) fail('stage4: dense lane created horizontal page overflow')
+  const sortedCenters = [...laneState.centers].sort((a, b) => a - b)
+  if (JSON.stringify(laneState.centers) !== JSON.stringify(sortedCenters)) {
+    fail(`stage4: members not laid out left-to-right by position (${laneState.centers.join(',')})`)
+  }
+  await stage('4-dense-free-lane', 'ten members at their own positions, no scroll machinery, no page overflow')
 
   // ---- Stage 6 (before 5): every DOCK-flow write touched only layouts ----
   // (The panel interaction in stage 5 exercises pre-existing widget

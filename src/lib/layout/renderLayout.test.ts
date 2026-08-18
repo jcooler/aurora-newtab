@@ -48,19 +48,29 @@ describe('planLayoutRender (anchored)', () => {
     expect(item.topPct).toBe(100)
   })
 
-  it('keeps docked placements as dock items with their edge, order, and section', () => {
+  it('keeps docked placements as dock items with their edge and exact strip position', () => {
+    // Legacy placements (no x, no align) render centered; a stored x passes
+    // through exactly; a legacy section resolves to its equivalent x.
     expect(plan.items.find((item) => item.id === 'bookmarks')).toEqual({
-      id: 'bookmarks', mode: 'docked', dock: 'bottom', order: 0, align: 'center',
+      id: 'bookmarks', mode: 'docked', dock: 'bottom', order: 0, xPct: 50,
     })
     expect(plan.items.find((item) => item.id === 'timer')).toEqual({
-      id: 'timer', mode: 'docked', dock: 'top', order: 1, align: 'center',
+      id: 'timer', mode: 'docked', dock: 'top', order: 1, xPct: 50,
     })
-    const aligned: NamedLayout = {
+    const positioned: NamedLayout = {
       ...LAYOUT,
-      widgets: { ...LAYOUT.widgets, tasks: { kind: 'docked', dock: 'top', order: 0, align: 'start' } },
+      widgets: {
+        ...LAYOUT.widgets,
+        tasks: { kind: 'docked', dock: 'top', order: 0, x: 13.5 },
+        notes: { kind: 'docked', dock: 'top', order: 2, align: 'end' },
+      },
     }
-    expect(planLayoutRender(aligned, ENABLED, 1408).items.find((item) => item.id === 'tasks')).toEqual({
-      id: 'tasks', mode: 'docked', dock: 'top', order: 0, align: 'start',
+    const items = planLayoutRender(positioned, ENABLED, 1408).items
+    expect(items.find((item) => item.id === 'tasks')).toEqual({
+      id: 'tasks', mode: 'docked', dock: 'top', order: 0, xPct: 13.5,
+    })
+    expect(items.find((item) => item.id === 'notes')).toEqual({
+      id: 'notes', mode: 'docked', dock: 'top', order: 2, xPct: 92,
     })
   })
 

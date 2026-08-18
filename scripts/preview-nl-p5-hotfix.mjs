@@ -258,8 +258,10 @@ try {
     const { layouts } = await chrome.storage.local.get('layouts')
     const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
     active.widgets.monthCal = { kind: 'free', anchor: 'left', offsetX: 10, offsetY: 0, tier: 'standard', layer: 1 }
-    active.widgets.weather = { kind: 'docked', dock: 'bottom', order: 0 }
-    active.widgets.focus = { kind: 'docked', dock: 'bottom', order: 1 }
+    // Distinct x positions: free-x members render centered on their own
+    // spot (two no-x members would stack at the 50% default).
+    active.widgets.weather = { kind: 'docked', dock: 'bottom', order: 0, x: 40 }
+    active.widgets.focus = { kind: 'docked', dock: 'bottom', order: 1, x: 62 }
     await chrome.storage.local.set({ layouts })
   })
   await reloadArmed()
@@ -338,27 +340,25 @@ try {
   await page.waitForTimeout(150)
   await page.mouse.up()
   await page.waitForTimeout(200)
-  const sectionState = await page.evaluate(() => {
-    const focusNode = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="focus"]')
-    const weatherNode = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="weather"]')
-    const focusRect = focusNode?.getBoundingClientRect()
-    const weatherRect = weatherNode?.getBoundingClientRect()
+  const positionState = await page.evaluate(() => {
+    const focusRect = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="focus"]')?.getBoundingClientRect()
+    const weatherRect = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="weather"]')?.getBoundingClientRect()
     return {
-      focusSection: focusNode?.closest('.dock-section')?.getAttribute('data-align'),
-      weatherSection: weatherNode?.closest('.dock-section')?.getAttribute('data-align'),
-      focusCenterX: focusRect ? Math.round(focusRect.x + focusRect.width / 2) : null,
+      focusLeft: focusRect ? Math.round(focusRect.x) : null,
       weatherCenterX: weatherRect ? Math.round(weatherRect.x + weatherRect.width / 2) : null,
     }
   })
-  if (sectionState.focusSection !== 'start') fail(`stage7b: focus not in the start section (${sectionState.focusSection})`)
-  if (sectionState.weatherSection !== 'center') fail(`stage7b: weather left the center section (${sectionState.weatherSection})`)
-  if (sectionState.focusCenterX === null || sectionState.focusCenterX > 1600 / 3) {
-    fail(`stage7b: focus not rendered on the far left (center x ${sectionState.focusCenterX})`)
+  // Free-x placement (owner-refined): the drop pointer IS the position,
+  // clamped only so the member's own box stays inside the bar — a drop at
+  // pixel 140 with a ~290px-wide line means the box HUGS the left edge
+  // (the same safe-margin law the canvas uses).
+  if (positionState.focusLeft === null || positionState.focusLeft > 100) {
+    fail(`stage7b: focus not hugging the strip's left edge (left ${positionState.focusLeft})`)
   }
-  if (sectionState.weatherCenterX === null || Math.abs(sectionState.weatherCenterX - 800) > 220) {
-    fail(`stage7b: weather not rendered near the strip center (center x ${sectionState.weatherCenterX})`)
+  if (positionState.weatherCenterX === null || Math.abs(positionState.weatherCenterX - 700) > 80) {
+    fail(`stage7b: weather moved from its own position ~700 (center x ${positionState.weatherCenterX})`)
   }
-  await stage('7b-far-left-member', 'focus parked far left by its lonesome; weather stays centered')
+  await stage('7b-far-left-member', `focus hugging the left edge at ${positionState.focusLeft}px, weather untouched at ${positionState.weatherCenterX}px`)
   // The dock line wears the Tasks/Notes chip metrics (owner: same size).
   // Measured via a probe span — the seeded location-less weather renders its
   // setup chip, not a dock line, so the strip may hold no real one here.

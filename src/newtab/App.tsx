@@ -7,7 +7,6 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
-  dockOrder,
   dockSelected,
   dockSelectedLive,
   hideSelected,
@@ -23,7 +22,7 @@ import {
   undockSelected,
   undockSelectedLive,
 } from '../lib/layout/editSession'
-import type { DockAlign, DockEdge, NamedLayout } from '../lib/layout/namedLayouts'
+import type { DockEdge } from '../lib/layout/namedLayouts'
 import WidgetInspector from './edit/WidgetInspector'
 import { useCanvasDrag } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
@@ -217,28 +216,20 @@ export default function App() {
 
   const [dragZone, setDragZone] = useState<DockEdge | null>(null)
   const draggingIdRef = useRef<BlockId | null>(null)
-  // The pointer's third of the viewport picks the strip SECTION (spec 2.4,
-  // owner-refined 2026-08-18: start / center / end placement within the bar).
-  const stripAlign = (pointerX: number): DockAlign => (
-    pointerX < window.innerWidth / 3 ? 'start' : pointerX > (window.innerWidth * 2) / 3 ? 'end' : 'center'
-  )
-  // Insertion index WITHIN the target section: its members whose center-x
-  // sits left of the pointer. Measured FRESH from the live DOM each call
-  // (review fix I1).
-  const dockInsertionIndex = (layout: NamedLayout, zone: DockEdge, id: BlockId, pointerX: number, align: DockAlign) => (
-    dockOrder(layout, zone)
-      .filter((memberId) => memberId !== id)
-      .filter((memberId) => {
-        const memberPlacement = layout.widgets[memberId]
-        return (memberPlacement?.kind === 'docked' ? memberPlacement.align ?? 'center' : 'center') === align
-      })
-      .filter((memberId) => {
-        const node = document.querySelector(`[data-block-id="${memberId}"]`)
-        if (!node) return false
-        const rect = node.getBoundingClientRect()
-        return rect.left + rect.width / 2 < pointerX
-      }).length
-  )
+  // The pointer maps DIRECTLY to a strip position (spec 2.4, owner-refined
+  // 2026-08-18: complete control, exactly like the canvas). Clamped so the
+  // dragged member's own box stays inside the bar — measured live because
+  // the strip may not exist yet on the first entry into an empty band.
+  const dockXPercent = (zone: DockEdge, id: BlockId, pointerX: number): number => {
+    const bar = document.querySelector(zone === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar')
+    const rect = bar?.getBoundingClientRect()
+    const left = rect ? rect.left : 72
+    const width = rect && rect.width > 0 ? rect.width : Math.max(1, window.innerWidth - 144)
+    const raw = ((pointerX - left) / width) * 100
+    const memberWidth = itemRectsRef.current.get(id)?.width ?? 0
+    const halfPct = Math.min(50, (memberWidth / 2 / width) * 100)
+    return Math.min(100 - halfPct, Math.max(halfPct, raw))
+  }
   const drag = useCanvasDrag({
     getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
     getItemRects: () => itemRectsRef.current,
@@ -253,11 +244,10 @@ export default function App() {
         const selected = selectWidget(current, id)
         const layout = activeDraftLayout(selected)
         if (context.zone) {
-          const align = stripAlign(context.pointerX)
-          const index = dockInsertionIndex(layout, context.zone, id, context.pointerX, align)
+          const xPct = dockXPercent(context.zone, id, context.pointerX)
           return first
-            ? dockSelected(selected, context.zone, index, align)
-            : dockSelectedLive(selected, context.zone, index, align)
+            ? dockSelected(selected, context.zone, xPct)
+            : dockSelectedLive(selected, context.zone, xPct)
         }
         if (layout.widgets[id]?.kind === 'docked') {
           return first ? undockSelected(selected, point) : undockSelectedLive(selected, point)
@@ -279,10 +269,9 @@ export default function App() {
       editMode.dispatch((current) => {
         const selected = selectWidget(current, id)
         // The moves already docked it live; this re-measures the final
-        // section and index at the exact drop pointer, reusing the
-        // gesture's one undo entry (review fix I2).
-        const align = stripAlign(pointerX)
-        return dockSelectedLive(selected, zone, dockInsertionIndex(activeDraftLayout(selected), zone, id, pointerX, align), align)
+        // position at the exact drop pointer, reusing the gesture's one
+        // undo entry (review fix I2).
+        return dockSelectedLive(selected, zone, dockXPercent(zone, id, pointerX))
       })
     },
   })

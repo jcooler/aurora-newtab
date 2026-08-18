@@ -516,15 +516,36 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     for (const c of cells.slice(1)) expect(c.className).not.toContain('bg-fg')
   })
 
-  it('shows feels-like, wind, humidity and sunrise/sunset as a structured meta grid', async () => {
+  it('shows feels-like, wind, humidity, rain outlook, and sunrise/sunset as a structured meta grid', async () => {
     await renderWidget()
     await expandPanel()
     const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
     expect(details.getByText('Feels like').nextElementSibling?.textContent).toContain('19°')
     expect(details.getByText('Wind').nextElementSibling?.textContent).toContain('14 km/h')
     expect(details.getByText('Humidity').nextElementSibling?.textContent).toContain('55%')
+    // Rain outlook (owner 2026-08-18: fill the panel's empty cell): the PEAK
+    // hourly precipitation probability with its hour, from data already
+    // fetched — no new request fields.
+    expect(details.getByText('Rain').nextElementSibling?.textContent).toMatch(/%\sat\s/)
     expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('6:12 AM')
     expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('7:58 PM')
+  })
+
+  it('reads None expected when every hourly rain probability is negligible', async () => {
+    await renderWidget({
+      snapshot: makeSnapshot({
+        hourly: Array.from({ length: 6 }, (_, index) => ({
+          time: `2026-05-15T${String(10 + index).padStart(2, '0')}:00`,
+          tempC: 20,
+          precipProb: 4,
+          code: 1,
+          isDay: true,
+        })),
+      }),
+    })
+    await expandPanel()
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(details.getByText('Rain').nextElementSibling?.textContent).toBe('None expected')
   })
 
   it('omits the grid entirely rather than drawing a degenerate one', async () => {
