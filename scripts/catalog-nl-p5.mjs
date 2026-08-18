@@ -263,6 +263,15 @@ const lines = [
   '- The docked Weather line omits the free chip\'s staleness/offline feedback text (a one-dense-line tradeoff); a stale cache reads like a fresh one in the strip. Owner call: accept, or add a muted staleness marker.',
   '',
 ]
+// Owner verdicts from the 2026-08-18 batch-1 review session, kept as data so
+// regeneration never erases the record. Default: approved as delivered
+// ("That's really all I got, the rest is good").
+const APPROVED = 'Approved (owner review 2026-08-18)'
+const VERDICTS = {
+  'weather-compact': 'Approved with refinement (2026-08-18): the F/C scale letter was a smidge too large — pinned to the 12px metadata floor. Applied.',
+  'bookmarks-compact': 'Approved with refinement (2026-08-18): single-letter folder marks (N for News, D for Docs, M for Music). Applied.',
+}
+
 for (const { id, label, tiers } of BATCH) {
   lines.push(`## ${label}`, '')
   lines.push('| Tier | Content contract | Capture | Owner verdict |')
@@ -272,7 +281,8 @@ for (const { id, label, tiers } of BATCH) {
     const disclosure = twin
       ? `<br>_Currently renders identically to ${twin}${id === 'bookmarks' ? ' (spec exemption: the full readable bar at every tier)' : ' — tier differentiation pending owner direction'}_`
       : ''
-    lines.push(`| ${tier} | ${CONTRACTS[id][tier]}${disclosure} | ![${id} ${tier}](${id}-${tier}.png) | _pending_ |`)
+    const verdict = VERDICTS[`${id}-${tier}`] ?? APPROVED
+    lines.push(`| ${tier} | ${CONTRACTS[id][tier]}${disclosure} | ![${id} ${tier}](${id}-${tier}.png) | ${verdict} |`)
   }
   lines.push('')
 }

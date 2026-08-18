@@ -1454,6 +1454,12 @@ select > option {
 .canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
   font-size: 20px;
 }
+/* Batch-1 owner review: the compact chip's F/C scale letter was "a smidge
+   too large" at its inherited 0.7em (14px of the 20px digits). Pin it to
+   the documented 12px metadata floor instead. */
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span {
+  font-size: 12px;
+}
 .canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
   /* A collapsed rain callout and stale-status line are both meaningful, so
      retain them in compact rather than hiding either. Keep each line local
@@ -1710,6 +1716,35 @@ select > option {
    the full intrinsic row and its horizontal scroller. */
 .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
   display: none;
+}
+
+/* Batch-1 owner review (2026-08-18): choosing the compact TIER is the
+   explicit opt-in for the one-letter mark form (spec 2.3: "the one-letter
+   form is opt-in or tiny-viewport only") — N for News, D for Docs, M for
+   Music. The ≤720px media variant remains the tiny-viewport floor, and the
+   dock strip keeps the full readable bar per the exemption. */
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="monogram"] {
+  display: inline;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="folder"] {
+  display: none;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-chip-label] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > a,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > button {
+  width: var(--bookmarks-chip-h);
+  justify-content: center;
+  padding-inline: 0;
 }
 
 /* Search's legacy 16rem input is nested below the BoardItem's direct child;

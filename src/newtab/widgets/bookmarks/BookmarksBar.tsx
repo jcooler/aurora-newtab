@@ -134,11 +134,12 @@ const CHIP_SLOT = 'relative min-w-0'
 // and in scripts/preview.mjs's per-label measurements.
 const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-only compact:min-w-0'
 
-/** The compact-mode mark for a FOLDER chip: its own initial.
+/** The compact-mode mark for a FOLDER chip: ONE initial, always.
  *
- *  A row of eight identical folder glyphs identifies nothing — it's the
- *  same failure as eight identical crumbs, one layer down. The initial is
- *  the one character of the title that was never in doubt, set in the
+ *  Batch-1 owner review (2026-08-18): "compact bookmarks should probably
+ *  just say N for news, D for docs, M for music" — a single letter per
+ *  folder, superseding the earlier one-or-two-character rule. The initial
+ *  is the one character of the title that was never in doubt, set in the
  *  page's display face (Space Grotesk — the clock and greeting speak it)
  *  so it reads as a MARK rather than as a label that lost the rest of
  *  itself. Loose bookmarks need none of this: their favicon is already a
@@ -150,8 +151,7 @@ const CHIP_LABEL = 'min-w-[4ch] max-w-32 narrow:max-w-24 truncate compact:sr-onl
 export function folderMonogram(title: string): string {
   const words = title.trim().split(/\s+/).filter(Boolean)
   if (words.length === 0) return '📁'
-  if (words.length === 1) return Array.from(words[0])[0]?.toUpperCase() ?? '📁'
-  return words.slice(0, 2).map((word) => Array.from(word)[0]?.toUpperCase() ?? '').join('') || '📁'
+  return Array.from(words[0])[0]?.toUpperCase() ?? '📁'
 }
 
 type BookmarkMarkInput =

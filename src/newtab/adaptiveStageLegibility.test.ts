@@ -80,6 +80,22 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
       .toMatch(/display:\s*inline\s*;/)
   })
 
+  it('the compact bookmarks TIER opts into single-letter marks (batch-1 owner review)', () => {
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="monogram"]'))
+      .toMatch(/display:\s*inline\s*;/)
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="folder"]'))
+      .toMatch(/display:\s*none\s*;/)
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-chip-label]'))
+      .toMatch(/clip:\s*rect\(0, 0, 0, 0\)\s*;/)
+    // The dock strip is exempt: no docked-mode selector may hide the labels.
+    expect(indexCss).not.toMatch(/data-canvas-mode="docked"\]\[data-block-id="bookmarks"\][^{]*\[data-chip-label\]/)
+  })
+
+  it('pins the compact chip scale letter to the 12px metadata floor (batch-1 owner review)', () => {
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span'))
+      .toMatch(/font-size:\s*12px\s*;/)
+  })
+
   it('keeps compact Canvas Weather condition, location, and disclosure visible', () => {
     const summary = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span')
     expect(summary).toMatch(/flex-wrap:\s*wrap\s*;/)

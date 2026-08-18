@@ -59,15 +59,21 @@ async function renderBar(model: BarModel, onPopoverOpenChange?: (open: boolean) 
 }
 
 describe('BookmarksBar', () => {
-  it('uses recognizable folder monograms and a neutral folder glyph for unnamed folders', () => {
-    expect(folderMonogram('Project Aurora')).toBe('PA')
+  it('uses single-letter folder marks per the batch-1 owner review (N for News, D for Docs)', () => {
+    expect(folderMonogram('News')).toBe('N')
+    expect(folderMonogram('Docs')).toBe('D')
+    expect(folderMonogram('Music')).toBe('M')
+    // Multi-word folders take the FIRST initial only (owner: "just say N").
+    expect(folderMonogram('Project Aurora')).toBe('P')
     expect(folderMonogram('Reading')).toBe('R')
+    // Emoji-prefixed folders keep the whole emoji (code-point split).
+    expect(folderMonogram('\ud83d\udcda Reading')).toBe('\ud83d\udcda')
     expect(folderMonogram('   ')).toBe('\ud83d\udcc1')
   })
 
   it('resolves exactly one deterministic mark for every compact bookmark identity', () => {
     expect(resolveBookmarkMark({ kind: 'folder', title: 'A' })).toEqual({ kind: 'monogram', text: 'A' })
-    expect(resolveBookmarkMark({ kind: 'folder', title: 'Project Aurora' })).toEqual({ kind: 'monogram', text: 'PA' })
+    expect(resolveBookmarkMark({ kind: 'folder', title: 'Project Aurora' })).toEqual({ kind: 'monogram', text: 'P' })
     expect(resolveBookmarkMark({ kind: 'folder', title: '   ' })).toEqual({ kind: 'folder' })
     expect(resolveBookmarkMark({ kind: 'bookmark', url: 'https://docs.example', faviconFailed: false })).toEqual({
       kind: 'favicon',
@@ -303,7 +309,8 @@ describe('BookmarksBar', () => {
     expect(glyph).not.toBeNull()
     expect(glyph.classList.contains('compact:hidden')).toBe(true)
     const mark = reading.querySelector('[data-bookmark-mark="monogram"]')!
-    expect(mark.textContent).toBe('RL')
+    // Single-letter mark per the batch-1 owner review ("just say N for news").
+    expect(mark.textContent).toBe('R')
     expect(mark.getAttribute('aria-hidden')).toBe('true')
     expect(mark.classList.contains('hidden')).toBe(true)
     expect(mark.classList.contains('compact:inline')).toBe(true)
