@@ -14,6 +14,7 @@ import {
 import { calendarColorClass, calendarColorOf } from '../../../services/connectors/calendarColors'
 import type { IcsCalendar, IcsConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import DockLine from '../shared/DockLine'
 
 // The calendar widget — Task 54, the seventh connector and the second
 // no-auth one (ics.ts, Task 53) to reach the newtab page. SOLID CARD as of
@@ -47,7 +48,8 @@ const CALENDAR_ROW_LIMIT: Readonly<Record<WidgetVariant, number>> = {
 
 export default function CalendarWidget({
   stageVariant = 'standard',
-}: { stageVariant?: WidgetVariant } = {}) {
+  docked,
+}: { stageVariant?: WidgetVariant; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (RssWidget/CryptoWidget's own doc comments): the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled
@@ -94,6 +96,7 @@ export default function CalendarWidget({
       upcomingCount={upcomingCount}
       meetLinks={meetLinks}
       stageVariant={stageVariant}
+      docked={docked}
     />
   )
 }
@@ -105,6 +108,7 @@ function CalendarInner({
   upcomingCount,
   meetLinks,
   stageVariant,
+  docked,
 }: {
   config: IcsConfig
   calendars: IcsCalendar[]
@@ -119,6 +123,7 @@ function CalendarInner({
   // connectors subscription), no remount required.
   meetLinks: boolean
   stageVariant: WidgetVariant
+  docked?: boolean
 }) {
   const localDay = useLocalDay()
   // Re-render cadence: reuses the app's existing minute-scale time source
@@ -172,6 +177,9 @@ function CalendarInner({
   )
 
   if (!next) {
+    // Docked tier (NL-P5 batch 2): no next event -> no fact survives, so the
+    // dock line renders nothing (the no-whitespace law), never the empty card.
+    if (docked) return null
     return (
       <section
         aria-label="Calendar"
@@ -185,6 +193,10 @@ function CalendarInner({
   }
 
   const relative = isAllDay(next) ? 'All day' : relNext(nowMs, next.start, localDay.timeZone)
+
+  // Docked tier (NL-P5 batch 2): the headline's own title + time strings as
+  // one dense line — the SAME next/relative derivation the card renders first.
+  if (docked) return <DockLine label="Calendar" facts={[next.summary, relative]} />
 
   // Task 89 — Join visibility, the HEADLINE event only (never an agenda row —
   // rows render through formatAgendaRow below, which never touches meetUrl):

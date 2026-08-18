@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchGithub, resolveGithubViews, type GithubData, type GithubItem } from '../../../services/connectors/github'
 import type { ConnectorConfig, GithubConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
@@ -64,7 +65,7 @@ function connectedGithub(config: ConnectorConfig | undefined): GithubConfig | nu
   return github
 }
 
-export default function GithubWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function GithubWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as RssWidget: the one useStoredKey read
   // runs every render (Rules of Hooks stay satisfied), but a disabled/
   // unconnected connector never mounts GithubInner and therefore never runs
@@ -81,10 +82,10 @@ export default function GithubWidget({ canvasSize }: { canvasSize?: CanvasSize }
   // laps the Tasks pill). This governs the graph's reveal tier — see GithubInner
   // and App.tsx's right-rail comment.
   const forgeSiblings = (connectors?.gitlab?.enabled ? 1 : 0) + (connectors?.jira?.enabled ? 1 : 0)
-  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} />
+  return <GithubInner github={github} forgeSiblings={forgeSiblings} canvasSize={canvasSize} docked={docked} />
 }
 
-function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize }) {
+function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: GithubConfig; forgeSiblings: number; canvasSize?: CanvasSize; docked?: boolean }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately and
   // refreshes once per mount, carrying `prev` so ETag 304s keep each section.
   // The user's resolved views gate the fetch (a section turned off never issues
@@ -198,6 +199,24 @@ function GithubInner({ github, forgeSiblings, canvasSize }: { github: GithubConf
     : prioritizedCount > 0
       ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
       : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, spec 2.3's own example shape): dense facts
+  // from the SAME derivations the card renders — one data owner, no second
+  // fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allPrs.length > 0 && `${allPrs.length} PR${allPrs.length === 1 ? '' : 's'}`,
+      allIssues.length > 0 && `${allIssues.length} issue${allIssues.length === 1 ? '' : 's'}`,
+      chipShows && `${notifications >= NOTIF_CAP ? '50+' : notifications} unread`,
+    ]
+    return (
+      <DockLine
+        label="GitHub"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface: the solid panel token per the house rule for

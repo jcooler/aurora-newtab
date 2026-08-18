@@ -259,6 +259,21 @@ describe('HomeAssistantWidget — gate (zero-hooks-in-the-gate, no-husk law)', (
 })
 
 describe('HomeAssistantWidget — chip copy', () => {
+  it('Docked renders one dense line with the first chip copy and no dashboard (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED, { entities: [KITCHEN, PORCH] })
+    render(
+      <StorageProvider storage={storage}>
+        <HomeAssistantWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Home Assistant: Kitchen 21.5°C')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the dashboard entirely — no other chips, no
+    // action buttons.
+    expect(screen.queryByText('Porch light on')).toBeNull()
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('renders "Kitchen 21.5°C" (unit rides with no space) and "Porch light on" (unit omitted) exactly', async () => {
     const storage = await seededStorage(CONNECTED, { entities: [KITCHEN, PORCH] })
     mount(storage)

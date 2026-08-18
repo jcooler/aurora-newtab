@@ -98,6 +98,21 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it('Docked renders one dense line from the same snapshot and no strip (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED, ALL_GREEN)
+    render(
+      <StorageProvider storage={storage}>
+        <StatusWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Service status: All operational, 2 services')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the strip entirely — no heading, no dot row.
+    expect(screen.queryByText('Service status')).toBeNull()
+    expect(document.querySelectorAll('span[title]')).toHaveLength(0)
+  })
+
   it('keeps the health summary in Compact while reserving service dots for Standard and Full', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     const view = mount(storage, 'compact')

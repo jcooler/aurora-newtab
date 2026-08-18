@@ -71,6 +71,20 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('VercelWidget', () => {
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <VercelWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Vercel: 1 failure, 3 deployments')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no deployment rows.
+    expect(screen.queryByText('api-broken')).toBeNull()
+  })
+
   it('Compact keeps a real deployment health primary value and never claims there are no deployments', async () => {
     mount(await seededStorage(CONNECTED, DATA), 'compact')
     expect(await screen.findByLabelText('Vercel: 1 failure, 3 deployments')).toBeTruthy()

@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchVercel, DEFAULT_VERCEL_VIEWS, relAge, type VercelData, type VercelDeployment } from '../../../services/connectors/vercel'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, VercelConfig, VercelViews } from '../../../services/connectors/types'
+import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
@@ -54,7 +55,7 @@ function connectedVercel(config: ConnectorConfig | undefined): VercelConfig | nu
   return vercel
 }
 
-export default function VercelWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function VercelWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget/JiraWidget:
   // the one useStoredKey read runs every render (Rules of Hooks stay
   // satisfied), but a disabled/unconnected connector never mounts VercelInner
@@ -68,6 +69,7 @@ export default function VercelWidget({ canvasSize }: { canvasSize?: CanvasSize }
       token={vercel.token}
       views={resolveViews(DEFAULT_VERCEL_VIEWS, vercel.views)}
       canvasSize={canvasSize}
+      docked={docked}
     />
   )
 }
@@ -77,11 +79,13 @@ function VercelInner({
   token,
   views,
   canvasSize,
+  docked,
 }: {
   vercel: VercelConfig
   token: string
   views: VercelViews
   canvasSize?: CanvasSize
+  docked?: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchVercel's
@@ -145,6 +149,19 @@ function VercelInner({
       : allDeployments.length > 0
         ? 'All ready'
         : 'No deployments'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): the SAME
+  // deployment-health summary the card renders, as one dense line — one data
+  // owner, no second fetch. The no-husk return above covered the no-data case.
+  if (docked) {
+    return (
+      <DockLine
+        label="Vercel"
+        facts={[summaryValue, allDeployments.length > 0 && `${allDeployments.length} deployments`]}
+        tone={failedCount > 0 ? 'critical' : pendingCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   // The Adaptive Stage owns collision and Dock allocation. This connector
   // therefore stays represented at every height; semantic variant work may

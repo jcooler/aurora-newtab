@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchCrypto, type CoinRow, type CryptoData } from '../../../services/connectors/crypto'
 import type { CryptoConfig } from '../../../services/connectors/types'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
+import DockLine from '../shared/DockLine'
 
 // CryptoConfig caps at 5 coins (types.ts's own comment) and the service's
 // own PER_PAGE mirrors it — this is a defensive re-slice at the display
@@ -10,7 +11,7 @@ import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 // re-slice of a service result that's already capped.
 const MAX_COINS = 5
 
-export default function CryptoWidget({ canvasSize = 'standard' }: { canvasSize?: CanvasSize } = {}) {
+export default function CryptoWidget({ canvasSize = 'standard', docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget: the
   // one useStoredKey read runs every render (Rules of Hooks stay satisfied),
   // but a disabled connector, or an enabled one with no coins configured yet,
@@ -23,10 +24,10 @@ export default function CryptoWidget({ canvasSize = 'standard' }: { canvasSize?:
   const [connectors] = useStoredKey('connectors')
   const crypto = connectors?.crypto as CryptoConfig | undefined
   if (!crypto?.enabled || !Array.isArray(crypto.coins) || crypto.coins.length === 0) return null
-  return <CryptoInner crypto={crypto} canvasSize={canvasSize} />
+  return <CryptoInner crypto={crypto} canvasSize={canvasSize} docked={docked} />
 }
 
-function CryptoInner({ crypto, canvasSize }: { crypto: CryptoConfig; canvasSize: CanvasSize }) {
+function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; canvasSize: CanvasSize; docked?: boolean }) {
   const { coins } = crypto
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so fetchCrypto's
@@ -45,6 +46,16 @@ function CryptoInner({ crypto, canvasSize }: { crypto: CryptoConfig; canvasSize:
   // widget (the service owns ordering, the widget owns display).
   const rows = (data.coins ?? []).slice(0, canvasSize === 'compact' ? 1 : MAX_COINS)
   const empty = rows.length === 0
+
+  // Docked tier (NL-P5 batch 2): the first configured coin's own cell strings
+  // as one dense fact — same snapshot-ordered rows, no second fetch. The
+  // symbol is uppercased in JS here because the strip's `uppercase` is a CSS
+  // paint-time transform the dock line doesn't carry; no rows -> no fact ->
+  // DockLine renders nothing (the no-whitespace law).
+  if (docked) {
+    const first = rows[0]
+    return <DockLine label="Crypto" facts={[first && `${first.symbol.toUpperCase()} ${formatPrice(first.price)}`]} />
+  }
 
   return (
     // A slim floating STRIP, not a panel — no bg-panel-solid/shadow/rounded

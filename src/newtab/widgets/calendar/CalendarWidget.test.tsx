@@ -148,6 +148,22 @@ describe('CalendarWidget', () => {
     vi.useRealTimers()
   })
 
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED, { events: [EVENT_NEXT, EVENT_B] })
+    render(
+      <StorageProvider storage={storage}>
+        <CalendarWidget docked />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const line = screen.getByLabelText('Calendar: Standup, in 2 h')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the card entirely — no headline, no agenda rows.
+    expect(screen.queryByText('Next: Standup · in 2 h')).toBeNull()
+    expect(screen.queryByText('14:00 Design review')).toBeNull()
+  })
+
   it("renders the next-line + up to 2 agenda rows (today's remaining events, excluding next and tomorrow)", async () => {
     const storage = await seededStorage(CONNECTED, {
       events: [EVENT_NEXT, EVENT_B, EVENT_C, EVENT_TOMORROW],

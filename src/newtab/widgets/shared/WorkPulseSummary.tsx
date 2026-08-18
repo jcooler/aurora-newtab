@@ -1,6 +1,8 @@
 export type WorkPulseTone = 'quiet' | 'attention' | 'critical' | 'unknown'
 
-const TONE_CLASS: Record<WorkPulseTone, string> = {
+/** Shared with DockLine (NL-P5 batch 2): one tone palette for summaries and
+ *  Docked-tier lines. */
+export const TONE_CLASS: Record<WorkPulseTone, string> = {
   quiet: 'text-fg-muted',
   attention: 'text-accent',
   critical: 'text-red-400',

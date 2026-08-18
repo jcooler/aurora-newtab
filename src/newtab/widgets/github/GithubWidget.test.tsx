@@ -75,6 +75,20 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GithubWidget', () => {
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <GithubWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('GitHub: 2 PRs, 1 issue, 3 unread')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no graph.
+    expect(screen.queryByText('Fix the flaky login test')).toBeNull()
+  })
+
   it('Compact derives attention from selected PR and issue rows when notifications are zero', async () => {
     const selectedRows: GithubConfig = {
       ...CONNECTED,

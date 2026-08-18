@@ -61,6 +61,28 @@ describe('HabitsWidget', () => {
     intervalSpy.mockRestore()
   })
 
+  it('Docked renders one dense done-today tally and no chips (NL-P5 batch 2)', async () => {
+    const todayKey = localDateKey(new Date())
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, habits: true },
+    })
+    await storage.set('habits', [habit('h1', 'Read', [todayKey]), habit('h2', 'Run')])
+    render(
+      <StorageProvider storage={storage}>
+        <HabitsWidget docked />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    const line = screen.getByLabelText('Habits: 1/2 today')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the chips entirely — no toggle buttons.
+    expect(screen.queryByRole('button')).toBeNull()
+  })
+
   it('renders nothing while settings.widgets.habits is off', async () => {
     const { container } = await renderWithHabits([habit('h1', 'Read')], { widgetsOn: false })
     expect(container.firstChild).toBeNull()

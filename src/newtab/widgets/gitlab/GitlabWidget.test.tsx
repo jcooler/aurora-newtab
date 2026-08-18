@@ -70,6 +70,20 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GitlabWidget', () => {
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <GitlabWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('GitLab: 2 MRs, 6 to-dos')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no to-dos chip.
+    expect(screen.queryByText('Add rate limiting to the ingest API')).toBeNull()
+  })
+
   it('Compact derives attention from selected MRs when to-dos are zero', async () => {
     const selectedMrs: GitlabConfig = {
       ...CONNECTED,

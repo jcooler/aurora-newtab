@@ -5,6 +5,7 @@ import { DEFAULT_GITLAB_VIEWS } from '../../../services/connectors/gitlab'
 import { resolveGithubViews } from '../../../services/connectors/github'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, JiraConfig, JiraViews, GitlabConfig, GithubConfig } from '../../../services/connectors/types'
+import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
@@ -76,7 +77,7 @@ function connectedJira(config: ConnectorConfig | undefined): JiraConfig | null {
   return jira
 }
 
-export default function JiraWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function JiraWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/GitlabWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts JiraInner and therefore
@@ -122,6 +123,7 @@ export default function JiraWidget({ canvasSize }: { canvasSize?: CanvasSize } =
       gitlabReviewAsksEnabled={gitlabReviewAsksEnabled}
       anyGraphEnabled={anyGraphEnabled}
       canvasSize={canvasSize}
+      docked={docked}
     />
   )
 }
@@ -136,6 +138,7 @@ function JiraInner({
   gitlabReviewAsksEnabled,
   anyGraphEnabled,
   canvasSize,
+  docked,
 }: {
   jira: JiraConfig
   site: string
@@ -146,6 +149,7 @@ function JiraInner({
   gitlabReviewAsksEnabled: boolean
   anyGraphEnabled: boolean
   canvasSize?: CanvasSize
+  docked?: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so the two-section fetch's
@@ -251,6 +255,23 @@ function JiraInner({
   const summaryValue = attentionCount > 0
     ? `${attentionCount} active ${attentionCount === 1 ? 'item' : 'items'}`
     : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): dense facts
+  // from the SAME selected-view lists the card renders — one data owner, no
+  // second fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allIssues.length > 0 && `${allIssues.length} assigned`,
+      allDueSoon.length > 0 && `${allDueSoon.length} due soon`,
+    ]
+    return (
+      <DockLine
+        label="Jira"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={attentionCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's/

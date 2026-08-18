@@ -3,6 +3,7 @@ import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { useStorage } from '../../../lib/storage/context'
 import { streak, toggleDay } from '../../../lib/habits'
 import type { Habit } from '../../../lib/storage/schema'
+import DockLine from '../shared/DockLine'
 
 // Display cap — mirrors Widgets.tsx's own MAX_HABITS (the editor's write-side
 // cap). Kept as an independent local constant, same as every other capped
@@ -14,7 +15,7 @@ import type { Habit } from '../../../lib/storage/schema'
 // and this slice is what keeps that case from ever rendering a 7th chip.
 const MAX_HABIT_CHIPS = 6
 
-export default function HabitsWidget() {
+export default function HabitsWidget({ docked }: { docked?: boolean } = {}) {
   // Gate BEFORE the ticking clock exists — same shape as WorldClocks/
   // BookmarksBar/TimerWidget: disabled tabs (the default — settings.widgets
   // .habits starts false) or an enabled-but-empty list never mount
@@ -31,10 +32,10 @@ export default function HabitsWidget() {
   const [settings] = useStoredKey('settings')
   const [habits] = useStoredKey('habits')
   if (!settings?.widgets.habits || !Array.isArray(habits) || habits.length === 0) return null
-  return <HabitsInner habits={habits} />
+  return <HabitsInner habits={habits} docked={docked} />
 }
 
-function HabitsInner({ habits }: { habits: Habit[] }) {
+function HabitsInner({ habits, docked }: { habits: Habit[]; docked?: boolean }) {
   const storage = useStorage()
   // The ONE impure boundary in this widget: the coherent local-day identity.
   // The shared scheduler handles midnight, restoration, and timezone changes
@@ -45,6 +46,13 @@ function HabitsInner({ habits }: { habits: Habit[] }) {
     void storage.update('habits', (list) =>
       list.map((h) => (h.id === habitId ? { ...h, log: toggleDay(h.log, todayKey) } : h)),
     )
+
+  // Docked tier (NL-P5 batch 2): the done-today tally as one dense fact —
+  // the SAME log/todayKey membership check each chip renders, no writes.
+  if (docked) {
+    const doneToday = habits.filter((h) => h.log.includes(todayKey)).length
+    return <DockLine label="Habits" facts={[`${doneToday}/${habits.length} today`]} />
+  }
 
   return (
     <div className="w-[200px] flex flex-col gap-2 short:gap-1.5 xshort:gap-1">

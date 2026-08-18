@@ -6,6 +6,7 @@ import { DEFAULT_JIRA_VIEWS } from '../../../services/connectors/jira'
 import { resolveViews } from '../../../services/connectors/views'
 import type { ConnectorConfig, GitlabConfig, GitlabViews, GithubConfig, JiraConfig } from '../../../services/connectors/types'
 import ContributionGraph from '../shared/ContributionGraph'
+import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
@@ -94,7 +95,7 @@ function connectedGitlab(config: ConnectorConfig | undefined): GitlabConfig | nu
   return gitlab
 }
 
-export default function GitlabWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function GitlabWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as GithubWidget/RssWidget: the one
   // useStoredKey read runs every render (Rules of Hooks stay satisfied), but a
   // disabled/unconnected connector never mounts GitlabInner and therefore
@@ -149,6 +150,7 @@ export default function GitlabWidget({ canvasSize }: { canvasSize?: CanvasSize }
       jiraEnabled={jiraEnabled}
       jiraDueSoonEnabled={jiraDueSoonEnabled}
       canvasSize={canvasSize}
+      docked={docked}
     />
   )
 }
@@ -164,6 +166,7 @@ function GitlabInner({
   jiraEnabled,
   jiraDueSoonEnabled,
   canvasSize,
+  docked,
 }: {
   gitlab: GitlabConfig
   token: string
@@ -175,6 +178,7 @@ function GitlabInner({
   jiraEnabled: boolean
   jiraDueSoonEnabled: boolean
   canvasSize?: CanvasSize
+  docked?: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` so a per-section failure
@@ -330,6 +334,24 @@ function GitlabInner({
     : prioritizedCount > 0
       ? `${prioritizedCount} open ${prioritizedCount === 1 ? 'item' : 'items'}`
       : 'All clear'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): dense facts
+  // from the SAME derivations the card renders — one data owner, no second
+  // fetch. The no-husk return above already covered the no-data case.
+  if (docked) {
+    const dockFacts = [
+      allMrs.length > 0 && `${allMrs.length} MR${allMrs.length === 1 ? '' : 's'}`,
+      allReviewMrs.length > 0 && `${allReviewMrs.length} review${allReviewMrs.length === 1 ? '' : 's'}`,
+      chipShows && `${todos >= TODOS_CAP ? '20+' : todos} to-dos`,
+    ]
+    return (
+      <DockLine
+        label="GitLab"
+        facts={dockFacts.some(Boolean) ? dockFacts : ['All clear']}
+        tone={chipShows || prioritizedCount > 0 ? 'attention' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // Floating panel surface — identical shape/elevation to GithubWidget's

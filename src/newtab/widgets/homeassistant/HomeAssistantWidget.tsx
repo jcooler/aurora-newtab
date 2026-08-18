@@ -18,6 +18,7 @@ import {
 import type { ConnectorConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
+import DockLine from '../shared/DockLine'
 
 const HA_VARIANT_LIMITS: Readonly<Record<WidgetVariant, Readonly<{ states: number; actions: number }>>> = {
   compact: { states: 2, actions: 0 },
@@ -99,7 +100,8 @@ export function chipCopy(s: HaState): string {
 export default function HomeAssistantWidget({
   stageVariant = 'standard',
   utilityTray,
-}: { stageVariant?: WidgetVariant; utilityTray?: UtilityTrayBridge } = {}) {
+  docked,
+}: { stageVariant?: WidgetVariant; utilityTray?: UtilityTrayBridge; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (StatusWidget.tsx's own doc comment): the one useStoredKey read runs
   // every render (Rules of Hooks stay satisfied), but a disabled/unconnected
@@ -133,6 +135,7 @@ export default function HomeAssistantWidget({
       actions={actions}
       stageVariant={stageVariant}
       utilityTray={utilityTray}
+      docked={docked}
     />
   )
 }
@@ -145,6 +148,7 @@ function HomeAssistantInner({
   actions,
   stageVariant,
   utilityTray,
+  docked,
 }: {
   config: HomeAssistantConfig
   instanceUrl: string
@@ -153,6 +157,7 @@ function HomeAssistantInner({
   actions: HaAction[]
   stageVariant: WidgetVariant
   utilityTray?: UtilityTrayBridge
+  docked?: boolean
 }) {
   // NO prev arg, by design (plan-pinned ruling 2, this file's header
   // comment): fetchHomeAssistant itself takes no `prev` parameter at all
@@ -187,6 +192,18 @@ function HomeAssistantInner({
   // state), so it alone can still justify rendering — this only returns null
   // when NEITHER would leave anything visible.
   if (chips.length === 0 && actions.length === 0) return null
+
+  // Docked tier (NL-P5 batch 2): the first chip's own copy (or the actions
+  // count when only actions are picked) as one dense line — the SAME
+  // poll-backed chips/static actions the dashboard renders, no second fetch.
+  if (docked) {
+    return (
+      <DockLine
+        label="Home Assistant"
+        facts={[chips.length > 0 ? chipCopy(chips[0]) : `${actions.length} actions`]}
+      />
+    )
+  }
 
   const limits = HA_VARIANT_LIMITS[stageVariant]
   const visibleChips = chips.slice(0, limits.states)

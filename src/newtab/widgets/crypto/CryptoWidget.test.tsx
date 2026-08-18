@@ -57,6 +57,20 @@ function mount(storage: AuroraStorage) {
 }
 
 describe('CryptoWidget', () => {
+  it('Docked renders one dense line with the first coin cell and no strip (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <CryptoWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Crypto: DOGE $0.1234')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the strip entirely — no other coin cells.
+    expect(screen.queryByText('btc')).toBeNull()
+    expect(screen.queryByText('$67,412')).toBeNull()
+  })
+
   it('renders one cell per seeded coin (symbol, price, change) in the CONFIGURED order, not market-cap order', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

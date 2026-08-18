@@ -3,6 +3,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { fetchHeadlines, type Headline } from '../../../services/connectors/rss'
 import type { RssConfig } from '../../../services/connectors/types'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import DockLine from '../shared/DockLine'
 
 const RSS_VARIANT_ROWS: Readonly<Record<WidgetVariant, number>> = {
   compact: 2,
@@ -12,7 +13,8 @@ const RSS_VARIANT_ROWS: Readonly<Record<WidgetVariant, number>> = {
 
 export default function RssWidget({
   stageVariant = 'standard',
-}: { stageVariant?: WidgetVariant } = {}) {
+  docked,
+}: { stageVariant?: WidgetVariant; docked?: boolean } = {}) {
   // Gate BEFORE the snapshot hook exists — same shape as WorldClocks/Notes.
   // The one useStoredKey read runs unconditionally every render (Rules of
   // Hooks stay satisfied), but a disabled connector, or an enabled one with no
@@ -32,7 +34,7 @@ export default function RssWidget({
   // legally restore { rss: { enabled: true } } with no feeds array at all.
   // The type says feeds: string[]; storage doesn't promise it.
   if (!rss?.enabled || !Array.isArray(rss.feeds) || rss.feeds.length === 0) return null
-  return <RssInner rss={rss} stageVariant={stageVariant} />
+  return <RssInner rss={rss} stageVariant={stageVariant} docked={docked} />
 }
 
 // Short-tier row cap (resize-continuity task — RE-DERIVED for the compact/dense
@@ -65,7 +67,7 @@ const RSS_SHORT_ROWS = 4
 // only one row cap ever applies at a time.
 const RSS_MID_ROWS = 8
 
-function RssInner({ rss, stageVariant }: { rss: RssConfig; stageVariant: WidgetVariant }) {
+function RssInner({ rss, stageVariant, docked }: { rss: RssConfig; stageVariant: WidgetVariant; docked?: boolean }) {
   const { feeds, shownCount } = rss
   // Stale-while-refreshing by construction: the hook returns the cached
   // snapshot immediately and refreshes in the background once per mount. A
@@ -81,6 +83,10 @@ function RssInner({ rss, stageVariant }: { rss: RssConfig; stageVariant: WidgetV
   // current setting without waiting for the next refresh.
   const headlines = (data ?? []).slice(0, Math.min(shownCount, RSS_VARIANT_ROWS[stageVariant]))
   if (headlines.length === 0) return null
+
+  // Docked tier (NL-P5 batch 2): the first headline as one dense line — the
+  // SAME first-item derivation the card renders, no second fetch.
+  if (docked) return <DockLine label="Headlines" facts={[headlines[0].title]} />
 
   return (
     // Solid card (Jon's darker-color ruling — "put a background on the news

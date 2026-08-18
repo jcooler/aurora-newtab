@@ -62,6 +62,21 @@ function mount(storage: AuroraStorage, stageVariant: WidgetVariant = 'expanded')
 }
 
 describe('RssWidget', () => {
+  it('Docked renders one dense line with the first headline and no card (NL-P5 batch 2)', async () => {
+    const config: RssConfig = { enabled: true, feeds: ['https://feeds.example/a'], shownCount: 5 }
+    const storage = await seededStorage(config)
+    render(
+      <StorageProvider storage={storage}>
+        <RssWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Headlines: First headline about ships')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    // The dense line replaces the card entirely — no other rows, no source labels.
+    expect(screen.queryByText('Second headline about robots')).toBeNull()
+    expect(screen.queryByText('Hacker News')).toBeNull()
+  })
+
   it('drops feed A immediately while a preserved mount waits for feed B', async () => {
     const configForA: RssConfig = {
       enabled: true,

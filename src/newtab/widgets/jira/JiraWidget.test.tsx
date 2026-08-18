@@ -69,6 +69,20 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('JiraWidget', () => {
+  it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
+    const storage = await seededStorage(CONNECTED)
+    render(
+      <StorageProvider storage={storage}>
+        <JiraWidget docked />
+      </StorageProvider>,
+    )
+    const line = await screen.findByLabelText('Jira: 2 assigned')
+    expect(line.getAttribute('data-dock-line')).toBe('')
+    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
+    // The dense line replaces the card entirely — no rows, no counts line.
+    expect(screen.queryByText('Fix the flaky auth test on CI')).toBeNull()
+  })
+
   it('renders issue rows plus the counts line from the seeded snapshot', async () => {
     const storage = await seededStorage(CONNECTED)
     mount(storage)

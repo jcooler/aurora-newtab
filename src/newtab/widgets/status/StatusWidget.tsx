@@ -8,6 +8,7 @@ import {
   type StatusIndicator,
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
+import DockLine from '../shared/DockLine'
 import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
@@ -31,7 +32,7 @@ const SEVERITY_RANK: Record<'critical' | 'major' | 'minor', number> = {
   minor: 2,
 }
 
-export default function StatusWidget({ canvasSize }: { canvasSize?: CanvasSize } = {}) {
+export default function StatusWidget({ canvasSize, docked }: { canvasSize?: CanvasSize; docked?: boolean } = {}) {
   // Zero-hooks-in-the-gate split, same as every other connector widget
   // (CryptoWidget.tsx's own doc comment, the Task 84 brief's named
   // template): the one useStoredKey read runs every render (Rules of Hooks
@@ -62,6 +63,7 @@ export default function StatusWidget({ canvasSize }: { canvasSize?: CanvasSize }
       config={status}
       services={services}
       canvasSize={canvasSize}
+      docked={docked}
     />
   )
 }
@@ -70,10 +72,12 @@ function StatusInner({
   config,
   services,
   canvasSize,
+  docked,
 }: {
   config: StatusConfig
   services: { name: string; url: string }[]
   canvasSize?: CanvasSize
+  docked?: boolean
 }) {
   // Stale-while-refreshing: the hook returns the cached snapshot immediately
   // and refreshes once per mount, carrying `prev` forward (though fetchStatus
@@ -112,6 +116,19 @@ function StatusInner({
     : unknownCount > 0
       ? `${unknownCount} unreachable`
       : 'All operational'
+
+  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): the SAME
+  // health summary the strip renders, as one dense line — one data owner, no
+  // second fetch. The data guard above covered the never-fetched case.
+  if (docked) {
+    return (
+      <DockLine
+        label="Service status"
+        facts={[summaryValue, `${rows.length} services`]}
+        tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
+      />
+    )
+  }
 
   return (
     // A slim floating STRIP, not a panel — the SAME `w-88 text-center`
