@@ -182,6 +182,15 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]\[data-block-id="bookmarks"\] \[data-bookmark-mark="monogram"\]\s*\{[^}]*display:\s*inline/)
   })
 
+  it('the photo legibility wash never follows the widget color (owner-reported 2026-08-18)', () => {
+    // The wash dims the photograph; settings.panelColor re-tints
+    // --panel-solid. A red widget pick used to flood the whole image with
+    // red because the layer borrowed that token.
+    const washBlock = indexCss.match(/\.canvas-legibility-layer\s*\{[^}]*\}/)?.[0] ?? ''
+    expect(washBlock).toContain('var(--canvas-wash)')
+    expect(washBlock).not.toContain('var(--panel-solid)')
+  })
+
   it('dock-line typography is pinned to the chip metrics AND actually wins the cascade against the type roles', () => {
     expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role\]\s*\{[^}]*font-size:\s*14px/)
     expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role="metadata"\]\s*\{[^}]*font-size:\s*11px/)

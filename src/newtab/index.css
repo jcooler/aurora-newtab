@@ -48,16 +48,20 @@
   isolation: isolate;
 }
 
+/* The photo wash dims the image for legibility and is a property of the
+   PHOTOGRAPH, not of the configurable widget surface — it uses the fixed
+   --canvas-wash, never --panel-solid, so a widget color pick can never
+   tint the background image (owner-reported 2026-08-18). */
 .canvas-legibility-layer {
   position: absolute;
   z-index: 0;
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(to bottom, color-mix(in srgb, var(--panel-solid) 56%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 32%, transparent) 14%, transparent 32%),
-    radial-gradient(ellipse at center, color-mix(in srgb, var(--panel-solid) 68%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 48%, transparent) 34%, color-mix(in srgb, var(--panel-solid) 16%, transparent) 68%),
-    linear-gradient(to right, color-mix(in srgb, var(--panel-solid) 34%, transparent) 0%, transparent 24%, transparent 76%, color-mix(in srgb, var(--panel-solid) 34%, transparent) 100%),
-    linear-gradient(to top, color-mix(in srgb, var(--panel-solid) 42%, transparent) 0%, color-mix(in srgb, var(--panel-solid) 14%, transparent) 14%, transparent 32%);
+    linear-gradient(to bottom, color-mix(in srgb, var(--canvas-wash) 56%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 32%, transparent) 14%, transparent 32%),
+    radial-gradient(ellipse at center, color-mix(in srgb, var(--canvas-wash) 68%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 48%, transparent) 34%, color-mix(in srgb, var(--canvas-wash) 16%, transparent) 68%),
+    linear-gradient(to right, color-mix(in srgb, var(--canvas-wash) 34%, transparent) 0%, transparent 24%, transparent 76%, color-mix(in srgb, var(--canvas-wash) 34%, transparent) 100%),
+    linear-gradient(to top, color-mix(in srgb, var(--canvas-wash) 42%, transparent) 0%, color-mix(in srgb, var(--canvas-wash) 14%, transparent) 14%, transparent 32%);
 }
 
 .canvas-item {

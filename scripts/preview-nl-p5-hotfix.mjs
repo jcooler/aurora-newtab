@@ -483,6 +483,35 @@ try {
   }
   await stage('8b-real-weather-line', `real 89°F line: digits ${lineTruth?.digitsFont}/${lineTruth?.digitsWeight}, letter ${lineTruth?.letterFont}, ${lineTruth?.lineHeightPx}px vs Tasks ${lineTruth?.tasksChipHeightPx}px`)
 
+  // ---- Stage 8c: a red widget color re-tints widget pills, NEVER the photo ----
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, panelColor: '#dc2626' } })
+  })
+  await reloadArmed()
+  const colorTruth = await page.evaluate(() => {
+    const wash = document.querySelector('.canvas-legibility-layer')
+    const pill = document.querySelector('nav[aria-label="Bottom bar"] .dock-line')
+    return {
+      washBackground: wash ? getComputedStyle(wash).backgroundImage : null,
+      pillBackground: pill ? getComputedStyle(pill).backgroundColor : null,
+    }
+  })
+  if (!colorTruth.washBackground) fail('stage8c: legibility layer missing')
+  else if (colorTruth.washBackground.includes('220, 38, 38')) {
+    fail('stage8c: the photo wash follows the red widget color')
+  }
+  if (!colorTruth.pillBackground) fail('stage8c: no dock pill to verify the pick against')
+  else if (!colorTruth.pillBackground.includes('220, 38, 38')) {
+    fail(`stage8c: the widget pill ignored the red pick (${colorTruth.pillBackground})`)
+  }
+  await stage('8c-red-widgets-clean-photo', 'red widget pick: pills red, photograph unstained')
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({ settings: { ...settings, panelColor: null } })
+  })
+  await reloadArmed()
+
   // ---- Stage 9: real bookmarks docked top — chrome visible, toolbar clears the strip ----
   const hasBookmarksApi = await page.evaluate(() => typeof chrome.bookmarks?.create === 'function')
   if (!hasBookmarksApi) fail('stage9: chrome.bookmarks unavailable in the witness profile')
