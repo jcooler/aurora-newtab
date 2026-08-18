@@ -54,3 +54,7 @@ output/
 .playwright-profile-nl-p4/
 .preview-nl-p4-dist/
 .preview-nl-p4-out/
+
+# NL-P5 catalog scratch (script rebuilds these; catalog output itself is tracked)
+.preview-nl-p5-dist/
+.playwright-profile-nl-p5/
