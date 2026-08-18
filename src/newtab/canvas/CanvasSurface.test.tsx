@@ -182,9 +182,15 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]\[data-block-id="bookmarks"\] \[data-bookmark-mark="monogram"\]\s*\{[^}]*display:\s*inline/)
   })
 
-  it('dock-line typography is pinned to the chip metrics, immune to the fluid type roles', () => {
-    expect(indexCss).toMatch(/\.dock-line \[data-canvas-type-role\]\s*\{[^}]*font-size:\s*14px/)
-    expect(indexCss).toMatch(/\.dock-line \[data-canvas-type-role="metadata"\]\s*\{[^}]*font-size:\s*11px/)
+  it('dock-line typography is pinned to the chip metrics AND actually wins the cascade against the type roles', () => {
+    expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role\]\s*\{[^}]*font-size:\s*14px/)
+    expect(indexCss).toMatch(/\.aurora-canvas \.dock-line \[data-canvas-type-role="metadata"\]\s*\{[^}]*font-size:\s*11px/)
+    // Specificity proof, not just presence: the role rules the pin must beat
+    // are `.aurora-canvas [data-canvas-type-role=...]` (0,2,0) LATER in the
+    // file; the pin's extra ancestor makes it (0,3,0). A bare `.dock-line
+    // [data-canvas-type-role]` pin silently loses — the exact bug the owner
+    // hit on the second report.
+    expect(indexCss).not.toMatch(/^\.dock-line \[data-canvas-type-role\]/m)
   })
 
   it('the Bookmarks wrapper is grabbable during a session despite its normal-mode pointer-events none', () => {

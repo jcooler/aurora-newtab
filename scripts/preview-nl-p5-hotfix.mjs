@@ -414,6 +414,75 @@ try {
   await page.keyboard.press('Escape')
   await page.waitForTimeout(300)
 
+  // ---- Stage 8b: the REAL weather dock line matches the Tasks chip ----
+  // (owner-reported three times; the previous probe measured a synthetic
+  // span without the type-role attributes and missed the cascade loss.)
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    const day = new Date().toISOString().slice(0, 10)
+    const location = { lat: 32.7767, lon: -96.797, label: 'Dallas', manual: true }
+    const normalize = (v) => Number(v.toFixed(4))
+    const params = new URLSearchParams()
+    params.set('temperature_unit', 'celsius')
+    params.set('wind_speed_unit', 'kmh')
+    params.set('forecast_hours', '12')
+    params.set('forecast_days', '1')
+    params.set('timezone', 'auto')
+    params.set('timeformat', 'iso8601')
+    params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
+    params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
+    params.set('daily', 'sunrise,sunset')
+    params.set('latitude', String(normalize(location.lat)))
+    params.set('longitude', String(normalize(location.lon)))
+    const requestIdentity = `open-meteo:v1:https://api.open-meteo.com/v1/forecast?${params.toString()}`
+    await chrome.storage.local.set({
+      settings: { ...settings, units: 'imperial' },
+      location,
+      weatherCache: {
+        current: { tempC: 31.7, feelsLikeC: 35.6, code: 0, windKmh: 14, humidity: 55, isDay: true },
+        hourly: Array.from({ length: 12 }, (_, index) => ({
+          time: `${day}T${String((9 + index) % 24).padStart(2, '0')}:00`,
+          tempC: 30 + index * 0.3,
+          precipProb: 5,
+          code: 0,
+          isDay: index < 10,
+        })),
+        fetchedAt: Date.now(),
+        locationLabel: location.label,
+        requestIdentity,
+        sunriseISO: `${day}T07:02`,
+        sunsetISO: `${day}T20:23`,
+      },
+    })
+  })
+  await reloadArmed()
+  const lineTruth = await page.evaluate(() => {
+    const line = document.querySelector('nav[aria-label="Bottom bar"] [data-dock-line]')
+    if (!line) return null
+    const digits = line.querySelector('[data-canvas-type-role="body"]')
+    const letter = line.querySelector('[data-canvas-type-role="metadata"]')
+    const tasksChip = document.querySelector('[data-block-id="tasks"] button')
+    return {
+      text: line.textContent,
+      digitsFont: digits ? getComputedStyle(digits).fontSize : null,
+      digitsWeight: digits ? getComputedStyle(digits).fontWeight : null,
+      letterFont: letter ? getComputedStyle(letter).fontSize : null,
+      lineHeightPx: Math.round(line.getBoundingClientRect().height),
+      tasksChipHeightPx: tasksChip ? Math.round(tasksChip.getBoundingClientRect().height) : null,
+    }
+  })
+  if (!lineTruth) fail('stage8b: real weather dock line did not render from the seeded cache')
+  else {
+    if (!lineTruth.text?.includes('89')) fail(`stage8b: line text unexpected (${lineTruth.text})`)
+    if (lineTruth.digitsFont !== '14px') fail(`stage8b: REAL temperature digits render ${lineTruth.digitsFont}, chips use 14px`)
+    if (Number(lineTruth.digitsWeight) < 500) fail(`stage8b: temperature digits weight ${lineTruth.digitsWeight}, chips use 500`)
+    if (lineTruth.letterFont !== '11px') fail(`stage8b: unit letter renders ${lineTruth.letterFont}, expected 11px`)
+    if (lineTruth.tasksChipHeightPx !== null && Math.abs(lineTruth.lineHeightPx - lineTruth.tasksChipHeightPx) > 4) {
+      fail(`stage8b: weather line ${lineTruth.lineHeightPx}px tall vs Tasks chip ${lineTruth.tasksChipHeightPx}px`)
+    }
+  }
+  await stage('8b-real-weather-line', `real 89°F line: digits ${lineTruth?.digitsFont}/${lineTruth?.digitsWeight}, letter ${lineTruth?.letterFont}, ${lineTruth?.lineHeightPx}px vs Tasks ${lineTruth?.tasksChipHeightPx}px`)
+
   // ---- Stage 9: real bookmarks docked top — chrome visible, toolbar clears the strip ----
   const hasBookmarksApi = await page.evaluate(() => typeof chrome.bookmarks?.create === 'function')
   if (!hasBookmarksApi) fail('stage9: chrome.bookmarks unavailable in the witness profile')
@@ -550,7 +619,8 @@ try {
   // ---- Stage 11: every write in the whole run touched only seeded keys ----
   await harvestWrites()
   for (const keys of evidence.writes) {
-    if (keys !== 'layouts' && keys !== 'layouts,settings' && keys !== 'settings') {
+    // 'location,settings,weatherCache' is stage 8b's own weather seed.
+    if (keys !== 'layouts' && keys !== 'layouts,settings' && keys !== 'settings' && keys !== 'location,settings,weatherCache') {
       fail(`stage11: write touched ${keys}`)
     }
     if (keys.split(',').includes('layout')) fail(`stage11: the frozen legacy layout key was written (${keys})`)

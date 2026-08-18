@@ -68,15 +68,15 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   })
 
   it('fits the unconfigured Weather controls inside a compact finite allocation', () => {
-    const wrapper = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div')
+    const wrapper = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div')
     expect(wrapper).toMatch(/padding:\s*4px\s*;/)
-    expect(lastDeclarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div'))
+    expect(lastDeclarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div'))
       .toMatch(/padding-inline:\s*48px\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div'))
       .toMatch(/flex-direction:\s*column\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="full"]'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="full"]'))
       .toMatch(/display:\s*none\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="compact"]'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="compact"]'))
       .toMatch(/display:\s*inline\s*;/)
   })
 
@@ -93,14 +93,14 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   })
 
   it('pins the compact chip scale letter to the 12px metadata floor (batch-1 owner review)', () => {
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span'))
       .toMatch(/font-size:\s*12px\s*;/)
   })
 
   it('keeps compact Canvas Weather condition, location, and disclosure visible', () => {
-    const summary = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span')
+    const summary = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span')
     expect(summary).toMatch(/flex-wrap:\s*wrap\s*;/)
-    const condition = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3)')
+    const condition = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3)')
     expect(condition).toMatch(/flex-basis:\s*100%\s*;/)
     expect(indexCss).not.toMatch(/span:nth-child\(3\),\s*\.board-item\[data-stage-variant="compact"\]\[data-block-id="weather"\]:not\(\.z-30\) > section > button > span > svg:last-child\s*\{\s*display:\s*none\s*;/)
   })

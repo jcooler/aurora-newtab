@@ -49,6 +49,41 @@ describe('WidgetInspector', () => {
     expect(onRestore).toHaveBeenCalledOnce()
   })
 
+  it('offers a docked Size control ONLY where size changes the strip form (Bookmarks), never dead radios', () => {
+    const shared = {
+      anchorRect: rect(500, 20, 300, 40),
+      overlapLabels: [] as string[],
+      onTier: vi.fn(),
+      onLayer: vi.fn(),
+      onHide: vi.fn(),
+      onRestore: vi.fn(),
+    }
+    render(
+      <WidgetInspector
+        {...shared}
+        entry={WIDGET_REGISTRY_BY_ID.bookmarks}
+        placement={{ kind: 'docked', dock: 'top', order: 0 }}
+      />,
+    )
+    const bookmarksDialog = screen.getByRole('dialog', { name: 'Bookmarks inspector' })
+    // Default checked reflects the docked default: the full readable bar.
+    expect(within(bookmarksDialog).getByRole('radio', { name: 'Standard' }).getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(within(bookmarksDialog).getByRole('radio', { name: 'Compact' }))
+    expect(shared.onTier).toHaveBeenCalledWith('compact')
+    // Layer is a free-placement concept; docked members get no dead buttons.
+    expect(within(bookmarksDialog).queryByRole('button', { name: 'Bring forward' })).toBeNull()
+    cleanup()
+    render(
+      <WidgetInspector
+        {...shared}
+        entry={WIDGET_REGISTRY_BY_ID.weather}
+        placement={{ kind: 'docked', dock: 'bottom', order: 0 }}
+      />,
+    )
+    // Docked weather renders ONE line regardless of size: no Size radios.
+    expect(within(screen.getByRole('dialog', { name: 'Weather inspector' })).queryAllByRole('radio')).toHaveLength(0)
+  })
+
   it('shows the passive overlap note only when overlaps exist (spec 2.2)', () => {
     const props = {
       entry: WIDGET_REGISTRY_BY_ID.clock,

@@ -98,12 +98,15 @@
 /* The chip metrics OWN the line's typography: the fluid canvas type roles
    (body ~14-16px, metadata 12px) must not resize dock facts, or the weather
    line drifts smaller than its Tasks/Notes neighbours and the unit letter
-   outweighs the digits (owner-reported 2026-08-18, twice). */
-.dock-line [data-canvas-type-role] {
+   outweighs the digits (owner-reported 2026-08-18, THREE times — the first
+   pin lost the cascade: `.aurora-canvas [data-canvas-type-role="body"]`
+   has equal specificity and sits later in the file, so these carry the
+   extra .aurora-canvas ancestor to genuinely outrank it). */
+.aurora-canvas .dock-line [data-canvas-type-role] {
   font-size: 14px;
   line-height: 20px;
 }
-.dock-line [data-canvas-type-role="metadata"] {
+.aurora-canvas .dock-line [data-canvas-type-role="metadata"] {
   font-size: 11px;
 }
 
@@ -1580,37 +1583,37 @@ select > option {
    legacy Weather chip and Quote figure both sized themselves against the
    viewport, which let their painted/hit-test areas escape into the adjacent
    allocation even though the BoardItem rectangles themselves did not overlap. */
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section {
   width: 100%;
   max-width: 100%;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button {
   padding-inline: 4px;
   padding-block: 4px;
   gap: 2px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span {
   gap: 4px;
   flex-wrap: wrap;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
   order: 2;
   flex-basis: 100%;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
   width: 20px;
   height: 20px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
   font-size: 20px;
 }
 /* Batch-1 owner review: the compact chip's F/C scale letter was "a smidge
    too large" at its inherited 0.7em (14px of the 20px digits). Pin it to
    the documented 12px metadata floor instead. */
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) > span {
   font-size: 12px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
   /* A collapsed rain callout and stale-status line are both meaningful, so
      retain them in compact rather than hiding either. Keep each line local
      to the allocated card and trim only text that exceeds its inline track. */
@@ -1622,28 +1625,28 @@ select > option {
   font-size: 10px;
   line-height: 12px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div,
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
   max-width: 100%;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
   flex-direction: column;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
   padding: 4px;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
   flex-direction: column;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="full"] {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="full"] {
   display: none;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="compact"] {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] [data-location-label="compact"] {
   display: inline;
 }
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) input,
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) button,
-.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) [role="listbox"] {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) input,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) button,
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) [role="listbox"] {
   width: 100%;
   max-width: 100%;
 }
@@ -2140,7 +2143,7 @@ select > option {
 }
 
 @media (max-width: 320px) and (max-height: 200px) {
-  .canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
     padding-inline: 48px;
   }
 

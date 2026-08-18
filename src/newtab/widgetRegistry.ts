@@ -205,6 +205,15 @@ export function dockedRenderSize(entry: WidgetRegistryEntry, dockTier?: WidgetTi
   return resolveDockedTier(entry.canvasSizes, dockTier, entry.id === 'bookmarks' ? 'standard' : 'compact')
 }
 
+/** Whether a widget's STRIP rendering actually changes with the chosen size
+ *  (owner-reported 2026-08-18: controls that do nothing are lying UI). Only
+ *  Bookmarks today — full readable bar vs the one-letter mark bar; every
+ *  other docked widget renders its one dense line regardless of size, so
+ *  the inspector must not offer a dead Size control for them. */
+export function dockSizeVaries(entry: WidgetRegistryEntry): boolean {
+  return entry.id === 'bookmarks'
+}
+
 export type WidgetRendererKey = WidgetRegistryEntry['rendererKey']
 
 export function selectActiveWidgetRegistry(

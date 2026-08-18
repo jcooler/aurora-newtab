@@ -1,6 +1,6 @@
 import { anchorPanel } from '../../lib/layout/anchor'
 import type { NamedLayoutPlacement, WidgetTier } from '../../lib/layout/namedLayouts'
-import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
+import { dockedRenderSize, dockSizeVaries, type WidgetRegistryEntry } from '../widgetRegistry'
 
 const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
   compact: 'Compact',
@@ -48,7 +48,9 @@ export default function WidgetInspector({
   // Docked members size within the strip too (owner direction 2026-08-18:
   // docked Bookmarks compact = the one-letter mark bar); the checked radio
   // reflects the stored choice or the widget's docked default.
-  const sizeRow = free || (docked && entry.canvasSizes.length > 1)
+  // A docked Size row only where size actually changes the strip form —
+  // offering dead radios on every docked widget would be lying UI.
+  const sizeRow = free || (docked && entry.canvasSizes.length > 1 && dockSizeVaries(entry))
   const checkedTier = free
     ? placement.tier
     : docked
