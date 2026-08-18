@@ -16,7 +16,14 @@ export default defineConfig({
     // *.test.tsx files otherwise double the suite AND drag in another branch's
     // in-progress, sometimes-failing tests, making `npm test` non-deterministic.
     // The real project's tests all live outside `.claude/`.
-    exclude: [...configDefaults.exclude, '**/.claude/**'],
+    //
+    // preview-information-first.test.mjs is a `node:test` suite (run it with
+    // `node --test scripts/preview-information-first.test.mjs`; its six
+    // harness-contract checks pass there) — vitest sees the .test.mjs name,
+    // finds no vitest suite inside, and fails the whole `npm test` run with
+    // "No test suite found". scripts/adaptive-stage-probe.test.mjs is a real
+    // vitest suite and stays included.
+    exclude: [...configDefaults.exclude, '**/.claude/**', 'scripts/preview-information-first.test.mjs'],
     environment: 'node',
     globals: true, // lets @testing-library/react register its afterEach cleanup
     css: true, // otherwise Vitest mocks CSS imports as empty — themes.test.ts reads themes.css via `?raw` and needs its real content

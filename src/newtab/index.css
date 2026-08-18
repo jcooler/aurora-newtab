@@ -243,14 +243,111 @@
   position: fixed;
   z-index: 60;
   display: flex;
-  width: 240px;
+  width: 248px;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px;
+  gap: 10px;
+  padding: 12px;
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-panel);
   background: var(--panel-solid);
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+.edit-inspector__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--control-border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.edit-inspector__context {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--fg-muted);
+}
+.edit-inspector__row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.edit-inspector__label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+.edit-segment {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+}
+.edit-segment__option {
+  flex: 1;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  font-size: 12px;
+  color: var(--fg-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.edit-segment__option + .edit-segment__option {
+  border-left: 1px solid var(--control-border);
+}
+.edit-segment__option:hover {
+  color: var(--fg);
+}
+.edit-segment__option[aria-checked="true"] {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-weight: 500;
+}
+.edit-inspector__actions {
+  display: flex;
+  gap: 6px;
+}
+.edit-inspector__button {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--control-bg);
+  font-size: 11.5px;
+  color: var(--fg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.edit-inspector__button:hover {
+  background: var(--control-bg-hover);
+}
+.edit-inspector__footer {
+  display: flex;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--control-border);
+}
+.edit-inspector__button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--fg-muted);
+}
+.edit-inspector__button--quiet:hover {
+  background: var(--control-bg);
+  color: var(--fg);
+}
+.edit-inspector__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: rgb(252 211 77);
 }
 
 /* Magnetic alignment guides (spec 2.5): surface-local hairlines. */

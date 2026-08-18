@@ -392,7 +392,12 @@ export default function App() {
           elevatedIds={elevatedIds}
           chrome={session ? 'editing' : 'normal'}
           selectedId={session?.selectedId ?? null}
-          guides={drag.guides}
+          // Guides are session chrome only: if the session cancels while a
+          // drag is mid-flight (Escape), the hook's guide state survives
+          // until the next pointerup — without this gate the accent
+          // hairlines stayed painted on the normal page (owner-reported
+          // 2026-08-18 "blue lines where borders are").
+          guides={session ? drag.guides : []}
           onSelectItem={editMode.select}
           onItemGeometryChange={onItemGeometryChange}
           onGripPointerDown={(id, event) => {
