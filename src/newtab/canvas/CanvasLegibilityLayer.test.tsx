@@ -22,9 +22,12 @@ describe('CanvasLegibilityLayer', () => {
     expect(indexCss).toMatch(/\.canvas-legibility-layer\s*\{[\s\S]*?radial-gradient\(ellipse at center/)
     expect(indexCss).toMatch(/\.canvas-legibility-layer\s*\{[\s\S]*?linear-gradient\(to right/)
     expect(indexCss).toMatch(/\.canvas-legibility-layer\s*\{[\s\S]*?linear-gradient\(to top/)
-    expect(indexCss).toMatch(/\.canvas-legibility-layer\s*\{[\s\S]*?var\(--panel-solid\)/)
-    expect(indexCss).toMatch(/linear-gradient\(to bottom, color-mix\(in srgb, var\(--panel-solid\) 56%/)
-    expect(indexCss).toMatch(/radial-gradient\(ellipse at center, color-mix\(in srgb, var\(--panel-solid\) 68%/)
+    // The wash is built from the FIXED --canvas-wash, never --panel-solid:
+    // a widget color pick must not tint the photo (owner-reported
+    // 2026-08-18; CanvasSurface.test carries the not-panel-solid pin).
+    expect(indexCss).toMatch(/\.canvas-legibility-layer\s*\{[\s\S]*?var\(--canvas-wash\)/)
+    expect(indexCss).toMatch(/linear-gradient\(to bottom, color-mix\(in srgb, var\(--canvas-wash\) 56%/)
+    expect(indexCss).toMatch(/radial-gradient\(ellipse at center, color-mix\(in srgb, var\(--canvas-wash\) 68%/)
     expect(indexCss).not.toMatch(/\.canvas-legibility-layer\s*\{[^}]*rgb\(2 6 23/)
     expect(indexCss).not.toMatch(/\.canvas-legibility-layer\s*\{[^}]*border-radius:/)
     expect(indexCss).not.toMatch(/\.canvas-legibility-layer\s*\{[^}]*background-color:/)
