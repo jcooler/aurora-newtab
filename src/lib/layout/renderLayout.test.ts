@@ -82,6 +82,19 @@ describe('planLayoutRender (narrow floor)', () => {
   })
 })
 
+describe('hidden placements', () => {
+  it('renders nothing for a hidden widget — and never re-adds it through the default slot', () => {
+    const withHidden: NamedLayout = {
+      ...LAYOUT,
+      widgets: { ...LAYOUT.widgets, notes: { kind: 'hidden' } },
+    }
+    const plan = planLayoutRender(withHidden, [...ENABLED], 1408)
+    expect(plan.items.some((item) => item.id === 'notes')).toBe(false)
+    const narrow = planLayoutRender(withHidden, [...ENABLED], 599)
+    expect(narrow.items.some((item) => item.id === 'notes')).toBe(false)
+  })
+})
+
 describe('resolveRenderTier', () => {
   it('returns the tier when supported and the nearest supported tier otherwise, ties toward smaller', () => {
     expect(resolveRenderTier(['compact', 'standard', 'full'], 'standard')).toBe('standard')

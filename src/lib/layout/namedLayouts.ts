@@ -35,7 +35,12 @@ export interface DockedWidgetPlacement {
   order: number
 }
 
-export type NamedLayoutPlacement = FreeWidgetPlacement | DockedWidgetPlacement
+/** Enabled globally but not shown in THIS layout (spec 2.5 "hide"). Distinct
+ *  from an ABSENT entry, which means "never placed here" and renders at the
+ *  widget's designed default slot. */
+export interface HiddenWidgetPlacement { kind: 'hidden' }
+
+export type NamedLayoutPlacement = FreeWidgetPlacement | DockedWidgetPlacement | HiddenWidgetPlacement
 
 /** Presence of a widget key means the widget is enabled in this layout
  *  (spec 2.1: a layout stores which widgets are enabled plus each enabled
@@ -105,6 +110,10 @@ function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
     && (value.order as number) >= 0
 }
 
+function isHiddenPlacement(value: unknown): value is HiddenWidgetPlacement {
+  return isPlainObject(value) && value.kind === 'hidden'
+}
+
 function cleanNamedLayout(
   value: unknown,
   invalidPlacement: 'reject' | 'drop',
@@ -119,6 +128,11 @@ function cleanNamedLayout(
   for (const id of BLOCK_IDS) {
     if (!Object.prototype.hasOwnProperty.call(value.widgets, id)) continue
     const placement = value.widgets[id]
+    if (isHiddenPlacement(placement)) {
+      // Canonical clone: extra members never survive.
+      widgets[id] = { kind: 'hidden' }
+      continue
+    }
     if (isFreePlacement(placement) || isDockedPlacement(placement)) {
       widgets[id] = { ...placement }
       continue

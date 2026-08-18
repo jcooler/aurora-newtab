@@ -1182,6 +1182,17 @@ describe('layouts document backup boundary (NL-P1)', () => {
     expect(prepared).toEqual({ ok: false, reason: 'That backup\'s "layouts" data is invalid.' })
   })
 
+  it('round-trips a hidden placement', () => {
+    const withHidden = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    withHidden.layouts[0].widgets.notes = { kind: 'hidden' }
+    const prepared = prepareBackup(serializeBackup({ ...defaults(), layouts: withHidden as unknown as AuroraData['layouts'] }))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
+      expect(layouts.layouts[0].widgets.notes).toEqual({ kind: 'hidden' })
+    }
+  })
+
   it('drops an unknown widget id inside an otherwise valid document instead of failing the import', () => {
     const withUnknown = structuredClone(document) as {
       layouts: { widgets: Record<string, unknown> }[]

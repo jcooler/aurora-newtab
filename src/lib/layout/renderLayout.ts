@@ -67,6 +67,10 @@ export function planLayoutRender(
     if (!enabled.has(id)) continue
     const placement = layout.widgets[id]
     if (!placement) continue
+    // Hidden = enabled globally but not shown in this layout (spec 2.5). The
+    // entry's PRESENCE also keeps the default-slot loop below from re-adding
+    // the widget.
+    if (placement.kind === 'hidden') continue
     if (placement.kind === 'docked') {
       docked.push({ id, dock: placement.dock, order: placement.order })
       continue

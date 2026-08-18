@@ -74,6 +74,14 @@ describe('cleanLayoutsDocument', () => {
     expect(dropped.layouts[0].widgets.weather).toBeDefined()
   })
 
+  it('accepts the hidden placement kind and rejects extra members on it', () => {
+    const doc = validDocument()
+    ;(doc.layouts[0].widgets as Record<string, unknown>).notes = { kind: 'hidden' }
+    expect(cleanLayoutsDocument(doc).layouts[0].widgets.notes).toEqual({ kind: 'hidden' })
+    ;(doc.layouts[0].widgets as Record<string, unknown>).notes = { kind: 'hidden', layer: 3 }
+    expect(cleanLayoutsDocument(doc).layouts[0].widgets.notes).toEqual({ kind: 'hidden' })
+  })
+
   it('always drops unknown widget ids without failing the document', () => {
     const doc = validDocument() as unknown as {
       layouts: { widgets: Record<string, unknown> }[]
