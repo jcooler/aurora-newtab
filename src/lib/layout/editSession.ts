@@ -265,11 +265,12 @@ export function dockOrder(layout: NamedLayout, dock: DockEdge): readonly BlockId
     .map((entry) => entry.id)
 }
 
-/** Docks the selected widget at the given index in the edge's strip
- *  (named-layouts spec 2.4: created by dragging to the edge; order is
- *  draggable — reordering is this same operation at a new index). Orders in
- *  BOTH docks are renumbered compactly. Never called automatically. */
-export function dockSelected(session: EditSession, dock: DockEdge, index: number): EditSession {
+function dockSelectedInternal(
+  session: EditSession,
+  dock: DockEdge,
+  index: number,
+  pushUndo: boolean,
+): EditSession {
   const id = session.selectedId
   if (!id) return session
   const layout = activeDraftLayout(session)
@@ -287,7 +288,22 @@ export function dockSelected(session: EditSession, dock: DockEdge, index: number
       widgets[memberId] = { kind: 'docked', dock: otherEdge, order }
     })
     return { ...draftLayout, widgets }
-  }))
+  }), pushUndo)
+}
+
+/** Docks the selected widget at the given index in the edge's strip
+ *  (named-layouts spec 2.4: created by dragging to the edge; order is
+ *  draggable — reordering is this same operation at a new index). Orders in
+ *  BOTH docks are renumbered compactly. Never called automatically. */
+export function dockSelected(session: EditSession, dock: DockEdge, index: number): EditSession {
+  return dockSelectedInternal(session, dock, index, true)
+}
+
+/** The drop half of a zone-drag gesture: the drag's first move already
+ *  pushed the gesture's one undo entry (review fix I2 — one entry per
+ *  gesture), so this variant reuses it. */
+export function dockSelectedLive(session: EditSession, dock: DockEdge, index: number): EditSession {
+  return dockSelectedInternal(session, dock, index, false)
 }
 
 /** Returns a docked selected widget to free placement at the drop point.

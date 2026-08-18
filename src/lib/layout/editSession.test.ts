@@ -5,6 +5,7 @@ import {
   beginEditSession,
   dockOrder,
   dockSelected,
+  dockSelectedLive,
   hideSelected,
   moveSelected,
   moveSelectedLive,
@@ -179,6 +180,17 @@ describe('hide, restore, bulk, reset', () => {
     let session = selectWidget(fresh(), 'weather')
     session = dockSelected(session, 'top', 99)
     expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'docked', dock: 'top', order: 0 })
+  })
+
+  it('a zone-drag gesture costs ONE undo entry: move pushes, dockSelectedLive completes (review fix I2)', () => {
+    let session = selectWidget(fresh(), 'clock')
+    session = moveSelected(session, { xPct: 50, yPct: 96 })   // the drag's first move
+    session = dockSelectedLive(session, 'bottom', 0)          // the drop
+    expect(session.past).toHaveLength(1)
+    expect(activeDraftLayout(session).widgets.clock).toEqual({ kind: 'docked', dock: 'bottom', order: 0 })
+    const undone = undo(session)
+    expect(undone.dirty).toBe(false)
+    expect(activeDraftLayout(undone).widgets.clock).toEqual(activeDraftLayout(fresh()).widgets.clock)
   })
 
   it('undockSelected returns a docked widget to a free anchor at the drop point', () => {

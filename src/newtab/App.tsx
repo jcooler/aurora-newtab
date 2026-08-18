@@ -8,7 +8,7 @@ import {
   applyBulkTier,
   beginEditSession,
   dockOrder,
-  dockSelected,
+  dockSelectedLive,
   hideSelected,
   moveSelected,
   moveSelectedLive,
@@ -234,13 +234,19 @@ export default function App() {
       editMode.dispatch((current) => {
         const selected = selectWidget(current, id)
         // Insertion index: members of this dock whose center-x sits left of
-        // the pointer (spec 2.4: order is draggable).
+        // the pointer (spec 2.4: order is draggable). Measured FRESH at the
+        // drop — the cached rect map is not live for position-only shifts
+        // (the undock re-center, strip scrolling; review fix I1).
         const members = dockOrder(activeDraftLayout(selected), zone).filter((memberId) => memberId !== id)
         const index = members.filter((memberId) => {
-          const rect = itemRectsRef.current.get(memberId)
-          return rect ? rect.left + rect.width / 2 < pointerX : false
+          const node = document.querySelector(`[data-block-id="${memberId}"]`)
+          if (!node) return false
+          const rect = node.getBoundingClientRect()
+          return rect.left + rect.width / 2 < pointerX
         }).length
-        return dockSelected(selected, zone, index)
+        // The gesture's undo entry was pushed by its first move; the dock
+        // drop completes the same gesture (review fix I2).
+        return dockSelectedLive(selected, zone, index)
       })
     },
   })

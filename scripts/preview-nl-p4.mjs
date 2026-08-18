@@ -82,19 +82,6 @@ const stage = async (name, note) => {
   evidence.stages.push({ name, note })
   await page.screenshot({ path: resolve(outDir, `${name}.png`) })
 }
-const gripDrag = async (label, toX, toY) => {
-  const item = page.locator(`[data-block-id]`).filter({ has: page.locator(`button[aria-label="Move ${label}"]`) })
-  await page.locator(`[aria-label="Select ${label}"], [data-block-id]`).first()
-  const widget = page.locator(`button[aria-label="Move ${label}"]`)
-  await item.first().hover().catch(() => {})
-  const box = await widget.boundingBox()
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-  await page.mouse.down()
-  await page.mouse.move(toX, toY, { steps: 10 })
-  await page.mouse.up()
-  await page.waitForTimeout(200)
-}
-
 let caughtError
 try {
   await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
@@ -270,6 +257,13 @@ try {
   if (!await page.locator('[role="dialog"]').count()) fail('stage5: docked Tasks click opened nothing')
   await stage('5-docked-click', 'docked Tasks opens its panel')
   await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+  // The panel owns its own storage keys, but it must NEVER touch the frozen
+  // legacy layout key.
+  const panelWrites = await page.evaluate(() => window.__writeLog ?? [])
+  for (const keys of panelWrites) {
+    if (keys.split(',').includes('layout')) fail(`stage5: panel interaction wrote the legacy layout key (${keys})`)
+  }
 } catch (error) {
   caughtError = error
 } finally {
