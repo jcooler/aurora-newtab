@@ -490,6 +490,69 @@ describe('App Canvas composition', () => {
     expect(document.activeElement).toBe(notes)
   })
 
+  it('grip entry dims the page, inerts interiors, selects on click, and exact-cancels on Escape (spec 2.5)', async () => {
+    const storage = await renderApp()
+    const layoutsBefore = JSON.stringify(await storage.get('layouts'))
+    const positionsBefore = ['clock', 'focus', 'weather'].map((id) => canvasItem(id).style.left + canvasItem(id).style.top)
+
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }))
+    await act(async () => {})
+
+    expect(document.querySelector('main[data-editing]')).toBeTruthy()
+    expect(document.querySelector('.edit-scrim')).toBeTruthy()
+    expect(screen.getByRole('toolbar', { name: 'Edit layout' })).toBeTruthy()
+    // Interiors are inert; the wrapper is the selection target.
+    const focusWrapper = canvasItem('focus')
+    expect(focusWrapper.querySelector('[inert]')).toBeTruthy()
+    fireEvent.click(focusWrapper)
+    expect(focusWrapper.getAttribute('aria-pressed')).toBe('true')
+
+    // Move the selection with arrows, then Escape: exact cancel.
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await act(async () => {})
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {})
+
+    expect(document.querySelector('main[data-editing]')).toBeNull()
+    expect(JSON.stringify(await storage.get('layouts'))).toBe(layoutsBefore)
+    expect(['clock', 'focus', 'weather'].map((id) => canvasItem(id).style.left + canvasItem(id).style.top)).toEqual(positionsBefore)
+  })
+
+  it('Save commits the whole draft once and the moved placement persists (spec 2.5)', async () => {
+    const storage = await renderApp()
+    expect(await storage.get('layouts')).toBeNull()
+
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }))
+    await act(async () => {})
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await act(async () => {})
+
+    expect(document.querySelector('main[data-editing]')).toBeNull()
+    const stored = await storage.get('layouts')
+    expect(stored).not.toBeNull()
+    expect(stored?.layouts[0].widgets.clock?.kind).toBe('free')
+  })
+
+  it('bulk tier sets every free widget at once and Undo restores (AC9)', async () => {
+    await renderApp()
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }))
+    await act(async () => {})
+
+    const sizesBefore = ['clock', 'focus', 'weather'].map((id) => canvasItem(id).dataset.canvasSize)
+    fireEvent.click(within(screen.getByRole('toolbar', { name: 'Edit layout' })).getByRole('button', { name: 'Compact' }))
+    await act(async () => {})
+    for (const id of ['clock', 'focus', 'weather']) {
+      expect(canvasItem(id).dataset.canvasSize).toBe('compact')
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await act(async () => {})
+    expect(['clock', 'focus', 'weather'].map((id) => canvasItem(id).dataset.canvasSize)).toEqual(sizesBefore)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+  })
+
   it('the gear on a widget opens Settings focused on that widget\'s own section (spec 2.5)', async () => {
     await renderApp()
 

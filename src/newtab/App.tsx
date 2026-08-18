@@ -3,6 +3,21 @@ import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { adaptStoredLayout } from '../lib/layout/canvasAdapter'
 import type { CanvasSize, StoredLayout } from '../lib/layout/canvasTypes'
 import { migrationSourceProfile, resolveLayoutsDocument } from '../lib/layout/myLayoutAdapter'
+import {
+  activeDraftLayout,
+  applyBulkTier,
+  beginEditSession,
+  nudgeSelected,
+  resetSession,
+  undo,
+} from '../lib/layout/editSession'
+import { switchActiveLayout } from '../lib/layout/layoutOperations'
+import { canvasKeyboardDelta } from './arrange/canvasSnap'
+import { useDialogEscape } from '../lib/dialogStack'
+import { isPremium } from '../lib/premium'
+import { useStorage } from '../lib/storage/context'
+import EditToolbar from './edit/EditToolbar'
+import { useEditMode } from './edit/useEditMode'
 import type { BlockId } from '../lib/layout/types'
 import { applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
@@ -146,6 +161,8 @@ export default function App() {
     setSettingsFocusAnchor((previous) => ({ ...target, nonce: (previous?.nonce ?? 0) + 1 }))
     requestSettingsOpen()
   }, [activeEntries, requestSettingsOpen])
+
+  const storage = useStorage()
   // The resolved named-layouts document: a valid stored document wins; until
   // the first explicit save (NL-P3 switcher) the in-memory "My layout" is
   // derived from the legacy stored layout through the frozen migration
@@ -158,6 +175,46 @@ export default function App() {
   const activeLayout = layoutsDocument
     ? layoutsDocument.layouts.find((candidate) => candidate.id === layoutsDocument.activeLayoutId) ?? null
     : null
+
+  const editMode = useEditMode({ document: layoutsDocument, enabledIds: enabledBlockIds, storage })
+  const session = editMode.session
+
+  // Escape cancels the edit session exactly (spec 2.5), through the shared
+  // dialog stack so it composes with every other Escape consumer.
+  useDialogEscape(() => { editMode.cancel() }, session !== null)
+
+  // The keyboard command entry (scope decision 4): Ctrl/Cmd+Shift+E.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'e') return
+      if (!isPremium()) return
+      const target = event.target as HTMLElement | null
+      if (target && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      event.preventDefault()
+      editMode.begin(document.activeElement instanceof HTMLElement ? document.activeElement : null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode])
+
+  // Arrow keys move the selection by 8px, Shift+Arrow by 1px (spec 2.5),
+  // converted to percent against the live viewport span.
+  useEffect(() => {
+    if (!session) return
+    function onKey(event: KeyboardEvent) {
+      const delta = canvasKeyboardDelta(event.key, event.shiftKey)
+      if (!delta) return
+      const target = event.target as HTMLElement | null
+      if (target && target.closest('input, textarea, select')) return
+      event.preventDefault()
+      editMode.dispatch((current) => nudgeSelected(current, {
+        xPct: delta.x / window.innerWidth * 100,
+        yPct: delta.y / window.innerHeight * 100,
+      }))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editMode, session])
 
   if (!inputsReady || !settings || !photoPrefs || !storedLayout || !connectors || !activeLayout) return null
 
@@ -198,23 +255,50 @@ export default function App() {
   // 600px narrow floor): below 900 CSS px the tray is modal.
   const narrowModality = viewport.width < 900
 
+  const renderedLayout = session ? activeDraftLayout(session) : activeLayout
+
   return (
     <main
       data-aurora-canvas=""
       data-canvas-text-scale={textScale}
+      data-editing={session ? 'true' : undefined}
       className="aurora-canvas text-fg"
     >
       <div className="contents" inert={utilityTrayOpen && narrowModality}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
         <CanvasSurface
-          activeLayout={activeLayout}
+          activeLayout={renderedLayout}
           entries={activeEntries}
           viewport={viewport}
           elevatedIds={elevatedIds}
-          chrome="normal"
+          chrome={session ? 'editing' : 'normal'}
+          selectedId={session?.selectedId ?? null}
+          onSelectItem={editMode.select}
+          onGripPointerDown={(id, event) => {
+            event.preventDefault()
+            if (!session) editMode.begin(event.currentTarget as HTMLElement)
+            editMode.select(id)
+          }}
           onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}
         />
+        {session ? <div className="edit-scrim" aria-hidden /> : null}
+        {session ? (
+          <EditToolbar
+            session={session}
+            onSwitchLayout={(layoutId) => {
+              editMode.dispatch((current) => beginEditSession(
+                switchActiveLayout(current.draft, layoutId),
+                enabledBlockIds,
+              ))
+            }}
+            onBulkTier={(tier) => editMode.dispatch((current) => applyBulkTier(current, tier))}
+            onUndo={() => editMode.dispatch(undo)}
+            onReset={() => editMode.dispatch(resetSession)}
+            onCancel={editMode.cancel}
+            onSave={() => void editMode.save()}
+          />
+        ) : null}
 
         <button
           type="button"

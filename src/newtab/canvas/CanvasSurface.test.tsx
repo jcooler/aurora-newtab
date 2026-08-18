@@ -124,8 +124,10 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.canvas-top-bar \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
   })
 
-  it('never paints a container focus ring: the focus-within outline rule is gone', () => {
+  it('never paints a container focus ring: no focus-within rule declares an outline', () => {
     expect(indexCss).not.toMatch(/board-item[^{]*:focus-within/)
-    expect(indexCss).not.toMatch(/\.canvas-item[^{]*:focus-within/)
+    // The hover-chrome reveal keys on :focus-within (opacity only, spec 2.5
+    // grips/gears); a RING would be an outline declaration in such a rule.
+    expect(indexCss).not.toMatch(/:focus-within[^{]*\{[^}]*outline/)
   })
 })

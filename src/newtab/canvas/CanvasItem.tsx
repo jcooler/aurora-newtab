@@ -11,6 +11,9 @@ interface CanvasItemProps {
    *  and the narrow stack chrome-free; 'normal' fades in the grip + gear on
    *  hover/focus; 'editing' is Task 4's edit-session chrome. */
   chrome?: 'none' | 'normal' | 'editing'
+  /** Edit-session selection (chrome="editing" only). */
+  selected?: boolean
+  onSelect?: (id: WidgetRegistryEntry['id']) => void
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
@@ -22,6 +25,8 @@ export default function CanvasItem({
   item,
   className = '',
   chrome = 'none',
+  selected = false,
+  onSelect,
   onGripPointerDown,
   onGearClick,
   onGeometryChange,
@@ -59,16 +64,42 @@ export default function CanvasItem({
   }
 
   const size = 'tier' in item ? item.tier : 'compact'
+  const editing = chrome === 'editing'
+  const editingClass = editing
+    ? ` canvas-item--editing${selected ? ' canvas-item--selected' : ''}`
+    : ''
+
+  // Widget interiors become inert during an edit session (spec 2.5) WITHOUT
+  // changing the DOM shape the interior CSS child selectors depend on: the
+  // attribute is toggled directly on the rendered interior children, never
+  // via an extra wrapper element.
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (!node) return
+    for (const child of node.children) {
+      if (child.classList.contains('canvas-item-chrome')) continue
+      child.toggleAttribute('inert', editing)
+    }
+    return () => {
+      for (const child of node.children) child.removeAttribute('inert')
+    }
+  }, [editing, children])
 
   return (
     <div
       ref={ref}
-      tabIndex={-1}
+      // In an edit session the wrapper IS the selection target: interiors are
+      // inert, clicking selects and never activates the widget (spec 2.5).
+      tabIndex={editing ? 0 : -1}
+      role={editing ? 'button' : undefined}
+      aria-pressed={editing ? selected : undefined}
+      aria-label={editing ? `Select ${entry.label}` : undefined}
+      onClick={editing ? () => onSelect?.(entry.id) : undefined}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
       data-canvas-size={size}
       data-canvas-mode={item.mode}
-      className={`canvas-item${className ? ` ${className}` : ''}`}
+      className={`canvas-item${editingClass}${className ? ` ${className}` : ''}`}
       style={style}
     >
       <WidgetBoundary name={entry.label}>{children}</WidgetBoundary>

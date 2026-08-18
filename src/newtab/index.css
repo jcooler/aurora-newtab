@@ -129,6 +129,48 @@
   touch-action: none;
 }
 
+/* Edit session chrome (named-layouts spec 2.5). The page dims slightly and
+   widget interiors are inert; the content-tight wrapper IS the content
+   rect, so these outlines trace real bounds by construction. Never applied
+   outside a session — plain clicks in normal use paint nothing. */
+.edit-scrim {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  background: rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
+[data-editing] .canvas-surface .canvas-item {
+  z-index: 21;
+  cursor: default;
+}
+.canvas-item--editing:hover {
+  outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+.canvas-item--selected,
+.canvas-item--selected:hover {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.edit-toolbar {
+  position: fixed;
+  z-index: 60;
+  top: 12px;
+  right: 50%;
+  display: flex;
+  max-width: calc(100vw - 24px);
+  translate: 50% 0;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 9999px;
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
 .canvas-bottom-bar {
   position: fixed;
   z-index: 30;
