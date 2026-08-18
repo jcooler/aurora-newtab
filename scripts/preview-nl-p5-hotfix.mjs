@@ -406,6 +406,44 @@ try {
         fail(`stage9: toolbar overlaps the top strip (toolbar y ${Math.round(toolbar.y)} vs strip bottom ${Math.round(strip.y + strip.height)})`)
       }
       await stage('9b-toolbar-clearance', 'edit toolbar sits below the top strip')
+      // 9c: the owner's exact report — drag the docked bookmarks BAR (whole-
+      // widget grab, session already live) down out of the top strip.
+      const barBox = await page.locator('nav[aria-label="Top bar"] [data-block-id="bookmarks"]').boundingBox()
+      const barGrab = await page.evaluate(({ x, y }) => {
+        const wrapper = document.querySelector('nav[aria-label="Top bar"] [data-block-id="bookmarks"]')
+        const r = wrapper?.getBoundingClientRect()
+        return {
+          stack: document.elementsFromPoint(x, y).slice(0, 6).map((el) => (
+            `${el.tagName}.${typeof el.className === 'string' ? el.className.split(' ')[0] : ''}${el.hasAttribute('inert') ? '[inert]' : ''}`
+          )),
+          wrapperRect: r ? { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) } : null,
+          wrapperPointerEvents: wrapper ? getComputedStyle(wrapper).pointerEvents : null,
+          probePoint: { x: Math.round(x), y: Math.round(y) },
+        }
+      }, { x: barBox.x + barBox.width / 2, y: barBox.y + barBox.height / 2 })
+      evidence.stages.push({ name: 'debug-9c-grab-target', note: JSON.stringify(barGrab) })
+      await page.mouse.move(barBox.x + barBox.width / 2, barBox.y + barBox.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(800, 450, { steps: 10 })
+      await page.waitForTimeout(150)
+      const barMode = await page.evaluate(() => (
+        document.querySelector('[data-block-id="bookmarks"]')?.getAttribute('data-canvas-mode')
+      ))
+      if (barMode !== 'anchored') fail(`stage9c: bookmarks bar did not undock on a downward drag (${barMode})`)
+      const barMid = await page.locator('[data-block-id="bookmarks"]').boundingBox()
+      if (barMid && (Math.abs((barMid.y + barMid.height / 2) - 450) > 120)) {
+        fail(`stage9c: undocked bar is not following the pointer (bar center y ${Math.round(barMid.y + barMid.height / 2)} vs pointer 450)`)
+      }
+      await stage('9c-bookmarks-undocked', 'bookmarks bar dragged out of the top dock, following the pointer')
+      // ...and back into the top band re-docks it live.
+      await page.mouse.move(800, 20, { steps: 10 })
+      await page.waitForTimeout(150)
+      const barBack = await page.evaluate(() => (
+        document.querySelector('[data-block-id="bookmarks"]')?.getAttribute('data-canvas-mode')
+      ))
+      if (barBack !== 'docked') fail(`stage9c: bookmarks bar did not re-dock in the top band (${barBack})`)
+      await page.mouse.up()
+      await page.waitForTimeout(200)
       await page.keyboard.press('Escape')
       await page.waitForTimeout(300)
     }

@@ -135,6 +135,15 @@ describe('CanvasSurface (anchored named layout)', () => {
     }
   })
 
+  it('the Bookmarks wrapper is grabbable during a session despite its normal-mode pointer-events none', () => {
+    // Legacy rule: the closed bar's wrapper is pointer-events none so its
+    // allocation cannot intercept other controls. In a session the interiors
+    // are inert and the wrapper is the drag target — without the editing
+    // override the bar could not be grabbed at all (owner-reported
+    // 2026-08-18, witness stage 9c).
+    expect(indexCss).toMatch(/\.canvas-item--editing\[data-block-id="bookmarks"\]\s*\{[^}]*pointer-events:\s*auto\s*;/)
+  })
+
   it('never paints a container focus ring: no focus-within rule declares an outline', () => {
     expect(indexCss).not.toMatch(/board-item[^{]*:focus-within/)
     // The hover-chrome reveal keys on :focus-within (opacity only, spec 2.5

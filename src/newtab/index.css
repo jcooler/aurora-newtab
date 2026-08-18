@@ -1420,6 +1420,13 @@ select > option {
 .canvas-item[data-block-id="bookmarks"] > nav {
   pointer-events: auto;
 }
+/* In an edit session the wrapper IS the drag/selection target and the inner
+   nav is inert — without this override every point on the bar fell through
+   both layers and the bar could not be grabbed at all (owner-reported
+   2026-08-18, witness stage 9c). */
+.canvas-item--editing[data-block-id="bookmarks"] {
+  pointer-events: auto;
+}
 .canvas-item[data-block-id="bookmarks"].z-50 {
   z-index: 50;
 }
