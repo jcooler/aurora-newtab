@@ -115,47 +115,20 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
     '.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > span',
     '.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "]',
     '.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div > span',
-    '.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td span:first-child',
-    '.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label]',
   ])('keeps ordinary glance text at the 14px floor for %s', (selector) => {
     expect(declarationBlock(selector)).toMatch(/font-size:\s*14px\s*;/)
   })
 
-  it.each([
-    '.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button',
-    '.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button',
-  ])('keeps routine controls on the resolved density target for %s', (selector) => {
-    const declarations = declarationBlock(selector)
+  it('keeps routine controls on the resolved density target for compact Habits', () => {
+    const declarations = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button')
     expect(declarations).toMatch(/min-width:\s*36px\s*;/)
     expect(declarations).toMatch(/min-height:\s*36px\s*;/)
   })
 
-  it('removes compact Month padding so complete controls own the finite track', () => {
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] > div'))
-      .toMatch(/padding:\s*0\s*;/)
-  })
-
-  it('uses an accessible compact Month label and a complete seven-day week', () => {
-    const row = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span')
-    expect(row).toMatch(/display:\s*grid\s*;/)
-    expect(row).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) auto\s*;/)
-    expect(row).toMatch(/gap:\s*0\s*;/)
-    expect(row).toMatch(/width:\s*100%\s*;/)
-    expect(row).toMatch(/min-height:\s*36px\s*;/)
-    const label = declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label]')
-    expect(label).toMatch(/min-width:\s*0\s*;/)
-    expect(label).toMatch(/white-space:\s*nowrap\s*;/)
-    expect(label).toMatch(/overflow:\s*visible\s*;/)
-    expect(label).toMatch(/text-overflow:\s*clip\s*;/)
-    expect(label).toMatch(/line-height:\s*20px\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-full]'))
-      .toMatch(/display:\s*none\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before'))
-      .toMatch(/content:\s*attr\(data-label\)\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] table'))
-      .toMatch(/margin-top:\s*0\s*;/)
-    expect(indexCss).not.toContain('.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] tbody tr > td:nth-child(n + 5) {')
-    expect(indexCss).not.toMatch(/data-block-id="monthCal"\][\s\S]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/)
+  it('the compact Month tier is fully removed (batch-2 owner review)', () => {
+    // "The compact month is a joke... just remove it" — Month's only tier is
+    // the complete month. No compact-tier Month rule may survive.
+    expect(indexCss).not.toContain('[data-canvas-size="compact"][data-block-id="monthCal"]')
   })
 
   // The <72px Month action-stacking and its @container siblings were

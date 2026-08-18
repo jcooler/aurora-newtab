@@ -3,7 +3,9 @@ import type { BlockId } from '../lib/layout/types'
 
 export interface WidgetSizeContract {
   sizes: readonly CanvasSize[]
-  compact: string
+  /** Optional since the batch-2 owner review removed Month's compact tier —
+   *  a widget's smallest tier need not be compact. */
+  compact?: string
   standard?: string
   full?: string
   /** The Docked tier's one-line content contract (named-layouts spec 2.3:
@@ -17,14 +19,16 @@ export interface SelectedCanvasContent {
   minimumSize: CanvasSize
 }
 
-const contract = (sizes: readonly CanvasSize[], compact: string, standard?: string, full?: string, docked?: string): WidgetSizeContract =>
+const contract = (sizes: readonly CanvasSize[], compact?: string, standard?: string, full?: string, docked?: string): WidgetSizeContract =>
   Object.freeze({ sizes: Object.freeze([...sizes]), compact, standard, full, docked })
 
 /** Canvas sizes are a content promise, not a request to stretch the same card. */
 export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>> = Object.freeze({
   weather: contract(['compact', 'standard', 'full'], 'Current temperature and condition', 'Forecast context', 'Detailed forecast', 'Temperature · location · condition'),
   ics: contract(['compact', 'standard'], 'Next event', 'Selected calendar view', undefined, 'Next event'),
-  monthCal: contract(['compact', 'standard'], 'Current week', 'Complete month'),
+  // Batch-2 owner review: the compact Month ("takes up way too much space,
+  // just remove it") is gone — the complete month is Month's only tier.
+  monthCal: contract(['standard'], undefined, 'Complete month'),
   sun: contract(['compact', 'standard'], 'Next sun event', 'Sunrise and sunset', undefined, 'Next sun event'), moon: contract(['compact'], 'Current phase', undefined, undefined, 'Current phase'),
   quote: contract(['compact', 'standard'], 'Quote', 'Readable full quote'),
   clock: contract(['compact', 'standard', 'full'], 'Current time', 'Time and date', 'Large, legible time and date', 'Time · date'),

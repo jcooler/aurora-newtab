@@ -1589,80 +1589,8 @@ select > option {
 .canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > ul {
   display: none;
 }
-
-/* Month chooses its truthful Compact/Standard cells in React. Stage styling
-   may arrange that complete week, but never hides days or month rows. */
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] > div {
-  /* A Standard compact track can be 72.66px wide. Preserve the full inline
-     width for the two 36px month-nav targets so neither wraps to a second row.
-     The label and conditional Today action then use the remaining block axis;
-     no padding or clipping is needed inside the finite one-track allocation. */
-  padding: 0;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] {
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0;
-  min-height: 72px;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button {
-  padding: 0;
-  min-width: 36px;
-  min-height: 36px;
-  display: grid;
-  place-items: center;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
-  order: 3;
-  flex-basis: 100%;
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  min-height: 36px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] table {
-  margin-top: 0;
-  table-layout: fixed;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td {
-  padding-block: 0;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td > div {
-  gap: 0;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td span:first-child {
-  width: 100%;
-  max-width: 14px;
-  height: 14px;
-  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  font-size: 14px;
-  line-height: 14px;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label] {
-  font-size: 14px;
-  line-height: 20px;
-  min-width: 0;
-  white-space: nowrap;
-  overflow-wrap: normal;
-  overflow: visible;
-  text-overflow: clip;
-  text-align: center;
-}
 .canvas-item[data-block-id="monthCal"] [data-monthcal-label-short] {
   display: none;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-full] {
-  display: none;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-short] {
-  display: inline;
-}
-.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before {
-  content: attr(data-label);
 }
 
 .canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {

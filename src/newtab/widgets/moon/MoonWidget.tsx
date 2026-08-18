@@ -2,8 +2,9 @@ import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { moonPhase } from '../../../lib/moon'
 import type { StoredLocation } from '../../../lib/storage/schema'
+import DockLine from '../shared/DockLine'
 
-export default function MoonWidget() {
+export default function MoonWidget({ docked }: { docked?: boolean } = {}) {
   // Gate BEFORE any other hook exists — same zero-hooks-in-the-gate split as
   // SunWidget (MonthCalWidget's own doc comment): both useStoredKey reads run
   // unconditionally every render (Rules of Hooks stay satisfied), but a
@@ -13,15 +14,19 @@ export default function MoonWidget() {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   if (!settings?.widgets.moon || !location) return null
-  return <MoonInner location={location} />
+  return <MoonInner location={location} docked={docked} />
 }
 
-function MoonInner({ location }: { location: StoredLocation }) {
+function MoonInner({ location, docked }: { location: StoredLocation; docked?: boolean }) {
   const { now } = useLocalDay()
   // Southern hemisphere (lat < 0) mirrors the glyph, not the name (moon.ts's
   // own doc comment).
   const phase = moonPhase(now, location.lat < 0)
   const line = `${phase.glyph} ${phase.name}`
+
+  // Docked tier (batch-2 owner review): the strip line drops the padded
+  // panel — one bare dense line at the shared dock density.
+  if (docked) return <DockLine label="Moon phase" facts={[line]} />
 
   return (
     <section

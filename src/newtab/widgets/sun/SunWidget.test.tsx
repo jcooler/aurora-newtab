@@ -36,10 +36,12 @@ async function renderWithSun({
   widgetOn = true,
   location = NYC as StoredLocation | null,
   use24Hour = false,
+  docked = false,
 }: {
   widgetOn?: boolean
   location?: StoredLocation | null
   use24Hour?: boolean
+  docked?: boolean
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -51,7 +53,7 @@ async function renderWithSun({
   await storage.set('location', location)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <SunWidget />
+      <SunWidget docked={docked} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -59,6 +61,17 @@ async function renderWithSun({
 }
 
 describe('SunWidget', () => {
+  it('Docked renders one bare dense line, smaller than the compact card (batch-2 owner review)', async () => {
+    vi.setSystemTime(NYC_SOLSTICE)
+    const { container } = await renderWithSun({ docked: true })
+    const line = container.querySelector('[data-dock-line]')!
+    expect(line).toBeTruthy()
+    const times = sunTimes(NYC_SOLSTICE, NYC.lat, NYC.lon)!
+    expect(line.textContent).toContain(`☀ ${formatClock(times.sunrise, false)} → ${formatClock(times.sunset, false)}`)
+    // The dock line is bare — no padded panel card around it.
+    expect(container.querySelector('section')).toBeNull()
+  })
+
   // Same intervalSpy discipline as WorldClocks.test.tsx: this is the actual
   // proof the gate lives BEFORE useNow, not just an inference from "renders
   // nothing".

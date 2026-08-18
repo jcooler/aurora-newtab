@@ -41,4 +41,9 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
     expect(WIDGET_SIZE_CONTRACTS.monthCal.docked).toBeUndefined()
     expect(WIDGET_SIZE_CONTRACTS.links.docked).toBeUndefined()
   })
+
+  it('Month offers only the complete month (batch-2 owner review removed compact)', () => {
+    expect(WIDGET_SIZE_CONTRACTS.monthCal.sizes).toEqual(['standard'])
+    expect(WIDGET_SIZE_CONTRACTS.monthCal.compact).toBeUndefined()
+  })
 })

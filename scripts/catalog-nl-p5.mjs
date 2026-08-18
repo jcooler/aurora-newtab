@@ -73,15 +73,18 @@ const BATCH_2 = [
   { id: 'countdown', label: 'Countdown', tiers: ['compact', 'standard', 'docked'] },
   { id: 'sun', label: 'Sun', tiers: ['compact', 'standard', 'docked'] },
   { id: 'moon', label: 'Moon', tiers: ['compact', 'docked'] },
-  { id: 'monthCal', label: 'Month', tiers: ['compact', 'standard'] },
+  { id: 'monthCal', label: 'Month', tiers: ['standard'] },
   { id: 'links', label: 'Quick Links', tiers: ['compact', 'standard'] },
 ]
 
-// The ten batch-2 widgets with CODED dock lines (declare-only widgets render
+// The batch-2 widgets with CODED dock lines (declare-only widgets render
 // their compact composition in the strip; the catalog shows it for judgment).
+// sun and moon joined after the batch-2 owner review ("take up more space in
+// the dock than they do in compact") — bare DockLines now, not compact cards.
 const CODED_DOCK_LINES = new Set([
   'weather', 'clock',
   'github', 'gitlab', 'jira', 'vercel', 'status', 'rss', 'crypto', 'homeassistant', 'ics', 'habits',
+  'sun', 'moon',
 ])
 
 const BATCH = batch === '2' ? BATCH_2 : BATCH_1
@@ -298,7 +301,7 @@ const CONTRACTS_2 = {
   countdown: { compact: 'Countdown', standard: 'Countdown detail', docked: 'Next countdown' },
   sun: { compact: 'Next sun event', standard: 'Sunrise and sunset', docked: 'Next sun event' },
   moon: { compact: 'Current phase', docked: 'Current phase' },
-  monthCal: { compact: 'Current week', standard: 'Complete month' },
+  monthCal: { standard: 'Complete month' },
   links: { compact: 'Primary link action', standard: 'Selected quick links' },
 }
 
@@ -364,9 +367,12 @@ const HEADER_2 = [
   '',
   'Batch-2 notes for the review:',
   '- Connector dock lines are non-interactive readouts: their free forms offer no panel or expansion, so a readout IS click parity (spec 2.4). Overrule here if a docked connector should open something.',
-  '- worldClocks, countdown, sun, and moon declare Docked with their existing compact single-line compositions (declared, not rebuilt); judge them in the strip captures.',
+  '- worldClocks and countdown declare Docked with their existing compact single-line compositions (declared, not rebuilt); judge them in the strip captures.',
+  '- sun and moon now render bare dense DockLines at the shared strip density (no panel), per the batch-2 owner review.',
   '- monthCal and links declare NO Docked tier (a month grid and a launcher grid have no honest one-line form); overrule here if wanted.',
+  '- The batch-2 owner review removed the compact Month tier ("takes up way too much space, just remove it") — the complete month is Month\'s only tier.',
   '- The GitHub line follows the spec\'s own example shape (PRs · issues · unread). Quiet states read "All clear".',
+  '- Bookmarks are a batch-1 widget: reviewed and approved in the batch-1 catalog (full readable bar, single-letter compact marks).',
   '',
 ]
 
@@ -375,10 +381,19 @@ const VERDICTS_1 = {
   'weather-compact': 'Approved with refinement (2026-08-18): the F/C scale letter was a smidge too large — pinned to the 12px metadata floor. Applied.',
   'bookmarks-compact': 'Approved with refinement (2026-08-18): single-letter folder marks (N for News, D for Docs, M for Music). Applied.',
 }
+const VERDICTS_2 = {
+  'github-full': 'Approved with refinement (2026-08-18): full looked exactly like standard — now a wider card (25rem) with a larger graph (18px cells). Applied.',
+  'gitlab-full': 'Approved with refinement (2026-08-18): full looked exactly like standard — now a wider card (25rem) with a larger graph (18px cells). Applied.',
+  'github-compact': 'Approved with refinement (2026-08-18): match GitLab compact — graph with streak and contributions. Applied.',
+  'status-compact': 'Approved with refinement (2026-08-18): dots without names were not intuitive — compact stays dots-only with hover titles naming each service. Applied.',
+  'status-standard': 'Approved with refinement (2026-08-18): dots without names were not intuitive — service names now shown beside each dot. Applied.',
+  'sun-docked': 'Approved with refinement (2026-08-18): docked previously rendered the padded card and out-sized compact — now a bare dense line at the shared strip density, no panel. Applied.',
+  'moon-docked': 'Approved with refinement (2026-08-18): docked previously rendered the padded card and out-sized compact — now a bare dense line at the shared strip density, no panel. Applied.',
+}
 
 const lines = batch === '2' ? [...HEADER_2] : [...HEADER_1]
-const verdicts = batch === '2' ? {} : VERDICTS_1
-const defaultVerdict = batch === '2' ? '_pending_' : APPROVED
+const verdicts = batch === '2' ? VERDICTS_2 : VERDICTS_1
+const defaultVerdict = APPROVED
 
 for (const { id, label, tiers } of BATCH) {
   lines.push(`## ${label}`, '')

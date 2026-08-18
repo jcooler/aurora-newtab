@@ -25,10 +25,22 @@ const LEVEL_BG = [
 
 // A-face geometry: 13px cells, 3px gaps. At the board's 17-column crop that is
 // 17×13 + 16×3 = 269px, inside the card's 296px (w-80 − p-3) content box.
-const CELL = 13
-const GAP = 3
+// The Full tier passes larger geometry (batch-2 owner review: "make the graph
+// larger for the bigger one" — Full must use its space, not restate Standard).
+const DEFAULT_CELL = 13
+const DEFAULT_GAP = 3
 
-export default function ContributionGraph({ contributions }: { contributions: Contributions }) {
+export default function ContributionGraph({
+  contributions,
+  cell = DEFAULT_CELL,
+  gap = DEFAULT_GAP,
+}: {
+  contributions: Contributions
+  cell?: number
+  gap?: number
+}) {
+  const CELL = cell
+  const GAP = gap
   const { cells, columns, monthTicks, streak } = buildContributionGrid(contributions.days)
   const width = columns * CELL + (columns - 1) * GAP
   const pitch = CELL + GAP

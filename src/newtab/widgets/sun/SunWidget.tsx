@@ -3,8 +3,9 @@ import { useLocalDay } from '../../../lib/hooks/useLocalDay'
 import { formatClock } from '../../../lib/clock'
 import { sunTimes } from '../../../lib/sun'
 import type { Settings, StoredLocation } from '../../../lib/storage/schema'
+import DockLine from '../shared/DockLine'
 
-export default function SunWidget() {
+export default function SunWidget({ docked }: { docked?: boolean } = {}) {
   // Gate BEFORE any other hook exists — zero-hooks-in-the-gate split
   // (MonthCalWidget's own doc comment): both useStoredKey reads run
   // unconditionally every render (Rules of Hooks stay satisfied), but a
@@ -20,10 +21,10 @@ export default function SunWidget() {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   if (!settings?.widgets.sun || !location) return null
-  return <SunInner settings={settings} location={location} />
+  return <SunInner settings={settings} location={location} docked={docked} />
 }
 
-function SunInner({ settings, location }: { settings: Settings; location: StoredLocation }) {
+function SunInner({ settings, location, docked }: { settings: Settings; location: StoredLocation; docked?: boolean }) {
   const { now } = useLocalDay()
   const times = sunTimes(now, location.lat, location.lon)
   // Polar day/night (no sunrise or no sunset today at this latitude): the
@@ -36,6 +37,11 @@ function SunInner({ settings, location }: { settings: Settings; location: Stored
     ? ` · golden hour ${formatClock(times.goldenHour, settings.use24Hour)}`
     : ''
   const primary = `☀ ${formatClock(times.sunrise, settings.use24Hour)} → ${formatClock(times.sunset, settings.use24Hour)}`
+
+  // Docked tier (batch-2 owner review): the strip line drops the padded
+  // panel entirely — one bare dense line at the shared dock density, from
+  // the same derivation.
+  if (docked) return <DockLine label="Sun times" facts={[primary]} />
 
   return (
     <section

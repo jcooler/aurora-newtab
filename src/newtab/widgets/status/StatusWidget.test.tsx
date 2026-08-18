@@ -98,6 +98,21 @@ describe('StatusWidget — gate (zero-hooks-in-the-gate, no-husk law)', () => {
 })
 
 describe('StatusWidget — DOM contract', () => {
+  it('names every service beside its dot so status reads without hovering (batch-2 owner review)', async () => {
+    const storage = await seededStorage(CONNECTED, {
+      services: [
+        { name: 'GitHub', indicator: 'none', description: 'All systems operational' },
+        { name: 'Vercel', indicator: 'minor', description: 'Elevated build latency' },
+      ],
+    })
+    mount(storage, 'standard')
+    const dots = await screen.findByTestId('status-dots')
+    expect(dots.textContent).toContain('GitHub')
+    expect(dots.textContent).toContain('Vercel')
+    // Hover context stays: the dot's title carries state and description.
+    expect(dots.querySelector('[title*="Elevated build latency"]')).toBeTruthy()
+  })
+
   it('Docked renders one dense line from the same snapshot and no strip (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     render(
@@ -172,28 +187,28 @@ describe('StatusWidget — dot color + title per indicator', () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Alpha: All Systems Operational')
-    expect(dot.className).toContain('bg-emerald-400')
+    expect(dot.firstElementChild?.className).toContain('bg-emerald-400')
   })
 
   it('minor -> bg-amber-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Bravo: Degraded Performance')
-    expect(dot.className).toContain('bg-amber-400')
+    expect(dot.firstElementChild?.className).toContain('bg-amber-400')
   })
 
   it('major -> bg-red-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Charlie: Partial Outage')
-    expect(dot.className).toContain('bg-red-400')
+    expect(dot.firstElementChild?.className).toContain('bg-red-400')
   })
 
   it('critical -> bg-red-400, title "{name}: {description}"', async () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Delta: Major Outage')
-    expect(dot.className).toContain('bg-red-400')
+    expect(dot.firstElementChild?.className).toContain('bg-red-400')
     expect(screen.getByLabelText('Service status: 3 service issues, 5 services').getAttribute('data-work-pulse-tone')).toBe('critical')
   })
 
@@ -205,7 +220,7 @@ describe('StatusWidget — dot color + title per indicator', () => {
     const storage = await seededStorage(CONNECTED_5, MIXED)
     mount(storage)
     const dot = await screen.findByTitle('Echo: unreachable')
-    expect(dot.className).toContain('bg-canvas-fg-muted/40')
+    expect(dot.firstElementChild?.className).toContain('bg-canvas-fg-muted/40')
   })
 })
 

@@ -365,7 +365,9 @@ function GitlabInner({
       aria-label="GitLab"
       data-canvas-size={canvasSize}
       {...(graphYieldedToGithub ? { 'data-yield': 'github' } : {})}
-      className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg"
+      // Full earns its footprint (batch-2 owner review): a wider card whose
+      // graph renders at larger cells below — never Standard restated.
+      className={`${canvasSize === 'full' ? 'w-[25rem]' : 'w-80'} rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg`}
     >
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitLab</h2>
@@ -392,7 +394,11 @@ function GitlabInner({
           as one, no husk. */}
       {renderGraph && graph && (
         <div data-work-pulse-detail className={innerGraphClass}>
-          <ContributionGraph contributions={graph} />
+          <ContributionGraph
+            contributions={graph}
+            cell={canvasSize === 'full' ? 18 : 13}
+            gap={canvasSize === 'full' ? 4 : 3}
+          />
         </div>
       )}
 

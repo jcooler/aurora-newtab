@@ -20,9 +20,11 @@ const MOON_DATE = new Date(new Date('2026-01-18T19:52:00Z').getTime() + 4 * 86_4
 async function renderWithMoon({
   widgetOn = true,
   location = LONDON as StoredLocation | null,
+  docked = false,
 }: {
   widgetOn?: boolean
   location?: StoredLocation | null
+  docked?: boolean
 } = {}): Promise<{ storage: AuroraStorage; container: HTMLElement }> {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -33,7 +35,7 @@ async function renderWithMoon({
   await storage.set('location', location)
   const { container } = render(
     <StorageProvider storage={storage}>
-      <MoonWidget />
+      <MoonWidget docked={docked} />
     </StorageProvider>,
   )
   await act(async () => {})
@@ -102,5 +104,16 @@ describe('MoonWidget', () => {
     const { container } = await renderWithMoon({ location: SYDNEY })
     const section = container.querySelector('section[aria-label="Moon phase"]')!
     expect(section.textContent).toBe(`${southern.glyph} ${southern.name}`)
+  })
+
+  it('docked renders a bare dock line, not the padded card (batch-2 owner review)', async () => {
+    const { container } = await renderWithMoon({ docked: true })
+    const line = container.querySelector('[data-dock-line]')!
+    expect(line).toBeTruthy()
+    const phase = moonPhase(MOON_DATE, false)
+    expect(line.textContent).toContain(`${phase.glyph} ${phase.name}`)
+    // The padded compact card must NOT also render — docked replaces it.
+    expect(container.querySelector('section[aria-label="Moon phase"]')).toBeNull()
+    expect(container.querySelector('.bg-panel-solid')).toBeNull()
   })
 })

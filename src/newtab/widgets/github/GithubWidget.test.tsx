@@ -75,6 +75,28 @@ function mount(storage: AuroraStorage, canvasSize?: 'compact' | 'standard' | 'fu
 }
 
 describe('GithubWidget', () => {
+  it('Full uses its space: wider card and larger graph cells than Standard (batch-2 owner review)', async () => {
+    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    const { unmount } = mount(await seededStorage(config, DATA_WITH_GRAPH), 'full')
+    const fullGraph = await screen.findByRole('img', { name: /contribution activity/i })
+    expect(fullGraph.style.gridAutoColumns).toBe('18px')
+    expect(fullGraph.closest('section')?.className).toContain('w-[25rem]')
+    unmount()
+
+    mount(await seededStorage(config, DATA_WITH_GRAPH), 'standard')
+    const standardGraph = await screen.findByRole('img', { name: /contribution activity/i })
+    expect(standardGraph.style.gridAutoColumns).toBe('13px')
+    expect(standardGraph.closest('section')?.className).toContain('w-80')
+  })
+
+  it('Compact shows the graph with contributions and streak, matching GitLab compact (batch-2 owner review)', async () => {
+    const config = { ...CONNECTED, views: { commitGraph: true, pulls: true, issues: true, notifications: true } }
+    mount(await seededStorage(config, DATA_WITH_GRAPH), 'compact')
+    expect(await screen.findByRole('img', { name: /contribution activity/i })).toBeTruthy()
+    expect(screen.getByText('contributions')).toBeTruthy()
+    expect(screen.getByText('day streak')).toBeTruthy()
+  })
+
   it('Docked renders one dense line from the same snapshot and no card (NL-P5 batch 2)', async () => {
     const storage = await seededStorage(CONNECTED)
     render(

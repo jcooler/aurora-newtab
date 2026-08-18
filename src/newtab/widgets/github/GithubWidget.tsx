@@ -107,9 +107,11 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
   // empty day array is treated as absent (a graph needs cells to draw), so the
   // section only appears when commitGraph is on AND there are real days.
   const contributions = data.contributions ?? null
+  // Compact keeps the graph too (batch-2 owner review: compact GitHub matches
+  // compact GitLab — graph, contributions, and streak), exactly GitLab's own
+  // gate shape.
   const graph =
-    views.commitGraph && (canvasSize !== 'compact' || (!views.pulls && !views.issues && !views.notifications))
-      && contributions !== null && contributions.days.length > 0 ? contributions : null
+    views.commitGraph && contributions !== null && contributions.days.length > 0 ? contributions : null
 
   // STRICTLY graph-only composition (commitGraph on, every other section off —
   // Jon's "just my commit graph"). The graph is then the card's ONLY content, so
@@ -227,7 +229,9 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
     // chrome trim (8px of card height), not a shape change — rounded-2xl/
     // shadow-lg/w-80 all unchanged, screenshot-verified against
     // connectors-github.png and connectors-all.png before shipping.
-    <section aria-label="GitHub" data-canvas-size={canvasSize} className="w-80 rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg">
+    // Full earns its footprint (batch-2 owner review): a wider card whose
+    // graph renders at larger cells below — never Standard restated.
+    <section aria-label="GitHub" data-canvas-size={canvasSize} className={`${canvasSize === 'full' ? 'w-[25rem]' : 'w-80'} rounded-2xl bg-panel-solid p-3 dense:p-2 text-fg shadow-lg`}>
       <div className="mb-1.5 dense:mb-1 flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-fg">GitHub</h2>
         {/* Unread chip renders ONLY when the notifications view is on AND the
@@ -267,7 +271,11 @@ function GithubInner({ github, forgeSiblings, canvasSize, docked }: { github: Gi
           wrapper carries nothing — the whole card yields as one, no husk. */}
       {graph && (
         <div data-work-pulse-detail className={innerGraphClass}>
-          <ContributionGraph contributions={graph} />
+          <ContributionGraph
+            contributions={graph}
+            cell={canvasSize === 'full' ? 18 : 13}
+            gap={canvasSize === 'full' ? 4 : 3}
+          />
         </div>
       )}
 

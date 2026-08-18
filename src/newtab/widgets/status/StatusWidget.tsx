@@ -144,9 +144,16 @@ function StatusInner({
         tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
         metadata={`${rows.length} services`}
       />
-      {canvasSize !== 'compact' && <div data-work-pulse-detail data-work-pulse-status-dots className="flex justify-center gap-2">
+      {/* Named dots (batch-2 owner review): an anonymous dot row answered
+          neither "what services" nor "which one is which" — the name rides
+          visibly beside each dot, and the title keeps the state/description
+          one hover away. */}
+      {canvasSize !== 'compact' && <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className="flex flex-wrap justify-center gap-x-3 gap-y-1">
         {rows.map((s, i) => (
-          <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
+          <span key={i} title={dotTitle(s)} className="flex items-center gap-1.5">
+            <span className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
+            <span className="text-[11px] leading-4 text-fg-muted">{s.name}</span>
+          </span>
         ))}
       </div>}
       {canvasSize !== 'compact' && trouble.map((s, i) => (
