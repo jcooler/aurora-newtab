@@ -301,6 +301,36 @@ try {
   }
   await stage(page, '7b-switched-back', 'original layout restored exactly')
 
+  // ---- Stage 9: the owner's short-window class (plan Task 8 matrix) ----
+  await page.setViewportSize({ width: 1408, height: 445 })
+  await page.waitForTimeout(350)
+  const shortClock = page.locator('[data-block-id="clock"]')
+  await shortClock.hover()
+  if (!await page.locator('button[aria-label="Move Clock"]').isVisible()) fail('stage9: grip missing at 1408x445')
+  const shortBefore = await page.evaluate(() => {
+    const node = document.querySelector('[data-block-id="clock"]')
+    return { left: node.style.left, top: node.style.top }
+  })
+  const shortGrip = await page.locator('button[aria-label="Move Clock"]').boundingBox()
+  await page.mouse.move(shortGrip.x + 5, shortGrip.y + 5)
+  await page.mouse.down()
+  await page.mouse.move(shortGrip.x + 120, shortGrip.y + 40, { steps: 6 })
+  await page.mouse.up()
+  await page.waitForTimeout(150)
+  if (!await page.locator('main[data-editing]').count()) fail('stage9: no session at 1408x445')
+  await stage(page, '9-short-window-edit', 'edit session at the owner 1408x445 class')
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(250)
+  const shortAfter = await page.evaluate(() => {
+    const node = document.querySelector('[data-block-id="clock"]')
+    return { left: node.style.left, top: node.style.top }
+  })
+  if (shortAfter.left !== shortBefore.left || shortAfter.top !== shortBefore.top) {
+    fail('stage9: exact cancel failed at 1408x445')
+  }
+  await page.setViewportSize({ width: 1600, height: 900 })
+  await page.waitForTimeout(300)
+
   // ---- Stage 8: every write across the whole run touched only layouts ----
   await harvestWrites()
   if (evidence.writes.length === 0) fail('stage8: write log is empty — the harness saw no saves, which cannot be true')

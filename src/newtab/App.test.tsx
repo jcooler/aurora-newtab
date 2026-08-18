@@ -587,6 +587,43 @@ describe('App Canvas composition', () => {
     expect((await storage.get('settings')).widgets.weather).toBe(true)
   })
 
+  it('the entry chord during a live session is identity — a draft is never silently discarded (review fix C1)', async () => {
+    await renderApp()
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }))
+    await act(async () => {})
+    fireEvent.keyDown(window, { key: 'ArrowRight' })
+    await act(async () => {})
+    const movedTo = itemPoint('clock')
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(false)
+
+    fireEvent.keyDown(window, { key: 'E', ctrlKey: true, shiftKey: true })
+    await act(async () => {})
+
+    // Still the SAME session: the moved position and the undo history live.
+    expect(itemPoint('clock')).toEqual(movedTo)
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(false)
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+  })
+
+  it('the toolbar lists hidden widgets and Show restores them to the designed slot (review fix I2)', async () => {
+    await renderApp()
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }))
+    await act(async () => {})
+    fireEvent.click(canvasItem('weather'))
+    await act(async () => {})
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Weather inspector' })).getByRole('button', { name: 'Hide' }))
+    await act(async () => {})
+    expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
+
+    fireEvent.click(within(screen.getByRole('group', { name: 'Hidden in this layout' })).getByRole('button', { name: 'Show Weather' }))
+    await act(async () => {})
+    expect(screen.getByTestId('canvas-item-weather')).toBeTruthy()
+    expect(screen.queryByRole('group', { name: 'Hidden in this layout' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+  })
+
   it('the badge switches and creates layouts with single validated writes of only the layouts key (spec 2.1)', async () => {
     const storage = await renderApp()
     const setSpy = vi.spyOn(storage, 'set')

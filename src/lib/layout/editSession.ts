@@ -220,6 +220,26 @@ export function restoreSelectedDefaults(session: EditSession): EditSession {
   })))
 }
 
+/** Un-hides a widget hidden in this layout, returning it to its designed
+ *  default slot (review fix I2: Hide must never be a dead end — the toolbar
+ *  lists hidden widgets and restores them through this). */
+export function restoreHiddenWidget(session: EditSession, id: BlockId): EditSession {
+  const layout = activeDraftLayout(session)
+  if (layout.widgets[id]?.kind !== 'hidden') return session
+  let maxLayer = -1
+  for (const blockId of BLOCK_IDS) {
+    const placement = layout.widgets[blockId]
+    if (placement?.kind === 'free') maxLayer = Math.max(maxLayer, placement.layer)
+  }
+  return commit(session, withActiveLayout(session.draft, (draftLayout) => ({
+    ...draftLayout,
+    widgets: {
+      ...draftLayout.widgets,
+      [id]: defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id)),
+    },
+  })))
+}
+
 export function applyBulkTier(session: EditSession, tier: WidgetTier): EditSession {
   return commit(session, withActiveLayout(session.draft, (layout) => {
     const widgets = { ...layout.widgets }

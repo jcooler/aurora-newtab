@@ -24,6 +24,8 @@ import { useLongPress } from './arrange/useLongPress'
 import { createLayout, saveLayoutsDocument, switchActiveLayout } from '../lib/layout/layoutOperations'
 import LayoutBadge from './edit/LayoutBadge'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
+import { NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
+import { restoreHiddenWidget } from '../lib/layout/editSession'
 import { useDialogEscape } from '../lib/dialogStack'
 import { isPremium } from '../lib/premium'
 import { useStorage } from '../lib/storage/context'
@@ -164,7 +166,9 @@ export default function App() {
   const openSettingsForWidget = useCallback((id: BlockId) => {
     const entry = activeEntries.find((candidate) => candidate.id === id)
     const availability = entry?.availability
-    const target = availability?.kind === 'connector'
+    // A connector card only exists on the premium Connectors tab; without it
+    // the group anchor is the honest fallback (review fix M8).
+    const target = availability?.kind === 'connector' && isPremium()
       ? { tab: 'connectors' as const, anchor: availability.id }
       : availability?.kind === 'widget'
         ? { tab: 'widgets' as const, anchor: availability.key }
@@ -211,9 +215,13 @@ export default function App() {
     onDrop: () => {},
   })
 
-  // Touch long-press enters the edit session and takes over the drag
-  // (spec 2.5) — the retained document-level detector, premium-gated.
+  // Long-press enters edit mode on TOUCH ONLY (spec 2.5, review fix I3) —
+  // the retained document-level detector stays untouched; the filter lives
+  // here. Below the narrow floor the stack renders no anchored geometry, so
+  // a drag would mutate positions invisibly — suppressed (review fix M7).
   useLongPress((blockId, event) => {
+    if (event.pointerType !== 'touch') return
+    if (window.innerWidth < NARROW_FLOOR_WIDTH) return
     if (!sessionLiveRef.current) editMode.begin(null)
     editMode.select(blockId)
     drag.startDrag(blockId, event)
@@ -228,8 +236,10 @@ export default function App() {
     function onKey(event: KeyboardEvent) {
       if (!(event.ctrlKey || event.metaKey) || !event.shiftKey || event.key.toLowerCase() !== 'e') return
       if (!isPremium()) return
-      const target = event.target as HTMLElement | null
-      if (target && target.closest('input, textarea, select, [contenteditable="true"]')) return
+      // A live session ignores the chord entirely — re-entry would discard
+      // the draft (review fix C1; begin is also identity-guarded).
+      if (sessionLiveRef.current) return
+      if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       event.preventDefault()
       editMode.begin(document.activeElement instanceof HTMLElement ? document.activeElement : null)
     }
@@ -244,8 +254,7 @@ export default function App() {
     function onKey(event: KeyboardEvent) {
       const delta = canvasKeyboardDelta(event.key, event.shiftKey)
       if (!delta) return
-      const target = event.target as HTMLElement | null
-      if (target && target.closest('input, textarea, select')) return
+      if (event.target instanceof Element && event.target.closest('input, textarea, select')) return
       event.preventDefault()
       editMode.dispatch((current) => nudgeSelected(current, {
         xPct: delta.x / window.innerWidth * 100,
@@ -378,6 +387,12 @@ export default function App() {
         {session ? (
           <EditToolbar
             session={session}
+            hiddenWidgets={activeEntries.flatMap((entry) => (
+              activeDraftLayout(session).widgets[entry.id]?.kind === 'hidden'
+                ? [{ id: entry.id, label: entry.label }]
+                : []
+            ))}
+            onRestoreHidden={(id) => editMode.dispatch((current) => restoreHiddenWidget(current, id as BlockId))}
             onSwitchLayout={(layoutId) => {
               editMode.dispatch((current) => beginEditSession(
                 switchActiveLayout(current.draft, layoutId),

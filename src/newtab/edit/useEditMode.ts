@@ -31,6 +31,9 @@ export function useEditMode(input: {
   storage: AuroraStorage
 }): EditModeApi {
   const [session, setSession] = useState<EditSession | null>(null)
+  const sessionLiveRef = useRef(false)
+  sessionLiveRef.current = session !== null
+  const savingRef = useRef(false)
   const invokerRef = useRef<HTMLElement | null>(null)
   const inputRef = useRef(input)
   inputRef.current = input
@@ -38,6 +41,10 @@ export function useEditMode(input: {
   const begin = useCallback((invoker: HTMLElement | null = null) => {
     const { document: resolved, enabledIds } = inputRef.current
     if (!isPremium() || !resolved) return
+    // Re-entry while a session is live is identity: replacing the session
+    // would silently discard the draft (review fix C1) — the exact failure
+    // the explicit Cancel/Save contract exists to prevent.
+    if (sessionLiveRef.current) return
     invokerRef.current = invoker
     void closeAllDialogs()
     setSession(beginEditSession(resolved, enabledIds))
@@ -64,8 +71,15 @@ export function useEditMode(input: {
 
   const save = useCallback(async () => {
     const current = session
-    if (!current) return
-    await saveLayoutsDocument(inputRef.current.storage, current.draft)
+    // The in-flight guard keeps Save the SINGLE committing write even under
+    // a double click (review fix M1).
+    if (!current || savingRef.current) return
+    savingRef.current = true
+    try {
+      await saveLayoutsDocument(inputRef.current.storage, current.draft)
+    } finally {
+      savingRef.current = false
+    }
     end()
   }, [end, session])
 

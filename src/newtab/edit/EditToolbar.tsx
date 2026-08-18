@@ -14,6 +14,8 @@ const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
  *  would either lose or silently commit the draft, and it does neither. */
 export default function EditToolbar({
   session,
+  hiddenWidgets = [],
+  onRestoreHidden,
   onSwitchLayout,
   onBulkTier,
   onUndo,
@@ -22,6 +24,10 @@ export default function EditToolbar({
   onSave,
 }: {
   session: EditSession
+  /** Widgets hidden in the edited layout (review fix I2): each gets a Show
+   *  control so Hide is never a dead end. */
+  hiddenWidgets?: readonly { id: string; label: string }[]
+  onRestoreHidden?: (id: string) => void
   onSwitchLayout: (layoutId: string) => void
   onBulkTier: (tier: WidgetTier) => void
   onUndo: () => void
@@ -54,6 +60,21 @@ export default function EditToolbar({
           </button>
         ))}
       </span>
+      {hiddenWidgets.length > 0 ? (
+        <span role="group" aria-label="Hidden in this layout" className="flex items-center gap-1">
+          {hiddenWidgets.map(({ id, label: widgetLabel }) => (
+            <button
+              key={id}
+              type="button"
+              className={button}
+              aria-label={`Show ${widgetLabel}`}
+              onClick={() => onRestoreHidden?.(id)}
+            >
+              Show {widgetLabel}
+            </button>
+          ))}
+        </span>
+      ) : null}
       <span className="flex items-center gap-1">
         <button type="button" className={button} disabled={session.past.length === 0} onClick={onUndo}>
           Undo

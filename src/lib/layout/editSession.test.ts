@@ -8,6 +8,7 @@ import {
   moveSelectedLive,
   nudgeSelected,
   resetSession,
+  restoreHiddenWidget,
   restoreSelectedDefaults,
   selectWidget,
   setSelectedTier,
@@ -117,6 +118,15 @@ describe('hide, restore, bulk, reset', () => {
     const session = hideSelected(selectWidget(fresh(), 'weather'))
     expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'hidden' })
     expect(session.selectedId).toBeNull()
+  })
+
+  it('restoreHiddenWidget un-hides to the designed slot and is identity for non-hidden entries (review fix I2)', () => {
+    let session = hideSelected(selectWidget(fresh(), 'weather'))
+    session = restoreHiddenWidget(session, 'weather')
+    const weather = activeDraftLayout(session).widgets.weather as FreeWidgetPlacement
+    expect(weather.kind).toBe('free')
+    expect(pointFromFreePlacement(weather)).toEqual({ x: 93, y: 13 })
+    expect(restoreHiddenWidget(fresh(), 'clock')).toEqual(fresh())
   })
 
   it('restoreSelectedDefaults returns the designed slot', () => {

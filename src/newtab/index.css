@@ -140,10 +140,6 @@
   background: rgb(0 0 0 / 0.25);
   pointer-events: none;
 }
-[data-editing] .canvas-surface .canvas-item {
-  z-index: 21;
-  cursor: default;
-}
 .canvas-item--editing:hover {
   outline: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;

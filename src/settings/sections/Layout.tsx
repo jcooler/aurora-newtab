@@ -52,6 +52,7 @@ export default function Layout({
   const [isCanvasLayout, setIsCanvasLayout] = useState<boolean | null>(null)
   const [renamingId, setRenamingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [pendingWrite, setPendingWrite] = useState(false)
 
   useEffect(() => {
     if (!open) {
@@ -60,10 +61,21 @@ export default function Layout({
     }
   }, [open])
 
+  // The management list builds every operation from the prop document; the
+  // prop refreshes only after the write round-trips, so a second rapid
+  // action would build on a stale document and clobber the first (review
+  // fix I4). Actions latch until the fresh document arrives.
+  useEffect(() => {
+    setPendingWrite(false)
+  }, [layoutsDocument])
+
   // Every management action is one pure operation plus one validated write
   // of the layouts key (named-layouts spec 2.1); switching is instant and
   // cannot lose or alter data.
-  const commit = (next: LayoutsDocument) => void saveLayoutsDocument(storage, next)
+  const commit = (next: LayoutsDocument) => {
+    setPendingWrite(true)
+    void saveLayoutsDocument(storage, next)
+  }
 
   useEffect(() => {
     if (!open) setResetDialogOpen(false)
@@ -99,7 +111,7 @@ export default function Layout({
   return (
     <Section title="Layout">
       {layoutsDocument ? (
-        <div className="mb-4" data-layouts-management="">
+        <div className="mb-4" data-layouts-management="" inert={pendingWrite || undefined}>
           <p className={`${label} mb-1.5`}>Layouts</p>
           <ul className="space-y-1.5">
             {layoutsDocument.layouts.map((layout, index) => (

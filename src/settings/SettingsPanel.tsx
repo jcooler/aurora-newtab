@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { useStorage } from '../lib/storage/context'
 import { useUploads } from '../lib/hooks/useUploads'
@@ -59,6 +59,8 @@ export default function SettingsPanel({
   // — see Layout.tsx's `open` prop, which exists for exactly that reason), so
   // this state is never torn down between opens.
   const [tab, setTab] = useState<TabId>('general')
+  const openRef = useRef(open)
+  openRef.current = open
 
   useEffect(() => {
     if (!focusAnchor) return
@@ -68,7 +70,8 @@ export default function SettingsPanel({
     // focus lands AFTER both, not in a race with them.
     let cancelled = false
     const attempt = (remaining: number) => {
-      if (cancelled) return
+      // Never steal focus after the drawer closed mid-retry (review fix M8).
+      if (cancelled || !openRef.current) return
       const target = document.querySelector<HTMLElement>(
         `[data-settings-anchor="${focusAnchor.anchor}"]`,
       )
