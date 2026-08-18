@@ -34,10 +34,12 @@ interface CanvasSurfaceProps {
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, docked: boolean) => ReactNode
 }
 
-/** One dock strip (named-layouts spec 2.4): a clean status band. The
- *  scrollbar never shows; TRUE overflow is signaled by masked edge fades and
- *  scrolled by wheel, trackpad, drag, and keyboard — locally, never moving
- *  the page. Subtle arrow nubs appear on hover at the faded edge. */
+/** One dock strip (named-layouts spec 2.4): a clean status band spanning
+ *  the width, with start/center/end sections (owner-refined 2026-08-18: the
+ *  user owns placement WITHIN the bar). The scrollbar never shows; TRUE
+ *  overflow is signaled by masked edge fades and scrolled by wheel,
+ *  trackpad, drag, and keyboard — locally, never moving the page. Subtle
+ *  arrow nubs appear on hover at the faded edge. */
 function DockStrip({
   edge,
   label,
@@ -170,11 +172,19 @@ export default function CanvasSurface({
     )
   }
 
+  const renderSections = (dockItems: readonly DockedRenderItem[]) => (
+    (['start', 'center', 'end'] as const).map((align) => (
+      <div key={align} className="dock-section" data-align={align}>
+        {dockItems.filter((item) => item.align === align).map(renderItem)}
+      </div>
+    ))
+  )
+
   return (
     <div data-canvas-root="" className="canvas-root">
       {topDock.length > 0 ? (
         <DockStrip edge="top" label="Top bar" memberCount={topDock.length}>
-          {topDock.map(renderItem)}
+          {renderSections(topDock)}
         </DockStrip>
       ) : null}
       <section
@@ -190,7 +200,7 @@ export default function CanvasSurface({
       </section>
       {bottomDock.length > 0 ? (
         <DockStrip edge="bottom" label="Bottom bar" memberCount={bottomDock.length}>
-          {bottomDock.map(renderItem)}
+          {renderSections(bottomDock)}
         </DockStrip>
       ) : null}
     </div>

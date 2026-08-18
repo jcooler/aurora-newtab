@@ -79,14 +79,21 @@
 
 /* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
    middle dots separating facts, never wrapping — the strip owns overflow. */
+/* Dock lines wear the SAME chip metrics as the Tasks/Notes launchers
+   (owner direction 2026-08-18: "make it the same size in the bottom dock as
+   tasks notes etc") — 14px text, matching padding, panel pill. */
 .dock-line {
   display: flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 20px;
-  padding: 4px 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
 }
 
 /* The old `.canvas-item > * { max-width: 100% }` fitted interiors into the
@@ -395,20 +402,27 @@
    .dock-scroller owns the (scrollbar-less) horizontal scroll and the
    true-overflow fade masks; the hover nubs sit on the nav, outside the
    mask. */
+/* The strips span the width (owner-refined 2026-08-18: members were all
+   forced center because the bar itself hugged its content at screen
+   center). 72px side insets keep the fixed utility cluster corners clear. */
 .canvas-bottom-bar,
 .canvas-top-bar {
   position: fixed;
   z-index: 30;
-  right: 50%;
+  right: 72px;
+  left: 72px;
   display: flex;
-  max-width: calc(100vw - 144px);
-  translate: 50% 0;
 }
 .canvas-bottom-bar { bottom: 16px; }
 .canvas-top-bar { top: 16px; }
 
 .dock-scroller {
-  display: flex;
+  /* Three placement sections: start hugs the left, center stays centered,
+     end hugs the right — the drop position picks the section. */
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   /* A flex item's min-width:auto would let the scroller grow past the nav
      instead of clipping — it must shrink so IT owns the scroll. */
   min-width: 0;
@@ -420,6 +434,15 @@
   /* The scrollbar is NEVER shown (spec 2.4). */
   scrollbar-width: none;
 }
+.dock-section {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+.dock-section[data-align="start"] { justify-self: start; }
+.dock-section[data-align="center"] { justify-self: center; }
+.dock-section[data-align="end"] { justify-self: end; }
 .dock-scroller::-webkit-scrollbar {
   display: none;
 }

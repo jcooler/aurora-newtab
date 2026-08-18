@@ -23,7 +23,7 @@ export default defineConfig({
     // finds no vitest suite inside, and fails the whole `npm test` run with
     // "No test suite found". scripts/adaptive-stage-probe.test.mjs is a real
     // vitest suite and stays included.
-    exclude: [...configDefaults.exclude, '**/.claude/**', 'scripts/preview-information-first.test.mjs'],
+    exclude: [...configDefaults.exclude, '**/.claude/**', 'scripts/preview-information-first.test.mjs', 'scripts/**',],
     environment: 'node',
     globals: true, // lets @testing-library/react register its afterEach cleanup
     css: true, // otherwise Vitest mocks CSS imports as empty — themes.test.ts reads themes.css via `?raw` and needs its real content

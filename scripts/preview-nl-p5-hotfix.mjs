@@ -330,6 +330,53 @@ try {
   ))
   if (settledMode !== 'docked') fail(`stage7: weather not docked after the drop (${settledMode})`)
 
+  // ---- Stage 7b: place a member on the far LEFT of the bar, alone ----
+  // (owner direction 2026-08-18: "IF I WANT TASKS ON THE FAR LEFT SIDE ALL
+  // BY ITS LONESOME I SHOULD BE ABLE TO DO THAT")
+  const focusDock = await page.locator('nav[aria-label="Bottom bar"] [data-block-id="focus"]').boundingBox()
+  await page.mouse.move(focusDock.x + focusDock.width / 2, focusDock.y + focusDock.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(140, 880, { steps: 10 })
+  await page.waitForTimeout(150)
+  await page.mouse.up()
+  await page.waitForTimeout(200)
+  const sectionState = await page.evaluate(() => {
+    const focusNode = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="focus"]')
+    const weatherNode = document.querySelector('nav[aria-label="Bottom bar"] [data-block-id="weather"]')
+    const focusRect = focusNode?.getBoundingClientRect()
+    const weatherRect = weatherNode?.getBoundingClientRect()
+    return {
+      focusSection: focusNode?.closest('.dock-section')?.getAttribute('data-align'),
+      weatherSection: weatherNode?.closest('.dock-section')?.getAttribute('data-align'),
+      focusCenterX: focusRect ? Math.round(focusRect.x + focusRect.width / 2) : null,
+      weatherCenterX: weatherRect ? Math.round(weatherRect.x + weatherRect.width / 2) : null,
+    }
+  })
+  if (sectionState.focusSection !== 'start') fail(`stage7b: focus not in the start section (${sectionState.focusSection})`)
+  if (sectionState.weatherSection !== 'center') fail(`stage7b: weather left the center section (${sectionState.weatherSection})`)
+  if (sectionState.focusCenterX === null || sectionState.focusCenterX > 1600 / 3) {
+    fail(`stage7b: focus not rendered on the far left (center x ${sectionState.focusCenterX})`)
+  }
+  if (sectionState.weatherCenterX === null || Math.abs(sectionState.weatherCenterX - 800) > 220) {
+    fail(`stage7b: weather not rendered near the strip center (center x ${sectionState.weatherCenterX})`)
+  }
+  await stage('7b-far-left-member', 'focus parked far left by its lonesome; weather stays centered')
+  // The dock line wears the Tasks/Notes chip metrics (owner: same size).
+  // Measured via a probe span — the seeded location-less weather renders its
+  // setup chip, not a dock line, so the strip may hold no real one here.
+  const lineMetrics = await page.evaluate(() => {
+    const probe = document.createElement('span')
+    probe.className = 'dock-line'
+    probe.textContent = '72°F · Probe · Clear'
+    document.querySelector('nav[aria-label="Bottom bar"]').appendChild(probe)
+    const style = getComputedStyle(probe)
+    const metrics = { fontSize: style.fontSize, height: Math.round(probe.getBoundingClientRect().height) }
+    probe.remove()
+    return metrics
+  })
+  if (lineMetrics.fontSize !== '14px') fail(`stage7b: dock line font ${lineMetrics.fontSize}, chips use 14px`)
+  if (lineMetrics.height < 34) fail(`stage7b: dock line height ${lineMetrics.height}px, thinner than the chips`)
+
   // ---- Stage 8: the overlap note matches MEASURED truth after a move ----
   // Stale rects used to list widgets from positions long left. Move the
   // clock, select it, and demand the note names exactly the widgets whose

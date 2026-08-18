@@ -63,6 +63,24 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(screen.queryByTestId('canvas-item-notes')).toBeNull()
   })
 
+  it('renders the three strip sections and places members by their stored align (owner-refined 2026-08-18)', () => {
+    const aligned: NamedLayout = {
+      ...LAYOUT,
+      widgets: {
+        ...LAYOUT.widgets,
+        bookmarks: { kind: 'docked', dock: 'bottom', order: 1, align: 'center' },
+        timer: { kind: 'docked', dock: 'bottom', order: 0, align: 'start' },
+      },
+    }
+    renderSurface(aligned)
+    const nav = screen.getByRole('navigation', { name: 'Bottom bar' })
+    const sections = nav.querySelectorAll('.dock-section')
+    expect(sections).toHaveLength(3)
+    expect(nav.querySelector('.dock-section[data-align="start"] [data-block-id="timer"]')).toBeTruthy()
+    expect(nav.querySelector('.dock-section[data-align="center"] [data-block-id="bookmarks"]')).toBeTruthy()
+    expect(nav.querySelector('.dock-section[data-align="end"]')?.children).toHaveLength(0)
+  })
+
   it('renders docked items in the bottom strip in order, not in the surface', () => {
     renderSurface()
     const nav = screen.getByRole('navigation', { name: 'Bottom bar' })

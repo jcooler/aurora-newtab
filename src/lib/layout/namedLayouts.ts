@@ -29,10 +29,18 @@ export interface FreeWidgetPlacement {
   layer: number
 }
 
+/** Horizontal sections of a dock strip (owner direction 2026-08-18: the
+ *  user owns placement WITHIN the bar too — "Tasks on the far left all by
+ *  its lonesome"). */
+export const DOCK_ALIGNS = ['start', 'center', 'end'] as const
+export type DockAlign = (typeof DOCK_ALIGNS)[number]
+
 export interface DockedWidgetPlacement {
   kind: 'docked'
   dock: DockEdge
   order: number
+  /** Absent = center (every pre-align document renders exactly as before). */
+  align?: DockAlign
 }
 
 /** Enabled globally but not shown in THIS layout (spec 2.5 "hide"). Distinct
@@ -101,6 +109,8 @@ function isFreePlacement(value: unknown): value is FreeWidgetPlacement {
     && finite(value.layer)
 }
 
+const ALIGN_SET: ReadonlySet<string> = new Set(DOCK_ALIGNS)
+
 function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
   return isPlainObject(value)
     && value.kind === 'docked'
@@ -108,6 +118,7 @@ function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
     && DOCK_SET.has(value.dock)
     && Number.isInteger(value.order)
     && (value.order as number) >= 0
+    && (value.align === undefined || (typeof value.align === 'string' && ALIGN_SET.has(value.align)))
 }
 
 function isHiddenPlacement(value: unknown): value is HiddenWidgetPlacement {

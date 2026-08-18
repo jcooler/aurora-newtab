@@ -48,12 +48,19 @@ describe('planLayoutRender (anchored)', () => {
     expect(item.topPct).toBe(100)
   })
 
-  it('keeps docked placements as dock items with their edge and order', () => {
+  it('keeps docked placements as dock items with their edge, order, and section', () => {
     expect(plan.items.find((item) => item.id === 'bookmarks')).toEqual({
-      id: 'bookmarks', mode: 'docked', dock: 'bottom', order: 0,
+      id: 'bookmarks', mode: 'docked', dock: 'bottom', order: 0, align: 'center',
     })
     expect(plan.items.find((item) => item.id === 'timer')).toEqual({
-      id: 'timer', mode: 'docked', dock: 'top', order: 1,
+      id: 'timer', mode: 'docked', dock: 'top', order: 1, align: 'center',
+    })
+    const aligned: NamedLayout = {
+      ...LAYOUT,
+      widgets: { ...LAYOUT.widgets, tasks: { kind: 'docked', dock: 'top', order: 0, align: 'start' } },
+    }
+    expect(planLayoutRender(aligned, ENABLED, 1408).items.find((item) => item.id === 'tasks')).toEqual({
+      id: 'tasks', mode: 'docked', dock: 'top', order: 0, align: 'start',
     })
   })
 

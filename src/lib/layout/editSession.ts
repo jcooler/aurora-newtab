@@ -1,7 +1,9 @@
 import {
   cleanLayoutsDocument,
+  DOCK_ALIGNS,
   freePlacementFromPoint,
   pointFromFreePlacement,
+  type DockAlign,
   type DockEdge,
   type FreeWidgetPlacement,
   type LayoutsDocument,
@@ -269,41 +271,62 @@ function dockSelectedInternal(
   session: EditSession,
   dock: DockEdge,
   index: number,
+  align: DockAlign,
   pushUndo: boolean,
 ): EditSession {
   const id = session.selectedId
   if (!id) return session
   const layout = activeDraftLayout(session)
-  const members = dockOrder(layout, dock).filter((memberId) => memberId !== id)
-  const clamped = Math.min(Math.max(0, Math.trunc(index)), members.length)
-  members.splice(clamped, 0, id)
+  // Members grouped by their stored section (owner direction 2026-08-18:
+  // placement WITHIN the bar is the user's too). The index is WITHIN the
+  // target section; orders renumber section-major (start, center, end) so
+  // they stay unique per dock and the narrow stack reads left-to-right.
+  const sections: Record<DockAlign, BlockId[]> = { start: [], center: [], end: [] }
+  for (const memberId of dockOrder(layout, dock)) {
+    if (memberId === id) continue
+    const placement = layout.widgets[memberId]
+    sections[placement?.kind === 'docked' ? placement.align ?? 'center' : 'center'].push(memberId)
+  }
+  const target = sections[align]
+  const clamped = Math.min(Math.max(0, Math.trunc(index)), target.length)
+  target.splice(clamped, 0, id)
   const otherEdge: DockEdge = dock === 'top' ? 'bottom' : 'top'
   const otherMembers = dockOrder(layout, otherEdge).filter((memberId) => memberId !== id)
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
-    members.forEach((memberId, order) => {
-      widgets[memberId] = { kind: 'docked', dock, order }
-    })
-    otherMembers.forEach((memberId, order) => {
-      widgets[memberId] = { kind: 'docked', dock: otherEdge, order }
+    let order = 0
+    for (const sectionAlign of DOCK_ALIGNS) {
+      for (const memberId of sections[sectionAlign]) {
+        widgets[memberId] = { kind: 'docked', dock, order: order++, align: sectionAlign }
+      }
+    }
+    otherMembers.forEach((memberId, otherOrder) => {
+      const existing = draftLayout.widgets[memberId]
+      widgets[memberId] = {
+        kind: 'docked',
+        dock: otherEdge,
+        order: otherOrder,
+        align: existing?.kind === 'docked' ? existing.align ?? 'center' : 'center',
+      }
     })
     return { ...draftLayout, widgets }
   }), pushUndo)
 }
 
-/** Docks the selected widget at the given index in the edge's strip
- *  (named-layouts spec 2.4: created by dragging to the edge; order is
- *  draggable — reordering is this same operation at a new index). Orders in
- *  BOTH docks are renumbered compactly. Never called automatically. */
-export function dockSelected(session: EditSession, dock: DockEdge, index: number): EditSession {
-  return dockSelectedInternal(session, dock, index, true)
+/** Docks the selected widget at the given index within the edge's SECTION
+ *  (named-layouts spec 2.4, owner-refined 2026-08-18: a strip has start,
+ *  center, and end sections; the drop position picks the section, the index
+ *  orders within it). Orders in BOTH docks are renumbered compactly. Never
+ *  called automatically. */
+export function dockSelected(session: EditSession, dock: DockEdge, index: number, align: DockAlign = 'center'): EditSession {
+  return dockSelectedInternal(session, dock, index, align, true)
 }
 
 /** The drop half of a zone-drag gesture: the drag's first move already
  *  pushed the gesture's one undo entry (review fix I2 — one entry per
  *  gesture), so this variant reuses it. */
-export function dockSelectedLive(session: EditSession, dock: DockEdge, index: number): EditSession {
-  return dockSelectedInternal(session, dock, index, false)
+export function dockSelectedLive(session: EditSession, dock: DockEdge, index: number, align: DockAlign = 'center'): EditSession {
+  return dockSelectedInternal(session, dock, index, align, false)
 }
 
 function undockSelectedInternal(

@@ -1,5 +1,6 @@
 import {
   ANCHOR_POINTS,
+  type DockAlign,
   type DockEdge,
   type LayoutsDocument,
   type NamedLayout,
@@ -22,7 +23,7 @@ export interface AnchoredRenderItem {
   layer: number
 }
 export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier }
-export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number }
+export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; align: DockAlign }
 export type LayoutRenderItem = AnchoredRenderItem | StackedRenderItem | DockedRenderItem
 export interface LayoutRenderPlan { narrow: boolean; items: LayoutRenderItem[] }
 
@@ -84,7 +85,7 @@ export function enforceDockEligibility(
 }
 
 interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number }
-interface PlannedDock { id: BlockId; dock: DockEdge; order: number }
+interface PlannedDock { id: BlockId; dock: DockEdge; order: number; align: DockAlign }
 
 export function planLayoutRender(
   layout: NamedLayout,
@@ -114,7 +115,7 @@ export function planLayoutRender(
     if (placement.kind === 'hidden') continue
     if (placement.kind === 'docked') {
       if (dockableIds && !dockableIds.has(id)) undockable.push(id)
-      else docked.push({ id, dock: placement.dock, order: placement.order })
+      else docked.push({ id, dock: placement.dock, order: placement.order, align: placement.align ?? 'center' })
       continue
     }
     const anchor = ANCHOR_POINTS[placement.anchor]
@@ -181,7 +182,7 @@ export function planLayoutRender(
     narrow: false,
     items: [
       ...dockSorted.map((item): DockedRenderItem => ({
-        id: item.id, mode: 'docked', dock: item.dock, order: item.order,
+        id: item.id, mode: 'docked', dock: item.dock, order: item.order, align: item.align,
       })),
       ...free.map((item): AnchoredRenderItem => ({
         id: item.id, mode: 'anchored', leftPct: item.leftPct, topPct: item.topPct, tier: item.tier, layer: item.layer,
