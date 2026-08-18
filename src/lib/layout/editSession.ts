@@ -2,6 +2,7 @@ import {
   cleanLayoutsDocument,
   freePlacementFromPoint,
   pointFromFreePlacement,
+  type DockEdge,
   type FreeWidgetPlacement,
   type LayoutsDocument,
   type NamedLayout,
@@ -249,6 +250,75 @@ export function applyBulkTier(session: EditSession, tier: WidgetTier): EditSessi
     }
     return { ...layout, widgets, bulkTier: tier }
   }))
+}
+
+/** A dock's members in order — pure helper for insertion-index math. */
+export function dockOrder(layout: NamedLayout, dock: DockEdge): readonly BlockId[] {
+  return BLOCK_IDS
+    .flatMap((id) => {
+      const placement = layout.widgets[id]
+      return placement?.kind === 'docked' && placement.dock === dock
+        ? [{ id, order: placement.order }]
+        : []
+    })
+    .sort((a, b) => a.order - b.order)
+    .map((entry) => entry.id)
+}
+
+/** Docks the selected widget at the given index in the edge's strip
+ *  (named-layouts spec 2.4: created by dragging to the edge; order is
+ *  draggable — reordering is this same operation at a new index). Orders in
+ *  BOTH docks are renumbered compactly. Never called automatically. */
+export function dockSelected(session: EditSession, dock: DockEdge, index: number): EditSession {
+  const id = session.selectedId
+  if (!id) return session
+  const layout = activeDraftLayout(session)
+  const members = dockOrder(layout, dock).filter((memberId) => memberId !== id)
+  const clamped = Math.min(Math.max(0, Math.trunc(index)), members.length)
+  members.splice(clamped, 0, id)
+  const otherEdge: DockEdge = dock === 'top' ? 'bottom' : 'top'
+  const otherMembers = dockOrder(layout, otherEdge).filter((memberId) => memberId !== id)
+  return commit(session, withActiveLayout(session.draft, (draftLayout) => {
+    const widgets = { ...draftLayout.widgets }
+    members.forEach((memberId, order) => {
+      widgets[memberId] = { kind: 'docked', dock, order }
+    })
+    otherMembers.forEach((memberId, order) => {
+      widgets[memberId] = { kind: 'docked', dock: otherEdge, order }
+    })
+    return { ...draftLayout, widgets }
+  }))
+}
+
+/** Returns a docked selected widget to free placement at the drop point.
+ *  The docked form stored no tier, so the undocked widget starts Standard
+ *  (clamped per widget by the renderer); remembering the pre-dock tier is
+ *  an NL-P5 nicety once Docked tiers are designed. */
+export function undockSelected(
+  session: EditSession,
+  point: { xPct: number; yPct: number },
+): EditSession {
+  const id = session.selectedId
+  if (!id) return session
+  const layout = activeDraftLayout(session)
+  if (layout.widgets[id]?.kind !== 'docked') return session
+  let maxLayer = -1
+  for (const blockId of BLOCK_IDS) {
+    const placement = layout.widgets[blockId]
+    if (placement?.kind === 'free') maxLayer = Math.max(maxLayer, placement.layer)
+  }
+  return commit(session, withActiveLayout(session.draft, (draftLayout) => ({
+    ...draftLayout,
+    widgets: {
+      ...draftLayout.widgets,
+      [id]: freePlacementFromPoint({
+        x: point.xPct,
+        y: point.yPct,
+        tier: 'standard',
+        layer: maxLayer + 1 + BLOCK_IDS.indexOf(id),
+      }),
+    },
+  })))
 }
 
 export function undo(session: EditSession): EditSession {

@@ -3,6 +3,8 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  dockOrder,
+  dockSelected,
   hideSelected,
   moveSelected,
   moveSelectedLive,
@@ -14,6 +16,7 @@ import {
   setSelectedTier,
   stepSelectedLayer,
   undo,
+  undockSelected,
 } from './editSession'
 import { pointFromFreePlacement, type FreeWidgetPlacement, type LayoutsDocument } from './namedLayouts'
 
@@ -151,6 +154,42 @@ describe('hide, restore, bulk, reset', () => {
     expect((activeDraftLayout(session).widgets.clock as FreeWidgetPlacement).tier).toBe('full')
     session = applyBulkTier(session, 'standard')
     expect((activeDraftLayout(session).widgets.clock as FreeWidgetPlacement).tier).toBe('standard')
+  })
+
+  it('dockSelected inserts at the index and renumbers compactly', () => {
+    // DOC already has bookmarks docked bottom order 0.
+    let session = selectWidget(fresh(), 'clock')
+    session = dockSelected(session, 'bottom', 0)
+    const layout = activeDraftLayout(session)
+    expect(layout.widgets.clock).toEqual({ kind: 'docked', dock: 'bottom', order: 0 })
+    expect(layout.widgets.bookmarks).toEqual({ kind: 'docked', dock: 'bottom', order: 1 })
+    expect(dockOrder(layout, 'bottom')).toEqual(['clock', 'bookmarks'])
+    expect(session.dirty).toBe(true)
+  })
+
+  it('dockSelected moves an already-docked widget to a new index (reorder)', () => {
+    let session = selectWidget(fresh(), 'clock')
+    session = dockSelected(session, 'bottom', 0)
+    session = selectWidget(session, 'clock')
+    session = dockSelected(session, 'bottom', 2)
+    expect(dockOrder(activeDraftLayout(session), 'bottom')).toEqual(['bookmarks', 'clock'])
+  })
+
+  it('dockSelected can create the top dock and clamps a wild index', () => {
+    let session = selectWidget(fresh(), 'weather')
+    session = dockSelected(session, 'top', 99)
+    expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'docked', dock: 'top', order: 0 })
+  })
+
+  it('undockSelected returns a docked widget to a free anchor at the drop point', () => {
+    let session = selectWidget(fresh(), 'bookmarks')
+    session = undockSelected(session, { xPct: 30, yPct: 60 })
+    const bookmarks = activeDraftLayout(session).widgets.bookmarks as FreeWidgetPlacement
+    expect(bookmarks.kind).toBe('free')
+    expect(pointFromFreePlacement(bookmarks)).toEqual({ x: 30, y: 60 })
+    expect(bookmarks.tier).toBe('standard')
+    expect(undockSelected(selectWidget(fresh(), 'clock'), { xPct: 10, yPct: 10 }))
+      .toEqual(selectWidget(fresh(), 'clock'))
   })
 
   it('resetSession restores the baseline as one undoable step and never mutates inputs', () => {
