@@ -1,6 +1,6 @@
 import { anchorPanel } from '../../lib/layout/anchor'
 import type { NamedLayoutPlacement, WidgetTier } from '../../lib/layout/namedLayouts'
-import type { WidgetRegistryEntry } from '../widgetRegistry'
+import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
 
 const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
   compact: 'Compact',
@@ -44,6 +44,16 @@ export default function WidgetInspector({
   }
   const position = anchorPanel(anchorRect, PANEL_SIZE, viewport)
   const free = placement.kind === 'free'
+  const docked = placement.kind === 'docked'
+  // Docked members size within the strip too (owner direction 2026-08-18:
+  // docked Bookmarks compact = the one-letter mark bar); the checked radio
+  // reflects the stored choice or the widget's docked default.
+  const sizeRow = free || (docked && entry.canvasSizes.length > 1)
+  const checkedTier = free
+    ? placement.tier
+    : docked
+      ? dockedRenderSize(entry, placement.tier)
+      : undefined
 
   return (
     <div
@@ -59,7 +69,7 @@ export default function WidgetInspector({
         {entry.label}
         <span className="edit-inspector__context">{free ? 'On the canvas' : placement.kind === 'docked' ? 'In the bar' : 'Hidden'}</span>
       </p>
-      {free ? (
+      {sizeRow ? (
         <div className="edit-inspector__row">
           <span className="edit-inspector__label">Size</span>
           <div role="radiogroup" aria-label="Size" className="edit-segment">
@@ -68,7 +78,7 @@ export default function WidgetInspector({
                 key={tier}
                 type="button"
                 role="radio"
-                aria-checked={placement.kind === 'free' && placement.tier === tier}
+                aria-checked={checkedTier === tier}
                 className="edit-segment__option"
                 onClick={() => onTier(tier)}
               >

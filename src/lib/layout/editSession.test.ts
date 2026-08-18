@@ -91,12 +91,14 @@ describe('move, nudge, tier, layer', () => {
     expect(nudgeSelected(fresh(), { xPct: 5, yPct: 5 })).toEqual(fresh())
   })
 
-  it('setSelectedTier changes only the selected free tier; docked selection is identity', () => {
+  it('setSelectedTier sizes the selected placement wherever it lives — free tier or docked size', () => {
     let session = selectWidget(fresh(), 'weather')
     session = setSelectedTier(session, 'full')
     expect((activeDraftLayout(session).widgets.weather as FreeWidgetPlacement).tier).toBe('full')
-    const docked = setSelectedTier(selectWidget(fresh(), 'bookmarks'), 'full')
-    expect(activeDraftLayout(docked).widgets.bookmarks).toEqual({ kind: 'docked', dock: 'bottom', order: 0 })
+    // Docked members size too (owner-confirmed 2026-08-18): the placement
+    // keeps its dock and order and gains the chosen tier.
+    const docked = setSelectedTier(selectWidget(fresh(), 'bookmarks'), 'compact')
+    expect(activeDraftLayout(docked).widgets.bookmarks).toEqual({ kind: 'docked', dock: 'bottom', order: 0, tier: 'compact' })
   })
 
   it('stepSelectedLayer swaps with the nearest free sibling and continues upward', () => {
@@ -219,6 +221,19 @@ describe('hide, restore, bulk, reset', () => {
     expect(session.past).toHaveLength(1)
     const undone = undo(session)
     expect(activeDraftLayout(undone).widgets.bookmarks).toEqual(activeDraftLayout(fresh()).widgets.bookmarks)
+  })
+
+  it('setSelectedTier sizes a DOCKED member and reorders preserve the choice (owner-confirmed 2026-08-18)', () => {
+    let session = selectWidget(fresh(), 'bookmarks')
+    session = setSelectedTier(session, 'compact')
+    expect(activeDraftLayout(session).widgets.bookmarks).toEqual({
+      kind: 'docked', dock: 'bottom', order: 0, tier: 'compact',
+    })
+    // A later dock reorder must not discard the stored size.
+    session = dockSelected(session, 'bottom', 0, 'start')
+    expect(activeDraftLayout(session).widgets.bookmarks).toEqual({
+      kind: 'docked', dock: 'bottom', order: 0, align: 'start', tier: 'compact',
+    })
   })
 
   it('undockSelected returns a docked widget to a free anchor at the drop point', () => {

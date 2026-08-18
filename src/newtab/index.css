@@ -95,6 +95,17 @@
   background: var(--panel-solid);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
 }
+/* The chip metrics OWN the line's typography: the fluid canvas type roles
+   (body ~14-16px, metadata 12px) must not resize dock facts, or the weather
+   line drifts smaller than its Tasks/Notes neighbours and the unit letter
+   outweighs the digits (owner-reported 2026-08-18, twice). */
+.dock-line [data-canvas-type-role] {
+  font-size: 14px;
+  line-height: 20px;
+}
+.dock-line [data-canvas-type-role="metadata"] {
+  font-size: 11px;
+}
 
 /* The old `.canvas-item > * { max-width: 100% }` fitted interiors into the
    deleted imposed boxes. Against a content-tight max-content wrapper that
@@ -1793,15 +1804,17 @@ select > option {
 /* Batch-1 owner review (2026-08-18): choosing the compact TIER is the
    explicit opt-in for the one-letter mark form (spec 2.3: "the one-letter
    form is opt-in or tiny-viewport only") — N for News, D for Docs, M for
-   Music. The ≤720px media variant remains the tiny-viewport floor, and the
-   dock strip keeps the full readable bar per the exemption. */
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="monogram"] {
+   Music. The ≤720px media variant remains the tiny-viewport floor. The
+   dock strip DEFAULTS to the full readable bar (the exemption rides on the
+   docked default size 'standard'); a docked bar the user explicitly sizes
+   compact wears the marks too (owner-confirmed 2026-08-18). */
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="monogram"] {
   display: inline;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="folder"] {
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="folder"] {
   display: none;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-chip-label] {
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-chip-label] {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1812,8 +1825,8 @@ select > option {
   white-space: nowrap;
   border-width: 0;
 }
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > a,
-.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] nav > a,
+.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] nav > button {
   width: var(--bookmarks-chip-h);
   justify-content: center;
   padding-inline: 0;

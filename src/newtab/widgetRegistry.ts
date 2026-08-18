@@ -10,6 +10,8 @@ import type {
 import type { Settings, WidgetToggles } from '../lib/storage/schema'
 import type { ConnectorConfig, ConnectorId, GitlabConfig, GithubConfig, JiraConfig, RssConfig, VercelConfig } from '../services/connectors/types'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
+import type { WidgetTier } from '../lib/layout/namedLayouts'
+import { resolveDockedTier } from '../lib/layout/renderLayout'
 import { WIDGET_SIZE_CONTRACTS, type SelectedCanvasContent, type WidgetSizeContract } from './widgetSizeContracts'
 import { resolveGithubViews } from '../services/connectors/github'
 import { DEFAULT_GITLAB_VIEWS } from '../services/connectors/gitlab'
@@ -193,6 +195,14 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
     }
     case 'ics': return [selected('Selected calendar view', 'compact')]
   }
+}
+
+/** The size a docked member renders at (and the inspector reflects): the
+ *  user's stored choice, else the widget's docked default — Bookmarks' full
+ *  readable bar (spec 2.3 exemption) is its 'standard' form; every other
+ *  widget docks as its compact composition. */
+export function dockedRenderSize(entry: WidgetRegistryEntry, dockTier?: WidgetTier): CanvasSize {
+  return resolveDockedTier(entry.canvasSizes, dockTier, entry.id === 'bookmarks' ? 'standard' : 'compact')
 }
 
 export type WidgetRendererKey = WidgetRegistryEntry['rendererKey']

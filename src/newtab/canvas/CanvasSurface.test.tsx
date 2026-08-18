@@ -153,6 +153,40 @@ describe('CanvasSurface (anchored named layout)', () => {
     }
   })
 
+  it('docked members render at their stored size; Bookmarks defaults to the full readable bar (spec 2.3 exemption)', () => {
+    const sized: NamedLayout = {
+      ...LAYOUT,
+      widgets: {
+        ...LAYOUT.widgets,
+        bookmarks: { kind: 'docked', dock: 'bottom', order: 0 },
+        weather: { kind: 'docked', dock: 'bottom', order: 1 },
+      },
+    }
+    renderSurface(sized)
+    expect(screen.getByTestId('canvas-item-bookmarks').dataset.canvasSize).toBe('standard')
+    expect(screen.getByTestId('canvas-item-weather').dataset.canvasSize).toBe('compact')
+    cleanup()
+    const compactBar: NamedLayout = {
+      ...LAYOUT,
+      widgets: { ...LAYOUT.widgets, bookmarks: { kind: 'docked', dock: 'bottom', order: 0, tier: 'compact' } },
+    }
+    renderSurface(compactBar)
+    expect(screen.getByTestId('canvas-item-bookmarks').dataset.canvasSize).toBe('compact')
+  })
+
+  it('the one-letter mark form follows the compact SIZE everywhere, including the dock (owner-confirmed 2026-08-18)', () => {
+    // The old exemption guard fenced the mark rules out of the dock wholesale;
+    // now the docked DEFAULT is the standard full bar and an explicit compact
+    // size wears the marks in the strip too.
+    expect(indexCss).not.toMatch(/:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="bookmarks"\] \[data-bookmark-mark/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]\[data-block-id="bookmarks"\] \[data-bookmark-mark="monogram"\]\s*\{[^}]*display:\s*inline/)
+  })
+
+  it('dock-line typography is pinned to the chip metrics, immune to the fluid type roles', () => {
+    expect(indexCss).toMatch(/\.dock-line \[data-canvas-type-role\]\s*\{[^}]*font-size:\s*14px/)
+    expect(indexCss).toMatch(/\.dock-line \[data-canvas-type-role="metadata"\]\s*\{[^}]*font-size:\s*11px/)
+  })
+
   it('the Bookmarks wrapper is grabbable during a session despite its normal-mode pointer-events none', () => {
     // Legacy rule: the closed bar's wrapper is pointer-events none so its
     // allocation cannot intercept other controls. In a session the interiors

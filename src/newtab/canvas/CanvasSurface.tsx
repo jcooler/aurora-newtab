@@ -14,7 +14,7 @@ import CanvasItem from './CanvasItem'
 import CanvasLegibilityLayer from './CanvasLegibilityLayer'
 import GuideOverlay from '../edit/GuideOverlay'
 import type { CanvasGuide } from '../arrange/canvasSnap'
-import type { WidgetRegistryEntry } from '../widgetRegistry'
+import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
 
 interface CanvasSurfaceProps {
   activeLayout: NamedLayout
@@ -149,12 +149,15 @@ export default function CanvasSurface({
   const renderItem = (item: LayoutRenderItem) => {
     const entry = byId.get(item.id)
     if (!entry) return null
-    const size = 'tier' in item ? item.tier : 'compact'
+    const size = item.mode === 'docked'
+      ? dockedRenderSize(entry, item.dockTier)
+      : 'tier' in item ? item.tier : 'compact'
     return (
       <CanvasItem
         key={entry.id}
         entry={entry}
         item={item}
+        size={size}
         className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
         // Spec 2.5's "hovering a widget fades in two small controls" applies
         // to docked members too — the grip is the visible way OUT of a dock

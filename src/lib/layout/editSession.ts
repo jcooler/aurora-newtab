@@ -7,6 +7,7 @@ import {
   type DockEdge,
   type FreeWidgetPlacement,
   type LayoutsDocument,
+  type NamedLayoutPlacement,
   type NamedLayout,
   type WidgetTier,
 } from './namedLayouts'
@@ -108,7 +109,7 @@ function selectedFree(session: EditSession): FreeWidgetPlacement | null {
 
 function replaceSelected(
   session: EditSession,
-  placement: FreeWidgetPlacement,
+  placement: NamedLayoutPlacement,
   pushUndo = true,
 ): EditSession {
   const id = session.selectedId
@@ -162,6 +163,14 @@ export function nudgeSelected(
 }
 
 export function setSelectedTier(session: EditSession, tier: WidgetTier): EditSession {
+  const id = session.selectedId
+  if (!id) return session
+  const placement = activeDraftLayout(session).widgets[id]
+  // Docked members size within the strip too (owner direction 2026-08-18:
+  // docked Bookmarks compact = the one-letter mark bar).
+  if (placement?.kind === 'docked') {
+    return replaceSelected(session, { ...placement, tier })
+  }
   const current = selectedFree(session)
   if (!current) return session
   return replaceSelected(session, { ...current, tier })
@@ -294,19 +303,27 @@ function dockSelectedInternal(
   const otherMembers = dockOrder(layout, otherEdge).filter((memberId) => memberId !== id)
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
+    // Renumbering never discards a member's chosen size.
+    const tierOf = (memberId: BlockId): WidgetTier | undefined => {
+      const existing = draftLayout.widgets[memberId]
+      return existing?.kind === 'docked' ? existing.tier : undefined
+    }
     let order = 0
     for (const sectionAlign of DOCK_ALIGNS) {
       for (const memberId of sections[sectionAlign]) {
-        widgets[memberId] = { kind: 'docked', dock, order: order++, align: sectionAlign }
+        const tier = tierOf(memberId)
+        widgets[memberId] = { kind: 'docked', dock, order: order++, align: sectionAlign, ...(tier ? { tier } : {}) }
       }
     }
     otherMembers.forEach((memberId, otherOrder) => {
       const existing = draftLayout.widgets[memberId]
+      const tier = tierOf(memberId)
       widgets[memberId] = {
         kind: 'docked',
         dock: otherEdge,
         order: otherOrder,
         align: existing?.kind === 'docked' ? existing.align ?? 'center' : 'center',
+        ...(tier ? { tier } : {}),
       }
     })
     return { ...draftLayout, widgets }

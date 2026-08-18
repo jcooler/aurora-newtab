@@ -880,6 +880,15 @@ describe('Docked tier line (NL-P5 batch 1)', () => {
     expect(screen.queryByRole('dialog', { name: 'Weather details' })).toBeNull()
   })
 
+  it('the digits carry the chip weight and the unit letter has no extra em shrink (owner-reported: F dominant)', async () => {
+    await renderWidget({ docked: true })
+    const temp = document.querySelector('[data-dock-line] [data-canvas-type-role="body"]') as HTMLElement
+    expect(temp.className).toContain('font-medium')
+    const letter = temp.querySelector('[data-canvas-type-role="metadata"]') as HTMLElement
+    expect(letter).toBeTruthy()
+    expect(letter.className).not.toContain('0.75em')
+  })
+
   it('with no location the docked form keeps the honest setup affordance', async () => {
     await renderWidget({ docked: true, location: null, snapshot: null })
     expect(screen.getByText('Weather needs a location.')).toBeTruthy()

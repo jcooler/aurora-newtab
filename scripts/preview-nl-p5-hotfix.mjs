@@ -419,7 +419,11 @@ try {
   if (!hasBookmarksApi) fail('stage9: chrome.bookmarks unavailable in the witness profile')
   else {
     await page.evaluate(async () => {
-      for (const [title, url] of [['News', 'https://news.example'], ['Docs', 'https://docs.example'], ['Music', 'https://music.example']]) {
+      // A FOLDER (like the owner's real bar) plus two links: folder chips
+      // carry the monogram mark the compact form reveals.
+      const folder = await chrome.bookmarks.create({ parentId: '1', title: 'News' })
+      await chrome.bookmarks.create({ parentId: folder.id, title: 'Headlines', url: 'https://news.example' })
+      for (const [title, url] of [['Docs', 'https://docs.example'], ['Music', 'https://music.example']]) {
         await chrome.bookmarks.create({ parentId: '1', title, url })
       }
       const settings = (await chrome.storage.local.get('settings')).settings
@@ -491,6 +495,34 @@ try {
       await page.waitForTimeout(200)
       await page.keyboard.press('Escape')
       await page.waitForTimeout(300)
+      // 9d: the compact docked bar wears the one-letter marks (owner-
+      // confirmed form: N for News, D for Docs, M for Music).
+      const fullBarWidth = (await page.locator('nav[aria-label="Top bar"] [data-block-id="bookmarks"]').boundingBox())?.width ?? 0
+      await page.evaluate(async () => {
+        const { layouts } = await chrome.storage.local.get('layouts')
+        const active = layouts.layouts.find((layout) => layout.id === layouts.activeLayoutId)
+        active.widgets.bookmarks = { kind: 'docked', dock: 'top', order: 0, tier: 'compact' }
+        await chrome.storage.local.set({ layouts })
+      })
+      await reloadArmed()
+      const markState = await page.evaluate(() => {
+        const bar = document.querySelector('nav[aria-label="Top bar"] [data-block-id="bookmarks"]')
+        const monogram = bar?.querySelector('[data-bookmark-mark="monogram"]')
+        const label = bar?.querySelector('[data-chip-label]')
+        return {
+          size: bar?.getAttribute('data-canvas-size'),
+          monogramShown: monogram ? getComputedStyle(monogram).display !== 'none' : false,
+          labelClipped: label ? getComputedStyle(label).position === 'absolute' : false,
+          width: bar ? Math.round(bar.getBoundingClientRect().width) : 0,
+        }
+      })
+      if (markState.size !== 'compact') fail(`stage9d: compact-sized docked bar renders ${markState.size}`)
+      if (!markState.monogramShown) fail('stage9d: one-letter marks not shown on the compact docked bar')
+      if (!markState.labelClipped) fail('stage9d: chip labels still visible on the compact docked bar')
+      if (fullBarWidth > 0 && markState.width >= fullBarWidth) {
+        fail(`stage9d: compact bar (${markState.width}px) is not smaller than the full bar (${Math.round(fullBarWidth)}px)`)
+      }
+      await stage('9d-compact-marks-bar', `docked bookmarks compact: letter marks, ${markState.width}px vs full ${Math.round(fullBarWidth)}px`)
     }
   }
 

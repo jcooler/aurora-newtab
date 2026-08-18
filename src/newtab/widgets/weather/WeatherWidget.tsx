@@ -408,9 +408,14 @@ export default function WeatherWidget({
                 icon={describeCode(snapshot.current.code, snapshot.current.isDay ?? true).icon}
                 size={16}
               />
-              <span data-canvas-type-role="body" className="tabular-nums">
+              {/* The digits carry the line (font-medium, chip scale); the
+                  unit letter stays subordinate via the dock metadata size —
+                  a second em-shrink here made the F read DOMINANT because
+                  the digits, not the letter, ended up the smaller glyphs
+                  (owner-reported 2026-08-18). */}
+              <span data-canvas-type-role="body" className="font-medium tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
-                <span data-canvas-type-role="metadata" className="align-baseline text-[0.75em] text-fg-muted">
+                <span data-canvas-type-role="metadata" className="align-baseline text-fg-muted">
                   {unitLetter(settings.units)}
                 </span>
               </span>

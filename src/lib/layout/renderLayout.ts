@@ -23,7 +23,7 @@ export interface AnchoredRenderItem {
   layer: number
 }
 export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier }
-export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; align: DockAlign }
+export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; align: DockAlign; dockTier?: WidgetTier }
 export type LayoutRenderItem = AnchoredRenderItem | StackedRenderItem | DockedRenderItem
 export interface LayoutRenderPlan { narrow: boolean; items: LayoutRenderItem[] }
 
@@ -85,7 +85,19 @@ export function enforceDockEligibility(
 }
 
 interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number }
-interface PlannedDock { id: BlockId; dock: DockEdge; order: number; align: DockAlign }
+interface PlannedDock { id: BlockId; dock: DockEdge; order: number; align: DockAlign; dockTier?: WidgetTier }
+
+/** The size a docked member renders at: its stored tier when the user chose
+ *  one, else the widget's docked default — Bookmarks' full readable bar
+ *  (spec 2.3 exemption) rides on 'standard'; every other widget's dock
+ *  fallback is its compact composition. */
+export function resolveDockedTier(
+  supported: readonly WidgetTier[],
+  dockTier: WidgetTier | undefined,
+  defaultTier: WidgetTier,
+): WidgetTier {
+  return resolveRenderTier(supported, dockTier ?? defaultTier)
+}
 
 export function planLayoutRender(
   layout: NamedLayout,
@@ -115,7 +127,15 @@ export function planLayoutRender(
     if (placement.kind === 'hidden') continue
     if (placement.kind === 'docked') {
       if (dockableIds && !dockableIds.has(id)) undockable.push(id)
-      else docked.push({ id, dock: placement.dock, order: placement.order, align: placement.align ?? 'center' })
+      else {
+        docked.push({
+          id,
+          dock: placement.dock,
+          order: placement.order,
+          align: placement.align ?? 'center',
+          ...(placement.tier ? { dockTier: placement.tier } : {}),
+        })
+      }
       continue
     }
     const anchor = ANCHOR_POINTS[placement.anchor]
@@ -183,6 +203,7 @@ export function planLayoutRender(
     items: [
       ...dockSorted.map((item): DockedRenderItem => ({
         id: item.id, mode: 'docked', dock: item.dock, order: item.order, align: item.align,
+        ...(item.dockTier ? { dockTier: item.dockTier } : {}),
       })),
       ...free.map((item): AnchoredRenderItem => ({
         id: item.id, mode: 'anchored', leftPct: item.leftPct, topPct: item.topPct, tier: item.tier, layer: item.layer,

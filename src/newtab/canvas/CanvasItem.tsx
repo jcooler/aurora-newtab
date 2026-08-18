@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import type { LayoutRenderItem } from '../../lib/layout/renderLayout'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 import WidgetBoundary from '../components/WidgetBoundary'
@@ -6,6 +7,9 @@ import WidgetBoundary from '../components/WidgetBoundary'
 interface CanvasItemProps {
   entry: WidgetRegistryEntry
   item: LayoutRenderItem
+  /** The resolved render size (docked members resolve through
+   *  dockedRenderSize); omitted = the item's own tier or compact. */
+  size?: CanvasSize
   className?: string
   /** Hover controls (named-layouts spec 2.5). 'none' (default) keeps strips
    *  and the narrow stack chrome-free; 'normal' fades in the grip + gear on
@@ -23,6 +27,7 @@ interface CanvasItemProps {
 export default function CanvasItem({
   entry,
   item,
+  size: sizeProp,
   className = '',
   chrome = 'none',
   selected = false,
@@ -75,7 +80,7 @@ export default function CanvasItem({
     flex: '0 0 auto',
   }
 
-  const size = 'tier' in item ? item.tier : 'compact'
+  const size = sizeProp ?? ('tier' in item ? item.tier : 'compact')
   const editing = chrome === 'editing'
   const editingClass = editing
     ? ` canvas-item--editing${selected ? ' canvas-item--selected' : ''}`

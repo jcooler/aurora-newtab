@@ -80,15 +80,16 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
       .toMatch(/display:\s*inline\s*;/)
   })
 
-  it('the compact bookmarks TIER opts into single-letter marks (batch-1 owner review)', () => {
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="monogram"]'))
+  it('the compact bookmarks SIZE opts into single-letter marks everywhere, including the dock (owner-confirmed 2026-08-18)', () => {
+    // The exemption now rides on the docked DEFAULT size (standard = full
+    // readable bar); an explicit compact size wears the marks in the strip
+    // too, so the rules are no longer fenced out of docked mode.
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="monogram"]'))
       .toMatch(/display:\s*inline\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-bookmark-mark="folder"]'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-bookmark-mark="folder"]'))
       .toMatch(/display:\s*none\s*;/)
-    expect(declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] [data-chip-label]'))
+    expect(declarationBlock('.canvas-item[data-canvas-size="compact"][data-block-id="bookmarks"] [data-chip-label]'))
       .toMatch(/clip:\s*rect\(0, 0, 0, 0\)\s*;/)
-    // The dock strip is exempt: no docked-mode selector may hide the labels.
-    expect(indexCss).not.toMatch(/data-canvas-mode="docked"\]\[data-block-id="bookmarks"\][^{]*\[data-chip-label\]/)
   })
 
   it('pins the compact chip scale letter to the 12px metadata floor (batch-1 owner review)', () => {

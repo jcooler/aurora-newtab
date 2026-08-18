@@ -41,6 +41,11 @@ export interface DockedWidgetPlacement {
   order: number
   /** Absent = center (every pre-align document renders exactly as before). */
   align?: DockAlign
+  /** The member's chosen size within the strip (owner direction 2026-08-18:
+   *  docked Bookmarks compact = the one-letter mark bar). Absent = the
+   *  widget's docked default: Bookmarks' full readable bar (spec 2.3
+   *  exemption), every other widget's compact composition. */
+  tier?: WidgetTier
 }
 
 /** Enabled globally but not shown in THIS layout (spec 2.5 "hide"). Distinct
@@ -119,6 +124,7 @@ function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
     && Number.isInteger(value.order)
     && (value.order as number) >= 0
     && (value.align === undefined || (typeof value.align === 'string' && ALIGN_SET.has(value.align)))
+    && (value.tier === undefined || (typeof value.tier === 'string' && TIER_SET.has(value.tier)))
 }
 
 function isHiddenPlacement(value: unknown): value is HiddenWidgetPlacement {
