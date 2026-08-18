@@ -95,6 +95,12 @@ export default function CanvasItem({
       aria-pressed={editing ? selected : undefined}
       aria-label={editing ? `Select ${entry.label}` : undefined}
       onClick={editing ? () => onSelect?.(entry.id) : undefined}
+      // In edit mode the whole widget is the drag handle (spec 2.5: "drag
+      // moves with pointer capture"); a press with no movement is a click,
+      // which selects.
+      onPointerDown={editing && item.mode === 'anchored'
+        ? (event) => onGripPointerDown?.(entry.id, event)
+        : undefined}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
       data-canvas-size={size}

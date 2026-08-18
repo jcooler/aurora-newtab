@@ -63,16 +63,27 @@ export default function SettingsPanel({
   useEffect(() => {
     if (!focusAnchor) return
     setTab(focusAnchor.tab === 'connectors' && isPremium() ? 'connectors' : 'widgets')
-    // The tab's sections mount on the next render; focus once they exist.
-    const frame = requestAnimationFrame(() => {
+    // The tab's sections mount on the next render, and the Drawer runs its
+    // own focus management when it opens — retry briefly so the anchor
+    // focus lands AFTER both, not in a race with them.
+    let cancelled = false
+    const attempt = (remaining: number) => {
+      if (cancelled) return
       const target = document.querySelector<HTMLElement>(
         `[data-settings-anchor="${focusAnchor.anchor}"]`,
       )
-      if (!target) return
-      target.scrollIntoView({ block: 'center' })
-      target.focus()
-    })
-    return () => cancelAnimationFrame(frame)
+      if (target) {
+        target.scrollIntoView({ block: 'center' })
+        target.focus()
+        if (document.activeElement === target || remaining <= 0) return
+      }
+      if (remaining > 0) setTimeout(() => attempt(remaining - 1), 80)
+    }
+    const frame = requestAnimationFrame(() => attempt(5))
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+    }
   }, [focusAnchor])
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs] = useStoredKey('photoPrefs')
