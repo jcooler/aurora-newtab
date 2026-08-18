@@ -4,7 +4,8 @@
 // (PNG per widget-tier plus CATALOG.md). The catalog is the owner gate's
 // input (named-layouts spec 2.3): reviewed widget-by-widget before the
 // batch's tier family is accepted. Changes no production code.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
@@ -52,10 +53,7 @@ const BATCH = [
   { id: 'bookmarks', label: 'Bookmarks', tiers: ['compact', 'standard', 'docked'] },
 ]
 
-// Widget-toggle key differs from block id for tasks (todo).
-const TOGGLE_KEY = { tasks: 'todo' }
-
-const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [], contracts: null }
+const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [] }
 const fail = (message) => { evidence.failures.push(message) }
 
 const context = await chromium.launchPersistentContext(profileDir, {
@@ -136,9 +134,6 @@ await page.evaluate(async () => {
   }
 })
 
-// Cross-check the hardcoded batch matrix against the page's real contracts.
-evidence.contracts = await page.evaluate(() => window.__auroraTierContracts ?? null)
-
 const captureWidget = async ({ id, tiers }) => {
   for (const tier of tiers) {
     const name = `${id}-${tier}`
@@ -206,7 +201,8 @@ try {
 }
 
 // CATALOG.md: the owner-review index. Contract strings mirrored from
-// widgetSizeContracts.ts; per-tier verdict lines for the review session.
+// widgetSizeContracts.ts — and VERIFIED against it below (drift in this map
+// fails the run), so the owner never reads a stale contract.
 const CONTRACTS = {
   clock: { compact: 'Current time', standard: 'Time and date', full: 'Large, legible time and date', docked: 'Time · date' },
   greeting: { compact: 'Greeting', standard: 'More legible greeting' },
@@ -218,6 +214,37 @@ const CONTRACTS = {
   tasks: { compact: 'Tasks action', docked: 'Tasks action' },
   notes: { compact: 'Notes action', docked: 'Notes action' },
   bookmarks: { compact: 'Bookmark marks', standard: 'Named bookmark bar', docked: 'Full readable bookmark bar' },
+}
+
+// Drift guard (review fix I1): every contract string in the map above must
+// appear verbatim in widgetSizeContracts.ts, or the run fails.
+const contractsSource = readFileSync(resolve('src/newtab/widgetSizeContracts.ts'), 'utf8')
+for (const [id, tiers] of Object.entries(CONTRACTS)) {
+  for (const [tier, text] of Object.entries(tiers)) {
+    if (!contractsSource.includes(`'${text}'`)) {
+      fail(`CATALOG drift: ${id}.${tier} contract "${text}" not found in widgetSizeContracts.ts`)
+    }
+  }
+}
+
+// Identical-capture disclosure (review fix I2): tiers whose captures are
+// byte-identical are annotated so the owner's verdict is informed — a
+// contract column promising more than the pixels show would be a lie.
+const captureHash = (name) => {
+  try {
+    return createHash('md5').update(readFileSync(resolve(outDir, `${name}.png`))).digest('hex')
+  } catch {
+    return null
+  }
+}
+const identicalTo = (id, tier, tiers) => {
+  const own = captureHash(`${id}-${tier}`)
+  if (!own) return null
+  for (const other of tiers) {
+    if (other === tier) break
+    if (captureHash(`${id}-${other}`) === own) return other
+  }
+  return null
 }
 
 const lines = [
@@ -233,6 +260,7 @@ const lines = [
   '- Bookmarks Docked is the full readable bar (spec exemption).',
   '- Focus Docked is its existing single-line form rendered in the strip.',
   '- greeting, search, and quote declare NO Docked tier in batch 1 (no honest one-line dock form); overrule here if wanted.',
+  '- The docked Weather line omits the free chip\'s staleness/offline feedback text (a one-dense-line tradeoff); a stale cache reads like a fresh one in the strip. Owner call: accept, or add a muted staleness marker.',
   '',
 ]
 for (const { id, label, tiers } of BATCH) {
@@ -240,7 +268,11 @@ for (const { id, label, tiers } of BATCH) {
   lines.push('| Tier | Content contract | Capture | Owner verdict |')
   lines.push('| --- | --- | --- | --- |')
   for (const tier of tiers) {
-    lines.push(`| ${tier} | ${CONTRACTS[id][tier]} | ![${id} ${tier}](${id}-${tier}.png) | _pending_ |`)
+    const twin = identicalTo(id, tier, tiers)
+    const disclosure = twin
+      ? `<br>_Currently renders identically to ${twin}${id === 'bookmarks' ? ' (spec exemption: the full readable bar at every tier)' : ' — tier differentiation pending owner direction'}_`
+      : ''
+    lines.push(`| ${tier} | ${CONTRACTS[id][tier]}${disclosure} | ![${id} ${tier}](${id}-${tier}.png) | _pending_ |`)
   }
   lines.push('')
 }

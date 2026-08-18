@@ -10,6 +10,7 @@ Batch-1 notes for the review:
 - Bookmarks Docked is the full readable bar (spec exemption).
 - Focus Docked is its existing single-line form rendered in the strip.
 - greeting, search, and quote declare NO Docked tier in batch 1 (no honest one-line dock form); overrule here if wanted.
+- The docked Weather line omits the free chip's staleness/offline feedback text (a one-dense-line tradeoff); a stale cache reads like a fresh one in the strip. Owner call: accept, or add a muted staleness marker.
 
 ## Clock
 
@@ -17,7 +18,7 @@ Batch-1 notes for the review:
 | --- | --- | --- | --- |
 | compact | Current time | ![clock compact](clock-compact.png) | _pending_ |
 | standard | Time and date | ![clock standard](clock-standard.png) | _pending_ |
-| full | Large, legible time and date | ![clock full](clock-full.png) | _pending_ |
+| full | Large, legible time and date<br>_Currently renders identically to standard — tier differentiation pending owner direction_ | ![clock full](clock-full.png) | _pending_ |
 | docked | Time · date | ![clock docked](clock-docked.png) | _pending_ |
 
 ## Greeting
@@ -25,21 +26,21 @@ Batch-1 notes for the review:
 | Tier | Content contract | Capture | Owner verdict |
 | --- | --- | --- | --- |
 | compact | Greeting | ![greeting compact](greeting-compact.png) | _pending_ |
-| standard | More legible greeting | ![greeting standard](greeting-standard.png) | _pending_ |
+| standard | More legible greeting<br>_Currently renders identically to compact — tier differentiation pending owner direction_ | ![greeting standard](greeting-standard.png) | _pending_ |
 
 ## Search
 
 | Tier | Content contract | Capture | Owner verdict |
 | --- | --- | --- | --- |
 | compact | Search action | ![search compact](search-compact.png) | _pending_ |
-| standard | More legible search action | ![search standard](search-standard.png) | _pending_ |
+| standard | More legible search action<br>_Currently renders identically to compact — tier differentiation pending owner direction_ | ![search standard](search-standard.png) | _pending_ |
 
 ## Focus
 
 | Tier | Content contract | Capture | Owner verdict |
 | --- | --- | --- | --- |
 | compact | Focus action | ![focus compact](focus-compact.png) | _pending_ |
-| standard | Focus detail | ![focus standard](focus-standard.png) | _pending_ |
+| standard | Focus detail<br>_Currently renders identically to compact — tier differentiation pending owner direction_ | ![focus standard](focus-standard.png) | _pending_ |
 | docked | Focus text and completion | ![focus docked](focus-docked.png) | _pending_ |
 
 ## Quote
@@ -84,5 +85,5 @@ Batch-1 notes for the review:
 | Tier | Content contract | Capture | Owner verdict |
 | --- | --- | --- | --- |
 | compact | Bookmark marks | ![bookmarks compact](bookmarks-compact.png) | _pending_ |
-| standard | Named bookmark bar | ![bookmarks standard](bookmarks-standard.png) | _pending_ |
+| standard | Named bookmark bar<br>_Currently renders identically to compact (spec exemption: the full readable bar at every tier)_ | ![bookmarks standard](bookmarks-standard.png) | _pending_ |
 | docked | Full readable bookmark bar | ![bookmarks docked](bookmarks-docked.png) | _pending_ |
