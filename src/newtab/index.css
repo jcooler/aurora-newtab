@@ -63,6 +63,9 @@
 .canvas-item {
   box-sizing: border-box;
   display: flex;
+  /* Content-tight (named-layouts spec 2.2): the item box is the rendered
+     content, never an imposed geometry table. */
+  width: max-content;
   max-width: calc(100vw - 16px);
   align-items: center;
   justify-content: center;
@@ -100,300 +103,45 @@
   width: max-content;
 }
 
-.arrange-artboard-workspace {
+/* Minimal top strip for top-docked widgets (named-layouts NL-P2; the real
+   Docked-tier strip with fade-masked overflow is NL-P4). Mirrors the bottom
+   strip exactly. */
+.canvas-top-bar {
   position: fixed;
-  z-index: 1;
-  top: 48px;
-  right: 0;
-  bottom: 0;
-  left: 0;
+  z-index: 30;
+  right: 50%;
+  top: 16px;
   display: flex;
-  box-sizing: border-box;
-  align-items: center;
-  justify-content: center;
-  overflow: auto;
-  padding: 12px;
-  pointer-events: auto;
-}
-
-.arrange-artboard-workspace[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] {
-  right: 328px;
-}
-
-.arrange-artboard-workspace[data-arrange-viewport-mode="sheet"] {
-  align-items: flex-start;
-}
-
-.arrange-artboard-viewport {
-  position: relative;
-  flex: 0 0 auto;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-width: thin;
-  border: 1px solid color-mix(in srgb, var(--accent) 58%, var(--panel-border));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--panel-solid) 8%, transparent);
-  box-shadow: 0 16px 48px rgb(0 0 0 / 0.3);
-}
-
-.arrange-artboard-logical {
-  position: relative;
-  transform-origin: top left;
-}
-
-.arrange-artboard-logical .canvas-root,
-.arrange-artboard-logical .canvas-surface {
-  width: 100%;
-}
-
-/* Direct tool panels anchor to their launchers on roomy canvases. Small uses
-   one shared, viewport-owned sheet geometry so a dragged launcher can never
-   make its panel widen the document or open beyond the visible page. */
-:root[data-stage-profile="compact"] [data-canvas-tool-panel] {
-  position: fixed !important;
-  inset: auto 0.5rem 0.5rem 0.5rem !important;
-  width: auto !important;
-  max-width: none !important;
-  max-height: calc(100dvh - 1rem) !important;
-  z-index: 50 !important;
-}
-
-.arrange-overlay {
-  position: fixed;
-  z-index: 60;
-  inset: 0;
-  pointer-events: none;
-}
-
-.arrange-toolbar {
-  position: fixed;
-  z-index: 64;
-  top: 0;
-  right: 0;
-  left: 0;
-  display: flex;
-  min-height: 48px;
-  align-items: center;
+  max-width: calc(100vw - 144px);
+  translate: 50% 0;
   gap: 8px;
   overflow-x: auto;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--panel-border);
-  background: var(--panel-solid);
-  box-shadow: 0 12px 32px rgb(0 0 0 / 0.22);
-  pointer-events: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: thin;
+}
+.canvas-top-bar .canvas-item {
+  container-type: normal;
+  width: max-content;
 }
 
-.arrange-profile-tabs,
-.arrange-size-options {
+/* Narrow floor (named-layouts spec 2.2): below 600px the layout renders as
+   one mechanical vertical stack - docks first, then free widgets in layer
+   order. The only automatic behavior in the system. */
+.canvas-surface--stack {
   display: flex;
-  gap: 4px;
-}
-
-.arrange-toolbar-spacer {
-  flex: 1 1 auto;
-}
-
-.arrange-button {
-  min-height: 36px;
-  flex: 0 0 auto;
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  padding: 6px 10px;
-  color: var(--fg);
-  background: transparent;
-  cursor: pointer;
-}
-
-.arrange-button:hover,
-.arrange-button--active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-}
-
-.arrange-button:focus-visible,
-.arrange-target:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-.arrange-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.arrange-target {
-  z-index: 62;
-  border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 8%, transparent);
-  cursor: grab;
-  pointer-events: auto;
-  touch-action: none;
-}
-
-.arrange-target:active {
-  cursor: grabbing;
-}
-
-.arrange-target--selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35), 0 0 24px color-mix(in srgb, var(--accent) 38%, transparent);
-}
-
-.arrange-guide {
-  position: fixed;
-  z-index: 61;
-  background: var(--accent);
-  pointer-events: none;
-}
-
-.arrange-guide--x {
-  width: 1px;
-}
-
-.arrange-guide--y {
-  height: 1px;
-}
-
-.arrange-inspector {
-  position: fixed;
-  z-index: 65;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 328px;
-  overflow-y: auto;
-  padding: 16px;
-  border-left: 1px solid var(--panel-border);
-  color: var(--fg);
-  background: var(--panel-solid);
-  box-shadow: -16px 0 40px rgb(0 0 0 / 0.22);
-  pointer-events: auto;
-}
-
-.arrange-inspector-header {
-  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
+  padding: 16px 8px;
+}
+.canvas-surface--stack .canvas-item {
+  position: relative;
 }
 
-.arrange-inspector-header h2 {
-  font-family: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
-  font-size: 20px;
-}
-
-.arrange-inspector-eyebrow {
-  color: var(--fg-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-
-.arrange-inspector-section {
-  display: grid;
-  gap: 10px;
-  margin-top: 18px;
-  padding-top: 14px;
-  border-top: 1px solid var(--hairline);
-}
-
-.arrange-inspector-section h3 {
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.arrange-coordinates {
-  display: flex;
-  gap: 16px;
-  color: var(--fg-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-.arrange-nudge-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.arrange-visibility {
-  display: flex;
-  min-height: 36px;
-  align-items: center;
-  gap: 8px;
-  margin-block: 16px;
-}
-
-.arrange-overlap-warning,
-.arrange-save-error {
-  border: 1px solid rgb(251 146 60 / 0.6);
-  border-radius: 10px;
-  padding: 10px;
-  color: rgb(254 215 170);
-  background: rgb(124 45 18 / 0.38);
-}
-
-.arrange-overlap-warning div {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
-
-.arrange-save-error {
-  position: fixed;
-  z-index: 66;
-  top: 56px;
-  left: 12px;
-  max-width: min(32rem, calc(100vw - 344px));
-  pointer-events: auto;
-}
-
-.arrange-inspector--sheet {
-  top: auto;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  max-height: 50dvh;
-  display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) repeat(2, minmax(240px, 1fr)) minmax(180px, 0.7fr);
-  align-content: start;
-  gap: 12px;
-  overflow-y: auto;
-  padding: 12px;
-  border-top: 1px solid var(--panel-border);
-  border-left: 0;
-  box-shadow: 0 -16px 40px rgb(0 0 0 / 0.22);
-}
-
-.arrange-inspector--sheet .arrange-inspector-section {
-  margin-top: 0;
-  padding-top: 0;
-  border-top: 0;
-}
-
-.arrange-overlay[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] .arrange-toolbar,
-.arrange-overlay[data-arrange-viewport-mode="side"][data-arrange-inspector-open="true"] .arrange-guide--y {
-  right: 328px;
-}
-
-@media (max-width: 720px) {
-  .arrange-inspector--sheet {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .arrange-button,
-  .arrange-target,
-  .arrange-inspector,
-  .arrange-toolbar {
-    scroll-behavior: auto;
-    transition: none !important;
-  }
-}
+/* Direct tool panels anchor to their launchers and clamp to the viewport
+   (anchorPanel, 8px gutters). The retired stage-profile phone sheet that
+   overrode this was keyed on a root attribute no longer published and had
+   been dead at runtime; NL-P3 edit surfaces own any future sheet modality. */
 
 /* Locally-bundled fonts (SIL OFL — see README's Font credits section). Both
    are variable-font woff2 files (latin subset only — this is an English-first
@@ -686,6 +434,7 @@
     --bookmarks-chip-px: 0.5rem;
     --bookmarks-gap: 0.25rem;
   }
+
 }
 
 /* Same threshold as the `compact` variant below; see the note on the
@@ -696,6 +445,7 @@
     --bookmarks-chip-px: 0;
     --bookmarks-gap: 0.375rem;
   }
+
 }
 
 /* Same threshold as the `xshort` variant below, spelled out as a raw media
@@ -705,6 +455,7 @@
   :root {
     --top-band-gap: 0.5rem;
   }
+
 }
 
 /* Responsive breakpoints — the owner's ~1420x437 short-wide browser window
@@ -1272,15 +1023,14 @@ select > option {
   color: #f5f5f4;
 }
 
-/* Aurora 2 Adaptive Stage. JS owns the runtime markers; these ordered media
-   queries mirror the same profile fenceposts for first paint and harness
-   agreement without introducing root scaling. */
+/* Legacy CSS mirror of the retired profile fenceposts. Runtime rendering no
+   longer selects profiles (named-layouts NL-P2); only the legacy canonical
+   harness cross-checks this custom property. Width-only for compact, per the
+   a325891 short-height fix — the harness contract must keep agreeing. */
 :root { --stage-css-profile: standard; }
 @media (min-width: 2200px) and (min-height: 1100px) { :root { --stage-css-profile: display; } }
 @media (min-width: 1600px) and (min-aspect-ratio: 21/10) { :root { --stage-css-profile: ultrawide; } }
 @media (max-width: 899px) { :root { --stage-css-profile: compact; } }
-/* No height clause: selectCanvasProfile chooses the phone profile by width
-   alone, and this mirror must agree with it (scripts/preview.mjs checks). */
 
 /* Ultrawide retains five Now rows at the 1600px height fencepost. Its former
    20vh clock curve can paint across the adjacent automatic greeting/focus
@@ -1288,347 +1038,24 @@ select > option {
    display cap, but use the profile's denser 16vh curve at this aspect ratio. */
 @media (min-width: 1600px) and (min-aspect-ratio: 21/10) {
   :root { --clock-font: clamp(3rem, min(10vw, 16vh), 10rem); }
-}
 
-.adaptive-stage {
-  position: relative;
-  width: 100%;
-  min-width: 0;
-  height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: var(--stage-inset);
-}
-
-.adaptive-stage__grid {
-  position: relative;
-  display: grid;
-  width: 100%;
-  height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
-  min-height: 0;
-  min-width: 0;
-  gap: var(--stage-gap);
-  grid-template-columns:
-    minmax(0, clamp(15rem, 22vw, 28rem))
-    minmax(20rem, 1fr)
-    minmax(0, clamp(15rem, 22vw, 28rem));
-  /* The first semantic row fills spare height, but its real rendered content
-     is the minimum. If Now is taller than the remaining viewport, it pushes
-     Dock below itself and the Stage's single vertical scrollport owns the
-     excess instead of the two regions painting through each other. */
-  grid-template-rows: minmax(max-content, 1fr) auto;
-  grid-template-areas: "day now pulse" "dock dock dock";
-  align-items: start;
-}
-
-:root[data-stage-profile="compact"] .adaptive-stage__grid {
-  height: auto;
-  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: repeat(4, max-content);
-  grid-template-areas: "now" "day" "pulse" "dock";
-  align-content: start;
-}
-
-/* Pinned allocations are the one sanctioned source of implicit finite-zone
-   rows. Let those rows contribute their max-content height so the Stage's
-   vertical scrollport owns the overflow and later semantic rows never paint
-   underneath them. Automatic plans retain the viewport-filling 1fr tracks. */
-.adaptive-stage[data-stage-pinned-overflow="true"] .adaptive-stage__grid {
-  height: auto;
-  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
-  grid-template-rows: max-content auto;
-}
-
-/* A truthful no-fit diagnostic keeps the finite Board and preserved Dock in
-   normal flow inside the Stage-owned vertical scrollport. Nothing is clipped
-   or allowed to paint underneath the max-content Dock. */
-.adaptive-stage[data-stage-viewport-overflow="true"] .adaptive-stage__grid {
-  height: auto;
-  min-height: calc(100dvh - var(--stage-inset) - var(--stage-inset));
-  grid-template-rows: max-content var(--stage-dock-block-size);
-}
-
-:root[data-stage-profile="compact"] .adaptive-stage[data-stage-pinned-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
-  grid-template-rows: repeat(4, max-content);
-}
-
-:root[data-stage-profile="compact"] .adaptive-stage[data-stage-viewport-overflow="true"][data-stage-sublayout="compact-narrow"] .adaptive-stage__grid {
-  grid-template-rows: repeat(3, max-content) var(--stage-dock-block-size);
-}
-
-.stage-zone {
-  display: grid;
-  box-sizing: border-box;
-  min-width: 0;
-  min-height: 0;
-  gap: var(--stage-gap);
-  padding: 8px;
-  border: 1px solid var(--glance-border);
-  border-radius: var(--radius-panel);
-  background: var(--glance-surface);
-  box-shadow: var(--glance-highlight);
-  align-content: start;
-  align-self: start;
-  height: max-content;
-  grid-auto-flow: row;
-  grid-auto-rows: minmax(max(var(--stage-control-target), 56px), auto);
-}
-
-.stage-zone--day {
-  grid-area: day;
-  grid-template-columns: repeat(var(--stage-day-cols), minmax(0, 1fr));
-  /* Day is one coherent glance surface. Its BoardItems supply content
-     hierarchy inside the shared region instead of each allocation receiving
-     another zone-level frame. Empty planner rows no longer become paint. */
-  background: var(--glance-surface-day);
-}
-.stage-zone--now {
-  grid-area: now;
-  width: min(100%, 48rem);
-  justify-self: center;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: safe center;
-  align-self: safe center;
-  padding: 0;
-  text-align: center;
-  /* Now is the photo-forward hero, not a second framed card. The localized
-     wash protects the Clock/Greeting/Search/Focus hierarchy without changing
-     planner identity, hit testing, or the root transform contract. */
-  border-color: transparent;
-  background: radial-gradient(ellipse at center, rgb(3 7 18 / 0.2), transparent 72%);
-  box-shadow: none;
-}
-.stage-zone--now > .board-item,
-.stage-zone--now > [data-launcher-shelf] {
-  grid-column: 1 / -1 !important;
-  width: 100%;
-}
-.stage-zone--now .board-item[data-block-id="clock"] {
-  justify-self: center;
-  text-align: center;
-}
-
-/* Links and Bookmarks remain two planner-owned BoardItems, but when their
-   rectangles share an edge they read and navigate as one launcher shelf.
-   The nested grid repeats the parent columns and gap while content-sizing its
-   rows inside the planner-owned union, so the shared surface reads as a shelf
-   instead of stretching into an empty panel. */
-[data-launcher-shelf] {
-  display: grid;
-  grid-template-columns: repeat(var(--launcher-shelf-cols), minmax(0, 1fr));
-  grid-template-rows: repeat(var(--launcher-shelf-rows), minmax(0, auto));
-  gap: var(--stage-gap);
-  align-self: center;
-  min-width: 0;
-  min-height: 0;
-  padding: 8px;
-  box-sizing: border-box;
-  border: 1px solid var(--glance-border-strong);
-  border-radius: calc(var(--radius-panel) + 2px);
-  background: var(--glance-surface-launcher);
-  box-shadow: var(--glance-highlight);
-}
-[data-launcher-shelf] .board-item[data-block-id="links"] > section {
-  margin: 0;
-  align-content: center;
-}
-.stage-zone--pulse {
-  grid-area: pulse;
-  grid-template-columns: repeat(var(--stage-pulse-cols), minmax(0, 1fr));
-}
-.stage-zone--pulse:empty,
-.stage-zone--dock:empty {
-  display: none;
-}
-.stage-zone--dock {
-  grid-area: dock;
-  grid-auto-flow: column;
-  grid-template-rows: minmax(var(--stage-track-min), auto);
-  /* The planner reservation belongs to the parent Stage row. Painting that
-     entire reservation here creates a large empty slab when compact Dock
-     content needs only one real row. Let this surface shrink-wrap its row. */
-  min-block-size: 0;
-  width: max-content;
-  max-width: 100%;
-  justify-self: center;
-  /* A constrained scroll container resolves implicit minmax(..., max-content)
-     tracks to their minimum before overflowing grid items contribute their
-     intrinsic width. Publish the planner's normalized Dock span count and
-     make those tracks explicit max-content tracks; the exact auto-column
-     contract remains the fallback for any unexpected implicit allocation. */
-  grid-template-columns: repeat(var(--stage-dock-track-count), max-content);
-  grid-auto-columns: minmax(var(--stage-track-min), max-content);
-  overflow-x: auto;
-  padding-inline: 8px;
-  overscroll-behavior-inline: contain;
-  scrollbar-width: thin;
-  /* The Dock is the owned horizontal scrollport. A backdrop-filter here
-     would also make it a containing block and clip fixed utility panels to
-     the one-row scroller; keep the shared tonal surface without that trap. */
-  backdrop-filter: none;
-}
-
-/* W4-P4 turns connector overflow into intentional Signal Dock instruments.
-   The renderer remains mounted exactly once inside each disclosure: closed
-   entries show identity plus one held primary value (or the truthful Enabled
-   fallback), while the same renderer becomes the bounded active-work surface
-   when opened. */
-[data-signal-dock-entry] {
-  position: relative;
-  box-sizing: border-box;
-  inline-size: 14rem;
-  min-block-size: var(--stage-track-min);
-  padding: 6px 8px;
-  border: 1px solid rgb(255 255 255 / 0.14);
-  border-radius: 12px;
-  background: rgb(3 7 18 / 0.56);
-  font-size: 14px;
-  line-height: 20px;
-}
-[data-signal-dock-header] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  grid-template-rows: 20px 20px;
-  column-gap: 8px;
-  min-width: 0;
-}
-[data-signal-dock-identity],
-[data-signal-dock-fallback] {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-[data-signal-dock-identity] {
-  font-weight: 600;
-  color: var(--fg);
-}
-[data-signal-dock-fallback] {
-  grid-row: 2;
-  color: var(--fg-muted);
-}
-[data-signal-dock-header] button {
-  grid-column: 2;
-  grid-row: 1 / span 2;
-  align-self: center;
-  min-width: 36px;
-  min-height: 36px;
-  border-radius: 999px;
-  color: var(--accent);
-  cursor: pointer;
-}
-[data-signal-dock-header] button:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-[data-signal-dock-open="false"] [data-signal-dock-content] {
-  position: absolute;
-  right: 52px;
-  bottom: 6px;
-  left: 8px;
-  height: 20px;
-  overflow: hidden;
-  pointer-events: none;
-  white-space: nowrap;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] > section {
-  display: contents;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] > section > * {
-  display: none;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] [data-work-pulse-summary] {
-  display: flex;
-  margin: 0;
-  gap: 4px;
-  overflow: hidden;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] [data-work-pulse-summary] > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Calendar"] > p:first-child,
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Home Assistant"] > ul,
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Crypto"] > div,
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Headlines"] > ul {
-  display: flex;
-  margin: 0;
-  overflow: hidden;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Home Assistant"] > ul > li:not(:first-child),
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Crypto"] > div > span:not(:first-child),
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Headlines"] > ul > li:not(:first-child),
-[data-signal-dock-open="false"] [data-signal-dock-content] :is(a, button, input, select, textarea, [role="button"]) {
-  display: none;
-}
-[data-signal-dock-open="false"] [data-signal-dock-content] > section[aria-label="Headlines"] > ul > li:first-child > a {
-  /* The closed subtree is inert, so this is readable preview text rather
-     than a second link. The disclosure remains the entry's only control. */
-  display: block;
-}
-[data-signal-dock-entry]:has([data-work-pulse-summary]) [data-signal-dock-fallback],
-[data-signal-dock-entry]:has(section[aria-label="Calendar"] > p:first-child) [data-signal-dock-fallback],
-[data-signal-dock-entry]:has(section[aria-label="Home Assistant"] > ul > li) [data-signal-dock-fallback],
-[data-signal-dock-entry]:has(section[aria-label="Crypto"] > div > span) [data-signal-dock-fallback],
-[data-signal-dock-entry]:has(section[aria-label="Headlines"] > ul > li) [data-signal-dock-fallback] {
-  visibility: hidden;
-}
-
-[data-signal-dock-open="true"] [data-signal-dock-content] {
-  position: fixed;
-  right: max(var(--stage-inset), 8px);
-  bottom: calc(var(--stage-dock-block-size) + var(--stage-inset) + var(--stage-gap));
-  width: min(22rem, calc(100% - 16px));
-  max-height: calc(100% - var(--stage-dock-block-size) - (2 * var(--stage-inset)) - var(--stage-gap));
-  overflow: auto;
-  padding: 12px;
-  border: 1px solid var(--panel-border);
-  border-radius: var(--radius-panel);
-  background: var(--panel-solid);
-  box-shadow: 0 18px 48px rgb(0 0 0 / 0.42);
-  color: var(--fg);
-  z-index: 40;
-}
-[data-signal-dock-open="true"] [data-signal-dock-content] > * {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-}
-[data-signal-dock-open="true"] [data-signal-dock-content]:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 @media (max-height: 200px) {
-  .stage-zone--dock.stage-zone--elevated-high {
-    overflow: visible;
-    z-index: 50;
-  }
 
   /* Calm Canvas keeps the semantic Now -> Day -> Pulse -> Dock order even at
      the 180px emergency fencepost. The Stage owns vertical scrolling, so an
      open Weather setup stays in normal grid flow instead of becoming a fixed
      overlay across the Clock and Dock. Relative positioning preserves its
      elevated suggestion-list stack without taking it out of that flow. */
-  .board-item[data-block-id="weather"].z-30 {
+  .canvas-item[data-block-id="weather"].z-30 {
     position: relative;
     inset: auto;
     width: auto;
     height: max-content;
     z-index: 30;
   }
-}
 
-
-.board-item {
-  min-width: 0;
-  min-height: 0;
-  grid-column: span var(--board-col-span);
-  grid-row: span var(--board-row-span);
-  isolation: isolate;
 }
 
 /* An empty Day region still answers "what day is it?" without minting a
@@ -1669,12 +1096,10 @@ select > option {
   font-weight: 500;
 }
 .day-context [data-day-context-long] { display: none; }
-:root:not([data-stage-profile="compact"]) .day-context [data-day-context-compact] { display: none; }
-:root:not([data-stage-profile="compact"]) .day-context [data-day-context-long] { display: inline; }
-:root[data-stage-profile="display"] .day-context time {
-  font-size: 18px;
-  line-height: 24px;
-}
+/* The stage profile attribute is no longer published, so the long form is
+   the one live presentation (the compact span stays for NL-P5 tiers). */
+.day-context [data-day-context-compact] { display: none; }
+.day-context [data-day-context-long] { display: inline; }
 
 /* The Clock owns the primary Now value. Its long local date is useful extra
    context only when the semantic renderer is Expanded; Compact/Standard keep
@@ -1694,7 +1119,7 @@ select > option {
   font-weight: 500;
   letter-spacing: 0.02em;
 }
-.board-item[data-stage-variant="expanded"][data-block-id="clock"] .clock-face [data-clock-date] {
+.canvas-item[data-canvas-size="full"][data-block-id="clock"] .clock-face [data-clock-date] {
   display: block;
 }
 
@@ -1730,116 +1155,67 @@ select > option {
 .aurora-briefing [data-briefing-display] {
   display: none;
 }
-:root[data-stage-profile="standard"] .aurora-briefing [data-briefing-compact] {
-  display: none;
-}
-:root[data-stage-profile="standard"] .aurora-briefing [data-briefing-standard] {
-  display: block;
-}
-:root:is([data-stage-profile="display"], [data-stage-profile="ultrawide"]) .aurora-briefing [data-briefing-compact] {
-  display: none;
-}
-:root:is([data-stage-profile="display"], [data-stage-profile="ultrawide"]) .aurora-briefing [data-briefing-display] {
-  display: block;
-}
+/* The retired stage-profile reveals for the standard/display Briefing
+   sentences were keyed on a root attribute no longer published, so the
+   compact sentence is the one live presentation. The richer sentences stay
+   in the markup for the NL-P5 tier catalog to reveal per designed tier. */
 
 /* Closed Bookmarks remains in the normal grid stacking order. Elevation is
    reserved for its live popover; otherwise the wrapper's full allocation can
    intercept controls that paint in another semantic zone. */
-.board-item[data-block-id="bookmarks"] {
+.canvas-item[data-block-id="bookmarks"] {
   pointer-events: none;
 }
-.board-item[data-block-id="bookmarks"] > nav {
+.canvas-item[data-block-id="bookmarks"] > nav {
   pointer-events: auto;
 }
-.board-item[data-block-id="bookmarks"].z-50 {
+.canvas-item[data-block-id="bookmarks"].z-50 {
   z-index: 50;
-}
-
-/* The semantic grid owns each surface's available inline size. Legacy root
-   widths remain useful upper bounds, but can no longer paint a control into a
-   neighbouring zone when auto density selects a narrower registry track. */
-.board-item > * {
-  min-width: 0;
-  max-width: 100%;
-}
-
-/* Dock allocations are deliberately content-preserving until W4-P4 ships
-   intentionally condensed Dock variants. Their intrinsic width therefore
-   sizes the Dock's owned grid column; the Dock scrollport, not a 64px wrapper,
-   handles the excess inline extent. */
-.stage-zone--dock .board-item {
-  min-width: var(--stage-track-min);
-  width: max-content;
-  max-width: none;
-}
-
-.stage-zone--dock .board-item > * {
-  max-width: none;
-}
-
-/* The compact Bookmarks bar is itself the Dock's intrinsic-width surface.
-   Preserve its nine fixed-size marks without applying this width to fixed
-   popovers/dialogs owned by other Dock widgets. */
-.stage-zone--dock .board-item[data-block-id="bookmarks"] > nav {
-  width: max-content;
-}
-
-/* Crypto's fixed w-88 shell is narrower than its five no-wrap numeric cells.
-   In the Dock, let that shell publish the cells' true max-content width so the
-   owned horizontal scrollport allocates one collision-free track. */
-.stage-zone--dock .board-item[data-block-id="crypto"] > section {
-  width: max-content;
 }
 
 /* These canvas-only widgets intentionally have no controls. Let pointer hit
    testing fall through their glyphs to the BoardItem (which still owns the
    Arrange long-press) instead of masking a neighbouring compact control. */
-.board-item[data-block-id="clock"] > *,
-.board-item[data-block-id="greeting"] > *,
-.board-item[data-block-id="worldClocks"] > *,
-.board-item[data-block-id="countdown"] > *,
-.board-item[data-block-id="quote"] > *,
-.board-item[data-block-id="sun"] > *,
-.board-item[data-block-id="moon"] > *,
-.board-item[data-block-id="status"] > section {
+.canvas-item[data-block-id="clock"] > *,
+.canvas-item[data-block-id="greeting"] > *,
+.canvas-item[data-block-id="worldClocks"] > *,
+.canvas-item[data-block-id="countdown"] > *,
+.canvas-item[data-block-id="quote"] > *,
+.canvas-item[data-block-id="sun"] > *,
+.canvas-item[data-block-id="moon"] > *,
+.canvas-item[data-block-id="status"] > section {
   pointer-events: none;
-}
-
-.board-item:focus-within {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }
 
 /* Compact registry variants must honor the planner-owned inline size. The
    legacy Weather chip and Quote figure both sized themselves against the
    viewport, which let their painted/hit-test areas escape into the adjacent
    allocation even though the BoardItem rectangles themselves did not overlap. */
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section {
   width: 100%;
   max-width: 100%;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button {
   padding-inline: 4px;
   padding-block: 4px;
   gap: 2px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span {
   gap: 4px;
   flex-wrap: wrap;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(3) {
   order: 2;
   flex-basis: 100%;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > svg:first-child {
   width: 20px;
   height: 20px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span > span:nth-child(2) {
   font-size: 20px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > button > span:not(:first-child) {
   /* A collapsed rain callout and stale-status line are both meaningful, so
      retain them in compact rather than hiding either. Keep each line local
      to the allocated card and trim only text that exceeds its inline track. */
@@ -1851,78 +1227,80 @@ select > option {
   font-size: 10px;
   line-height: 12px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > div,
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div,
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
   max-width: 100%;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) > section > div > div {
   flex-direction: column;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
   padding: 4px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div > div {
   flex-direction: column;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="full"] {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="full"] {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"] [data-location-label="compact"] {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"] [data-location-label="compact"] {
   display: inline;
 }
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) input,
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) button,
-.board-item[data-stage-variant="compact"][data-block-id="weather"]:not(.z-30) [role="listbox"] {
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) input,
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) button,
+.canvas-item[data-canvas-size="compact"][data-block-id="weather"]:not(.z-30) [role="listbox"] {
   width: 100%;
   max-width: 100%;
 }
-.board-item[data-block-id="weather"].z-30 > section {
+.canvas-item[data-block-id="weather"].z-30 > section {
   max-width: none;
 }
 
 @container (max-width: 319px) {
-  .board-item[data-block-id="weather"]:not(.z-30) > section,
-  .board-item[data-block-id="weather"]:not(.z-30) > section > div,
-  .board-item[data-block-id="weather"]:not(.z-30) > section > div > div {
+  .canvas-item[data-block-id="weather"]:not(.z-30) > section,
+  .canvas-item[data-block-id="weather"]:not(.z-30) > section > div,
+  .canvas-item[data-block-id="weather"]:not(.z-30) > section > div > div {
     width: 100%;
     max-width: 100%;
   }
-  .board-item[data-block-id="weather"]:not(.z-30) input,
-  .board-item[data-block-id="weather"]:not(.z-30) button,
-  .board-item[data-block-id="weather"]:not(.z-30) [role="listbox"] {
+  .canvas-item[data-block-id="weather"]:not(.z-30) input,
+  .canvas-item[data-block-id="weather"]:not(.z-30) button,
+  .canvas-item[data-block-id="weather"]:not(.z-30) [role="listbox"] {
     width: 100%;
     max-width: 100%;
   }
+
 }
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) > section,
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) > section > div,
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) > section > div > div {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) > section > div > div {
   width: 100%;
   max-width: 100%;
 }
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) input,
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) button,
-.board-item:not(.board-item--dock)[data-block-id="weather"]:not(.z-30) [role="listbox"] {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) input,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) button,
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"]:not(.z-30) [role="listbox"] {
   max-width: 100%;
 }
 @media (min-height: 201px) {
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]),
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div,
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]),
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div > div {
     width: 100%;
     max-width: 100%;
   }
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) input,
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) button,
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) [role="listbox"] {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) input,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) button,
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) [role="listbox"] {
     width: 100%;
     max-width: 100%;
   }
-  .board-item:not(.board-item--dock)[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) div {
+  .canvas-item:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) div {
     max-width: 100%;
   }
+
 }
-.board-item[data-stage-variant="compact"][data-block-id="quote"] > figure {
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] > figure {
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
@@ -1935,7 +1313,7 @@ select > option {
    same typeface and scale curve, but cap those smaller variants by their real
    inline container. Full is the intentionally large 4K presentation and must
    retain --clock-font instead of inheriting this compact safety ceiling. */
-.board-item:not(.board-item--dock):not([data-stage-variant="expanded"])[data-block-id="clock"] time {
+.canvas-item:not([data-canvas-mode="docked"]):not([data-canvas-size="full"])[data-block-id="clock"] time {
   font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px));
 }
 
@@ -1947,7 +1325,7 @@ select > option {
    allocation with measured vertical headroom.
    Dock content remains preserved, and standard/expanded Board renderers keep
    the canvas Clock's existing scale. */
-.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="clock"] time {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
   font-size: min(var(--clock-font), calc(37.6471cqi - 0.7529px), 17vh);
 }
 
@@ -1958,7 +1336,7 @@ select > option {
    controls that stay visible retain their native hit targets and tab order.
    No BoardItem/card gets overflow clipping, so a future oversized descendant
    remains visible to the paint-containment harness instead of being hidden. */
-.board-item[data-stage-variant="compact"]:not(.board-item--dock):is(
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"]):is(
   [data-block-id="ics"],
   [data-block-id="monthCal"],
   [data-block-id="sun"],
@@ -1982,61 +1360,61 @@ select > option {
 /* Calendar's compact glance is the next event. The longer agenda remains the
    standard/expanded variant; a live Join affordance wraps below the summary
    instead of painting into the next grid cell. */
-.board-item[data-stage-variant="compact"][data-block-id="ics"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section {
   padding: 8px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="ics"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > p {
   flex-wrap: wrap;
 }
-.board-item[data-stage-variant="compact"][data-block-id="ics"] > section > ul {
+.canvas-item[data-canvas-size="compact"][data-block-id="ics"] > section > ul {
   display: none;
 }
 
 /* Month chooses its truthful Compact/Standard cells in React. Stage styling
    may arrange that complete week, but never hides days or month rows. */
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] > div {
   /* A Standard compact track can be 72.66px wide. Preserve the full inline
      width for the two 36px month-nav targets so neither wraps to a second row.
      The label and conditional Today action then use the remaining block axis;
      no padding or clipping is needed inside the finite one-track allocation. */
   padding: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] {
   flex-wrap: wrap;
   justify-content: space-between;
   gap: 0;
-  min-height: calc(var(--stage-control-target) * 2);
+  min-height: 72px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button {
   padding: 0;
-  min-width: var(--stage-control-target);
-  min-height: var(--stage-control-target);
+  min-width: 36px;
+  min-height: 36px;
   display: grid;
   place-items: center;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
   order: 3;
   flex-basis: 100%;
   min-width: 0;
   width: 100%;
   max-width: 100%;
-  min-height: var(--stage-control-target);
+  min-height: 36px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] table {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] table {
   margin-top: 0;
   table-layout: fixed;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] td {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td {
   padding-block: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] td > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td > div {
   gap: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] td span:first-child {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] td span:first-child {
   width: 100%;
   max-width: 14px;
   height: 14px;
@@ -2044,7 +1422,7 @@ select > option {
   font-size: 14px;
   line-height: 14px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label] {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label] {
   font-size: 14px;
   line-height: 20px;
   min-width: 0;
@@ -2054,16 +1432,16 @@ select > option {
   text-overflow: clip;
   text-align: center;
 }
-.board-item[data-block-id="monthCal"] [data-monthcal-label-short] {
+.canvas-item[data-block-id="monthCal"] [data-monthcal-label-short] {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-full] {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-full] {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-short] {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-short] {
   display: inline;
 }
-.board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before {
+.canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label-short]::before {
   content: attr(data-label);
 }
 
@@ -2072,40 +1450,41 @@ select > option {
    them. The optional Today action owns the reserved third row, so navigation
    still has zero height shift while every target remains complete. */
 @container (inline-size < 72px) {
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] {
     display: grid;
-    grid-template-columns: var(--stage-control-target) minmax(0, 1fr);
-    grid-template-rows: repeat(3, var(--stage-control-target));
-    min-height: calc(var(--stage-control-target) * 3);
+    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-rows: repeat(3, 36px);
+    min-height: 108px;
   }
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:first-child {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:first-child {
     grid-column: 1;
     grid-row: 1;
   }
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:last-child {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > button:last-child {
     grid-column: 1;
     grid-row: 2;
   }
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] > span {
     display: contents;
   }
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-label] {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-label] {
     grid-column: 2;
     grid-row: 1 / -1;
     align-self: center;
   }
-  .board-item[data-stage-variant="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"] {
+  .canvas-item[data-canvas-size="compact"][data-block-id="monthCal"] [data-monthcal-header] button[aria-label="Back to today"] {
     grid-column: 1;
     grid-row: 3;
   }
+
 }
 
-.board-item[data-stage-variant="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="sun"], [data-block-id="moon"]) > section {
   padding: 8px;
   font-size: 11px;
   line-height: 14px;
 }
-.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="sun"] [data-sun-golden] {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="sun"] [data-sun-golden] {
   /* Golden hour remains available in standard/expanded and Dock renderers;
      the 1x1 Board glance spends its finite lines on sunrise and sunset. */
   display: none;
@@ -2114,93 +1493,83 @@ select > option {
 /* Quote compact is a three-line excerpt plus attribution. This is a local
    text presentation (the existing figure still owns the quote), never an
    overflow rule on the BoardItem or Stage. */
-.board-item[data-stage-variant="compact"][data-block-id="quote"] blockquote {
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] blockquote {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.board-item[data-stage-variant="compact"][data-block-id="quote"] figcaption {
+.canvas-item[data-canvas-size="compact"][data-block-id="quote"] figcaption {
   margin-top: 2px;
 }
 
 /* Quick Links no longer spends forty compact pixels on the former centered
    rail offset. Its existing wrap and controls then fit the owned cell. */
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section {
   margin-top: 0;
   gap: 4px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div {
   width: 36px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > span {
   width: 36px;
   font-size: 14px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > a,
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > a,
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > button {
   width: 36px;
   height: 36px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > a > img {
+.canvas-item[data-canvas-size="compact"][data-block-id="links"] > section > div > a > img {
   width: 16px;
   height: 16px;
-}
-.stage-zone--now .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div,
-.stage-zone--now .board-item[data-stage-variant="compact"][data-block-id="links"] > section > div > span {
-  width: 80px;
 }
 
 /* Compact Board bookmarks are a three-chip launcher. Dock bookmarks retain
    the full intrinsic row and its horizontal scroller. */
-.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 4) {
   display: none;
 }
 @container (inline-size < 112px) {
-  .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 3) {
+  .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="bookmarks"] nav > :nth-child(n + 3) {
     display: none;
   }
+
 }
 
 /* Search's legacy 16rem input is nested below the BoardItem's direct child;
    cap that control to the semantic track just as Focus does. */
-.board-item:not(.board-item--dock)[data-block-id="search"] input {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="search"] input {
   width: 100%;
   max-width: 100%;
-}
-.stage-zone--now .board-item:not(.board-item--dock)[data-block-id="search"] form {
-  display: flex;
-  justify-content: center;
-}
-.stage-zone--now .board-item:not(.board-item--dock)[data-block-id="search"] input {
-  width: min(100%, 32rem);
 }
 
 /* Three toggles are a useful habit glance and fit the 1x1 compact allocation;
    the standard variant continues to show the full six-chip display cap. */
-.board-item[data-stage-variant="compact"][data-block-id="habits"] > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div {
   gap: 4px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="habits"] > div > button:nth-child(n + 4) {
+.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button:nth-child(n + 4) {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="habits"] > div > button {
+.canvas-item[data-canvas-size="compact"][data-block-id="habits"] > div > button {
   padding-block: 4px;
-  min-width: var(--stage-control-target);
-  min-height: var(--stage-control-target);
+  min-width: 36px;
+  min-height: 36px;
 }
 
 /* Connector cards retain their header, compact status, and first actionable
    row from each enabled section. Metadata prefixes yield before the linked
    title; contribution graphs keep the totals/streak but omit the heatmap. */
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
 ) > section {
   padding: 8px;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
@@ -2209,7 +1578,7 @@ select > option {
   min-width: 0;
   gap: 2px;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
@@ -2218,7 +1587,7 @@ select > option {
   font-size: 10px;
   line-height: 14px;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
@@ -2231,29 +1600,29 @@ select > option {
   font-size: 9px;
   line-height: 14px;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
 ) section li:nth-child(n + 2) {
   display: none;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
 ) section li a > span:first-child:not(:last-child) {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="github"] > section > ul ~ ul,
-.board-item[data-stage-variant="compact"][data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])),
-.board-item[data-stage-variant="compact"][data-block-id="jira"] > section > ul ~ div {
+.canvas-item[data-canvas-size="compact"][data-block-id="github"] > section > ul ~ ul,
+.canvas-item[data-canvas-size="compact"][data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])),
+.canvas-item[data-canvas-size="compact"][data-block-id="jira"] > section > ul ~ div {
   /* One compact action row is kept directly usable. Additional enabled
      sections remain available in standard/expanded variants instead of
      increasing the frozen one-track card's paint footprint. */
   display: none;
 }
-.board-item[data-stage-variant="compact"]:is(
+.canvas-item[data-canvas-size="compact"]:is(
   [data-block-id="github"],
   [data-block-id="gitlab"],
   [data-block-id="jira"]
@@ -2261,17 +1630,17 @@ select > option {
   margin-top: 4px;
   padding-top: 4px;
 }
-.board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"],
-.board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] + div {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"],
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] + div {
   display: none;
 }
-.board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) > section > div.hidden:has([role="img"]) {
   /* Rows-bearing and quiet compositions place the same legacy height tier on
      the inner graph wrapper. Compact still needs the stat summary inside it;
      the heatmap itself remains omitted by the rule above. */
   display: block;
 }
-.board-item[data-stage-variant="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] ~ p {
+.canvas-item[data-canvas-size="compact"]:is([data-block-id="github"], [data-block-id="gitlab"]) [role="img"] ~ p {
   margin-top: 0;
   max-width: 100%;
   overflow: hidden;
@@ -2281,39 +1650,39 @@ select > option {
   line-height: 14px;
 }
 
-.board-item[data-stage-variant="compact"][data-block-id="rss"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="rss"] > section {
   padding: 8px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="rss"] li:nth-child(n + 3),
-.board-item[data-stage-variant="compact"][data-block-id="homeassistant"] li:nth-child(n + 3) {
+.canvas-item[data-canvas-size="compact"][data-block-id="rss"] li:nth-child(n + 3),
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] li:nth-child(n + 3) {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] li:nth-child(n + 2) {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li:nth-child(n + 2) {
   /* Summary + one live deployment is the compact status/action glance. The
      standard/expanded card retains the complete capped deployment list. */
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] > section {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section {
   /* The legacy fixed-rail tier hid the entire connector below 995px. The
      Adaptive Stage has already allocated a compact BoardItem here, so expose
      its status summary and deployment action inside that owned footprint. */
   display: block;
   padding: 8px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] > section > h2,
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > h2,
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
   margin-bottom: 4px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] > section > p {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] > section > p {
   overflow-wrap: anywhere;
   font-size: 11px;
   line-height: 14px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] li a {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li a {
   min-width: 0;
   gap: 2px;
 }
-.board-item[data-stage-variant="compact"][data-block-id="vercel"] li a > span:last-child {
+.canvas-item[data-canvas-size="compact"][data-block-id="vercel"] li a > span:last-child {
   /* Relative age is lower-value metadata in the compact action row. The
      project link and deployment state remain visible and actionable. */
   display: none;
@@ -2324,16 +1693,16 @@ select > option {
    the buttons therefore keep the W2 target floor without escaping the frozen
    footprint. Passive entity chips yield only in the very narrow Board cells,
    while the full chip/action composition remains available in wider variants. */
-.board-item[data-stage-variant="compact"][data-block-id="homeassistant"] > section > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
   gap: 0;
   margin-top: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="homeassistant"] > section > div > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > div > div {
   min-width: 0;
 }
-.board-item[data-stage-variant="compact"][data-block-id="homeassistant"] button[aria-label^="Run "] {
+.canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] button[aria-label^="Run "] {
   box-sizing: border-box;
   width: 100%;
   min-width: 36px;
@@ -2345,21 +1714,22 @@ select > option {
   font-size: 14px;
 }
 @container (max-width: 100px) {
-  .board-item[data-stage-variant="compact"][data-block-id="homeassistant"] > section > ul {
+  .canvas-item[data-canvas-size="compact"][data-block-id="homeassistant"] > section > ul {
     display: none;
   }
+
 }
 
 /* Numeric cells are never truncated. A one-track Crypto glance shows the
    first configured coin; Dock and wider variants retain all five values. */
-.board-item[data-stage-variant="compact"][data-block-id="crypto"] > section > div {
+.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div {
   justify-content: center;
   gap: 0;
 }
-.board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span:nth-child(n + 2) {
+.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span:nth-child(n + 2) {
   display: none;
 }
-.board-item[data-stage-variant="compact"][data-block-id="crypto"] > section > div > span {
+.canvas-item[data-canvas-size="compact"][data-block-id="crypto"] > section > div > span {
   gap: 1px;
   font-size: 14px;
   line-height: 18px;
@@ -2371,7 +1741,7 @@ select > option {
    gutters, Links keeps every fixture control at the 36px target floor, and
    Crypto exposes two complete numeric cells (compact exposes one; Dock keeps
    all configured cells). No BoardItem, zone, or numeric value is clipped. */
-.board-item[data-stage-variant="standard"]:not(.board-item--dock):is(
+.canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"]):is(
   [data-block-id="quote"],
   [data-block-id="links"],
   [data-block-id="crypto"]
@@ -2380,40 +1750,40 @@ select > option {
   width: 100%;
   max-width: 100%;
 }
-.board-item[data-stage-variant="standard"][data-block-id="quote"] > figure {
+.canvas-item[data-canvas-size="standard"][data-block-id="quote"] > figure {
   padding-inline: 4px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="quote"] figcaption {
+.canvas-item[data-canvas-size="standard"][data-block-id="quote"] figcaption {
   margin-top: 2px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section {
   margin-top: 0;
   gap: 4px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > div,
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > span {
   width: 36px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > span {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > span {
   font-size: 14px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > a,
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > button {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > a,
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > button {
   width: 36px;
   height: 36px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="links"] > section > div > a > img {
+.canvas-item[data-canvas-size="standard"][data-block-id="links"] > section > div > a > img {
   width: 16px;
   height: 16px;
 }
-.board-item[data-stage-variant="standard"][data-block-id="crypto"] > section > div {
+.canvas-item[data-canvas-size="standard"][data-block-id="crypto"] > section > div {
   justify-content: center;
   gap: 4px;
 }
-.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span:nth-child(n + 3) {
+.canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span:nth-child(n + 3) {
   display: none;
 }
-.board-item[data-stage-variant="standard"][data-block-id="crypto"] > section > div > span {
+.canvas-item[data-canvas-size="standard"][data-block-id="crypto"] > section > div > span {
   gap: 1px;
   font-size: 14px;
   line-height: 18px;
@@ -2423,363 +1793,52 @@ select > option {
    Keep the frozen one/two-cell condensation, but stack each preserved value's
    symbol, price, and change instead of letting numeric paint escape. Dock
    retains the native single-line five-cell strip. */
-.board-item:not(.board-item--dock)[data-block-id="crypto"] > section > div {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div {
   flex-direction: column;
   align-items: center;
   gap: 2px;
 }
-.board-item:not(.board-item--dock)[data-block-id="crypto"] > section > div > span {
+.canvas-item:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span {
   display: grid;
   justify-items: center;
   align-items: center;
   gap: 0;
   line-height: 20px;
 }
-.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span {
+.canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span {
   grid-template-columns: auto auto;
   column-gap: 1px;
 }
-.board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="crypto"] > section > div > span > span:last-child {
+.canvas-item[data-canvas-size="standard"]:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span > span:last-child {
   grid-column: 1 / -1;
 }
-.board-item.board-item--dock[data-block-id="crypto"] > section > div > span {
+.canvas-item[data-canvas-mode="docked"][data-block-id="crypto"] > section > div > span {
   /* The five untruncated Dock cells stay on one row. Chromium's 14px glyph
      ink is 19px tall, so the former 18px line box let its top pixel escape
      the owned BoardItem even though the element boxes were contained. */
   line-height: 20px;
 }
 
-/* Adaptive Stage legibility is a renderer contract, not a viewport
-   breakpoint. Every visible glance keeps ordinary copy at 14px, explicitly
-   marked secondary metadata at 12px, and direct actions on the density-owned
-   target (36px Compact/Balanced; 44px Spacious). These rules stay below the
-   BoardItem: neither the Stage nor its allocation wrappers clip or scale
-   descendants, so the geometry probes continue to expose any renderer that
-   needs local wrapping or a larger Dock compatibility block. */
-.adaptive-stage .board-item :is(button, a[href], input, select, textarea, [role="button"]) {
-  box-sizing: border-box;
-  min-inline-size: var(--stage-control-target) !important;
-  min-block-size: var(--stage-control-target) !important;
-  min-width: var(--stage-control-target) !important;
-  min-height: var(--stage-control-target) !important;
-}
-
-.adaptive-stage .board-item [data-stage-text-tier="metadata"] {
-  font-size: 12px !important;
-  line-height: 16px !important;
-}
-
-.adaptive-stage .board-item[data-block-id="search"] input,
-.adaptive-stage .board-item[data-block-id="links"] > section > div > span,
-.adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "],
-.adaptive-stage .board-item[data-block-id="quote"] blockquote,
-.adaptive-stage .board-item:is([data-block-id="sun"], [data-block-id="moon"]) > section,
-.adaptive-stage .board-item[data-block-id="rss"] li a > span:last-child,
-.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) h2,
-.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) > section > div:first-child > span,
-.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) li a > span:last-child,
-.adaptive-stage .board-item:is([data-block-id="github"], [data-block-id="gitlab"], [data-block-id="jira"]) [role="img"] ~ p,
-.adaptive-stage .board-item:is([data-block-id="gitlab"], [data-block-id="jira"]) section p.text-\[11px\],
-.adaptive-stage .board-item[data-block-id="vercel"] > section > p,
-.adaptive-stage .board-item[data-block-id="vercel"] li a > span:not([data-stage-text-tier="metadata"]),
-.adaptive-stage .board-item[data-block-id="ics"] > section :is(p, li, a),
-.adaptive-stage .board-item[data-block-id="monthCal"] [data-monthcal-label],
-.adaptive-stage .board-item[data-block-id="monthCal"] td span:first-child,
-.adaptive-stage .board-item[data-block-id="monthCal"] button[aria-label="Back to today"],
-.adaptive-stage .board-item[data-block-id="homeassistant"] :is(li, button, [role="status"], [role="alert"]),
-.adaptive-stage .board-item[data-block-id="status"] p,
-.adaptive-stage .board-item[data-block-id="weather"] button[aria-expanded] > span:not(:first-child),
-.adaptive-stage .board-item[data-block-id="weather"] a[aria-label^="Full forecast"],
-.adaptive-stage .board-item:is([data-block-id="worldClocks"], [data-block-id="countdown"]) > p {
-  font-size: 14px !important;
-  line-height: 20px !important;
-}
-
-.adaptive-stage .board-item[data-block-id="quote"] figcaption,
-.adaptive-stage .board-item[data-block-id="monthCal"] th[data-stage-text-tier="metadata"] {
-  font-size: 12px !important;
-  line-height: 16px !important;
-}
-
-/* Quote is passive glance content. Clamp its Board renderer to the finite
-   three-line excerpt plus one attribution line while leaving Dock content
-   complete and preserving the 14px/12px text floors. */
-.adaptive-stage .board-item:not(.board-item--dock)[data-block-id="quote"] blockquote {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-.adaptive-stage .board-item:not(.board-item--dock)[data-block-id="quote"] figcaption {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.adaptive-stage .board-item[data-block-id="links"] > section > div {
-  width: var(--stage-control-target);
-  min-width: var(--stage-control-target);
-}
-.adaptive-stage .board-item[data-block-id="links"] > section > div > span {
-  box-sizing: border-box;
-  width: var(--stage-control-target);
-}
-/* The Now launcher shelf is a labeled destination surface, not a condensed
-   Dock instrument. Preserve a readable label measure for Compact, Standard,
-   and Expanded allocations; the horizontal Dock keeps its deliberate 36px
-   condensed tiles and owned scroll behavior. */
-.stage-zone--now .board-item[data-block-id="links"] > section > div {
-  width: 80px;
-  min-width: 80px;
-}
-.stage-zone--now .board-item[data-block-id="links"] > section > div > span {
-  width: 80px;
-}
-.stage-zone--now .board-item[data-block-id="habits"] > div {
-  margin-inline: auto;
-}
-.adaptive-stage .board-item[data-block-id="links"] button[aria-label^="Remove "] {
-  /* Keep the 36/44px removal target in the label band. Only its top 8px
-     shares the primary tile, so the tile's centre remains an unambiguous
-     navigation hit target. */
-  top: calc(var(--stage-control-target) - 8px);
-  right: 0;
-  width: var(--stage-control-target);
-  height: var(--stage-control-target);
-}
-
-.adaptive-stage .board-item[data-stage-variant="compact"][data-block-id="monthCal"] td span:first-child {
-  width: 100%;
-  max-width: 100%;
-  height: 18px;
-  line-height: 18px !important;
-  letter-spacing: -0.04em;
-}
-
-.adaptive-stage .board-item[data-block-id="habits"] > div > button,
-.adaptive-stage .board-item[data-block-id="homeassistant"] button[aria-label^="Run "] {
-  min-width: var(--stage-control-target);
-  min-height: var(--stage-control-target);
-}
-
-/* A two-track Dock Weather card cannot keep icon, temperature, condition,
-   and chevron on one unbroken flex line at Compact/Balanced track widths.
-   Let the meaningful condition take a complete second line instead of
-   shrinking to a zero-width ellipsis. Expanded cards naturally keep the
-   same readable anatomy with more inline headroom. */
-.adaptive-stage .board-item:not([data-stage-variant="compact"])[data-block-id="weather"] > section > button > span:first-child {
-  flex-wrap: wrap;
-}
-.adaptive-stage .board-item:not([data-stage-variant="compact"])[data-block-id="weather"] > section > button > span:first-child > span[title] {
-  order: 2;
-  flex-basis: 100%;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-}
-
-/* The first and last six-hour slots carry both a 12px metadata label and a
-   12px unit glyph. Reserve their measured 29px min-content width; the four
-   middle tracks remain fully flexible, and all six tracks still resolve to
-   equal fractions whenever the panel has room. */
-.adaptive-stage .board-item[data-block-id="weather"] [data-weather-hourly-grid] {
-  grid-template-columns: minmax(29px, 1fr) repeat(4, minmax(0, 1fr)) minmax(29px, 1fr);
-}
-
-/* Accessibility target and type floors are part of each renderer's finite
-   Stage footprint. Keep only the amount of supporting content that the
-   frozen variant can present without clipping; the underlying data remains
-   mounted and larger variants retain progressively more detail. */
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="links"] > section > div:nth-of-type(n + 7),
-.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="bookmarks"] nav > :nth-child(n + 6),
-.adaptive-stage .board-item:not([data-stage-variant="compact"]):not(.board-item--dock):is(
-  [data-block-id="github"],
-  [data-block-id="gitlab"]
-) section li:nth-child(n + 2) {
-  display: none;
-}
-
-/* Standard connector cards spend their smaller 2x2 footprint on actionable
-   rows when both rows and a contribution graph are present. Graph-only cards
-   keep the graph, while Expanded retains graph plus the limited row set. */
-.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock):is(
-  [data-block-id="github"],
-  [data-block-id="gitlab"]
-) > section:has(ul) > div:has([role="img"]) {
-  display: none;
-}
-
-/* Work Pulse Compact owns one primary Deploys summary. Retire the older
-   supporting state-count line here with the same specificity that introduced
-   it, so it cannot out-rank the shared Compact detail-yield rule. */
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p {
-  display: none;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section {
-  display: grid;
-  grid-template-rows: 20px 40px 36px;
-  align-content: start;
-  block-size: 96px;
-  padding-block: 0;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > h2 {
-  margin-bottom: 0;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p {
-  margin-bottom: 0;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > ul {
-  min-height: 0;
-  overflow: hidden;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p > span:last-child {
-  grid-column: 1 / -1;
-}
-.adaptive-stage .board-item[data-stage-variant="compact"]:not(.board-item--dock)[data-block-id="vercel"] > section > p [aria-hidden="true"] {
-  display: none;
-}
-
-/* Balanced Standard needed only the legacy separator chrome removed; all
-   issue and deployment rows, labels, and target sizes remain unchanged. */
-.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="jira"] > section > div.border-t {
-  margin-top: 4px;
-  padding-top: 4px;
-}
-.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="jira"] > section > div.border-t > p {
-  margin-bottom: 0;
-}
-.adaptive-stage .board-item[data-stage-variant="standard"]:not(.board-item--dock)[data-block-id="vercel"] > section {
-  padding-block: 7px;
-}
-.adaptive-stage .board-item[data-stage-variant="expanded"]:not(.board-item--dock)[data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])) {
-  margin-top: 4px;
-  padding-top: 4px;
-}
-.adaptive-stage .board-item[data-stage-variant="expanded"]:not(.board-item--dock)[data-block-id="gitlab"] > section > ul ~ div:not(:has([role="img"])) > p {
-  margin-bottom: 4px;
-}
-
-/* W4-P3: Work Pulse is one regional instrument, not a new pile of floating
-   cards. BoardItem still owns every finite allocation; these rules only
-   normalize the child surfaces and progressively reveal already-rendered
-   anatomy. Dock presentation remains untouched for W4-P4. */
-.stage-zone--pulse {
-  background: var(--glance-surface-pulse);
-}
-.stage-zone--pulse .board-item:is(
-  [data-block-id="github"],
-  [data-block-id="gitlab"],
-  [data-block-id="jira"],
-  [data-block-id="vercel"],
-  [data-block-id="status"]
-) > section {
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  min-height: 100%;
-  padding: 8px 10px;
-  border: 0;
-  border-top: 1px solid rgb(255 255 255 / 0.12);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  text-align: left;
-}
-.stage-zone--pulse .board-item:is(
-  [data-block-id="github"],
-  [data-block-id="gitlab"],
-  [data-block-id="jira"],
-  [data-block-id="vercel"],
-  [data-block-id="status"]
-) > section > :first-child {
-  margin-top: 0;
-}
-.stage-zone--pulse [data-work-pulse-summary] {
-  margin-top: 2px;
-  margin-bottom: 8px;
-}
-.stage-zone--pulse [data-work-pulse-tone="quiet"] {
-  opacity: 0.78;
-}
-.stage-zone--pulse .board-item:is(
-  [data-block-id="github"],
-  [data-block-id="gitlab"],
-  [data-block-id="jira"]
-) > section > div:first-child > span {
-  /* The shared primary summary supersedes the legacy header chip on-board.
-     Its text remains unchanged in source for Dock and historical evidence. */
-  display: none;
-}
-.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-rows],
-.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-detail] {
-  display: none;
-}
-.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-summary] {
-  margin-bottom: 0;
-}
-.stage-zone--pulse .board-item[data-stage-variant="compact"] [data-work-pulse-metadata] {
-  display: none;
-}
-.stage-zone--pulse .board-item[data-block-id="vercel"][data-stage-variant="compact"] > section {
-  /* Compact exposes no deployment links. Clip the legacy card's dormant
-     intrinsic height/shadow to the finite summary allocation; Standard and
-     Expanded keep visible focus outlines untouched. */
-  overflow: hidden;
-}
-.stage-zone--pulse .board-item[data-stage-variant="standard"] [data-work-pulse-detail] {
-  display: none;
-}
-.stage-zone--pulse .board-item[data-stage-variant="expanded"] [data-work-pulse-detail] {
-  display: block;
-}
-.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="standard"] [data-work-pulse-status-dots],
-.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="expanded"] [data-work-pulse-status-dots] {
-  /* Status has no expanded registry footprint. Keep its configured service
-     identity visible in Standard without weakening Compact's summary-only
-     contract. */
-  display: flex;
-}
-.stage-zone--pulse .board-item[data-block-id="status"][data-stage-variant="standard"] [data-work-pulse-rows] {
-  display: block;
-}
-
 /* Focus's form is the finite BoardItem child, but its input owns the legacy
    w-72 width. Cap that nested control to the semantic allocation; the Dock's
    intrinsic column still expands to its natural width. */
-.board-item[data-block-id="focus"] #focus-input {
+.canvas-item[data-block-id="focus"] #focus-input {
   max-width: 100%;
 }
-.board-item[data-block-id="focus"] > form {
+.canvas-item[data-block-id="focus"] > form {
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
   padding-inline: 8px;
 }
-.board-item[data-block-id="focus"] > form > label[for="focus-input"] {
+.canvas-item[data-block-id="focus"] > form > label[for="focus-input"] {
   display: block;
   max-width: 100%;
   overflow-wrap: anywhere;
   text-align: center;
 }
-.board-item--dock[data-block-id="focus"] #focus-input {
+.canvas-item[data-canvas-mode="docked"][data-block-id="focus"] #focus-input {
   margin-bottom: 0;
-}
-/* The retired Adaptive Stage bookmark restyle is deleted, not amended: it
-   keyed on the Canvas-emitted data-stage-variant, so a compact-size
-   bookmarks placement hid every chip label and forced one-letter mark
-   circles at ANY viewport width — the owner's installed 1408px-wide window.
-   Label collapse belongs to the `compact:` width media variant alone. */
-
-.adaptive-stage .settings-gear,
-.adaptive-stage .utility-tray-trigger,
-.adaptive-stage button[aria-label="New background photo"] {
-  box-sizing: border-box;
-  display: grid;
-  place-items: center;
-  inline-size: var(--stage-control-target);
-  block-size: var(--stage-control-target);
-  padding: 0;
-  z-index: 50;
 }
 
 /* A content-driven Tasks dialog can be taller than its initial preferred
@@ -2790,27 +1849,14 @@ select > option {
     top: 8px !important;
     bottom: auto !important;
   }
-}
 
-@media (max-width: 320px) {
-  .adaptive-stage { padding-inline: 6px; }
-  .stage-zone { padding-inline: 6px; }
-
-  /* The compact-narrow Dock shares the bottom edge with the two persistent
-     page actions. Reserve their clear band for every 320px presentation, not
-     only while the Dock owns focus: focus may move into a popover or back to
-     a fixed action after keyboard traversal, and neither transition may drop
-     a control over the Dock's prompt or active target. */
-  .adaptive-stage .settings-gear,
-  .adaptive-stage button[aria-label="New background photo"] {
-    bottom: calc(var(--stage-inset) + var(--stage-track-min) + 24px);
-  }
 }
 
 @media (max-width: 320px) and (max-height: 200px) {
-  .board-item[data-stage-variant="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
+  .canvas-item[data-canvas-size="compact"][data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div {
     padding-inline: 48px;
   }
+
 }
 
 /* Canvas role typography is declared after the retired Adaptive Stage layer so

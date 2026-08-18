@@ -43,7 +43,8 @@ function detach() {
 /**
  * Closes every currently-registered dialog, newest-first — the same order
  * Escape pops them in, one press at a time, except this fires all of them in
- * one call. Used when arrange mode engages (ArrangeController): the overlay
+ * one call. Built for full-page mode entries (the retired Arrange overlay
+ * used it; NL-P3's live edit session is the next owner): such an overlay
  * makes the rest of the page `inert`, so nothing open underneath it could be
  * closed by the user anymore anyway; this guarantees mode entry itself never
  * leaves a stale open panel (Notes/Todo/Timer/Drawer/Palette/...) stranded

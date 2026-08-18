@@ -32,7 +32,6 @@ function tabsFor(premium: boolean): readonly { id: TabId; label: string }[] {
 }
 
 export default function SettingsPanel({
-  onArrangeLayout,
   // Whether the Drawer wrapping this panel is currently open — threaded down
   // to the Layout section so its armed Reset button can disarm the instant
   // the drawer closes (review fix; see Layout.tsx). Defaults to `true` so
@@ -40,7 +39,6 @@ export default function SettingsPanel({
   // behavior doesn't need to pass it; App always passes the real value.
   open = true,
 }: {
-  onArrangeLayout: () => void
   open?: boolean
 }) {
   const storage = useStorage()
@@ -137,7 +135,7 @@ export default function SettingsPanel({
             location={location}
           />
 
-          <Layout storage={storage} onArrangeLayout={onArrangeLayout} open={open} />
+          <Layout storage={storage} open={open} />
         </>
       )}
 

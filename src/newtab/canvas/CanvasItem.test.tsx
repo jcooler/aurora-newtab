@@ -1,58 +1,79 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WIDGET_REGISTRY_BY_ID } from '../widgetRegistry'
 import CanvasItem from './CanvasItem'
 
 describe('CanvasItem', () => {
   afterEach(cleanup)
 
-  it('publishes finite selection geometry, profile, size, and stable layer without clipping content', () => {
+  it('positions an anchored item by percent, content-tight, with no retired emissions', () => {
     render(
       <CanvasItem
         entry={WIDGET_REGISTRY_BY_ID.clock}
-        profile="standard"
-        placement={{ kind: 'canvas', x: 50, y: 40, size: 'full', layer: 7, left: 500, top: 320, width: 432, height: 288 }}
+        item={{ id: 'clock', mode: 'anchored', leftPct: 50, topPct: 20, tier: 'full', layer: 7 }}
       >
         <button type="button">Clock content</button>
       </CanvasItem>,
     )
 
     const item = screen.getByTestId('canvas-item-clock')
-    expect(item.dataset.canvasProfile).toBe('standard')
     expect(item.dataset.canvasSize).toBe('full')
-    expect(item.dataset.stageVariant).toBe('expanded')
-    expect(item.classList.contains('board-item')).toBe(true)
-    expect(item.style.left).toBe('500px')
-    expect(item.style.top).toBe('320px')
+    expect(item.dataset.canvasMode).toBe('anchored')
+    expect(item.dataset.stageVariant).toBeUndefined()
+    expect(item.dataset.arrangeLongPressControls).toBeUndefined()
+    expect(item.classList.contains('board-item')).toBe(false)
+    expect(item.classList.contains('canvas-item')).toBe(true)
+    expect(item.style.left).toBe('50%')
+    expect(item.style.top).toBe('20%')
+    expect(item.style.transform).toBe('translate(-50%, -50%)')
     expect(item.style.zIndex).toBe('7')
+    expect(item.style.width).toBe('')
+    expect(item.style.minHeight).toBe('')
     expect(screen.getByRole('button', { name: 'Clock content' })).toBeTruthy()
   })
 
-  it('activates the preserved compact presentation contract for Canvas and Bottom bar items', () => {
+  it('renders docked and stacked items as flow content', () => {
     const { rerender } = render(
       <CanvasItem
         entry={WIDGET_REGISTRY_BY_ID.github}
-        profile="compact"
-        placement={{ kind: 'canvas', x: 50, y: 40, size: 'compact', layer: 1, left: 188, top: 200, width: 240, height: 128 }}
+        item={{ id: 'github', mode: 'docked', dock: 'bottom', order: 0 }}
       >
         <span>GitHub content</span>
       </CanvasItem>,
     )
-    expect(screen.getByTestId('canvas-item-github')).toMatchObject({
-      dataset: expect.objectContaining({ stageVariant: 'compact' }),
-    })
-    expect(screen.getByTestId('canvas-item-github').classList.contains('board-item--dock')).toBe(false)
+    let item = screen.getByTestId('canvas-item-github')
+    expect(item.dataset.canvasMode).toBe('docked')
+    expect(item.dataset.canvasSize).toBe('compact')
+    expect(item.style.position).toBe('relative')
 
     rerender(
       <CanvasItem
         entry={WIDGET_REGISTRY_BY_ID.github}
-        profile="compact"
-        placement={{ kind: 'bottom-bar', order: 0, size: 'compact' }}
+        item={{ id: 'github', mode: 'stacked', order: 2, tier: 'standard' }}
       >
         <span>GitHub content</span>
       </CanvasItem>,
     )
-    expect(screen.getByTestId('canvas-item-github').classList.contains('board-item--dock')).toBe(true)
+    item = screen.getByTestId('canvas-item-github')
+    expect(item.dataset.canvasMode).toBe('stacked')
+    expect(item.dataset.canvasSize).toBe('standard')
+    expect(item.style.position).toBe('relative')
+  })
+
+  it('publishes and withdraws geometry through onGeometryChange', () => {
+    const onGeometryChange = vi.fn()
+    const { unmount } = render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.clock}
+        item={{ id: 'clock', mode: 'anchored', leftPct: 50, topPct: 50, tier: 'compact', layer: 0 }}
+        onGeometryChange={onGeometryChange}
+      >
+        <span>Clock content</span>
+      </CanvasItem>,
+    )
+    expect(onGeometryChange).toHaveBeenCalledWith('clock', expect.any(Object))
+    unmount()
+    expect(onGeometryChange).toHaveBeenLastCalledWith('clock', null)
   })
 })

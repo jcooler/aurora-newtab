@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { selectCanvasProfile, useCanvasViewport } from './useCanvasViewport'
+import { useCanvasViewport } from './useCanvasViewport'
 
 describe('Canvas viewport ownership', () => {
   afterEach(() => {
@@ -11,34 +11,18 @@ describe('Canvas viewport ownership', () => {
     document.documentElement.removeAttribute('style')
   })
 
-  it.each([
-    [899, 900, 'compact'],
-    [900, 700, 'standard'],
-    [1599, 700, 'standard'],
-    [1600, 762, 'standard'],
-    [1600, 761, 'ultrawide'],
-    [2199, 1100, 'standard'],
-    [2200, 1099, 'standard'],
-    [2200, 1100, 'display'],
-    [2310, 1100, 'ultrawide'],
-  ] as const)('selects %sx%s as %s', (width, height, profile) => {
-    expect(selectCanvasProfile({ width, height })).toBe(profile)
-  })
+  // Profile selection is gone with the auto-swap machinery (NL-P2, spec §3).
+  // The frozen migration-input interpreter lives in
+  // src/lib/layout/myLayoutAdapter.ts as migrationSourceProfile and is
+  // covered by myLayoutAdapter.test.ts.
+  it('publishes only width and height — no profile member', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1408 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 445 })
 
-  // A physically wide browser window is a desktop canvas even when it is
-  // short. The owner's installed 1408x445 window must never receive the
-  // Small phone document: only narrow widths select the compact profile.
-  it.each([
-    [1408, 445, 'standard'],
-    [1366, 600, 'standard'],
-    [1024, 600, 'standard'],
-    [900, 699, 'standard'],
-    [1280, 500, 'standard'],
-    [899, 445, 'compact'],
-    [720, 400, 'compact'],
-    [1920, 500, 'ultrawide'],
-  ] as const)('keeps short-height %sx%s off the phone document as %s', (width, height, profile) => {
-    expect(selectCanvasProfile({ width, height })).toBe(profile)
+    const { result } = renderHook(() => useCanvasViewport())
+
+    expect(result.current).toEqual({ width: 1408, height: 445 })
+    expect('profile' in result.current).toBe(false)
   })
 
   it('coalesces resize updates without publishing retired stage state', () => {
@@ -55,7 +39,7 @@ describe('Canvas viewport ownership', () => {
 
     const { result } = renderHook(() => useCanvasViewport())
 
-    expect(result.current).toEqual({ width: 1600, height: 900, profile: 'standard' })
+    expect(result.current).toEqual({ width: 1600, height: 900 })
     expect(document.documentElement.dataset.stageProfile).toBeUndefined()
     expect(document.documentElement.dataset.stageDensity).toBeUndefined()
     expect(document.documentElement.style.getPropertyValue('--stage-gap')).toBe('')
@@ -69,7 +53,7 @@ describe('Canvas viewport ownership', () => {
     })
 
     expect(window.requestAnimationFrame).toHaveBeenCalledTimes(1)
-    expect(result.current).toEqual({ width: 800, height: 600, profile: 'compact' })
+    expect(result.current).toEqual({ width: 800, height: 600 })
   })
 
   it('removes its listener and pending frame without a post-unmount update', () => {

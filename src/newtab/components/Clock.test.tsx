@@ -71,7 +71,7 @@ describe('index.css - Canvas type roles', () => {
   })
 
   it('does not apply the finite-width glyph cap to the large Full Clock', () => {
-    expect(indexCss).toMatch(/\.board-item:not\(\.board-item--dock\):not\(\[data-stage-variant="expanded"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*calc\(37\.6471cqi - 0\.7529px\)\);/)
+    expect(indexCss).toMatch(/\.canvas-item:not\(\[data-canvas-mode="docked"\]\):not\(\[data-canvas-size="full"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*calc\(37\.6471cqi - 0\.7529px\)\);/)
   })
 })
 

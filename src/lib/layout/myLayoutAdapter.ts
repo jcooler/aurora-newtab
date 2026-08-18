@@ -1,5 +1,6 @@
 import { adaptStoredLayout } from './canvasAdapter'
 import type { CanvasProfileKey, StoredLayout } from './canvasTypes'
+import { defaultFreePlacement } from './defaultPlacements'
 import { BLOCK_IDS, type BlockId } from './types'
 import {
   cleanLayoutsDocument,
@@ -12,6 +13,19 @@ import {
 
 export const MY_LAYOUT_ID = 'my-layout'
 export const MY_LAYOUT_NAME = 'My layout'
+
+/** The frozen interpreter of PRE-named-layouts storage: which stored V3
+ *  profile represents "the user's layout" when deriving My layout. This is
+ *  migration input, NOT runtime profile selection — once a layouts document
+ *  is saved, rendering never consults window size again (beyond the
+ *  mechanical narrow floor). Width-only per the a325891 short-height fix. */
+export function migrationSourceProfile(viewport: { width: number; height: number }): CanvasProfileKey {
+  const { width, height } = viewport
+  if (width < 900) return 'compact'
+  if (width >= 1600 && width / height >= 2.1) return 'ultrawide'
+  if (width >= 2200 && height >= 1100) return 'display'
+  return 'standard'
+}
 
 /** Spec 2.1 migration: the current active state (enabled widgets plus the
  *  stored V1/V2/V3 layout, resolved through the caller's current profile)
@@ -41,14 +55,13 @@ export function deriveMyLayout(
       widgets[id] = { kind: 'docked', dock: 'bottom', order: placement.order }
     }
   }
-  // Enabled widgets without a stored placement: deterministic center default
-  // in BLOCK_IDS order, layered above every stored layer. NL-P2 owns real
-  // default geometry; NL-P1 only records a truthful, valid document.
-  let nextLayer = maxLayer + 1
+  // Enabled widgets without a stored placement: the designed STATIC default
+  // slot for that identity (defaultPlacements.ts). The layer is identity-
+  // stable (BLOCK_IDS position offset above every stored layer), so toggling
+  // one widget never renumbers its neighbours (the PR-P1 stability contract).
   for (const id of BLOCK_IDS) {
     if (!enabled.has(id) || widgets[id]) continue
-    widgets[id] = { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'standard', layer: nextLayer }
-    nextLayer += 1
+    widgets[id] = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
   }
   return { id: MY_LAYOUT_ID, name: MY_LAYOUT_NAME, widgets }
 }

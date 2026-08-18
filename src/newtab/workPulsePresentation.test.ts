@@ -27,23 +27,15 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
     expect(summarySource).not.toContain('useConnectorSnapshot')
   })
 
-  it('progressively reveals summary, rows, and detail from Compact through Expanded', () => {
-    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-rows[\s\S]*?display: none;/)
-    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
-    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-work-pulse-metadata[\s\S]*?display: none;/)
-    expect(css).toMatch(/data-stage-variant="compact"[^}]+data-block-id="vercel"[^}]+> section > p\s*\{[^}]*display: none;/)
-    expect(css).toMatch(/data-block-id="vercel"[^}]+data-stage-variant="compact"[^}]+> section[\s\S]*?overflow: hidden;/)
-    expect(css).toMatch(/data-stage-variant="standard"[^}]+data-work-pulse-detail[\s\S]*?display: none;/)
-    expect(css).toMatch(/data-stage-variant="expanded"[^}]+data-work-pulse-detail[\s\S]*?display: block;/)
+  it('keeps the summary/rows/detail anatomy for the tier catalog without retired zone CSS', () => {
+    // The stage-zone--pulse reveal rules were scoped under a root class no
+    // component has emitted since the Canvas replaced the Adaptive Stage —
+    // vacuous at runtime — and were deleted with the named-layouts rebuild
+    // (NL-P2, spec §3). Tier-progressive reveals are owned in-component via
+    // the canvasSize prop (Canvas-P5 truthful size contracts) and NL-P5's
+    // designed tiers build on this same anatomy.
     expect(statusSource).toContain('data-work-pulse-status-dots')
-    expect(css).toMatch(/data-block-id="status"[^}]+data-stage-variant="standard"[^}]+data-work-pulse-status-dots[\s\S]*?display: flex;/)
-    expect(css).toMatch(/data-block-id="status"[^}]+data-stage-variant="standard"[^}]+data-work-pulse-rows[\s\S]*?display: block;/)
-  })
-
-  it('uses the existing Pulse zone as one shared surface without changing geometry authority', () => {
-    expect(css).toMatch(/\.stage-zone--pulse\s*\{[^}]+grid-area: pulse;/)
-    expect(css).toMatch(/\.stage-zone--pulse \.board-item:is\([\s\S]*?\) > section\s*\{[\s\S]*?background: transparent;[\s\S]*?box-shadow: none;/)
-    expect(css).not.toMatch(/\.stage-zone--pulse\s*\{[^}]*padding:/)
-    expect(css).not.toMatch(/\.stage-zone--pulse[^}]+(?:position:\s*(?:absolute|fixed)|transform:\s*scale|\bvh\b|\bvw\b)/)
+    expect(css).not.toContain('stage-zone')
+    expect(css).not.toContain('data-stage-variant')
   })
 })

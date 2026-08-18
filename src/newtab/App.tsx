@@ -2,14 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { adaptStoredLayout } from '../lib/layout/canvasAdapter'
 import type { CanvasSize, StoredLayout } from '../lib/layout/canvasTypes'
+import { migrationSourceProfile, resolveLayoutsDocument } from '../lib/layout/myLayoutAdapter'
 import type { BlockId } from '../lib/layout/types'
 import { applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
 import { haActionsOf, type HomeAssistantConfig } from '../services/connectors/homeassistant'
-import ArrangeController from './arrange/ArrangeController'
-import type { ArrangePreview } from './arrange/arrangePreview'
 import Background from './components/Background'
 import UtilityTray from './components/UtilityTray'
 import type { UtilityCloseGuard, UtilityToolId, UtilityTrayBridge } from './components/utilityTrayBridge'
@@ -20,7 +19,6 @@ import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
-import ArrangeArtboard from './arrange/ArrangeArtboard'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -42,20 +40,17 @@ export default function App() {
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
+  const [layouts] = useStoredKey('layouts')
   const [connectors] = useStoredKey('connectors')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
   const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
-  const [arrangePreview, setArrangePreview] = useState<ArrangePreview | null>(null)
-  const [arranging, setArranging] = useState(false)
-  const [arrangeSignal, setArrangeSignal] = useState(0)
   const [bookmarksPopoverOpen, setBookmarksPopoverOpen] = useState(false)
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
   const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
   const effectiveUtilityToolRef = useRef<UtilityToolId | null>(null)
-  const wasArrangingRef = useRef(false)
 
   const storedLayout = useMemo(() => usableStoredLayout(layout), [layout])
   const viewport = useCanvasViewport()
@@ -63,12 +58,6 @@ export default function App() {
   useEffect(() => {
     if (settings) applyPanelColor(document.documentElement, settings.panelColor)
   }, [settings?.panelColor])
-
-  useEffect(() => {
-    const wasArranging = wasArrangingRef.current
-    wasArrangingRef.current = arranging
-    if (wasArranging && !arranging && document.activeElement === document.body) settingsButtonRef.current?.focus()
-  }, [arranging])
 
   const registerUtilityCloseGuard = useCallback((tool: UtilityToolId, guard: UtilityCloseGuard | null) => {
     if (guard) utilityCloseGuardRef.current = { tool, guard }
@@ -129,22 +118,6 @@ export default function App() {
     })()
   }, [passUtilityGuard])
 
-  const requestArrange = useCallback(() => {
-    const begin = () => {
-      setUtilityTrayOpen(false)
-      setSettingsOpen(false)
-      setArrangeSignal((value) => value + 1)
-    }
-    const registered = utilityCloseGuardRef.current
-    if (!registered || registered.tool !== effectiveUtilityToolRef.current) {
-      begin()
-      return
-    }
-    void (async () => {
-      if (await passUtilityGuard()) begin()
-    })()
-  }, [passUtilityGuard])
-
   const inputsReady = Boolean(
     settings && isRecord(settings.widgets) && DENSITY_PREFERENCES.has(settings.layoutDensity)
       && storedLayout && connectors && isRecord(connectors),
@@ -153,8 +126,21 @@ export default function App() {
     () => inputsReady && settings && connectors ? selectActiveWidgetRegistry(settings, connectors) : [],
     [connectors, inputsReady, settings],
   )
+  const enabledBlockIds = useMemo(() => activeEntries.map((entry) => entry.id), [activeEntries])
+  // The resolved named-layouts document: a valid stored document wins; until
+  // the first explicit save (NL-P3 switcher) the in-memory "My layout" is
+  // derived from the legacy stored layout through the frozen migration
+  // profile rule. Nothing here ever writes storage.
+  const layoutsDocument = useMemo(() => (
+    inputsReady && storedLayout && layouts !== undefined
+      ? resolveLayoutsDocument(layouts, storedLayout, migrationSourceProfile(viewport), enabledBlockIds)
+      : null
+  ), [enabledBlockIds, inputsReady, layouts, storedLayout, viewport.width, viewport.height])
+  const activeLayout = layoutsDocument
+    ? layoutsDocument.layouts.find((candidate) => candidate.id === layoutsDocument.activeLayoutId) ?? null
+    : null
 
-  if (!inputsReady || !settings || !photoPrefs || !storedLayout || !connectors) return null
+  if (!inputsReady || !settings || !photoPrefs || !storedLayout || !connectors || !activeLayout) return null
 
   const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
   const utilityTools: { id: UtilityToolId; label: string }[] = [
@@ -188,39 +174,26 @@ export default function App() {
     const Renderer = resolveWidgetRenderer(entry.rendererKey)
     return <Renderer {...rendererProps} canvasSize={size} />
   }
-  const previewProfile = arrangePreview?.profile ?? viewport.profile
-  const textScale = projectTextScale(
-    settings.layoutDensity,
-    arrangePreview
-      ? { ...arrangePreview.artboard, profile: arrangePreview.profile }
-      : viewport,
-  )
-  const visibleCanvasEntries = arrangePreview?.hiddenIds.length
-    ? activeEntries.filter((entry) => !arrangePreview.hiddenIds.includes(entry.id))
-    : activeEntries
+  const textScale = projectTextScale(settings.layoutDensity, viewport)
+  // The pre-existing narrow Settings/Tray modality boundary (unrelated to the
+  // 600px narrow floor): below 900 CSS px the tray is modal.
+  const narrowModality = viewport.width < 900
 
   return (
     <main
       data-aurora-canvas=""
-      data-canvas-profile={previewProfile}
       data-canvas-text-scale={textScale}
-      data-arranging={arranging ? 'true' : undefined}
-      data-arrange-profile={arranging ? previewProfile : undefined}
-      data-arrange-viewport-mode={arrangePreview?.viewportMode}
       className="aurora-canvas text-fg"
     >
-      <div className="contents" inert={arranging || (utilityTrayOpen && viewport.profile === 'compact')}>
+      <div className="contents" inert={utilityTrayOpen && narrowModality}>
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} utilityTray={utilityTray} />
-        {!arrangePreview ? (
-          <CanvasSurface
-            layout={storedLayout}
-            profileKey={previewProfile}
-            entries={visibleCanvasEntries}
-            viewport={viewport}
-            elevatedIds={elevatedIds}
-            renderWidget={renderWidget}
-          />
-        ) : null}
+        <CanvasSurface
+          activeLayout={activeLayout}
+          entries={activeEntries}
+          viewport={viewport}
+          elevatedIds={elevatedIds}
+          renderWidget={renderWidget}
+        />
 
         <button
           type="button"
@@ -253,35 +226,17 @@ export default function App() {
         </button>
         <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
           <DrawerBoundary open={settingsOpen}>
-            <SettingsPanel onArrangeLayout={requestArrange} open={settingsOpen} />
+            <SettingsPanel open={settingsOpen} />
           </DrawerBoundary>
         </Drawer>
         <WidgetBoundary name="palette">
-          <PaletteHost onOpenSettings={requestSettingsOpen} arranging={arranging} />
+          <PaletteHost onOpenSettings={requestSettingsOpen} />
         </WidgetBoundary>
       </div>
 
-      {arrangePreview ? (
-        <ArrangeArtboard
-          profile={arrangePreview.profile}
-          physicalViewport={viewport}
-          inspectorOpen={arrangePreview.inspectorOpen}
-        >
-          <CanvasSurface
-            layout={storedLayout}
-            profileKey={arrangePreview.profile}
-            profileOverride={arrangePreview.canvas}
-            entries={visibleCanvasEntries}
-            viewport={arrangePreview.artboard}
-            elevatedIds={elevatedIds}
-            renderWidget={renderWidget}
-          />
-        </ArrangeArtboard>
-      ) : null}
-
       <UtilityTray
         open={utilityTrayOpen}
-        modal={viewport.profile === 'compact'}
+        modal={narrowModality}
         onClose={requestUtilityTrayClose}
         invokerRef={utilityTrayInvokerRef}
         tools={utilityTools}
@@ -289,16 +244,6 @@ export default function App() {
         onToolChange={(tool) => requestUtilityToolChange(tool as UtilityToolId)}
         contentRef={setUtilityTrayHost}
       ><></></UtilityTray>
-      <ArrangeController
-        profile={viewport.profile}
-        layout={storedLayout}
-        entries={activeEntries}
-        viewport={viewport}
-        onPreviewChange={setArrangePreview}
-        onModeChange={setArranging}
-        returnFocusRef={settingsButtonRef}
-        openSignal={arrangeSignal}
-      />
     </main>
   )
 }

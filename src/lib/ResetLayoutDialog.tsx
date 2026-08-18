@@ -3,12 +3,10 @@ import { createPortal } from 'react-dom'
 import { useDialogEscape } from './dialogStack'
 import { useFocusTrap } from './hooks/useFocusTrap'
 
-/** The shared destructive-confirm dialog behind every "Reset layout"
- *  control in Aurora — the arrange-mode pill's own danger-styled Reset
- *  button (src/newtab/arrange/ArrangeController.tsx) and Settings' Layout
- *  section (src/settings/sections/Layout.tsx), which otherwise never import
- *  from each other; this one small piece of UI lives in `lib` instead of
- *  either feature tree so both can share it.
+/** The shared destructive-confirm dialog behind the "Reset layout" control
+ *  in Settings' Layout section (src/settings/sections/Layout.tsx). It lives
+ *  in `lib` because the retired Arrange screen once shared it, and NL-P3's
+ *  live edit session will again — the shape is deliberately host-neutral.
  *
  *  Replaces the old two-click "arm, then auto-expire" idiom (useArmedConfirm,
  *  since removed) per explicit user feedback: a whole button silently
@@ -25,17 +23,15 @@ import { useFocusTrap } from './hooks/useFocusTrap'
  *  (same reasoning FolderPopover.tsx documents for its own portal). Portaling
  *  to `body` sidesteps that regardless of which call site renders it.
  *
- *  `z-[70]` — deliberately above the arrange-mode overlay's own `z-[60]`
- *  (ArrangeController) so this stays interactive and fully visible when
- *  triggered mid-arrange; harmless overkill above the Drawer's `z-50` /
- *  Palette's `z-50` when triggered from Settings instead.
+ *  `z-[70]` — above the Drawer's `z-50` / Palette's `z-50`, and above the
+ *  `z-[60]` band the retired edit overlay used (NL-P3's live edit session
+ *  keeps that band), so the confirm always stays interactive and visible.
  *
  *  Registers on the shared Escape stack (`useDialogEscape`) only while
  *  `open` — so it's the newest (topmost) entry whenever it's actually
- *  showing, meaning Escape cancels THIS dialog first (arrange mode's own
- *  exit, or the Settings Drawer's close, registered earlier and so sit
- *  underneath either way), and it stops competing for Escape the instant
- *  it closes.
+ *  showing, meaning Escape cancels THIS dialog first (the Settings Drawer's
+ *  close, registered earlier, sits underneath), and it stops competing for
+ *  Escape the instant it closes.
  *
  *  `useFocusTrap`'s `active` param is tied to the SAME `open` flag that
  *  gates the dialog's own ref-bearing markup below — the "ready-predicate"

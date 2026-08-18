@@ -4,6 +4,7 @@ import {
   MY_LAYOUT_NAME,
   deriveLayoutsDocument,
   deriveMyLayout,
+  migrationSourceProfile,
   resolveLayoutsDocument,
 } from './myLayoutAdapter'
 import { pointFromFreePlacement, type FreeWidgetPlacement } from './namedLayouts'
@@ -47,11 +48,15 @@ describe('deriveMyLayout', () => {
     expect(layout.widgets.bookmarks).toEqual({ kind: 'docked', dock: 'bottom', order: 0 })
   })
 
-  it('gives an enabled widget with no stored placement a deterministic center default above every stored layer', () => {
+  it('gives an enabled widget with no stored placement its designed static default slot above every stored layer', () => {
     const layout = deriveMyLayout(V3_LAYOUT, 'standard', ENABLED)
-    expect(layout.widgets.notes).toEqual({
-      kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'standard', layer: 3,
-    })
+    const notes = layout.widgets.notes as FreeWidgetPlacement
+    expect(notes.kind).toBe('free')
+    expect(notes.tier).toBe('standard')
+    // Identity-stable default layer: maxStoredLayer(2) + 1 + BLOCK_IDS index
+    // of notes (11) = 14, unaffected by which other widgets are enabled.
+    expect(notes.layer).toBe(14)
+    expect(pointFromFreePlacement(notes)).toEqual({ x: 7, y: 91 })
   })
 
   it('omits widgets that are not enabled', () => {
@@ -70,6 +75,17 @@ describe('deriveMyLayout', () => {
     const frozen = JSON.parse(JSON.stringify(V3_LAYOUT)) as StoredLayout
     deriveMyLayout(frozen, 'standard', ENABLED)
     expect(frozen).toEqual(V3_LAYOUT)
+  })
+})
+
+describe('migrationSourceProfile', () => {
+  it('is the frozen width-only interpreter of pre-named-layouts storage', () => {
+    expect(migrationSourceProfile({ width: 899, height: 1200 })).toBe('compact')
+    expect(migrationSourceProfile({ width: 900, height: 445 })).toBe('standard')
+    expect(migrationSourceProfile({ width: 1408, height: 445 })).toBe('standard')
+    expect(migrationSourceProfile({ width: 1920, height: 500 })).toBe('ultrawide')
+    expect(migrationSourceProfile({ width: 2560, height: 1440 })).toBe('display')
+    expect(migrationSourceProfile({ width: 3440, height: 1440 })).toBe('ultrawide')
   })
 })
 

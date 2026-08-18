@@ -4,6 +4,7 @@ import {
   type NamedLayout,
   type WidgetTier,
 } from './namedLayouts'
+import { defaultFreePlacement } from './defaultPlacements'
 import { BLOCK_IDS, type BlockId } from './types'
 
 /** Spec 2.2 narrow floor: below approximately 600 CSS px of width the layout
@@ -81,15 +82,24 @@ export function planLayoutRender(
     maxLayer = Math.max(maxLayer, placement.layer)
   }
 
-  // Enabled widgets the layout doesn't know yet: the same deterministic
-  // in-memory center default deriveMyLayout uses. Nothing is written;
+  // Enabled widgets the layout doesn't know yet: the designed STATIC default
+  // slot for that identity (defaultPlacements.ts), the same rule
+  // deriveMyLayout uses. The layer is identity-stable (BLOCK_IDS position
+  // offset above every stored layer), so toggling one widget never renumbers
+  // its neighbours (the PR-P1 stability contract). Nothing is written;
   // membership persists at the user's next explicit save (NL-P3).
-  let nextLayer = maxLayer + 1
   for (const id of BLOCK_IDS) {
     if (!enabled.has(id)) continue
     if (layout.widgets[id]) continue
-    free.push({ id, leftPct: 50, topPct: 50, tier: 'standard', layer: nextLayer })
-    nextLayer += 1
+    const placement = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
+    const anchor = ANCHOR_POINTS[placement.anchor]
+    free.push({
+      id,
+      leftPct: clampPct(anchor.x + placement.offsetX),
+      topPct: clampPct(anchor.y + placement.offsetY),
+      tier: placement.tier,
+      layer: placement.layer,
+    })
   }
 
   const dockSorted = [...docked].sort((a, b) => (

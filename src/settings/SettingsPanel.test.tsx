@@ -241,14 +241,13 @@ afterAll(() => {
 })
 
 async function renderPanel(
-  onArrangeLayout: () => void = () => {},
   suppliedStorage?: AuroraStorage,
 ) {
   const storage = suppliedStorage ?? createStorage(memoryDriver())
   if (!suppliedStorage) await storage.init()
   render(
     <StorageProvider storage={storage}>
-      <SettingsPanel onArrangeLayout={onArrangeLayout} />
+      <SettingsPanel />
     </StorageProvider>,
   )
   // Settings resolves asynchronously (useStoredKey's storage.get().then(...)),
@@ -400,7 +399,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -463,7 +462,7 @@ describe('SettingsPanel Widget color row', () => {
     await storage.set('settings', { ...defaults().settings, panelColor: '#12ab34' })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -503,7 +502,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -548,7 +547,7 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -640,7 +639,7 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -671,7 +670,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
 
     try {
-      await renderPanel(() => {}, storage)
+      await renderPanel(storage)
       openTab('Data')
       const exportButton = screen.getByRole('button', { name: 'Export' }) as HTMLButtonElement
       expectLocalRoutineTarget(exportButton)
@@ -720,7 +719,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
 
     try {
-      await renderPanel(() => {}, storage)
+      await renderPanel(storage)
       openTab('Data')
       const input = screen.getByLabelText('Import backup') as HTMLInputElement
       const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
@@ -777,7 +776,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       return replace(next, finalize)
     })
     const snapshot = vi.spyOn(storage, 'snapshot')
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const input = screen.getByLabelText('Import backup') as HTMLInputElement
     const firstFile = new File([serializeBackup(defaults())], 'first.json', { type: 'application/json' })
@@ -884,7 +883,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const backupData = {
       ...defaults(),
@@ -933,7 +932,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const before = await storage.get('links')
     const file = new File(['not json at all {'], 'broken.json', { type: 'application/json' })
@@ -958,7 +957,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     await storage.init()
     const replaceAll = vi.spyOn(storage, 'replaceAllWithRollback')
     vi.mocked(ensureOrigins).mockClear()
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const file = new File(['private unreadable contents'], 'unreadable.json', { type: 'application/json' })
     vi.spyOn(file, 'text').mockRejectedValue(new Error('private file boundary'))
@@ -1062,7 +1061,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       await allow.promise
       return replace(next, finalize)
     }
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const file = new File([serializeBackup(defaults())], 'pending.json', { type: 'application/json' })
     await act(async () => {
@@ -1142,7 +1141,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     vi.spyOn(storage, 'replaceAllWithRollback').mockRejectedValue(
       new AtomicRestoreRollbackError(new Error('private primary'), new Error('private rollback')),
     )
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const file = new File([serializeBackup({
       ...defaults(),
@@ -1174,7 +1173,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     await storage.set('connectors', {
       rss: { enabled: false, feeds: ['https://old-backup-owner.example.com/feed'], shownCount: 5 },
     })
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const file = new File([serializeBackup({
       ...defaults(),
@@ -1253,7 +1252,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
       })
     }
 
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
     const file = new File([serializeBackup({
       ...defaults(),
@@ -1306,7 +1305,7 @@ describe('SettingsPanel Data section (export/import backup)', () => {
     vi.spyOn(storage, 'snapshot').mockRejectedValue(new Error('private export failure'))
     const originalCreate = URL.createObjectURL
     URL.createObjectURL = vi.fn() as typeof URL.createObjectURL
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Data')
 
     await act(async () => {
@@ -1360,7 +1359,7 @@ describe('SettingsPanel Background section (upload gallery)', () => {
     await storage.set('photoPrefs', { mode: 'upload', index: 0, lastRotated: '' })
     const { unmount } = render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -1699,7 +1698,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
       photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
     }
     await storage.set('apodCache', cache)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -1761,7 +1760,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
       photo: { url: 'https://apod.nasa.gov/apod/image/x.jpg', title: 'X' },
     }
     await storage.set('apodCache', cache)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     const select = sourceSelect()
 
     await act(async () => {
@@ -1787,7 +1786,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     rejectPhotoPrefs = true
     grantRequestedOrigins()
     vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
 
     await act(async () => {
       fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
@@ -1815,7 +1814,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     rejectPhotoPrefs = true
     grantRequestedOrigins()
     vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
 
     await act(async () => {
       fireEvent.change(sourceSelect(), { target: { value: 'apod' } })
@@ -1854,7 +1853,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -1886,7 +1885,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     }
     apodPatterns.forEach(holdOrigin)
     vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, stalePanelStorage)
+    await renderPanel(stalePanelStorage)
     expect(sourceSelect().value).toBe('auto')
 
     await authoritativeStorage.update('photoPrefs', (prefs) => ({ ...prefs, mode: 'apod' }))
@@ -1912,7 +1911,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     })
     apodPatterns.forEach(holdOrigin)
     vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
 
     await act(async () => {
       fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
@@ -1942,7 +1941,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     vi.mocked(removeOrigin)
       .mockRejectedValueOnce(new Error('remove failed'))
       .mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
 
     await act(async () => {
       fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
@@ -1983,7 +1982,7 @@ describe('SettingsPanel Background section (APOD source — Task 4)', () => {
     rejectCache = true
     apodPatterns.forEach(holdOrigin)
     vi.mocked(removeOrigin).mockImplementation(removeHeldOrigin)
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
 
     await act(async () => {
       fireEvent.change(sourceSelect(), { target: { value: 'gradient' } })
@@ -2077,7 +2076,7 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2102,7 +2101,7 @@ describe('SettingsPanel World clocks section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2162,7 +2161,7 @@ describe('SettingsPanel Countdowns section', () => {
     ])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2182,7 +2181,7 @@ describe('SettingsPanel Countdowns section', () => {
     await storage.set('countdowns', [{ id: 'c1', name: 'Launch', date: '2026-08-09' }])
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2248,7 +2247,7 @@ describe('SettingsPanel Habits section', () => {
     await storage.set('habits', habits)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2435,7 +2434,7 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     await storage.set('location', { lat: 1, lon: 2, label: 'Springfield', manual: true })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2466,15 +2465,20 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     })
   }
 
-  it('keeps Layout focused on arrangement and removes the retired density and briefing controls', async () => {
+  it('keeps Layout to the legacy recovery actions only — no Arrange entry, density, briefing, or profile copy', async () => {
+    // The Arrange artboard and the four-profile guidance died with the
+    // named-layouts rebuild (NL-P2, spec §3); live on-page editing and
+    // layout management arrive in NL-P3.
     await renderPanel()
     await openLayoutTab()
 
     const region = within(layoutRegion())
     expect(region.queryByLabelText('Layout density')).toBeNull()
     expect(region.queryByLabelText('Show briefing')).toBeNull()
-    expect(region.getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
-    expect(region.getByText('Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.')).toBeTruthy()
+    expect(region.queryByRole('button', { name: 'Arrange layout' })).toBeNull()
+    expect(region.queryByText('Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.')).toBeNull()
+    // A fresh store holds a V3 Canvas layout, so the legacy-only Reset is
+    // absent too.
     expect(region.queryByRole('button', { name: 'Reset layout' })).toBeNull()
   })
 
@@ -2519,7 +2523,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
 
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2537,7 +2541,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
 
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2554,15 +2558,8 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
-  it('Arrange layout calls the onArrangeLayout callback threaded down from App (which closes the drawer, then bumps ArrangeController\'s openSignal nonce)', async () => {
-    const onArrangeLayout = vi.fn()
-    await renderPanel(onArrangeLayout)
-    await openLayoutTab()
-
-    fireEvent.click(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' }))
-
-    expect(onArrangeLayout).toHaveBeenCalledOnce()
-  })
+  // The Arrange artboard entry point was deleted with the named-layouts
+  // rebuild (NL-P2, spec §3); live on-page editing arrives in NL-P3.
 
   it('legacy Reset layout Cancel writes neither key; confirm clears only the V2 layout and preserves Settings byte-for-byte', async () => {
     const storage = createStorage(memoryDriver())
@@ -2579,7 +2576,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     const set = vi.spyOn(storage, 'set')
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2627,14 +2624,14 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     const update = vi.spyOn(storage, 'update')
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
     await openLayoutTab()
 
     expect(within(layoutRegion()).queryByRole('button', { name: 'Reset layout' })).toBeNull()
-    expect(within(layoutRegion()).getByRole('button', { name: 'Arrange layout' })).toBeTruthy()
+    expect(within(layoutRegion()).queryByRole('button', { name: 'Arrange layout' })).toBeNull()
     expect(within(layoutRegion()).getByRole('button', { name: 'Restore previous layout' })).toBeTruthy()
     expect(JSON.stringify(await storage.get('layout'))).toBe(before)
     expect(set.mock.calls.filter(([key]) => key === 'layout')).toEqual([])
@@ -2654,7 +2651,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     await storage.set('layout', saved)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2675,7 +2672,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     const update = vi.spyOn(storage, 'update')
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2692,7 +2689,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     await storage.set('layout', positioned)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -2714,7 +2711,7 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     function Wrapper({ open }: { open: boolean }) {
       return (
         <StorageProvider storage={storage}>
-          <SettingsPanel onArrangeLayout={() => {}} open={open} />
+          <SettingsPanel open={open} />
         </StorageProvider>
       )
     }
@@ -2764,7 +2761,7 @@ describe('Connectors tab — search and categories', () => {
     if (config) await storage.set('connectors', config)
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3026,7 +3023,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     if (rss) await storage.set('connectors', { rss })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3315,7 +3312,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3337,7 +3334,7 @@ describe('SettingsPanel Connectors section (RSS card)', () => {
     await storage.set('photoPrefs', { mode: 'apod', index: 0, lastRotated: '' })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3416,7 +3413,7 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
     if (github) await storage.set('connectors', { github })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3674,7 +3671,7 @@ describe('SettingsPanel Connectors section (GitLab card — Task 49, github\'s s
     if (gitlab) await storage.set('connectors', { gitlab })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -3944,7 +3941,7 @@ describe('SettingsPanel Connectors section (Jira card — Task 50, three fields)
     if (jira) await storage.set('connectors', { jira })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -4189,7 +4186,7 @@ describe('SettingsPanel Connectors section (Vercel card — Task 51, github\'s s
     if (vercel) await storage.set('connectors', { vercel })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -4357,7 +4354,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     if (crypto) await storage.set('connectors', { crypto })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -4574,7 +4571,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -4649,7 +4646,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -4991,7 +4988,7 @@ describe('SettingsPanel Connectors section (Calendar/ics card — Task 4, named 
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -5229,7 +5226,7 @@ describe('SettingsPanel Connectors section (Status card — Task 85, curated pic
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -5631,7 +5628,7 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -5647,7 +5644,7 @@ describe('SettingsPanel Connectors section (shell — "Connected to" identityPhr
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -5677,7 +5674,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     }
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -6047,7 +6044,7 @@ describe('SettingsPanel Connectors section (Home Assistant card — Task 101, co
     })
     render(
       <StorageProvider storage={storage}>
-        <SettingsPanel onArrangeLayout={() => {}} />
+        <SettingsPanel />
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
@@ -6089,7 +6086,7 @@ describe('SettingsPanel permission cleanup recovery', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', { github: { enabled: true, token: '', username: '' } })
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Connectors')
     openConnectorEditor('GitHub')
 
@@ -6127,7 +6124,7 @@ describe('SettingsPanel permission cleanup recovery', () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', { github: { enabled: true, token: 'ghp_live', username: 'octocat' } })
-    await renderPanel(() => {}, storage)
+    await renderPanel(storage)
     openTab('Connectors')
     openConnectorEditor('GitHub')
 

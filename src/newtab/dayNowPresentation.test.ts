@@ -7,11 +7,13 @@ import indexCss from './index.css?raw'
 import registrySource from './widgetRegistry.ts?raw'
 
 describe('W4-P1 Day and Now presentation boundary', () => {
-  it('keeps Now photo-forward and reveals Clock date detail only for Expanded', () => {
-    expect(indexCss).toMatch(/\.stage-zone--now\s*\{[\s\S]*?border-color: transparent;[\s\S]*?box-shadow: none;/)
+  it('reveals Clock date detail only for the Full tier', () => {
+    // The stage-zone wash died with the retired stage machinery (NL-P2); the
+    // Clock's tier-gated long date is a live contract and now keys on the
+    // canvas tier emission.
     expect(clockSource).toContain('data-clock-date=""')
     expect(indexCss).toMatch(/\.clock-face \[data-clock-date\]\s*\{[\s\S]*?display: none;/)
-    expect(indexCss).toMatch(/\[data-stage-variant="expanded"\]\[data-block-id="clock"\][^{]+\{\s*display: block;/)
+    expect(indexCss).toMatch(/\[data-canvas-size="full"\]\[data-block-id="clock"\][^{]+\{\s*display: block;/)
   })
 
   it('does not introduce a second layout authority or whole-widget hide tier', () => {
@@ -26,10 +28,12 @@ describe('W4-P1 Day and Now presentation boundary', () => {
     expect(briefingSource).not.toContain("storage.set")
     expect(registrySource).not.toContain("id: 'briefing'")
     expect(indexCss).toMatch(/\.aurora-greeting\s*\{[\s\S]*?width: 100%;/)
-    expect(indexCss).not.toMatch(/data-stage-variant="compact"[^}]+data-block-id="greeting"[^}]+\.aurora-greeting > p\s*\{[^}]+font-size:/)
+    expect(indexCss).not.toMatch(/data-canvas-size="compact"[^}]+data-block-id="greeting"[^}]+\.aurora-greeting > p\s*\{[^}]+font-size:/)
     expect(indexCss).toMatch(/\[data-canvas-type-role="greeting"\][^{]*\{[^}]+font-size: var\(--canvas-type-greeting\);/)
+    // The retired stage-profile reveals were keyed on a root attribute no
+    // longer published; the compact sentence is the live presentation and
+    // the richer variants stay in markup for the NL-P5 tier catalog.
     expect(indexCss).toMatch(/\.aurora-briefing \[data-briefing-standard\],[\s\S]*?display: none;/)
-    expect(indexCss).toMatch(/data-stage-profile="standard"[\s\S]*?data-briefing-standard[^}]+display: block;/)
-    expect(indexCss).toMatch(/data-stage-profile="display"[\s\S]*?data-briefing-display[^}]+display: block;/)
+    expect(indexCss).not.toContain('data-stage-profile')
   })
 })

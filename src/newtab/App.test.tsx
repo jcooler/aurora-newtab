@@ -32,15 +32,17 @@ function canvasItem(id: string): HTMLElement {
 function canvasGeometry(id: string) {
   const item = canvasItem(id)
   return {
-    x: item.dataset.canvasX,
-    y: item.dataset.canvasY,
+    mode: item.dataset.canvasMode,
     size: item.dataset.canvasSize,
     left: item.style.left,
     top: item.style.top,
-    width: item.style.width,
-    minHeight: item.style.minHeight,
     layer: item.style.zIndex,
   }
+}
+
+function itemPoint(id: string): { x: number; y: number } {
+  const item = canvasItem(id)
+  return { x: Number.parseFloat(item.style.left), y: Number.parseFloat(item.style.top) }
 }
 
 describe('App Canvas composition', () => {
@@ -57,12 +59,11 @@ describe('App Canvas composition', () => {
 
   afterEach(() => vi.restoreAllMocks())
 
-  it('owns one V1 Canvas and retires the rejected semantic presentation regions', async () => {
+  it('owns one anchored Canvas and retires the rejected semantic presentation regions', async () => {
     await renderApp()
     expect(document.querySelectorAll('main[data-aurora-canvas]')).toHaveLength(1)
     expect(document.querySelectorAll('[data-canvas-legibility]')).toHaveLength(1)
     expect(document.querySelector('[data-canvas-legibility]')?.parentElement?.hasAttribute('data-canvas-surface')).toBe(true)
-    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe('Desktop')
     for (const name of ['Day', 'Now', 'Work Pulse', 'Signal Dock']) {
       expect(screen.queryByRole('region', { name })).toBeNull()
     }
@@ -127,11 +128,11 @@ describe('App Canvas composition', () => {
       widgets: { ...defaults().settings.widgets, bookmarks: true },
     })
     await renderApp(storage)
-    expect(Number(canvasItem('bookmarks').dataset.canvasY)).toBeLessThan(10)
+    expect(itemPoint('bookmarks').y).toBeLessThan(10)
     for (const id of ['clock', 'greeting', 'search', 'focus', 'links']) {
-      expect(canvasItem(id).dataset.canvasX).toBe('50')
+      expect(itemPoint(id).x).toBe(50)
     }
-    expect(Number(canvasItem('clock').dataset.canvasY)).toBeLessThan(Number(canvasItem('focus').dataset.canvasY))
+    expect(itemPoint('clock').y).toBeLessThan(itemPoint('focus').y)
     expect(document.querySelectorAll('[data-aurora-briefing]')).toHaveLength(0)
   })
 
@@ -154,12 +155,12 @@ describe('App Canvas composition', () => {
     await renderApp()
     for (const id of ['clock', 'greeting', 'focus', 'weather', 'search', 'links', 'tasks', 'notes']) {
       expect(document.querySelectorAll(`[data-block-id="${id}"]`)).toHaveLength(1)
-      expect(canvasItem(id).dataset.canvasKind).toBe('canvas')
+      expect(canvasItem(id).dataset.canvasMode).toBe('anchored')
     }
     expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()
   })
 
-  it('fits active Canvas items to finite absolute geometry with the frozen safe inset', async () => {
+  it('positions active items by anchored percent with content-tight boxes (no imposed width or grid)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
     await storage.set('connectors', { github: { enabled: true, username: '' } })
@@ -168,8 +169,10 @@ describe('App Canvas composition', () => {
     for (const id of ['weather', 'clock', 'github', 'notes']) {
       const item = canvasItem(id)
       expect(item.style.position).toBe('absolute')
-      expect(Number.parseFloat(item.style.left)).toBeGreaterThanOrEqual(8)
-      expect(Number.parseFloat(item.style.top)).toBeGreaterThanOrEqual(8)
+      expect(item.style.left).toMatch(/%$/)
+      expect(item.style.top).toMatch(/%$/)
+      expect(item.style.width).toBe('')
+      expect(item.style.minHeight).toBe('')
       expect(item.style.gridColumn).toBe('')
       expect(item.style.gridRow).toBe('')
     }
@@ -191,8 +194,8 @@ describe('App Canvas composition', () => {
     const bottomBar = screen.getByRole('navigation', { name: 'Bottom bar' })
     expect(within(bottomBar).getByTestId('canvas-item-notes')).toBeTruthy()
     expect(document.querySelectorAll('[data-block-id="notes"]')).toHaveLength(1)
-    expect(canvasItem('notes').dataset.canvasKind).toBe('bottom-bar')
-    expect(canvasItem('clock').dataset.canvasKind).toBe('canvas')
+    expect(canvasItem('notes').dataset.canvasMode).toBe('docked')
+    expect(canvasItem('clock').dataset.canvasMode).toBe('anchored')
   })
 
   it('replans on the same mount when widget settings change', async () => {
@@ -291,10 +294,9 @@ describe('App Canvas composition', () => {
         } } },
       })
     })
-    expect(canvasItem('focus').dataset.canvasX).toBe('50')
-    expect(canvasItem('focus').dataset.canvasY).toBe('70')
+    expect(itemPoint('focus')).toEqual({ x: 50, y: 70 })
     expect(canvasItem('focus').dataset.canvasSize).toBe('compact')
-    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-mode')).toBe('custom')
+    expect(canvasItem('focus').style.zIndex).toBe('7')
   })
 
   it('waits through transient raw settings and layout shapes, then recovers on the same mount', async () => {
@@ -344,7 +346,7 @@ describe('App Canvas composition', () => {
     await renderApp(storage)
 
     expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
-    expect(canvasItem('github').dataset.canvasKind).toBe('bottom-bar')
+    expect(canvasItem('github').dataset.canvasMode).toBe('docked')
     expect(screen.getByRole('navigation', { name: 'Bottom bar' })).toBeTruthy()
 
     await act(async () => {
@@ -356,7 +358,8 @@ describe('App Canvas composition', () => {
       })
     })
     expect(document.querySelectorAll('[data-block-id="github"]')).toHaveLength(1)
-    expect(canvasItem('github').dataset.canvasKind).toBe('canvas')
+    expect(canvasItem('github').dataset.canvasMode).toBe('anchored')
+    expect(itemPoint('github')).toEqual({ x: 87, y: 42 })
     expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()
   })
 
@@ -371,10 +374,8 @@ describe('App Canvas composition', () => {
       legacy: { focus: { x: -10_000, y: 10_000 } },
     })
     await renderApp(storage)
-    expect(canvasItem('focus').dataset.canvasX).toBe('16.667')
-    expect(canvasItem('focus').dataset.canvasY).toBe('62')
+    expect(itemPoint('focus')).toEqual({ x: 16.667, y: 62 })
     expect(canvasItem('focus').dataset.canvasSize).toBe('compact')
-    expect(Number.parseFloat(canvasItem('focus').style.left)).toBeGreaterThanOrEqual(8)
   })
 
   it('preserves a migrated V1 Clock coordinate when adapting a legacy layout', async () => {
@@ -382,34 +383,34 @@ describe('App Canvas composition', () => {
     await storage.init()
     await storage.set('layout', { clock: { x: 25, y: 50 } })
     await renderApp(storage)
-    expect(canvasItem('clock').dataset.canvasX).toBe('25')
-    expect(canvasItem('clock').dataset.canvasY).toBe('50')
+    expect(itemPoint('clock')).toEqual({ x: 25, y: 50 })
     expect(canvasItem('clock').dataset.canvasSize).toBe('standard')
   })
 
-  it('gives Small a vertical document path with no horizontal document overflow', async () => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
+  it('renders the mechanical narrow-floor stack below 600px and stays anchored above it', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 599 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
     await renderApp()
-    const canvas = screen.getByRole('region', { name: 'Canvas' })
-    expect(canvas.getAttribute('data-canvas-layout')).toBe('Small')
-    expect(Number.parseFloat((canvas as HTMLElement).style.height)).toBeGreaterThan(600)
-    for (const item of document.querySelectorAll<HTMLElement>('[data-canvas-kind="canvas"]')) {
-      expect(item.dataset.canvasX).toBe('50')
-      expect(Number.parseFloat(item.style.width)).toBeLessThanOrEqual(784)
+    const canvas = screen.getByRole('region', { name: 'Canvas' }) as HTMLElement
+    expect(canvas.dataset.canvasNarrow).toBe('true')
+    for (const item of document.querySelectorAll<HTMLElement>('[data-canvas-mode]')) {
+      expect(item.dataset.canvasMode).toBe('stacked')
+      expect(item.style.position).toBe('relative')
     }
   })
 
-  it('replans across all four viewport profiles without duplicating active identities', async () => {
+  it('keeps every anchored position glued through resizes — no re-flow, swap, or duplication', async () => {
     await renderApp()
     let frame: FrameRequestCallback | undefined
     vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => { frame = callback; return 1 })
+    const ids = ['clock', 'focus', 'weather', 'notes', 'tasks']
+    const before = Object.fromEntries(ids.map((id) => [id, itemPoint(id)]))
 
-    for (const [width, height, profile, label, textScale] of [
-      [800, 600, 'compact', 'Small', 'standard'],
-      [1400, 900, 'standard', 'Desktop', 'standard'],
-      [2560, 1440, 'display', 'Large', 'large'],
-      [1800, 700, 'ultrawide', 'Wide', 'large'],
+    for (const [width, height, textScale] of [
+      [1408, 445, 'standard'],
+      [2560, 1440, 'large'],
+      [1920, 500, 'large'],
+      [1400, 900, 'standard'],
     ] as const) {
       Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: height })
@@ -419,10 +420,9 @@ describe('App Canvas composition', () => {
         await Promise.resolve()
       })
       expect(document.documentElement.dataset.stageProfile).toBeUndefined()
-      expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-profile')).toBe(profile)
       expect(document.querySelector('main[data-aurora-canvas]')?.getAttribute('data-canvas-text-scale')).toBe(textScale)
-      expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-layout')).toBe(label)
       expect(document.querySelectorAll('[data-block-id="clock"]')).toHaveLength(1)
+      expect(Object.fromEntries(ids.map((id) => [id, itemPoint(id)]))).toEqual(before)
     }
   })
 
@@ -435,12 +435,12 @@ describe('App Canvas composition', () => {
     })
     await renderApp(storage)
 
-    expect(Number(canvasItem('timer').dataset.canvasX)).toBeLessThan(50)
-    expect(Number(canvasItem('timer').dataset.canvasY)).toBeLessThan(50)
-    expect(Number(canvasItem('notes').dataset.canvasX)).toBeLessThan(50)
-    expect(Number(canvasItem('notes').dataset.canvasY)).toBeGreaterThan(50)
-    expect(Number(canvasItem('tasks').dataset.canvasX)).toBeGreaterThan(50)
-    expect(Number(canvasItem('tasks').dataset.canvasY)).toBeGreaterThan(50)
+    expect(itemPoint('timer').x).toBeLessThan(50)
+    expect(itemPoint('timer').y).toBeLessThan(50)
+    expect(itemPoint('notes').x).toBeLessThan(50)
+    expect(itemPoint('notes').y).toBeGreaterThan(50)
+    expect(itemPoint('tasks').x).toBeGreaterThan(50)
+    expect(itemPoint('tasks').y).toBeGreaterThan(50)
 
     for (const entry of [
       { id: 'notes', button: 'Notes', dialog: 'Notes' },
@@ -451,7 +451,7 @@ describe('App Canvas composition', () => {
       fireEvent.click(launcher)
       expect(await screen.findByRole('dialog', { name: entry.dialog })).toBeTruthy()
       expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
-      expect(canvasItem(entry.id).dataset.canvasKind).toBe('canvas')
+      expect(canvasItem(entry.id).dataset.canvasMode).toBe('anchored')
       fireEvent.keyDown(document, { key: 'Escape' })
       await act(async () => {})
       expect(screen.queryByRole('dialog', { name: entry.dialog })).toBeNull()
@@ -463,7 +463,7 @@ describe('App Canvas composition', () => {
     fireEvent.click(timer)
     expect(await screen.findByRole('dialog', { name: 'Focus timer' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
-    expect(canvasItem('timer').dataset.canvasKind).toBe('canvas')
+    expect(canvasItem('timer').dataset.canvasMode).toBe('anchored')
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Focus timer' })).toBeNull()
     expect(document.activeElement).toBe(timer)
@@ -490,95 +490,9 @@ describe('App Canvas composition', () => {
     expect(document.activeElement).toBe(notes)
   })
 
-  it('keeps Settings focus restoration and the temporary Arrange entry and exit behavior', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const active = this.hasAttribute('data-block-id')
-      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
-    })
-    await renderApp()
-    const gear = screen.getByRole('button', { name: 'Open settings' })
-    gear.focus()
-    fireEvent.click(gear)
-    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
-    expect(await screen.findByRole('button', { name: 'Edit Weather' })).toBe(document.activeElement)
-    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasViewportWidth).toBe('1440')
-    expect(screen.getByTestId('arrange-artboard').dataset.arrangeViewportMode).toBe('side')
-    fireEvent.click(screen.getByRole('tab', { name: 'Small' }))
-    expect(screen.getByRole('region', { name: 'Canvas' }).dataset.canvasViewportWidth).toBe('390')
-    expect(screen.getByTestId('arrange-artboard').dataset.arrangeViewportMode).toBe('side')
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(document.activeElement).toBe(gear)
-  })
-
-  it('previews a Canvas size edit and restores the exact stored layout on Cancel', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const active = this.hasAttribute('data-block-id')
-      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
-    })
-    const storage = createStorage(memoryDriver())
-    await storage.init()
-    const stored = await storage.get('layout')
-    await renderApp(storage)
-    const before = canvasItem('weather').dataset.canvasSize
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
-    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit Weather' }))
-    fireEvent.click(within(screen.getByRole('complementary', { name: 'Weather inspector' })).getByRole('radio', { name: 'Compact' }))
-    expect(canvasItem('weather').dataset.canvasSize).toBe('compact')
-    expect(await storage.get('layout')).toEqual(stored)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(canvasItem('weather').dataset.canvasSize).toBe(before)
-    expect(await storage.get('layout')).toEqual(stored)
-  })
-
-  it('hides a non-required widget only in the live preview until the Arrange session is saved', async () => {
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const active = this.hasAttribute('data-block-id')
-      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
-    })
-    const storage = createStorage(memoryDriver())
-    await storage.init()
-    await renderApp(storage)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
-    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
-    const inspector = await screen.findByRole('complementary', { name: 'Weather inspector' })
-    fireEvent.click(within(inspector).getByRole('checkbox', { name: 'Visible' }))
-
-    expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
-    expect((await storage.get('settings')).widgets.weather).toBe(true)
-
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(await screen.findByTestId('canvas-item-weather')).toBeTruthy()
-    expect((await storage.get('settings')).widgets.weather).toBe(true)
-  })
-
-  it('previews Use Desktop layout everywhere on Small without writing', async () => {
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
-    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
-    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      const active = this.hasAttribute('data-block-id')
-      return { left: 10, top: 10, right: active ? 210 : 10, bottom: active ? 110 : 10, width: active ? 200 : 0, height: active ? 100 : 0, x: 10, y: 10, toJSON: () => ({}) } as DOMRect
-    })
-    const storage = createStorage(memoryDriver())
-    await storage.init()
-    const before = await storage.get('layout')
-    await renderApp(storage)
-    expect(canvasItem('clock').dataset.canvasSize).toBe('compact')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Open settings' }))
-    fireEvent.click(await screen.findByRole('tab', { name: 'Widgets' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Arrange layout' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Use Desktop layout everywhere' }))
-
-    expect(canvasItem('clock').dataset.canvasSize).toBe('full')
-    expect(await storage.get('layout')).toEqual(before)
-  })
+  // The Arrange artboard, its inspector, and the Use-Desktop-everywhere
+  // preview were deleted with the named-layouts rebuild (NL-P2, spec §3);
+  // live on-page editing arrives in NL-P3.
 
   it('Reset layout preserves a manual density choice', async () => {
     const storage = createStorage(memoryDriver())
@@ -598,13 +512,13 @@ describe('App Canvas composition', () => {
     expect(await storage.get('layout')).toEqual(emptyLayoutV2())
   })
 
-  it('does not introduce a root transform or duplicate profile authority', async () => {
+  it('does not introduce a root transform or any profile authority', async () => {
     await renderApp()
     const main = document.querySelector<HTMLElement>('main[data-aurora-canvas]')!
     expect(main.style.transform).toBe('')
-    expect(main.dataset.canvasProfile).toBe('standard')
+    expect(main.dataset.canvasProfile).toBeUndefined()
     expect(document.documentElement.dataset.stageProfile).toBeUndefined()
-    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-profile')).toBe('standard')
+    expect(screen.getByRole('region', { name: 'Canvas' }).getAttribute('data-canvas-profile')).toBeNull()
   })
 
   it('reads legacy Compact density as Standard text without eagerly rewriting storage', async () => {

@@ -1,26 +1,17 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
-import type { CanvasProfileKey } from '../../lib/layout/canvasTypes'
-import type { FittedCanvasBlockPlacement } from '../../lib/layout/canvasGeometry'
+import type { LayoutRenderItem } from '../../lib/layout/renderLayout'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 import WidgetBoundary from '../components/WidgetBoundary'
 
 interface CanvasItemProps {
   entry: WidgetRegistryEntry
-  profile: CanvasProfileKey
-  placement: FittedCanvasBlockPlacement
+  item: LayoutRenderItem
   className?: string
   onGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
   children: ReactNode
 }
 
-export default function CanvasItem({
-  entry,
-  profile,
-  placement,
-  className = '',
-  onGeometryChange,
-  children,
-}: CanvasItemProps) {
+export default function CanvasItem({ entry, item, className = '', onGeometryChange, children }: CanvasItemProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
@@ -38,20 +29,21 @@ export default function CanvasItem({
     }
   }, [entry.id, onGeometryChange])
 
-  const canvas = placement.kind === 'canvas'
-  const stageVariant = placement.size === 'full' ? 'expanded' : placement.size
-  const style: CSSProperties = canvas ? {
+  // Content-tight (spec 2.2): the item box is the rendered content. Anchored
+  // items are positioned by percent and centered on their point; no width or
+  // height is ever imposed here.
+  const style: CSSProperties = item.mode === 'anchored' ? {
     position: 'absolute',
-    left: `${placement.left}px`,
-    top: `${placement.top}px`,
-    width: `${placement.width}px`,
-    minHeight: `${placement.height}px`,
+    left: `${item.leftPct}%`,
+    top: `${item.topPct}%`,
     transform: 'translate(-50%, -50%)',
-    zIndex: placement.layer,
+    zIndex: item.layer,
   } : {
     position: 'relative',
     flex: '0 0 auto',
   }
+
+  const size = 'tier' in item ? item.tier : 'compact'
 
   return (
     <div
@@ -59,14 +51,9 @@ export default function CanvasItem({
       tabIndex={-1}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
-      data-arrange-long-press-controls="true"
-      data-canvas-profile={profile}
-      data-canvas-size={placement.size}
-      data-canvas-kind={placement.kind}
-      data-canvas-x={canvas ? placement.x : undefined}
-      data-canvas-y={canvas ? placement.y : undefined}
-      data-stage-variant={stageVariant}
-      className={`canvas-item board-item${canvas ? '' : ' board-item--dock'}${className ? ` ${className}` : ''}`}
+      data-canvas-size={size}
+      data-canvas-mode={item.mode}
+      className={`canvas-item${className ? ` ${className}` : ''}`}
       style={style}
     >
       <WidgetBoundary name={entry.label}>{children}</WidgetBoundary>

@@ -8,18 +8,16 @@ import { restorePreviousLayout } from '../../lib/layout/canvasAdapter'
 import Section from '../Section'
 import { row, label, btnQuiet, btnDanger } from './shared'
 
-/** Widget-arrangement entry points. Both gated on `isPremium()` and hidden
+/** Legacy layout recovery actions. Gated on `isPremium()` and hidden
  *  ENTIRELY (not disabled/greyed) when it's false — the no-placeholder-UI
  *  rule means a free build shows no trace of a feature it can't use, rather
  *  than a dead button.
  *
- *  "Arrange layout" hands off to `onArrangeLayout` — App composes that as
- *  "close the drawer, then bump ArrangeController's `openSignal` nonce" so
- *  the page is actually visible once arrange mode's overlay appears.
- *
- *  The legacy V1/V2 "Reset layout" action keeps its shared confirmation
- *  dialog. Canvas V3 hides that global action because it cannot preserve
- *  independent profiles or recovery; profile reset belongs to Canvas Save.
+ *  The Arrange artboard was deleted with the named-layouts rebuild (NL-P2,
+ *  spec §3); live on-page editing and layout management arrive with NL-P3.
+ *  This section keeps only the pre-existing legacy actions on the stored
+ *  `layout` recovery input: the V1/V2 "Reset layout" confirmation and
+ *  "Restore previous layout".
  *
  *  `open` (review fix): this section — like the rest of SettingsPanel —
  *  stays MOUNTED while the Drawer is merely closed (Drawer only toggles
@@ -32,11 +30,9 @@ import { row, label, btnQuiet, btnDanger } from './shared'
  *  drops its state so a reopen doesn't resurrect it. */
 export default function Layout({
   storage,
-  onArrangeLayout,
   open,
 }: {
   storage: AuroraStorage
-  onArrangeLayout: () => void
   open: boolean
 }) {
   const [resetDialogOpen, setResetDialogOpen] = useState(false)
@@ -76,23 +72,15 @@ export default function Layout({
 
   return (
     <Section title="Layout">
-      <p className="mb-3 text-sm leading-relaxed text-fg-muted">
-        Small, Desktop, Large, and Wide keep independent saved layouts. Arrange a profile, then Save.
-      </p>
-      <div className={row}>
-        <span className={label}>Widget positions</span>
-        <div className="flex gap-2">
-          <button type="button" onClick={onArrangeLayout} className={btnQuiet}>
-            Arrange layout
+      {isCanvasLayout === false ? (
+        <div className={row}>
+          <span className={label}>Widget positions</span>
+          {/* Legacy-only: a V1/V2 store may still reset its stored layout. */}
+          <button type="button" onClick={() => setResetDialogOpen(true)} className={btnDanger}>
+            Reset layout
           </button>
-          {/* Legacy-only: Canvas V3 reset is profile-scoped inside its editor. */}
-          {isCanvasLayout === false ? (
-            <button type="button" onClick={() => setResetDialogOpen(true)} className={btnDanger}>
-              Reset layout
-            </button>
-          ) : null}
         </div>
-      </div>
+      ) : null}
       {canRestore ? (
         <div className={row}>
           <span className={label}>Previous layout</span>

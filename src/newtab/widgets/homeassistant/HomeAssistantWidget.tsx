@@ -279,7 +279,7 @@ function HomeAssistantInner({
 // `-canvas-` family — the trap StatusWidget.tsx:134-151 documents is about
 // text with NO surface of its own sitting directly on the photo, which a
 // button here never is. `error` reuses the app's one established danger
-// convention, `text-red-400` (ArrangeController.tsx's own Reset button),
+// convention, `text-red-400` (the shared Reset confirm's danger styling),
 // adapted onto this control's own surface rather than a bare-text button.
 // `pending` is a brief, self-contained brightness/scale nudge — no color
 // change, so a press reads as "acknowledged" a beat before the real

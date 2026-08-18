@@ -1,123 +1,91 @@
 import { useMemo, type ReactNode } from 'react'
-import { adaptStoredLayout } from '../../lib/layout/canvasAdapter'
-import { CANVAS_PROFILE_LABELS, resolveCanvasProfile } from '../../lib/layout/canvasDefaults'
-import { canvasMinimumHeight, fitCanvasProfile } from '../../lib/layout/canvasGeometry'
-import type { CanvasProfile, CanvasProfileKey, CanvasSize, StoredLayout } from '../../lib/layout/canvasTypes'
+import {
+  planLayoutRender,
+  resolveRenderTier,
+  type AnchoredRenderItem,
+  type DockedRenderItem,
+  type LayoutRenderItem,
+  type StackedRenderItem,
+} from '../../lib/layout/renderLayout'
+import type { NamedLayout } from '../../lib/layout/namedLayouts'
+import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import CanvasItem from './CanvasItem'
 import CanvasLegibilityLayer from './CanvasLegibilityLayer'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 
 interface CanvasSurfaceProps {
-  layout: StoredLayout
-  profileKey: CanvasProfileKey
-  sourceProfileKey?: CanvasProfileKey
-  profileOverride?: CanvasProfile
+  activeLayout: NamedLayout
   entries: readonly WidgetRegistryEntry[]
-  viewport?: { width: number; height: number }
+  viewport: { width: number; height: number }
   elevatedIds?: ReadonlySet<WidgetRegistryEntry['id']>
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize) => ReactNode
 }
 
-function liveViewport(): { width: number; height: number } {
-  return {
-    width: typeof window === 'undefined' ? 1 : window.innerWidth,
-    height: typeof window === 'undefined' ? 1 : window.innerHeight,
-  }
-}
-
 export default function CanvasSurface({
-  layout,
-  profileKey,
-  sourceProfileKey,
-  profileOverride,
+  activeLayout,
   entries,
-  viewport = liveViewport(),
+  viewport,
   elevatedIds,
   onItemGeometryChange,
   renderWidget,
 }: CanvasSurfaceProps) {
-  const normalized = useMemo(() => adaptStoredLayout(layout), [layout])
-  const resolvedSource = sourceProfileKey ?? profileKey
-  const preliminary = useMemo(() => {
-    if (profileOverride) return profileOverride
-    return resolveCanvasProfile(resolvedSource, entries, normalized.profiles[resolvedSource])
-  }, [entries, normalized, profileOverride, resolvedSource])
-  const coordinateHeight = profileKey === 'compact' && preliminary.coordinateHeight !== undefined
-    ? preliminary.coordinateHeight
-    : canvasMinimumHeight(profileKey, preliminary, viewport.height)
-  const resolved = useMemo(() => (
-    profileOverride ?? resolveCanvasProfile(
-      resolvedSource,
-      entries,
-      normalized.profiles[resolvedSource],
-      { width: viewport.width, height: coordinateHeight },
-    )
-  ), [coordinateHeight, entries, normalized, profileOverride, resolvedSource, viewport.width])
-  const fitted = useMemo(
-    () => fitCanvasProfile(resolved, { width: viewport.width, height: coordinateHeight }),
-    [coordinateHeight, resolved, viewport.width],
-  )
-  const canvasHeight = profileKey === 'compact'
-    ? Math.max(viewport.height, ...Object.values(fitted.placements).flatMap((placement) => (
-        placement?.kind === 'canvas' ? [placement.top + placement.height / 2 + 16] : []
-      )))
-    : coordinateHeight
-  const canvasEntries = entries.filter((entry) => fitted.placements[entry.id]?.kind === 'canvas')
-  const bottomEntries = entries
-    .filter((entry) => fitted.placements[entry.id]?.kind === 'bottom-bar')
-    .sort((a, b) => {
-      const left = fitted.placements[a.id]
-      const right = fitted.placements[b.id]
-      return (left?.kind === 'bottom-bar' ? left.order : 0) - (right?.kind === 'bottom-bar' ? right.order : 0)
+  const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries])
+  const plan = useMemo(() => {
+    const enabledIds = entries.map((entry) => entry.id)
+    const raw = planLayoutRender(activeLayout, enabledIds, viewport.width)
+    // Resolve stored tiers against each widget's declared sizes exactly once.
+    const items = raw.items.map((item): LayoutRenderItem => {
+      if (!('tier' in item)) return item
+      const entry = byId.get(item.id)
+      return entry ? { ...item, tier: resolveRenderTier(entry.canvasSizes, item.tier) } : item
     })
+    return { ...raw, items }
+  }, [activeLayout, byId, entries, viewport.width])
+
+  const anchored = plan.items.filter((item): item is AnchoredRenderItem => item.mode === 'anchored')
+  const stacked = plan.items.filter((item): item is StackedRenderItem => item.mode === 'stacked')
+  const topDock = plan.items
+    .filter((item): item is DockedRenderItem => item.mode === 'docked' && item.dock === 'top')
+    .sort((a, b) => a.order - b.order)
+  const bottomDock = plan.items
+    .filter((item): item is DockedRenderItem => item.mode === 'docked' && item.dock === 'bottom')
+    .sort((a, b) => a.order - b.order)
+
+  const renderItem = (item: LayoutRenderItem) => {
+    const entry = byId.get(item.id)
+    if (!entry) return null
+    const size = 'tier' in item ? item.tier : 'compact'
+    return (
+      <CanvasItem
+        key={entry.id}
+        entry={entry}
+        item={item}
+        className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
+        onGeometryChange={onItemGeometryChange}
+      >
+        {renderWidget(entry, size)}
+      </CanvasItem>
+    )
+  }
 
   return (
     <div data-canvas-root="" className="canvas-root">
+      {topDock.length > 0 ? (
+        <nav aria-label="Top bar" className="canvas-top-bar">{topDock.map(renderItem)}</nav>
+      ) : null}
       <section
         aria-label="Canvas"
         data-canvas-surface=""
-        data-canvas-profile={profileKey}
-        data-canvas-source-profile={resolvedSource}
-        data-canvas-layout={CANVAS_PROFILE_LABELS[profileKey]}
-        data-canvas-mode={fitted.mode}
-        data-canvas-viewport-width={viewport.width}
-        data-canvas-viewport-height={canvasHeight}
-        data-canvas-coordinate-width={viewport.width}
-        data-canvas-coordinate-height={coordinateHeight}
-        className="canvas-surface"
-        style={{ minHeight: `${canvasHeight}px`, height: `${canvasHeight}px` }}
+        data-canvas-narrow={plan.narrow ? 'true' : undefined}
+        className={plan.narrow ? 'canvas-surface canvas-surface--stack' : 'canvas-surface'}
+        style={plan.narrow ? undefined : { minHeight: `${viewport.height}px` }}
       >
         <CanvasLegibilityLayer />
-        {canvasEntries.map((entry) => {
-          const placement = fitted.placements[entry.id]
-          if (!placement || placement.kind !== 'canvas') return null
-          return (
-            <CanvasItem
-              key={entry.id}
-              entry={entry}
-              profile={profileKey}
-              placement={placement}
-              className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
-              onGeometryChange={onItemGeometryChange}
-            >
-              {renderWidget(entry, placement.size)}
-            </CanvasItem>
-          )
-        })}
+        {plan.narrow ? stacked.map(renderItem) : anchored.map(renderItem)}
       </section>
-      {bottomEntries.length > 0 ? (
-        <nav aria-label="Bottom bar" className="canvas-bottom-bar">
-          {bottomEntries.map((entry) => {
-            const placement = fitted.placements[entry.id]
-            if (!placement || placement.kind !== 'bottom-bar') return null
-            return (
-              <CanvasItem key={entry.id} entry={entry} profile={profileKey} placement={placement}>
-                {renderWidget(entry, placement.size)}
-              </CanvasItem>
-            )
-          })}
-        </nav>
+      {bottomDock.length > 0 ? (
+        <nav aria-label="Bottom bar" className="canvas-bottom-bar">{bottomDock.map(renderItem)}</nav>
       ) : null}
     </div>
   )

@@ -56,9 +56,11 @@ describe('planLayoutRender (anchored)', () => {
     })
   })
 
-  it('gives an enabled widget missing from the layout the deterministic in-memory center default above every stored layer, and never renders a disabled one', () => {
+  it('gives an enabled widget missing from the layout its designed static default slot above every stored layer, and never renders a disabled one', () => {
     const notes = plan.items.find((item) => item.id === 'notes') as AnchoredRenderItem
-    expect(notes).toMatchObject({ mode: 'anchored', leftPct: 50, topPct: 50, tier: 'standard', layer: 3 })
+    // Identity-stable default layer: maxStoredLayer(2) + 1 + BLOCK_IDS index
+    // of notes (11) = 14, unaffected by which other widgets are enabled.
+    expect(notes).toMatchObject({ mode: 'anchored', leftPct: 7, topPct: 91, tier: 'standard', layer: 14 })
     expect(plan.items.some((item) => item.id === 'search')).toBe(false)
     const disabled = planLayoutRender(LAYOUT, ['clock'], 1408)
     expect(disabled.items.map((item) => item.id)).toEqual(['clock'])
