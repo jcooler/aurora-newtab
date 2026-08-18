@@ -331,8 +331,6 @@ try {
   if (settledMode !== 'docked') fail(`stage7: weather not docked after the drop (${settledMode})`)
 
   // ---- Stage 7b: place a member on the far LEFT of the bar, alone ----
-  // (owner direction 2026-08-18: "IF I WANT TASKS ON THE FAR LEFT SIDE ALL
-  // BY ITS LONESOME I SHOULD BE ABLE TO DO THAT")
   const focusDock = await page.locator('nav[aria-label="Bottom bar"] [data-block-id="focus"]').boundingBox()
   await page.mouse.move(focusDock.x + focusDock.width / 2, focusDock.y + focusDock.height / 2)
   await page.mouse.down()
