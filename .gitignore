@@ -49,3 +49,8 @@ output/
 .playwright-profile-nl-p3/
 .preview-nl-p3-dist/
 .preview-nl-p3-out/
+
+# NL-P4 docks witness (scripts/preview-nl-p4.mjs) scratch output.
+.playwright-profile-nl-p4/
+.preview-nl-p4-dist/
+.preview-nl-p4-out/

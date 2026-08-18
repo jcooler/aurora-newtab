@@ -288,6 +288,10 @@
 
 .dock-scroller {
   display: flex;
+  /* A flex item's min-width:auto would let the scroller grow past the nav
+     instead of clipping — it must shrink so IT owns the scroll. */
+  min-width: 0;
+  max-width: 100%;
   gap: 8px;
   padding: 2px;
   overflow-x: auto;

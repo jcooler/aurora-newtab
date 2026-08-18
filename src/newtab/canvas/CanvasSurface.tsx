@@ -1,4 +1,4 @@
-import { useMemo, useRef, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, type ReactNode } from 'react'
 import { useDockOverflow } from '../edit/useDockOverflow'
 import {
   planLayoutRender,
@@ -50,9 +50,26 @@ function DockStrip({
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const overflow = useDockOverflow(scrollerRef, memberCount)
+  const overflowingRef = useRef(overflow.overflowing)
+  overflowingRef.current = overflow.overflowing
   const scrollBy = (delta: number) => {
     scrollerRef.current?.scrollBy({ left: delta })
   }
+
+  // React registers onWheel passively, which rejects preventDefault — the
+  // local-scroll contract (spec 2.4: dock scrolling never moves the page)
+  // needs a native non-passive listener.
+  useEffect(() => {
+    const element = scrollerRef.current
+    if (!element) return
+    const onWheel = (event: WheelEvent) => {
+      if (!overflowingRef.current) return
+      event.preventDefault()
+      element.scrollBy({ left: event.deltaY !== 0 ? event.deltaY : event.deltaX })
+    }
+    element.addEventListener('wheel', onWheel, { passive: false })
+    return () => element.removeEventListener('wheel', onWheel)
+  }, [])
   return (
     <nav
       aria-label={label}
@@ -64,12 +81,6 @@ function DockStrip({
         data-dock-overflow={overflow.overflowing ? 'true' : undefined}
         data-dock-at-start={overflow.atStart ? 'true' : undefined}
         data-dock-at-end={overflow.atEnd ? 'true' : undefined}
-        onWheel={(event) => {
-          if (!overflow.overflowing) return
-          // Dock scrolling is local and never moves the page (spec 2.4).
-          event.preventDefault()
-          scrollBy(event.deltaY !== 0 ? event.deltaY : event.deltaX)
-        }}
         onKeyDown={(event) => {
           if (!overflow.overflowing) return
           if (event.target instanceof Element && event.target.closest('input, textarea, select, [role="listbox"]')) return
@@ -139,7 +150,10 @@ export default function CanvasSurface({
         entry={entry}
         item={item}
         className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
-        chrome={item.mode === 'anchored' ? chrome : 'none'}
+        // Hover grip/gear stays anchored-only; the EDITING chrome (inert
+        // interiors, selection, drag handle) applies to docked items too
+        // (spec 2.4: order is draggable, dragging out undocks).
+        chrome={item.mode === 'anchored' ? chrome : chrome === 'editing' ? 'editing' : 'none'}
         selected={selectedId === entry.id}
         onSelect={onSelectItem}
         onGripPointerDown={onGripPointerDown}

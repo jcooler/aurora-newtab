@@ -35,9 +35,19 @@ export function useDockOverflow(
     measure()
     element.addEventListener('scroll', measure, { passive: true })
     window.addEventListener('resize', measure)
+    // Docked widgets render async content (data, fonts, images), so the
+    // scroller's scrollWidth grows after mount without any scroll/resize
+    // event — observe the members' own boxes to re-measure on growth.
+    let observer: ResizeObserver | null = null
+    if (typeof ResizeObserver !== 'undefined') {
+      observer = new ResizeObserver(measure)
+      observer.observe(element)
+      for (const child of element.children) observer.observe(child)
+    }
     return () => {
       element.removeEventListener('scroll', measure)
       window.removeEventListener('resize', measure)
+      observer?.disconnect()
     }
   }, [memberCount, ref])
 
