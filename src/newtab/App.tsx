@@ -8,6 +8,7 @@ import {
   applyBulkTier,
   beginEditSession,
   dockOrder,
+  dockSelected,
   dockSelectedLive,
   hideSelected,
   moveSelected,
@@ -20,8 +21,9 @@ import {
   stepSelectedLayer,
   undo,
   undockSelected,
+  undockSelectedLive,
 } from '../lib/layout/editSession'
-import type { DockEdge } from '../lib/layout/namedLayouts'
+import type { DockEdge, NamedLayout } from '../lib/layout/namedLayouts'
 import WidgetInspector from './edit/WidgetInspector'
 import { useCanvasDrag } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
@@ -215,18 +217,40 @@ export default function App() {
 
   const [dragZone, setDragZone] = useState<DockEdge | null>(null)
   const draggingIdRef = useRef<BlockId | null>(null)
+  // Insertion index: members of this dock whose center-x sits left of the
+  // pointer (spec 2.4: order is draggable). Measured FRESH from the live DOM
+  // each call (review fix I1).
+  const dockInsertionIndex = (layout: NamedLayout, zone: DockEdge, id: BlockId, pointerX: number) => (
+    dockOrder(layout, zone)
+      .filter((memberId) => memberId !== id)
+      .filter((memberId) => {
+        const node = document.querySelector(`[data-block-id="${memberId}"]`)
+        if (!node) return false
+        const rect = node.getBoundingClientRect()
+        return rect.left + rect.width / 2 < pointerX
+      }).length
+  )
   const drag = useCanvasDrag({
     getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
     getItemRects: () => itemRectsRef.current,
-    onPreviewMove: (id, point, first) => {
+    // Live dock mechanics (owner-reported 2026-08-18: a docked item popped
+    // out of the strip on its first move, so in-strip reordering felt broken
+    // and re-docking was a fight). The widget follows the gesture: pointer
+    // in a dock band docks/reorders LIVE, leaving the band undocks, and the
+    // whole gesture stays one undo entry (the first operation pushes it).
+    onPreviewMove: (id, point, first, context) => {
       draggingIdRef.current = id
       editMode.dispatch((current) => {
         const selected = selectWidget(current, id)
-        // Dragging a DOCKED item undocks it on the first real move (spec
-        // 2.4 one-mechanism rule: reorder = drop back into a zone; undock =
-        // drop on the canvas).
-        if (activeDraftLayout(selected).widgets[id]?.kind === 'docked') {
-          return undockSelected(selected, point)
+        const layout = activeDraftLayout(selected)
+        if (context.zone) {
+          const index = dockInsertionIndex(layout, context.zone, id, context.pointerX)
+          return first
+            ? dockSelected(selected, context.zone, index)
+            : dockSelectedLive(selected, context.zone, index)
+        }
+        if (layout.widgets[id]?.kind === 'docked') {
+          return first ? undockSelected(selected, point) : undockSelectedLive(selected, point)
         }
         return first
           ? moveSelected(selected, point)
@@ -244,20 +268,10 @@ export default function App() {
       if (!zone || !id) return
       editMode.dispatch((current) => {
         const selected = selectWidget(current, id)
-        // Insertion index: members of this dock whose center-x sits left of
-        // the pointer (spec 2.4: order is draggable). Measured FRESH at the
-        // drop — the cached rect map is not live for position-only shifts
-        // (the undock re-center, strip scrolling; review fix I1).
-        const members = dockOrder(activeDraftLayout(selected), zone).filter((memberId) => memberId !== id)
-        const index = members.filter((memberId) => {
-          const node = document.querySelector(`[data-block-id="${memberId}"]`)
-          if (!node) return false
-          const rect = node.getBoundingClientRect()
-          return rect.left + rect.width / 2 < pointerX
-        }).length
-        // The gesture's undo entry was pushed by its first move; the dock
-        // drop completes the same gesture (review fix I2).
-        return dockSelectedLive(selected, zone, index)
+        // The moves already docked it live; this re-measures the final
+        // index at the exact drop pointer, reusing the gesture's one undo
+        // entry (review fix I2).
+        return dockSelectedLive(selected, zone, dockInsertionIndex(activeDraftLayout(selected), zone, id, pointerX))
       })
     },
   })
@@ -352,6 +366,15 @@ export default function App() {
   const narrowModality = viewport.width < 900
 
   const renderedLayout = session ? activeDraftLayout(session) : activeLayout
+  // The fixed toolbar clears a rendered top dock so its members stay
+  // reachable during the session (owner-reported 2026-08-18: the toolbar
+  // sat over the top-docked Bookmarks). Any enabled widget docked top in
+  // the rendered draft means the strip is painted at the page top.
+  const hasTopDock = activeEntries.some((entry) => {
+    const widgetPlacement = renderedLayout.widgets[entry.id]
+    return widgetPlacement?.kind === 'docked' && widgetPlacement.dock === 'top'
+  })
+  const toolbarTopOffset = session && hasTopDock ? 64 : undefined
 
   return (
     <main
@@ -374,6 +397,23 @@ export default function App() {
           onItemGeometryChange={onItemGeometryChange}
           onGripPointerDown={(id, event) => {
             event.preventDefault()
+            // The grip press begins the session, which unmounts the hover
+            // chrome under the pointer — the released click would fall
+            // through to whatever the grip overlaid (a docked BOOKMARK
+            // navigated the page; witness stage 9 caught it). Swallow the
+            // one click this press produces, and ONLY if it lands inside
+            // the grabbed widget — clicks anywhere else (toolbar, another
+            // widget) are unrelated and pass through.
+            const grabbedId = id
+            const swallowClick = (clickEvent: MouseEvent) => {
+              document.removeEventListener('click', swallowClick, { capture: true })
+              if (clickEvent.target instanceof Element && clickEvent.target.closest(`[data-block-id="${grabbedId}"]`)) {
+                clickEvent.preventDefault()
+                clickEvent.stopPropagation()
+              }
+            }
+            document.addEventListener('click', swallowClick, { capture: true })
+            window.setTimeout(() => document.removeEventListener('click', swallowClick, { capture: true }), 500)
             if (!session) editMode.begin(event.currentTarget as HTMLElement)
             editMode.select(id)
             drag.startDrag(id, {
@@ -412,9 +452,16 @@ export default function App() {
           const placement = activeDraftLayout(session).widgets[selectedId]
           const anchorRect = itemRectsRef.current.get(selectedId)
           if (!entry || !placement || !anchorRect) return null
-          const overlapLabels = [...itemRectsRef.current]
+          // Overlap is a FREE-placement concept (spec 2.2): docked members
+          // live in the strips and hidden widgets render nowhere, so neither
+          // belongs in the warning (owner-reported 2026-08-18: the note
+          // listed widgets nowhere near the selection).
+          const draftWidgets = activeDraftLayout(session).widgets
+          const overlapLabels = placement.kind !== 'free' ? [] : [...itemRectsRef.current]
             .filter(([id, rect]) => (
               id !== selectedId
+              && draftWidgets[id]?.kind !== 'docked'
+              && draftWidgets[id]?.kind !== 'hidden'
               && rect.left < anchorRect.right && rect.right > anchorRect.left
               && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
             ))
@@ -435,6 +482,7 @@ export default function App() {
         {session ? (
           <EditToolbar
             session={session}
+            topOffset={toolbarTopOffset}
             hiddenWidgets={activeEntries.flatMap((entry) => (
               activeDraftLayout(session).widgets[entry.id]?.kind === 'hidden'
                 ? [{ id: entry.id, label: entry.label }]

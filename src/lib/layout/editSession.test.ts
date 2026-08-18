@@ -18,6 +18,7 @@ import {
   stepSelectedLayer,
   undo,
   undockSelected,
+  undockSelectedLive,
 } from './editSession'
 import { pointFromFreePlacement, type FreeWidgetPlacement, type LayoutsDocument } from './namedLayouts'
 
@@ -191,6 +192,16 @@ describe('hide, restore, bulk, reset', () => {
     const undone = undo(session)
     expect(undone.dirty).toBe(false)
     expect(activeDraftLayout(undone).widgets.clock).toEqual(activeDraftLayout(fresh()).widgets.clock)
+  })
+
+  it('a gesture crossing OUT of and back INTO a dock band stays ONE undo entry (owner-reported 2026-08-18)', () => {
+    let session = selectWidget(fresh(), 'bookmarks')
+    session = dockSelected(session, 'bottom', 1)                  // first move: in-band reorder pushes
+    session = undockSelectedLive(session, { xPct: 40, yPct: 50 }) // pointer leaves the band
+    session = dockSelectedLive(session, 'bottom', 0)              // pointer re-enters, re-docks live
+    expect(session.past).toHaveLength(1)
+    const undone = undo(session)
+    expect(activeDraftLayout(undone).widgets.bookmarks).toEqual(activeDraftLayout(fresh()).widgets.bookmarks)
   })
 
   it('undockSelected returns a docked widget to a free anchor at the drop point', () => {

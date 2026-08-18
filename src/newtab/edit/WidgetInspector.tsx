@@ -55,6 +55,10 @@ export default function WidgetInspector({
       <p className="text-xs font-semibold text-fg">{entry.label}</p>
       {free ? (
         <div role="radiogroup" aria-label="Size" className="flex items-center gap-1">
+          {/* Visible row label (owner-reported 2026-08-18): unlabeled tier
+              buttons here and in the toolbar's bulk control were
+              indistinguishable — this row sizes THIS widget only. */}
+          <span className="text-xs text-fg-muted">Size</span>
           {entry.canvasSizes.map((tier) => (
             <button
               key={tier}
@@ -71,6 +75,7 @@ export default function WidgetInspector({
       ) : null}
       {free ? (
         <div className="flex items-center gap-1">
+          <span className="text-xs text-fg-muted">Layer</span>
           <button type="button" className={button} onClick={() => onLayer('backward')}>
             Send backward
           </button>

@@ -70,14 +70,16 @@ describe('index.css - Canvas type roles', () => {
     expect(indexCss).toMatch(/\.canvas-item\[data-block-id="clock"\]:not\(\[data-canvas-size="compact"\]\)[^{]*\[data-clock-date\][^{]*\{[\s\S]*?display: block;/)
   })
 
-  it('keeps only the viewport-height compact cap — the container-relative glyph cap died with the imposed boxes', () => {
+  it('renders three DISTINCT tier scales — compact smaller, standard base, full larger (owner-reported 2026-08-18)', () => {
     // A content-tight wrapper sizes to the clock, so a container-relative
     // (cqi) cap would be circular; the retirement scan in
-    // adaptiveStageLegibility.test.ts pins that no cqi term survives. Full
-    // and standard render at --clock-font; compact keeps the real safety
-    // cap, which is vertical.
+    // adaptiveStageLegibility.test.ts pins that no cqi term survives.
+    // Standard renders at the base --clock-font curve; compact and full
+    // scale that SAME curve so all tiers inherit its width/height
+    // degradation, and each vh safety cap stays proportionate.
     expect(indexCss).not.toContain('cqi')
-    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(var\(--clock-font\),\s*17vh\);/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="compact"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 0\.62\),\s*14vh\);/)
+    expect(indexCss).toMatch(/\.canvas-item\[data-canvas-size="full"\]:not\(\[data-canvas-mode="docked"\]\)\[data-block-id="clock"\] time\s*\{[^}]*font-size:\s*min\(calc\(var\(--clock-font\) \* 1\.3\),\s*30vh\);/)
   })
 })
 

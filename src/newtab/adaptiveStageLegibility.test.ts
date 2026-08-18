@@ -162,6 +162,6 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {
     const clock = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time')
-    expect(clock).toMatch(/font-size:\s*min\(var\(--clock-font\),\s*17vh\)\s*;/)
+    expect(clock).toMatch(/font-size:\s*min\(calc\(var\(--clock-font\) \* 0\.62\),\s*14vh\)\s*;/)
   })
 })

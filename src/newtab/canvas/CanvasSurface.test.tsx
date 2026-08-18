@@ -201,6 +201,44 @@ describe('Docked item chrome and safety (owner-reported 2026-08-18)', () => {
   })
 })
 
+describe('Geometry freshness (owner-reported 2026-08-18: bouncing drags, stale overlap notes)', () => {
+  afterEach(cleanup)
+
+  it('re-publishes an item\'s rect when its PLACEMENT changes, not only when its size changes', () => {
+    // ResizeObserver never fires for position-only moves, so without an
+    // item-keyed publish the rect map goes stale the moment a widget moves:
+    // the next grab computes a garbage pointer offset (the "bouncing"), and
+    // the inspector warns about overlaps at positions widgets left long ago.
+    const calls: string[] = []
+    const onGeometry = (id: string) => calls.push(id)
+    const moved: NamedLayout = {
+      ...LAYOUT,
+      widgets: { ...LAYOUT.widgets, clock: { kind: 'free', anchor: 'top-left', offsetX: 5, offsetY: 5, tier: 'full', layer: 2 } },
+    }
+    const { rerender } = render(
+      <CanvasSurface
+        activeLayout={LAYOUT}
+        entries={ENTRIES}
+        viewport={{ width: 1408, height: 445 }}
+        onItemGeometryChange={(id) => onGeometry(id)}
+        renderWidget={(entry) => <span>{entry.label}</span>}
+      />,
+    )
+    const before = calls.filter((id) => id === 'clock').length
+    expect(before).toBeGreaterThan(0)
+    rerender(
+      <CanvasSurface
+        activeLayout={moved}
+        entries={ENTRIES}
+        viewport={{ width: 1408, height: 445 }}
+        onItemGeometryChange={(id) => onGeometry(id)}
+        renderWidget={(entry) => <span>{entry.label}</span>}
+      />,
+    )
+    expect(calls.filter((id) => id === 'clock').length).toBeGreaterThan(before)
+  })
+})
+
 describe('Docked render flag (NL-P5 batch 1)', () => {
   it('passes docked=true to the renderer only for strip members', () => {
     const seen = new Map<string, boolean>()

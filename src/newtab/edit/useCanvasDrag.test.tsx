@@ -56,7 +56,7 @@ describe('useCanvasDrag', () => {
 
     // Move so the raw top-left would land at (200, 200) — a grid multiple.
     act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 210, clientY: 210, pointerId: 1 })) })
-    expect(onPreviewMove).toHaveBeenLastCalledWith('clock', { xPct: 30, yPct: 50 }, true)
+    expect(onPreviewMove).toHaveBeenLastCalledWith('clock', { xPct: 30, yPct: 50 }, true, { zone: null, pointerX: 210 })
 
     // A second move is live (not a new undo entry): raw top-left (240, 240).
     act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 250, clientY: 250, pointerId: 1 })) })
@@ -108,6 +108,40 @@ describe('useCanvasDrag', () => {
     expect(onDrop).toHaveBeenLastCalledWith({ zone: 'top', pointerX: 300 })
   })
 
+  it('every preview move carries the live dock-band state so callers can dock/reorder/undock continuously', () => {
+    const { surface, rendered, onPreviewMove } = setup()
+    act(() => rendered.result.current.startDrag('clock', { clientX: 110, clientY: 110, pointerId: 12 }))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 20, pointerId: 12 })) })
+    expect(onPreviewMove.mock.calls.at(-1)?.[3]).toEqual({ zone: 'top', pointerX: 300 })
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 320, clientY: 250, pointerId: 12 })) })
+    expect(onPreviewMove.mock.calls.at(-1)?.[3]).toEqual({ zone: null, pointerX: 320 })
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 340, clientY: 480, pointerId: 12 })) })
+    expect(onPreviewMove.mock.calls.at(-1)?.[3]).toEqual({ zone: 'bottom', pointerX: 340 })
+    act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 340, clientY: 480, pointerId: 12 })) })
+  })
+
+  it('a pointer inside a RENDERED strip is in that band even beyond the 56px threshold (fixed strips overlay the surface)', () => {
+    // The probe-measured defect: the bottom strip painted at y 783-884 over
+    // a 900-tall surface, but the band only covered y 844+ — grabbing a
+    // docked member in the strip's upper half read as "outside the dock"
+    // and undocked it mid-reorder.
+    const bar = document.createElement('nav')
+    bar.className = 'canvas-bottom-bar'
+    document.body.append(bar)
+    vi.spyOn(bar, 'getBoundingClientRect').mockReturnValue(rect(0, 380, 1000, 100))
+    try {
+      const { surface, rendered, onPreviewMove } = setup()
+      act(() => rendered.result.current.startDrag('clock', { clientX: 110, clientY: 110, pointerId: 14 }))
+      // y=400: inside the strip's rect, but NOT within 56px of the surface
+      // bottom (500 - 56 = 444).
+      act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 300, clientY: 400, pointerId: 14 })) })
+      expect(onPreviewMove.mock.calls.at(-1)?.[3]).toEqual({ zone: 'bottom', pointerX: 300 })
+      act(() => { surface.dispatchEvent(pointerEvent('pointerup', { clientX: 300, clientY: 400, pointerId: 14 })) })
+    } finally {
+      bar.remove()
+    }
+  })
+
   it('publishes magnetic guides when aligned with a neighbor edge and clamps to the surface inset', () => {
     const { surface, rendered, onPreviewMove } = setup()
     act(() => rendered.result.current.startDrag('clock', { clientX: 110, clientY: 110, pointerId: 7 }))
@@ -116,7 +150,7 @@ describe('useCanvasDrag', () => {
     // (500) — the magnet snaps x to 500 and publishes a guide.
     act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 507, clientY: 110, pointerId: 7 })) })
     expect(rendered.result.current.guides.some((guide) => guide.axis === 'x' && guide.value === 500)).toBe(true)
-    expect(onPreviewMove).toHaveBeenLastCalledWith('clock', { xPct: 60, yPct: 30 }, true)
+    expect(onPreviewMove).toHaveBeenLastCalledWith('clock', { xPct: 60, yPct: 30 }, true, { zone: null, pointerX: 507 })
 
     // Dragging far past the left edge clamps at the 8px inset.
     act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: -300, clientY: 110, pointerId: 7 })) })

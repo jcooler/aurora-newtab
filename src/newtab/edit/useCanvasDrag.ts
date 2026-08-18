@@ -26,7 +26,16 @@ export interface CanvasDragApi {
 export function useCanvasDrag(input: {
   getSurface: () => HTMLElement | null
   getItemRects: () => ReadonlyMap<BlockId, DOMRectReadOnly>
-  onPreviewMove: (id: BlockId, point: { xPct: number; yPct: number }, first: boolean) => void
+  /** Every move carries the CURRENT dock-band state (owner-reported
+   *  2026-08-18: entering the band docks live, moving within it reorders
+   *  live, leaving it undocks — the widget follows the gesture instead of
+   *  popping out of the strip on the first move). */
+  onPreviewMove: (
+    id: BlockId,
+    point: { xPct: number; yPct: number },
+    first: boolean,
+    drag: { zone: DockEdge | null; pointerX: number },
+  ) => void
   onZoneChange?: (zone: DockEdge | null) => void
   onDrop: (context: { zone: DockEdge | null; pointerX: number }) => void
   /** Dock eligibility (spec 2.3: a widget without a Docked tier has no
@@ -69,6 +78,17 @@ export function useCanvasDrag(input: {
 
     const dockable = inputRef.current.canDock?.(id) ?? true
 
+    // The strips are FIXED overlays whose height follows their members, so
+    // "in the band" must include the RENDERED strip rect, not just the 56px
+    // edge threshold — measured fresh each move (a strip can appear or grow
+    // mid-gesture as items dock live).
+    const inStrip = (edge: DockEdge, clientY: number): boolean => {
+      const bar = document.querySelector(edge === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar')
+      if (!bar) return false
+      const rect = bar.getBoundingClientRect()
+      return clientY >= rect.top && clientY <= rect.bottom
+    }
+
     const onMove = (event: PointerEvent) => {
       if (event.pointerId !== start.pointerId) return
       lastPointerX = event.clientX
@@ -76,9 +96,9 @@ export function useCanvasDrag(input: {
       setZone(
         !dockable
           ? null
-          : surfaceY < DOCK_ZONE_THRESHOLD
+          : surfaceY < DOCK_ZONE_THRESHOLD || inStrip('top', event.clientY)
             ? 'top'
-            : surfaceY > surfaceRect.height - DOCK_ZONE_THRESHOLD
+            : surfaceY > surfaceRect.height - DOCK_ZONE_THRESHOLD || inStrip('bottom', event.clientY)
               ? 'bottom'
               : null,
       )
@@ -107,7 +127,7 @@ export function useCanvasDrag(input: {
       inputRef.current.onPreviewMove(id, {
         xPct: (snapped.left + box.width / 2) / surfaceRect.width * 100,
         yPct: (snapped.top + box.height / 2) / surfaceRect.height * 100,
-      }, first)
+      }, first, { zone, pointerX: event.clientX })
     }
 
     const finish = (event: PointerEvent) => {

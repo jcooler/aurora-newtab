@@ -106,7 +106,10 @@
   position: absolute;
   top: -10px;
   right: -10px;
-  z-index: 1;
+  /* Above every widget interior INSIDE the item (Bookmarks' own bar runs
+     z-20/z-50): at z-index 1 the chips beat the grip in hit-testing and a
+     grip press opened a bookmark (witness stage 9). */
+  z-index: 60;
   display: flex;
   gap: 4px;
   opacity: 0;
@@ -1554,8 +1557,17 @@ select > option {
    safety cap is vertical: a compact Board clock stays within short windows
    via 17vh (the 1420x550 causal fixture: 110px -> 93.5px). The NL-P5 tier
    catalog owns the designed compact/standard clock scales. */
+/* Clock tier scales (owner-reported 2026-08-18: Standard and Full rendered
+   identically — a tier-differentiation defect, the same law the batch-2
+   GitHub/GitLab Full refinement enforced). Compact is a genuinely smaller
+   time-only glance; Standard keeps the base curve; Full is the large
+   legible face its contract promises. Ratios scale the shared base curve so
+   every tier inherits the two-mechanism width/height degradation. */
 .canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
-  font-size: min(var(--clock-font), 17vh);
+  font-size: min(calc(var(--clock-font) * 0.62), 14vh);
+}
+.canvas-item[data-canvas-size="full"]:not([data-canvas-mode="docked"])[data-block-id="clock"] time {
+  font-size: min(calc(var(--clock-font) * 1.3), 30vh);
 }
 
 /* A compact allocation is a real renderer variant, not a smaller hole cut

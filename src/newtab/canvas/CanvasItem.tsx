@@ -49,6 +49,18 @@ export default function CanvasItem({
     }
   }, [entry.id, onGeometryChange])
 
+  // ResizeObserver fires on SIZE changes only — a position-only move (drag,
+  // nudge, dock/undock re-flow) would leave the published rect stale at the
+  // OLD position (owner-reported 2026-08-18: the next grab computed a
+  // garbage pointer offset and the widget leapt; the overlap note warned
+  // about positions widgets left long ago). Every placement change
+  // re-publishes; cheap, and the RO effect above keeps ownership of
+  // observation and the null cleanup.
+  useLayoutEffect(() => {
+    if (!onGeometryChange || !ref.current) return
+    onGeometryChange(entry.id, ref.current.getBoundingClientRect())
+  }, [entry.id, item, onGeometryChange])
+
   // Content-tight (spec 2.2): the item box is the rendered content. Anchored
   // items are positioned by percent and centered on their point; no width or
   // height is ever imposed here.

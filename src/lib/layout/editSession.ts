@@ -306,13 +306,10 @@ export function dockSelectedLive(session: EditSession, dock: DockEdge, index: nu
   return dockSelectedInternal(session, dock, index, false)
 }
 
-/** Returns a docked selected widget to free placement at the drop point.
- *  The docked form stored no tier, so the undocked widget starts Standard
- *  (clamped per widget by the renderer); remembering the pre-dock tier is
- *  an NL-P5 nicety once Docked tiers are designed. */
-export function undockSelected(
+function undockSelectedInternal(
   session: EditSession,
   point: { xPct: number; yPct: number },
+  pushUndo: boolean,
 ): EditSession {
   const id = session.selectedId
   if (!id) return session
@@ -334,7 +331,28 @@ export function undockSelected(
         layer: maxLayer + 1 + BLOCK_IDS.indexOf(id),
       }),
     },
-  })))
+  })), pushUndo)
+}
+
+/** Returns a docked selected widget to free placement at the drop point.
+ *  The docked form stored no tier, so the undocked widget starts Standard
+ *  (clamped per widget by the renderer); remembering the pre-dock tier is
+ *  an NL-P5 nicety once Docked tiers are designed. */
+export function undockSelected(
+  session: EditSession,
+  point: { xPct: number; yPct: number },
+): EditSession {
+  return undockSelectedInternal(session, point, true)
+}
+
+/** The live mid-gesture variant (owner-reported 2026-08-18: a drag that
+ *  crosses in and out of a dock band must stay ONE undo entry): the
+ *  gesture's first operation already pushed, so this one never does. */
+export function undockSelectedLive(
+  session: EditSession,
+  point: { xPct: number; yPct: number },
+): EditSession {
+  return undockSelectedInternal(session, point, false)
 }
 
 export function undo(session: EditSession): EditSession {

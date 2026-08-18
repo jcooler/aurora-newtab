@@ -15,6 +15,7 @@ const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
 export default function EditToolbar({
   session,
   hiddenWidgets = [],
+  topOffset,
   onRestoreHidden,
   onSwitchLayout,
   onBulkTier,
@@ -23,6 +24,10 @@ export default function EditToolbar({
   onCancel,
   onSave,
 }: {
+  /** Pushes the fixed toolbar below a rendered top dock so strip members
+   *  stay reachable during a session (owner-reported 2026-08-18: the
+   *  toolbar sat over the top-docked Bookmarks). */
+  topOffset?: number
   session: EditSession
   /** Widgets hidden in the edited layout (review fix I2): each gets a Show
    *  control so Hide is never a dead end. */
@@ -37,7 +42,12 @@ export default function EditToolbar({
 }) {
   const button = 'rounded-md border border-control-border bg-control-bg px-2.5 py-1 text-xs font-medium text-fg transition-colors hover:bg-control-bg-hover disabled:cursor-not-allowed disabled:opacity-50'
   return (
-    <div role="toolbar" aria-label="Edit layout" className="edit-toolbar">
+    <div
+      role="toolbar"
+      aria-label="Edit layout"
+      className="edit-toolbar"
+      style={topOffset !== undefined ? { top: topOffset } : undefined}
+    >
       <label className="flex items-center gap-1.5 text-xs text-fg-muted">
         Layout
         <select
@@ -54,6 +64,10 @@ export default function EditToolbar({
         </select>
       </label>
       <span role="group" aria-label="Set all widgets to" className="flex items-center gap-1">
+        {/* The visible label is load-bearing (owner-reported 2026-08-18):
+            without it these read as the SELECTED widget's size and the bulk
+            re-tier looks like the wrong widget changing. */}
+        <span className="text-xs text-fg-muted">All widgets</span>
         {WIDGET_TIERS.map((tier) => (
           <button key={tier} type="button" className={button} onClick={() => onBulkTier(tier)}>
             {TIER_LABELS[tier]}
