@@ -110,7 +110,7 @@ export default function Widgets({
 
   return (
     <Section title="Widgets">
-      <div data-widget-toggle-groups="" className="space-y-4">
+      <div data-widget-toggle-groups="" data-settings-anchor="widgets" tabIndex={-1} className="space-y-4">
         {WIDGET_GROUPS.map((group) => (
           <section key={group.title} aria-label={group.title}>
             <h4 className="mb-1.5 text-xs font-medium text-fg">{group.title}</h4>
@@ -121,6 +121,8 @@ export default function Widgets({
               {group.widgets.map(([key, widgetLabel]) => (
                 <div
                   key={key}
+                  data-settings-anchor={key}
+                  tabIndex={-1}
                   className="flex min-h-10 items-center justify-between gap-3 rounded-lg px-2 py-0.5 transition-colors hover:bg-control-bg/60"
                 >
                   <label htmlFor={`w-${key}`} className={label}>

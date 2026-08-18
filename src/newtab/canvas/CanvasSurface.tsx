@@ -18,6 +18,11 @@ interface CanvasSurfaceProps {
   entries: readonly WidgetRegistryEntry[]
   viewport: { width: number; height: number }
   elevatedIds?: ReadonlySet<WidgetRegistryEntry['id']>
+  /** Hover chrome for ANCHORED items only (spec 2.5); strips and the narrow
+   *  stack stay chrome-free. */
+  chrome?: 'none' | 'normal' | 'editing'
+  onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
+  onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize) => ReactNode
 }
@@ -27,6 +32,9 @@ export default function CanvasSurface({
   entries,
   viewport,
   elevatedIds,
+  chrome = 'none',
+  onGripPointerDown,
+  onGearClick,
   onItemGeometryChange,
   renderWidget,
 }: CanvasSurfaceProps) {
@@ -62,6 +70,9 @@ export default function CanvasSurface({
         entry={entry}
         item={item}
         className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
+        chrome={item.mode === 'anchored' ? chrome : 'none'}
+        onGripPointerDown={onGripPointerDown}
+        onGearClick={onGearClick}
         onGeometryChange={onItemGeometryChange}
       >
         {renderWidget(entry, size)}

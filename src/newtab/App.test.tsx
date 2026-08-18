@@ -490,6 +490,17 @@ describe('App Canvas composition', () => {
     expect(document.activeElement).toBe(notes)
   })
 
+  it('the gear on a widget opens Settings focused on that widget\'s own section (spec 2.5)', async () => {
+    await renderApp()
+
+    fireEvent.click(within(canvasItem('weather')).getByRole('button', { name: 'Weather settings' }))
+    await act(async () => {})
+
+    expect(screen.getByRole('tab', { name: 'Widgets', selected: true })).toBeTruthy()
+    await act(async () => { await new Promise((resolve) => requestAnimationFrame(resolve)) })
+    expect(document.activeElement?.closest('[data-settings-anchor="weather"]')).toBeTruthy()
+  })
+
   // The Arrange artboard, its inspector, and the Use-Desktop-everywhere
   // preview were deleted with the named-layouts rebuild (NL-P2, spec §3);
   // live on-page editing arrives in NL-P3.

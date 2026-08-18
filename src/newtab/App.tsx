@@ -43,6 +43,9 @@ export default function App() {
   const [layouts] = useStoredKey('layouts')
   const [connectors] = useStoredKey('connectors')
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsFocusAnchor, setSettingsFocusAnchor] = useState<
+    { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
+  >(null)
   const [utilityTrayOpen, setUtilityTrayOpen] = useState(false)
   const [activeUtilityTool, setActiveUtilityTool] = useState<UtilityToolId | null>(null)
   const [utilityTrayHost, setUtilityTrayHost] = useState<HTMLDivElement | null>(null)
@@ -127,6 +130,22 @@ export default function App() {
     [connectors, inputsReady, settings],
   )
   const enabledBlockIds = useMemo(() => activeEntries.map((entry) => entry.id), [activeEntries])
+
+  // The gear on a widget's hover chrome (named-layouts spec 2.5): Settings
+  // opens focused on that widget's own section. Connector-backed widgets
+  // land on their Connectors card; toggle-backed widgets on their Widgets
+  // row; always-on widgets on the Widgets group.
+  const openSettingsForWidget = useCallback((id: BlockId) => {
+    const entry = activeEntries.find((candidate) => candidate.id === id)
+    const availability = entry?.availability
+    const target = availability?.kind === 'connector'
+      ? { tab: 'connectors' as const, anchor: availability.id }
+      : availability?.kind === 'widget'
+        ? { tab: 'widgets' as const, anchor: availability.key }
+        : { tab: 'widgets' as const, anchor: 'widgets' }
+    setSettingsFocusAnchor((previous) => ({ ...target, nonce: (previous?.nonce ?? 0) + 1 }))
+    requestSettingsOpen()
+  }, [activeEntries, requestSettingsOpen])
   // The resolved named-layouts document: a valid stored document wins; until
   // the first explicit save (NL-P3 switcher) the in-memory "My layout" is
   // derived from the legacy stored layout through the frozen migration
@@ -192,6 +211,8 @@ export default function App() {
           entries={activeEntries}
           viewport={viewport}
           elevatedIds={elevatedIds}
+          chrome="normal"
+          onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}
         />
 
@@ -226,7 +247,7 @@ export default function App() {
         </button>
         <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
           <DrawerBoundary open={settingsOpen}>
-            <SettingsPanel open={settingsOpen} />
+            <SettingsPanel open={settingsOpen} focusAnchor={settingsFocusAnchor} />
           </DrawerBoundary>
         </Drawer>
         <WidgetBoundary name="palette">

@@ -38,8 +38,13 @@ export default function SettingsPanel({
   // every OTHER test/call site that doesn't care about this specific
   // behavior doesn't need to pass it; App always passes the real value.
   open = true,
+  focusAnchor = null,
 }: {
   open?: boolean
+  /** Deep link from a widget's gear (named-layouts spec 2.5): on nonce
+   *  change, activate the tab and move focus to the matching
+   *  [data-settings-anchor] element. */
+  focusAnchor?: { tab: 'widgets' | 'connectors'; anchor: string; nonce: number } | null
 }) {
   const storage = useStorage()
   // Which tab's sections are mounted. Deliberately NOT persisted anywhere: a
@@ -49,6 +54,21 @@ export default function SettingsPanel({
   // — see Layout.tsx's `open` prop, which exists for exactly that reason), so
   // this state is never torn down between opens.
   const [tab, setTab] = useState<TabId>('general')
+
+  useEffect(() => {
+    if (!focusAnchor) return
+    setTab(focusAnchor.tab === 'connectors' && isPremium() ? 'connectors' : 'widgets')
+    // The tab's sections mount on the next render; focus once they exist.
+    const frame = requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(
+        `[data-settings-anchor="${focusAnchor.anchor}"]`,
+      )
+      if (!target) return
+      target.scrollIntoView({ block: 'center' })
+      target.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusAnchor])
   const [settings, save] = useStoredKey('settings')
   const [photoPrefs] = useStoredKey('photoPrefs')
   const [location] = useStoredKey('location')

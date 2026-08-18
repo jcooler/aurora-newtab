@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WIDGET_REGISTRY_BY_ID } from '../widgetRegistry'
 import CanvasItem from './CanvasItem'
@@ -59,6 +59,38 @@ describe('CanvasItem', () => {
     expect(item.dataset.canvasMode).toBe('stacked')
     expect(item.dataset.canvasSize).toBe('standard')
     expect(item.style.position).toBe('relative')
+  })
+
+  it('renders hover chrome (grip + gear) only in normal chrome mode and forwards events', () => {
+    const onGearClick = vi.fn()
+    const onGripPointerDown = vi.fn()
+    const { rerender } = render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.clock}
+        item={{ id: 'clock', mode: 'anchored', leftPct: 50, topPct: 20, tier: 'full', layer: 0 }}
+        chrome="normal"
+        onGearClick={onGearClick}
+        onGripPointerDown={onGripPointerDown}
+      >
+        <span>Clock content</span>
+      </CanvasItem>,
+    )
+    const grip = screen.getByRole('button', { name: 'Move Clock' })
+    fireEvent.pointerDown(grip)
+    expect(onGripPointerDown).toHaveBeenCalledWith('clock', expect.anything())
+    fireEvent.click(screen.getByRole('button', { name: 'Clock settings' }))
+    expect(onGearClick).toHaveBeenCalledWith('clock')
+
+    rerender(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.clock}
+        item={{ id: 'clock', mode: 'anchored', leftPct: 50, topPct: 20, tier: 'full', layer: 0 }}
+      >
+        <span>Clock content</span>
+      </CanvasItem>,
+    )
+    expect(screen.queryByRole('button', { name: 'Move Clock' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Clock settings' })).toBeNull()
   })
 
   it('publishes and withdraws geometry through onGeometryChange', () => {

@@ -87,6 +87,48 @@
   z-index: 50 !important;
 }
 
+/* Hover chrome (named-layouts spec 2.5): the grip and gear fade in on hover
+   or keyboard focus and never affect the widget's own hit area or layout —
+   absolutely positioned above the top-right corner of the content box. */
+.canvas-item-chrome {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  z-index: 1;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.canvas-item:hover > .canvas-item-chrome,
+.canvas-item:focus-within > .canvas-item-chrome {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .canvas-item-chrome { transition: none; }
+}
+.canvas-item-chrome__button {
+  display: flex;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 1px solid var(--control-border);
+  background: var(--panel-solid);
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.canvas-item-chrome__button:hover {
+  color: var(--fg);
+}
+.canvas-item-chrome__button[aria-label^="Move "] {
+  cursor: grab;
+  touch-action: none;
+}
+
 .canvas-bottom-bar {
   position: fixed;
   z-index: 30;

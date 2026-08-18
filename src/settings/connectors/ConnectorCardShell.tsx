@@ -41,6 +41,8 @@ export default function ConnectorCardShell({
   return (
     <article
       data-connector-card={id}
+      data-settings-anchor={id}
+      tabIndex={-1}
       data-connector-state={presentation.state}
       className="rounded-xl border border-control-border bg-control-bg/20 p-3"
     >
