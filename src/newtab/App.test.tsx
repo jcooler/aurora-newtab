@@ -587,6 +587,28 @@ describe('App Canvas composition', () => {
     expect((await storage.get('settings')).widgets.weather).toBe(true)
   })
 
+  it('the badge switches and creates layouts with single validated writes of only the layouts key (spec 2.1)', async () => {
+    const storage = await renderApp()
+    const setSpy = vi.spyOn(storage, 'set')
+    const clockBefore = itemPoint('clock')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Layout: My layout' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New layout' }))
+    await act(async () => {})
+
+    expect(setSpy.mock.calls.every(([key]) => key === 'layouts')).toBe(true)
+    expect(setSpy).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Layout: Layout 2' })).toBeTruthy()
+    // The new layout renders the designed defaults; switching back restores
+    // the original placements exactly.
+    fireEvent.click(screen.getByRole('button', { name: 'Layout: Layout 2' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'My layout' }))
+    await act(async () => {})
+    expect(screen.getByRole('button', { name: 'Layout: My layout' })).toBeTruthy()
+    expect(itemPoint('clock')).toEqual(clockBefore)
+    expect(setSpy.mock.calls.every(([key]) => key === 'layouts')).toBe(true)
+  })
+
   it('the gear on a widget opens Settings focused on that widget\'s own section (spec 2.5)', async () => {
     await renderApp()
 

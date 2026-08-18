@@ -154,6 +154,46 @@
   outline-offset: 2px;
 }
 
+/* The layout badge and its switcher menu (spec 2.1), sitting with the fixed
+   utility cluster. */
+.layout-badge-host {
+  position: fixed;
+  z-index: 30;
+  right: 108px;
+  bottom: 16px;
+}
+.layout-badge {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid var(--control-border);
+  background: var(--panel-solid);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-muted);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+  cursor: pointer;
+}
+.layout-badge:hover {
+  color: var(--fg);
+}
+.layout-badge-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: flex;
+  min-width: 180px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-panel);
+  background: var(--panel-solid);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
 /* Dashed expansion footprint (spec 2.6): advisory edit-mode chrome for
    expandable widgets, pointer-transparent, never a placement restriction. */
 .canvas-item-footprint {

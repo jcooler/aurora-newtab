@@ -21,7 +21,8 @@ import {
 import WidgetInspector from './edit/WidgetInspector'
 import { useCanvasDrag } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
-import { switchActiveLayout } from '../lib/layout/layoutOperations'
+import { createLayout, saveLayoutsDocument, switchActiveLayout } from '../lib/layout/layoutOperations'
+import LayoutBadge from './edit/LayoutBadge'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
 import { useDialogEscape } from '../lib/dialogStack'
 import { isPremium } from '../lib/premium'
@@ -328,6 +329,25 @@ export default function App() {
           onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}
         />
+        {!session && layoutsDocument && isPremium() ? (
+          <LayoutBadge
+            document={layoutsDocument}
+            onSwitch={(layoutId) => {
+              // Explicit user switching (spec 2.1): instant, cannot lose or
+              // alter data — one validated write of the layouts key.
+              void saveLayoutsDocument(storage, switchActiveLayout(layoutsDocument, layoutId))
+            }}
+            onEdit={(invoker) => editMode.begin(invoker)}
+            onNew={() => {
+              const name = `Layout ${layoutsDocument.layouts.length + 1}`
+              const id = crypto.randomUUID()
+              void saveLayoutsDocument(
+                storage,
+                switchActiveLayout(createLayout(layoutsDocument, { id, name }), id),
+              )
+            }}
+          />
+        ) : null}
         {session ? <div className="edit-scrim" aria-hidden /> : null}
         {session && session.selectedId ? (() => {
           const selectedId = session.selectedId
@@ -403,7 +423,7 @@ export default function App() {
         </button>
         <Drawer open={settingsOpen} onClose={() => setSettingsOpen(false)} title="Settings">
           <DrawerBoundary open={settingsOpen}>
-            <SettingsPanel open={settingsOpen} focusAnchor={settingsFocusAnchor} />
+            <SettingsPanel open={settingsOpen} focusAnchor={settingsFocusAnchor} layoutsDocument={layoutsDocument} />
           </DrawerBoundary>
         </Drawer>
         <WidgetBoundary name="palette">

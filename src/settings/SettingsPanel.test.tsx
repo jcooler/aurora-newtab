@@ -2558,6 +2558,44 @@ describe('SettingsPanel Layout section (arrange entry + reset)', () => {
     expect(set).toHaveBeenCalledOnce()
   })
 
+  it('manages named layouts with single validated writes of only the layouts key (NL-P3, spec 2.1)', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const layoutsDocument = {
+      version: 1 as const,
+      activeLayoutId: 'a',
+      layouts: [
+        { id: 'a', name: 'My layout', widgets: {} },
+        { id: 'b', name: 'Laptop', widgets: {} },
+      ],
+    }
+    const set = vi.spyOn(storage, 'set')
+    render(
+      <StorageProvider storage={storage}>
+        <SettingsPanel layoutsDocument={layoutsDocument} />
+      </StorageProvider>,
+    )
+    await screen.findByLabelText('Your name')
+    await openLayoutTab()
+    const management = document.querySelector('[data-layouts-management]') as HTMLElement
+
+    // Rename with trimming through the pure operation.
+    fireEvent.click(within(management).getAllByRole('button', { name: 'Rename' })[1])
+    fireEvent.change(within(management).getByRole('textbox', { name: 'Rename Laptop' }), { target: { value: '  Travel  ' } })
+    fireEvent.click(within(management).getByRole('button', { name: 'Save name' }))
+    await act(async () => {})
+    expect((await storage.get('layouts'))?.layouts[1].name).toBe('Travel')
+
+    // Delete requires the two-step confirm and moves through deleteLayout.
+    fireEvent.click(within(management).getByRole('button', { name: 'Delete Laptop' }))
+    fireEvent.click(within(management).getByRole('button', { name: 'Confirm delete' }))
+    await act(async () => {})
+    expect((await storage.get('layouts'))?.layouts.map((layout: { id: string }) => layout.id)).toEqual(['a'])
+
+    // Every write touched only the layouts key.
+    expect(set.mock.calls.every(([key]) => key === 'layouts')).toBe(true)
+  })
+
   // The Arrange artboard entry point was deleted with the named-layouts
   // rebuild (NL-P2, spec §3); live on-page editing arrives in NL-P3.
 
