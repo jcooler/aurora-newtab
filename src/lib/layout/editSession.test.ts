@@ -5,6 +5,7 @@ import {
   beginEditSession,
   hideSelected,
   moveSelected,
+  moveSelectedLive,
   nudgeSelected,
   resetSession,
   restoreSelectedDefaults,
@@ -62,6 +63,18 @@ describe('move, nudge, tier, layer', () => {
     expect(session.dirty).toBe(true)
     expect(session.past).toHaveLength(1)
     expect(undo(session).dirty).toBe(false)
+  })
+
+  it('moveSelectedLive streams a drag through ONE undo entry', () => {
+    let session = selectWidget(fresh(), 'clock')
+    session = moveSelected(session, { xPct: 30, yPct: 30 })   // drag start: pushes
+    session = moveSelectedLive(session, { xPct: 31, yPct: 31 })
+    session = moveSelectedLive(session, { xPct: 40, yPct: 55 })
+    expect(session.past).toHaveLength(1)
+    const clock = activeDraftLayout(session).widgets.clock as FreeWidgetPlacement
+    expect(pointFromFreePlacement(clock)).toEqual({ x: 40, y: 55 })
+    const undone = undo(session)
+    expect(undone.dirty).toBe(false)
   })
 
   it('nudgeSelected moves by percent deltas and is identity without a selection', () => {

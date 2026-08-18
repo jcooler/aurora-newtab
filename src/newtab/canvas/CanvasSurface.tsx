@@ -11,6 +11,8 @@ import type { NamedLayout } from '../../lib/layout/namedLayouts'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import CanvasItem from './CanvasItem'
 import CanvasLegibilityLayer from './CanvasLegibilityLayer'
+import GuideOverlay from '../edit/GuideOverlay'
+import type { CanvasGuide } from '../arrange/canvasSnap'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
 
 interface CanvasSurfaceProps {
@@ -22,6 +24,7 @@ interface CanvasSurfaceProps {
    *  stack stay chrome-free. */
   chrome?: 'none' | 'normal' | 'editing'
   selectedId?: WidgetRegistryEntry['id'] | null
+  guides?: readonly CanvasGuide[]
   onSelectItem?: (id: WidgetRegistryEntry['id']) => void
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
@@ -36,6 +39,7 @@ export default function CanvasSurface({
   elevatedIds,
   chrome = 'none',
   selectedId = null,
+  guides = [],
   onSelectItem,
   onGripPointerDown,
   onGearClick,
@@ -100,6 +104,7 @@ export default function CanvasSurface({
       >
         <CanvasLegibilityLayer />
         {plan.narrow ? stacked.map(renderItem) : anchored.map(renderItem)}
+        <GuideOverlay guides={guides} />
       </section>
       {bottomDock.length > 0 ? (
         <nav aria-label="Bottom bar" className="canvas-bottom-bar">{bottomDock.map(renderItem)}</nav>

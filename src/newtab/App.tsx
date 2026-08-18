@@ -7,10 +7,15 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  moveSelected,
+  moveSelectedLive,
   nudgeSelected,
   resetSession,
+  selectWidget,
   undo,
 } from '../lib/layout/editSession'
+import { useCanvasDrag } from './edit/useCanvasDrag'
+import { useLongPress } from './arrange/useLongPress'
 import { switchActiveLayout } from '../lib/layout/layoutOperations'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
 import { useDialogEscape } from '../lib/dialogStack'
@@ -178,6 +183,35 @@ export default function App() {
 
   const editMode = useEditMode({ document: layoutsDocument, enabledIds: enabledBlockIds, storage })
   const session = editMode.session
+  const sessionLiveRef = useRef(false)
+  sessionLiveRef.current = session !== null
+
+  const itemRectsRef = useRef(new Map<BlockId, DOMRectReadOnly>())
+  const onItemGeometryChange = useCallback((id: BlockId, rect: DOMRectReadOnly | null) => {
+    if (rect) itemRectsRef.current.set(id, rect)
+    else itemRectsRef.current.delete(id)
+  }, [])
+
+  const drag = useCanvasDrag({
+    getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
+    getItemRects: () => itemRectsRef.current,
+    onPreviewMove: (id, point, first) => {
+      editMode.dispatch((current) => (
+        first
+          ? moveSelected(selectWidget(current, id), point)
+          : moveSelectedLive(selectWidget(current, id), point)
+      ))
+    },
+    onDrop: () => {},
+  })
+
+  // Touch long-press enters the edit session and takes over the drag
+  // (spec 2.5) — the retained document-level detector, premium-gated.
+  useLongPress((blockId, event) => {
+    if (!sessionLiveRef.current) editMode.begin(null)
+    editMode.select(blockId)
+    drag.startDrag(blockId, event)
+  })
 
   // Escape cancels the edit session exactly (spec 2.5), through the shared
   // dialog stack so it composes with every other Escape consumer.
@@ -273,11 +307,18 @@ export default function App() {
           elevatedIds={elevatedIds}
           chrome={session ? 'editing' : 'normal'}
           selectedId={session?.selectedId ?? null}
+          guides={drag.guides}
           onSelectItem={editMode.select}
+          onItemGeometryChange={onItemGeometryChange}
           onGripPointerDown={(id, event) => {
             event.preventDefault()
             if (!session) editMode.begin(event.currentTarget as HTMLElement)
             editMode.select(id)
+            drag.startDrag(id, {
+              clientX: event.clientX,
+              clientY: event.clientY,
+              pointerId: event.pointerId,
+            })
           }}
           onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}

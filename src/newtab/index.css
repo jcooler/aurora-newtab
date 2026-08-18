@@ -154,6 +154,29 @@
   outline-offset: 2px;
 }
 
+/* Magnetic alignment guides (spec 2.5): surface-local hairlines. */
+.edit-guides {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  pointer-events: none;
+}
+.edit-guide {
+  position: absolute;
+  background: var(--accent);
+  opacity: 0.7;
+}
+.edit-guide[data-axis="x"] {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.edit-guide[data-axis="y"] {
+  right: 0;
+  left: 0;
+  height: 1px;
+}
+
 .edit-toolbar {
   position: fixed;
   z-index: 60;
