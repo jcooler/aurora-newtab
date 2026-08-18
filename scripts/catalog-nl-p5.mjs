@@ -84,8 +84,6 @@ const CODED_DOCK_LINES = new Set([
   'github', 'gitlab', 'jira', 'vercel', 'status', 'rss', 'crypto', 'homeassistant', 'ics', 'habits',
 ])
 
-const CONNECTOR_IDS = ['ics', 'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto']
-
 const BATCH = batch === '2' ? BATCH_2 : BATCH_1
 
 const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [] }
@@ -193,7 +191,7 @@ const captureWidget = async ({ id, tiers }) => {
   for (const tier of tiers) {
     const name = `${id}-${tier}`
     const toggleKey = { tasks: 'todo', worldClocks: 'clocks' }[id] ?? id
-    await page.evaluate(async ({ id, tier, toggleKey, connectorIds, isBatch2 }) => {
+    await page.evaluate(async ({ id, tier, toggleKey, isBatch2 }) => {
       const stored = await chrome.storage.local.get(['settings', 'informationFirstFixture'])
       const settings = stored.settings
       const widgets = Object.fromEntries(Object.keys(settings.widgets).map((key) => [key, false]))
@@ -228,7 +226,7 @@ const captureWidget = async ({ id, tiers }) => {
         layouts: [{ id: 'catalog', name: 'Catalog', widgets: { ...parked, [id]: placement } }],
       }
       await chrome.storage.local.set(patch)
-    }, { id, tier, toggleKey, connectorIds: CONNECTOR_IDS, isBatch2: batch === '2' })
+    }, { id, tier, toggleKey, isBatch2: batch === '2' })
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('[data-canvas-surface]')
     await page.waitForTimeout(450)
