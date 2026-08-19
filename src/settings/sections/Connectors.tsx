@@ -1145,7 +1145,8 @@ const CRYPTO_ORIGIN_URL = 'https://api.coingecko.com/api/v3/'
 // to validate against (auth 'none'), so this is the one and only check a
 // bad id ever gets before it's persisted and handed to fetchCrypto.
 const CRYPTO_ID_RE = /^[a-z0-9-]+$/
-const CRYPTO_MIN_COINS = 2
+// 1, not 2 (owner 2026-08-18: "sometimes people just want one").
+const CRYPTO_MIN_COINS = 1
 const CRYPTO_MAX_COINS = 5
 
 // The Crypto connector's card body — a PICKLIST (owner direction 2026-08-18:

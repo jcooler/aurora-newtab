@@ -4446,18 +4446,21 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect(screen.queryByRole('alert')).toBeNull()
   })
 
-  it('fewer than 2 picks is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+  it('a SINGLE coin saves (owner 2026-08-18: "sometimes people just want one"); zero picks is rejected', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+    expect(ensureOrigin).not.toHaveBeenCalled()
+    expect((await screen.findByRole('alert')).textContent).toMatch(/1 to 5/)
 
     await act(async () => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
-
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/2 to 5/)
-    expect((await readCrypto(storage))?.coins).toEqual([])
+    expect(await readCrypto(storage)).toEqual({ enabled: true, coins: ['bitcoin'] })
   })
 
   it('the sixth pick is impossible: at the 5-coin cap every unchecked box is disabled', async () => {
