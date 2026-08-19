@@ -67,3 +67,5 @@ output/
 .qa-nl-p6-*
 .playwright-profile-qa-nl-p6/
 .playwright-profile-qa-nl-p6-window/
+
+.playwright-profile-measure/
