@@ -3014,7 +3014,7 @@ describe('Connectors tab — search and categories', () => {
       id: 'crypto',
       label: 'Crypto',
       config: { enabled: true, coins: ['bitcoin', 'ethereum'] },
-      field: 'Coins (CoinGecko ids, comma-separated)',
+      field: 'Other CoinGecko id (optional)',
     },
     {
       id: 'ics',
@@ -4413,43 +4413,44 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect(screen.queryByRole('switch', { name: 'Show Crypto on Canvas' })).toBeNull()
     expect(screen.queryByText(/Connected as/)).toBeNull()
     expect(screen.queryByText('Reconnect needed')).toBeNull()
-    expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Bitcoin (BTC)' })).toBeNull()
   })
 
-  it('opening Crypto setup writes nothing and reveals an empty input', async () => {
+  it('opening Crypto setup writes nothing and reveals the picklist with nothing checked', async () => {
     const storage = await renderWithCrypto()
     fireEvent.click(screen.getByRole('button', { name: 'Set up Crypto' }))
 
     expect(await readCrypto(storage)).toBeUndefined()
-    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe('')
+    const bitcoin = screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement
+    expect(bitcoin.checked).toBe(false)
+    expect(screen.getAllByRole('checkbox').length).toBeGreaterThanOrEqual(20)
   })
 
-  it('save happy path: validates, requests api.coingecko.com, then persists the parsed/normalized ids', async () => {
+  it('save happy path: picked coins persist in SELECTION order after requesting api.coingecko.com', async () => {
     vi.mocked(ensureOrigin).mockResolvedValue(true)
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
-    const input = screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement
     await act(async () => {
-      fireEvent.change(input, { target: { value: ' Bitcoin, ETHEREUM ,,dogecoin' } })
+      // Click order is display order — ethereum first on purpose.
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Dogecoin (DOGE)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
     expect(ensureOrigin).toHaveBeenCalledWith('https://api.coingecko.com/*')
     expect(await readCrypto(storage)).toEqual({
       enabled: true,
-      coins: ['bitcoin', 'ethereum', 'dogecoin'],
+      coins: ['ethereum', 'bitcoin', 'dogecoin'],
     })
     expect(screen.queryByRole('alert')).toBeNull()
-    expect(input.value).toBe('bitcoin, ethereum, dogecoin') // normalized back into the field
   })
 
-  it('fewer than 2 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
+  it('fewer than 2 picks is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -4459,36 +4460,55 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect((await readCrypto(storage))?.coins).toEqual([])
   })
 
-  it('more than 5 ids is rejected with an alert naming the rule; ensureOrigin is never called', async () => {
-    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+  it('the sixth pick is impossible: at the 5-coin cap every unchecked box is disabled', async () => {
+    await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'a,b,c,d,e,f' },
-      })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      for (const name of ['Bitcoin (BTC)', 'Ethereum (ETH)', 'Solana (SOL)', 'XRP (XRP)', 'Dogecoin (DOGE)']) {
+        fireEvent.click(screen.getByRole('checkbox', { name }))
+      }
     })
 
-    expect(ensureOrigin).not.toHaveBeenCalled()
-    const alert = await screen.findByRole('alert')
-    expect(alert.textContent).toMatch(/2 to 5/)
-    expect((await readCrypto(storage))?.coins).toEqual([])
+    const cardano = screen.getByRole('checkbox', { name: 'Cardano (ADA)' }) as HTMLInputElement
+    expect(cardano.disabled).toBe(true)
+    // A CHECKED box stays enabled so the cap can always be undone.
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).disabled).toBe(false)
   })
 
-  it('an id with an invalid character is rejected with an alert naming the offending id; ensureOrigin is never called', async () => {
+  it('a custom id with an invalid character is rejected with an alert naming it; nothing is added', async () => {
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, bit_coin' }, // underscore is not in [a-z0-9-]
+      fireEvent.change(screen.getByLabelText('Other CoinGecko id (optional)'), {
+        target: { value: 'bit_coin' }, // underscore is not in [a-z0-9-]
       })
-      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     })
 
     expect(ensureOrigin).not.toHaveBeenCalled()
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('bit_coin')
+    expect(screen.queryByRole('checkbox', { name: 'bit_coin (custom)' })).toBeNull()
     expect((await readCrypto(storage))?.coins).toEqual([])
+  })
+
+  it('a valid custom id joins the selection as its own checked row', async () => {
+    vi.mocked(ensureOrigin).mockResolvedValue(true)
+    const storage = await renderWithCrypto({ enabled: true, coins: [] })
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.change(screen.getByLabelText('Other CoinGecko id (optional)'), {
+        target: { value: 'render-token' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    })
+    expect((screen.getByRole('checkbox', { name: 'render-token (custom)' }) as HTMLInputElement).checked).toBe(true)
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    })
+    expect((await readCrypto(storage))?.coins).toEqual(['bitcoin', 'render-token'])
   })
 
   it('a denied origin grant blocks the save: nothing is persisted', async () => {
@@ -4496,9 +4516,8 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     const storage = await renderWithCrypto({ enabled: true, coins: [] })
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, ethereum' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -4522,9 +4541,8 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     }) as AuroraStorage['update']
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, ethereum' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -4545,9 +4563,8 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     }) as AuroraStorage['update']
 
     await act(async () => {
-      fireEvent.change(screen.getByLabelText('Coins (CoinGecko ids, comma-separated)'), {
-        target: { value: 'bitcoin, ethereum' },
-      })
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }))
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
     })
 
@@ -4555,11 +4572,11 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     expect(removeOrigin).not.toHaveBeenCalled()
   })
 
-  it('when already configured, the input shows the current ids joined', async () => {
-    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
-    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
-      'bitcoin, ethereum',
-    )
+  it('when already configured, the saved coins render checked — a legacy typed id as its own custom row', async () => {
+    await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'render-token'] })
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'render-token (custom)' }) as HTMLInputElement).checked).toBe(true)
+    expect((screen.getByRole('checkbox', { name: 'Ethereum (ETH)' }) as HTMLInputElement).checked).toBe(false)
   })
 
   it('Clear empties the config entirely and revokes api.coingecko.com', async () => {
@@ -4588,9 +4605,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     })
 
     expect(await readCrypto(storage)).toEqual({ enabled: true, coins: ['bitcoin', 'ethereum'] })
-    expect((screen.getByLabelText('Coins (CoinGecko ids, comma-separated)') as HTMLInputElement).value).toBe(
-      'bitcoin, ethereum',
-    )
+    expect((screen.getByRole('checkbox', { name: 'Bitcoin (BTC)' }) as HTMLInputElement).checked).toBe(true)
     expect(removeOrigin).not.toHaveBeenCalled()
     expect((await screen.findByRole('alert')).textContent).toMatch(/couldn't clear crypto.*saved configuration/i)
   })
@@ -4635,7 +4650,7 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
     })
 
     expect(await readCrypto(storage)).toBeUndefined()
-    expect(screen.queryByLabelText('Coins (CoinGecko ids, comma-separated)')).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: 'Bitcoin (BTC)' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Retry permission cleanup' })).toBeTruthy()
 
     openTab('Data')

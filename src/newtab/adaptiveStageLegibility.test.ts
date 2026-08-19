@@ -138,27 +138,16 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
   // (the orphaned-container-token check above pins that). The NL-P5 tier
   // catalog owns any designed tiny-tier Month composition.
 
-  it.each(['compact', 'standard'] as const)('condenses %s Crypto only on the Board, never in Dock', (variant) => {
-    const firstHiddenCell = variant === 'compact' ? 2 : 3
-    const dockExemptSelector = `.canvas-item[data-canvas-size="${variant}"]:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span:nth-child(n + ${firstHiddenCell})`
-    expect(declarationBlock(dockExemptSelector)).toMatch(/display:\s*none\s*;/)
-    expect(indexCss).not.toContain(
-      `.canvas-item[data-canvas-size="${variant}"][data-block-id="crypto"] > section > div > span:nth-child(n + ${firstHiddenCell}) {`,
-    )
-  })
-
-  it('stacks complete 14px Board Crypto values inside their finite one-track allocation', () => {
-    expect(declarationBlock('.canvas-item:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div'))
-      .toMatch(/flex-direction:\s*column\s*;/)
-    const cell = declarationBlock('.canvas-item:not([data-canvas-mode="docked"])[data-block-id="crypto"] > section > div > span')
-    expect(cell).toMatch(/display:\s*grid\s*;/)
-    expect(cell).toMatch(/line-height:\s*20px\s*;/)
-  })
-
-  it('gives untruncated Dock Crypto glyphs a complete 20px line box without changing its row layout', () => {
-    const dockCell = declarationBlock('.canvas-item[data-canvas-mode="docked"][data-block-id="crypto"] > section > div > span')
-    expect(dockCell).toMatch(/line-height:\s*20px\s*;/)
-    expect(dockCell).not.toMatch(/display:\s*grid/)
+  it('the stacked/condensed board Crypto is fully retired: one quote-like line at every size (owner 2026-08-18)', () => {
+    // "Should show all [coins]... a string of text like the quote, not
+    // stacked on top of each other." No cell-hiding, no column stacking, no
+    // per-cell grid may survive; the one shared rule keeps the 20px line
+    // box that contains Chromium's 19px glyph ink.
+    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*span:nth-child\(n \+ \d\)/)
+    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*\{[^}]*flex-direction:\s*column/)
+    expect(indexCss).not.toMatch(/data-block-id="crypto"\][^{]*> span\s*\{[^}]*display:\s*grid/)
+    expect(declarationBlock('.canvas-item[data-block-id="crypto"] > section > div > span'))
+      .toMatch(/line-height:\s*20px\s*;/)
   })
 
   it('caps only the compact finite Board Clock by the short viewport block size', () => {

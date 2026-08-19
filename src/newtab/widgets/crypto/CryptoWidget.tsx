@@ -59,16 +59,11 @@ function CryptoInner({ crypto, canvasSize, docked }: { crypto: CryptoConfig; can
 
   return (
     // A slim floating STRIP, not a panel — no bg-panel-solid/shadow/rounded
-    // card surface (unlike GithubWidget/VercelWidget/etc.): the fixed width
-    // here (w-88 = 22rem) sizes the strip itself. Centering is NOT this
-    // widget's or the PositionedBlock className's job anymore — it comes
-    // from the bottom band's own `<aside data-zone="bottom">` (App.tsx:
-    // `flex w-fit flex-col items-center gap-2`), whose `items-center`
-    // centers this strip (and the quote below it) as flex children. The
-    // crypto PositionedBlock's className now carries only the `hidden
-    // taller:block` height-tier gate — see App.tsx's own comment on the
-    // crypto PositionedBlock for the tier rationale.
-    <section aria-label="Crypto" data-canvas-size={canvasSize} className="w-88 text-center">
+    // card surface (unlike GithubWidget/VercelWidget/etc.). Content-tight
+    // (owner direction 2026-08-18: EVERY selected coin on one quote-like
+    // line): the strip is exactly as wide as its one row of cells — the old
+    // fixed w-88 forced five cells to overflow a 22rem box.
+    <section aria-label="Crypto" data-canvas-size={canvasSize} className="w-max max-w-[100vw] text-center">
       {empty ? (
         <p className="text-photo text-sm text-canvas-fg-muted">No prices right now.</p>
       ) : (

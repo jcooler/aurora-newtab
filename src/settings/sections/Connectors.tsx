@@ -13,6 +13,7 @@ import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, MAX_CALENDARS } from '../../services/connectors/ics'
 import { CALENDAR_COLORS, calendarColorClass, calendarColorOf, isCalendarColor, type CalendarColor } from '../../services/connectors/calendarColors'
 import { CURATED_STATUS, MAX_SERVICES, statusServicesOf } from '../../services/connectors/status'
+import { CRYPTO_CATALOG, CRYPTO_CATALOG_IDS } from '../../services/connectors/cryptoCatalog'
 import {
   whoamiHomeAssistant,
   fetchAllStates,
@@ -1147,23 +1148,13 @@ const CRYPTO_ID_RE = /^[a-z0-9-]+$/
 const CRYPTO_MIN_COINS = 2
 const CRYPTO_MAX_COINS = 5
 
-/** 'bitcoin, ETH , ,dogecoin' -> ['bitcoin', 'eth', 'dogecoin'] — split on
- *  commas, trim, lowercase, drop empties. Pure (no validation here; the
- *  count/shape checks happen at the call site so their error messages can
- *  name the exact rule that failed). */
-function parseCoinIds(raw: string): string[] {
-  return raw
-    .split(',')
-    .map((id) => id.trim().toLowerCase())
-    .filter((id) => id.length > 0)
-}
-
-// The Crypto connector's card body — the first NO-AUTH connector body since
-// RSS's own (Task 44): no TokenConnectForm here at all (that component's
-// whole shape is built around a token + a whoami validate() round-trip,
-// neither of which a no-auth connector has), just one labelled text input
-// (CoinGecko ids, comma-separated) and a Save button, closest in spirit to
-// RssBody's own handleAddFeed above.
+// The Crypto connector's card body — a PICKLIST (owner direction 2026-08-18:
+// "picklists for this data, not typing them in comma separated"): the
+// curated CRYPTO_CATALOG renders as checkboxes, selection ORDER is display
+// order, and any saved id outside the catalog appears as a removable
+// "(custom)" entry so hand-configured or backup-restored coins are never
+// lost. A small secondary input still adds one uncatalogued CoinGecko id at
+// a time for power users — additive, never comma-parsed.
 function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this
@@ -1173,9 +1164,37 @@ function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: Body
   const crypto = config as CryptoConfig | undefined
   const coins = Array.isArray(crypto?.coins) ? crypto.coins : []
 
-  const [value, setValue] = useState(() => coins.join(', '))
+  // Selection order IS display order, so state is an array, not a Set.
+  const [selected, setSelected] = useState<string[]>(() => [...coins])
+  const [customDraft, setCustomDraft] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+
+  const atCap = selected.length >= CRYPTO_MAX_COINS
+  const toggle = (id: string) => {
+    setError(null)
+    setSelected((previous) => (
+      previous.includes(id)
+        ? previous.filter((existing) => existing !== id)
+        : atCap ? previous : [...previous, id]
+    ))
+  }
+  // Saved ids the catalog doesn't know (typed in the comma era, restored
+  // from a backup, or added below) — rendered as their own checked rows.
+  const customSelected = selected.filter((id) => !CRYPTO_CATALOG_IDS.has(id))
+
+  function handleAddCustom() {
+    const id = customDraft.trim().toLowerCase()
+    if (id.length === 0) return
+    if (!CRYPTO_ID_RE.test(id)) {
+      setError(`"${id}" isn't a valid CoinGecko id — use only lowercase letters, numbers, and hyphens.`)
+      return
+    }
+    if (selected.includes(id) || atCap) return
+    setError(null)
+    setSelected((previous) => [...previous, id])
+    setCustomDraft('')
+  }
 
   async function handleSave(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -1187,14 +1206,9 @@ function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: Body
     // the FIRST await in this handler, with ZERO awaits ahead of it, or the
     // gesture window chrome.permissions.request needs can close before the
     // call lands.
-    const ids = parseCoinIds(value)
+    const ids = selected
     if (ids.length < CRYPTO_MIN_COINS || ids.length > CRYPTO_MAX_COINS) {
-      setError(`Enter ${CRYPTO_MIN_COINS} to ${CRYPTO_MAX_COINS} CoinGecko ids, separated by commas.`)
-      return
-    }
-    const bad = ids.find((id) => !CRYPTO_ID_RE.test(id))
-    if (bad) {
-      setError(`"${bad}" isn't a valid CoinGecko id — use only lowercase letters, numbers, and hyphens.`)
+      setError(`Pick ${CRYPTO_MIN_COINS} to ${CRYPTO_MAX_COINS} coins.`)
       return
     }
 
@@ -1220,7 +1234,6 @@ function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: Body
         return
       }
 
-      setValue(ids.join(', '))
     } finally {
       setSaving(false)
     }
@@ -1234,7 +1247,7 @@ function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: Body
       setError("Couldn't clear Crypto because its saved configuration could not be updated. Please try again.")
       return
     }
-    setValue('')
+    setSelected([])
     setError(null)
     try {
       const cleanup = await releaseUnownedOrigins(storage, result.candidates)
@@ -1250,22 +1263,84 @@ function CryptoBody({ config, storage, reportPendingCleanup, closeEditor }: Body
       className="flex flex-col gap-2"
       onSubmit={(e) => void handleSave(e)}
     >
-      <div>
-        <label htmlFor="connector-crypto-coins" className="mb-1 block text-xs text-fg-muted">
-          Coins (CoinGecko ids, comma-separated)
-        </label>
-        <input
-          id="connector-crypto-coins"
-          type="text"
-          placeholder="bitcoin, ethereum"
-          value={value}
-          onChange={(e) => {
-            setValue(e.currentTarget.value)
-            setError(null)
-          }}
-          aria-describedby={error ? 'connector-crypto-error' : undefined}
-          className={`${control} w-full`}
-        />
+      <fieldset>
+        <legend className="mb-1 block text-xs text-fg-muted">
+          Coins · pick {CRYPTO_MIN_COINS} to {CRYPTO_MAX_COINS} · {selected.length} selected
+        </legend>
+        <div role="group" aria-label="Coins" className="grid grid-cols-2 gap-x-3 gap-y-1.5 sm:grid-cols-3">
+          {CRYPTO_CATALOG.map((entry) => {
+            const checked = selected.includes(entry.id)
+            return (
+              <label
+                key={entry.id}
+                className={`flex min-h-9 items-center gap-2 text-sm ${!checked && atCap ? 'opacity-50' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={!checked && atCap}
+                  onChange={() => toggle(entry.id)}
+                  aria-label={`${entry.name} (${entry.symbol})`}
+                  className="accent-[var(--accent)]"
+                />
+                <span className="min-w-0 truncate">
+                  <span className="font-medium">{entry.symbol}</span>
+                  <span className="text-fg-muted"> {entry.name}</span>
+                </span>
+              </label>
+            )
+          })}
+          {customSelected.map((id) => (
+            <label key={id} className="flex min-h-9 items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked
+                onChange={() => toggle(id)}
+                aria-label={`${id} (custom)`}
+                className="accent-[var(--accent)]"
+              />
+              <span className="min-w-0 truncate">
+                <span className="font-medium">{id}</span>
+                <span className="text-fg-muted"> custom</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <label htmlFor="connector-crypto-custom" className="mb-1 block text-xs text-fg-muted">
+            Other CoinGecko id (optional)
+          </label>
+          <input
+            id="connector-crypto-custom"
+            type="text"
+            placeholder="render-token"
+            value={customDraft}
+            disabled={atCap}
+            onChange={(e) => {
+              setCustomDraft(e.currentTarget.value)
+              setError(null)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                handleAddCustom()
+              }
+            }}
+            aria-describedby={error ? 'connector-crypto-error' : undefined}
+            className={`${control} w-full`}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={atCap || customDraft.trim().length === 0}
+          onClick={handleAddCustom}
+          className={submitBtn}
+        >
+          Add
+        </button>
       </div>
 
       <div className="flex items-center gap-3">
