@@ -63,3 +63,6 @@ output/
 .playwright-profile-nl-p5-hotfix/
 .preview-nl-p5-hotfix-dist/
 .preview-nl-p5-hotfix-out/
+
+.qa-nl-p6-*
+.playwright-profile-qa-nl-p6/

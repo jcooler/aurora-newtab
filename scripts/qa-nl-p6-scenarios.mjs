@@ -13,7 +13,40 @@ import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 async function seedNamedSaved(page) {
   await page.evaluate(async () => {
     const { settings } = await chrome.storage.local.get('settings')
+    const day = new Date().toISOString().slice(0, 10)
+    const location = { lat: 32.7767, lon: -96.797, label: 'Dallas', manual: true }
+    const normalize = (v) => Number(v.toFixed(4))
+    const params = new URLSearchParams()
+    params.set('temperature_unit', 'celsius')
+    params.set('wind_speed_unit', 'kmh')
+    params.set('forecast_hours', '12')
+    params.set('forecast_days', '1')
+    params.set('timezone', 'auto')
+    params.set('timeformat', 'iso8601')
+    params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
+    params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
+    params.set('daily', 'sunrise,sunset')
+    params.set('latitude', String(normalize(location.lat)))
+    params.set('longitude', String(normalize(location.lon)))
     await chrome.storage.local.set({
+      // Sun, moon, and the weather dock line all gate on a stored location;
+      // a fresh cache keeps the weather line factual with no network.
+      location,
+      weatherCache: {
+        current: { tempC: 31.7, feelsLikeC: 35.6, code: 0, windKmh: 14, humidity: 55, isDay: true },
+        hourly: Array.from({ length: 12 }, (_, index) => ({
+          time: `${day}T${String((9 + index) % 24).padStart(2, '0')}:00`,
+          tempC: 30 + index * 0.3,
+          precipProb: 5,
+          code: 0,
+          isDay: index < 10,
+        })),
+        fetchedAt: Date.now(),
+        locationLabel: location.label,
+        requestIdentity: `open-meteo:v1:https://api.open-meteo.com/v1/forecast?${params.toString()}`,
+        sunriseISO: `${day}T07:02`,
+        sunsetISO: `${day}T20:22`,
+      },
       settings: {
         ...settings,
         widgets: { ...settings.widgets, weather: true, monthCal: true, sun: true, moon: true, timer: true },
