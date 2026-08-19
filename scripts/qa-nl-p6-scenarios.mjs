@@ -65,7 +65,12 @@ async function seedNamedSaved(page) {
             widgets: {
               clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -24, tier: 'full', layer: 0 },
               focus: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 8, tier: 'standard', layer: 1 },
-              monthCal: { kind: 'free', anchor: 'left', offsetX: 9, offsetY: -2, tier: 'standard', layer: 2 },
+              // offsetY +8, not -2: at short heights the month's top edge
+              // (and its grip) otherwise sits under the fixed top strip,
+              // where the docked sun member catches the pointer — a
+              // scenario-authored collision recorded as a report Finding,
+              // not a harness fight.
+              monthCal: { kind: 'free', anchor: 'left', offsetX: 9, offsetY: 8, tier: 'standard', layer: 2 },
               quote: { kind: 'hidden' },
               weather: { kind: 'docked', dock: 'bottom', order: 0, x: 30 },
               timer: { kind: 'docked', dock: 'bottom', order: 1, x: 70, align: 'end' },
