@@ -400,60 +400,85 @@ describe('createStorage', () => {
     ])
   })
 
-  it('upgrades v11 by writing only version metadata and leaves every data key byte-for-byte unchanged', async () => {
-    const events: string[] = []
+  // The v11/v12 metadata-only era ended with v14: migrations[13] backfills
+  // the five nested appearance ink fields, so METADATA_ONLY_FLOOR moved to
+  // 14 (its own doc rule) and every pre-14 store takes the full migrate
+  // path ONCE. These tests pin that path's exactness for the former
+  // metadata-only versions: user data survives byte-for-byte, the inks
+  // backfill to null, and the missing layouts key arrives as null.
+  it('upgrades v11 through the full migrate path: ink fields backfilled, every user value preserved', async () => {
     const layout = {
       version: 2 as const,
       profiles: {},
       legacy: { clock: { x: 12.25, y: 34.75 } },
     }
+    const v11Settings = { ...defaults().settings, name: 'Exact v11' } as Record<string, unknown>
+    // A real v11 store predates the ink fields AND the layouts key.
+    delete v11Settings.widgetTextColor
+    delete v11Settings.photoTextColor
+    delete v11Settings.photoClockColor
+    delete v11Settings.photoGreetingColor
+    delete v11Settings.photoQuoteColor
     const seed = {
       ...defaults(),
       layout,
-      settings: { ...defaults().settings, name: 'Exact v11' },
+      settings: v11Settings,
       'aurora:version': 11,
       unknown: { sentinel: 'keep' },
     }
-    // A real v11 store predates the layouts key entirely (review fix M5).
-    delete (seed as Record<string, unknown>).layouts
-    const before = structuredClone(seed)
-    const controlled = controllableDriver(seed, {
-      async read(keys, _call, proceed) {
-        events.push(`read:${keys === null ? 'null' : keys.join(',')}`)
-        return proceed()
-      },
-      async write(_patch, _call, apply) {
-        events.push('write')
-        await apply()
-      },
-    })
-
-    await createStorage(controlled.driver, recordingAuthority(events)).init()
-
-    expect(controlled.writes).toEqual([{ 'aurora:version': CURRENT_VERSION }])
-    expect(controlled.base.dump()).toEqual({ ...before, 'aurora:version': CURRENT_VERSION })
-    expect(events).toEqual([
-      'lock:enter', 'read:null', 'write', 'read:aurora:version', 'lock:exit',
-    ])
-  })
-
-  it('upgrades v12 by writing only version metadata and leaves every data key byte-for-byte unchanged', async () => {
-    const seed = {
-      ...defaults(),
-      layout: { version: 3 as const, profiles: {} },
-      settings: { ...defaults().settings, name: 'Exact v12' },
-      'aurora:version': 12,
-      unknown: { sentinel: 'keep' },
-    }
-    // A real v12 store predates the layouts key entirely.
     delete (seed as Record<string, unknown>).layouts
     const before = structuredClone(seed)
     const controlled = controllableDriver(seed)
 
     await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
 
-    expect(controlled.writes).toEqual([{ 'aurora:version': CURRENT_VERSION }])
-    expect(controlled.base.dump()).toEqual({ ...before, 'aurora:version': CURRENT_VERSION })
+    const dump = controlled.base.dump() as Record<string, unknown>
+    expect(dump['aurora:version']).toBe(CURRENT_VERSION)
+    expect(dump.settings).toEqual({
+      ...before.settings,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+    })
+    expect(dump.layout).toEqual(before.layout)
+    expect(dump.layouts).toBeNull()
+    expect(dump.unknown).toEqual({ sentinel: 'keep' })
+  })
+
+  it('upgrades v12 the same way: inks backfilled, layout and unknown keys untouched', async () => {
+    const v12Settings = { ...defaults().settings, name: 'Exact v12' } as Record<string, unknown>
+    delete v12Settings.widgetTextColor
+    delete v12Settings.photoTextColor
+    delete v12Settings.photoClockColor
+    delete v12Settings.photoGreetingColor
+    delete v12Settings.photoQuoteColor
+    const seed = {
+      ...defaults(),
+      layout: { version: 3 as const, profiles: {} },
+      settings: v12Settings,
+      'aurora:version': 12,
+      unknown: { sentinel: 'keep' },
+    }
+    delete (seed as Record<string, unknown>).layouts
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed)
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    const dump = controlled.base.dump() as Record<string, unknown>
+    expect(dump['aurora:version']).toBe(CURRENT_VERSION)
+    expect(dump.settings).toEqual({
+      ...before.settings,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+    })
+    expect(dump.layout).toEqual(before.layout)
+    expect(dump.unknown).toEqual({ sentinel: 'keep' })
   })
 
   it('fresh defaults include layouts: null', async () => {
@@ -463,7 +488,9 @@ describe('createStorage', () => {
     expect(await storage.get('layouts')).toBeNull()
   })
 
-  it('rolls a failed v11 metadata verification back without writing any data key', async () => {
+  it('rolls a failed v11 migration verification back to the literal pre-upgrade store', async () => {
+    // v11 takes the full migrate path since the floor moved to 14; a failed
+    // post-write verification must restore the exact prior bytes.
     const seed = { ...defaults(), 'aurora:version': 11 }
     const controlled = controllableDriver(seed, {
       async read(keys, call, proceed) {
@@ -476,10 +503,9 @@ describe('createStorage', () => {
     await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
       .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
 
-    expect(controlled.writes).toEqual([
-      { 'aurora:version': CURRENT_VERSION },
-      { 'aurora:version': 11 },
-    ])
+    expect(controlled.writes).toHaveLength(2)
+    expect((controlled.writes[0] as Record<string, unknown>)['aurora:version']).toBe(CURRENT_VERSION)
+    expect((controlled.writes[1] as Record<string, unknown>)['aurora:version']).toBe(11)
     expect(controlled.base.dump()).toEqual(seed)
   })
 

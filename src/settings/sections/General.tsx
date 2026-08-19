@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef } from 'react'
 import type { Settings } from '../../lib/storage/schema'
+import { contrastRatio, derivedFg, relativeLuminance } from '../../lib/color'
 import Section from '../Section'
+import ColorPickerRow from '../ColorPickerRow'
 import Switch from '../Switch'
 import { row, label, control, select } from './shared'
 
@@ -8,12 +10,14 @@ import { row, label, control, select } from './shared'
 // rgb(10 10 10), i.e. #0a0a0a — shown in the swatch when the user hasn't picked
 // one (settings.panelColor is null).
 const DEFAULT_PANEL_HEX = '#0a0a0a'
-// Live-drag writes are debounced so dragging the native picker doesn't storm
-// storage; the final value ALSO commits immediately on the picker's own
-// `change`. Deep-equal writes are no-ops at the storage layer (memoryDriver /
-// chrome.storage both dedupe), so the debounced trailing write and the commit
-// never fight even when they carry the same color.
-const PANEL_COLOR_DEBOUNCE_MS = 150
+// The fixed photo ink default (themes.css --canvas-fg fallback).
+const DEFAULT_PHOTO_HEX = '#f5f5f4'
+// Advisory floors (never blocking — the user owns the pick, and every check
+// derives from the ACTUAL chosen colors, not any assumed palette): WCAG AA
+// body-text contrast for widget text on the panel, and a luminance floor
+// below which photo text tends to vanish into dark photographs.
+const CONTRAST_FLOOR = 4.5
+const PHOTO_LUMINANCE_FLOOR = 0.25
 
 /** Profile, Appearance (the widget-color customizer), and Clock-and-units —
  *  the three sections that read/write plain `Settings` fields directly, with no
@@ -28,65 +32,17 @@ export default function General({
   settings: Settings
   patch: (p: Partial<Settings>) => void
 }) {
-  // patch is a fresh closure each render; read it through a ref so the
-  // commit-on-`change` effect below can stay mount-once (register/unregister
-  // exactly once) rather than re-subscribing on every render — same idiom
-  // NotesPanel uses for its flush-on-unmount.
+  // patch is a fresh closure each render; the picker rows read it through a
+  // ref-backed writer so their commit listeners stay mount-once.
   const patchRef = useRef(patch)
   patchRef.current = patch
 
-  const effectiveHex = settings.panelColor ?? DEFAULT_PANEL_HEX
-  // Local draft so dragging the native picker isn't snapped back by the
-  // controlled `value` before the (debounced) write lands; re-synced whenever
-  // the stored value actually changes — our own commit, Reset, or another tab.
-  const [draftHex, setDraftHex] = useState(effectiveHex)
-  useEffect(() => {
-    setDraftHex(effectiveHex)
-  }, [effectiveHex])
-
-  const colorInputRef = useRef<HTMLInputElement>(null)
-  const writeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  function clearWriteTimer() {
-    if (writeTimer.current !== null) {
-      clearTimeout(writeTimer.current)
-      writeTimer.current = null
-    }
-  }
-
-  // Debounced live write during a drag — the picker's `input` stream surfaces
-  // as React's onChange for a color input.
-  function onColorInput(hex: string) {
-    setDraftHex(hex)
-    clearWriteTimer()
-    writeTimer.current = setTimeout(() => {
-      writeTimer.current = null
-      patchRef.current({ panelColor: hex })
-    }, PANEL_COLOR_DEBOUNCE_MS)
-  }
-
-  // Final commit when the picker closes (its native `change` event): write now
-  // and cancel any pending debounce. Mount-once (patch read via patchRef); also
-  // clears a leaked debounce timer on unmount.
-  useEffect(() => {
-    const el = colorInputRef.current
-    if (!el) return
-    const onCommit = () => {
-      clearWriteTimer()
-      patchRef.current({ panelColor: el.value })
-    }
-    el.addEventListener('change', onCommit)
-    return () => {
-      el.removeEventListener('change', onCommit)
-      clearWriteTimer()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-once; patch is read via patchRef
-  }, [])
-
-  function resetColor() {
-    clearWriteTimer()
-    patchRef.current({ panelColor: null })
-  }
+  const panelHex = settings.panelColor ?? DEFAULT_PANEL_HEX
+  // What "auto" widget text currently resolves to — the panel-derived ink.
+  const autoWidgetInk = derivedFg(panelHex).fg
+  const effectiveWidgetInk = settings.widgetTextColor ?? autoWidgetInk
+  const effectivePhotoInk = settings.photoTextColor ?? DEFAULT_PHOTO_HEX
+  const widgetContrast = contrastRatio(effectiveWidgetInk, panelHex)
 
   return (
     <>
@@ -107,49 +63,76 @@ export default function General({
       </Section>
 
       <Section title="Appearance">
-        <div className={row}>
-          <span className={label} id="panel-color-label">
-            Widget color
-          </span>
-          <div className="flex items-center gap-3">
-            {/* The visible 28px swatch IS the label: clicking it opens the
-                native picker (the real <input type="color"> is visually hidden
-                but keyboard-reachable and label-associated). `peer` on the
-                input lets the swatch carry the focus ring. */}
-            <label
-              htmlFor="set-panel-color"
-              className="relative inline-flex min-h-9 min-w-9 cursor-pointer items-center justify-center rounded-full"
-            >
-              <input
-                ref={colorInputRef}
-                id="set-panel-color"
-                type="color"
-                aria-label="Widget color"
-                value={draftHex}
-                onChange={(e) => onColorInput(e.currentTarget.value)}
-                className="peer sr-only"
-              />
-              <span
-                aria-hidden
-                style={{ backgroundColor: draftHex }}
-                className="size-7 rounded-full border border-control-border shadow-inner shadow-black/30 transition peer-focus-visible:ring-2 peer-focus-visible:ring-accent peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-transparent motion-reduce:transition-none"
-              />
-            </label>
-            {/* Quiet Reset, present only when a color is actually set (null =
-                the default surface, nothing to reset). */}
-            {settings.panelColor !== null && (
-              <button
-                type="button"
-                aria-label="Reset widget color"
-                onClick={resetColor}
-                className="min-h-9 min-w-9 rounded-full px-2 py-1 text-xs text-fg-muted transition hover:text-fg focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
-              >
-                Reset
-              </button>
-            )}
+        <ColorPickerRow
+          id="set-panel-color"
+          labelText="Widget color"
+          resetLabel="Reset widget color"
+          stored={settings.panelColor}
+          fallbackHex={DEFAULT_PANEL_HEX}
+          onWrite={(hex) => patchRef.current({ panelColor: hex })}
+        />
+        <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically unless you pick one below.</p>
+        <ColorPickerRow
+          id="set-widget-text-color"
+          labelText="Widget text"
+          resetLabel="Reset widget text"
+          stored={settings.widgetTextColor}
+          fallbackHex={autoWidgetInk}
+          onWrite={(hex) => patchRef.current({ widgetTextColor: hex })}
+          advisory={settings.widgetTextColor !== null && widgetContrast < CONTRAST_FLOOR ? (
+            <p data-testid="widget-text-contrast-warning" className="pb-2 text-xs text-amber-300">
+              Low contrast against your widget color — this text may be hard to read.
+            </p>
+          ) : (
+            <p className="pb-2 text-xs text-fg-muted">Colors every widget's text; the softer secondary tone derives automatically.</p>
+          )}
+        />
+        <ColorPickerRow
+          id="set-photo-text-color"
+          labelText="Photo text"
+          resetLabel="Reset photo text"
+          stored={settings.photoTextColor}
+          fallbackHex={DEFAULT_PHOTO_HEX}
+          onWrite={(hex) => patchRef.current({ photoTextColor: hex })}
+          advisory={settings.photoTextColor !== null && relativeLuminance(settings.photoTextColor) < PHOTO_LUMINANCE_FLOOR ? (
+            <p data-testid="photo-text-dark-warning" className="pb-2 text-xs text-amber-300">
+              Dark colors can disappear against dark photos.
+            </p>
+          ) : (
+            <p className="pb-2 text-xs text-fg-muted">Colors the clock, greeting, quote, and other text on the photo.</p>
+          )}
+        />
+        <details className="pb-2">
+          <summary className="cursor-pointer text-xs text-fg-muted hover:text-fg">
+            Per-element photo colors
+          </summary>
+          <div className="mt-1 flex flex-col">
+            <ColorPickerRow
+              id="set-photo-clock-color"
+              labelText="Clock color"
+              resetLabel="Reset clock color"
+              stored={settings.photoClockColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoClockColor: hex })}
+            />
+            <ColorPickerRow
+              id="set-photo-greeting-color"
+              labelText="Greeting color"
+              resetLabel="Reset greeting color"
+              stored={settings.photoGreetingColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoGreetingColor: hex })}
+            />
+            <ColorPickerRow
+              id="set-photo-quote-color"
+              labelText="Quote color"
+              resetLabel="Reset quote color"
+              stored={settings.photoQuoteColor}
+              fallbackHex={effectivePhotoInk}
+              onWrite={(hex) => patchRef.current({ photoQuoteColor: hex })}
+            />
           </div>
-        </div>
-        <p className="pb-2 text-xs text-fg-muted">Tints every widget. Text adapts automatically.</p>
+        </details>
         <div className={row}>
           <label htmlFor="set-text-size" className={label}>
             Text size

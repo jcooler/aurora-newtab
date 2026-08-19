@@ -481,6 +481,56 @@ describe('SettingsPanel Widget color row', () => {
   })
 })
 
+describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
+  it('picking a widget text color writes it; an adequate pick shows no contrast warning', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#ffffff' } })
+    })
+    expect((await storage.get('settings')).widgetTextColor).toBe('#ffffff')
+    expect(screen.queryByTestId('widget-text-contrast-warning')).toBeNull()
+  })
+
+  it('a low-contrast widget text pick warns but is NOT blocked (the user owns the pick)', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      // Dark gray on the default near-black panel: far below the 4.5 floor.
+      fireEvent.change(screen.getByLabelText('Widget text'), { target: { value: '#333333' } })
+    })
+    expect((await storage.get('settings')).widgetTextColor).toBe('#333333')
+    expect(screen.getByTestId('widget-text-contrast-warning')).toBeTruthy()
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Reset widget text' }))
+    })
+    expect((await storage.get('settings')).widgetTextColor).toBeNull()
+  })
+
+  it('a dark photo text pick warns about dark photos; a bright one does not', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#112233' } })
+    })
+    expect((await storage.get('settings')).photoTextColor).toBe('#112233')
+    expect(screen.getByTestId('photo-text-dark-warning')).toBeTruthy()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Photo text'), { target: { value: '#ffd700' } })
+    })
+    expect(screen.queryByTestId('photo-text-dark-warning')).toBeNull()
+  })
+
+  it('the per-element photo pickers write their own overrides', async () => {
+    const storage = await renderPanel()
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText('Clock color'), { target: { value: '#ff69b4' } })
+      fireEvent.change(screen.getByLabelText('Quote color'), { target: { value: '#00ff88' } })
+    })
+    const settings = await storage.get('settings')
+    expect(settings.photoClockColor).toBe('#ff69b4')
+    expect(settings.photoQuoteColor).toBe('#00ff88')
+    expect(settings.photoGreetingColor).toBeNull()
+  })
+})
+
 describe('SettingsPanel Weather section (clear-location control)', () => {
   it('is absent when no location is stored', async () => {
     await renderPanel()

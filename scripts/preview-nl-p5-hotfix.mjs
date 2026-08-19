@@ -645,6 +645,62 @@ try {
   }
   await stage('10-clock-full', `clock tiers ${Math.round(compactPx)} / ${Math.round(standardPx)} / ${Math.round(fullPx)} px`)
 
+  // ---- Stage 10b: the appearance ink system, proved on PINK panels ----
+  // (owner directive: never develop for black widgets — bright pink is the
+  // test case.) Widget text re-inks the chips at the muted-derived tier,
+  // photo text re-inks the greeting, the clock override beats it, and the
+  // chip law brightens a soft chip to full on hover.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({
+      settings: {
+        ...settings,
+        panelColor: '#ff69b4',
+        widgetTextColor: '#112233',
+        photoTextColor: '#ffd700',
+        photoClockColor: '#00ff88',
+      },
+    })
+  })
+  await reloadArmed()
+  const inks = await page.evaluate(() => {
+    const tasksChip = document.querySelector('[data-block-id="tasks"] button')
+    const clockTime = document.querySelector('[data-block-id="clock"] time')
+    const greeting = document.querySelector('[data-block-id="greeting"] [data-canvas-type-role="greeting"]')
+    const quote = document.querySelector('[data-block-id="quote"] blockquote')
+    return {
+      tasksRest: tasksChip ? getComputedStyle(tasksChip).color : null,
+      clock: clockTime ? getComputedStyle(clockTime).color : null,
+      greeting: greeting ? getComputedStyle(greeting).color : null,
+      quote: quote ? getComputedStyle(quote).color : null,
+    }
+  })
+  if (inks.quote !== 'rgb(255, 215, 0)') fail(`stage10b: quote did not take the photo ink (${inks.quote})`)
+  // --fg-muted = #112233ad -> rgba(17, 34, 51, 0.68) (the derived soft tier).
+  if (!inks.tasksRest?.startsWith('rgba(17, 34, 51')) {
+    fail(`stage10b: Tasks chip at rest is not the muted widget ink (${inks.tasksRest})`)
+  }
+  if (inks.clock !== 'rgb(0, 255, 136)') fail(`stage10b: clock override not applied (${inks.clock})`)
+  if (inks.greeting !== 'rgb(255, 215, 0)') fail(`stage10b: greeting did not take the photo ink (${inks.greeting})`)
+  // The chip law: hover brightens to the full pick. (`.first()` — the grip
+  // and gear buttons the hover chrome adds share the wrapper.)
+  await page.locator('[data-block-id="tasks"] button').first().hover()
+  await page.waitForTimeout(150)
+  const tasksHover = await page.evaluate(() => {
+    const chip = document.querySelector('[data-block-id="tasks"] button')
+    return chip ? getComputedStyle(chip).color : null
+  })
+  if (tasksHover !== 'rgb(17, 34, 51)') fail(`stage10b: Tasks chip hover is not the full widget ink (${tasksHover})`)
+  await stage('10b-appearance-inks', `pink panels: chips ${inks.tasksRest} -> ${tasksHover}, clock ${inks.clock}, greeting ${inks.greeting}`)
+  // Back to defaults so later runs of earlier stages stay comparable.
+  await page.evaluate(async () => {
+    const { settings } = await chrome.storage.local.get('settings')
+    await chrome.storage.local.set({
+      settings: { ...settings, panelColor: null, widgetTextColor: null, photoTextColor: null, photoClockColor: null },
+    })
+  })
+  await reloadArmed()
+
   // ---- Stage 11: every write in the whole run touched only seeded keys ----
   await harvestWrites()
   for (const keys of evidence.writes) {

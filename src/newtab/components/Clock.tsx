@@ -15,8 +15,8 @@ export default function Clock({ docked = false }: { docked?: boolean } = {}) {
         <time dateTime={now.toISOString()} data-canvas-type-role="body" className="tabular-nums font-medium">
           {formatClock(now, settings.use24Hour)}
         </time>
-        <span aria-hidden className="text-fg-muted">·</span>
-        <span data-canvas-type-role="body" className="text-fg-muted">
+        <span aria-hidden className="opacity-[0.68]">·</span>
+        <span data-canvas-type-role="body" className="opacity-[0.68]">
           {formatDayContext(now, 'compact')}
         </span>
       </div>

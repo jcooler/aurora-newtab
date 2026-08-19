@@ -87,9 +87,14 @@ describe('migrate', () => {
         calls.push(12)
         return data
       },
+      // registry[13] upgrades v13 -> v14 (CURRENT_VERSION)
+      13: (data) => {
+        calls.push(13)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -601,12 +606,20 @@ describe('v10 -> v11', () => {
     return { ...settings, ...extra }
   }
 
-  it('adds Auto Fit only to a well-formed v10 Settings object', () => {
+  it('adds Auto Fit only to a well-formed v10 Settings object (plus the v14 ink backfill downstream)', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(13)
-    expect(out.settings).toEqual({ ...settings, layoutDensity: 'auto' })
+    expect(CURRENT_VERSION).toBe(14)
+    expect(out.settings).toEqual({
+      ...settings,
+      layoutDensity: 'auto',
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+    })
   })
 
   it.each([
@@ -689,9 +702,17 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(13)
+    expect(CURRENT_VERSION).toBe(14)
     expect(out.layout).toEqual(layout)
-    expect(out.settings).toEqual(snapshot.settings)
+    // The v13->v14 ink backfill is the ONLY settings delta on the way up.
+    expect(out.settings).toEqual({
+      ...snapshot.settings,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
+    })
     expect(out.unknownStore).toEqual(snapshot.unknownStore)
     expect(snapshot).toEqual(before)
   })
@@ -726,20 +747,29 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (11, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (14, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
   // the floor would silently stamp stores whose data was never migrated —
-  // this test makes that mistake fail loudly instead (review fix I1).
+  // this test makes that mistake fail loudly instead (review fix I1). The
+  // floor moved 11 -> 14 with the v14 ink backfill; the probe's settings
+  // deliberately OMIT an ink field so a wrongly-low floor is caught (a
+  // defaults()-shaped probe would let migrations[13] masquerade as the
+  // identity).
   it('every migration step from the metadata-only floor on is the identity', () => {
+    const settings = { ...defaults().settings, name: 'Floor probe' } as Record<string, unknown>
+    delete settings.widgetTextColor
     const probe = {
       ...defaults(),
-      settings: { ...defaults().settings, name: 'Floor probe' },
+      settings,
       layout: { clock: { x: 12.25, y: 34.75 } },
       unknownStore: { future: ['keep'] },
     }
-    for (let v = 11; v < CURRENT_VERSION; v++) {
+    // The floor itself: migrations[13] is NOT the identity for a pre-ink
+    // snapshot — the documented reason the floor sits at 14.
+    expect(migrations[13](structuredClone(probe))).not.toEqual(probe)
+    for (let v = 14; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)

@@ -187,6 +187,29 @@ export const migrations: Record<number, Migration> = {
   // `layouts` itself is a brand-new top-level key backfilled to null by
   // migrate()'s default-merge, the same way apodCache arrived.
   12: (data) => data,
+  // v13 -> v14: the five appearance ink overrides (owner-approved 2026-08-18
+  // color system) are NESTED Settings fields — exactly what the final
+  // default-merge does NOT backfill (v1->v2's own comment) — so each is
+  // filled explicitly, `?? null` preserving any already-present value, the
+  // byte-for-byte style of v7->v8's panelColor backfill. NOT the identity,
+  // so METADATA_ONLY_FLOOR moved to 14 in the same change (index.ts's own
+  // rule on that constant). Guarded like steps 3/7/10: a non-object settings
+  // is left for backup.ts's validators to reject.
+  13: (data) => {
+    const settings = data.settings
+    if (!isPlainObject(settings)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        widgetTextColor: settings.widgetTextColor ?? null,
+        photoTextColor: settings.photoTextColor ?? null,
+        photoClockColor: settings.photoClockColor ?? null,
+        photoGreetingColor: settings.photoGreetingColor ?? null,
+        photoQuoteColor: settings.photoQuoteColor ?? null,
+      },
+    }
+  },
 }
 
 export function migrate(

@@ -229,8 +229,8 @@ function TimerInner({
           state.running ? 'running' : 'paused'
         }`}
         onClick={togglePanel}
-        className={`rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium tabular-nums shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-accent focus-visible:outline-2 focus-visible:outline-accent ${
-          flash ? 'text-accent' : 'text-fg'
+        className={`rounded-panel border border-panel-border bg-panel-solid px-3 py-2 text-sm font-medium tabular-nums shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)] hover:text-fg focus-visible:outline-2 focus-visible:outline-accent ${
+          flash ? 'text-accent' : 'text-fg-muted'
         }`}
       >
         <span aria-hidden>⏱ </span>

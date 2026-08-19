@@ -53,6 +53,24 @@ export function derivedFg(hex: string): DerivedFg {
     : { fg: DARK_FG, fgMuted: DARK_FG_MUTED, scheme: 'dark' }
 }
 
+/** WCAG 2.x contrast ratio between two `#rrggbb` colors (1 to 21). Drives
+ *  the appearance pickers' legibility WARNINGS (never blocks — the user owns
+ *  the pick; derived from the actual colors, never tuned to any one panel
+ *  shade). */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  const [lighter, darker] = la >= lb ? [la, lb] : [lb, la]
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
+/** The muted tier of a chosen ink: the SAME color at the app's standing 0.68
+ *  alpha (as an 8-digit hex — 0.68*255 ≈ 0xad), so hierarchy derives from
+ *  any pick instead of assuming a palette. */
+export function mutedInk(hex: string): string {
+  return `${hex}ad`
+}
+
 const PANEL_COLOR_RE = /^#[0-9a-f]{6}$/i
 
 /** True only for a full `#rrggbb` hex — the exact shape stored in

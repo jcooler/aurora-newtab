@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { relativeLuminance, derivedFg, isPanelColor } from './color'
+import { contrastRatio, derivedFg, isPanelColor, mutedInk, relativeLuminance } from './color'
 
 describe('relativeLuminance (WCAG 2.x, linearized channels)', () => {
   it('is 0 for black and 1 for white (the endpoints)', () => {
@@ -82,5 +82,23 @@ describe('isPanelColor (the stored #rrggbb shape)', () => {
     expect(isPanelColor(null)).toBe(false)
     expect(isPanelColor(undefined)).toBe(false)
     expect(isPanelColor(0x12ab34)).toBe(false)
+  })
+})
+
+describe('contrastRatio / mutedInk (appearance system, 2026-08-18)', () => {
+  it('white on black is 21:1, identical colors are 1:1, and order does not matter', () => {
+    expect(contrastRatio('#ffffff', '#000000')).toBeCloseTo(21, 0)
+    expect(contrastRatio('#000000', '#ffffff')).toBeCloseTo(21, 0)
+    expect(contrastRatio('#ff69b4', '#ff69b4')).toBeCloseTo(1, 5)
+  })
+
+  it('flags the real failure case: dark text on a dark panel falls below the 4.5 floor', () => {
+    expect(contrastRatio('#333333', '#0a0a0a')).toBeLessThan(4.5)
+    expect(contrastRatio('#f5f5f4', '#0a0a0a')).toBeGreaterThan(4.5)
+  })
+
+  it('mutedInk derives the SAME color at the standing 0.68 alpha (0xad), from any pick', () => {
+    expect(mutedInk('#ff69b4')).toBe('#ff69b4ad')
+    expect(mutedInk('#112233')).toBe('#112233ad')
   })
 })

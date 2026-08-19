@@ -254,6 +254,13 @@ function isSettings(v: unknown): boolean {
     // migrate-then-validate order the retired `searchEngine` field relied on
     // (see migrations.ts step 7, and validateBackupShape's doc comment below).
     (v.panelColor === null || isPanelColor(v.panelColor)) &&
+    // The five appearance inks (v14) share panelColor's exact contract:
+    // `null` or a full `#rrggbb` hex, anything else rejects settings whole.
+    (v.widgetTextColor === null || isPanelColor(v.widgetTextColor)) &&
+    (v.photoTextColor === null || isPanelColor(v.photoTextColor)) &&
+    (v.photoClockColor === null || isPanelColor(v.photoClockColor)) &&
+    (v.photoGreetingColor === null || isPanelColor(v.photoGreetingColor)) &&
+    (v.photoQuoteColor === null || isPanelColor(v.photoQuoteColor)) &&
     isString(v.units) &&
     isBoolean(v.muted) &&
     isOptional(v.briefingEnabled, isBoolean) &&

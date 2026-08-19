@@ -415,14 +415,14 @@ export default function WeatherWidget({
                   (owner-reported 2026-08-18). */}
               <span data-canvas-type-role="body" className="font-medium tabular-nums">
                 {displayTemp(snapshot.current.tempC, settings.units)}
-                <span data-canvas-type-role="metadata" className="align-baseline text-fg-muted">
+                <span data-canvas-type-role="metadata" className="align-baseline opacity-[0.68]">
                   {unitLetter(settings.units)}
                 </span>
               </span>
-              <span aria-hidden className="text-fg-muted">·</span>
-              <span data-canvas-type-role="body" className="text-fg-muted">{snapshot.locationLabel}</span>
-              <span aria-hidden className="text-fg-muted">·</span>
-              <span data-canvas-type-role="body" className="text-fg-muted">{describeCode(snapshot.current.code).label}</span>
+              <span aria-hidden className="opacity-[0.68]">·</span>
+              <span data-canvas-type-role="body" className="opacity-[0.68]">{snapshot.locationLabel}</span>
+              <span aria-hidden className="opacity-[0.68]">·</span>
+              <span data-canvas-type-role="body" className="opacity-[0.68]">{describeCode(snapshot.current.code).label}</span>
             </button>
           ) : (
           <>

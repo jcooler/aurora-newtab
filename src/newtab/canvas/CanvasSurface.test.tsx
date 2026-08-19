@@ -142,6 +142,14 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.dock-lane \.canvas-item\s*\{[^}]*container-type:\s*normal;[^}]*width:\s*max-content;/)
   })
 
+  it('the full-width strips are pointer-transparent: only members catch events', () => {
+    // Witness-caught: the full-width fixed lane intercepted hovers/clicks
+    // across the whole band, blocking the Tasks launcher and settings gear
+    // beneath its empty stretches.
+    expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*pointer-events:\s*none/)
+    expect(indexCss).toMatch(/\.dock-lane \.canvas-item\s*\{[^}]*pointer-events:\s*auto/)
+  })
+
   it('the ordered-row scroller machinery is retired, not merely unreachable (free-x docks, owner-refined 2026-08-18)', () => {
     // Free positioning replaced the flowing row: nothing scrolls or clips,
     // so no scroller, nub, or overflow-fade rule may survive to squeeze a

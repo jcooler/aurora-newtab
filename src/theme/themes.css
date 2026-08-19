@@ -22,8 +22,12 @@
      photo-floating text must keep its light ink (paired with the .text-photo
      shadow) or it goes near-invisible over the image. Surfaced to Tailwind as
      text-canvas-fg / text-canvas-fg-muted (see newtab/index.css's @theme). */
-  --canvas-fg: #f5f5f4;
-  --canvas-fg-muted: rgb(245 245 244 / 0.68);
+  /* Routed through the --photo-ink chain (owner-approved 2026-08-18): the
+     appearance engine (applyInkColors) sets --photo-ink/--photo-ink-muted
+     when the user picks a photo-text color; absent, these fall back to the
+     fixed light ink exactly as before. */
+  --canvas-fg: var(--photo-ink, #f5f5f4);
+  --canvas-fg-muted: var(--photo-ink-muted, rgb(245 245 244 / 0.68));
 
   /* Panel surface — Mono's near-black, verbatim. Flat and high-opacity with no
      border to lean on (--panel-border is transparent), so the opacity is what

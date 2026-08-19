@@ -37,7 +37,7 @@ import { useStorage } from '../lib/storage/context'
 import EditToolbar from './edit/EditToolbar'
 import { useEditMode } from './edit/useEditMode'
 import type { BlockId } from '../lib/layout/types'
-import { applyPanelColor } from '../theme/index'
+import { applyInkColors, applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
 import SettingsPanel from '../settings/SettingsPanel'
@@ -92,8 +92,25 @@ export default function App() {
   const viewport = useCanvasViewport()
 
   useEffect(() => {
-    if (settings) applyPanelColor(document.documentElement, settings.panelColor)
-  }, [settings?.panelColor])
+    if (!settings) return
+    // Order matters: the panel derivation first, then the ink overrides —
+    // a custom widget ink beats the derived pair; clearing it re-derives.
+    applyPanelColor(document.documentElement, settings.panelColor)
+    applyInkColors(document.documentElement, {
+      widgetText: settings.widgetTextColor,
+      photoText: settings.photoTextColor,
+      clock: settings.photoClockColor,
+      greeting: settings.photoGreetingColor,
+      quote: settings.photoQuoteColor,
+    })
+  }, [
+    settings?.panelColor,
+    settings?.widgetTextColor,
+    settings?.photoTextColor,
+    settings?.photoClockColor,
+    settings?.photoGreetingColor,
+    settings?.photoQuoteColor,
+  ])
 
   const registerUtilityCloseGuard = useCallback((tool: UtilityToolId, guard: UtilityCloseGuard | null) => {
     if (guard) utilityCloseGuardRef.current = { tool, guard }

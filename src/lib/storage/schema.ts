@@ -3,7 +3,7 @@ import type { LayoutsDocument } from '../layout/namedLayouts'
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 13
+export const CURRENT_VERSION = 14
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -63,6 +63,20 @@ export interface Settings {
    *  requires panelColor present-and-valid (`null` or `#rrggbb`), so any backup
    *  captured before this field existed gets rejected WHOLESALE on import. */
   panelColor: string | null
+  /** Appearance ink overrides (owner-approved 2026-08-18 color system, all
+   *  `null` = auto). Nested Settings fields, so per the STANDING RULE above
+   *  they shipped WITH the v13->v14 bump, migrations[13], the
+   *  METADATA_ONLY_FLOOR move to 14, and backup isSettings coverage.
+   *  widgetTextColor re-inks every panel surface (--fg; muted derives at 68%
+   *  alpha — DERIVED from the pick, never tuned to any one panel color);
+   *  photoTextColor re-inks text on the photograph (--canvas-fg via the
+   *  --photo-ink chain); the three per-element overrides beat photoTextColor
+   *  for their own block only. */
+  widgetTextColor: string | null
+  photoTextColor: string | null
+  photoClockColor: string | null
+  photoGreetingColor: string | null
+  photoQuoteColor: string | null
   units: 'metric' | 'imperial'
   muted: boolean
   /** Independent Adaptive Stage preference. Auto Fit resolves the roomiest
@@ -250,6 +264,11 @@ export function defaults(): AuroraData {
       name: '',
       use24Hour: false,
       panelColor: null,
+      widgetTextColor: null,
+      photoTextColor: null,
+      photoClockColor: null,
+      photoGreetingColor: null,
+      photoQuoteColor: null,
       units: 'metric',
       muted: false,
       layoutDensity: 'auto',

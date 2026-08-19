@@ -99,6 +99,25 @@
   background: var(--panel-solid);
   box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.25), 0 4px 6px -4px rgb(0 0 0 / 0.25);
 }
+/* The chip law (owner-approved 2026-08-18, direction (a)): every one-line
+   chip and dock line rests at the SOFT ink tier and brightens to full on
+   hover/focus — one consistent tier across siblings instead of the ad-hoc
+   per-widget split (bookmarks soft, Tasks bright) the owner caught. Spans
+   with explicit muted/tone classes keep their own color; everything else
+   inherits this. */
+.dock-line {
+  color: var(--fg-muted);
+  transition: color 120ms ease;
+}
+.dock-line:hover,
+.dock-line:focus-visible,
+.canvas-item:hover .dock-line {
+  color: var(--fg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .dock-line { transition: none; }
+}
+
 /* The chip metrics OWN the line's typography: the fluid canvas type roles
    (body ~14-16px, metadata 12px) must not resize dock facts, or the weather
    line drifts smaller than its Tasks/Notes neighbours and the unit letter
@@ -435,6 +454,14 @@
   right: 72px;
   left: 72px;
   display: flex;
+  /* The full-width lane is pointer-TRANSPARENT: only its members catch
+     events, so the empty stretches never block launchers, the settings
+     gear, or canvas widgets beneath the band (witness-caught when the
+     lane went full-width). */
+  pointer-events: none;
+}
+.dock-lane .canvas-item {
+  pointer-events: auto;
 }
 .canvas-bottom-bar { bottom: 16px; }
 .canvas-top-bar { top: 16px; }
@@ -1518,6 +1545,23 @@ select > option {
 }
 .canvas-item[data-block-id="bookmarks"].z-50 {
   z-index: 50;
+}
+
+/* Per-element photo ink (owner-approved 2026-08-18): each block re-routes
+   its --canvas-fg through its OWN override chain, so a clock/greeting/quote
+   pick beats the global photo ink for that block only, and everything falls
+   back to the global pick, then the fixed default. */
+.canvas-item[data-block-id="clock"] {
+  --canvas-fg: var(--photo-ink-clock, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-clock-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
+}
+.canvas-item[data-block-id="greeting"] {
+  --canvas-fg: var(--photo-ink-greeting, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-greeting-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
+}
+.canvas-item[data-block-id="quote"] {
+  --canvas-fg: var(--photo-ink-quote, var(--photo-ink, #f5f5f4));
+  --canvas-fg-muted: var(--photo-ink-quote-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
 }
 
 /* These canvas-only widgets intentionally have no controls. Let pointer hit
