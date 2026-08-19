@@ -525,7 +525,12 @@ export default function App() {
           />
         ) : null}
 
-        <button
+        {/* The tray trigger renders only when the tray offers something its
+            visible siblings do not (owner-questioned twice, 2026-08-18/19):
+            the Refresh tool duplicates the corner photo button, so with no
+            Home Assistant actions the briefcase is pure noise. It reappears
+            the moment HA actions exist. */}
+        {utilityTools.some(({ id }) => id !== 'refresh') ? <button
           type="button"
           aria-label="Open utility tray"
           aria-haspopup="dialog"
@@ -541,7 +546,7 @@ export default function App() {
             <path d="M4 7h16v12H4z" />
             <path d="M9 7V5h6v2M4 11h16M10 11v2h4v-2" />
           </svg>
-        </button>
+        </button> : null}
         <button
           ref={settingsButtonRef}
           type="button"

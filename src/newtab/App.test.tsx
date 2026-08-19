@@ -69,8 +69,31 @@ describe('App Canvas composition', () => {
     }
   })
 
-  it('opens a functional modeless Utility Tray without duplicating the direct Canvas tools', async () => {
+  // The tray trigger renders only when the tray offers more than the corner
+  // photo button already does (owner-questioned twice): Home Assistant
+  // actions are that "more", so these tray tests seed one.
+  async function renderAppWithTrayTools() {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      homeassistant: {
+        enabled: true,
+        instanceUrl: 'https://ha.example.com',
+        token: 'tok',
+        entities: [],
+        actions: [{ id: 'scene.movie', name: 'Movie night', domain: 'scene' }],
+      },
+    })
+    return renderApp(storage)
+  }
+
+  it('hides the Utility Tray trigger when the tray would only duplicate the photo button (no HA actions)', async () => {
     await renderApp()
+    expect(screen.queryByRole('button', { name: 'Open utility tray' })).toBeNull()
+  })
+
+  it('opens a functional modeless Utility Tray without duplicating the direct Canvas tools', async () => {
+    await renderAppWithTrayTools()
     const invoker = screen.getByRole('button', { name: 'Open utility tray' })
     const dashboard = invoker.closest('.contents')
 
@@ -83,14 +106,19 @@ describe('App Canvas composition', () => {
     for (const directTool of ['Tasks', 'Notes', 'Timer']) {
       expect(within(tray).queryByRole('button', { name: directTool })).toBeNull()
     }
-    expect(within(tray).getByRole('button', { name: 'Refresh' }).getAttribute('aria-pressed')).toBe('true')
+    // Home Assistant (the reason the trigger exists) is the default tool;
+    // Refresh remains reachable beside it.
+    expect(within(tray).getByRole('button', { name: 'Home Assistant' }).getAttribute('aria-pressed')).toBe('true')
+    await act(async () => {
+      fireEvent.click(within(tray).getByRole('button', { name: 'Refresh' }))
+    })
     expect(within(tray).getByRole('region', { name: 'Background refresh' })).toBeTruthy()
   })
 
   it('derives a modal Small Utility Tray, inerts only the Canvas host, and restores its invoker', async () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
     Object.defineProperty(window, 'innerHeight', { configurable: true, value: 600 })
-    await renderApp()
+    await renderAppWithTrayTools()
     const invoker = screen.getByRole('button', { name: 'Open utility tray' })
     const dashboard = invoker.closest('.contents')
 

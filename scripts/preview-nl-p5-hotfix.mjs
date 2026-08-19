@@ -701,11 +701,29 @@ try {
   })
   await reloadArmed()
 
+  // ---- Stage 10c: the corner photo button actually takes the click ----
+  // (owner-reported 2026-08-19 "muted and unclickable": the positioned
+  // full-viewport surface hit-tested above it and swallowed every click.)
+  const photoBefore = await page.evaluate(async () => (await chrome.storage.local.get('photoPrefs')).photoPrefs)
+  await page.locator('button[aria-label="New background photo"]').click()
+  await page.waitForTimeout(300)
+  const photoAfter = await page.evaluate(async () => (await chrome.storage.local.get('photoPrefs')).photoPrefs)
+  if (JSON.stringify(photoAfter) === JSON.stringify(photoBefore)) {
+    fail('stage10c: clicking the photo button changed nothing — still swallowed')
+  }
+  await stage('10c-photo-button', `photo rotated: index ${photoBefore?.index} -> ${photoAfter?.index}`)
+  // The utility tray trigger must be GONE with no Home Assistant configured
+  // (its Refresh tool merely duplicates this working button).
+  if (await page.locator('button[aria-label="Open utility tray"]').count()) {
+    fail('stage10c: utility tray trigger renders with nothing but the duplicate Refresh tool')
+  }
+
   // ---- Stage 11: every write in the whole run touched only seeded keys ----
   await harvestWrites()
   for (const keys of evidence.writes) {
-    // 'location,settings,weatherCache' is stage 8b's own weather seed.
-    if (keys !== 'layouts' && keys !== 'layouts,settings' && keys !== 'settings' && keys !== 'location,settings,weatherCache') {
+    // 'location,settings,weatherCache' is stage 8b's own weather seed;
+    // 'photoPrefs' is stage 10c's own photo rotation.
+    if (keys !== 'layouts' && keys !== 'layouts,settings' && keys !== 'settings' && keys !== 'location,settings,weatherCache' && keys !== 'photoPrefs') {
       fail(`stage11: write touched ${keys}`)
     }
     if (keys.split(',').includes('layout')) fail(`stage11: the frozen legacy layout key was written (${keys})`)
