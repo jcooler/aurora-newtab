@@ -7,11 +7,17 @@ import type { LayoutsDocument } from '../../lib/layout/namedLayouts'
  *  explicit user action; nothing switches automatically, ever. */
 export default function LayoutBadge({
   document: layoutsDocument,
+  clearsTray = false,
   onSwitch,
   onEdit,
   onNew,
 }: {
   document: LayoutsDocument
+  /** True while the utility-tray trigger renders beside the gear: the badge
+   *  slides left to clear it, and hugs the gear otherwise (owner-reported
+   *  2026-08-19: the fixed 108px offset left a dead gap once the trigger
+   *  learned to hide). */
+  clearsTray?: boolean
   onSwitch: (layoutId: string) => void
   onEdit: (invoker: HTMLElement | null) => void
   onNew: () => void
@@ -47,7 +53,7 @@ export default function LayoutBadge({
   const item = 'flex w-full items-center justify-between gap-3 rounded-md px-2.5 py-1.5 text-left text-xs text-fg transition-colors hover:bg-control-bg-hover'
 
   return (
-    <div className="layout-badge-host">
+    <div className="layout-badge-host" data-clears-tray={clearsTray ? 'true' : undefined}>
       <button
         ref={invokerRef}
         type="button"

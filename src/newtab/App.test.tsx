@@ -90,6 +90,15 @@ describe('App Canvas composition', () => {
   it('hides the Utility Tray trigger when the tray would only duplicate the photo button (no HA actions)', async () => {
     await renderApp()
     expect(screen.queryByRole('button', { name: 'Open utility tray' })).toBeNull()
+    // ...and the layout badge hugs the gear instead of clearing a trigger
+    // that isn't there (owner-reported 2026-08-19: the dead gap).
+    expect(document.querySelector('.layout-badge-host')?.hasAttribute('data-clears-tray')).toBe(false)
+  })
+
+  it('the layout badge slides left only while the tray trigger actually renders', async () => {
+    await renderAppWithTrayTools()
+    expect(screen.getByRole('button', { name: 'Open utility tray' })).toBeTruthy()
+    expect(document.querySelector('.layout-badge-host')?.getAttribute('data-clears-tray')).toBe('true')
   })
 
   it('opens a functional modeless Utility Tray without duplicating the direct Canvas tools', async () => {

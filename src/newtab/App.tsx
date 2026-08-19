@@ -353,6 +353,10 @@ export default function App() {
       : []),
     { id: 'refresh', label: 'Refresh' },
   ]
+  // The tray trigger renders only when the tray offers something its
+  // visible siblings do not: Home Assistant actions (Refresh duplicates
+  // the corner photo button). The layout badge's position follows.
+  const trayTriggerVisible = utilityTools.some(({ id }) => id !== 'refresh')
   const selectedUtilityTool = utilityTrayOpen && activeUtilityTool
     ? activeUtilityTool
     : utilityTools.some(({ id }) => id === activeUtilityTool)
@@ -450,6 +454,7 @@ export default function App() {
         {!session && layoutsDocument && isPremium() ? (
           <LayoutBadge
             document={layoutsDocument}
+            clearsTray={trayTriggerVisible}
             onSwitch={(layoutId) => {
               // Explicit user switching (spec 2.1): instant, cannot lose or
               // alter data — one validated write of the layouts key.
@@ -530,7 +535,7 @@ export default function App() {
             the Refresh tool duplicates the corner photo button, so with no
             Home Assistant actions the briefcase is pure noise. It reappears
             the moment HA actions exist. */}
-        {utilityTools.some(({ id }) => id !== 'refresh') ? <button
+        {trayTriggerVisible ? <button
           type="button"
           aria-label="Open utility tray"
           aria-haspopup="dialog"
