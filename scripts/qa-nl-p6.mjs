@@ -99,11 +99,18 @@ async function assertInvariants(cell) {
     const doc = document.documentElement
     const surface = document.querySelector('[data-canvas-surface]')
     const items = [...document.querySelectorAll('[data-block-id]')]
+    // A widget marked data-canvas-empty rendered nothing BY DESIGN (the
+    // no-husk law: unconfigured World clocks, Countdown, Habits). It is
+    // inert and unreachable, so it is absent — not a degenerate box. Any
+    // OTHER zero-size item is still a defect.
     const zero = items.filter((n) => {
       const r = n.getBoundingClientRect()
-      return (r.width < 4 || r.height < 4) && !n.closest('[data-canvas-narrow]')
+      return (r.width < 4 || r.height < 4)
+        && !n.hasAttribute('data-canvas-empty')
+        && !n.closest('[data-canvas-narrow]')
     }).map((n) => n.getAttribute('data-block-id'))
     const offscreen = items.filter((n) => {
+      if (n.hasAttribute('data-canvas-empty')) return false
       const r = n.getBoundingClientRect()
       // The narrow-floor stack scrolls VERTICALLY by design: below-the-fold
       // members are reachable, so only horizontal escape counts there.

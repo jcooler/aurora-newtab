@@ -139,6 +139,17 @@
    rendered 8px wide); interiors now own their measure (e.g. Quote's
    max-w-xl), and the wrapper's own viewport max-width still bounds them. */
 
+/* NL-P6 finding F7: an enabled widget that rendered NOTHING (unconfigured
+   World clocks / Countdown / Habits, a polar-day Sun) leaves this wrapper
+   with no content. It must behave as if it were not there: no hit area, and
+   no gap in the narrow stack's flow. */
+.canvas-item[data-canvas-empty] {
+  pointer-events: none;
+}
+.canvas-surface--stack .canvas-item[data-canvas-empty] {
+  display: none;
+}
+
 .canvas-item--elevated {
   z-index: 50 !important;
 }

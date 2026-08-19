@@ -130,3 +130,37 @@ export const SCENARIOS = [
     },
   },
 ]
+
+// Appended by the NL-P6 judgment pass: the case NO other scenario covered —
+// every connector enabled with PURELY DEFAULT placements. This is the real
+// new-user shape ("I turned my connectors on"), and the only way to tell a
+// PRODUCT defect (our designed default composition collides) from a user's
+// own authored overlap (permitted; the spec warns but never re-flows).
+SCENARIOS.push({
+  id: 'connectors-default',
+  note: 'All nine connectors enabled, NO layouts document and NO legacy layout: every widget renders at its designed default slot.',
+  seed: async (page) => {
+    await seedInformationFirstFixtures(page)
+    await page.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get('settings')
+      // Every connector-adjacent widget ON, so the default work column and
+      // personal column are both fully populated at once.
+      await chrome.storage.local.set({
+        settings: {
+          ...settings,
+          widgets: {
+            ...settings.widgets,
+            weather: true, monthCal: true, sun: true, moon: true,
+            timer: true, todo: true, notes: true, habits: true,
+            clocks: true, countdown: true, quote: true, links: true,
+          },
+        },
+        // The fixtures module seeds a legacy layout; clear it so nothing is
+        // derived from stored positions and every widget falls to its
+        // DESIGNED default slot.
+        layout: {},
+        layouts: null,
+      })
+    })
+  },
+})

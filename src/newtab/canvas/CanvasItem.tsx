@@ -25,6 +25,20 @@ interface CanvasItemProps {
   children: ReactNode
 }
 
+/** True when the wrapper holds real rendered content. WidgetBoundary returns
+ *  its children verbatim, so a widget that returned null leaves no content
+ *  node here — an exact DOM check, never a size measurement, identical in
+ *  jsdom and the browser. Chrome and footprint spans are this component's
+ *  own decoration and never count as content. */
+function hasRenderedContent(node: HTMLElement): boolean {
+  return [...node.childNodes].some((child) => {
+    if (child.nodeType === 3) return (child.textContent ?? '').trim().length > 0
+    if (!(child instanceof Element)) return false
+    return !child.classList.contains('canvas-item-chrome')
+      && !child.classList.contains('canvas-item-footprint')
+  })
+}
+
 export default function CanvasItem({
   entry,
   item,
@@ -39,11 +53,45 @@ export default function CanvasItem({
   children,
 }: CanvasItemProps) {
   const ref = useRef<HTMLDivElement>(null)
+  // NL-P6 finding F7: a widget can be ENABLED but render nothing (World
+  // clocks with no clocks, Countdown with no countdowns, Habits with no
+  // habits, Sun/Moon on a polar day) — the no-husk law is honored INSIDE
+  // each widget, but this wrapper still painted, leaving an invisible ghost
+  // that was selectable, draggable, chrome-bearing, and counted in overlap
+  // warnings. WidgetBoundary returns its children verbatim, so a
+  // null-rendering widget leaves NO content node here: the check is exact
+  // DOM content, never a size measurement, so it holds in jsdom and in the
+  // browser alike (and re-runs every render, since a widget gains content
+  // the moment the user configures it).
+  const [empty, setEmpty] = useState(false)
+  useLayoutEffect(() => {
+    const node = ref.current
+    if (node === null) return
+    const evaluate = () => setEmpty(!hasRenderedContent(node))
+    evaluate()
+    if (typeof MutationObserver === 'undefined') return
+    // A MutationObserver, NOT a render-time check: widgets fill in
+    // asynchronously (useStoredKey resolving, a connector snapshot landing),
+    // and when a CHILD re-renders on its own this component does not, so a
+    // render-time check would latch "empty" forever and permanently strip a
+    // real widget's chrome. Watching the DOM is the only observation that
+    // sees content appear AND disappear.
+    const observer = new MutationObserver(evaluate)
+    observer.observe(node, { childList: true, subtree: true, characterData: true })
+    return () => observer.disconnect()
+  }, [])
 
   useLayoutEffect(() => {
     if (!onGeometryChange || !ref.current) return
+    // An empty widget occupies nothing, so it publishes nothing — that is
+    // what keeps it out of the inspector's overlap warning. Read the DOM
+    // directly rather than the `empty` STATE: state settles one render
+    // later, and a transient rect would be exactly the stale-geometry bug
+    // the overlap note already suffered once.
     const publish = () => {
-      if (ref.current) onGeometryChange(entry.id, ref.current.getBoundingClientRect())
+      const node = ref.current
+      if (!node) return
+      onGeometryChange(entry.id, hasRenderedContent(node) ? node.getBoundingClientRect() : null)
     }
     publish()
     if (typeof ResizeObserver === 'undefined') return () => onGeometryChange(entry.id, null)
@@ -53,7 +101,7 @@ export default function CanvasItem({
       observer.disconnect()
       onGeometryChange(entry.id, null)
     }
-  }, [entry.id, onGeometryChange])
+  }, [empty, entry.id, onGeometryChange])
 
   // ResizeObserver fires on SIZE changes only — a position-only move (drag,
   // nudge, dock/undock re-flow) would leave the published rect stale at the
@@ -64,8 +112,9 @@ export default function CanvasItem({
   // observation and the null cleanup.
   useLayoutEffect(() => {
     if (!onGeometryChange || !ref.current) return
-    onGeometryChange(entry.id, ref.current.getBoundingClientRect())
-  }, [entry.id, item, onGeometryChange])
+    const node = ref.current
+    onGeometryChange(entry.id, hasRenderedContent(node) ? node.getBoundingClientRect() : null)
+  }, [empty, entry.id, item, onGeometryChange])
 
   // Edge safety clamp (NL-P6 finding F6). Anchored placements are stored as
   // PERCENT points while widgets have PIXEL widths, so the same document
@@ -158,22 +207,26 @@ export default function CanvasItem({
       ref={ref}
       // In an edit session the wrapper IS the selection target: interiors are
       // inert, clicking selects and never activates the widget (spec 2.5).
-      tabIndex={editing ? 0 : -1}
-      role={editing ? 'button' : undefined}
-      aria-pressed={editing ? selected : undefined}
-      aria-label={editing ? `Select ${entry.label}` : undefined}
-      onClick={editing ? () => onSelect?.(entry.id) : undefined}
+      // An EMPTY widget is inert everywhere (F7): no focus stop, no role, no
+      // selection, no drag handle — it is not a thing the user can see, so
+      // it must not be a thing the user can grab.
+      tabIndex={editing && !empty ? 0 : -1}
+      role={editing && !empty ? 'button' : undefined}
+      aria-pressed={editing && !empty ? selected : undefined}
+      aria-label={editing && !empty ? `Select ${entry.label}` : undefined}
+      onClick={editing && !empty ? () => onSelect?.(entry.id) : undefined}
       // In edit mode the whole widget is the drag handle (spec 2.5: "drag
       // moves with pointer capture"); a press with no movement is a click,
       // which selects. Docked items are draggable too (spec 2.4: order is
       // draggable; dragging out undocks).
-      onPointerDown={editing && (item.mode === 'anchored' || item.mode === 'docked')
+      onPointerDown={editing && !empty && (item.mode === 'anchored' || item.mode === 'docked')
         ? (event) => onGripPointerDown?.(entry.id, event)
         : undefined}
       data-testid={`canvas-item-${entry.id}`}
       data-block-id={entry.id}
       data-canvas-size={size}
       data-canvas-mode={item.mode}
+      data-canvas-empty={empty ? '' : undefined}
       className={`canvas-item${editingClass}${className ? ` ${className}` : ''}`}
       style={style}
     >
@@ -194,7 +247,7 @@ export default function CanvasItem({
           }}
         />
       ) : null}
-      {chrome === 'normal' ? (
+      {chrome === 'normal' && !empty ? (
         <span className="canvas-item-chrome">
           <button
             type="button"

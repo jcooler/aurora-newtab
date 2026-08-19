@@ -96,6 +96,83 @@ describe('CanvasItem', () => {
     expect(screen.queryByRole('button', { name: 'Clock settings' })).toBeNull()
   })
 
+  // NL-P6 finding F7: an enabled-but-unconfigured widget (World clocks with
+  // no clocks, Countdown with no countdowns, Habits with no habits) renders
+  // null by the no-husk law — but the WRAPPER still painted, leaving an
+  // invisible ghost that was selectable, draggable, chrome-bearing, and
+  // counted in overlap warnings.
+  it('marks a widget that rendered NOTHING as empty and gives it no chrome', () => {
+    render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.worldClocks}
+        item={{ id: 'worldClocks', mode: 'anchored', leftPct: 50, topPct: 50, tier: 'compact', layer: 0 }}
+        chrome="normal"
+      >
+        {null}
+      </CanvasItem>,
+    )
+    const item = screen.getByTestId('canvas-item-worldClocks')
+    expect(item.hasAttribute('data-canvas-empty')).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Move World clocks' })).toBeNull()
+  })
+
+  it('an empty widget is not selectable or draggable in an edit session', () => {
+    const onSelect = vi.fn()
+    const onGripPointerDown = vi.fn()
+    render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.worldClocks}
+        item={{ id: 'worldClocks', mode: 'anchored', leftPct: 50, topPct: 50, tier: 'compact', layer: 0 }}
+        chrome="editing"
+        onSelect={onSelect}
+        onGripPointerDown={onGripPointerDown}
+      >
+        {null}
+      </CanvasItem>,
+    )
+    const item = screen.getByTestId('canvas-item-worldClocks')
+    fireEvent.click(item)
+    fireEvent.pointerDown(item)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onGripPointerDown).not.toHaveBeenCalled()
+    expect(item.getAttribute('role')).toBeNull()
+  })
+
+  it('an empty widget publishes NO geometry, so it cannot trigger an overlap warning', () => {
+    const onGeometryChange = vi.fn()
+    render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.worldClocks}
+        item={{ id: 'worldClocks', mode: 'anchored', leftPct: 50, topPct: 50, tier: 'compact', layer: 0 }}
+        onGeometryChange={onGeometryChange}
+      >
+        {null}
+      </CanvasItem>,
+    )
+    // Exact, not `expect.any(Object)` — that matcher also matches null in
+    // Vitest, so it could never have caught a real rect leaking through.
+    expect(onGeometryChange).toHaveBeenCalledWith('worldClocks', null)
+    expect(onGeometryChange.mock.calls.every(([, rect]) => rect === null)).toBe(true)
+  })
+
+  it('a widget WITH content keeps its chrome, selection, and geometry', () => {
+    const onSelect = vi.fn()
+    render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.clock}
+        item={{ id: 'clock', mode: 'anchored', leftPct: 50, topPct: 50, tier: 'compact', layer: 0 }}
+        chrome="editing"
+        onSelect={onSelect}
+      >
+        <span>Clock content</span>
+      </CanvasItem>,
+    )
+    const item = screen.getByTestId('canvas-item-clock')
+    expect(item.hasAttribute('data-canvas-empty')).toBe(false)
+    fireEvent.click(item)
+    expect(onSelect).toHaveBeenCalledWith('clock')
+  })
+
   it('publishes and withdraws geometry through onGeometryChange', () => {
     const onGeometryChange = vi.fn()
     const { unmount } = render(

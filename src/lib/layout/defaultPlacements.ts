@@ -34,26 +34,33 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   weather: { x: 93, y: 13 },
   notes: { x: 7, y: 91 },
   tasks: { x: 93, y: 84 },
-  // Personal column, left edge (QA F4: sun/moon spread below the month's
-  // real card height at short viewports).
+  // Personal column, left edge. Re-derived AGAIN in the NL-P6 judgment pass
+  // (finding F8, measured not eyeballed): the Calendar card and the Month
+  // card overlapped by 25-40px at EVERY common height, 1920x1080 included,
+  // because the month grid is ~215px tall while the gap was 11 percentage
+  // points. Percent positions against pixel-height cards shrink as the
+  // window shortens, so the literals are chosen to clear at the 768px
+  // common-desktop floor and everything above it.
   ics: { x: 13, y: 23 },
-  monthCal: { x: 13, y: 34 },
-  habits: { x: 13, y: 51 },
-  sun: { x: 13, y: 70 },
-  moon: { x: 13, y: 84 },
-  // Work column, right edge. The 8-point gaps hold one-line COMPACT
-  // glances (see defaultFreePlacement below) — nine simultaneous STANDARD
-  // cards can never compose in one column at any common height (QA F5),
-  // so connectors default to their glance tier and the user upsizes the
-  // ones they care about.
-  status: { x: 87, y: 23 },
-  github: { x: 87, y: 31 },
-  gitlab: { x: 87, y: 39 },
-  jira: { x: 87, y: 47 },
-  vercel: { x: 87, y: 55 },
-  homeassistant: { x: 87, y: 62 },
-  rss: { x: 87, y: 70 },
-  crypto: { x: 87, y: 78 },
+  monthCal: { x: 13, y: 43 },
+  habits: { x: 13, y: 62 },
+  sun: { x: 13, y: 78 },
+  moon: { x: 13, y: 90 },
+  // Work column, right edge. The 9-point gaps (F8: 8 was half a card short,
+  // so Jira struck through Vercel at 1366x768, and Status struck the
+  // Weather chip above it) hold one-line COMPACT glances (see
+  // defaultFreePlacement below) — nine simultaneous STANDARD cards can
+  // never compose in one column at any common height (QA F5), so
+  // connectors default to their glance tier and the user upsizes the ones
+  // they care about.
+  status: { x: 87, y: 25 },
+  github: { x: 87, y: 33 },
+  gitlab: { x: 87, y: 42 },
+  jira: { x: 87, y: 51 },
+  vercel: { x: 87, y: 60 },
+  homeassistant: { x: 87, y: 69 },
+  rss: { x: 87, y: 78 },
+  crypto: { x: 87, y: 87 },
 })
 
 /** Work-column connector identities that DEFAULT to their compact glance
