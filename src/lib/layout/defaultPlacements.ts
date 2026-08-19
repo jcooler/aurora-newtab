@@ -12,28 +12,40 @@ import type { BlockId } from './types'
  *  designed starting composition is not a guess). Enabling fewer widgets
  *  simply leaves the other slots empty. */
 export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: number }>> = Object.freeze({
-  // Center ritual column (V1 hierarchy, top to bottom).
+  // Center ritual column (V1 hierarchy, top to bottom). Spacing re-derived
+  // in the NL-P6 QA gate (2026-08-19): at the owner's exact 1408x445 window
+  // the full clock block (30vh-capped glyph plus its date line) is ~20% of
+  // the viewport HEIGHT, so the greeting needs >=22 points of clearance or
+  // the two strike through each other on a FRESH INSTALL — the confirmed
+  // F1/F2 findings. Clock rises to 20, greeting drops to 42, focus to 64.
   bookmarks: { x: 50, y: 4 },
-  clock: { x: 50, y: 24 },
-  greeting: { x: 50, y: 37 },
-  worldClocks: { x: 50, y: 43 },
-  countdown: { x: 50, y: 48 },
-  search: { x: 50, y: 54 },
-  focus: { x: 50, y: 62 },
-  links: { x: 50, y: 71 },
+  clock: { x: 50, y: 20 },
+  greeting: { x: 50, y: 42 },
+  worldClocks: { x: 50, y: 47 },
+  countdown: { x: 50, y: 51 },
+  search: { x: 50, y: 55 },
+  focus: { x: 50, y: 64 },
+  links: { x: 50, y: 72 },
   quote: { x: 50, y: 87 },
-  // Corner tools.
+  // Corner tools. Tasks at 84, not 91: the fixed layout-badge/gear cluster
+  // occupies the bottom-right 60-110px band and covered the launcher at
+  // <=1024 widths (QA finding F3).
   timer: { x: 7, y: 13 },
   weather: { x: 93, y: 13 },
   notes: { x: 7, y: 91 },
-  tasks: { x: 93, y: 91 },
-  // Personal column, left edge.
+  tasks: { x: 93, y: 84 },
+  // Personal column, left edge (QA F4: sun/moon spread below the month's
+  // real card height at short viewports).
   ics: { x: 13, y: 23 },
-  monthCal: { x: 13, y: 37 },
+  monthCal: { x: 13, y: 34 },
   habits: { x: 13, y: 51 },
-  sun: { x: 13, y: 65 },
-  moon: { x: 13, y: 78 },
-  // Work column, right edge.
+  sun: { x: 13, y: 70 },
+  moon: { x: 13, y: 84 },
+  // Work column, right edge. The 8-point gaps hold one-line COMPACT
+  // glances (see defaultFreePlacement below) — nine simultaneous STANDARD
+  // cards can never compose in one column at any common height (QA F5),
+  // so connectors default to their glance tier and the user upsizes the
+  // ones they care about.
   status: { x: 87, y: 23 },
   github: { x: 87, y: 31 },
   gitlab: { x: 87, y: 39 },
@@ -44,15 +56,23 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   crypto: { x: 87, y: 78 },
 })
 
+/** Work-column connector identities that DEFAULT to their compact glance
+ *  tier (QA F5): a column of one-line glances composes; a column of cards
+ *  cannot. The user's own tier choices always override defaults. */
+const COMPACT_DEFAULT_IDS: ReadonlySet<BlockId> = new Set([
+  'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
+])
+
 /** Default tier mirrors the retired preferred-size rule for the Desktop
- *  composition: the Clock leads at Full, everything else starts Standard
- *  (the renderer's resolveRenderTier clamps to what each widget declares). */
+ *  composition: the Clock leads at Full, the work-column connectors glance
+ *  at Compact, everything else starts Standard (the renderer's
+ *  resolveRenderTier clamps to what each widget declares). */
 export function defaultFreePlacement(id: BlockId, layer: number): FreeWidgetPlacement {
   const point = DEFAULT_WIDGET_POINTS[id]
   return freePlacementFromPoint({
     x: point.x,
     y: point.y,
-    tier: id === 'clock' ? 'full' : 'standard',
+    tier: id === 'clock' ? 'full' : COMPACT_DEFAULT_IDS.has(id) ? 'compact' : 'standard',
     layer,
   })
 }
