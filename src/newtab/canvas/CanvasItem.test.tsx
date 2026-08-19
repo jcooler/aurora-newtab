@@ -26,7 +26,10 @@ describe('CanvasItem', () => {
     expect(item.classList.contains('canvas-item')).toBe(true)
     expect(item.style.left).toBe('50%')
     expect(item.style.top).toBe('20%')
-    expect(item.style.transform).toBe('translate(-50%, -50%)')
+    // Centred on its point, plus the NL-P6 F6 edge-safety offset — zero
+    // here because nothing escapes the surface (jsdom reports no layout, so
+    // the clamp is a documented no-op rather than a jump).
+    expect(item.style.transform).toBe('translate(calc(-50% + 0px), calc(-50% + 0px))')
     expect(item.style.zIndex).toBe('7')
     expect(item.style.width).toBe('')
     expect(item.style.minHeight).toBe('')

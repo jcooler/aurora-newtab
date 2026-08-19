@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { edgeClampOffset } from './edgeClamp'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import type { LayoutRenderItem } from '../../lib/layout/renderLayout'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
@@ -66,6 +67,47 @@ export default function CanvasItem({
     onGeometryChange(entry.id, ref.current.getBoundingClientRect())
   }, [entry.id, item, onGeometryChange])
 
+  // Edge safety clamp (NL-P6 finding F6). Anchored placements are stored as
+  // PERCENT points while widgets have PIXEL widths, so the same document
+  // opened in a narrower window pushed edge-placed content off-screen. The
+  // offset is recomputed from the item's own live box against its offset
+  // parent, so it self-corrects on resize and vanishes entirely once the
+  // window is roomy again. Storage is never touched and no neighbour moves.
+  const [clamp, setClamp] = useState({ dx: 0, dy: 0 })
+  const clampRef = useRef(clamp)
+  clampRef.current = clamp
+  useLayoutEffect(() => {
+    const node = ref.current
+    const surface = node?.offsetParent as HTMLElement | null
+    if (!node || !surface || item.mode !== 'anchored') {
+      if (clampRef.current.dx !== 0 || clampRef.current.dy !== 0) setClamp({ dx: 0, dy: 0 })
+      return
+    }
+    const measure = () => {
+      const applied = clampRef.current
+      const rect = node.getBoundingClientRect()
+      const surfaceRect = surface.getBoundingClientRect()
+      // Measure the UNCLAMPED box (subtract what we already applied) so the
+      // computation converges instead of chasing its own correction.
+      const raw = {
+        left: rect.left - surfaceRect.left - applied.dx,
+        right: rect.right - surfaceRect.left - applied.dx,
+        top: rect.top - surfaceRect.top - applied.dy,
+        bottom: rect.bottom - surfaceRect.top - applied.dy,
+      }
+      const next = edgeClampOffset(raw, { width: surfaceRect.width, height: surfaceRect.height })
+      if (Math.abs(next.dx - applied.dx) > 0.5 || Math.abs(next.dy - applied.dy) > 0.5) {
+        setClamp(next)
+      }
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    observer.observe(surface)
+    return () => observer.disconnect()
+  }, [item])
+
   // Content-tight (spec 2.2): the item box is the rendered content. Anchored
   // items are positioned by percent and centered on their point; no width or
   // height is ever imposed here. Docked members use the lane's grid-stack:
@@ -76,7 +118,7 @@ export default function CanvasItem({
     position: 'absolute',
     left: `${item.leftPct}%`,
     top: `${item.topPct}%`,
-    transform: 'translate(-50%, -50%)',
+    transform: `translate(calc(-50% + ${clamp.dx}px), calc(-50% + ${clamp.dy}px))`,
     zIndex: item.layer,
   } : item.mode === 'docked' ? {
     position: 'relative',
