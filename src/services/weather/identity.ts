@@ -28,6 +28,7 @@ export const OPEN_METEO_REQUEST_CONTRACT: WeatherRequestContract = Object.freeze
     'apparent_temperature',
     'weather_code',
     'wind_speed_10m',
+    'wind_direction_10m',
     'relative_humidity_2m',
     'is_day',
   ]),

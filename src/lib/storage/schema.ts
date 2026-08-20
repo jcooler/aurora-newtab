@@ -142,6 +142,10 @@ export interface CurrentWeather {
   feelsLikeC: number
   code: number // WMO weather code
   windKmh: number
+  /** Meteorological bearing in degrees — the direction the wind blows FROM.
+   *  Optional: caches captured before this field was requested remain
+   *  valid, and the widget simply omits the compass point for them. */
+  windDirection?: number
   humidity: number
   /** From Open-Meteo is_day; optional so pre-existing caches stay valid
    *  (missing = treat as day; caches self-heal within the 30-min SWR window). */

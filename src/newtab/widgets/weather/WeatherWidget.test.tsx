@@ -41,15 +41,21 @@ async function renderWidget({
   onExpandedChange,
   stageVariant = 'standard',
   docked = false,
+  use24Hour = false,
 }: {
   location?: StoredLocation | null
   snapshot?: WeatherSnapshot | null
   onExpandedChange?: (expanded: boolean) => void
   stageVariant?: WidgetVariant
   docked?: boolean
+  use24Hour?: boolean
 } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
+  if (use24Hour) {
+    const current = await storage.get('settings')
+    await storage.set('settings', { ...current, use24Hour: true })
+  }
   await storage.set('location', location)
   await storage.set('weatherCache', snapshot)
   const view = render(
@@ -424,7 +430,7 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     expect(cells).toHaveLength(6)
     // The first slot is labelled NOW; the rest carry compact, uppercased hours.
     const labels = [...cells].map((c) => c.querySelector('span')!.textContent)
-    expect(labels).toEqual(['NOW', '11A', '1P', '3P', '5P', '7P'])
+    expect(labels).toEqual(['NOW', '11 AM', '1 PM', '3 PM', '5 PM', '7 PM'])
     // Every slot shows a real temperature (20..31°C sampled at even indices).
     const temps = [20, 22, 24, 26, 28, 30]
     ;[...cells].forEach((c, i) => {
@@ -527,8 +533,53 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     // hourly precipitation probability with its hour, from data already
     // fetched — no new request fields.
     expect(details.getByText('Rain').nextElementSibling?.textContent).toMatch(/%\sat\s/)
-    expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('6:12 AM')
-    expect(details.getByText('Sun').nextElementSibling?.textContent).toContain('7:58 PM')
+    expect(details.getByText('Sunrise').nextElementSibling?.textContent).toContain('6:12 AM')
+    expect(details.getByText('Sunset').nextElementSibling?.textContent).toContain('7:58 PM')
+  })
+
+  it('names the wind bearing and points the arrow where the wind is going (owner 2026-08-19)', async () => {
+    const base = makeSnapshot()
+    await renderWidget({ snapshot: makeSnapshot({ current: { ...base.current, windDirection: 315 } }) })
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    // 315 degrees is a NW wind: named for where it comes FROM...
+    expect(within(details).getByText('Wind').nextElementSibling?.textContent).toContain('NW')
+    // ...while the arrow points where it is GOING, bearing + 180.
+    const arrow = details.querySelector('[data-weather-wind-arrow]') as HTMLElement
+    expect(arrow).toBeTruthy()
+    expect(arrow.style.transform).toBe('rotate(495deg)')
+  })
+
+  it('omits the compass point entirely for a cache captured without a bearing', async () => {
+    await renderWidget()
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(details.querySelector('[data-weather-wind-arrow]')).toBeNull()
+    expect(within(details).getByText('Wind').nextElementSibling?.textContent).toBe('14 km/h')
+  })
+
+  it('gives sunrise and sunset their own icon-led cells instead of bare arrows', async () => {
+    await renderWidget()
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    expect(within(details).getByText('Sunrise').nextElementSibling?.textContent).toContain('6:12 AM')
+    expect(within(details).getByText('Sunset').nextElementSibling?.textContent).toContain('7:58 PM')
+    expect(details.querySelector('[data-weather-sunrise-icon]')).toBeTruthy()
+    expect(details.querySelector('[data-weather-sunset-icon]')).toBeTruthy()
+    // The generic up/down glyphs are retired, not merely restyled.
+    expect(within(details).queryByText('Sun')).toBeNull()
+    expect(details.textContent).not.toContain('\u2191')
+    expect(details.textContent).not.toContain('\u2193')
+  })
+
+  it('states the rain hour unambiguously in 24-hour mode, with an icon', async () => {
+    await renderWidget({ use24Hour: true })
+    await expandPanel()
+    const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
+    const rain = within(details).getByText('Rain').nextElementSibling
+    // "20% at 02" was the owner's complaint; a full clock hour replaces it.
+    expect(rain?.textContent).toMatch(/% at \d{2}:00$/)
+    expect(details.querySelector('[data-weather-rain-icon]')).toBeTruthy()
   })
 
   it('reads None expected when every hourly rain probability is negligible', async () => {

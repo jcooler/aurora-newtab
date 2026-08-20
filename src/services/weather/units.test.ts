@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clockTime, compactHour, displayTemp, displayTempWithUnit, displayWind, unitLetter } from './units'
+import { clockTime, compactHour, compassPoint, displayTemp, displayTempWithUnit, displayWind, hourLabel, unitLetter } from './units'
 
 describe('displayTemp', () => {
   it('rounds and formats metric', () => {
@@ -65,5 +65,42 @@ describe('clockTime', () => {
   it('handles midnight and noon in 24-hour form', () => {
     expect(clockTime('2026-07-26T00:00', true)).toBe('00:00')
     expect(clockTime('2026-07-26T12:00', true)).toBe('12:00')
+  })
+})
+
+// Owner-reported 2026-08-19: "02 isn't great for the 24hr option" — a bare
+// hour is ambiguous the moment it leaves a column header. hourLabel is the
+// ROOMY form for the details panel; compactHour stays the dense form for
+// the collapsed chip's own six-column strip.
+describe('hourLabel', () => {
+  it('renders an unambiguous clock hour in 24-hour mode', () => {
+    expect(hourLabel('2026-08-19T02:00', true)).toBe('02:00')
+    expect(hourLabel('2026-08-19T18:00', true)).toBe('18:00')
+    expect(hourLabel('2026-08-19T00:00', true)).toBe('00:00')
+  })
+
+  it('renders a spaced meridiem in 12-hour mode, never a bare letter', () => {
+    expect(hourLabel('2026-08-19T02:00', false)).toBe('2 AM')
+    expect(hourLabel('2026-08-19T13:00', false)).toBe('1 PM')
+    expect(hourLabel('2026-08-19T00:00', false)).toBe('12 AM')
+    expect(hourLabel('2026-08-19T12:00', false)).toBe('12 PM')
+  })
+})
+
+describe('compassPoint', () => {
+  it('names the 16-point compass direction a bearing came FROM', () => {
+    expect(compassPoint(0)).toBe('N')
+    expect(compassPoint(90)).toBe('E')
+    expect(compassPoint(180)).toBe('S')
+    expect(compassPoint(270)).toBe('W')
+    expect(compassPoint(315)).toBe('NW')
+    expect(compassPoint(22.5)).toBe('NNE')
+  })
+
+  it('wraps at the ends and rounds to the nearest sector', () => {
+    expect(compassPoint(360)).toBe('N')
+    expect(compassPoint(359)).toBe('N')
+    expect(compassPoint(11)).toBe('N')
+    expect(compassPoint(12)).toBe('NNE')
   })
 })

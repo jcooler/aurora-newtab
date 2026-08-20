@@ -9,6 +9,8 @@ import { PRECIP_FLOOR, forecastRange, forecastSlots } from '../../../services/we
 import {
   clockTime,
   compactHour,
+  compassPoint,
+  hourLabel,
   displayTemp,
   displayTempWithUnit,
   displayWind,
@@ -618,7 +620,7 @@ export default function WeatherWidget({
                           <span data-canvas-type-role="metadata" className="leading-none text-fg-muted">
                             {slot.now
                               ? 'NOW'
-                              : compactHour(slot.point.time, settings.use24Hour).toUpperCase()}
+                              : hourLabel(slot.point.time, settings.use24Hour)}
                           </span>
                           {/* The scale letter on the end slots renders SMALLER
                               (0.7em, so it holds ~70% of the digit height at
@@ -664,8 +666,34 @@ export default function WeatherWidget({
                 </div>
                 <div>
                   <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
-                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
-                    {displayWind(snapshot.current.windKmh, settings.units)}
+                  <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                    {typeof snapshot.current.windDirection === 'number' && (
+                      // The bearing NAMES where the wind comes from; the arrow
+                      // POINTS where it is going (bearing + 180), which is the
+                      // standard weather-map reading of the same number.
+                      <svg
+                        data-weather-wind-arrow=""
+                        aria-hidden="true"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className="shrink-0 text-accent"
+                        style={{ transform: `rotate(${snapshot.current.windDirection + 180}deg)` }}
+                      >
+                        <path d="M12 19V5M5 12l7-7 7 7" />
+                      </svg>
+                    )}
+                    <span>
+                      {displayWind(snapshot.current.windKmh, settings.units)}
+                      {typeof snapshot.current.windDirection === 'number'
+                        ? ` ${compassPoint(snapshot.current.windDirection)}`
+                        : ''}
+                    </span>
                   </dd>
                 </div>
                 <div>
@@ -677,32 +705,56 @@ export default function WeatherWidget({
                     cell with something useful, no new request fields). */}
                 <div>
                   <dt data-canvas-type-role="metadata" className="text-fg-muted">Rain</dt>
-                  <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                  <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
                     {(() => {
                       const peak = snapshot.hourly.reduce(
                         (best, point) => (best === null || point.precipProb > best.precipProb ? point : best),
                         null as (typeof snapshot.hourly)[number] | null,
                       )
-                      return peak && peak.precipProb >= 10
-                        ? `${peak.precipProb}% at ${compactHour(peak.time, settings.use24Hour)}`
-                        : 'None expected'
+                      if (!peak || peak.precipProb < 10) return <span>None expected</span>
+                      return (
+                        <>
+                          <svg data-weather-rain-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent">
+                            <path d="M6 14a4 4 0 0 1 .6-7.9 5 5 0 0 1 9.5-1.3A3.8 3.8 0 0 1 18 14" />
+                            <path d="M8 18l-1 2M12 18l-1 2M16 18l-1 2" />
+                          </svg>
+                          {/* hourLabel, not compactHour: "20% at 02" reads as
+                              ambiguous the moment it leaves a column header
+                              (owner-reported 2026-08-19). */}
+                          <span>{`${peak.precipProb}% at ${hourLabel(peak.time, settings.use24Hour)}`}</span>
+                        </>
+                      )
                     })()}
                   </dd>
                 </div>
-                {snapshot.sunriseISO && snapshot.sunsetISO && (
+                {/* Sunrise and sunset are two cells, not one stacked pair
+                    (owner-reported 2026-08-19: bare arrows read as generic
+                    glyphs, and the doubled cell left the grid a row short).
+                    Real icons carry the meaning; the visible labels stay for
+                    anyone who does not read the icon. */}
+                {snapshot.sunriseISO && (
                   <div>
-                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sun</dt>
-                    <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
-                      <span className="block">
-                        <span aria-hidden="true">↑ </span>
-                        <span className="sr-only">Sunrise </span>
-                        {clockTime(snapshot.sunriseISO, settings.use24Hour)}
-                      </span>
-                      <span className="block">
-                        <span aria-hidden="true">↓ </span>
-                        <span className="sr-only">Sunset </span>
-                        {clockTime(snapshot.sunsetISO, settings.use24Hour)}
-                      </span>
+                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunrise</dt>
+                    <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                      <svg data-weather-sunrise-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-300">
+                        <path d="M3 19h18" />
+                        <path d="M17 14a5 5 0 0 0-10 0" />
+                        <path d="M12 9V2M8.5 5.5L12 2l3.5 3.5" />
+                      </svg>
+                      <span>{clockTime(snapshot.sunriseISO, settings.use24Hour)}</span>
+                    </dd>
+                  </div>
+                )}
+                {snapshot.sunsetISO && (
+                  <div>
+                    <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunset</dt>
+                    <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                      <svg data-weather-sunset-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-orange-300">
+                        <path d="M3 19h18" />
+                        <path d="M17 14a5 5 0 0 0-10 0" />
+                        <path d="M12 2v7M8.5 5.5L12 9l3.5-3.5" />
+                      </svg>
+                      <span>{clockTime(snapshot.sunsetISO, settings.use24Hour)}</span>
                     </dd>
                   </div>
                 )}

@@ -15,6 +15,12 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
           feelsLikeC: data.current.apparent_temperature,
           code: data.current.weather_code,
           windKmh: data.current.wind_speed_10m,
+          // Optional so a cache captured before the bearing was requested
+          // stays parseable; the versioned requestIdentity means such a
+          // cache is refreshed rather than reused anyway.
+          ...(typeof data.current.wind_direction_10m === 'number'
+            ? { windDirection: data.current.wind_direction_10m }
+            : {}),
           humidity: data.current.relative_humidity_2m,
           isDay: data.current.is_day !== 0,
         },
