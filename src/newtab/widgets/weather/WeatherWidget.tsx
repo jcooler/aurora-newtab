@@ -668,9 +668,13 @@ export default function WeatherWidget({
                   <dt data-canvas-type-role="metadata" className="text-fg-muted">Wind</dt>
                   <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
                     {typeof snapshot.current.windDirection === 'number' && (
-                      // The bearing NAMES where the wind comes from; the arrow
-                      // POINTS where it is going (bearing + 180), which is the
-                      // standard weather-map reading of the same number.
+                      // Screen-up is north, and the arrow points AT the
+                      // direction its own letters name (owner-reported
+                      // 2026-08-21). The meteorologist's convention — letters
+                      // for where the wind is from, arrow for where it is
+                      // going — makes the two halves of one readout point
+                      // opposite ways, which is correct on a weather map and
+                      // baffling on a new tab. Self-consistency wins here.
                       <svg
                         data-weather-wind-arrow=""
                         aria-hidden="true"
@@ -683,7 +687,7 @@ export default function WeatherWidget({
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className="shrink-0 text-accent"
-                        style={{ transform: `rotate(${snapshot.current.windDirection + 180}deg)` }}
+                        style={{ transform: `rotate(${snapshot.current.windDirection}deg)` }}
                       >
                         <path d="M12 19V5M5 12l7-7 7 7" />
                       </svg>
@@ -736,10 +740,13 @@ export default function WeatherWidget({
                   <div>
                     <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunrise</dt>
                     <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
+                      {/* A plain sun and, below, a plain moon (owner-reported
+                          2026-08-21). Two horizon-and-arrow variants read as
+                          the same icon twice at 13px; sun versus crescent is
+                          unmistakable at any size. */}
                       <svg data-weather-sunrise-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-amber-300">
-                        <path d="M3 19h18" />
-                        <path d="M17 14a5 5 0 0 0-10 0" />
-                        <path d="M12 9V2M8.5 5.5L12 2l3.5 3.5" />
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8" />
                       </svg>
                       <span>{clockTime(snapshot.sunriseISO, settings.use24Hour)}</span>
                     </dd>
@@ -749,10 +756,8 @@ export default function WeatherWidget({
                   <div>
                     <dt data-canvas-type-role="metadata" className="text-fg-muted">Sunset</dt>
                     <dd data-canvas-type-role="body" className="mt-0.5 flex items-center gap-1.5 tabular-nums text-fg">
-                      <svg data-weather-sunset-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-orange-300">
-                        <path d="M3 19h18" />
-                        <path d="M17 14a5 5 0 0 0-10 0" />
-                        <path d="M12 2v7M8.5 5.5L12 9l3.5-3.5" />
+                      <svg data-weather-sunset-icon="" aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-slate-300">
+                        <path d="M20 14.5A8.2 8.2 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z" />
                       </svg>
                       <span>{clockTime(snapshot.sunsetISO, settings.use24Hour)}</span>
                     </dd>

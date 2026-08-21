@@ -537,17 +537,19 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
     expect(details.getByText('Sunset').nextElementSibling?.textContent).toContain('7:58 PM')
   })
 
-  it('names the wind bearing and points the arrow where the wind is going (owner 2026-08-19)', async () => {
+  it('points the wind arrow AT the direction its own letters name, screen-up as north (owner 2026-08-21)', async () => {
     const base = makeSnapshot()
     await renderWidget({ snapshot: makeSnapshot({ current: { ...base.current, windDirection: 315 } }) })
     await expandPanel()
     const details = screen.getByRole('dialog', { name: 'Weather details' }) as HTMLElement
-    // 315 degrees is a NW wind: named for where it comes FROM...
+    // 315 degrees is a NW wind, and the arrow agrees with the letters: with
+    // screen-up as north, rotating an up-pointing arrow by the bearing
+    // itself aims it up-and-left, at the NW the label names. Adding 180
+    // (the weather-map convention) would aim it SE while the text said NW.
     expect(within(details).getByText('Wind').nextElementSibling?.textContent).toContain('NW')
-    // ...while the arrow points where it is GOING, bearing + 180.
     const arrow = details.querySelector('[data-weather-wind-arrow]') as HTMLElement
     expect(arrow).toBeTruthy()
-    expect(arrow.style.transform).toBe('rotate(495deg)')
+    expect(arrow.style.transform).toBe('rotate(315deg)')
   })
 
   it('omits the compass point entirely for a cache captured without a bearing', async () => {
