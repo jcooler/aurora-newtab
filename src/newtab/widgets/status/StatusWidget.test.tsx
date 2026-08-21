@@ -113,33 +113,53 @@ describe('StatusWidget — DOM contract', () => {
     expect(dots.querySelector('[title*="Elevated build latency"]')).toBeTruthy()
   })
 
-  it('Docked renders one dense line from the same snapshot and no strip (NL-P5 batch 2)', async () => {
+  it('Docked renders clickable dots that open a per-service panel (owner direction 2026-08-21)', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     render(
       <StorageProvider storage={storage}>
         <StatusWidget docked />
       </StorageProvider>,
     )
-    const line = await screen.findByLabelText('Service status: All operational, 2 services')
+    // The dots ARE the readout: no summary text on the line itself, but the
+    // button still NAMES the state for a screen reader.
+    const line = await screen.findByRole('button', { name: 'Service status: All operational, 2 services' })
     expect(line.getAttribute('data-dock-line')).toBe('')
-    expect(line.getAttribute('data-work-pulse-summary')).toBeNull()
-    // The dense line replaces the strip entirely — no heading, no dot row.
+    expect(line.textContent).toBe('')
+    expect(line.querySelectorAll('span[title]')).toHaveLength(2)
+    // The dense line replaces the strip entirely — no heading, no section.
     expect(screen.queryByText('Service status')).toBeNull()
-    expect(document.querySelectorAll('span[title]')).toHaveLength(0)
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    // ...and the detail a dense line cannot carry is one click away.
+    await act(async () => { line.click() })
+    const panel = screen.getByRole('dialog', { name: 'Service status details' })
+    expect(panel.textContent).toContain('GitHub')
+    expect(panel.textContent).toContain('Cloudflare')
+    expect(panel.textContent).toContain('All Systems Operational')
+    expect(line.getAttribute('aria-expanded')).toBe('true')
+
+    await act(async () => { line.click() })
+    expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('keeps the health summary in Compact while reserving service dots for Standard and Full', async () => {
+  it('shows dots at every board size, with names from Standard up (owner direction 2026-08-21)', async () => {
     const storage = await seededStorage(CONNECTED, ALL_GREEN)
     const view = mount(storage, 'compact')
     const compact = await screen.findByRole('region', { name: 'Service status' })
-    expect(screen.getByLabelText('Service status: All operational, 2 services')).toBeTruthy()
-    expect(compact.querySelectorAll('span[title]')).toHaveLength(0)
+    // Compact is one tight row of COLOURS — every name still a hover away.
+    expect(compact.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(compact.textContent).not.toContain('GitHub')
+    expect(compact.querySelector('[title="GitHub: All Systems Operational"]')).toBeTruthy()
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="standard" /></StorageProvider>)
-    expect((await screen.findByRole('region', { name: 'Service status' })).querySelectorAll('span[title]')).toHaveLength(2)
+    const standard = await screen.findByRole('region', { name: 'Service status' })
+    expect(standard.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(standard.textContent).toContain('GitHub')
 
     view.rerender(<StorageProvider storage={storage}><StatusWidget canvasSize="full" /></StorageProvider>)
-    expect((await screen.findByRole('region', { name: 'Service status' })).querySelectorAll('span[title]')).toHaveLength(2)
+    const full = await screen.findByRole('region', { name: 'Service status' })
+    expect(full.querySelectorAll('span[title]')).toHaveLength(2)
+    expect(full.textContent).toContain('Cloudflare')
   })
 
   it('renders section[aria-label="Service status"] with the crypto strip language (w-88 text-center)', async () => {
@@ -164,7 +184,8 @@ describe('StatusWidget — DOM contract', () => {
     const section = await screen.findByRole('region', { name: 'Service status' })
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
-    expect(screen.getByLabelText('Service status: All operational, 2 services').getAttribute('data-work-pulse-tone')).toBe('quiet')
+    expect(screen.getByText('All operational, 2 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('quiet')
   })
 })
 
@@ -209,7 +230,8 @@ describe('StatusWidget — dot color + title per indicator', () => {
     mount(storage)
     const dot = await screen.findByTitle('Delta: Major Outage')
     expect(dot.firstElementChild?.className).toContain('bg-red-400')
-    expect(screen.getByLabelText('Service status: 3 service issues, 5 services').getAttribute('data-work-pulse-tone')).toBe('critical')
+    expect(screen.getByText('3 service issues, 5 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('critical')
   })
 
   // FIX ROUND (post-Task 86, controller-approved): was `bg-fg-muted/40`
@@ -237,7 +259,8 @@ describe('StatusWidget — trouble lines', () => {
     const section = await screen.findByRole('region', { name: 'Service status' })
     expect(section.querySelectorAll('span[title]').length).toBe(2)
     expect(section.querySelectorAll('p').length).toBe(0)
-    expect(screen.getByLabelText('Service status: 1 unreachable, 2 services').getAttribute('data-work-pulse-tone')).toBe('unknown')
+    expect(screen.getByText('1 unreachable, 2 services')).toBeTruthy()
+    expect(screen.getByRole('region', { name: 'Service status' }).getAttribute('data-status-tone')).toBe('unknown')
   })
 
   // FIX ROUND (post-Task 86, controller-approved): the trouble line now

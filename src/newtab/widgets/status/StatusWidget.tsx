@@ -1,5 +1,9 @@
+import { useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
+import { useDialogEscape } from '../../../lib/dialogStack'
+import { anchorPanel } from '../../../lib/layout/anchor'
 import {
   fetchStatus,
   statusServicesOf,
@@ -8,8 +12,6 @@ import {
   type StatusIndicator,
 } from '../../../services/connectors/status'
 import type { StatusConfig } from '../../../services/connectors/types'
-import DockLine from '../shared/DockLine'
-import WorkPulseSummary from '../shared/WorkPulseSummary'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 
 // The status widget — Task 84 (W3-SP2), the eighth connector and the third
@@ -117,17 +119,21 @@ function StatusInner({
       ? `${unknownCount} unreachable`
       : 'All operational'
 
-  // Docked tier (NL-P5 batch 2, GithubWidget's exemplar shape): the SAME
-  // health summary the strip renders, as one dense line — one data owner, no
-  // second fetch. The data guard above covered the never-fetched case.
+  const tone = trouble.length > 0
+    ? (hasSevereTrouble ? 'critical' : 'attention')
+    : unknownCount > 0 ? 'unknown' : 'quiet'
+  // The accessible name still carries the words the visible strip dropped
+  // (owner-reported 2026-08-21: "All operational" and "4 services" were
+  // whitespace). Sighted users read the dots; a screen reader still hears
+  // the summary, so removing the text cost nothing in meaning.
+  const summaryLabel = `Service status: ${summaryValue}, ${rows.length} services`
+
+  // Docked tier: the dots ARE the readout, and the line OPENS (owner
+  // direction 2026-08-21, overruling the batch-2 note that docked
+  // connectors are non-interactive readouts — status is the one whose
+  // detail cannot fit on a dense line, so it earns a panel).
   if (docked) {
-    return (
-      <DockLine
-        label="Service status"
-        facts={[summaryValue, `${rows.length} services`]}
-        tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
-      />
-    )
+    return <StatusDock rows={rows} tone={tone} label={summaryLabel} />
   }
 
   return (
@@ -136,26 +142,39 @@ function StatusInner({
     // for why: centering is the bottom band's job via its own `items-center`,
     // not this widget's or the PositionedBlock className's). FIRST child of
     // the bottom band (App.tsx), above crypto.
-    <section aria-label="Service status" data-canvas-size={canvasSize} className="w-88 text-center">
+    <section
+      aria-label="Service status"
+      data-status-tone={tone}
+      data-canvas-size={canvasSize}
+      className="w-88 text-center"
+    >
       <h2 className="text-sm font-semibold text-fg">Service status</h2>
-      <WorkPulseSummary
-        label="Service status"
-        value={summaryValue}
-        tone={trouble.length > 0 ? (hasSevereTrouble ? 'critical' : 'attention') : unknownCount > 0 ? 'unknown' : 'quiet'}
-        metadata={`${rows.length} services`}
-      />
-      {/* Named dots (batch-2 owner review): an anonymous dot row answered
-          neither "what services" nor "which one is which" — the name rides
-          visibly beside each dot, and the title keeps the state/description
-          one hover away. */}
-      {canvasSize !== 'compact' && <div data-work-pulse-detail data-work-pulse-status-dots data-testid="status-dots" className="flex flex-wrap justify-center gap-x-3 gap-y-1">
+      {/* The words the visible strip dropped. A landmark's accessible name
+          must stay STABLE ("Service status"), so the live summary rides in
+          screen-reader-only text rather than in the region's own label. */}
+      <span data-status-summary className="sr-only">{summaryValue}, {rows.length} services</span>
+      {/* The dots ARE the glance (owner-reported 2026-08-21). The
+          "All operational / N services" summary line that used to sit here
+          restated what the colours already say and cost a whole row of
+          height; it survives as this section's accessible name. Names ride
+          beside each dot from Standard up (the batch-2 review: an anonymous
+          dot answers neither "what service" nor "which one"); Compact is
+          one tight row of colours, with every name a hover away. */}
+      <div
+        data-work-pulse-detail
+        data-work-pulse-status-dots
+        data-testid="status-dots"
+        className="flex flex-wrap justify-center gap-x-3 gap-y-1"
+      >
         {rows.map((s, i) => (
           <span key={i} title={dotTitle(s)} className="flex items-center gap-1.5">
             <span className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
-            <span className="text-[11px] leading-4 text-fg-muted">{s.name}</span>
+            {canvasSize !== 'compact' && (
+              <span className="text-[11px] leading-4 text-fg-muted">{s.name}</span>
+            )}
           </span>
         ))}
-      </div>}
+      </div>
       {canvasSize !== 'compact' && trouble.map((s, i) => (
         // FIX ROUND (post-Task 86, controller-approved): the OUTER
         // PositionedBlock (App.tsx) now reveals this whole section at a
@@ -179,6 +198,91 @@ function StatusInner({
         </p>
       ))}
     </section>
+  )
+}
+
+const PANEL_SIZE = { w: 260, h: 240 }
+
+/** The docked readout: coloured dots that OPEN. A dense dock line cannot
+ *  carry per-service detail, so the detail lives one click away in a panel
+ *  anchored to the line itself — the same anchorPanel rules the inspector
+ *  and the weather details use, so it opens toward space and clamps to the
+ *  viewport. */
+function StatusDock({
+  rows,
+  tone,
+  label,
+}: {
+  rows: readonly ServiceStatus[]
+  tone: 'quiet' | 'attention' | 'critical' | 'unknown'
+  label: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [anchorRect, setAnchorRect] = useState<DOMRect | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  useDialogEscape(() => {
+    setOpen(false)
+    triggerRef.current?.focus()
+  }, open)
+
+  const toggle = () => {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    if (triggerRef.current) setAnchorRect(triggerRef.current.getBoundingClientRect())
+    setOpen(true)
+  }
+
+  const position = anchorRect
+    ? anchorPanel(anchorRect, PANEL_SIZE, {
+      w: typeof window === 'undefined' ? 1 : window.innerWidth,
+      h: typeof window === 'undefined' ? 1 : window.innerHeight,
+    })
+    : null
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={label}
+        aria-expanded={open}
+        data-dock-line=""
+        data-status-tone={tone}
+        onClick={toggle}
+        className="dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
+      >
+        {rows.map((s, i) => (
+          <span key={i} title={dotTitle(s)} className={`size-2 rounded-full ${dotClass(s.indicator)}`} />
+        ))}
+      </button>
+      {open && position
+        ? createPortal(
+          <div
+            role="dialog"
+            aria-label="Service status details"
+            data-status-panel=""
+            className="fixed z-50 flex w-[260px] flex-col gap-2 rounded-panel border border-panel-border bg-panel-solid p-3 shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]"
+            style={{
+              left: position.left,
+              ...('top' in position ? { top: position.top } : { bottom: position.bottom }),
+            }}
+          >
+            {rows.map((s, i) => (
+              <div key={i} className="flex items-start gap-2 text-left">
+                <span className={`mt-1.5 size-2 shrink-0 rounded-full ${dotClass(s.indicator)}`} />
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-fg">{s.name}</span>
+                  <span className="block text-xs text-fg-muted">{s.description}</span>
+                </span>
+              </div>
+            ))}
+          </div>,
+          document.body,
+        )
+        : null}
+    </>
   )
 }
 

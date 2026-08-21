@@ -56,6 +56,10 @@ export const CURATED_STATUS: readonly StatusService[] = [
   { name: 'OpenAI', url: 'https://status.openai.com/api/v2/status.json' },
   { name: 'npm', url: 'https://status.npmjs.org/api/v2/status.json' },
   { name: 'Vercel', url: 'https://www.vercel-status.com/api/v2/status.json' },
+  // status.anthropic.com 301-redirects here, so the CANONICAL host is the
+  // one listed: an extension host permission is granted per-origin and does
+  // not follow a cross-origin redirect.
+  { name: 'Claude', url: 'https://status.claude.com/api/v2/status.json' },
   { name: 'Discord', url: 'https://discordstatus.com/api/v2/status.json' },
 ]
 

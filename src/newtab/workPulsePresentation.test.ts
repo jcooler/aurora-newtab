@@ -7,12 +7,19 @@ import statusSource from './widgets/status/StatusWidget.tsx?raw'
 import summarySource from './widgets/shared/WorkPulseSummary.tsx?raw'
 import vercelSource from './widgets/vercel/VercelWidget.tsx?raw'
 
+// Status is deliberately ABSENT from this list (owner direction
+// 2026-08-21). Every other attention connector answers "how are things?"
+// with a sentence, so it renders WorkPulseSummary. Status answers with
+// COLOUR — a row of dots is the whole readout — and the summary sentence it
+// used to print above them ("All operational", "4 services") restated the
+// dots and cost a row of height. Its summary now lives as screen-reader-only
+// text, asserted separately below, so the meaning survives for anyone who
+// cannot see the colours.
 const sources = [
   githubSource,
   gitlabSource,
   jiraSource,
   vercelSource,
-  statusSource,
 ]
 
 describe('W4-P3 Work Pulse presentation boundary', () => {
@@ -22,6 +29,13 @@ describe('W4-P3 Work Pulse presentation boundary', () => {
       expect(source).toContain('data-work-pulse-rows')
       expect(source).toContain('data-work-pulse-detail')
     }
+    // Status keeps the DETAIL anatomy and trades the summary sentence for
+    // an accessible-only equivalent — never dropping the meaning, only the
+    // duplicated pixels.
+    expect(statusSource).toContain('data-work-pulse-detail')
+    expect(statusSource).not.toContain('<WorkPulseSummary')
+    expect(statusSource).toContain('data-status-summary')
+    expect(statusSource).toContain('sr-only')
     expect(summarySource).not.toMatch(/\bfetch\s*\(/)
     expect(summarySource).not.toContain('storage.set')
     expect(summarySource).not.toContain('useConnectorSnapshot')
