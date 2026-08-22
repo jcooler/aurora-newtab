@@ -179,25 +179,25 @@ feat(browser): add native resource boundaries
 - Create: `src/newtab/widgets/readingList/ReadingListWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Write tier and interaction failures**
+- [x] **Step 1: Write tier and interaction failures**
 
 Cover permission-required, loading, empty, stale/error, Compact, Standard,
 Full, and Docked. Pin title/host/age rows, dock click parity, Open, Mark read,
 Mark unread, two-step Remove, focus restoration, keyboard operation, and no
 blank shell.
 
-- [ ] **Step 2: Observe Reading List RED**
+- [x] **Step 2: Observe Reading List RED**
 
 Run the two new widget test files. Expected: FAIL because the shared shell and
 widget are missing.
 
-- [ ] **Step 3: Implement the shared browser shell and Reading List**
+- [x] **Step 3: Implement the shared browser shell and Reading List**
 
 Use existing Aurora tokens, dialog stack, anchor clamp, soft/full hover law,
 and a narrow unread rail. No Add current page affordance. Every mutation
 refreshes from Chrome before announcing success.
 
-- [ ] **Step 4: Reach Reading List GREEN and commit**
+- [x] **Step 4: Reach Reading List GREEN and commit**
 
 Run focused tests, TypeScript, and diff hygiene, then commit:
 
