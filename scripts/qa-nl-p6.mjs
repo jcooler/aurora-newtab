@@ -17,6 +17,11 @@ const dist = resolve('.qa-nl-p6-dist')
 const profileDir = resolve('.playwright-profile-qa-nl-p6')
 const outDir = prepareQaOutputDir(process.argv.slice(2), repoRoot, { empty: true })
 const headed = process.argv.includes('--headed')
+const scenarioFilter = process.argv.find((arg) => arg.startsWith('--scenario='))?.slice('--scenario='.length)
+const scenarios = scenarioFilter
+  ? SCENARIOS.filter((scenario) => scenario.id === scenarioFilter)
+  : SCENARIOS
+if (scenarioFilter && scenarios.length === 0) throw new Error(`unknown QA scenario: ${scenarioFilter}`)
 
 for (const [path, suffix] of [
   [dist, '.qa-nl-p6-dist'],
@@ -56,7 +61,7 @@ const VIEWPORTS = [
 ]
 const HOVER_DOCK_VIEWPORTS = new Set(['1408x445', '1600x900'])
 
-const evidence = { cells: [], failures: [], runtimeErrors: [], failedRequests: [], writes: [] }
+const evidence = { cells: [], failures: [], runtimeErrors: [], failedRequests: [], writes: [], stackInteractions: null }
 const fail = (message) => { evidence.failures.push(message) }
 
 const context = await chromium.launchPersistentContext(profileDir, {
@@ -91,10 +96,12 @@ const harvestWrites = async (label) => {
   return writes
 }
 
-async function assertInvariants(cell) {
-  const truth = await page.evaluate(() => {
+async function assertInvariants(cell, scenarioId) {
+  const truth = await page.evaluate(async ({ checkStack }) => {
     const doc = document.documentElement
     const surface = document.querySelector('[data-canvas-surface]')
+    const wash = surface?.querySelector('.canvas-legibility-layer')
+    const washRect = wash?.getBoundingClientRect()
     const flow = document.querySelector('[data-flow-screen]')
     const flowRect = flow?.getBoundingClientRect()
     const flowTargetEscapes = flow ? [
@@ -144,10 +151,40 @@ async function assertInvariants(cell) {
     const gearHit = gearRect
       ? document.elementFromPoint(gearRect.left + gearRect.width / 2, gearRect.top + gearRect.height / 2)?.closest('button') === gear
       : false
+    const toolbar = document.querySelector('[role="toolbar"][aria-label="Edit layout"]')
+    const toolbarTargetEscapes = toolbar ? [...toolbar.querySelectorAll('button, select')].flatMap((node) => {
+      const rect = node.getBoundingClientRect()
+      return rect.left < -1 || rect.top < -1
+        || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1
+        ? [node.getAttribute('aria-label') || node.textContent?.trim() || node.tagName]
+        : []
+    }) : []
+    const stackCard = checkStack ? document.querySelector('[data-stack-card="qa-stack"]') : null
+    const stackMembers = stackCard ? [...stackCard.querySelectorAll('[data-stack-member]')] : []
+    const stackRect = stackCard?.getBoundingClientRect()
+    const stored = checkStack ? (await chrome.storage.local.get('layouts')).layouts : null
+    const storedLayout = stored?.layouts?.find((layout) => layout.id === stored.activeLayoutId)
+    const storedStack = storedLayout?.stacks?.find((stack) => stack.id === 'qa-stack')
+    const expectedMembers = ['monthCal', 'weather', 'quote']
+    const stackTruth = checkStack ? {
+      cardCount: document.querySelectorAll('[data-stack-card]').length,
+      mountedMembers: stackMembers.map((node) => node.getAttribute('data-stack-member')),
+      visibleMemberCount: stackMembers.filter((node) => getComputedStyle(node).visibility !== 'hidden').length,
+      storedFacing: storedStack?.facing ?? null,
+      duplicateStandalone: expectedMembers.filter((id) => document.querySelector(`[data-canvas-object-id="${id}"]`)),
+      zero: !stackRect || stackRect.width < 4 || stackRect.height < 4,
+      offscreen: !stackRect || stackRect.right < 0 || stackRect.bottom < 0
+        || stackRect.left > window.innerWidth || stackRect.top > window.innerHeight,
+      dockedTimer: storedLayout?.widgets?.timer?.kind === 'docked'
+        && Boolean(document.querySelector('[data-canvas-object-id="timer"]')),
+    } : null
     return {
       hOverflow: doc.scrollWidth > doc.clientWidth,
       vOverflow: doc.scrollHeight > doc.clientHeight,
       surfacePresent: Boolean(surface),
+      narrowWashCoversViewport: surface?.hasAttribute('data-canvas-narrow')
+        ? Boolean(washRect && washRect.top <= 1 && washRect.bottom >= window.innerHeight - 1)
+        : true,
       flowPresent: Boolean(flow),
       flowBounded: Boolean(flowRect
         && flowRect.left >= -1 && flowRect.top >= -1
@@ -160,8 +197,10 @@ async function assertInvariants(cell) {
       zero,
       offscreen,
       gearHit,
+      toolbarTargetEscapes,
+      stackTruth,
     }
-  })
+  }, { checkStack: scenarioId === 'stacks' })
   if (truth.hOverflow) fail(`${cell}: horizontal page overflow`)
   if (truth.flowPresent) {
     if (truth.vOverflow || !truth.flowBounded || !truth.flowTimerPresent || !truth.flowExitPresent) {
@@ -176,14 +215,174 @@ async function assertInvariants(cell) {
     return
   }
   if (!truth.surfacePresent) fail(`${cell}: canvas surface missing`)
+  if (!truth.narrowWashCoversViewport) fail(`${cell}: narrow canvas wash ends before the viewport`)
   if (truth.zero.length) fail(`${cell}: degenerate widgets ${truth.zero.join(',')}`)
   if (truth.offscreen.length) fail(`${cell}: fully offscreen widgets ${truth.offscreen.join(',')}`)
   if (!truth.gearHit) fail(`${cell}: settings gear not hit-testable`)
+  if (truth.toolbarTargetEscapes.length) {
+    fail(`${cell}: edit toolbar targets escaped the viewport (${truth.toolbarTargetEscapes.join(',')})`)
+  }
+  if (truth.stackTruth) {
+    const stack = truth.stackTruth
+    if (stack.cardCount !== 1) fail(`${cell}: expected one stack card, found ${stack.cardCount}`)
+    if (stack.mountedMembers.join(',') !== 'monthCal,weather,quote') {
+      fail(`${cell}: stack members ${stack.mountedMembers.join(',')}`)
+    }
+    if (stack.visibleMemberCount !== 1) fail(`${cell}: expected one visible stack face, found ${stack.visibleMemberCount}`)
+    if (stack.storedFacing !== 'quote') fail(`${cell}: stored stack facing ${stack.storedFacing}`)
+    if (stack.duplicateStandalone.length) fail(`${cell}: duplicate standalone members ${stack.duplicateStandalone.join(',')}`)
+    if (stack.zero) fail(`${cell}: stack card has a zero box`)
+    if (stack.offscreen) fail(`${cell}: stack card is fully offscreen`)
+    if (!stack.dockedTimer) fail(`${cell}: required docked Timer is missing`)
+  }
 }
 
 async function capture(name) {
   await page.screenshot({ path: resolve(outDir, `${name}.png`) })
   evidence.cells.push(name)
+}
+
+async function stackInteractionChecks() {
+  const card = page.locator('[data-stack-card="qa-stack"]')
+  const waitForFace = async (label) => {
+    await page.getByRole('group', { name: label, exact: true }).waitFor()
+    await page.waitForTimeout(120)
+  }
+  const box = async () => {
+    const measured = await card.boundingBox()
+    if (!measured) throw new Error('stacks: stack card has no box')
+    return { width: measured.width, height: measured.height }
+  }
+  const storedFacing = () => page.evaluate(async () => {
+    const { layouts } = await chrome.storage.local.get('layouts')
+    const layout = layouts.layouts.find((candidate) => candidate.id === layouts.activeLayoutId)
+    return layout.stacks?.find((stack) => stack.id === 'qa-stack')?.facing ?? null
+  })
+  const waitForStoredFace = async (face) => {
+    await page.waitForFunction(async (expected) => {
+      const { layouts } = await chrome.storage.local.get('layouts')
+      const layout = layouts.layouts.find((candidate) => candidate.id === layouts.activeLayoutId)
+      return layout.stacks?.find((stack) => stack.id === 'qa-stack')?.facing === expected
+    }, face)
+  }
+  const takeWrites = async () => page.evaluate(() => {
+    const writes = window.__writeLog ?? []
+    window.__writeLog = []
+    return writes
+  })
+  const assertHitTarget = async (control, label) => {
+    const truth = await control.evaluate((node) => {
+      const rect = node.getBoundingClientRect()
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2)
+      return {
+        exact: hit === node || Boolean(hit?.closest('button') === node),
+        hit: hit?.getAttribute('data-canvas-object-id') || hit?.getAttribute('aria-label') || hit?.className || hit?.tagName || null,
+        pointerEvents: getComputedStyle(node).pointerEvents,
+        inertChain: [...document.querySelectorAll('[inert]')]
+          .filter((candidate) => candidate === node || candidate.contains(node))
+          .map((candidate) => candidate.className || candidate.tagName),
+      }
+    })
+    if (!truth.exact) throw new Error(`stacks: ${label} is not hit-testable ${JSON.stringify(truth)}`)
+  }
+
+  const dimensions = [{ face: 'quote', ...await box() }]
+  const nextButton = card.getByRole('button', { name: 'Next widget' })
+  await assertHitTarget(nextButton, 'Next widget')
+  await nextButton.click()
+  await waitForFace('Month, 1 of 3')
+  await waitForStoredFace('monthCal')
+  dimensions.push({ face: 'monthCal', ...await box() })
+  await card.getByRole('button', { name: 'Next widget' }).click()
+  await waitForFace('Weather, 2 of 3')
+  await waitForStoredFace('weather')
+  dimensions.push({ face: 'weather', ...await box() })
+  await card.getByRole('button', { name: 'Next widget' }).click()
+  await waitForFace('Quote, 3 of 3')
+  await waitForStoredFace('quote')
+
+  const origin = dimensions[0]
+  for (const measured of dimensions.slice(1)) {
+    if (Math.abs(measured.width - origin.width) > 1 || Math.abs(measured.height - origin.height) > 1) {
+      fail(`stacks: card changed size on ${measured.face} ${JSON.stringify(dimensions)}`)
+    }
+  }
+
+  await card.getByRole('button', { name: 'Show Weather' }).click()
+  await waitForFace('Weather, 2 of 3')
+  const weatherTrigger = card.locator('[data-stack-member="weather"] button[aria-expanded="false"]')
+  await weatherTrigger.click()
+  await page.waitForTimeout(250)
+  const parityTruth = await page.evaluate(() => {
+    const member = document.querySelector('[data-stack-member="weather"]')
+    const trigger = member?.querySelector('button[aria-expanded]')
+    return {
+      active: member?.getAttribute('data-stack-active'),
+      inert: member?.hasAttribute('inert'),
+      expanded: trigger?.getAttribute('aria-expanded'),
+      dialog: Boolean(document.querySelector('[role="dialog"][aria-label="Weather details"]')),
+    }
+  })
+  if (!parityTruth.dialog) throw new Error(`stacks: Weather click parity failed ${JSON.stringify(parityTruth)}`)
+  await page.keyboard.press('Escape')
+  await page.getByRole('dialog', { name: 'Weather details' }).waitFor({ state: 'detached' })
+
+  const swipeBox = await card.boundingBox()
+  if (!swipeBox) throw new Error('stacks: stack card disappeared before swipe')
+  await page.mouse.move(swipeBox.x + swipeBox.width / 2, swipeBox.y + swipeBox.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(swipeBox.x + swipeBox.width / 2 - 50, swipeBox.y + swipeBox.height / 2, { steps: 4 })
+  await page.mouse.up()
+  await waitForFace('Quote, 3 of 3')
+  if (await page.getByRole('dialog', { name: 'Weather details' }).count()) {
+    fail('stacks: swipe activated the Weather face click')
+  }
+
+  await card.focus()
+  await page.keyboard.press('ArrowRight')
+  await waitForFace('Month, 1 of 3')
+  await waitForStoredFace('monthCal')
+  const pagingWrites = await takeWrites()
+  if (pagingWrites.length === 0 || pagingWrites.some((keys) => keys !== 'layouts')) {
+    fail(`stacks: normal paging writes were ${pagingWrites.join(';') || 'empty'}`)
+  }
+  evidence.writes.push(...pagingWrites.map((keys) => `stack-interactions:${keys}`))
+
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForProductSurface()
+  await waitForFace('Month, 1 of 3')
+  await armWriteLog()
+
+  const reloadedCard = page.locator('[data-stack-card="qa-stack"]')
+  await reloadedCard.getByRole('button', { name: 'Show Quote' }).click()
+  await waitForFace('Quote, 3 of 3')
+  await waitForStoredFace('quote')
+  const dotWrites = await takeWrites()
+  if (dotWrites.length === 0 || dotWrites.some((keys) => keys !== 'layouts')) {
+    fail(`stacks: dot paging writes were ${dotWrites.join(';') || 'empty'}`)
+  }
+  evidence.writes.push(...dotWrites.map((keys) => `stack-interactions:${keys}`))
+
+  await page.keyboard.press('Control+Shift+E')
+  await page.waitForSelector('[role="toolbar"][aria-label="Edit layout"]')
+  await reloadedCard.getByRole('button', { name: 'Show Weather' }).click()
+  await waitForFace('Weather, 2 of 3')
+  if (await storedFacing() !== 'quote') fail('stacks: edit-mode dot wrote before Save')
+  await page.keyboard.press('Escape')
+  await waitForFace('Quote, 3 of 3')
+  const cancelWrites = await takeWrites()
+  if (cancelWrites.length > 0) fail(`stacks: cancelled edit wrote ${cancelWrites.join(';')}`)
+
+  evidence.stackInteractions = {
+    dimensions,
+    wraparound: true,
+    weatherClickParity: true,
+    swipeWithoutClick: true,
+    keyboardPaging: true,
+    reloadFacing: 'monthCal',
+    cancelledDraftFacing: 'weather',
+    storedFacingAfterCancel: await storedFacing(),
+  }
 }
 
 // Per-scenario truth checks, run once at 1600x900 after seeding (plan Task 2).
@@ -243,11 +442,12 @@ async function scenarioChecks(id) {
       fail(`flow: focus/task fixture missing ${JSON.stringify(flowTruth)}`)
     }
   }
+  if (id === 'stacks') await stackInteractionChecks()
 }
 
 let caughtError
 try {
-  for (const scenario of SCENARIOS) {
+  for (const scenario of scenarios) {
     // Fresh storage per scenario: clear all, reload to re-init defaults,
     // then seed and reload once more.
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
@@ -269,7 +469,7 @@ try {
       await page.waitForTimeout(350)
       const cell = `${scenario.id}-${vpId}`
 
-      await assertInvariants(`${cell}-normal`)
+      await assertInvariants(`${cell}-normal`, scenario.id)
       await capture(`${cell}-normal`)
 
       // Edit state: normal dashboards enter and exact-cancel. Flow must
@@ -279,11 +479,11 @@ try {
       const sessionLive = await page.evaluate(() => Boolean(document.querySelector('[role="toolbar"][aria-label="Edit layout"]')))
       if (scenario.id === 'flow') {
         if (sessionLive) fail(`${cell}: edit chord changed Flow`)
-        await assertInvariants(`${cell}-edit-ignored`)
+        await assertInvariants(`${cell}-edit-ignored`, scenario.id)
         await capture(`${cell}-edit-ignored`)
       } else {
         if (!sessionLive) fail(`${cell}-edit: session did not open`)
-        await assertInvariants(`${cell}-edit`)
+        await assertInvariants(`${cell}-edit`, scenario.id)
         await capture(`${cell}-edit`)
         await page.keyboard.press('Escape')
         await page.waitForTimeout(250)
@@ -315,7 +515,9 @@ try {
   for (const entry of evidence.writes) {
     const [label, keys] = entry.split(':')
     if (keys.split(',').includes('layout')) fail(`write-log ${label}: the frozen legacy layout key was written`)
-    if (keys.split(',').includes('layouts')) fail(`write-log ${label}: a cancelled session wrote layouts`)
+    if (keys.split(',').includes('layouts') && label !== 'stack-interactions') {
+      fail(`write-log ${label}: a cancelled session wrote layouts`)
+    }
   }
 } catch (error) {
   caughtError = error

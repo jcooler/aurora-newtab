@@ -4,8 +4,19 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { prepareQaOutputDir, resolveQaOutputDir } from './qa-nl-p6-output.mjs'
+import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
 
 const repoRoot = resolve('fixture-repo')
+
+test('defines the saved three-member widget-stack QA scenario', () => {
+  const scenario = SCENARIOS.find((candidate) => candidate.id === 'stacks')
+  assert.deepEqual(scenario?.expectedStack, {
+    id: 'qa-stack',
+    members: ['monthCal', 'weather', 'quote'],
+    facing: 'quote',
+    tier: 'standard',
+  })
+})
 
 test('accepts one direct repository scratch output', () => {
   assert.equal(

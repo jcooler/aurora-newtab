@@ -203,3 +203,65 @@ SCENARIOS.push({
     })
   },
 })
+
+// Widget stacks remain an explicitly saved layout shape. The three members
+// share one Standard footprint, while two standalone controls and one docked
+// bar member make duplication or accidental placement inheritance visible.
+SCENARIOS.push({
+  id: 'stacks',
+  note: 'A saved three-member Standard stack facing Quote, two standalone widgets, and one explicitly docked Timer.',
+  expectedStack: {
+    id: 'qa-stack',
+    members: ['monthCal', 'weather', 'quote'],
+    facing: 'quote',
+    tier: 'standard',
+  },
+  seed: async (page) => {
+    await seedNamedSaved(page)
+    await page.evaluate(async () => {
+      const { settings } = await chrome.storage.local.get('settings')
+      await chrome.storage.local.set({
+        settings: {
+          ...settings,
+          widgets: {
+            ...Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false])),
+            clock: true,
+            notes: true,
+            monthCal: true,
+            weather: true,
+            quote: true,
+            timer: true,
+          },
+        },
+        layouts: {
+          version: 1,
+          activeLayoutId: 'qa-stacks',
+          layouts: [{
+            id: 'qa-stacks',
+            name: 'QA stacks',
+            widgets: {
+              clock: { kind: 'free', anchor: 'top-left', offsetX: 18, offsetY: 35, tier: 'compact', layer: 0 },
+              notes: { kind: 'free', anchor: 'bottom-left', offsetX: 18, offsetY: -30, tier: 'compact', layer: 1 },
+              timer: { kind: 'docked', dock: 'top', order: 0, x: 50, tier: 'compact' },
+              // Always-on identities remain explicit layout members. Hidden
+              // placements keep this fixture about the stack instead of
+              // manufacturing a center collision with unrelated defaults.
+              greeting: { kind: 'hidden' },
+              focus: { kind: 'hidden' },
+            },
+            stacks: [{
+              id: 'qa-stack',
+              members: ['monthCal', 'weather', 'quote'],
+              facing: 'quote',
+              anchor: 'center',
+              offsetX: 12,
+              offsetY: 5,
+              tier: 'standard',
+              layer: 3,
+            }],
+          }],
+        },
+      })
+    })
+  },
+})
