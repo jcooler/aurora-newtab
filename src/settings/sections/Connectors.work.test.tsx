@@ -100,6 +100,20 @@ async function storageWithTodoist() {
 }
 
 describe('Work connector settings', () => {
+  it('opens a stripped Linear credential directly in reconnect mode', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      linear: { enabled: true, displayName: 'Sam', teamIds: ['aurora'], itemLimit: 7 },
+    })
+
+    mount(storage)
+
+    expect(await screen.findByRole('region', { name: 'Linear reconnect' })).toBeTruthy()
+    expect(screen.getByLabelText('Linear personal API key')).toBeTruthy()
+    expect(screen.queryByLabelText('Show Linear on Canvas')).toBeNull()
+  })
+
   it('renders Sentry fixed-region and provider-derived project controls', async () => {
     const storage = await storageWithSentry()
     mount(storage)

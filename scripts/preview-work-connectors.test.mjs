@@ -48,4 +48,5 @@ test('checks the manifest wildcard while policing legacy layout writes through t
   const source = await readFile(new URL('./preview-work-connectors.mjs', import.meta.url), 'utf8')
   assert.ok(source.includes("optional_host_permissions?.includes('https://*/*')"))
   assert.ok(source.includes("stored.writes.some((keys) => keys.includes('layout'))"))
+  assert.ok(source.includes("getByRole('button', { name: `Reconnect ${widget.title}` }).click()"))
 })

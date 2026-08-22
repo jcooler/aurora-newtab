@@ -505,6 +505,7 @@ async function exerciseSettings(widget) {
   await waitForSurface()
   await openConnectors()
   await page.getByPlaceholder('Search connectors').fill(widget.title)
+  await page.getByRole('button', { name: `Reconnect ${widget.title}` }).click()
   const reconnectRegion = page.getByRole('region', { name: `${widget.title} reconnect` })
   await reconnectRegion.waitFor()
   await fillSetup(widget)
