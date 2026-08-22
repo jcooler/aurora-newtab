@@ -5,6 +5,7 @@ import { useDialogEscape } from '../../../lib/dialogStack'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { describeCode } from '../../../services/weather/codes'
 import { rainCallout } from '../../../services/weather/callout'
+import { aqiReading, pollenSummary, uvReading } from '../../../services/weather/environmentIdentity'
 import { PRECIP_FLOOR, forecastRange, forecastSlots } from '../../../services/weather/forecast'
 import {
   clockTime,
@@ -52,7 +53,7 @@ export default function WeatherWidget({
 }: { onExpandedChange?: (expanded: boolean) => void; stageVariant?: WidgetVariant; docked?: boolean } = {}) {
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
-  const { snapshot, stale, loading, error, refresh, state } = useWeather()
+  const { snapshot, stale, loading, enrichmentPending, error, refresh, state } = useWeather()
   const summarySize = stageVariant === 'expanded' ? 'full' : stageVariant
   const [expanded, setExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -60,6 +61,7 @@ export default function WeatherWidget({
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLElement>(null)
   const feedbackId = useId()
+  const environmentFeedbackId = useId()
   const detailsId = useId()
 
   const closeExpanded = useCallback(() => {
@@ -200,6 +202,17 @@ export default function WeatherWidget({
     ? `High ${displayTemp(range.hiC, settings.units)} · Low ${displayTempWithUnit(range.loC, settings.units)}`
     : null)
   const summarySlots = slots.slice(0, 4)
+  const environment = snapshot?.environment
+  const environmentAqi = environment?.status === 'available' && environment.usAqi !== null
+    ? aqiReading(environment.usAqi)
+    : null
+  const environmentUv = environment?.status === 'available' && environment.uvIndex !== null
+    ? uvReading(environment.uvIndex)
+    : null
+  const environmentPollen = environment?.status === 'available'
+    ? pollenSummary(environment.pollen)
+    : null
+  const environmentNeedsRetry = !enrichmentPending && (!environment || environment.status === 'unavailable')
 
   // Width caps. ORIGINALLY derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
@@ -765,14 +778,69 @@ export default function WeatherWidget({
                 )}
               </dl>
 
+              <div data-weather-environment="" className="mt-3 border-t border-panel-border pt-3 short:mt-2 short:pt-2 xshort:mt-2 xshort:pt-2">
+                <div data-canvas-type-role="metadata" className="uppercase tracking-[0.08em] text-fg-muted">
+                  Environment
+                </div>
+                {enrichmentPending ? (
+                  <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
+                    Loading environmental data…
+                  </p>
+                ) : environment?.status === 'available' ? (
+                  <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2">
+                    {environmentAqi && (
+                      <div>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">Air quality</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentAqi.value} <span className="text-fg-muted">{environmentAqi.category}</span>
+                        </dd>
+                      </div>
+                    )}
+                    {environmentUv && (
+                      <div>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">UV index</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentUv.value} <span className="text-fg-muted">{environmentUv.category}</span>
+                        </dd>
+                      </div>
+                    )}
+                    {environmentPollen && (
+                      <div className={environmentAqi && environmentUv ? 'col-span-2' : undefined}>
+                        <dt data-canvas-type-role="metadata" className="text-fg-muted">Pollen</dt>
+                        <dd data-canvas-type-role="body" className="mt-0.5 tabular-nums text-fg">
+                          {environmentPollen.kind === 'unavailable'
+                            ? 'Pollen unavailable here'
+                            : environmentPollen.kind === 'clear'
+                              ? 'No pollen detected'
+                              : `${environmentPollen.label} ${environmentPollen.grainsPerCubicMeter} grains/m³`}
+                        </dd>
+                      </div>
+                    )}
+                  </dl>
+                ) : (
+                  <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
+                    Environmental data unavailable.
+                  </p>
+                )}
+                <a
+                  href="https://open-meteo.com/en/docs/air-quality-api"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-canvas-type-role="metadata"
+                  className="mt-2 inline-flex cursor-pointer text-fg-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+                >
+                  Air quality and pollen: CAMS ENSEMBLE via Open-Meteo
+                </a>
+              </div>
+
               <div className="mt-3 short:mt-2 xshort:mt-2 flex items-center justify-between gap-3">
-                {stale || error || retrying ? (
+                {stale || error || retrying || enrichmentPending || environmentNeedsRetry ? (
                   <button
                     type="button"
                     onClick={requestRefresh}
-                    disabled={loading}
-                    aria-busy={loading || undefined}
-                    aria-describedby={feedbackId}
+                    disabled={loading || enrichmentPending || retrying}
+                    aria-busy={loading || enrichmentPending || retrying || undefined}
+                    aria-describedby={environmentNeedsRetry || enrichmentPending ? environmentFeedbackId : feedbackId}
                     className="inline-flex min-h-9 cursor-pointer items-center text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default"
                   >
                     Refresh

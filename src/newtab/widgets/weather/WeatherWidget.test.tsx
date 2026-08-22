@@ -5,7 +5,8 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { WidgetVariant } from '../../../lib/layout/types'
-import type { StoredLocation, WeatherSnapshot } from '../../../lib/storage/schema'
+import type { StoredLocation, WeatherEnvironmentSnapshot, WeatherSnapshot } from '../../../lib/storage/schema'
+import { environmentRequestIdentity } from '../../../services/weather/environmentIdentity'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
 import WeatherWidget from './WeatherWidget'
 
@@ -16,7 +17,22 @@ afterEach(() => vi.restoreAllMocks())
 // 12 hours starting 9 AM, one (index 3) with a notable rain chance — mirrors
 // the shape openMeteoProvider actually produces (12 fetch_hours, see
 // openMeteo.ts), just handwritten so these tests never touch fetch.
+function environmentFor(
+  overrides: Partial<Extract<WeatherEnvironmentSnapshot, { status: 'available' }>> = {},
+): WeatherEnvironmentSnapshot {
+  return {
+    requestIdentity: environmentRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+    fetchedAt: Date.now(),
+    status: 'available',
+    usAqi: 42,
+    uvIndex: 3,
+    pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 2 }] },
+    ...overrides,
+  }
+}
+
 function makeSnapshot(overrides: Partial<WeatherSnapshot> = {}): WeatherSnapshot {
+  const fetchedAt = overrides.fetchedAt ?? Date.now()
   return {
     current: { tempC: 21, feelsLikeC: 19, code: 2, windKmh: 14, humidity: 55, isDay: true },
     hourly: Array.from({ length: 12 }, (_, i) => ({
@@ -26,11 +42,12 @@ function makeSnapshot(overrides: Partial<WeatherSnapshot> = {}): WeatherSnapshot
       code: 2,
       isDay: true,
     })),
-    fetchedAt: Date.now(), // fresh — useWeather's SWR check must not refetch
+    fetchedAt, // fresh — useWeather's SWR check must not refetch
     locationLabel: 'New York',
     requestIdentity: weatherRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
     sunriseISO: '2026-08-06T06:12',
     sunsetISO: '2026-08-06T19:58',
+    environment: environmentFor({ fetchedAt }),
     ...overrides,
   }
 }
@@ -91,6 +108,10 @@ function weatherResponse(tempC: number): Response {
     }),
     { status: 200 },
   )
+}
+
+function environmentResponse(current: Record<string, number | null>): Response {
+  return new Response(JSON.stringify({ current }), { status: 200 })
 }
 
 async function activateWithModeledNativeClick(button: HTMLButtonElement) {
@@ -610,6 +631,146 @@ describe('WeatherWidget expanded forecast grid (Jon\'s pick — "the numbers ARE
   })
 })
 
+describe('WeatherWidget environmental briefing', () => {
+  it('shows rounded AQI and UV categories, dominant pollen, and exact linked attribution', async () => {
+    await renderWidget({
+      snapshot: makeSnapshot({
+        environment: environmentFor({
+          usAqi: 50.5,
+          uvIndex: 2.5,
+          pollen: {
+            status: 'available',
+            readings: [
+              { species: 'grass', grainsPerCubicMeter: 2.25 },
+              { species: 'ragweed', grainsPerCubicMeter: 12.5 },
+            ],
+          },
+        }),
+      }),
+    })
+    await expandPanel()
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(details.getByText('Air quality').nextElementSibling?.textContent).toBe('51 Moderate')
+    expect(details.getByText('UV index').nextElementSibling?.textContent).toBe('3 Moderate')
+    expect(details.getByText('Pollen').nextElementSibling?.textContent).toBe('Ragweed 12.5 grains/m³')
+
+    const attribution = details.getByRole('link', {
+      name: 'Air quality and pollen: CAMS ENSEMBLE via Open-Meteo',
+    })
+    expect(attribution.getAttribute('href')).toBe('https://open-meteo.com/en/docs/air-quality-api')
+    expect(attribution.getAttribute('target')).toBe('_blank')
+    expect(attribution.getAttribute('rel')).toBe('noopener noreferrer')
+  })
+
+  it.each([
+    ['AQI only', environmentFor({ usAqi: 42, uvIndex: null, pollen: { status: 'unavailable' } }), true, false, 'Pollen unavailable here'],
+    ['UV only', environmentFor({ usAqi: null, uvIndex: 6, pollen: { status: 'unavailable' } }), false, true, 'Pollen unavailable here'],
+    ['pollen only', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'available', readings: [{ species: 'birch', grainsPerCubicMeter: 4 }] } }), false, false, 'Birch 4 grains/m³'],
+    ['no numeric readings', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'unavailable' } }), false, false, 'Pollen unavailable here'],
+    ['zero pollen', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 0 }] } }), false, false, 'No pollen detected'],
+  ])('renders the %s payload without blank definition cells', async (_name, environment, hasAqi, hasUv, pollenText) => {
+    await renderWidget({ snapshot: makeSnapshot({ environment }) })
+    await expandPanel()
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(Boolean(details.queryByText('Air quality'))).toBe(hasAqi)
+    expect(Boolean(details.queryByText('UV index'))).toBe(hasUv)
+    expect(details.getByText('Pollen').nextElementSibling?.textContent).toBe(pollenText)
+    const environmental = screen.getByRole('dialog', { name: 'Weather details' }).querySelector('[data-weather-environment]')
+    expect(environmental?.querySelectorAll('dt').length).toBe(environmental?.querySelectorAll('dd').length)
+    for (const value of environmental?.querySelectorAll('dd') ?? []) expect(value.textContent?.trim()).not.toBe('')
+  })
+
+  it('shows complete environmental failure as useful forecast plus a visible retry', async () => {
+    const unavailable: WeatherEnvironmentSnapshot = {
+      requestIdentity: environmentRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+      fetchedAt: Date.now(),
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    await renderWidget({ snapshot: makeSnapshot({ environment: unavailable }) })
+    await expandPanel()
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(details.getByText('Environmental data unavailable.')).toBeTruthy()
+    expect(details.getByText('Feels like')).toBeTruthy()
+    expect(details.getByRole('button', { name: 'Refresh' })).toBeTruthy()
+  })
+
+  it.each([
+    ['compact' as const, false],
+    ['standard' as const, true],
+  ])('keeps %s closed content unchanged while old-cache enrichment is pending', async (stageVariant, docked) => {
+    const pending = new Promise<Response>(() => {})
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockReturnValue(pending)
+    const { environment: _environment, ...oldCache } = makeSnapshot()
+    const { view } = await renderWidget({ snapshot: oldCache, stageVariant, docked })
+    const closed = docked
+      ? document.querySelector('[data-dock-line]')
+      : document.querySelector('[data-weather-summary]')
+    expect(closed?.textContent).not.toContain('Loading environmental data')
+    expect(closed?.textContent).not.toContain('Refreshing')
+    if (docked) {
+      expect(closed?.textContent).toContain('21°C·New York·Partly cloudy')
+    } else {
+      expect(document.querySelectorAll('[data-weather-summary-row]')).toHaveLength(1)
+    }
+
+    await expandPanel()
+    expect(within(screen.getByRole('dialog', { name: 'Weather details' })).getByText('Loading environmental data…')).toBeTruthy()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    view.unmount()
+  })
+
+  it('retries unavailable enrichment inside the dialog and replaces it without hiding forecast', async () => {
+    const unavailable: WeatherEnvironmentSnapshot = {
+      requestIdentity: environmentRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+      fetchedAt: Date.now(),
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    let resolveEnvironment!: (response: Response) => void
+    const environmental = new Promise<Response>((resolve) => {
+      resolveEnvironment = resolve
+    })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const url = String(input)
+      return url.includes('air-quality-api.open-meteo.com')
+        ? environmental
+        : Promise.resolve(weatherResponse(22))
+    })
+    const { view } = await renderWidget({ snapshot: makeSnapshot({ environment: unavailable }) })
+    await expandPanel()
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    })
+    const details = within(screen.getByRole('dialog', { name: 'Weather details' }))
+    expect(details.getByText('Loading environmental data…')).toBeTruthy()
+    expect(details.getByText('Feels like')).toBeTruthy()
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+
+    await act(async () => {
+      resolveEnvironment(environmentResponse({
+        us_aqi: 35,
+        uv_index: 1,
+        alder_pollen: null,
+        birch_pollen: null,
+        grass_pollen: 7,
+        mugwort_pollen: null,
+        olive_pollen: null,
+        ragweed_pollen: null,
+      }))
+      await environmental
+    })
+    await waitFor(() => expect(details.getByText('Air quality').nextElementSibling?.textContent).toBe('35 Good'))
+    expect(details.queryByText('Environmental data unavailable.')).toBeNull()
+    view.unmount()
+  })
+})
+
 describe('WeatherWidget full-forecast link', () => {
   it('renders with the saved location coordinates substituted into the href', async () => {
     await renderWidget()
@@ -657,10 +818,14 @@ describe('WeatherWidget stale data', () => {
     const retry = new Promise<Response>((resolve) => {
       resolveRetry = resolve
     })
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockRejectedValueOnce(new Error('private provider detail'))
-      .mockReturnValueOnce(retry)
+    let forecastAttempt = 0
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      if (String(input).includes('air-quality-api.open-meteo.com')) {
+        return Promise.resolve(environmentResponse({ us_aqi: 35, uv_index: 1 }))
+      }
+      forecastAttempt += 1
+      return forecastAttempt === 1 ? Promise.reject(new Error('private provider detail')) : retry
+    })
     const { view } = await renderWidget({ snapshot: null })
 
     const alert = await screen.findByRole('alert')
@@ -674,7 +839,7 @@ describe('WeatherWidget stale data', () => {
     await act(async () => {
       await activateWithModeledNativeClick(refresh)
     })
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
     const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
     expect(pendingRefresh).toBe(refresh)
     expect(pendingRefresh.disabled).toBe(true)
@@ -698,10 +863,14 @@ describe('WeatherWidget stale data', () => {
     const retry = new Promise<Response>((resolve) => {
       resolveRetry = resolve
     })
-    const fetchSpy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockRejectedValueOnce(new Error('private provider detail'))
-      .mockReturnValueOnce(retry)
+    let forecastAttempt = 0
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      if (String(input).includes('air-quality-api.open-meteo.com')) {
+        return Promise.resolve(environmentResponse({ us_aqi: 35, uv_index: 1 }))
+      }
+      forecastAttempt += 1
+      return forecastAttempt === 1 ? Promise.reject(new Error('private provider detail')) : retry
+    })
     const { view } = await renderWidget({
       snapshot: makeSnapshot({ fetchedAt: Date.now() - 60 * 60 * 1000 }),
     })
@@ -719,7 +888,7 @@ describe('WeatherWidget stale data', () => {
     await act(async () => {
       await activateWithModeledNativeClick(refresh)
     })
-    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    expect(fetchSpy).toHaveBeenCalledTimes(4)
     const pendingRefresh = screen.getByRole('button', { name: 'Refresh' }) as HTMLButtonElement
     expect(pendingRefresh).toBe(refresh)
     expect(pendingRefresh.disabled).toBe(true)
