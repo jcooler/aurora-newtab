@@ -206,6 +206,7 @@ let harnessNavigating = false
 const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
+let expectedTodoistFailureAbort = false
 const closedTasks = new Set()
 let requestScenarioSequence = 0
 let activeRequestScenario = 'bootstrap'
@@ -421,9 +422,15 @@ page.on('requestfailed', (request) => {
   const requestScenario = requestScenarios.get(key) ?? 'unknown'
   requestScenarios.delete(key)
   pendingProviderRequests.delete(request)
+  const todoistFaultAbort = (
+    expectedTodoistFailureAbort &&
+    request.method() === 'POST' &&
+    url.endsWith('/api/v1/tasks/task-1/close')
+  )
+  if (todoistFaultAbort) expectedTodoistFailureAbort = false
   if (
     harnessNavigating ||
-    (requestScenario.endsWith(':todoist-completion:error') && url.endsWith('/api/v1/tasks/task-1/close')) ||
+    todoistFaultAbort ||
     isExpectedRequestFailure(request, errorText, expectedFailedRequests)
   ) {
     evidence.expectedRequestAborts.push(`${requestScenario} ${request.method()} ${url}: ${errorText}`)
@@ -893,6 +900,7 @@ async function exerciseTodoistCompletion(widget) {
   await settleProvider(widget.id)
   markRequestScenario('todoist-completion:error')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
+  expectedTodoistFailureAbort = true
   const failedCloseResponse = page.waitForResponse((response) => (
     response.url().endsWith('/api/v1/tasks/task-1/close') && response.status() === 500
   ))
