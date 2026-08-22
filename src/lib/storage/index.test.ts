@@ -31,6 +31,7 @@ const KNOWN_KEYS = [
   'todoLists',
   'links',
   'timerConfig',
+  'timerSession',
   'photoPrefs',
   'location',
   'weatherCache',
@@ -486,6 +487,57 @@ describe('createStorage', () => {
     const storage = createStorage(controlled.driver, createInProcessStorageAuthority())
     await storage.init()
     expect(await storage.get('layouts')).toBeNull()
+  })
+
+  it('upgrades v14 atomically, materializing timerSession null and preserving both layout authorities', async () => {
+    const seed = {
+      ...defaults(),
+      layout: { version: 3 as const, profiles: {} },
+      layouts: {
+        version: 1 as const,
+        activeLayoutId: 'desk',
+        layouts: [{ id: 'desk', name: 'Desk', widgets: {} }],
+      },
+      settings: { ...defaults().settings, name: 'Exact v14' },
+      'aurora:version': 14,
+      unknown: { sentinel: 'keep' },
+    } as Record<string, unknown>
+    delete seed.timerSession
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed)
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    expect(controlled.writes).toHaveLength(1)
+    expect(controlled.writes[0].timerSession).toBeNull()
+    expect(controlled.writes[0].layout).toEqual(before.layout)
+    expect(controlled.writes[0].layouts).toEqual(before.layouts)
+    expect(controlled.writes[0].settings).toEqual(before.settings)
+    expect(controlled.writes[0]['aurora:version']).toBe(15)
+    expect(controlled.base.dump().unknown).toEqual(before.unknown)
+  })
+
+  it('rolls a failed v14 migration verification back to the exact prior logical values', async () => {
+    const seed = { ...defaults(), 'aurora:version': 14 } as Record<string, unknown>
+    delete seed.timerSession
+    const before = structuredClone(seed)
+    const controlled = controllableDriver(seed, {
+      async read(keys, call, proceed) {
+        const found = await proceed()
+        if (call === 2 && keys?.includes('aurora:version')) return { 'aurora:version': 14 }
+        return found
+      },
+    })
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+
+    expect(controlled.writes).toHaveLength(2)
+    expect(controlled.writes[0].timerSession).toBeNull()
+    // Rollback follows the storage-wide standing rule: a previously missing
+    // known top-level key is materialized at its logical default.
+    expect(controlled.writes[1].timerSession).toBeNull()
+    expect(controlled.base.dump()).toEqual({ ...before, timerSession: null })
   })
 
   it('rolls a failed v11 migration verification back to the literal pre-upgrade store', async () => {

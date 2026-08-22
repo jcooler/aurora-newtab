@@ -106,26 +106,26 @@ git commit -m "docs: approve the Aurora Flow implementation plan"
 - Create: `src/newtab/widgets/timer/timerSession.ts`
 - Create: `src/newtab/widgets/timer/timerSession.test.ts`
 
-- [ ] **RED - storage contract:** Add tests requiring `CURRENT_VERSION === 15`,
+- [x] **RED - storage contract:** Add tests requiring `CURRENT_VERSION === 15`,
   `defaults().timerSession === null`, an identity `migrations[14]`, exact v14
   migration with `timerSession: null`, floor-15 live initialization with
   atomic verification/rollback, strict backup acceptance/rejection for the
   complete TimerSession shape, backup round-trip, and exhaustive privacy-key
   classification. Run the focused storage/backup/privacy set and record the
   failures before changing production.
-- [ ] Implement `TimerSession` exactly as the approved spec defines, add the
+- [x] Implement `TimerSession` exactly as the approved spec defines, add the
   top-level key/default, v14 identity step, floor change, backup validator, and
   local-only included privacy row. Never alter connector redaction or existing
   migration semantics.
-- [ ] **RED - pure timer model:** Add pure tests for null idle materialization,
+- [x] **RED - pure timer model:** Add pure tests for null idle materialization,
   start/pause/resume/reset, exact running reload from `endsAt`, paused reload
   from `remainingMs`, work-to-break and break-to-idle overdue recovery, cycles,
   Flow entry preserving a running deadline, Flow entry starting a paused/idle
   phase, Flow exit preserving timer state, paused Flow, and null normalization.
-- [ ] Implement the model by adapting the existing pure `timerReducer`; do not
+- [x] Implement the model by adapting the existing pure `timerReducer`; do not
   read clocks or storage inside model functions and do not persist
   `justFinished`.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene. Commit:
+- [x] Run focused GREEN, TypeScript, and diff hygiene. Commit:
 
 ```powershell
 git add src/lib/storage src/lib/backup.ts src/lib/backup.test.ts src/privacy src/newtab/widgets/timer/timerSession.ts src/newtab/widgets/timer/timerSession.test.ts

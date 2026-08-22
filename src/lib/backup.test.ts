@@ -40,6 +40,42 @@ describe('Quick Link import safety (W1-P9)', () => {
   })
 })
 
+describe('timerSession backup contract (Flow)', () => {
+  const runningSession = {
+    mode: 'work' as const,
+    running: true,
+    endsAt: 1_800_000,
+    remainingMs: 1_500_000,
+    cycles: 2,
+    flow: true,
+  }
+
+  it('accepts null and a complete session and exports the session verbatim', () => {
+    expect(validateBackupShape({ ...defaults(), timerSession: null } as never).ok).toBe(true)
+    const result = validateBackupShape({ ...defaults(), timerSession: runningSession } as never)
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.timerSession).toEqual(runningSession)
+
+    const envelope = JSON.parse(serializeBackup({ ...defaults(), timerSession: runningSession } as never))
+    expect(envelope.data.timerSession).toEqual(runningSession)
+  })
+
+  it.each([
+    ['unknown mode', { ...runningSession, mode: 'focus' }],
+    ['non-boolean running', { ...runningSession, running: 'yes' }],
+    ['invalid deadline', { ...runningSession, endsAt: Number.NaN }],
+    ['negative remaining', { ...runningSession, remainingMs: -1 }],
+    ['fractional cycles', { ...runningSession, cycles: 1.5 }],
+    ['non-boolean flow', { ...runningSession, flow: 1 }],
+    ['missing flow', Object.fromEntries(Object.entries(runningSession).filter(([key]) => key !== 'flow'))],
+  ])('rejects a session with %s', (_label, timerSession) => {
+    expect(validateBackupShape({ ...defaults(), timerSession } as never)).toEqual({
+      ok: false,
+      reason: 'That backup\'s "timerSession" data is invalid.',
+    })
+  })
+})
+
 describe('secret-safe redaction and prepared import (W1-P4)', () => {
   it('removes every RSS capability URL without mutating the stored config', () => {
     const feeds = [

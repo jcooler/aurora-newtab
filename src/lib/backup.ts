@@ -309,6 +309,22 @@ function isTimerConfig(v: unknown): boolean {
   return isPlainObject(v) && isNumber(v.workMinutes) && isNumber(v.breakMinutes)
 }
 
+function isTimerSession(v: unknown): boolean {
+  if (v === null) return true
+  return (
+    isPlainObject(v) &&
+    (v.mode === 'work' || v.mode === 'break') &&
+    isBoolean(v.running) &&
+    (v.endsAt === null || isNumber(v.endsAt)) &&
+    isNumber(v.remainingMs) &&
+    v.remainingMs >= 0 &&
+    isNumber(v.cycles) &&
+    Number.isInteger(v.cycles) &&
+    v.cycles >= 0 &&
+    isBoolean(v.flow)
+  )
+}
+
 function isPhotoPrefs(v: unknown): boolean {
   if (!isPlainObject(v)) return false
   return (
@@ -423,6 +439,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   todoLists: isTodoLists,
   links: isLinks,
   timerConfig: isTimerConfig,
+  timerSession: isTimerSession,
   photoPrefs: isPhotoPrefs,
   location: isLocation,
   weatherCache: isWeatherCache,

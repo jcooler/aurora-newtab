@@ -3,7 +3,7 @@ import type { LayoutsDocument } from '../layout/namedLayouts'
 import type { LayoutDensityPreference } from '../layout/types'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 
-export const CURRENT_VERSION = 14
+export const CURRENT_VERSION = 15
 
 /** STANDING RULE (final-review fix wave — this recurred TWICE, Tasks 57 and
  *  58, before review caught it, see migrations.ts's own v6->v7 step for the
@@ -114,6 +114,19 @@ export interface QuickLink {
 export interface TimerConfig {
   workMinutes: number
   breakMinutes: number
+}
+
+/** One persisted timer authority shared by the dashboard Timer and Flow.
+ *  `endsAt` is the running phase's absolute deadline; paused sessions retain
+ *  `remainingMs` instead. `null` at the AuroraData key is the canonical idle,
+ *  non-Flow state. */
+export interface TimerSession {
+  mode: 'work' | 'break'
+  running: boolean
+  endsAt: number | null
+  remainingMs: number
+  cycles: number
+  flow: boolean
 }
 
 export interface PhotoPrefs {
@@ -229,6 +242,7 @@ export interface AuroraData {
   todoLists: TodoList[]
   links: QuickLink[]
   timerConfig: TimerConfig
+  timerSession: TimerSession | null
   photoPrefs: PhotoPrefs
   location: StoredLocation | null
   weatherCache: WeatherSnapshot | null
@@ -297,6 +311,7 @@ export function defaults(): AuroraData {
     todoLists: [],
     links: [],
     timerConfig: { workMinutes: 25, breakMinutes: 5 },
+    timerSession: null,
     photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
     location: null,
     weatherCache: null,

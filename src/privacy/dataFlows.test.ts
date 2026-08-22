@@ -20,6 +20,7 @@ const DATA_KEYS = [
   'todoLists',
   'links',
   'timerConfig',
+  'timerSession',
   'photoPrefs',
   'location',
   'weatherCache',
@@ -88,6 +89,16 @@ describe('code-backed privacy inventory', () => {
     expect(exported).not.toHaveProperty('connectorSnapshots')
     expect(exported).not.toHaveProperty('apodCache')
     expect(validateBackupShape(data).ok).toBe(true)
+  })
+
+  it('classifies the live timer session as local-only included preferences', () => {
+    expect(STORED_DATA_FLOWS.timerSession).toEqual({
+      storage: 'chrome.storage.local',
+      sensitivity: ['preferences'],
+      export: 'included',
+      transmission: 'none',
+      description: 'Current timer phase, deadline, progress, and Flow state.',
+    })
   })
 
   it('classifies all connectors and their descriptor-backed secret kinds', () => {

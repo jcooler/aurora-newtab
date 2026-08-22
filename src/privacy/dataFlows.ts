@@ -28,6 +28,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   todoLists: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'Task list names and items.' },
   links: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'browser-mediated', description: 'Quick Link titles and safe HTTP(S) destinations.' },
   timerConfig: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Timer durations.' },
+  timerSession: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Current timer phase, deadline, progress, and Flow state.' },
   photoPrefs: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Background-photo mode and rotation state.' },
   location: { storage: 'chrome.storage.local', sensitivity: ['approximate-location'], export: 'included', transmission: 'provider-direct', description: 'Chosen or browser-provided coordinates and label.' },
   weatherCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'included', transmission: 'none', description: 'Cached weather response for the selected location.' },

@@ -210,6 +210,10 @@ export const migrations: Record<number, Migration> = {
       },
     }
   },
+  // v14 -> v15: Flow adds timerSession as a new top-level key. The migration
+  // registry step stays identity; migrate()'s final defaults merge supplies
+  // null without touching any prior user value.
+  14: (data) => data,
 }
 
 export function migrate(

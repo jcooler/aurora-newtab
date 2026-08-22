@@ -87,14 +87,19 @@ describe('migrate', () => {
         calls.push(12)
         return data
       },
-      // registry[13] upgrades v13 -> v14 (CURRENT_VERSION)
+      // registry[13] upgrades v13 -> v14
       13: (data) => {
         calls.push(13)
         return data
       },
+      // registry[14] upgrades v14 -> v15 (CURRENT_VERSION)
+      14: (data) => {
+        calls.push(14)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -610,7 +615,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(14)
+    expect(CURRENT_VERSION).toBe(15)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -702,7 +707,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(14)
+    expect(CURRENT_VERSION).toBe(15)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill is the ONLY settings delta on the way up.
     expect(out.settings).toEqual({
@@ -747,7 +752,7 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (14, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (15, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
@@ -769,11 +774,30 @@ describe('v12 -> v13', () => {
     // The floor itself: migrations[13] is NOT the identity for a pre-ink
     // snapshot — the documented reason the floor sits at 14.
     expect(migrations[13](structuredClone(probe))).not.toEqual(probe)
-    for (let v = 14; v < CURRENT_VERSION; v++) {
+    // v14 -> v15 adds only the top-level timerSession key supplied by the
+    // defaults merge, so the registry step itself must remain the identity.
+    expect(migrations[14](structuredClone(probe))).toEqual(probe)
+    for (let v = 15; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
     }
+  })
+})
+
+describe('v14 -> v15', () => {
+  it('keeps the migration step identity and materializes timerSession only through defaults', () => {
+    const snapshot = { ...defaults(), unknownStore: { future: ['keep'] } } as Record<string, unknown>
+    delete snapshot.timerSession
+    const before = structuredClone(snapshot)
+
+    expect(migrations[14](structuredClone(snapshot))).toEqual(before)
+    const migrated = migrate(snapshot, 14) as AuroraData & { unknownStore: { future: string[] } }
+    expect(migrated.timerSession).toBeNull()
+    expect(migrated.layout).toEqual(before.layout)
+    expect(migrated.layouts).toEqual(before.layouts)
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
   })
 })
 

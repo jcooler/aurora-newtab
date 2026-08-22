@@ -353,6 +353,7 @@ describe('backup restore coordinator', () => {
       todoLists: [{ id: 'before-list', name: 'Before list', items: [{ id: 'before-item', text: 'Keep me', done: false }] }],
       links: [{ id: 'before-link', title: 'Before link', url: 'https://before.example' }],
       timerConfig: { workMinutes: 45, breakMinutes: 10 },
+      timerSession: null,
       photoPrefs: { mode: 'gradient', index: 7, lastRotated: '2026-08-13' },
       location: { lat: 42.9, lon: -85.6, label: 'Grand Rapids', manual: true },
       weatherCache: null,

@@ -17,10 +17,10 @@ const DATA_KEYS = Object.keys(defaults()) as DataKey[]
 /** Every migration step from this version on is the identity function, so a
  *  boot from any of these versions writes only the version stamp. Raising
  *  CURRENT_VERSION past a NON-identity migration requires moving this floor
- *  up to that migration's target version — done for v14: migrations[13]
- *  backfills the five nested appearance ink fields, so v11/v12/v13 stores
- *  take the full migrate path once and land at 14. */
-const METADATA_ONLY_FLOOR = 14
+ *  up to that migration's target version. Flow intentionally advances this
+ *  floor to 15 so a v14 store takes one verified full migration transaction
+ *  that materializes the new top-level timerSession default. */
+const METADATA_ONLY_FLOOR = 15
 const LAYOUT_DENSITY_SET: ReadonlySet<unknown> = new Set(LAYOUT_DENSITY_PREFERENCES)
 
 export class AtomicRestoreRollbackError extends Error {
