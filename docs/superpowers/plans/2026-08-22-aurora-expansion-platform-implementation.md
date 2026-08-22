@@ -238,14 +238,16 @@ removed by test-owned cleanup.
 - [ ] **Step 5: Write scaffold behavior failures**
 
 For each kind, invoke `scaffoldAddition` in a temporary repository fixture and
-assert an exact sorted payload-file list. Assert generated non-test source
-contains no `fetch(`, `chrome.storage`, `chrome.permissions`, token-like
-literal, capability URL, or unfinished-work marker. Assert each generated test
-contains the exact intentional first-RED error. Verify every payload digest
-independently with `createHash('sha256')`, and assert `manifest.json` lists all
-payloads but not itself. Assert invalid IDs, blank labels, unknown kinds, an
-unavailable candidate ID, and a kind that disagrees with the candidate catalog
-fail before output exists.
+assert an exact sorted payload-file list. Scan only production TypeScript stubs
+and assert they contain no `fetch(`, `chrome.storage`, `chrome.permissions`,
+token-like literal, capability URL, or unfinished-work marker. Separately assert
+the generated test contains the exact intentional first-RED error and
+`candidate.json` plus `INTEGRATION-CHECKLIST.md` contain only their exact
+approved `research-required` markers. Verify every payload digest independently
+with `createHash('sha256')`, and assert `manifest.json` lists all payloads but
+not itself. Assert invalid IDs, blank labels, unknown kinds, an unavailable
+candidate ID, and a kind that disagrees with the candidate catalog fail before
+output exists.
 
 - [ ] **Step 6: Observe scaffold RED**
 
@@ -406,17 +408,14 @@ Expected: every existing toggle proves a complete migration path. Future
 toggle additions must update the ledger, defaults, Settings, version, migration,
 and metadata floor or this family fails.
 
-- [ ] **Step 7: Write visual-catalog parity and non-writing check failures**
+- [ ] **Step 7: Write visual-catalog parity failures**
 
 Extend the Vitest contract to import the typed `.mjs` tooling manifest and
 compare it to this exact current production expectation: all 26 `BLOCK_IDS`
 appear once; free capture tiers equal each contract's `sizes`; Docked capture
 exists exactly for nonblank `docked`; and batch 1 plus batch 2 have no overlap.
 The Node test exercises `captureTiersFor(id)` and rejects duplicate and unknown
-manifest identities without parsing TypeScript source text. Add an argument and
-CLI contract test proving `--check` performs no directory deletion, browser
-launch, screenshot write, Markdown write, or accepted-evidence mutation, and
-returns nonzero when the committed Markdown references a missing declared PNG.
+manifest identities without parsing TypeScript source text.
 
 - [ ] **Step 8: Observe catalog-manifest RED**
 
@@ -428,23 +427,42 @@ node --test scripts/widget-catalog-manifest.test.mjs
 
 Expected: FAIL because the shared manifest is missing.
 
-- [ ] **Step 9: Extract one tooling manifest and implement real check mode**
+- [ ] **Step 9: Extract one tooling manifest and reach parity GREEN**
 
 Move the current `BATCH_1`, `BATCH_2`, contract labels, and coded-dock-line set
 from `catalog-nl-p5.mjs` without changing values or order. Import them back into
 the existing script. Keep all owner verdicts in the existing script as data.
+Run the Node manifest test and the Vitest widget parity contract. Expected: all
+manifest, tier, Docked, and batch assertions pass.
+
+- [ ] **Step 10: Write the focused non-writing check-mode failure**
+
+Add an argument and CLI contract test proving `--check` performs no directory
+deletion, browser launch, screenshot write, Markdown write, or accepted-evidence
+mutation, and returns nonzero when committed Markdown references a missing
+declared PNG.
+
+- [ ] **Step 11: Observe check-mode RED against the current script**
+
+Run only the new check-mode test. Expected: FAIL because the current script
+ignores `--check` and reaches its mutating capture setup. The test fixture must
+intercept the first attempted mutation so accepted repository evidence remains
+untouched during RED.
+
+- [ ] **Step 12: Implement real check mode**
+
 Refactor argument parsing and Markdown computation into exported pure helpers.
 `--check` may read committed Markdown and PNGs to verify the manifest and hash
 disclosures, but it must return before any removal, profile creation, Chromium
 launch, capture, or write.
 
-- [ ] **Step 10: Prove catalog output stability without capture**
+- [ ] **Step 13: Prove catalog output stability without capture**
 
 Run both batch catalog generators in `--check` mode against committed Markdown
 and assert zero writes using the new contract. Then run the Node manifest,
 widget parity, and migration families.
 
-- [ ] **Step 11: Commit the widget-contract slice**
+- [ ] **Step 14: Commit the widget-contract slice**
 
 ```powershell
 git add -- src/newtab/widgetRenderers.tsx src/newtab/expansionWidgetContracts.test.ts src/lib/storage/widgetToggleVersions.ts src/lib/storage/widgetToggleVersions.test.ts scripts/widget-catalog-manifest.mjs scripts/widget-catalog-manifest.d.mts scripts/widget-catalog-manifest.test.mjs scripts/catalog-nl-p5.mjs
@@ -510,7 +528,7 @@ list per connector. Assert through the full backup path:
 
 ```ts
 const { data: redacted, redactions } = redactBackupData({ ...defaults(), connectors: fixtures })
-expect(JSON.stringify(redacted)).not.toContain('contract-token')
+expect(JSON.stringify(redacted).includes('contract-token')).toBe(false)
 expect(redacted.connectors.github).not.toHaveProperty('token')
 expect(redacted.connectors.rss?.feeds).toEqual([])
 expect(redactions.reentryRequired).toEqual(expectedIds)
@@ -557,9 +575,9 @@ git commit -m "test: enforce Aurora connector addition contracts"
 
 **Interfaces:**
 
-- `runExpansionContracts({ cwd, spawn })` runs catalog validation/check, Node
-  tests, and the two focused Vitest files in deterministic order, streams output,
-  and stops at the first nonzero child exit.
+- `runExpansionContracts({ cwd, spawn })` runs catalog validation/check, every
+  exact Node contract path, and every exact Vitest contract path in deterministic
+  order, streams output, and stops at the first nonzero child exit.
 - `npm run test:expansion-contract` invokes only that runner.
 
 - [ ] **Step 1: Write runner orchestration failures**
@@ -567,7 +585,19 @@ git commit -m "test: enforce Aurora connector addition contracts"
 Use an injected spawn function returning literal exit codes. Assert exact
 command/argument order, inherited stdio, Windows-safe `npx.cmd` selection, and
 first-failure propagation. The test asserts orchestration outcomes, not mock
-call existence.
+call existence. The exact child paths are:
+
+```text
+scripts/expansion/catalog-schema.test.mjs
+scripts/expansion/render-catalog.test.mjs
+scripts/expansion/output-safety.test.mjs
+scripts/expansion/scaffold.test.mjs
+scripts/widget-catalog-manifest.test.mjs
+src/newtab/expansionWidgetContracts.test.ts
+src/lib/storage/widgetToggleVersions.test.ts
+src/services/connectors/expansionConnectorContracts.test.ts
+src/settings/sections/Connectors.test.tsx
+```
 
 - [ ] **Step 2: Observe runner RED**
 
