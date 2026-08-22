@@ -52,6 +52,7 @@ import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
+import { TimerSessionProvider } from './widgets/timer/TimerSessionProvider'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -69,7 +70,7 @@ function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayou
   }
 }
 
-export default function App() {
+function AuroraApp() {
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
@@ -585,5 +586,13 @@ export default function App() {
         contentRef={setUtilityTrayHost}
       ><></></UtilityTray>
     </main>
+  )
+}
+
+export default function App() {
+  return (
+    <TimerSessionProvider>
+      <AuroraApp />
+    </TimerSessionProvider>
   )
 }

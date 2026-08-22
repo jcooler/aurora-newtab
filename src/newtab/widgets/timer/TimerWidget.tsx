@@ -1,13 +1,12 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useDialogEscape } from '../../../lib/dialogStack'
+import { closeAllDialogs, useDialogEscape } from '../../../lib/dialogStack'
 import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
-import { useNow } from '../../../lib/hooks/useNow'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useViewportPanelAnchor } from '../../../lib/hooks/useViewportPanelAnchor'
-import type { Settings, TimerConfig } from '../../../lib/storage/schema'
+import type { Settings, TimerConfig, TimerSession } from '../../../lib/storage/schema'
 import { playChime } from './chime'
-import { initialTimer, timerReducer, type TimerAction, type TimerState } from './timerReducer'
+import { useTimerSession } from './TimerSessionProvider'
 // The control kit (Task 61) — start/pause is the primary action, reset the
 // quiet one, and the work/break minutes fields reuse the exact Settings input
 // class, so the panel's controls speak the same language as the drawer's.
@@ -25,9 +24,10 @@ const MAX_MINUTES = 180
 // matches the panel's w-64 class exactly. Re-measured after the Task-62 polish
 // pass (display-face digits + the progress rail grew it from 175) — the value
 // is read straight off scripts/preview.mjs's timer-panel occlusion probe,
-// which prints the live rendered rect (t=108, b=326 → 218), so it can't
-// silently drift.
-export const TIMER_PANEL_SIZE = { w: 256, h: 218 }
+// Flow adds one 36px action plus the existing 12px gap, taking the preferred
+// pre-measure estimate from 218 to 266. ResizeObserver still follows the live
+// panel after mount; Chromium QA re-measures the final geometry.
+export const TIMER_PANEL_SIZE = { w: 256, h: 266 }
 
 function clampMinutes(value: number): number {
   if (!Number.isFinite(value)) return MIN_MINUTES
@@ -45,9 +45,10 @@ export default function TimerWidget({
   onOpenChange,
   utilityTray,
 }: { onOpenChange?: (open: boolean) => void; utilityTray?: UtilityTrayBridge } = {}) {
-  // Gate BEFORE any of the ticking/reducer machinery exists: disabled tabs
-  // (the default — settings.widgets.timer starts false) mount none of that
-  // and so run zero interval work. Only useStoredKey is called out here, so
+  // Gate before the Timer presentation exists: disabled tabs (the default)
+  // mount no Timer panel or presentation hooks. The App-level persisted timer
+  // authority remains mounted because a running timer and Flow must survive a
+  // hidden Timer widget. Only useStoredKey is called out here, so
   // Rules of Hooks stay satisfied regardless of the toggle. This is also
   // what makes the onOpenChange cleanup below (in TimerInner) fire reliably
   // on a mid-session disable: TimerInner actually UNMOUNTS rather than one
@@ -68,20 +69,9 @@ function TimerInner({
   utilityTray?: UtilityTrayBridge
 }) {
   const [timerConfig, saveTimerConfig] = useStoredKey('timerConfig')
-  const config = timerConfig ?? DEFAULT_CONFIG
-
-  // Latest-config ref so the wrapped reducer always sees the current work/break
-  // minutes without needing to reconstruct the reducer function each render.
-  const configRef = useRef(config)
-  configRef.current = config
-
-  const [state, dispatch] = useReducer(
-    (s: TimerState, action: TimerAction) => timerReducer(s, action, configRef.current),
-    config,
-    initialTimer,
-  )
-
-  const now = useNow(500)
+  const timer = useTimerSession()
+  const config = timerConfig ?? timer.config ?? DEFAULT_CONFIG
+  const state = timer.session
   const [open, setOpen] = useState(false)
   const [flash, setFlash] = useState(false)
   const [announcement, setAnnouncement] = useState('')
@@ -98,47 +88,25 @@ function TimerInner({
     preferredSize: TIMER_PANEL_SIZE,
     getBottomBoundaryElement: getDockBoundaryElement,
   })
-  const prevJustFinished = useRef<TimerState['justFinished']>(state.justFinished)
-  const prevConfigKey = useRef(`${config.workMinutes}:${config.breakMinutes}`)
+  const prevJustFinished = useRef<'work' | 'break' | null>(timer.justFinished)
 
   const panelReady = !utilityTray && open && anchor !== null
   useFocusTrap(panelRef, panelReady)
 
-  // Drive the countdown from the shared 500ms clock: every tick of `now`
-  // re-checks the reducer, which itself decides (using the timestamp we pass
-  // in) whether the session actually completed. The reducer never reads the
-  // clock itself, which is what keeps it trivially testable.
-  useEffect(() => {
-    if (!state.running) return
-    dispatch({ type: 'tick', now: now.getTime() })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fire once per `now` tick, not on every running-flag flip
-  }, [now])
-
-  // Editing work/break minutes while idle should retarget the idle countdown
-  // immediately; editing mid-session leaves the active session alone and only
-  // takes effect on the next phase change (via the ref the reducer reads).
-  useEffect(() => {
-    const key = `${config.workMinutes}:${config.breakMinutes}`
-    if (key === prevConfigKey.current) return
-    prevConfigKey.current = key
-    if (!state.running) dispatch({ type: 'reset', now: Date.now() })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to the config identity changing
-  }, [config.workMinutes, config.breakMinutes])
-
   // Pill flash lifecycle: a pure function of the phase transition itself, so
   // it can't get stuck on. Kept in its own effect (deps: only
-  // state.justFinished) so that settings.muted flipping mid-flash can never
+  // timer.justFinished) so that settings.muted flipping mid-flash can never
   // cancel this effect's pending setTimeout without also rescheduling it —
   // React only tears down/reruns this effect when justFinished itself changes.
   useEffect(() => {
-    if (!state.justFinished) return
+    if (!timer.justFinished) return
     setFlash(true)
     const id = setTimeout(() => setFlash(false), 1200)
     return () => {
       clearTimeout(id)
       setFlash(false)
     }
-  }, [state.justFinished])
+  }, [timer.justFinished])
 
   // Chime + screen-reader announcement, exactly once per phase transition
   // (edge-detected against the previous justFinished value, since the
@@ -147,12 +115,12 @@ function TimerInner({
   // time muted is toggled). Muted flipping mid-transition may skip or allow
   // the chime; it can no longer touch the flash timer above.
   useEffect(() => {
-    if (state.justFinished && state.justFinished !== prevJustFinished.current) {
+    if (timer.justFinished && timer.justFinished !== prevJustFinished.current) {
       if (!settings.muted) playChime()
-      setAnnouncement(state.justFinished === 'work' ? 'Break time.' : 'Back to work.')
+      setAnnouncement(timer.justFinished === 'work' ? 'Break time.' : 'Back to work.')
     }
-    prevJustFinished.current = state.justFinished
-  }, [state.justFinished, settings.muted])
+    prevJustFinished.current = timer.justFinished
+  }, [timer.justFinished, settings.muted])
 
   // Newest-first shared stack (src/lib/dialogStack.ts), active only while
   // the panel is open.
@@ -179,29 +147,18 @@ function TimerInner({
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  if (timerConfig === undefined) return null
+  if (timerConfig === undefined || !timer.hydrated) return null
 
-  const liveRemainingMs =
-    state.running && state.endsAt !== null
-      ? Math.max(0, state.endsAt - now.getTime())
-      : state.remainingMs
-  const display = formatRemaining(liveRemainingMs)
+  const display = formatRemaining(timer.remainingMs)
+  const progressPct = timer.progressPct
 
-  // Fraction of the current session already elapsed, for the progress bar.
-  // Purely derived from the same live remaining time the digits show — no new
-  // state, no new clock read — so it stays in lockstep with the countdown and
-  // reads 0% at rest (idle remaining === session length). Clamped both ends
-  // against a config edit that could momentarily make remaining exceed total.
-  const sessionTotalMs =
-    (state.mode === 'work' ? config.workMinutes : config.breakMinutes) * 60_000
-  const progressPct =
-    sessionTotalMs > 0
-      ? Math.min(100, Math.max(0, ((sessionTotalMs - liveRemainingMs) / sessionTotalMs) * 100))
-      : 0
-
-  const start = () => dispatch({ type: 'start', now: Date.now() })
-  const pause = () => dispatch({ type: 'pause', now: Date.now() })
-  const reset = () => dispatch({ type: 'reset', now: Date.now() })
+  const start = () => { void timer.start() }
+  const pause = () => { void timer.pause() }
+  const reset = () => { void timer.reset() }
+  const enterFlow = async () => {
+    if (!await closeAllDialogs()) return
+    await timer.enterFlow()
+  }
 
   // The panel follows the pill and live rendered panel size while open, via
   // the same anchorPanel formula every peripheral panel uses.
@@ -303,6 +260,15 @@ function TimerInner({
             </button>
           </div>
 
+          <button
+            type="button"
+            onClick={() => { void enterFlow() }}
+            className={`${btnPrimary} w-full justify-between px-4`}
+          >
+            <span>Start flow</span>
+            <span aria-hidden>→</span>
+          </button>
+
           <div className="flex items-center justify-between gap-3 text-xs text-fg-muted">
             <label className="flex items-center gap-1">
               Work
@@ -361,6 +327,7 @@ function TimerInner({
               start={start}
               pause={pause}
               reset={reset}
+              enterFlow={enterFlow}
             />,
             utilityTray.host,
           )
@@ -382,8 +349,9 @@ function TimerTrayDetails({
   start,
   pause,
   reset,
+  enterFlow,
 }: {
-  state: TimerState
+  state: TimerSession
   display: string
   progressPct: number
   config: TimerConfig
@@ -391,6 +359,7 @@ function TimerTrayDetails({
   start: () => void
   pause: () => void
   reset: () => void
+  enterFlow: () => Promise<void>
 }) {
   return (
     <section aria-label="Focus timer" className="flex w-full flex-col gap-3 text-fg">
@@ -407,6 +376,10 @@ function TimerTrayDetails({
         )}
         <button type="button" onClick={reset} className={`${btnQuiet} justify-center`}>Reset</button>
       </div>
+      <button type="button" onClick={() => { void enterFlow() }} className={`${btnPrimary} w-full justify-between px-4`}>
+        <span>Start flow</span>
+        <span aria-hidden>→</span>
+      </button>
       <div className="flex items-center justify-between gap-3 text-xs text-fg-muted">
         <label className="flex items-center gap-1">
           Work

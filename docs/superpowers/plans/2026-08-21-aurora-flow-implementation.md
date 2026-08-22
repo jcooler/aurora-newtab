@@ -143,27 +143,27 @@ git commit -m "feat(flow): persist the timer session contract"
 - Modify: `src/newtab/App.tsx`
 - Modify: `src/newtab/App.test.tsx`
 
-- [ ] **RED - authority:** Add provider tests proving hydration from null,
+- [x] **RED - authority:** Add provider tests proving hydration from null,
   derived countdown without per-tick writes, one write at a crossed deadline,
   atomic actions against fresh stored state, subscription-driven cross-context
   updates, and one provider-owned clock regardless of how many consumers read
   the context.
-- [ ] Implement the single provider with `useStoredKey('timerSession')`,
+- [x] Implement the single provider with `useStoredKey('timerSession')`,
   `useStoredKey('timerConfig')`, one `useNow(500)`, and serialized
   `storage.update('timerSession', ...)` transitions. Expose hydrated session,
   live remaining time, progress, start/pause/reset, enter/exit Flow, and phase
   completion feedback. Do not mount another timer reducer in a consumer.
-- [ ] **RED - Timer cutover:** Update TimerWidget tests to require restored
+- [x] **RED - Timer cutover:** Update TimerWidget tests to require restored
   running/paused sessions, dashboard controls writing `timerSession`, existing
   panel/tray behavior and config controls unchanged, and a `Start flow` primary
   action that first closes the dialog stack and then atomically enters Flow.
-- [ ] Replace TimerWidget's local reducer/ticker with the shared controller.
+- [x] Replace TimerWidget's local reducer/ticker with the shared controller.
   Keep its accessible pill, panel geometry, utility-tray presentation, chime,
   flash, announcement, and config contract unless the persisted authority
   structurally supersedes them.
-- [ ] Mount the provider exactly once around App and add an App regression that
+- [x] Mount the provider exactly once around App and add an App regression that
   the Timer widget and App read one shared controller rather than two owners.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene. Commit:
+- [x] Run focused GREEN, TypeScript, and diff hygiene. Commit:
 
 ```powershell
 git add src/newtab/widgets/timer src/newtab/App.tsx src/newtab/App.test.tsx

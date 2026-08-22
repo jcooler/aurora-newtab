@@ -197,6 +197,27 @@ describe('App Canvas composition', () => {
     expect(screen.queryByRole('navigation', { name: 'Bottom bar' })).toBeNull()
   })
 
+  it('mounts the persisted timer authority once for the dashboard Timer', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, timer: true },
+    })
+    await storage.set('timerSession', {
+      mode: 'work',
+      running: false,
+      endsAt: null,
+      remainingMs: 9 * 60_000,
+      cycles: 2,
+      flow: false,
+    })
+
+    await renderApp(storage)
+
+    expect(screen.getByRole('button', { name: /Focus timer: 09:00 remaining/ })).toBeTruthy()
+  })
+
   it('positions active items by anchored percent with content-tight boxes (no imposed width or grid)', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()

@@ -4,9 +4,11 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
-import { defaults } from '../../../lib/storage/schema'
+import { defaults, type TimerSession } from '../../../lib/storage/schema'
 import { anchorPanel } from '../../../lib/layout/anchor'
+import { useDialogEscape } from '../../../lib/dialogStack'
 import TimerWidget, { TIMER_PANEL_SIZE } from './TimerWidget'
+import { TimerSessionProvider } from './TimerSessionProvider'
 import type { UtilityTrayBridge } from '../../components/utilityTrayBridge'
 
 async function renderWidget({
@@ -20,7 +22,9 @@ async function renderWidget({
   })
   const view = render(
     <StorageProvider storage={storage}>
-      <TimerWidget onOpenChange={onOpenChange} />
+      <TimerSessionProvider>
+        <TimerWidget onOpenChange={onOpenChange} />
+      </TimerSessionProvider>
     </StorageProvider>,
   )
   await act(async () => {})
@@ -45,17 +49,22 @@ describe('TimerWidget', () => {
     } satisfies Omit<UtilityTrayBridge, 'activeTool'>
     const view = render(
       <StorageProvider storage={storage}>
-        <TimerWidget utilityTray={{ ...baseBridge, activeTool: 'timer' }} />
+        <TimerSessionProvider>
+          <TimerWidget utilityTray={{ ...baseBridge, activeTool: 'timer' }} />
+        </TimerSessionProvider>
       </StorageProvider>,
     )
     await act(async () => {})
 
     fireEvent.click(await screen.findByRole('button', { name: 'Start' }))
+    await act(async () => {})
     expect(screen.getByRole('button', { name: /Focus timer: .* running/ })).toBeTruthy()
 
     view.rerender(
       <StorageProvider storage={storage}>
-        <TimerWidget utilityTray={{ ...baseBridge, activeTool: null }} />
+        <TimerSessionProvider>
+          <TimerWidget utilityTray={{ ...baseBridge, activeTool: null }} />
+        </TimerSessionProvider>
       </StorageProvider>,
     )
     expect(screen.queryByRole('region', { name: 'Focus timer' })).toBeNull()
@@ -205,6 +214,7 @@ describe('TimerWidget', () => {
       await renderWidget()
       fireEvent.click(screen.getByRole('button', { name: /Focus timer/ }))
       fireEvent.click(screen.getByRole('button', { name: 'Start' }))
+      await act(async () => {})
       expect(screen.getAllByText('25:00')).toHaveLength(2)
 
       vi.setSystemTime(new Date('2026-07-26T12:01:01Z'))
@@ -213,6 +223,85 @@ describe('TimerWidget', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it.each([
+    ['paused', { mode: 'work', running: false, endsAt: null, remainingMs: 10 * 60_000, cycles: 2, flow: false }],
+    ['running', { mode: 'work', running: true, endsAt: Date.parse('2026-07-26T12:20:00Z'), remainingMs: 25 * 60_000, cycles: 1, flow: false }],
+  ] satisfies Array<[string, TimerSession]>)('restores a persisted %s session instead of resetting on mount', async (_label, timerSession) => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date('2026-07-26T12:00:00Z'))
+      const storage = createStorage(memoryDriver())
+      await storage.init()
+      await storage.set('settings', {
+        ...defaults().settings,
+        widgets: { ...defaults().settings.widgets, timer: true },
+      })
+      await storage.set('timerSession', timerSession)
+      render(
+        <StorageProvider storage={storage}>
+          <TimerSessionProvider><TimerWidget /></TimerSessionProvider>
+        </StorageProvider>,
+      )
+      await act(async () => {})
+
+      const expected = timerSession.running ? '20:00' : '10:00'
+      expect(screen.getByRole('button', { name: new RegExp(`${expected} remaining`) })).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('writes Start, Pause, and Reset through the persisted timerSession authority', async () => {
+    const { storage } = await renderWidget()
+    fireEvent.click(screen.getByRole('button', { name: /Focus timer/ }))
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start' })) })
+    expect((await storage.get('timerSession'))?.running).toBe(true)
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Pause' })) })
+    expect((await storage.get('timerSession'))?.running).toBe(false)
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Reset' })) })
+    expect(await storage.get('timerSession')).toBeNull()
+  })
+
+  it('starts Flow atomically after closing the timer panel', async () => {
+    const { storage } = await renderWidget()
+    fireEvent.click(screen.getByRole('button', { name: /Focus timer/ }))
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start flow' })) })
+
+    expect(screen.queryByRole('dialog', { name: 'Focus timer' })).toBeNull()
+    expect(await storage.get('timerSession')).toMatchObject({ running: true, flow: true })
+  })
+
+  it('does not enter Flow when another persistence-backed dialog vetoes closing', async () => {
+    function Veto() {
+      useDialogEscape(() => false)
+      return null
+    }
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, timer: true },
+    })
+    render(
+      <StorageProvider storage={storage}>
+        <TimerSessionProvider>
+          <Veto />
+          <TimerWidget />
+        </TimerSessionProvider>
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: /Focus timer/ }))
+
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Start flow' })) })
+
+    expect(await storage.get('timerSession')).toBeNull()
   })
 })
 
