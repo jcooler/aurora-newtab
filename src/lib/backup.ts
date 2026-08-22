@@ -450,7 +450,7 @@ const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (
   // null = never explicitly saved (the pre-v13 and fresh-install state).
   // Deep cleaning (unknown-widget-id dropping) is validateBackupShape's
   // cleanLayoutsKey branch.
-  layouts: (v) => v === null || isLayoutsDocument(v),
+  layouts: (v) => v === null || isLayoutsDocument(v, { invalidStack: 'reject' }),
   connectors: isConnectors,
   habits: isHabits,
 }
@@ -464,7 +464,7 @@ function cleanLayout(v: unknown): StoredLayout {
  *  as cleanLayout/cleanConnectors. `null` (never explicitly saved) passes
  *  through untouched. */
 function cleanLayoutsKey(v: unknown): LayoutsDocument | null {
-  return v === null ? null : cleanLayoutsDocument(v)
+  return v === null ? null : cleanLayoutsDocument(v, { invalidStack: 'reject' })
 }
 
 const CONNECTOR_ID_SET: ReadonlySet<string> = new Set(CONNECTOR_IDS)

@@ -1186,6 +1186,16 @@ describe('layouts document backup boundary (NL-P1)', () => {
         clock: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -8, tier: 'full', layer: 0 },
         bookmarks: { kind: 'docked', dock: 'top', order: 0 },
       },
+      stacks: [{
+        id: 'stack-day',
+        members: ['weather', 'monthCal'],
+        facing: 'weather',
+        anchor: 'left',
+        offsetX: 8,
+        offsetY: 0,
+        tier: 'standard',
+        layer: 2,
+      }],
     }],
   }
 
@@ -1239,5 +1249,26 @@ describe('layouts document backup boundary (NL-P1)', () => {
     const prepared = prepareBackup(JSON.stringify(envelope))
     expect(prepared.ok).toBe(true)
     if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
+  })
+
+  it.each([
+    ['unknown member', [{ ...document.layouts[0].stacks[0], members: ['weather', 'futureWidget'] }]],
+    ['duplicate member', [{ ...document.layouts[0].stacks[0], members: ['weather', 'weather'] }]],
+    ['bad facing', [{ ...document.layouts[0].stacks[0], facing: 'clock' }]],
+    ['bad tier', [{ ...document.layouts[0].stacks[0], tier: 'docked' }]],
+    ['bad geometry', [{ ...document.layouts[0].stacks[0], offsetX: 'far' }]],
+    ['duplicate id', [document.layouts[0].stacks[0], { ...document.layouts[0].stacks[0], members: ['sun', 'moon'] }]],
+  ])('rejects a stack with %s instead of cleaning the backup', (_label, stacks) => {
+    const malformed = structuredClone(document) as unknown as {
+      layouts: Array<{ stacks: unknown[] }>
+    }
+    malformed.layouts[0].stacks = stacks
+    const backup = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    backup.data.layouts = malformed
+
+    expect(prepareBackup(JSON.stringify(backup))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layouts" data is invalid.',
+    })
   })
 })

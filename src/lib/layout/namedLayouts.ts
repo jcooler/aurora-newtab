@@ -74,6 +74,20 @@ export interface HiddenWidgetPlacement { kind: 'hidden' }
 
 export type NamedLayoutPlacement = FreeWidgetPlacement | DockedWidgetPlacement | HiddenWidgetPlacement
 
+/** One manually paged canvas card. A stack is a placement, not a widget:
+ *  every member keeps its existing data owner and renderer, while this row
+ *  owns only shared geometry, tier, layer, order, and the explicit face. */
+export interface WidgetStack {
+  id: string
+  members: readonly BlockId[]
+  facing: BlockId
+  anchor: LayoutAnchor
+  offsetX: number
+  offsetY: number
+  tier: WidgetTier
+  layer: number
+}
+
 /** Presence of a widget key means the widget is enabled in this layout
  *  (spec 2.1: a layout stores which widgets are enabled plus each enabled
  *  widget's position, tier, layer, and dock membership). */
@@ -82,6 +96,9 @@ export interface NamedLayout {
   name: string
   widgets: Partial<Record<BlockId, NamedLayoutPlacement>>
   bulkTier?: WidgetTier
+  /** Additive and absent-safe. Existing documents intentionally remain
+   *  byte-shaped exactly as before until the user creates a stack. */
+  stacks?: readonly WidgetStack[]
 }
 
 export const LAYOUTS_DOCUMENT_VERSION = 1
@@ -107,11 +124,16 @@ export interface CleanLayoutsDocumentOptions {
    *  cleanStoredLayout's unknown-block-id convention. Malformed layout rows
    *  and document-level shape always reject in both modes. */
   invalidPlacement?: 'reject' | 'drop'
+  /** Runtime resolution cleans malformed stack membership according to the
+   *  stack design's recovery rules. Backup import uses `reject` so malformed
+   *  stack data is never laundered into a different document. */
+  invalidStack?: 'clean' | 'reject'
 }
 
 const ANCHOR_SET: ReadonlySet<string> = new Set(LAYOUT_ANCHORS)
 const TIER_SET: ReadonlySet<string> = new Set(WIDGET_TIERS)
 const DOCK_SET: ReadonlySet<string> = new Set(DOCK_EDGES)
+const BLOCK_ID_SET: ReadonlySet<string> = new Set(BLOCK_IDS)
 
 function invalid(): never {
   throw new LayoutsDocumentValidationError()
@@ -154,6 +176,7 @@ function isHiddenPlacement(value: unknown): value is HiddenWidgetPlacement {
 function cleanNamedLayout(
   value: unknown,
   invalidPlacement: 'reject' | 'drop',
+  invalidStack: 'clean' | 'reject',
 ): NamedLayout {
   if (!isPlainObject(value)
     || typeof value.id !== 'string' || value.id === ''
@@ -181,6 +204,77 @@ function cleanNamedLayout(
     if (typeof value.bulkTier !== 'string' || !TIER_SET.has(value.bulkTier)) invalid()
     result.bulkTier = value.bulkTier as WidgetTier
   }
+
+  if (Object.prototype.hasOwnProperty.call(value, 'stacks')) {
+    if (!Array.isArray(value.stacks)) {
+      if (invalidStack === 'reject') invalid()
+      return result
+    }
+
+    const occupied = new Set<string>(Object.keys(widgets))
+    const seenStackIds = new Set<string>()
+    const stacks: WidgetStack[] = []
+    for (const candidate of value.stacks) {
+      if (!isPlainObject(candidate)
+        || typeof candidate.id !== 'string' || candidate.id === ''
+        || !Array.isArray(candidate.members)
+        || typeof candidate.facing !== 'string'
+        || typeof candidate.anchor !== 'string' || !ANCHOR_SET.has(candidate.anchor)
+        || !finite(candidate.offsetX)
+        || !finite(candidate.offsetY)
+        || typeof candidate.tier !== 'string' || !TIER_SET.has(candidate.tier)
+        || !finite(candidate.layer)) {
+        if (invalidStack === 'reject') invalid()
+        continue
+      }
+
+      if (seenStackIds.has(candidate.id)) {
+        if (invalidStack === 'reject') invalid()
+        continue
+      }
+      seenStackIds.add(candidate.id)
+
+      const rawSeen = new Set<string>()
+      const members: BlockId[] = []
+      let malformedMembership = candidate.members.length < 2
+      for (const rawMember of candidate.members) {
+        if (typeof rawMember !== 'string'
+          || !BLOCK_ID_SET.has(rawMember)
+          || rawSeen.has(rawMember)
+          || occupied.has(rawMember)) {
+          malformedMembership = true
+          continue
+        }
+        rawSeen.add(rawMember)
+        members.push(rawMember as BlockId)
+      }
+      if (!members.includes(candidate.facing as BlockId)) malformedMembership = true
+      if (invalidStack === 'reject' && malformedMembership) invalid()
+
+      if (members.length === 0) continue
+      const facing = members.includes(candidate.facing as BlockId)
+        ? candidate.facing as BlockId
+        : members[0]
+      const geometry = {
+        anchor: candidate.anchor as LayoutAnchor,
+        offsetX: candidate.offsetX,
+        offsetY: candidate.offsetY,
+        tier: candidate.tier as WidgetTier,
+        layer: candidate.layer,
+      }
+
+      if (members.length === 1) {
+        const survivor = members[0]
+        widgets[survivor] = { kind: 'free', ...geometry }
+        occupied.add(survivor)
+        continue
+      }
+
+      stacks.push({ id: candidate.id, members, facing, ...geometry })
+      for (const member of members) occupied.add(member)
+    }
+    if (stacks.length > 0) result.stacks = stacks
+  }
   return result
 }
 
@@ -189,6 +283,7 @@ export function cleanLayoutsDocument(
   options: CleanLayoutsDocumentOptions = {},
 ): LayoutsDocument {
   const invalidPlacement = options.invalidPlacement ?? 'reject'
+  const invalidStack = options.invalidStack ?? 'clean'
   if (!isPlainObject(value)
     || value.version !== LAYOUTS_DOCUMENT_VERSION
     || typeof value.activeLayoutId !== 'string'
@@ -196,7 +291,7 @@ export function cleanLayoutsDocument(
     || value.layouts.length === 0) {
     invalid()
   }
-  const layouts = value.layouts.map((layout) => cleanNamedLayout(layout, invalidPlacement))
+  const layouts = value.layouts.map((layout) => cleanNamedLayout(layout, invalidPlacement, invalidStack))
   const ids = new Set<string>()
   for (const layout of layouts) {
     if (ids.has(layout.id)) invalid()
@@ -206,9 +301,12 @@ export function cleanLayoutsDocument(
   return { version: LAYOUTS_DOCUMENT_VERSION, activeLayoutId: value.activeLayoutId, layouts }
 }
 
-export function isLayoutsDocument(value: unknown): value is LayoutsDocument {
+export function isLayoutsDocument(
+  value: unknown,
+  options: CleanLayoutsDocumentOptions = {},
+): value is LayoutsDocument {
   try {
-    cleanLayoutsDocument(value)
+    cleanLayoutsDocument(value, options)
     return true
   } catch {
     return false

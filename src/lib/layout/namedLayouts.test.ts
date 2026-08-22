@@ -106,6 +106,148 @@ describe('cleanLayoutsDocument', () => {
       expect(() => cleanLayoutsDocument(bad)).toThrow(LayoutsDocumentValidationError)
     }
   })
+
+  it('preserves a valid stack canonically without adding stacks to older layouts', () => {
+    const doc = validDocument() as unknown as {
+      layouts: Array<Record<string, unknown> & { widgets: Record<string, unknown> }>
+    }
+    doc.layouts[0].stacks = [{
+      id: 'stack-day',
+      members: ['weather', 'monthCal'],
+      facing: 'weather',
+      anchor: 'left',
+      offsetX: 9,
+      offsetY: 4,
+      tier: 'standard',
+      layer: 7,
+    }]
+    delete doc.layouts[0].widgets.weather
+
+    const cleaned = cleanLayoutsDocument(doc) as unknown as {
+      layouts: Array<{ stacks?: unknown[] }>
+    }
+    expect(cleaned.layouts[0].stacks).toEqual([{
+      id: 'stack-day',
+      members: ['weather', 'monthCal'],
+      facing: 'weather',
+      anchor: 'left',
+      offsetX: 9,
+      offsetY: 4,
+      tier: 'standard',
+      layer: 7,
+    }])
+    expect(cleaned.layouts[1]).not.toHaveProperty('stacks')
+  })
+
+  it('keeps the older widget placement and drops conflicting stack membership', () => {
+    const doc = validDocument() as unknown as {
+      layouts: Array<Record<string, unknown> & { widgets: Record<string, unknown> }>
+    }
+    doc.layouts[0].stacks = [{
+      id: 'stack-day',
+      members: ['clock', 'weather', 'monthCal'],
+      facing: 'clock',
+      anchor: 'left',
+      offsetX: 8,
+      offsetY: 0,
+      tier: 'standard',
+      layer: 4,
+    }]
+
+    const cleaned = cleanLayoutsDocument(doc) as unknown as {
+      layouts: Array<{ widgets: Record<string, unknown>; stacks?: unknown[] }>
+    }
+    expect(cleaned.layouts[0].widgets.clock).toEqual(doc.layouts[0].widgets.clock)
+    expect(cleaned.layouts[0].widgets.weather).toEqual(doc.layouts[0].widgets.weather)
+    expect(cleaned.layouts[0].widgets.monthCal).toEqual({
+      kind: 'free', anchor: 'left', offsetX: 8, offsetY: 0, tier: 'standard', layer: 4,
+    })
+    expect(cleaned.layouts[0]).not.toHaveProperty('stacks')
+  })
+
+  it('drops unknown and duplicate memberships and resets a missing face to the first survivor', () => {
+    const doc = validDocument() as unknown as {
+      layouts: Array<Record<string, unknown> & { widgets: Record<string, unknown> }>
+    }
+    doc.layouts[0].stacks = [
+      {
+        id: 'stack-a',
+        members: ['monthCal', 'futureWidget', 'monthCal', 'sun'],
+        facing: 'futureWidget',
+        anchor: 'left',
+        offsetX: 8,
+        offsetY: 0,
+        tier: 'standard',
+        layer: 4,
+      },
+      {
+        id: 'stack-b',
+        members: ['sun', 'moon', 'quote'],
+        facing: 'sun',
+        anchor: 'right',
+        offsetX: -8,
+        offsetY: 0,
+        tier: 'compact',
+        layer: 5,
+      },
+    ]
+
+    const cleaned = cleanLayoutsDocument(doc) as unknown as {
+      layouts: Array<{ stacks?: Array<{ members: string[]; facing: string }> }>
+    }
+    expect(cleaned.layouts[0].stacks).toEqual([
+      expect.objectContaining({ members: ['monthCal', 'sun'], facing: 'monthCal' }),
+      expect.objectContaining({ members: ['moon', 'quote'], facing: 'moon' }),
+    ])
+  })
+
+  it('drops a later duplicate stack id without consuming its members', () => {
+    const doc = validDocument() as unknown as {
+      layouts: Array<Record<string, unknown> & { widgets: Record<string, unknown> }>
+    }
+    doc.layouts[0].stacks = [
+      { id: 'same', members: ['monthCal', 'sun'], facing: 'monthCal', anchor: 'left', offsetX: 8, offsetY: 0, tier: 'standard', layer: 4 },
+      { id: 'same', members: ['moon', 'quote'], facing: 'moon', anchor: 'right', offsetX: -8, offsetY: 0, tier: 'compact', layer: 5 },
+      { id: 'third', members: ['moon', 'quote'], facing: 'quote', anchor: 'bottom', offsetX: 0, offsetY: -8, tier: 'compact', layer: 6 },
+    ]
+
+    const cleaned = cleanLayoutsDocument(doc) as unknown as {
+      layouts: Array<{ stacks?: Array<{ id: string; members: string[] }> }>
+    }
+    expect(cleaned.layouts[0].stacks?.map(({ id, members }) => ({ id, members }))).toEqual([
+      { id: 'same', members: ['monthCal', 'sun'] },
+      { id: 'third', members: ['moon', 'quote'] },
+    ])
+  })
+
+  it('dissolves a one-member stack to a free placement at the exact stack geometry', () => {
+    const doc = validDocument() as unknown as {
+      layouts: Array<Record<string, unknown> & { widgets: Record<string, unknown> }>
+    }
+    doc.layouts[0].stacks = [{
+      id: 'stack-day',
+      members: ['futureWidget', 'monthCal'],
+      facing: 'futureWidget',
+      anchor: 'bottom-left',
+      offsetX: 12,
+      offsetY: -7,
+      tier: 'full',
+      layer: 9,
+    }]
+
+    const cleaned = cleanLayoutsDocument(doc) as unknown as {
+      layouts: Array<{ widgets: Record<string, unknown>; stacks?: unknown[] }>
+    }
+    expect(cleaned.layouts[0].widgets.monthCal).toEqual({
+      kind: 'free',
+      anchor: 'bottom-left',
+      offsetX: 12,
+      offsetY: -7,
+      tier: 'full',
+      layer: 9,
+    })
+    expect(cleaned.layouts[0]).not.toHaveProperty('stacks')
+  })
 })
 
 describe('anchor math', () => {
