@@ -264,16 +264,16 @@ git commit -m "test(flow): prove the immersive session in Chromium"
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 - Modify: this plan's checkboxes
 
-- [ ] Request one independent review of the complete Flow implementation for:
+- [x] Request one independent review of the complete Flow implementation for:
   schema/migration/backup/privacy exactness; one timer owner; serialized
   cross-tab behavior; stale hydration; phase rollover; dialog-stack entry;
   mantra/task source ownership; complete dashboard suppression/restoration;
   accessibility; responsive visual quality; zero layout writes; QA honesty;
   frozen boundaries; and Store/protected-checkout safety.
-- [ ] If the review finds Critical/Important defects, add focused RED tests,
+- [x] If the review finds Critical/Important defects, add focused RED tests,
   apply one bounded fix commit, and request one rereview. Ledger Minors; do not
   start a second review cycle.
-- [ ] Run the stabilized gate once after review fixes:
+- [x] Run the stabilized gate once after review fixes:
 
 ```powershell
 npm test -- --reporter=dot
@@ -287,10 +287,10 @@ git diff --check
   Treat any React `act(...)` warning as a failed gate. Re-run only a focused
   causal family if this gate finds a test-only drift; do not churn the full
   suite.
-- [ ] Rebuild `dist` from the exact reviewed source before any owner-facing
+- [x] Rebuild `dist` from the exact reviewed source before any owner-facing
   check. Confirm no production preview bridge and no new manifest permission,
   dependency, connector contract, or Store artifact.
-- [ ] Update README and ledgers with exact commits, counts, browser evidence,
+- [x] Update README and ledgers with exact commits, counts, browser evidence,
   review disposition, and manual ceilings. Record the Flow decision without
   reopening the approved design. Commit and push:
 

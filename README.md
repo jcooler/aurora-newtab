@@ -56,7 +56,11 @@ direct provider requests only as disclosed below.
   what it reads (and, for Home Assistant, sends), and how the permission
   model works.
 - **To-do lists** — a lightweight panel for day-to-day tasks.
-- **Focus timer** — a Pomodoro-style work/break timer with a chime.
+- **Focus timer & Flow:** A Pomodoro-style work/break timer with a chime.
+  Start Flow to clear the page down to today's focus, the live timer, and the
+  first unfinished task over the current photograph. The same session and
+  absolute deadline stay synchronized across new tabs; Pause and End flow do
+  not alter the active named layout.
 - **Notes** — a small autosaving scratchpad pinned to the corner, for
   jotting anything down; saves locally as you type.
 - **Daily quote** — one quote a day from a small bundled set.

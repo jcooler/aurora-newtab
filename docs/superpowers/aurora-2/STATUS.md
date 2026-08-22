@@ -3,9 +3,9 @@
 **Updated:** 2026-08-21<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Continuous delivery roadmap - Flow<br>
-**Last verified packet:** `Program A baseline stabilization` - warning-free 155-file / 2,570-test gate, reviewed immutable-evidence guard, 124-cell scratch Chromium sweep, and exact 1408x445 real-window witness<br>
-**Current packet:** Flow implementation under `docs/superpowers/plans/2026-08-21-aurora-flow-implementation.md`; widget stacks follow without a routine continuation prompt
+**Current wave:** Continuous delivery roadmap - widget stacks<br>
+**Last verified packet:** `Flow` - one cross-tab timer authority, immersive focus/timer/task surface, Ready rereview, 148-capture scratch sweep, and exact 1408x445 two-tab witness<br>
+**Current packet:** Widget stacks under `docs/superpowers/specs/2026-08-19-aurora-widget-stacks-design.md`; its just-in-time implementation plan is next
 
 - **NL-P5 appearance ink system (2026-08-19, owner-approved all three layers, "soft at rest but white on hover", and the standing directive "let's not develop specifically for black widgets, people may want bright pink" — saved to assistant memory):** The owner-observed mismatch was one base ink at two strengths applied ad hoc (bookmarks/settings gear muted, Tasks/Notes/Timer/weather digits full). Layer 1, the chip law: every one-line chip and dock line rests at the SOFT tier and brightens to full on hover — the three launcher pills flipped to `text-fg-muted hover:text-fg`, `.dock-line` owns its color (muted rest, full hover incl. the wrapper-hover path), and DockLine/weather/clock secondary facts moved from fixed muted classes to RELATIVE 0.68 opacity so they brighten with the line while attention/critical tones keep their tints. Layer 2: `settings.widgetTextColor` — applyInkColors (composed after applyPanelColor; clearing re-derives) overrides `--fg`/`--fg-muted`, the muted tier DERIVING from any pick at the standing 0.68 alpha (`mutedInk`), with an advisory (never blocking) WCAG 4.5 contrast warning against the actual panel color (`contrastRatio`). Layer 3: `settings.photoTextColor` re-inks photograph text via the new `--photo-ink` chain (themes.css routes `--canvas-fg` through it), with per-element `photoClockColor`/`photoGreetingColor`/`photoQuoteColor` overrides scoped per canvas-item var chains, and a dark-pick advisory (luminance floor 0.25). Storage per the STANDING RULE: CURRENT_VERSION 13→14, migrations[13] backfills the five nested nulls, METADATA_ONLY_FLOOR moved to 14 (its rule) with the v11/v12 metadata-only tests rewritten to the full-path reality and the floor guard probe hardened to OMIT an ink field (a defaults-shaped probe would let a non-identity step masquerade), backup isSettings covers all five. Settings UI: the picker machinery extracted to a shared ColorPickerRow (labels/behavior byte-compatible with the widget-color tests); Appearance gained Widget text, Photo text, and a per-element disclosure. The witness proves the system on BRIGHT PINK panels (per the directive) with measured computed colors — chips at the derived muted ink brightening to the full pick on hover, clock override beating the global photo ink, greeting AND quote (measured `rgb(255,215,0)`, correcting my own misreading of the compressed capture) taking it — and CAUGHT one real regression fixed under it: the full-width lane swallowed pointer events across the whole band (Tasks launcher/settings gear unreachable); the strips are now pointer-transparent with only members as hit targets, CSS-pinned. Full `npm test` 154 files / 2545 green, TypeScript clean, `dist` rebuilt, checkpoint `3b6b2cd`. Single-coin crypto (owner: "sometimes people just want one") shipped separately at `e95ba80`.
 
@@ -14,6 +14,8 @@
 - **NL-P5 badge position (2026-08-19, owner-reported):** The layout badge (the "profile" pill) kept a fixed 108px right offset that existed solely to clear the utility-tray trigger — which now hides itself — leaving a dead gap beside the settings gear. The badge hugs the gear at 60px and slides to 108px only while the trigger actually renders (`clearsTray` prop → `data-clears-tray` host attribute, App-test-pinned both ways). The owner also noted the badge disappearing during an edit session: confirmed INTENDED (spec 2.5 — the edit toolbar's own Layout switcher replaces it while a session is live) and answered in chat, no change. Full `npm test` 154 files / 2547 green, `dist` rebuilt, checkpoint `aab24ca`.
 
 ## Packet envelope
+
+- **Flow (2026-08-21, VERIFIED):** Schema v15 adds one nullable `timerSession` authority with an absolute running deadline, exact backup validation, and privacy inventory coverage. The dashboard Timer and immersive Flow surface share one App-level provider; actions and deadline rollover reread both session and duration config inside the same storage lock, idle or paused sessions own no clock, and the stable Flow context prevents countdown ticks from invalidating the Canvas. Flow leaves the photograph but suppresses Canvas, docks, layout/editor chrome, Settings, Utility Tray, palette, and photo controls; it renders today's focus, the live work/break timer, and the first unfinished task, with Escape or End flow restoring the exact named dashboard and writing no layout state. The initial review found three Important issues (stale cross-tab config, idle App invalidation, and a self-fulfilling vertical QA bound); focused RED/GREEN fixes landed in `5802e59`, and the single rereview returned Ready with none open. Post-fix evidence: 148 scratch captures with zero failures/runtime errors/failed requests/writes, exact 1408x445 DPR 1 real-window proof with synchronized second tab and two timerSession-only interaction writes, TypeScript, 8/8 information-first and 6/6 output-safety contracts, and a 214-module build. The stabilized full test run reached 158 files / 2,615 tests with 2,614 green and one test-only launcher Escape timing drift; `373784f` flushed the passive dialog registration and the required causal rerun passed, with no second full-suite churn per plan. Manual ceilings remain real screen reader, sleep/wake, timezone change, audible host behavior, and long-session judgment across arbitrary photographs and colors. No Store, permission, manifest, dependency, connector, or accepted NL-P6 evidence changed.
 
 - **Program A baseline stabilization (2026-08-21, VERIFIED):** The owner authorized continuous back-to-back delivery without routine continuation prompts. Program A reconciled the named-layout source of truth, removed the two remaining React `act(...)` warning families, made the information-first contract a first-class npm command, and made accepted NL-P6 evidence unwriteable by ordinary QA reruns. The bounded review found one Important redirected-output hole; the single fix/rereview cycle closed it by rejecting symlinks/junctions before any scratch write and returned Ready. Stabilized gate: 155 Vitest files / 2,570 tests with no `act(...)` warning, TypeScript clean, information-first contract 7/7, output-safety contract 6/6, and a 211-module production build. The first scratch sweep exposed one tooling-only stale Weather request identity after `wind_direction_10m` joined production; an observed-RED contract and `ecace7e` aligned both fixture builders. The single causal rerun passed 124 cells with zero failures, runtime errors, failed requests, unexpected external requests, or storage writes. The real operating-system witness measured exactly 1408x445 at DPR 1 and passed settle, live edit, Save/reload, and zero-write observation. Original-resolution inspection covered fresh, named-saved, connectors-default, edit, dock-hover, narrow-floor, and real-window captures. The accepted F9 all-widgets density ruling remains visible and unchanged by owner decision; no automatic re-flow was introduced. `docs/superpowers/qa/nl-p6` stayed byte-identical. Store mutations remain blocked by W6-P5.
 
@@ -448,13 +450,13 @@
 
 ## Files intentionally dirty
 
-- None after the Program A checkpoint. Flow begins from the clean pushed baseline.
+- None at the Flow checkpoint. Widget stacks begins from the clean pushed baseline.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** Flow - immersive timer session
-- **Plan:** Execute `docs/superpowers/plans/2026-08-21-aurora-flow-implementation.md` from the owner-approved `docs/superpowers/specs/2026-08-21-aurora-flow-design.md`.
-- **State:** Program A and named-layout NL-P6 are verified. Flow and widget stacks are approved designs but unimplemented. Do not mutate Store state.
+- **Packet:** Widget stacks
+- **Plan:** Write the just-in-time implementation plan from the owner-approved `docs/superpowers/specs/2026-08-19-aurora-widget-stacks-design.md` before touching production code.
+- **State:** Program A, named-layout NL-P6, and Flow are verified. Widget stacks is approved but unimplemented. Do not mutate Store state.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -466,9 +468,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: Flow
-Verified source checkpoint: Program A stabilized baseline
-Expected next checkpoint subject: docs: approve the Aurora Flow implementation plan
-Execution: execute the Flow plan, followed by stacks, Weather enrichment, the expansion platform, and bounded addition waves without routine continuation prompts.
+Starting packet: Widget stacks
+Verified source checkpoint: Flow
+Expected next checkpoint subject: docs: approve the Aurora widget-stacks implementation plan
+Execution: execute stacks, followed by Weather enrichment, the expansion platform, and bounded addition waves without routine continuation prompts.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```

@@ -2,7 +2,7 @@
 
 Date: 2026-08-21
 
-Product source commit: `32613dd` (`feat(flow): clear the dashboard down to the work`)
+Reviewed product source commit: `5802e59` (`fix(flow): serialize config and isolate the live clock`)
 
 This is additive Flow evidence. It does not replace or rewrite the accepted
 NL-P6 evidence. All output was written to gitignored scratch directories:
@@ -73,3 +73,22 @@ Automation does not claim the following:
 
 These ceilings do not conceal a known automated failure. They identify the
 remaining human and host-environment checks honestly.
+
+## Review and stabilized gate
+
+The bounded implementation review found three Important issues: timer actions
+could reduce against a stale React config snapshot, an idle 500 ms clock could
+invalidate the complete App tree, and the first vertical QA bound could accept
+its own overflow. Focused failing regressions preceded the fix in `5802e59`.
+The same reviewer rereviewed that exact range and returned Ready with no
+Critical or Important issue open.
+
+The post-fix scratch sweep and real-window witness both reran green. The
+stabilized full Vitest pass reached 158 files, 2,614 passed tests, and one
+existing launcher-loop timing failure: the test synthesized Escape before the
+panel's passive dialog-stack registration had flushed. `373784f` made the test
+model two separate user events explicitly; its causal rerun passed. Per the
+written gate rule, the full suite was not churned a second time. TypeScript,
+the 8-test information-first contract, the 6-test scratch-output safety
+contract, diff hygiene, and the 214-module production build passed. No React
+act warning was emitted.
