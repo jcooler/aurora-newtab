@@ -11,7 +11,7 @@ import {
   type LinearWorkData,
 } from '../../../services/connectors/linear'
 import type { ConnectorConfig, LinearConfig } from '../../../services/connectors/types'
-import { WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
+import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
 function connectedLinear(config: ConnectorConfig | undefined): LinearConfig | null {
@@ -31,8 +31,10 @@ export default function LinearWidget({
   docked?: boolean
 } = {}) {
   const [connectors] = useStoredKey('connectors')
-  const config = connectedLinear(connectors?.linear)
-  if (!config) return null
+  const candidate = connectors?.linear
+  if (!candidate || candidate.enabled !== true) return null
+  const config = connectedLinear(candidate)
+  if (!config) return <WorkConnectorSetup title="Linear" canvasSize={canvasSize} docked={docked} />
   return <LinearInner config={config} canvasSize={canvasSize} docked={docked} />
 }
 

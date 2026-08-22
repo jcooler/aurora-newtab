@@ -119,6 +119,42 @@ export function WorkWidgetShell({
   )
 }
 
+/** Truthful pre-fetch state for an enabled connector whose credential or
+ * identity was stripped by restore, reconnect, or partial setup. This stays
+ * outside every provider snapshot hook, so it cannot issue a request. */
+export function WorkConnectorSetup({
+  title,
+  canvasSize = 'standard',
+  docked = false,
+}: {
+  title: string
+  canvasSize?: CanvasSize
+  docked?: boolean
+}) {
+  if (docked) {
+    return (
+      <WorkDockDetail
+        label={title}
+        facts={['Setup needed']}
+        presentation="setup"
+        emptyLabel=""
+      >
+        {null}
+      </WorkDockDetail>
+    )
+  }
+  return (
+    <WorkWidgetShell
+      title={title}
+      canvasSize={canvasSize}
+      presentation="setup"
+      emptyLabel=""
+    >
+      {null}
+    </WorkWidgetShell>
+  )
+}
+
 const DOCK_PANEL_SIZE = { w: 384, h: 440 }
 
 export function WorkDockDetail({

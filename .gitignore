@@ -74,6 +74,9 @@ output/
 # Browser-native widget Chromium evidence and persistent profile scratch.
 .qa-browser-native-*
 
+# Work connector Chromium evidence and persistent profile scratch.
+.qa-work-connectors-*
+
 # Expansion platform scratch scaffolds and Chromium catalog evidence.
 .aurora-expansion-*/
 .qa-expansion-platform-*/

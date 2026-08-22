@@ -10,7 +10,7 @@ import {
   type SentryIssue,
 } from '../../../services/connectors/sentry'
 import type { ConnectorConfig, SentryConfig } from '../../../services/connectors/types'
-import { WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
+import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
 function connectedSentry(config: ConnectorConfig | undefined): SentryConfig | null {
@@ -30,8 +30,10 @@ export default function SentryWidget({
   docked?: boolean
 } = {}) {
   const [connectors] = useStoredKey('connectors')
-  const config = connectedSentry(connectors?.sentry)
-  if (!config) return null
+  const candidate = connectors?.sentry
+  if (!candidate || candidate.enabled !== true) return null
+  const config = connectedSentry(candidate)
+  if (!config) return <WorkConnectorSetup title="Sentry" canvasSize={canvasSize} docked={docked} />
   return <SentryInner config={config} canvasSize={canvasSize} docked={docked} />
 }
 

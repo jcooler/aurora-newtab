@@ -77,7 +77,7 @@ afterEach(() => {
 })
 
 describe('SentryWidget', () => {
-  it('returns before the snapshot hook for disabled or incomplete connections', async () => {
+  it('returns for disabled and renders setup without fetching for enabled incomplete connections', async () => {
     const disabled = await seededStorage({ ...CONNECTED, enabled: false }, null)
     const first = mount(disabled)
     await act(async () => {})
@@ -86,9 +86,9 @@ describe('SentryWidget', () => {
     first.unmount()
 
     const incomplete = await seededStorage({ ...CONNECTED, token: '' }, null)
-    const second = mount(incomplete)
+    mount(incomplete)
     await act(async () => {})
-    expect(second.container.firstChild).toBeNull()
+    expect(screen.getByText('Connect Sentry in Settings.')).toBeTruthy()
     expect((await incomplete.get('connectorSnapshots')).sentry).toBeUndefined()
   })
 

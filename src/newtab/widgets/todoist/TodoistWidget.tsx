@@ -16,7 +16,7 @@ import {
   type TodoistTask,
 } from '../../../services/connectors/todoist'
 import type { ConnectorConfig, TodoistConfig } from '../../../services/connectors/types'
-import { WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
+import { WorkConnectorSetup, WorkDockDetail, WorkWidgetShell } from '../work/WorkWidgetShell'
 import { workPresentationState, workRowClass } from '../work/workPresentation'
 
 function connectedTodoist(config: ConnectorConfig | undefined): TodoistConfig | null {
@@ -36,8 +36,10 @@ export default function TodoistWidget({
   docked?: boolean
 } = {}) {
   const [connectors] = useStoredKey('connectors')
-  const config = connectedTodoist(connectors?.todoist)
-  if (!config) return null
+  const candidate = connectors?.todoist
+  if (!candidate || candidate.enabled !== true) return null
+  const config = connectedTodoist(candidate)
+  if (!config) return <WorkConnectorSetup title="Todoist" canvasSize={canvasSize} docked={docked} />
   return <TodoistInner config={config} canvasSize={canvasSize} docked={docked} />
 }
 

@@ -57,11 +57,11 @@ afterEach(() => {
 })
 
 describe('LinearWidget', () => {
-  it('returns before the snapshot hook for disabled or incomplete configs', async () => {
+  it('renders setup without starting the snapshot hook for an enabled incomplete config', async () => {
     const storage = await seededStorage({ ...CONNECTED, token: '' }, null)
-    const { container } = mount(storage)
+    mount(storage)
     await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    expect(screen.getByText('Connect Linear in Settings.')).toBeTruthy()
     expect((await storage.get('connectorSnapshots')).linear).toBeUndefined()
   })
 

@@ -56,11 +56,11 @@ afterEach(() => {
 })
 
 describe('TodoistWidget', () => {
-  it('returns before the snapshot hook for incomplete config', async () => {
+  it('renders setup without starting the snapshot hook for incomplete config', async () => {
     const storage = await seededStorage({ ...CONNECTED, token: '' }, null)
-    const { container } = mount(storage)
+    mount(storage)
     await act(async () => {})
-    expect(container.firstChild).toBeNull()
+    expect(screen.getByText('Connect Todoist in Settings.')).toBeTruthy()
     expect((await storage.get('connectorSnapshots')).todoist).toBeUndefined()
   })
 
