@@ -666,7 +666,6 @@ describe('WeatherWidget environmental briefing', () => {
     ['AQI only', environmentFor({ usAqi: 42, uvIndex: null, pollen: { status: 'unavailable' } }), true, false, 'Pollen unavailable here'],
     ['UV only', environmentFor({ usAqi: null, uvIndex: 6, pollen: { status: 'unavailable' } }), false, true, 'Pollen unavailable here'],
     ['pollen only', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'available', readings: [{ species: 'birch', grainsPerCubicMeter: 4 }] } }), false, false, 'Birch 4 grains/m³'],
-    ['no numeric readings', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'unavailable' } }), false, false, 'Pollen unavailable here'],
     ['zero pollen', environmentFor({ usAqi: null, uvIndex: null, pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 0 }] } }), false, false, 'No pollen detected'],
   ])('renders the %s payload without blank definition cells', async (_name, environment, hasAqi, hasUv, pollenText) => {
     await renderWidget({ snapshot: makeSnapshot({ environment }) })
@@ -678,6 +677,25 @@ describe('WeatherWidget environmental briefing', () => {
     const environmental = screen.getByRole('dialog', { name: 'Weather details' }).querySelector('[data-weather-environment]')
     expect(environmental?.querySelectorAll('dt').length).toBe(environmental?.querySelectorAll('dd').length)
     for (const value of environmental?.querySelectorAll('dd') ?? []) expect(value.textContent?.trim()).not.toBe('')
+  })
+
+  it('replaces empty successful readings with one truthful full-width message', async () => {
+    await renderWidget({
+      snapshot: makeSnapshot({
+        environment: environmentFor({
+          usAqi: null,
+          uvIndex: null,
+          pollen: { status: 'unavailable' },
+        }),
+      }),
+    })
+    await expandPanel()
+    const environment = screen.getByRole('dialog', { name: 'Weather details' })
+      .querySelector('[data-weather-environment]')!
+    expect(within(environment as HTMLElement).getByText(
+      'Environmental readings unavailable for this location.',
+    )).toBeTruthy()
+    expect(environment.querySelector('dl')).toBeNull()
   })
 
   it('shows complete environmental failure as useful forecast plus a visible retry', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { environmentRequestIdentity } from './environmentIdentity'
-import { openMeteoProvider } from './openMeteo'
+import { ENVIRONMENT_RESPONSE_TIMEOUT_MS, openMeteoProvider } from './openMeteo'
 
 const forecastPayload = {
   current: {
@@ -172,6 +172,34 @@ describe('openMeteoProvider', () => {
       pollen: { status: 'unavailable' },
     })
     expect(snap.fetchedAt).toBeGreaterThanOrEqual(before)
+  })
+
+  it('keeps forecast useful when the optional environmental leg never settles', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchFn = vi.fn((input: string | URL | Request) => (
+        String(input).includes('air-quality-api.open-meteo.com')
+          ? new Promise<Response>(() => undefined)
+          : Promise.resolve(response(forecastPayload))
+      ))
+
+      const request = openMeteoProvider(fetchFn as unknown as typeof fetch)
+        .fetchSnapshot(33.749, -84.388, 'Atlanta')
+      await vi.advanceTimersByTimeAsync(ENVIRONMENT_RESPONSE_TIMEOUT_MS)
+
+      const snap = await request
+      expect(snap.current.tempC).toBe(21.4)
+      expect(snap.environment).toEqual({
+        requestIdentity: environmentRequestIdentity(33.749, -84.388),
+        fetchedAt: snap.fetchedAt,
+        status: 'unavailable',
+        usAqi: null,
+        uvIndex: null,
+        pollen: { status: 'unavailable' },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('leaves sun times undefined when the daily block is absent', async () => {

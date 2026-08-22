@@ -55,8 +55,10 @@ anywhere except as explicitly described under "Network calls" below:
 - NASA photo-of-the-day cache (the single photo fetched for the current
   local day, if you've chosen that background source — see "Network calls"
   below), so it isn't refetched on every new tab
-- Your saved location (latitude/longitude rounded to two decimal places,
-  i.e. roughly 1 km precision, plus a display label)
+- Your saved location and display label. Device location is rounded to two
+  decimal places (roughly 1 km precision). A city you select keeps the
+  coordinates returned by Open-Meteo; each Weather request normalizes either
+  source to at most four decimal places (roughly 11 m at the equator).
 - Notes (the scratchpad text)
 - World clocks and countdowns you've configured
 - Habits (the habit names you've added and which days you've marked each
@@ -120,11 +122,13 @@ you've chosen it as your background (item 6 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
-   (rounded to ~1 km, as stored). Refreshed periodically while the widget is
-   visible and on demand when you click refresh.
+   normalized to at most four decimal places. Device-derived coordinates were
+   already rounded to two decimal places; a selected city's provider
+   coordinates can retain up to four. Refreshed periodically while the widget
+   is visible and on demand when you click refresh.
 2. **Weather environmental context** - `air-quality-api.open-meteo.com`, once
    the Weather widget is turned on and a location is set. Sends only the same
-   rounded coordinates as the forecast request and receives current
+   normalized coordinates as the forecast request and receives current
    US AQI, UV index, and provider-available pollen values. The result is
    stored inside the included weather cache and follows the same 30-minute freshness window
    and manual refresh control as the forecast. Open-Meteo currently provides
@@ -138,7 +142,8 @@ you've chosen it as your background (item 6 below):
 4. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
    moment you click "Use my location" in the Weather widget, so Aurora can
    label the forecast with a real place name instead of "My location." Sends
-   the same ~1 km-rounded coordinates the forecast call already uses. This
+   the device coordinates after Aurora rounds them to two decimal places
+   (roughly 1 km). This
    call happens once per click of that button, never on a schedule.
 5. **Connector fetches** — only to the connector(s) you've actually
    configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,

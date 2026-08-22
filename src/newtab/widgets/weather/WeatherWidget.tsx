@@ -212,6 +212,9 @@ export default function WeatherWidget({
   const environmentPollen = environment?.status === 'available'
     ? pollenSummary(environment.pollen)
     : null
+  const hasEnvironmentalReadings = Boolean(
+    environmentAqi || environmentUv || (environmentPollen && environmentPollen.kind !== 'unavailable'),
+  )
   const environmentNeedsRetry = !enrichmentPending && (!environment || environment.status === 'unavailable')
 
   // Width caps. ORIGINALLY derived to keep this panel clear of the centred
@@ -786,7 +789,7 @@ export default function WeatherWidget({
                   <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
                     Loading environmental data…
                   </p>
-                ) : environment?.status === 'available' ? (
+                ) : environment?.status === 'available' && hasEnvironmentalReadings ? (
                   <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-3 short:gap-y-2 xshort:gap-y-2">
                     {environmentAqi && (
                       <div>
@@ -817,6 +820,10 @@ export default function WeatherWidget({
                       </div>
                     )}
                   </dl>
+                ) : environment?.status === 'available' ? (
+                  <p className="mt-2 text-sm text-fg-muted">
+                    Environmental readings unavailable for this location.
+                  </p>
                 ) : (
                   <p id={environmentFeedbackId} role="status" className="mt-2 text-sm text-fg-muted">
                     Environmental data unavailable.

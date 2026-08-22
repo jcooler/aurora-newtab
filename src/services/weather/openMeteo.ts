@@ -8,10 +8,29 @@ import {
 } from './environmentIdentity'
 import { weatherRequestIdentity, weatherRequestUrl } from './identity'
 
+export const ENVIRONMENT_RESPONSE_TIMEOUT_MS = 8_000
+
+type EnvironmentResult =
+  | { ok: true; value: unknown }
+  | { ok: false; error: unknown }
+
 function isAbortError(error: unknown): boolean {
   return error instanceof DOMException
     ? error.name === 'AbortError'
     : error instanceof Error && error.name === 'AbortError'
+}
+
+function settleEnvironmentWithinTimeout(result: Promise<EnvironmentResult>): Promise<EnvironmentResult> {
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      resolve({ ok: false, error: new Error('Open-Meteo environmental request timed out') })
+    }, ENVIRONMENT_RESPONSE_TIMEOUT_MS)
+
+    void result.then((settled) => {
+      clearTimeout(timeoutId)
+      resolve(settled)
+    })
+  })
 }
 
 export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvider {
@@ -25,7 +44,7 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
       // Start both same-location legs together. The environmental promise owns
       // its rejection immediately, so a forecast-first failure cannot leave a
       // later environmental rejection unhandled.
-      const environmentResult = (async () => {
+      const environmentResult: Promise<EnvironmentResult> = (async () => {
         const response = await fetchFn(environmentUrl, init)
         if (!response.ok) {
           throw new Error(`Open-Meteo environmental request failed: HTTP ${response.status}`)
@@ -42,7 +61,13 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
         return response.json()
       })()
 
-      const [data, settledEnvironment] = await Promise.all([forecastResult, environmentResult])
+      // Forecast owns usefulness. Only after it succeeds do we wait a bounded
+      // interval for the optional environmental leg; a hung optional endpoint
+      // must never suppress current conditions. The environmental promise has
+      // already captured its own rejection above, so a forecast-first failure
+      // still cannot create an unhandled rejection or a dangling timeout.
+      const data = await forecastResult
+      const settledEnvironment = await settleEnvironmentWithinTimeout(environmentResult)
       const fetchedAt = Date.now()
       const environment = (() => {
         try {

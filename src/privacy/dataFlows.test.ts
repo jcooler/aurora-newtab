@@ -198,6 +198,9 @@ describe('code-backed privacy inventory', () => {
     expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')
     expect(privacyPolicy).toContain('US AQI, UV index, and provider-available pollen values')
     expect(privacyPolicy).toContain('stored inside the included weather cache')
+    expect(privacyPolicy).toMatch(/Device location is rounded to two\s+decimal places/)
+    expect(privacyPolicy).toMatch(/A city you select keeps the\s+coordinates returned by Open-Meteo/)
+    expect(privacyPolicy).toMatch(/normalizes either\s+source to at most four decimal places/)
   })
 
   it('drives both manifest modes and the in-product local plaintext warning', async () => {
