@@ -16,7 +16,9 @@ direct provider requests only as disclosed below.
 - **Quick links** — a small drag-to-reorder tile grid with favicons.
 - **Weather** — current conditions + next-12-hours forecast via Open-Meteo,
   from your device location or a searched city; expand it for feels-like
-  temperature, wind, humidity, and sunrise/sunset. No API key needed.
+  temperature, humidity, rain probability with an unambiguous hour, wind
+  speed with a compass label and matching direction arrow, and distinct
+  sunrise/sunset facts. No API key needed.
 - **Background photos** — a bundled, hand-curated set of landscape photos
   that rotates daily, or upload your own as a gallery (add several at once,
   remove any one from a thumbnail strip, rotates through the rest), or use
@@ -71,23 +73,16 @@ direct provider requests only as disclosed below.
   move and apply the selection, roving tabindex), and every switch is a
   native `<button role="switch">` (Space/Enter, platform focus/disabled
   semantics) rather than a styled checkbox.
-- **Rearrange the layout** — press and hold an empty spot on a widget (its
-  non-interactive surface, not a button/link/input — those keep their own
-  click behavior) to drag it anywhere on the page, with snap guides toward
-  the viewport center and other widgets; or open Settings → Layout →
-  "Arrange layout" to enter the same mode without long-pressing anything.
-  Once a widget is selected, arrow keys nudge it a step at a time (Shift for
-  a finer step) instead of the mouse. The default layout itself reflows to
-  fit whatever size your window is — resize it and everything re-settles,
-  no fixed pixel grid to outgrow. A widget you've dragged is the exception:
-  it stays exactly where you put it, at that spot, regardless of window
-  size, until "Reset layout" puts it back into the flow, with a two-step
-  confirm so it can't happen by accident. Positions are stored locally,
-  same as everything else.
+- **Named layouts & live editing** — create and switch layouts, hover a
+  widget for Move and Settings, drag it anywhere on the live page, choose
+  its Compact/Standard/Full presentation, layer or hide it, and create
+  pixel-positioned top or bottom docks. Save commits the draft; Cancel
+  restores the exact stored layout. Aurora never changes layouts or
+  rearranges authored positions on its own.
 
 Settings is organized into four tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Widgets** (per-widget on/off
-toggles, weather location, world clocks, countdowns, and layout/arrange),
+toggles, weather location, world clocks, countdowns, and named layouts),
 **Connectors** (outside data sources — see [Connectors](#connectors) below),
 and **Data** (backup/restore, plus the About footer). Every widget can be
 turned on or off from Settings, and every setting is optional — the
@@ -111,6 +106,7 @@ tab to see it.
 ```bash
 npm run dev              # Vite dev server with HMR; load unpacked the same way as above
 npm test                 # unit tests (Vitest)
+npm run test:information-first-contract # Node-only information-first matrix contract
 npm run build            # type-check (tsc --noEmit) + production build into dist/
 node scripts/preview.mjs # builds nothing itself — run `npm run build` first — then
                           # loads dist/ in real Chromium via Playwright and captures
@@ -224,9 +220,9 @@ a single request that keeps firing as long as either section is on.
   feed's URL, which Aurora treats as a secret (see [Privacy](#privacy)).
 - **Status** — a quiet dot row for up to 8 services you depend on: green
   and silent on a normal day, with trouble text appearing only for a
-  service that's actually down (worst first). Pick from six curated
-  status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Discord) or add
-  any statuspage.io-style URL yourself. No account, no token — reads only
+  service that's actually down (worst first). Pick from seven curated
+  status pages (GitHub, Cloudflare, OpenAI, npm, Vercel, Claude, Discord) or
+  add any statuspage.io-style URL yourself. No account, no token — reads only
   the public status endpoint each entry points to.
 - **Home Assistant** — up to 6 state chips (`Kitchen 21.5°C`, `Porch light
   on`, …) and up to 3 one-tap action buttons (a scene, script, or switch),

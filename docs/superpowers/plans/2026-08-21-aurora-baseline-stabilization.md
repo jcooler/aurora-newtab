@@ -179,7 +179,7 @@ git commit -m "test: make baseline checks warning-free and explicit"
 - Consumes: `docs/superpowers/qa/nl-p6/QA-REPORT.md`, commits `1ff6650`, `3e9a003`, `ea42b24`, `419b7f0`, `6191804`, `7a83bce`, and `cb6c4db`.
 - Produces: one current source of truth for completed NL-P1 through NL-P6, Program A stabilization, approved Flow/stacks, and the continuing roadmap.
 
-- [ ] **Step 1: Correct README behavior and commands**
+- [x] **Step 1: Correct README behavior and commands**
 
 Replace the obsolete automatic-reflow/Arrange description with the current named-layout behavior:
 
@@ -195,15 +195,15 @@ npm run test:information-first-contract # Node-only information-first matrix con
 
 Update Status curated-service copy to include Claude and update Weather facts to mention the current unambiguous rain time and directional wind treatment. Do not claim Flow or stacks are implemented.
 
-- [ ] **Step 2: Correct the STATUS header**
+- [x] **Step 2: Correct the STATUS header**
 
 Set the current packet to baseline stabilization, record NL-P6 as accepted with F9 resolved by the owner, record `cb6c4db` as the starting checkpoint, and list Flow/stacks as approved but not implemented.
 
-- [ ] **Step 3: Add the named-layout program to ROADMAP**
+- [x] **Step 3: Add the named-layout program to ROADMAP**
 
 Append a concise table for NL-P1 through NL-P7. Mark NL-P1 through NL-P6 verified, NL-P6 owner-accepted after `3e9a003`, and baseline stabilization in progress. Add the future sequence Flow, stacks, Weather enrichment, expansion platform, and addition waves without assigning invented dates.
 
-- [ ] **Step 4: Record the owner decision**
+- [x] **Step 4: Record the owner decision**
 
 Add `A2-D062` with:
 
@@ -213,7 +213,7 @@ Add `A2-D062` with:
 - no routine continuation prompts;
 - unchanged visual evidence, frozen-boundary, protected-checkout, and W6-P5 requirements.
 
-- [ ] **Step 5: Check prose and commit**
+- [x] **Step 5: Check prose and commit**
 
 Run:
 
