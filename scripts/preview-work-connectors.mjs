@@ -145,7 +145,7 @@ const WIDGETS = [
 const EXPECTED_OPERATION_COUNTS = Object.freeze({
   'linear-identity': 2,
   'linear-work': 22,
-  'sentry-issues': 21,
+  'sentry-issues': 22,
   'todoist-close': 2,
   'todoist-projects': 23,
   'todoist-tasks': 21,
