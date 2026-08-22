@@ -69,8 +69,10 @@ The boundary witnesses were also exact:
   All four painted boxes remained inside their live band at 600x800, after a
   live resize to 1366x768, after returning to 600x800, and after reload.
   Stored coordinates stayed byte-stable.
-- The mixed top and bottom DOM and tab sequences matched stored order at
-  every edge-probe stage: Weather then Bookmarks, and Tasks then Notes.
+- The mixed top and bottom DOM sequences matched stored order at every
+  edge-probe stage: Weather then Bookmarks, and Tasks then Notes. Tab order
+  matched the same sequence during all three edit-mode stages; the final
+  normal-mode reload checked DOM order and containment only.
 
 ## Legacy and storage evidence
 
