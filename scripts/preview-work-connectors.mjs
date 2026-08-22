@@ -207,10 +207,32 @@ await context.addInitScript(() => {
     return true
   }
   const storageWrites = []
+  const storageTransitions = []
+  const workConnectorState = (connectors) => Object.fromEntries(['linear', 'sentry', 'todoist'].map((id) => {
+    const connector = connectors?.[id]
+    return [id, connector ? {
+      present: true,
+      enabled: connector.enabled === true,
+      hasToken: typeof connector.token === 'string' && connector.token.length > 0,
+      snapshotEpoch: connector.snapshotEpoch ?? null,
+      teamIds: connector.teamIds ?? null,
+      projectSlugs: connector.projectSlugs ?? null,
+      projectIds: connector.projectIds ?? null,
+      itemLimit: connector.itemLimit ?? null,
+    } : { present: false }]
+  }))
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local') storageWrites.push(Object.keys(changes).sort())
+    if (area !== 'local') return
+    const keys = Object.keys(changes).sort()
+    storageWrites.push(keys)
+    storageTransitions.push({
+      at: performance.now(),
+      keys,
+      ...(changes.connectors ? { connectors: workConnectorState(changes.connectors.newValue) } : {}),
+      ...(changes.connectorSnapshots ? { snapshotIds: Object.keys(changes.connectorSnapshots.newValue ?? {}).sort() } : {}),
+    })
   })
-  globalThis.__auroraWorkHarness = { storageWrites }
+  globalThis.__auroraWorkHarness = { storageWrites, storageTransitions }
 })
 
 async function checkedRouteRequest(route) {
@@ -439,7 +461,12 @@ async function storageTruth() {
 async function storageCheckpoint() {
   return page.evaluate(async () => {
     const writes = globalThis.__auroraWorkHarness?.storageWrites ?? []
-    return { data: await chrome.storage.local.get(null), writes: writes.splice(0, writes.length) }
+    const transitions = globalThis.__auroraWorkHarness?.storageTransitions ?? []
+    return {
+      data: await chrome.storage.local.get(null),
+      writes: writes.splice(0, writes.length),
+      transitions: transitions.splice(0, transitions.length),
+    }
   })
 }
 
@@ -450,7 +477,7 @@ async function assertStorageStep(label, before, allowedKeys) {
     const allowed = new Set(allowedKeys)
     const forbiddenWriteKeys = [...new Set(after.writes.flat())].filter((key) => !allowed.has(key))
     if (forbiddenWriteKeys.length) throw new Error(`Unexpected storage write keys: ${forbiddenWriteKeys.join(', ')}`)
-    evidence.storageWrites.push({ label, changedKeys, writes: after.writes })
+    evidence.storageWrites.push({ label, changedKeys, writes: after.writes, transitions: after.transitions })
   } catch (error) {
     fail(`${label}: ${error instanceof Error ? error.message : String(error)}`)
   }
