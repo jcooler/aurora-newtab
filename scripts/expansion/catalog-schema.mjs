@@ -73,6 +73,14 @@ function httpsUrl(value, path, errors) {
   return true
 }
 
+function httpsOriginPattern(value, path, errors) {
+  if (typeof value !== 'string' || !/^https:\/\/(?:\*|[^/*\s]+)\/\*$/.test(value)) {
+    errors.push(`${path}: expected an HTTPS Chrome origin pattern`)
+    return false
+  }
+  return true
+}
+
 function isoDate(value, path, errors) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     errors.push(`${path}: expected an ISO calendar date`)
@@ -137,7 +145,15 @@ function validateCandidate(value, index, errors) {
     }
   }
 
-  nestedArrayObject(value.access, `${path}.access`, ['chromePermissions', 'origins', 'userWarnings'], errors)
+  if (exactKeys(value.access, `${path}.access`, ['chromePermissions', 'origins', 'userWarnings'], errors)) {
+    stringArray(value.access.chromePermissions, `${path}.access.chromePermissions`, errors)
+    if (Array.isArray(value.access.origins)) {
+      value.access.origins.forEach((origin, originIndex) => httpsOriginPattern(origin, `${path}.access.origins[${originIndex}]`, errors))
+    } else {
+      errors.push(`${path}.access.origins: expected an array`)
+    }
+    stringArray(value.access.userWarnings, `${path}.access.userWarnings`, errors)
+  }
   if (exactKeys(value.privacy, `${path}.privacy`, ['sends', 'receives', 'stores', 'backup', 'redaction'], errors)) {
     stringArray(value.privacy.sends, `${path}.privacy.sends`, errors)
     stringArray(value.privacy.receives, `${path}.privacy.receives`, errors)

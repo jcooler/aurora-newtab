@@ -7,16 +7,19 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..')
 
 const NODE_TESTS = [
   'scripts/expansion/catalog-schema.test.mjs',
+  'scripts/expansion/catalog-research.test.mjs',
   'scripts/expansion/render-catalog.test.mjs',
   'scripts/expansion/output-safety.test.mjs',
   'scripts/expansion/scaffold.test.mjs',
   'scripts/widget-catalog-manifest.test.mjs',
   'scripts/catalog-nl-p5-check.test.mjs',
+  'scripts/catalog-output-safety.test.mjs',
 ]
 
 const VITEST_TESTS = [
   'src/newtab/expansionWidgetContracts.test.ts',
   'src/lib/storage/widgetToggleVersions.test.ts',
+  'src/lib/storage/migrations.test.ts',
   'src/services/connectors/expansionConnectorContracts.test.ts',
   'src/settings/sections/Connectors.test.tsx',
 ]

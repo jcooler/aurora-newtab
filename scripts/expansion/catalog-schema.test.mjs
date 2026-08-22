@@ -8,6 +8,7 @@ const STATUSES = ['approved-wave', 'researched', 'deferred', 'absorbed', 'blocke
 const WAVES = ['browser-native', 'work', 'at-a-glance', 'broader', 'backlog']
 const AUTH_MODES = ['none', 'browser-permission', 'api-token', 'oauth-pkce', 'oauth-secret-required', 'local']
 const RISKS = ['low', 'medium', 'high']
+const TERMS_RISKS = ['low', 'medium', 'high', 'unknown']
 
 function candidate(index) {
   const authMode = AUTH_MODES[index % AUTH_MODES.length]
@@ -24,7 +25,7 @@ function candidate(index) {
       provider: 'Official provider',
       docsUrl: `https://example.invalid/docs/${index}`,
       transport: 'HTTPS JSON',
-      termsRisk: RISKS[index % RISKS.length] === 'low' ? 'low' : RISKS[index % RISKS.length] === 'medium' ? 'medium' : 'high',
+      termsRisk: TERMS_RISKS[index % TERMS_RISKS.length],
     },
     auth: {
       mode: authMode,
@@ -126,6 +127,15 @@ test('rejects insecure source documentation URLs', () => {
     errorsOf(catalog).includes('candidates[3].source.docsUrl: expected an HTTPS URL'),
     true,
   )
+})
+
+test('rejects insecure or non-pattern runtime origins', () => {
+  const catalog = validCatalog()
+  catalog.candidates[3].access.origins = ['http://api.example.invalid/*', 'https://api.example.invalid/v1']
+
+  const errors = errorsOf(catalog)
+  assert.equal(errors.includes('candidates[3].access.origins[0]: expected an HTTPS Chrome origin pattern'), true)
+  assert.equal(errors.includes('candidates[3].access.origins[1]: expected an HTTPS Chrome origin pattern'), true)
 })
 
 test('rejects blank presentation promises', () => {

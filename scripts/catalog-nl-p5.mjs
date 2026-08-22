@@ -12,10 +12,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 import {
   catalogRequestFailure,
+  catalogContractSourceErrors,
   catalogWidgetUsefulness,
   checkCatalogArtifacts,
   parseCatalogArgs,
@@ -26,10 +28,13 @@ import { CATALOG_BATCHES, CATALOG_CONTRACTS, CODED_DOCK_LINES } from './widget-c
 
 const options = parseCatalogArgs(process.argv.slice(2))
 const { batch, headed } = options
+const sourceRepoRoot = resolve(fileURLToPath(import.meta.url), '..', '..')
 if (options.check) {
   const result = await checkCatalogArtifacts({ batch, outDir: options.outDir, readFile })
-  if (!result.ok) result.errors.forEach((error) => process.stderr.write(`${error}\n`))
-  process.exit(result.ok ? 0 : 1)
+  const source = await readFile(resolve(sourceRepoRoot, 'src/newtab/widgetSizeContracts.ts'), 'utf8')
+  const errors = [...result.errors, ...catalogContractSourceErrors({ contracts: CATALOG_CONTRACTS[batch], source })]
+  errors.forEach((error) => process.stderr.write(`${error}\n`))
+  process.exit(errors.length === 0 ? 0 : 1)
 }
 
 const repoRoot = process.cwd()
@@ -182,6 +187,9 @@ if (batch === '2') {
   // The authoritative nine-connector fixture (configs + scope-valid
   // snapshots), shared with the information-first evidence path.
   await seedInformationFirstFixtures(page, {
+    // Seventeen complete weeks fill the wider Full graph without changing
+    // the shared information-first fixture's established 35-day default.
+    contributionDayCount: 119,
     weatherFixture: {
       location: LOCATION,
       weatherCache: {
@@ -351,25 +359,42 @@ const captureWidget = async ({ id, tiers }) => {
           if (cursor.hidden || cursor.getAttribute('aria-hidden') === 'true') return true
           const style = getComputedStyle(cursor)
           if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return true
+          if (Number.parseFloat(style.opacity || '1') <= 0) return true
+          if (style.clipPath && style.clipPath !== 'none') return true
+          if (style.clip && style.clip !== 'auto') return true
         }
         return false
+      }
+      const paintedBox = (element) => {
+        const box = element.getBoundingClientRect()
+        return box.width > 0 && box.height > 0
+      }
+      const paintedText = (node) => {
+        const parent = node.parentElement
+        if (!parent || hidden(parent)) return false
+        const style = getComputedStyle(parent)
+        if (style.color === 'transparent' || /rgba?\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(style.color)) return false
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        return [...range.getClientRects()].some((box) => box.width > 0 && box.height > 0)
       }
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
       let hasVisibleText = false
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (node.textContent?.trim() && node.parentElement && !hidden(node.parentElement)) {
+        if (node.textContent?.trim() && paintedText(node)) {
           hasVisibleText = true
           break
         }
       }
       const hasSemanticImage = [...root.querySelectorAll('img[alt], [role="img"][aria-label], svg[aria-label], svg title')].some((element) => {
-        if (hidden(element)) return false
+        if (hidden(element) || !paintedBox(element)) return false
         if (element.matches('img[alt]')) return Boolean(element.getAttribute('alt')?.trim())
         if (element.matches('svg title')) return Boolean(element.textContent?.trim())
         return Boolean(element.getAttribute('aria-label')?.trim())
       })
       const hasEnabledControl = [...root.querySelectorAll('button, input, select, textarea, a[href], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="slider"], [role="listbox"]')].some((element) => (
         !hidden(element)
+        && paintedBox(element)
         && !element.hasAttribute('disabled')
         && element.getAttribute('aria-disabled') !== 'true'
         && element.getAttribute('type') !== 'hidden'
@@ -426,13 +451,7 @@ const CONTRACTS = CATALOG_CONTRACTS[batch]
 // Drift guard (batch-1 review fix I1): every contract string in the active
 // map must appear verbatim in widgetSizeContracts.ts, or the run fails.
 const contractsSource = readFileSync(resolve('src/newtab/widgetSizeContracts.ts'), 'utf8')
-for (const [id, tiers] of Object.entries(CONTRACTS)) {
-  for (const [tier, text] of Object.entries(tiers)) {
-    if (!contractsSource.includes(`'${text}'`)) {
-      fail(`CATALOG drift: ${id}.${tier} contract "${text}" not found in widgetSizeContracts.ts`)
-    }
-  }
-}
+catalogContractSourceErrors({ contracts: CONTRACTS, source: contractsSource }).forEach(fail)
 
 const catalogMarkdown = renderCatalogMarkdown({
   batch,

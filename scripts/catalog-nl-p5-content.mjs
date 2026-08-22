@@ -117,12 +117,33 @@ export function catalogRequestFailure({ url, status, allowedUrls }) {
   return `unexpected external response ${status ?? 'unknown'}: ${url}`
 }
 
+export function catalogContractSourceErrors({ contracts, source }) {
+  const errors = []
+  for (const [id, tiers] of Object.entries(contracts)) {
+    const entry = source.match(new RegExp(`(?:^|[,{\\s])${id}:\\s*contract\\(([^\\n]*?)\\)(?:,|$)`, 'm'))
+    if (!entry) {
+      errors.push(`CATALOG drift: ${id} is missing from widgetSizeContracts.ts`)
+      continue
+    }
+    for (const [tier, promise] of Object.entries(tiers)) {
+      const literal = `'${promise.replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`
+      if (!entry[1].includes(literal)) {
+        errors.push(`CATALOG drift: ${id}.${tier} contract "${promise}" is missing from ${id} in widgetSizeContracts.ts`)
+      }
+    }
+  }
+  return errors
+}
+
 function elementIsHidden(element) {
   for (let cursor = element; cursor; cursor = cursor.parentElement) {
     if (cursor.hidden || cursor.getAttribute('aria-hidden') === 'true') return true
     const view = cursor.ownerDocument?.defaultView
     const style = view?.getComputedStyle?.(cursor)
     if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return true
+    if (Number.parseFloat(style?.opacity ?? '1') <= 0) return true
+    if (style?.clipPath && style.clipPath !== 'none') return true
+    if (style?.clip && style.clip !== 'auto') return true
   }
   return false
 }
@@ -150,7 +171,9 @@ export function catalogWidgetUsefulness(rootOrProbe) {
     const walker = root.ownerDocument.createTreeWalker(root, NodeFilterCtor.SHOW_TEXT)
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const parent = node.parentElement
-      if (node.textContent?.trim() && parent && !elementIsHidden(parent)) {
+      const color = parent?.ownerDocument?.defaultView?.getComputedStyle?.(parent).color ?? ''
+      const transparent = color === 'transparent' || /rgba?\([^)]*,\s*0(?:\.0+)?\s*\)$/.test(color)
+      if (node.textContent?.trim() && parent && !transparent && !elementIsHidden(parent)) {
         hasVisibleText = true
         break
       }

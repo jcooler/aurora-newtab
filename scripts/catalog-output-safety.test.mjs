@@ -6,6 +6,7 @@ import test from 'node:test'
 import { JSDOM } from 'jsdom'
 
 import {
+  catalogContractSourceErrors,
   catalogRequestFailure,
   catalogWidgetUsefulness,
   parseCatalogArgs,
@@ -130,6 +131,28 @@ test('rejects a nondegenerate wrapper with no visible text, semantic image, or e
     hasUsefulContent: false,
   })
 
+  widget.innerHTML = '<span style="opacity: 0">not painted</span>'
+  assert.equal(catalogWidgetUsefulness(widget).hasUsefulContent, false)
+
   widget.insertAdjacentHTML('beforeend', '<button type="button">Open details</button>')
   assert.equal(catalogWidgetUsefulness(widget).hasUsefulContent, true)
+})
+
+test('binds every catalog promise to its own widget contract source entry', () => {
+  const contracts = {
+    clock: { compact: 'Current time', docked: 'Time and date' },
+    weather: { compact: 'Temperature' },
+  }
+  const current = `
+    clock: contract(['compact'], 'Current time', undefined, undefined, 'Time and date'),
+    weather: contract(['compact'], 'Temperature'),
+  `
+  assert.deepEqual(catalogContractSourceErrors({ contracts, source: current }), [])
+  assert.deepEqual(
+    catalogContractSourceErrors({
+      contracts,
+      source: current.replace("weather: contract(['compact'], 'Temperature')", "weather: contract(['compact'], 'Current time')"),
+    }),
+    ['CATALOG drift: weather.compact contract "Temperature" is missing from weather in widgetSizeContracts.ts'],
+  )
 })

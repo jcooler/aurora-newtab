@@ -58,6 +58,25 @@ test('rejects repository, protected, source, document, script, build, traversal,
   })
 })
 
+test('rejects an active root nested anywhere inside the protected checkout', async () => {
+  await fixture(async ({ protectedRoot }) => {
+    const nestedActive = path.join(protectedRoot, 'nested-active')
+    await mkdir(nestedActive)
+    await assert.rejects(
+      resolveSafeExpansionOutput({
+        repoRoot: nestedActive,
+        protectedRoot,
+        requested: '.aurora-expansion-forbidden',
+      }),
+      /protected/i,
+    )
+    await assert.rejects(
+      import('node:fs/promises').then(({ lstat }) => lstat(path.join(nestedActive, '.aurora-expansion-forbidden'))),
+      /ENOENT/,
+    )
+  })
+})
+
 test('rejects a non-empty output and an output-file collision without changing either', async () => {
   await fixture(async (roots) => {
     const nonEmpty = path.join(roots.repoRoot, '.aurora-expansion-nonempty')

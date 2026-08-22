@@ -108,7 +108,7 @@ export function ownedConnectorOriginPatterns(
   return [...claimed]
 }
 
-/** The union of every ENABLED and COMPLETE connector's derived origins, deduped — pulled
+/** The union of every ENABLED connector's derived origins, deduped — pulled
  *  out of what used to be releasableOrigins' own inline "still claimed" sweep
  *  (below) so a caller besides releasableOrigins can read "what origins does
  *  Aurora currently hold via some connector" directly, without reimplementing
@@ -117,9 +117,8 @@ export function ownedConnectorOriginPatterns(
  *  for api.nasa.gov/apod.nasa.gov, it can check whether an enabled connector
  *  already holds either origin.
  *
- *  Enabled and complete: a disabled connector or a redacted/incomplete config
- *  is not actively able to fetch, so it does not count as "held". Ownership
- *  remains separate and deliberately survives disable for re-enable. Deduped:
+ *  Enabled-only: a disabled connector's config might still name a site, but
+ *  it isn't actively fetching it, so it doesn't count as "held". Deduped:
  *  descriptor.origins() makes no uniqueness promise (e.g. two of a
  *  connector's own feeds sharing a host, or two different connectors pointed
  *  at the same host), and a caller reading this set shouldn't see the same
@@ -130,22 +129,22 @@ export function heldOrigins(configs: Partial<Record<ConnectorId, ConnectorConfig
   const claimed = new Set<string>()
   for (const descriptor of CONNECTORS) {
     const config = configs[descriptor.id]
-    if (!config?.enabled || !ownsOriginsOf(descriptor, config)) continue
+    if (!config?.enabled) continue
     for (const origin of originsOf(descriptor, config)) claimed.add(origin)
   }
   return [...claimed]
 }
 
 /** Origins safe to revoke when `id` disconnects: its own origins minus any
- *  origin another ENABLED, COMPLETE connector still derives (heldOrigins above, swept
+ *  origin another ENABLED connector still derives (heldOrigins above, swept
  *  over every OTHER registered connector). Pure; callers do the actual
  *  removeOrigin calls (this fulfils the production caller descriptor.origins()
  *  was promised — SP1 finding 3).
  *
  *  "Other" here means every OTHER registered connector whose stored config
- *  is enabled and passes its descriptor's ownership boundary. A disabled or
- *  incomplete connector might still name the same site, but cannot actively
- *  fetch it, so it does not keep the grant alive. The disconnecting connector's OWN origins are read
+ *  has `enabled: true` — a disabled connector's config might still name the
+ *  same site, but it isn't actively fetching it, so it doesn't get to keep
+ *  the grant alive. The disconnecting connector's OWN origins are read
  *  unconditionally (its own `enabled` flag doesn't gate what it's *asking*
  *  to release) — only the sharing check on the OTHER side is enabled-gated,
  *  which is exactly why `id`'s own entry is excluded from the configs map

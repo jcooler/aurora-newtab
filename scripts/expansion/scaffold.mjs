@@ -7,6 +7,7 @@ import { resolveSafeExpansionOutput } from './output-safety.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = path.resolve(SCRIPT_DIR, '..', '..')
+const PROTECTED_ROOT = path.resolve(REPO_ROOT, '..', 'Chrome plugin')
 const CATALOG_PATH = path.join(REPO_ROOT, 'docs', 'superpowers', 'catalog', 'expansion', 'candidates.json')
 const KINDS = new Set(['builtin', 'connector', 'provider'])
 
@@ -111,8 +112,8 @@ export async function scaffoldAddition({
   label,
   kind,
   outDir,
-  repoRoot,
-  protectedRoot,
+  repoRoot = REPO_ROOT,
+  protectedRoot = PROTECTED_ROOT,
   catalogPath = CATALOG_PATH,
 }) {
   if (typeof id !== 'string' || !/^[a-z][a-zA-Z0-9]*$/.test(id)) {
@@ -150,14 +151,14 @@ function parseArgs(args) {
   const values = {}
   for (let index = 0; index < args.length; index += 1) {
     const [flag, inline] = args[index].split('=', 2)
-    if (!['--id', '--label', '--kind', '--out-dir', '--repo-root', '--protected-root'].includes(flag)) {
+    if (!['--id', '--label', '--kind', '--out-dir'].includes(flag)) {
       throw new Error(`unknown argument: ${args[index]}`)
     }
     const value = inline ?? args[++index]
     if (!value) throw new Error(`${flag} requires a value`)
     values[flag.slice(2).replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())] = value
   }
-  return { ...values, repoRoot: path.resolve(values.repoRoot ?? REPO_ROOT) }
+  return { ...values, repoRoot: REPO_ROOT, protectedRoot: PROTECTED_ROOT }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

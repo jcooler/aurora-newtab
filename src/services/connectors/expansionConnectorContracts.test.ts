@@ -18,6 +18,22 @@ const EXPECTED_REENTRY_IDS: readonly ConnectorId[] = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'ics', 'homeassistant',
 ]
 
+const EXPECTED_ORIGINS: Readonly<Record<ConnectorId, readonly string[]>> = {
+  rss: ['https://news.example.invalid/*'],
+  github: ['https://api.github.com/*'],
+  gitlab: ['https://gitlab.example.invalid/*'],
+  jira: ['https://contract-fixture.atlassian.net/*'],
+  vercel: ['https://api.vercel.com/*'],
+  crypto: ['https://api.coingecko.com/*'],
+  ics: ['https://calendar.example.invalid/*'],
+  status: ['https://status.example.invalid/*'],
+  homeassistant: ['https://home.example.invalid/*'],
+}
+
+const HELD_WHEN_INCOMPLETE = new Set<ConnectorId>([
+  'github', 'gitlab', 'jira', 'vercel', 'crypto', 'homeassistant',
+])
+
 const INCOMPLETE: Record<ConnectorId, ConnectorConfig> = {
   rss: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.rss, feeds: [] },
   github: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.github, token: '' },
@@ -50,7 +66,7 @@ describe('expansion connector authorities', () => {
       expect(Number.isFinite(descriptor.ttlMs) && descriptor.ttlMs > 0).toBe(true)
       expect(descriptor.ownsOrigins(fixture)).toBe(true)
       const origins = descriptor.origins(fixture)
-      expect(origins.length).toBeGreaterThan(0)
+      expect(origins).toEqual(EXPECTED_ORIGINS[descriptor.id])
       origins.forEach((origin) => expect(origin).toMatch(/^https:\/\/[^/]+\/\*$/))
       descriptor.secretFields.forEach((field) => expect(Object.hasOwn(fixture, field)).toBe(true))
       if (descriptor.identityField) expect(Object.hasOwn(fixture, descriptor.identityField)).toBe(true)
@@ -79,9 +95,10 @@ describe('expansion connector authorities', () => {
     expect(requiredReentryConnectorIds(redacted.connectors, EXPECTED_REENTRY_IDS, true)).toEqual(EXPECTED_REENTRY_IDS)
   })
 
-  it('keeps ownership for disabled complete configs but holds only enabled complete origins', () => {
+  it('keeps ownership separate while preserving the frozen enabled-only held-origin behavior', () => {
     const fixtures = COMPLETE_CONNECTOR_CONTRACT_FIXTURES
-    const allOwned = sorted(ownedOriginPatterns({ connectors: fixtures, photoPrefs }))
+    const allOwned = sorted(Object.values(EXPECTED_ORIGINS).flat())
+    expect(sorted(ownedOriginPatterns({ connectors: fixtures, photoPrefs }))).toEqual(allOwned)
     expect(sorted(heldOrigins(fixtures))).toEqual(allOwned)
 
     for (const descriptor of CONNECTORS) {
@@ -95,7 +112,10 @@ describe('expansion connector authorities', () => {
 
       const incomplete = { ...fixtures, [id]: INCOMPLETE[id] }
       expect(sorted(ownedOriginPatterns({ connectors: incomplete, photoPrefs }))).toEqual(expectedWithoutOwn)
-      expect(sorted(heldOrigins(incomplete))).toEqual(expectedWithoutOwn)
+      const expectedHeld = HELD_WHEN_INCOMPLETE.has(id)
+        ? sorted([...expectedWithoutOwn, ...EXPECTED_ORIGINS[id]])
+        : expectedWithoutOwn
+      expect(sorted(heldOrigins(incomplete))).toEqual(expectedHeld)
     }
   })
 

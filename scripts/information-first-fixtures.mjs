@@ -10,13 +10,13 @@ export const CONNECTOR_SIZE_PROMISES = Object.freeze({
   crypto: Object.freeze(['compact', 'standard']),
 })
 
-export async function seedInformationFirstFixtures(page, { weatherFixture = null } = {}) {
+export async function seedInformationFirstFixtures(page, { weatherFixture = null, contributionDayCount = 35 } = {}) {
   const day = await page.evaluate(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   })
 
-  await page.evaluate(async ({ day, weatherFixture }) => {
+  await page.evaluate(async ({ day, weatherFixture, contributionDayCount }) => {
     const { settings } = await chrome.storage.local.get('settings')
     const widgets = Object.fromEntries(Object.keys(settings.widgets).map((key) => [key, false]))
     for (const key of ['search', 'weather', 'todo', 'timer', 'bookmarks', 'notes', 'monthCal', 'quote']) widgets[key] = true
@@ -80,12 +80,9 @@ export async function seedInformationFirstFixtures(page, { weatherFixture = null
       return `${id}:${id === 'homeassistant' || id === 'ics' ? 'v2' : 'v1'}:${hash}`
     }
     const noon = new Date(`${day}T12:00:00`).getTime()
-    // Seventeen complete weeks exercise both the Standard and wider Full
-    // contribution graphs instead of making the owner catalog photograph a
-    // sparse five-column fixture with artificial whitespace.
-    const contributionDays = (modulus) => Array.from({ length: 119 }, (_, index) => {
+    const contributionDays = (modulus) => Array.from({ length: contributionDayCount }, (_, index) => {
       const date = new Date(`${day}T12:00:00`)
-      date.setDate(date.getDate() - 118 + index)
+      date.setDate(date.getDate() - (contributionDayCount - 1) + index)
       return {
         date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`,
         count: index % modulus,
@@ -191,7 +188,7 @@ export async function seedInformationFirstFixtures(page, { weatherFixture = null
         await chrome.bookmarks.create({ parentId: bar.id, title: '   ' })
       }
     }
-  }, { day, weatherFixture })
+  }, { day, weatherFixture, contributionDayCount })
 }
 
 export async function restoreInformationFirstFixtures(page) {

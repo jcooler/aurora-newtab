@@ -8,9 +8,10 @@ This report records the Program E scratch-catalog proof for the developer-facing
 Expansion Platform. It does not approve a Chrome Web Store action, alter runtime
 storage authority, or make the catalog a runtime source of truth.
 
-The proof used the Task 6 working tree based on pushed checkpoint `4a9f787`.
-The Task 6 checkpoint and final reviewed range are recorded in the Aurora
-ledgers after the bounded packet review.
+The initial proof used the Task 6 working tree based on pushed checkpoint
+`4a9f787`. The bounded review then required one fix cycle, including a stronger
+painted-content check. Both batches were rebuilt and rerun after those fixes.
+The final reviewed range is recorded in the Aurora ledgers.
 
 ## Guarded output proof
 
@@ -38,6 +39,12 @@ The exact working source was first built with `npm run build:preview`:
   a semantic image, or an enabled interactive control.
 - Both batches reported zero assertion failures, runtime errors, failed
   requests, and unexpected external requests.
+
+The successful post-review scratch roots were
+`.qa-expansion-platform-review-fix-batch-1` and
+`.qa-expansion-platform-review-fix-batch-2`. Earlier suffixed batch-2 roots
+record the expected isolation failure and its pre-review correction; they are
+not the final evidence source.
 
 The harness allowed only the exact Dallas forecast and environmental request
 identities and fulfilled both locally. No live Open-Meteo response was needed.

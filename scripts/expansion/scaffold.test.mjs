@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
 import { lstat, mkdtemp, mkdir, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
 
 import { scaffoldAddition } from './scaffold.mjs'
+
+const SCRIPT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'scaffold.mjs')
 
 const CASES = [
   {
@@ -125,5 +129,23 @@ test('rejects invalid identity, label, kind, candidate, and kind mapping before 
       )
       await assert.rejects(lstat(path.join(repoRoot, outDir)), /ENOENT/)
     }
+  })
+})
+
+test('CLI trust roots are fixed and cannot be swapped onto the protected checkout', async () => {
+  await fixture(async ({ repoRoot, protectedRoot }) => {
+    const outDir = '.aurora-expansion-protected-bypass'
+    const result = spawnSync(process.execPath, [
+      SCRIPT,
+      '--id=readingList',
+      '--label=Reading List',
+      '--kind=builtin',
+      `--out-dir=${outDir}`,
+      `--repo-root=${protectedRoot}`,
+      `--protected-root=${repoRoot}`,
+    ], { cwd: repoRoot, encoding: 'utf8' })
+    assert.notEqual(result.status, 0)
+    assert.match(result.stderr, /unknown argument.*repo-root/i)
+    await assert.rejects(lstat(path.join(protectedRoot, outDir)), /ENOENT/)
   })
 })

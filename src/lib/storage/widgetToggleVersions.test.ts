@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { WIDGET_CONTROL_KEYS } from '../../settings/sections/Widgets'
-import { migrate } from './migrations'
+import { migrations } from './migrations'
 import { defaults, type WidgetToggles } from './schema'
 import { WIDGET_TOGGLE_INTRO_VERSIONS } from './widgetToggleVersions'
 
@@ -50,13 +50,13 @@ describe('widget toggle introduction versions', () => {
 
   it.each(
     Object.entries(EXPECTED_INTRO_VERSIONS).filter(([, introduced]) => introduced > 1),
-  )('backfills %s through its real v%s migration boundary', (key, introducedIn) => {
+  )('backfills %s in its exact declared v%s migration step', (key, introducedIn) => {
     const widgets = { ...defaults().settings.widgets } as Record<string, boolean>
     delete widgets[key]
-    const migrated = migrate({
+    const migrated = migrations[introducedIn - 1]({
       ...defaults(),
       settings: { ...defaults().settings, widgets },
-    }, introducedIn - 1)
+    }) as unknown as ReturnType<typeof defaults>
     expect(Object.hasOwn(migrated.settings.widgets, key)).toBe(true)
     expect(typeof migrated.settings.widgets[key as keyof WidgetToggles]).toBe('boolean')
   })

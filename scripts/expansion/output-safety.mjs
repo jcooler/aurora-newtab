@@ -12,6 +12,11 @@ function samePath(left, right) {
   return comparable(left) === comparable(right)
 }
 
+function withinPath(root, target) {
+  const relative = path.relative(root, target)
+  return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))
+}
+
 async function statIfPresent(target) {
   try {
     return await lstat(target)
@@ -66,7 +71,9 @@ export async function resolveSafeExpansionOutput({
   const protectedCheckout = await realpath(protectedRoot)
   const output = path.resolve(active, requested)
 
-  if (samePath(output, protectedCheckout)) throw new Error('protected checkout cannot be an output root')
+  if (withinPath(protectedCheckout, active) || withinPath(protectedCheckout, output)) {
+    throw new Error('protected checkout and its descendants cannot be output roots')
+  }
   if (!samePath(path.dirname(output), active)) {
     throw new Error('output must be a safe direct child of the active repository')
   }

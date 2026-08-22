@@ -31,28 +31,28 @@
 - **Authentication:** browser-permission; direct MV3: Yes; Chrome owns access; Aurora stores no credential
 - **Chrome permissions:** readingList
 - **Origins:** None
-- **User warnings:** Chrome may display a permission warning for readingList
+- **User warnings:** Read and change entries in the reading list.
 - **Privacy sent:** None
 - **Privacy received:** Browser-owned titles, URLs, state, and timestamps needed for the selected view
 - **Privacy stored:** Display preferences only
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Query unread entries on visibility and refresh on Reading List add, update, and remove events.
+- **Stale behavior:** Keep saved pages visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Reading List refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last useful Reading List when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant Reading List access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** Reading List primary fact with no filler
-- **Standard:** Reading List summary with one useful supporting detail
-- **Full:** Reading List detail that uses added space for context rather than whitespace
-- **Docked:** Reading List single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Unread count and newest saved title
+- **Standard:** Three unread titles with host and saved age
+- **Full:** Unread and read sections with title, host, and saved time
+- **Docked:** Unread count · newest title
+- **Interaction:** Open an item, mark it read or unread, or remove it from Chrome Reading List
+- **Empty:** State that the Reading List is empty and offer Add current page
+- **Loading:** Show a content-tight loading state for Reading List entries.
+- **Stale:** Keep saved pages visible with its last-updated time while refreshing.
+- **Error:** Keep the last useful Reading List when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Chrome API lifecycle and platform availability
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -65,28 +65,28 @@
 - **Authentication:** browser-permission; direct MV3: Yes; Chrome owns access; Aurora stores no credential
 - **Chrome permissions:** sessions
 - **Origins:** None
-- **User warnings:** Chrome may display a permission warning for sessions
+- **User warnings:** The sessions permission has no standalone warning; pairing it with tabs would warn that Aurora can read browsing history.
 - **Privacy sent:** None
 - **Privacy received:** Browser-owned titles, URLs, state, and timestamps needed for the selected view
 - **Privacy stored:** Display preferences only
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Query up to the selected limit on visibility and refresh on chrome.sessions.onChanged.
+- **Stale behavior:** Keep recent session titles visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Recently Closed refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last recent-session list when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant Recently Closed access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** Recently Closed primary fact with no filler
-- **Standard:** Recently Closed summary with one useful supporting detail
-- **Full:** Recently Closed detail that uses added space for context rather than whitespace
-- **Docked:** Recently Closed single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Latest closed title and tab or window type
+- **Standard:** Five recently closed tabs or windows with closed age
+- **Full:** Up to 25 sessions grouped as tabs and windows with restore targets
+- **Docked:** Closed count · latest title
+- **Interaction:** Restore the chosen tab or complete window by session ID
+- **Empty:** State that Chrome has no restorable recent session
+- **Loading:** Show a content-tight loading state for recent Chrome sessions.
+- **Stale:** Keep recent session titles visible with its last-updated time while refreshing.
+- **Error:** Keep the last recent-session list when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Chrome API lifecycle and platform availability
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -99,28 +99,28 @@
 - **Authentication:** browser-permission; direct MV3: Yes; Chrome owns access; Aurora stores no credential
 - **Chrome permissions:** downloads
 - **Origins:** None
-- **User warnings:** Chrome may display a permission warning for downloads
+- **User warnings:** Manage your downloads.
 - **Privacy sent:** None
 - **Privacy received:** Browser-owned titles, URLs, state, and timestamps needed for the selected view
 - **Privacy stored:** Display preferences only
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Query active plus recent downloads on visibility and refresh from chrome.downloads.onChanged.
+- **Stale behavior:** Keep download filenames and progress visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Downloads refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last download list when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant Downloads access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** Downloads primary fact with no filler
-- **Standard:** Downloads summary with one useful supporting detail
-- **Full:** Downloads detail that uses added space for context rather than whitespace
-- **Docked:** Downloads single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Active count and most recent filename
+- **Standard:** Active progress plus recent filename, state, and size
+- **Full:** Active, completed, interrupted, and dangerous rows with progress and recovery state
+- **Docked:** Active count · latest filename
+- **Interaction:** Pause, resume, cancel, retry, show in folder, or open Chrome Downloads as supported by state
+- **Empty:** State that there are no active or recent downloads
+- **Loading:** Show a content-tight loading state for download activity.
+- **Stale:** Keep download filenames and progress visible with its last-updated time while refreshing.
+- **Error:** Keep the last download list when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Chrome API lifecycle and platform availability
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -131,30 +131,30 @@
 - **Glance question:** Which tab group needs attention?
 - **Source:** [Chrome Tab Groups API](https://developer.chrome.com/docs/extensions/reference/api/tabGroups), `chrome.tabGroups and chrome.tabs`
 - **Authentication:** browser-permission; direct MV3: Yes; Chrome owns access; Aurora stores no credential
-- **Chrome permissions:** tabGroups; tabs
+- **Chrome permissions:** tabGroups
 - **Origins:** None
-- **User warnings:** Chrome may display a permission warning for tabGroups and tabs
+- **User warnings:** View and manage your tab groups.
 - **Privacy sent:** None
-- **Privacy received:** Browser-owned titles, URLs, state, and timestamps needed for the selected view
+- **Privacy received:** Chrome-owned group title, color, window, and collapse state; no tab URL or title without a separate future tabs decision
 - **Privacy stored:** Display preferences only
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Query groups on visibility and refresh on tab-group create, update, move, and remove events.
+- **Stale behavior:** Keep group titles and colors visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Tab Groups refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last tab-group list when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant Tab Groups access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** Tab Groups primary fact with no filler
-- **Standard:** Tab Groups summary with one useful supporting detail
-- **Full:** Tab Groups detail that uses added space for context rather than whitespace
-- **Docked:** Tab Groups single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Group count and active group title or color
+- **Standard:** Group title, color, window, and collapsed state
+- **Full:** All groups by window with title, color, collapse state, and focus action
+- **Docked:** Group count · active group
+- **Interaction:** Focus the group window and expand or collapse the chosen group without reading page contents
+- **Empty:** State that no Chrome tab groups exist
+- **Loading:** Show a content-tight loading state for tab group metadata.
+- **Stale:** Keep group titles and colors visible with its last-updated time while refreshing.
+- **Error:** Keep the last tab-group list when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Chrome API lifecycle and platform availability
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -174,29 +174,29 @@
 - **Source:** [Linear GraphQL API](https://linear.app/developers/graphql), `GraphQL over HTTPS`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://linear.app/*
+- **Origins:** https://api.linear.app/*
 - **User warnings:** Aurora sends a scoped request to Linear GraphQL API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Linear facts, labels, states, and timestamps from Linear GraphQL API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh assigned issues every 5 minutes while visible and on explicit refresh.
+- **Stale behavior:** Keep issue titles and workflow state visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Linear refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Linear snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Linear API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Linear primary fact with no filler
-- **Standard:** Linear summary with one useful supporting detail
-- **Full:** Linear detail that uses added space for context rather than whitespace
-- **Docked:** Linear single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Assigned issue count and nearest due item
+- **Standard:** Assigned and created issue rows with status, priority, and team
+- **Full:** Grouped backlog, active work, due dates, and cycle progress for selected teams
+- **Docked:** Assigned count · due soon
+- **Interaction:** Open the issue in Linear or narrow Aurora to the selected team
+- **Empty:** Explain that no selected Linear issue is assigned
+- **Loading:** Show a content-tight loading state for Linear issue summaries.
+- **Stale:** Keep issue titles and workflow state visible with its last-updated time while refreshing.
+- **Error:** Keep the last Linear snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -208,29 +208,29 @@
 - **Source:** [Sentry Web API](https://docs.sentry.io/api/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://docs.sentry.io/*
+- **Origins:** https://sentry.io/*
 - **User warnings:** Aurora sends a scoped request to Sentry Web API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Sentry facts, labels, states, and timestamps from Sentry Web API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected project issues every 5 minutes while visible and on explicit refresh.
+- **Stale behavior:** Keep issue titles and project health visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Sentry refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Sentry snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Sentry API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Sentry primary fact with no filler
-- **Standard:** Sentry summary with one useful supporting detail
-- **Full:** Sentry detail that uses added space for context rather than whitespace
-- **Docked:** Sentry single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Unresolved issue count and worst trend
+- **Standard:** Top regressions with project, level, events, and last seen
+- **Full:** Project health, regressions, affected users, event counts, and release context
+- **Docked:** Unresolved count · top regression
+- **Interaction:** Open the issue or project in Sentry
+- **Empty:** State that selected projects have no unresolved issues
+- **Loading:** Show a content-tight loading state for Sentry issue summaries.
+- **Stale:** Keep issue titles and project health visible with its last-updated time while refreshing.
+- **Error:** Keep the last Sentry snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -242,29 +242,29 @@
 - **Source:** [Todoist API v1](https://developer.todoist.com/api/v1/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developer.todoist.com/*
+- **Origins:** https://api.todoist.com/*
 - **User warnings:** Aurora sends a scoped request to Todoist API v1
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Todoist facts, labels, states, and timestamps from Todoist API v1
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh due tasks every 5 minutes while visible and on explicit refresh.
+- **Stale behavior:** Keep task content and due dates visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Todoist refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Todoist snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Todoist API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Todoist primary fact with no filler
-- **Standard:** Todoist summary with one useful supporting detail
-- **Full:** Todoist detail that uses added space for context rather than whitespace
-- **Docked:** Todoist single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Due today count and next task
+- **Standard:** Overdue and today tasks with project and due time
+- **Full:** Overdue, today, and upcoming sections with project and priority context
+- **Docked:** Due today · overdue count
+- **Interaction:** Open the task in Todoist or complete it after explicit confirmation
+- **Empty:** State that no Todoist task is due
+- **Loading:** Show a content-tight loading state for Todoist tasks.
+- **Stale:** Keep task content and due dates visible with its last-updated time while refreshing.
+- **Error:** Keep the last Todoist snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -285,29 +285,29 @@
 - **Source:** [Wikimedia API](https://www.mediawiki.org/wiki/Wikimedia_APIs), `HTTPS JSON API`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://www.mediawiki.org/*
+- **Origins:** https://api.wikimedia.org/*
 - **User warnings:** None
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** On This Day facts, labels, states, and timestamps from Wikimedia API
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh once per local calendar day and when the local date changes.
+- **Stale behavior:** Keep historical event text visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate On This Day refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last local-date result when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** On This Day primary fact with no filler
-- **Standard:** On This Day summary with one useful supporting detail
-- **Full:** On This Day detail that uses added space for context rather than whitespace
-- **Docked:** On This Day single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Year and one event headline
+- **Standard:** Three events with year, text, and article link
+- **Full:** Events, births, and deaths for today with images only when the source supplies them
+- **Docked:** Year · event headline
+- **Interaction:** Open the supporting Wikimedia article
+- **Empty:** Explain that no event was returned for the local date
+- **Loading:** Show a content-tight loading state for today in history.
+- **Stale:** Keep historical event text visible with its last-updated time while refreshing.
+- **Error:** Keep the last local-date result when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -319,29 +319,29 @@
 - **Source:** [Nager.Date](https://github.com/nager/Nager.Date), `HTTPS JSON API`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://github.com/*
+- **Origins:** https://date.nager.at/*
 - **User warnings:** None
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** Public Holidays facts, labels, states, and timestamps from Nager.Date
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh once per local day and whenever country, subdivision, or year changes.
+- **Stale behavior:** Keep holiday names and dates visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Public Holidays refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last holiday calendar when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Public Holidays primary fact with no filler
-- **Standard:** Public Holidays summary with one useful supporting detail
-- **Full:** Public Holidays detail that uses added space for context rather than whitespace
-- **Docked:** Public Holidays single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Next holiday name and days away
+- **Standard:** Next three holidays with local name and date
+- **Full:** Year calendar grouped by month with national and subdivision applicability
+- **Docked:** Next holiday · date
+- **Interaction:** Open country and subdivision settings
+- **Empty:** Ask for country and optional subdivision before fetching
+- **Loading:** Show a content-tight loading state for public holidays.
+- **Stale:** Keep holiday names and dates visible with its last-updated time while refreshing.
+- **Error:** Keep the last holiday calendar when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -353,29 +353,29 @@
 - **Source:** [National Weather Service API](https://www.weather.gov/documentation/services-web-api), `HTTPS JSON API`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://www.weather.gov/*
-- **User warnings:** None
-- **Privacy sent:** Public query parameters and filters
-- **Privacy received:** Severe Weather facts, labels, states, and timestamps from National Weather Service API
+- **Origins:** None
+- **User warnings:** No separate permission: severe-weather value is absorbed into the existing Weather authority.
+- **Privacy sent:** None
+- **Privacy received:** Only alert facts supplied through the accepted Weather provider contract
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Use Weather authority refresh timing; this absorbed candidate owns no request.
+- **Stale behavior:** Keep alert headlines visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Severe Weather refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve Weather alert state when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Severe Weather primary fact with no filler
-- **Standard:** Severe Weather summary with one useful supporting detail
-- **Full:** Severe Weather detail that uses added space for context rather than whitespace
-- **Docked:** Severe Weather single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Absorbed into Weather alerts
+- **Standard:** Weather owns active alert severity, headline, and expiry
+- **Full:** Weather details owns alert instructions and affected area when a provider supports them
+- **Docked:** Alert severity · headline
+- **Interaction:** Open Weather details rather than create a second weather owner
+- **Empty:** Show no separate widget because Weather is the authority
+- **Loading:** Show a content-tight loading state for Weather alert data.
+- **Stale:** Keep alert headlines visible with its last-updated time while refreshing.
+- **Error:** Keep Weather alert state when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** This value belongs inside the existing Weather identity instead of creating a duplicate widget
 - **Blockers:** None
@@ -394,22 +394,22 @@
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh NOAA products every 15 minutes while visible and on explicit refresh.
+- **Stale behavior:** Keep Kp values and forecast times visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Aurora & Kp refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last NOAA forecast when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Aurora & Kp primary fact with no filler
-- **Standard:** Aurora & Kp summary with one useful supporting detail
-- **Full:** Aurora & Kp detail that uses added space for context rather than whitespace
-- **Docked:** Aurora & Kp single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Current Kp and viewing likelihood
+- **Standard:** Kp trend, forecast peak, and local darkness window
+- **Full:** Three-day Kp forecast with storm scale, peak time, and viewing guidance
+- **Docked:** Kp value · peak time
+- **Interaction:** Open NOAA forecast context and location guidance
+- **Empty:** State that NOAA has no current Kp product
+- **Loading:** Show a content-tight loading state for NOAA space-weather products.
+- **Stale:** Keep Kp values and forecast times visible with its last-updated time while refreshing.
+- **Error:** Keep the last NOAA forecast when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -429,29 +429,29 @@
 - **Source:** [Notion API](https://developers.notion.com/guides/get-started/public-connections), `HTTPS JSON API`
 - **Authentication:** oauth-secret-required; direct MV3: No; A public OAuth client secret cannot ship in Aurora; no implementation is authorized
 - **Chrome permissions:** None
-- **Origins:** https://developers.notion.com/*
+- **Origins:** https://api.notion.com/*
 - **User warnings:** Notion can expose sensitive personal or workplace context
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Notion facts, labels, states, and timestamps from Notion API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Future design: refresh selected databases no faster than every 10 minutes.
+- **Stale behavior:** Keep page titles and selected properties visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Notion refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Notion snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Notion
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Notion primary fact with no filler
-- **Standard:** Notion summary with one useful supporting detail
-- **Full:** Notion detail that uses added space for context rather than whitespace
-- **Docked:** Notion single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Future: selected database count and next row
+- **Standard:** Future: chosen properties for recent database rows
+- **Full:** Future: filtered database view with only owner-selected properties
+- **Docked:** Future: count · next row
+- **Interaction:** Open the page in Notion after OAuth and scope acceptance
+- **Empty:** Keep the widget unavailable until OAuth and property privacy are accepted
+- **Loading:** Show a content-tight loading state for Notion database rows.
+- **Stale:** Keep page titles and selected properties visible with its last-updated time while refreshing.
+- **Error:** Keep the last Notion snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value is real, but current authorization, policy, or provider constraints are not accepted
 - **Blockers:** Client-secret-required OAuth cannot ship in a direct MV3 client; Scope, privacy, and provider-policy acceptance
@@ -463,29 +463,29 @@
 - **Source:** [Slack OAuth v2](https://api.slack.com/authentication/oauth-v2), `HTTPS JSON API`
 - **Authentication:** oauth-secret-required; direct MV3: No; A public OAuth client secret cannot ship in Aurora; no implementation is authorized
 - **Chrome permissions:** None
-- **Origins:** https://api.slack.com/*
+- **Origins:** https://slack.com/*
 - **User warnings:** Slack can expose sensitive personal or workplace context
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Slack facts, labels, states, and timestamps from Slack OAuth v2
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Future design: refresh mentions no faster than every 5 minutes without background message collection.
+- **Stale behavior:** Keep message previews and channel names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Slack refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Slack snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Slack
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Slack primary fact with no filler
-- **Standard:** Slack summary with one useful supporting detail
-- **Full:** Slack detail that uses added space for context rather than whitespace
-- **Docked:** Slack single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Future: unread mentions and top channel
+- **Standard:** Future: mentions with sender, channel, and time
+- **Full:** Future: mentions and selected-channel digest without message hoarding
+- **Docked:** Future: mentions · top channel
+- **Interaction:** Open the message in Slack after OAuth and scope acceptance
+- **Empty:** Keep the widget unavailable until Slack OAuth and message-data boundaries are accepted
+- **Loading:** Show a content-tight loading state for Slack mentions.
+- **Stale:** Keep message previews and channel names visible with its last-updated time while refreshing.
+- **Error:** Keep the last Slack snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value is real, but current authorization, policy, or provider constraints are not accepted
 - **Blockers:** Client-secret-required OAuth cannot ship in a direct MV3 client; Scope, privacy, and provider-policy acceptance
@@ -497,29 +497,29 @@
 - **Source:** [Spotify Web API](https://developer.spotify.com/documentation/web-api/concepts/authorization), `HTTPS JSON API`
 - **Authentication:** oauth-pkce; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developer.spotify.com/*
+- **Origins:** https://accounts.spotify.com/*; https://api.spotify.com/*
 - **User warnings:** Aurora sends a scoped request to Spotify Web API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Spotify facts, labels, states, and timestamps from Spotify Web API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Future design: poll playback every 15 seconds only while visible and react to explicit controls.
+- **Stale behavior:** Keep track, artist, artwork, and device names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Spotify refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last playback snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Spotify
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Spotify primary fact with no filler
-- **Standard:** Spotify summary with one useful supporting detail
-- **Full:** Spotify detail that uses added space for context rather than whitespace
-- **Docked:** Spotify single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Future: now playing title and artist
+- **Standard:** Future: artwork, progress, device, and playback state
+- **Full:** Future: now playing plus queue and device controls when scopes permit
+- **Docked:** Future: title · artist
+- **Interaction:** Open Spotify or use explicitly scoped playback controls
+- **Empty:** Keep the widget unavailable until PKCE, scopes, and playback policy are accepted
+- **Loading:** Show a content-tight loading state for Spotify playback state.
+- **Stale:** Keep track, artist, artwork, and device names visible with its last-updated time while refreshing.
+- **Error:** Keep the last playback snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value is real, but current authorization, policy, or provider constraints are not accepted
 - **Blockers:** OAuth token lifecycle, scopes, privacy, and provider-policy acceptance
@@ -544,7 +544,7 @@
 | 5 | Google Calendar | blocked | connector | oauth-pkce | Yes | high | high |
 | 2 | Earthquakes | researched | built-in-provider | none | Yes | low | low |
 | 3 | Space Launches | researched | built-in-provider | none | Yes | low | low |
-| 4 | ISS Tracker | researched | built-in-provider | none | Yes | low | low |
+| 4 | ISS Tracker | researched | built-in-provider | none | Yes | medium | low |
 | 3 | Word of the Day | researched | built-in-provider | api-token | Yes | low | low |
 | 4 | Daily Trivia | researched | built-in-provider | none | Yes | low | low |
 | 5 | Sports Scores | researched | built-in-provider | api-token | Yes | medium | medium |
@@ -569,22 +569,22 @@
 - **Privacy stored:** Display preferences only
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Query Chrome on visibility; do not persist a second browsing profile.
+- **Stale behavior:** Keep site titles and hosts visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Top Sites refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last top-sites list when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant Top Sites access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** Top Sites primary fact with no filler
-- **Standard:** Top Sites summary with one useful supporting detail
-- **Full:** Top Sites detail that uses added space for context rather than whitespace
-- **Docked:** Top Sites single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Top site favicon and title
+- **Standard:** Most visited sites as a readable launch row
+- **Full:** Ranked top sites with favicon, title, and host
+- **Docked:** Top site · host
+- **Interaction:** Open the selected site in the current tab
+- **Empty:** State that Chrome returned no top sites
+- **Loading:** Show a content-tight loading state for Chrome top sites.
+- **Stale:** Keep site titles and hosts visible with its last-updated time while refreshing.
+- **Error:** Keep the last top-sites list when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Chrome API lifecycle and platform availability
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -603,22 +603,22 @@
 - **Privacy stored:** Display preferences only
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Sensitive titles, URLs, and content are excluded from backup and logs
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Deferred design: compute locally on explicit request, never continuously in the background.
+- **Stale behavior:** Keep page titles and visit times visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate History Digest refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the local history digest when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Grant History Digest access
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Required browser permission is available
-- **Compact:** History Digest primary fact with no filler
-- **Standard:** History Digest summary with one useful supporting detail
-- **Full:** History Digest detail that uses added space for context rather than whitespace
-- **Docked:** History Digest single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Deferred: recent research topic count
+- **Standard:** Deferred: clustered recent titles with sensitive-context warning
+- **Full:** Deferred: local-only browsing clusters with deletion and exclusion controls
+- **Docked:** Deferred: recent topic · page count
+- **Interaction:** Open History controls before any browsing-title processing
+- **Empty:** Keep disabled until privacy, deletion, and local summarization rules are accepted
+- **Loading:** Show a content-tight loading state for local browsing history.
+- **Stale:** Keep page titles and visit times visible with its last-updated time while refreshing.
+- **Error:** Keep the local history digest when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Chrome API lifecycle and platform availability
 - **Rationale:** Potential value does not yet justify its privacy, coverage, or setup cost
 - **Blockers:** Owner privacy acceptance and user research
@@ -630,29 +630,29 @@
 - **Source:** [GitHub REST API](https://docs.github.com/en/rest/actions/workflow-runs), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://docs.github.com/*
+- **Origins:** https://api.github.com/*
 - **User warnings:** Aurora sends a scoped request to GitHub REST API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** GitHub Actions facts, labels, states, and timestamps from GitHub REST API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected workflow runs every 5 minutes while visible.
+- **Stale behavior:** Keep repository and workflow names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate GitHub Actions refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Actions snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a GitHub Actions API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** GitHub Actions primary fact with no filler
-- **Standard:** GitHub Actions summary with one useful supporting detail
-- **Full:** GitHub Actions detail that uses added space for context rather than whitespace
-- **Docked:** GitHub Actions single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Failing or running workflow count
+- **Standard:** Recent workflow runs with repo, branch, state, and duration
+- **Full:** Selected repositories with run history, failure step, actor, and rerun link
+- **Docked:** Failing count · latest workflow
+- **Interaction:** Open the workflow run on GitHub
+- **Empty:** State that selected repositories have no recent runs
+- **Loading:** Show a content-tight loading state for GitHub workflow runs.
+- **Stale:** Keep repository and workflow names visible with its last-updated time while refreshing.
+- **Error:** Keep the last Actions snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -664,29 +664,29 @@
 - **Source:** [GitLab Pipelines API](https://docs.gitlab.com/api/pipelines/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://docs.gitlab.com/*
+- **Origins:** https://gitlab.com/*
 - **User warnings:** Aurora sends a scoped request to GitLab Pipelines API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** GitLab Pipelines facts, labels, states, and timestamps from GitLab Pipelines API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected pipelines every 5 minutes while visible.
+- **Stale behavior:** Keep project, branch, and job names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate GitLab Pipelines refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last pipeline snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a GitLab Pipelines API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** GitLab Pipelines primary fact with no filler
-- **Standard:** GitLab Pipelines summary with one useful supporting detail
-- **Full:** GitLab Pipelines detail that uses added space for context rather than whitespace
-- **Docked:** GitLab Pipelines single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Failed or running pipeline count
+- **Standard:** Recent pipelines with project, ref, state, and duration
+- **Full:** Selected projects with stages, failed jobs, actor, and pipeline links
+- **Docked:** Failed count · latest pipeline
+- **Interaction:** Open the pipeline in GitLab
+- **Empty:** State that selected projects have no pipelines
+- **Loading:** Show a content-tight loading state for GitLab pipelines.
+- **Stale:** Keep project, branch, and job names visible with its last-updated time while refreshing.
+- **Error:** Keep the last pipeline snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -698,29 +698,29 @@
 - **Source:** [PagerDuty REST API](https://developer.pagerduty.com/api-reference/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developer.pagerduty.com/*
+- **Origins:** https://api.pagerduty.com/*
 - **User warnings:** Aurora sends a scoped request to PagerDuty REST API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** PagerDuty facts, labels, states, and timestamps from PagerDuty REST API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh incidents every 2 minutes while visible and on explicit refresh.
+- **Stale behavior:** Keep incident titles, services, and assignees visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate PagerDuty refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last incident snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a PagerDuty API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** PagerDuty primary fact with no filler
-- **Standard:** PagerDuty summary with one useful supporting detail
-- **Full:** PagerDuty detail that uses added space for context rather than whitespace
-- **Docked:** PagerDuty single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Triggered incident count and highest urgency
+- **Standard:** Triggered and acknowledged incidents with service and age
+- **Full:** Incidents grouped by urgency with assignee, escalation, and service context
+- **Docked:** Triggered count · top service
+- **Interaction:** Open the incident in PagerDuty
+- **Empty:** State that no selected PagerDuty service has an incident
+- **Loading:** Show a content-tight loading state for PagerDuty incidents.
+- **Stale:** Keep incident titles, services, and assignees visible with its last-updated time while refreshing.
+- **Error:** Keep the last incident snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -732,29 +732,29 @@
 - **Source:** [Datadog API](https://docs.datadoghq.com/api/latest/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://docs.datadoghq.com/*
+- **Origins:** https://api.datadoghq.com/*
 - **User warnings:** Aurora sends a scoped request to Datadog API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Datadog facts, labels, states, and timestamps from Datadog API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected monitor states every 5 minutes while visible.
+- **Stale behavior:** Keep monitor names, tags, and values visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Datadog refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last monitor snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Datadog API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Datadog primary fact with no filler
-- **Standard:** Datadog summary with one useful supporting detail
-- **Full:** Datadog detail that uses added space for context rather than whitespace
-- **Docked:** Datadog single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Alerting monitor count and worst state
+- **Standard:** Top monitors with state, scope, and last change
+- **Full:** Monitor groups with current value, threshold, tags, and incident link
+- **Docked:** Alerting count · worst monitor
+- **Interaction:** Open the monitor in Datadog
+- **Empty:** State that selected monitors are healthy or absent
+- **Loading:** Show a content-tight loading state for Datadog monitor states.
+- **Stale:** Keep monitor names, tags, and values visible with its last-updated time while refreshing.
+- **Error:** Keep the last monitor snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -766,29 +766,29 @@
 - **Source:** [Cloudflare GraphQL Analytics API](https://developers.cloudflare.com/analytics/graphql-api/), `GraphQL over HTTPS`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developers.cloudflare.com/*
+- **Origins:** https://api.cloudflare.com/*
 - **User warnings:** Aurora sends a scoped request to Cloudflare GraphQL Analytics API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Cloudflare Analytics facts, labels, states, and timestamps from Cloudflare GraphQL Analytics API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected zone aggregates every 15 minutes while visible.
+- **Stale behavior:** Keep zone names and traffic metrics visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Cloudflare Analytics refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last analytics snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Cloudflare Analytics API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Cloudflare Analytics primary fact with no filler
-- **Standard:** Cloudflare Analytics summary with one useful supporting detail
-- **Full:** Cloudflare Analytics detail that uses added space for context rather than whitespace
-- **Docked:** Cloudflare Analytics single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Request count and error rate
+- **Standard:** Traffic, cache hit rate, bandwidth, and 4xx or 5xx trend
+- **Full:** Selected zones with traffic series, threats, cache, latency, and errors
+- **Docked:** Requests · error rate
+- **Interaction:** Open the selected zone in Cloudflare
+- **Empty:** Ask the user to select an accessible zone
+- **Loading:** Show a content-tight loading state for Cloudflare analytics.
+- **Stale:** Keep zone names and traffic metrics visible with its last-updated time while refreshing.
+- **Error:** Keep the last analytics snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -800,29 +800,29 @@
 - **Source:** [Buildkite REST API](https://buildkite.com/docs/apis/rest-api/builds), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://buildkite.com/*
+- **Origins:** https://api.buildkite.com/*
 - **User warnings:** Aurora sends a scoped request to Buildkite REST API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Buildkite facts, labels, states, and timestamps from Buildkite REST API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected builds every 5 minutes while visible.
+- **Stale behavior:** Keep pipeline, branch, and job names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Buildkite refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last build snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Buildkite API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Buildkite primary fact with no filler
-- **Standard:** Buildkite summary with one useful supporting detail
-- **Full:** Buildkite detail that uses added space for context rather than whitespace
-- **Docked:** Buildkite single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Failed or running build count
+- **Standard:** Recent builds with pipeline, branch, state, and duration
+- **Full:** Pipelines with build history, failed jobs, actor, commit, and links
+- **Docked:** Failed count · latest pipeline
+- **Interaction:** Open the build in Buildkite
+- **Empty:** State that selected pipelines have no builds
+- **Loading:** Show a content-tight loading state for Buildkite builds.
+- **Stale:** Keep pipeline, branch, and job names visible with its last-updated time while refreshing.
+- **Error:** Keep the last build snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -834,29 +834,29 @@
 - **Source:** [Jenkins Remote Access API](https://www.jenkins.io/doc/book/using/remote-access-api/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://www.jenkins.io/*
-- **User warnings:** Aurora sends a scoped request to Jenkins Remote Access API
+- **Origins:** https://*/*
+- **User warnings:** Aurora requests only the exact user-configured HTTPS Jenkins origin.
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Jenkins facts, labels, states, and timestamps from Jenkins Remote Access API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected jobs every 5 minutes while visible.
+- **Stale behavior:** Keep controller, job, and build names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Jenkins refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Jenkins snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Jenkins API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Jenkins primary fact with no filler
-- **Standard:** Jenkins summary with one useful supporting detail
-- **Full:** Jenkins detail that uses added space for context rather than whitespace
-- **Docked:** Jenkins single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Failed or building job count
+- **Standard:** Recent jobs with result, build number, branch, and duration
+- **Full:** Selected controller jobs with queue, stages when available, health, and links
+- **Docked:** Failed count · latest job
+- **Interaction:** Open the job on the user-configured Jenkins controller
+- **Empty:** Ask for one HTTPS Jenkins controller and selected jobs
+- **Loading:** Show a content-tight loading state for Jenkins job state.
+- **Stale:** Keep controller, job, and build names visible with its last-updated time while refreshing.
+- **Error:** Keep the last Jenkins snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -868,29 +868,29 @@
 - **Source:** [Asana API](https://developers.asana.com/reference/tasks), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developers.asana.com/*
+- **Origins:** https://app.asana.com/*
 - **User warnings:** Aurora sends a scoped request to Asana API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Asana facts, labels, states, and timestamps from Asana API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh assigned tasks every 10 minutes while visible.
+- **Stale behavior:** Keep task and project names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Asana refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Asana snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Asana API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Asana primary fact with no filler
-- **Standard:** Asana summary with one useful supporting detail
-- **Full:** Asana detail that uses added space for context rather than whitespace
-- **Docked:** Asana single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Due task count and next task
+- **Standard:** Assigned tasks with project, due date, and completion state
+- **Full:** My Tasks grouped by overdue, today, and upcoming with project context
+- **Docked:** Due count · next task
+- **Interaction:** Open the task in Asana
+- **Empty:** State that no selected Asana task is due
+- **Loading:** Show a content-tight loading state for Asana tasks.
+- **Stale:** Keep task and project names visible with its last-updated time while refreshing.
+- **Error:** Keep the last Asana snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -902,29 +902,29 @@
 - **Source:** [Trello REST API](https://developer.atlassian.com/cloud/trello/rest/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developer.atlassian.com/*
+- **Origins:** https://api.trello.com/*
 - **User warnings:** Aurora sends a scoped request to Trello REST API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Trello facts, labels, states, and timestamps from Trello REST API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected boards every 10 minutes while visible.
+- **Stale behavior:** Keep board, list, and card names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Trello refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Trello snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a Trello API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Trello primary fact with no filler
-- **Standard:** Trello summary with one useful supporting detail
-- **Full:** Trello detail that uses added space for context rather than whitespace
-- **Docked:** Trello single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Due card count and next card
+- **Standard:** Assigned cards with board, list, labels, and due date
+- **Full:** Selected boards with due, blocked, and recently moved cards
+- **Docked:** Due count · next card
+- **Interaction:** Open the card in Trello
+- **Empty:** Ask the user to select boards or state that none need attention
+- **Loading:** Show a content-tight loading state for Trello cards.
+- **Stale:** Keep board, list, and card names visible with its last-updated time while refreshing.
+- **Error:** Keep the last Trello snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -936,29 +936,29 @@
 - **Source:** [ClickUp API](https://developer.clickup.com/docs/authentication), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developer.clickup.com/*
+- **Origins:** https://api.clickup.com/*
 - **User warnings:** Aurora sends a scoped request to ClickUp API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** ClickUp facts, labels, states, and timestamps from ClickUp API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh assigned tasks every 10 minutes while visible.
+- **Stale behavior:** Keep space, list, and task names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate ClickUp refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last ClickUp snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a ClickUp API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** ClickUp primary fact with no filler
-- **Standard:** ClickUp summary with one useful supporting detail
-- **Full:** ClickUp detail that uses added space for context rather than whitespace
-- **Docked:** ClickUp single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Due task count and next task
+- **Standard:** Assigned tasks with space, list, status, and due date
+- **Full:** Selected spaces with overdue, active, blocked, and upcoming work
+- **Docked:** Due count · next task
+- **Interaction:** Open the task in ClickUp
+- **Empty:** State that no selected ClickUp task is due
+- **Loading:** Show a content-tight loading state for ClickUp tasks.
+- **Stale:** Keep space, list, and task names visible with its last-updated time while refreshing.
+- **Error:** Keep the last ClickUp snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -970,29 +970,29 @@
 - **Source:** [Microsoft Graph To Do API](https://learn.microsoft.com/en-us/graph/todo-concept-overview), `HTTPS JSON API`
 - **Authentication:** oauth-pkce; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://learn.microsoft.com/*
+- **Origins:** https://graph.microsoft.com/*; https://login.microsoftonline.com/*
 - **User warnings:** Aurora sends a scoped request to Microsoft Graph To Do API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Microsoft To Do facts, labels, states, and timestamps from Microsoft Graph To Do API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Future design: refresh task lists every 10 minutes while visible.
+- **Stale behavior:** Keep list and task names visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Microsoft To Do refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last To Do snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Microsoft To Do
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Microsoft To Do primary fact with no filler
-- **Standard:** Microsoft To Do summary with one useful supporting detail
-- **Full:** Microsoft To Do detail that uses added space for context rather than whitespace
-- **Docked:** Microsoft To Do single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Future: due task count and next task
+- **Standard:** Future: chosen lists with due and important tasks
+- **Full:** Future: overdue, today, important, and upcoming tasks by list
+- **Docked:** Future: due count · next task
+- **Interaction:** Open Microsoft To Do after OAuth acceptance
+- **Empty:** Keep unavailable until Microsoft OAuth and task-data scopes are accepted
+- **Loading:** Show a content-tight loading state for Microsoft To Do tasks.
+- **Stale:** Keep list and task names visible with its last-updated time while refreshing.
+- **Error:** Keep the last To Do snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value is real, but current authorization, policy, or provider constraints are not accepted
 - **Blockers:** OAuth token lifecycle, scopes, privacy, and provider-policy acceptance
@@ -1004,29 +1004,29 @@
 - **Source:** [Google Calendar API](https://developers.google.com/workspace/calendar/api/guides/overview), `HTTPS JSON API`
 - **Authentication:** oauth-pkce; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://developers.google.com/*
+- **Origins:** https://accounts.google.com/*; https://www.googleapis.com/*
 - **User warnings:** Aurora sends a scoped request to Google Calendar API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Google Calendar facts, labels, states, and timestamps from Google Calendar API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Future design: refresh the active agenda every 10 minutes and at local-day rollover.
+- **Stale behavior:** Keep event titles, attendees, and locations visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Google Calendar refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Google Calendar snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Google Calendar
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Google Calendar primary fact with no filler
-- **Standard:** Google Calendar summary with one useful supporting detail
-- **Full:** Google Calendar detail that uses added space for context rather than whitespace
-- **Docked:** Google Calendar single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Future: next event and start time
+- **Standard:** Future: selected calendars with next events and meet links
+- **Full:** Future: day agenda with calendar colors, conflicts, and conferencing
+- **Docked:** Future: next event · time
+- **Interaction:** Open the event in Google Calendar after OAuth acceptance
+- **Empty:** Keep unavailable until Google OAuth and calendar scopes are accepted
+- **Loading:** Show a content-tight loading state for Google Calendar events.
+- **Stale:** Keep event titles, attendees, and locations visible with its last-updated time while refreshing.
+- **Error:** Keep the last Google Calendar snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value is real, but current authorization, policy, or provider constraints are not accepted
 - **Blockers:** OAuth token lifecycle, scopes, privacy, and provider-policy acceptance
@@ -1045,22 +1045,22 @@
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh the selected USGS feed every 5 minutes while visible.
+- **Stale behavior:** Keep earthquake places and magnitudes visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Earthquakes refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last USGS feed when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Earthquakes primary fact with no filler
-- **Standard:** Earthquakes summary with one useful supporting detail
-- **Full:** Earthquakes detail that uses added space for context rather than whitespace
-- **Docked:** Earthquakes single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Largest nearby magnitude and distance
+- **Standard:** Recent nearby quakes with magnitude, place, depth, and age
+- **Full:** Map-free regional list with threshold, distance, depth, and official detail links
+- **Docked:** Magnitude · place
+- **Interaction:** Open the event on USGS
+- **Empty:** State that no event meets the selected region and magnitude
+- **Loading:** Show a content-tight loading state for USGS earthquake feed.
+- **Stale:** Keep earthquake places and magnitudes visible with its last-updated time while refreshing.
+- **Error:** Keep the last USGS feed when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1072,29 +1072,29 @@
 - **Source:** [The Space Devs Launch Library 2](https://thespacedevs.com/llapi), `HTTPS JSON API`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://thespacedevs.com/*
+- **Origins:** https://ll.thespacedevs.com/*
 - **User warnings:** None
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** Space Launches facts, labels, states, and timestamps from The Space Devs Launch Library 2
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh the launch schedule every 30 minutes and more often only near a launch window.
+- **Stale behavior:** Keep mission names and launch windows visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Space Launches refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last launch snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Space Launches primary fact with no filler
-- **Standard:** Space Launches summary with one useful supporting detail
-- **Full:** Space Launches detail that uses added space for context rather than whitespace
-- **Docked:** Space Launches single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Next launch mission and countdown
+- **Standard:** Next three launches with provider, pad, and status
+- **Full:** Launch schedule with mission, vehicle, provider, pad, window, stream, and status
+- **Docked:** Next launch · countdown
+- **Interaction:** Open the official or Launch Library detail
+- **Empty:** State that no upcoming launch matches selected agencies
+- **Loading:** Show a content-tight loading state for launch schedule.
+- **Stale:** Keep mission names and launch windows visible with its last-updated time while refreshing.
+- **Error:** Keep the last launch snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1103,33 +1103,33 @@
 
 - **User value:** See current ISS position context
 - **Glance question:** Where is the ISS now?
-- **Source:** [Open Notify](https://open-notify.org/Open-Notify-API/ISS-Location-Now/), `HTTPS JSON API`
+- **Source:** [Where the ISS at?](https://ord.wheretheiss.at/w/developer), `HTTPS JSON`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://open-notify.org/*
+- **Origins:** https://api.wheretheiss.at/*
 - **User warnings:** None
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** ISS Tracker facts, labels, states, and timestamps from Open Notify
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh position no faster than once per minute while visible.
+- **Stale behavior:** Keep coordinates and orbital facts visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate ISS Tracker refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last ISS position when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** ISS Tracker primary fact with no filler
-- **Standard:** ISS Tracker summary with one useful supporting detail
-- **Full:** ISS Tracker detail that uses added space for context rather than whitespace
-- **Docked:** ISS Tracker single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
-- **Maintenance:** low; Provider availability and response schema
+- **Compact:** ISS latitude, longitude, and visibility
+- **Standard:** Current position, altitude, velocity, visibility, and update age
+- **Full:** Position facts with next refresh and a link to a user-selected map service
+- **Docked:** ISS position · visibility
+- **Interaction:** Open the coordinates in the selected map service
+- **Empty:** State that the ISS position service is unavailable
+- **Loading:** Show a content-tight loading state for ISS position.
+- **Stale:** Keep coordinates and orbital facts visible with its last-updated time while refreshing.
+- **Error:** Keep the last ISS position when useful and offer one bounded retry or setup action.
+- **Maintenance:** low; Provider availability and one-request-per-second rate limit
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
 
@@ -1140,29 +1140,29 @@
 - **Source:** [Merriam-Webster Dictionary API](https://dictionaryapi.com/products/index), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://dictionaryapi.com/*
+- **Origins:** https://www.dictionaryapi.com/*
 - **User warnings:** None
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Word of the Day facts, labels, states, and timestamps from Merriam-Webster Dictionary API
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh once per local calendar day.
+- **Stale behavior:** Keep word definitions and examples visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Word of the Day refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last dictionary result when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Word of the Day primary fact with no filler
-- **Standard:** Word of the Day summary with one useful supporting detail
-- **Full:** Word of the Day detail that uses added space for context rather than whitespace
-- **Docked:** Word of the Day single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Word, part of speech, and short definition
+- **Standard:** Word with pronunciation, definition, and one example
+- **Full:** Definitions, pronunciation, examples, and etymology when supplied
+- **Docked:** Word · short definition
+- **Interaction:** Open the complete dictionary entry
+- **Empty:** Ask for an API key or state that no word was returned
+- **Loading:** Show a content-tight loading state for dictionary word of the day.
+- **Stale:** Keep word definitions and examples visible with its last-updated time while refreshing.
+- **Error:** Keep the last dictionary result when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1181,22 +1181,22 @@
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Fetch one question only on explicit new-question action; keep answer state locally.
+- **Stale behavior:** Keep question and answer text visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Daily Trivia refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last unanswered question when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Daily Trivia primary fact with no filler
-- **Standard:** Daily Trivia summary with one useful supporting detail
-- **Full:** Daily Trivia detail that uses added space for context rather than whitespace
-- **Docked:** Daily Trivia single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Question category and difficulty
+- **Standard:** One question with selectable answers and reveal state
+- **Full:** A short local session with score, explanations when available, and category mix
+- **Docked:** Category · difficulty
+- **Interaction:** Answer locally, then reveal the source answer
+- **Empty:** Offer a new question when no trivia is cached
+- **Loading:** Show a content-tight loading state for trivia question.
+- **Stale:** Keep question and answer text visible with its last-updated time while refreshing.
+- **Error:** Keep the last unanswered question when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1215,22 +1215,22 @@
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh live events every 2 minutes and scheduled events every 15 minutes while visible.
+- **Stale behavior:** Keep team names and results visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Sports Scores refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last sports snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Add a TheSportsDB API token
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Sports Scores primary fact with no filler
-- **Standard:** Sports Scores summary with one useful supporting detail
-- **Full:** Sports Scores detail that uses added space for context rather than whitespace
-- **Docked:** Sports Scores single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Selected team score or next game
+- **Standard:** Recent and upcoming games with teams, score, status, and time
+- **Full:** League and team schedule with form, venue, broadcast facts when supplied
+- **Docked:** Team · score or start time
+- **Interaction:** Open the event detail at the source
+- **Empty:** Ask for a league and team before fetching
+- **Loading:** Show a content-tight loading state for sports schedule and scores.
+- **Stale:** Keep team names and results visible with its last-updated time while refreshing.
+- **Error:** Keep the last sports snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider availability and response schema; Free and paid plan capability differences; Live-score freshness
 - **Rationale:** TheSportsDB offers an official multi-sport API suitable for a future bounded provider packet
 - **Blockers:** Confirm the production plan, rate limits, and provider terms before implementation
@@ -1242,29 +1242,29 @@
 - **Source:** [GTFS Realtime](https://gtfs.org/documentation/realtime/reference/), `GTFS Realtime protobuf`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://gtfs.org/*
-- **User warnings:** None
+- **Origins:** https://*/*
+- **User warnings:** Aurora requests only the exact selected agency feed origins; some agencies require API keys.
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** Transit Commute facts, labels, states, and timestamps from GTFS Realtime
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected realtime feeds every 30 seconds only while visible.
+- **Stale behavior:** Keep routes, stops, and departure times visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Transit Commute refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last transit snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Transit Commute primary fact with no filler
-- **Standard:** Transit Commute summary with one useful supporting detail
-- **Full:** Transit Commute detail that uses added space for context rather than whitespace
-- **Docked:** Transit Commute single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Next departure and delay
+- **Standard:** Selected stops with route, destination, departure, and delay
+- **Full:** Commute board with departures, vehicle positions, alerts, and transfer risk when feeds supply them
+- **Docked:** Route · departure · delay
+- **Interaction:** Open provider context or commute settings
+- **Empty:** Ask for agency feeds, stops, and commute direction
+- **Loading:** Show a content-tight loading state for GTFS realtime feeds.
+- **Stale:** Keep routes, stops, and departure times visible with its last-updated time while refreshing.
+- **Error:** Keep the last transit snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider availability and response schema
 - **Rationale:** Potential value does not yet justify its privacy, coverage, or setup cost
 - **Blockers:** Coverage and setup experience need design
@@ -1276,29 +1276,29 @@
 - **Source:** [npm Registry API](https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md), `HTTPS JSON API`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://github.com/*
+- **Origins:** https://registry.npmjs.org/*
 - **User warnings:** None
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** Package Updates facts, labels, states, and timestamps from npm Registry API
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Refresh selected package metadata every 30 minutes while visible.
+- **Stale behavior:** Keep package names and versions visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Package Updates refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last package snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Package Updates primary fact with no filler
-- **Standard:** Package Updates summary with one useful supporting detail
-- **Full:** Package Updates detail that uses added space for context rather than whitespace
-- **Docked:** Package Updates single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Outdated package count and highest-risk update
+- **Standard:** Selected packages with current, latest, age, and release tag
+- **Full:** Update groups with semver delta, publish time, deprecation, and registry links
+- **Docked:** Outdated count · top package
+- **Interaction:** Open the package on npm
+- **Empty:** Ask for package names or a pasted manifest without storing source code
+- **Loading:** Show a content-tight loading state for npm package metadata.
+- **Stale:** Keep package names and versions visible with its last-updated time while refreshing.
+- **Error:** Keep the last package snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1310,29 +1310,29 @@
 - **Source:** [User-configured HTTPS endpoints](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API), `HTTPS request`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** None
-- **User warnings:** None
-- **Privacy sent:** None
-- **Privacy received:** Existing Aurora-owned local records selected by the user
-- **Privacy stored:** Existing Aurora-owned local data and display preferences
-- **Backup:** Only user preferences may enter backup
-- **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Origins:** https://*/*
+- **User warnings:** Aurora sends health-check requests only to each user-selected endpoint over HTTPS.
+- **Privacy sent:** Health-check request method, headers limited to safe defaults, and timing to each user-selected endpoint
+- **Privacy received:** HTTP status, response timing, availability failure, and selected safe headers needed for the health result
+- **Privacy stored:** Endpoint label and URL plus a bounded local status and latency history
+- **Backup:** Endpoint labels and URLs may enter backup; measured history does not.
+- **Redaction:** Authorization, cookies, response bodies, and capability URLs are never accepted, logged, or backed up.
+- **Freshness:** Check only user-selected HTTPS endpoints at the configured interval while Aurora is visible.
+- **Stale behavior:** Keep endpoint labels, status, and latency visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Uptime refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last local health-check result when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Uptime primary fact with no filler
-- **Standard:** Uptime summary with one useful supporting detail
-- **Full:** Uptime detail that uses added space for context rather than whitespace
-- **Docked:** Uptime single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Down or slow endpoint count
+- **Standard:** Selected endpoints with status, latency, checked age, and failure reason
+- **Full:** Endpoint history with bounded local samples, current status, latency, and certificate date when available
+- **Docked:** Down count · slowest endpoint
+- **Interaction:** Open the endpoint only after an explicit user action
+- **Empty:** Ask for one or more HTTPS endpoints and a safe interval
+- **Loading:** Show a content-tight loading state for selected endpoint checks.
+- **Stale:** Keep endpoint labels, status, and latency visible with its last-updated time while refreshing.
+- **Error:** Keep the last local health-check result when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Truthful local calculations and migrations
 - **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
 - **Blockers:** None
@@ -1344,29 +1344,29 @@
 - **Source:** [Gmail API](https://developers.google.com/workspace/gmail/api/auth/scopes), `HTTPS JSON API`
 - **Authentication:** oauth-secret-required; direct MV3: No; A public OAuth client secret cannot ship in Aurora; no implementation is authorized
 - **Chrome permissions:** None
-- **Origins:** https://developers.google.com/*
+- **Origins:** https://accounts.google.com/*; https://gmail.googleapis.com/*
 - **User warnings:** Email Inbox can expose sensitive personal or workplace context
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Email Inbox facts, labels, states, and timestamps from Gmail API
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Deferred design: refresh selected unread metadata every 10 minutes while visible.
+- **Stale behavior:** Keep senders, subjects, labels, and timestamps visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Email Inbox refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last inbox snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** Authorize Email Inbox
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Credential and selected resource can be verified
-- **Compact:** Email Inbox primary fact with no filler
-- **Standard:** Email Inbox summary with one useful supporting detail
-- **Full:** Email Inbox detail that uses added space for context rather than whitespace
-- **Docked:** Email Inbox single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Deferred: unread count and top sender
+- **Standard:** Deferred: unread message metadata with sender, subject, and age
+- **Full:** Deferred: labels and selected unread metadata without storing message bodies
+- **Docked:** Deferred: unread count · top sender
+- **Interaction:** Open Gmail after OAuth and sensitive-scope acceptance
+- **Empty:** Keep unavailable until Gmail restricted-scope and policy costs are accepted
+- **Loading:** Show a content-tight loading state for Gmail message metadata.
+- **Stale:** Keep senders, subjects, labels, and timestamps visible with its last-updated time while refreshing.
+- **Error:** Keep the last inbox snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** high; Provider API changes; Rate limits; Authentication lifecycle
 - **Rationale:** Potential value does not yet justify its privacy, coverage, or setup cost
 - **Blockers:** Owner privacy acceptance and user research
@@ -1385,22 +1385,22 @@
 - **Privacy stored:** Existing Aurora-owned local data and display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Derive from local Habits state on change; perform no network request.
+- **Stale behavior:** Keep habit names and completion dates visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Habit Insights refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve local Habits state when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Habit Insights primary fact with no filler
-- **Standard:** Habit Insights summary with one useful supporting detail
-- **Full:** Habit Insights detail that uses added space for context rather than whitespace
-- **Docked:** Habit Insights single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Today completion and current streak
+- **Standard:** Existing Habits owns completion, streak, and recent consistency
+- **Full:** Existing Habits may add local trends without a second widget identity
+- **Docked:** Done today · streak
+- **Interaction:** Open the existing Habits panel
+- **Empty:** Use the existing Habits empty state
+- **Loading:** Show a content-tight loading state for local habit log.
+- **Stale:** Keep habit names and completion dates visible with its last-updated time while refreshing.
+- **Error:** Keep local Habits state when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Truthful local calculations and migrations
 - **Rationale:** This value belongs inside the existing Habits identity instead of creating a duplicate widget
 - **Blockers:** None
@@ -1412,29 +1412,29 @@
 - **Source:** [RSS 2.0](https://www.rssboard.org/rss-specification), `RSS or Atom over HTTPS`
 - **Authentication:** none; direct MV3: Yes; No external credential is required
 - **Chrome permissions:** None
-- **Origins:** https://www.rssboard.org/*
-- **User warnings:** None
+- **Origins:** None
+- **User warnings:** No separate permission: current-events value is absorbed into the existing Headlines authority.
 - **Privacy sent:** Public query parameters and filters
 - **Privacy received:** Current Events facts, labels, states, and timestamps from RSS 2.0
 - **Privacy stored:** Bounded public-data cache; Display preferences
 - **Backup:** Only user preferences may enter backup
 - **Redaction:** No secret is present; fetched snapshots stay outside backup
-- **Freshness:** Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval
-- **Stale behavior:** Keep the last useful value visibly marked stale
-- **Refresh:** One bounded in-flight request per identity with deduplicated refresh
-- **Failure:** Keep the last useful value and show a concise retry or setup action
+- **Freshness:** Use the existing Headlines refresh and cache authority; perform no second request.
+- **Stale behavior:** Keep feed titles and article metadata visibly marked with its age while a refresh is pending.
+- **Refresh:** Deduplicate Current Events refreshes so only one source operation is in flight per identity.
+- **Failure:** Preserve the last Headlines snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
 - **Setup:** None
 - **Controls:** Visible facts; Item limit; Refresh preference
 - **Validation:** Selections and limits are within supported bounds
-- **Compact:** Current Events primary fact with no filler
-- **Standard:** Current Events summary with one useful supporting detail
-- **Full:** Current Events detail that uses added space for context rather than whitespace
-- **Docked:** Current Events single-line fact or null when no useful fact exists
-- **Interaction:** Open source detail or settings without changing layout placement
-- **Empty:** Explain what is missing and offer the relevant setup path
-- **Loading:** Reserve only the content-tight footprint needed for the result
-- **Stale:** Show the last useful value with a visible stale label
-- **Error:** Show a concise recovery action without exposing sensitive data
+- **Compact:** Top selected headline
+- **Standard:** Existing Headlines owns source, title, and published time
+- **Full:** Existing Headlines may add topic filters and more selected sources
+- **Docked:** Source · headline
+- **Interaction:** Open the item through the existing Headlines widget
+- **Empty:** Use the existing Headlines setup and empty state
+- **Loading:** Show a content-tight loading state for configured RSS feeds.
+- **Stale:** Keep feed titles and article metadata visible with its last-updated time while refreshing.
+- **Error:** Keep the last Headlines snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** low; Provider availability and response schema
 - **Rationale:** This value belongs inside the existing RSS identity instead of creating a duplicate widget
 - **Blockers:** None

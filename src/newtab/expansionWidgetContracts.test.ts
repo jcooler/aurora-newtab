@@ -6,7 +6,7 @@ import { defaults } from '../lib/storage/schema'
 import { WIDGET_REGISTRY } from './widgetRegistry'
 import { WIDGET_RENDERERS, WIDGET_RENDERER_KEYS } from './widgetRenderers'
 import { WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
-import { CATALOG_BATCHES, captureTiersFor } from '../../scripts/widget-catalog-manifest.mjs'
+import { CATALOG_BATCHES, CATALOG_CONTRACTS, captureTiersFor } from '../../scripts/widget-catalog-manifest.mjs'
 
 const EXPECTED_WIDGET_IDS = [
   'bookmarks', 'clock', 'countdown', 'crypto', 'focus', 'github', 'gitlab',
@@ -71,6 +71,16 @@ describe('expansion widget authorities', () => {
       const hasDockedPromise = typeof WIDGET_SIZE_CONTRACTS[id].docked === 'string'
         && WIDGET_SIZE_CONTRACTS[id].docked!.trim().length > 0
       expect(tiers.includes('docked')).toBe(hasDockedPromise)
+
+      const batchContracts = Object.values(CATALOG_CONTRACTS)
+        .find((contracts) => Object.hasOwn(contracts, id))
+      expect(batchContracts?.[id]).toEqual(Object.fromEntries(
+        ['compact', 'standard', 'full', 'docked']
+          .flatMap((tier) => {
+            const promise = WIDGET_SIZE_CONTRACTS[id][tier as keyof typeof WIDGET_SIZE_CONTRACTS[typeof id]]
+            return typeof promise === 'string' && promise.trim().length > 0 ? [[tier, promise]] : []
+          }),
+      ))
     }
   })
 })

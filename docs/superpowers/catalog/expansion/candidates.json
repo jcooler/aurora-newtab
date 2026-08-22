@@ -28,7 +28,7 @@
         ],
         "origins": [],
         "userWarnings": [
-          "Chrome may display a permission warning for readingList"
+          "Read and change entries in the reading list."
         ]
       },
       "privacy": {
@@ -43,10 +43,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Query unread entries on visibility and refresh on Reading List add, update, and remove events.",
+        "staleBehavior": "Keep saved pages visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Reading List refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last useful Reading List when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -62,15 +62,15 @@
         ]
       },
       "presentation": {
-        "compact": "Reading List primary fact with no filler",
-        "standard": "Reading List summary with one useful supporting detail",
-        "full": "Reading List detail that uses added space for context rather than whitespace",
-        "docked": "Reading List single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Unread count and newest saved title",
+        "standard": "Three unread titles with host and saved age",
+        "full": "Unread and read sections with title, host, and saved time",
+        "docked": "Unread count · newest title",
+        "interaction": "Open an item, mark it read or unread, or remove it from Chrome Reading List",
+        "empty": "State that the Reading List is empty and offer Add current page",
+        "loading": "Show a content-tight loading state for Reading List entries.",
+        "stale": "Keep saved pages visible with its last-updated time while refreshing.",
+        "error": "Keep the last useful Reading List when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -109,7 +109,7 @@
         ],
         "origins": [],
         "userWarnings": [
-          "Chrome may display a permission warning for sessions"
+          "The sessions permission has no standalone warning; pairing it with tabs would warn that Aurora can read browsing history."
         ]
       },
       "privacy": {
@@ -124,10 +124,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Query up to the selected limit on visibility and refresh on chrome.sessions.onChanged.",
+        "staleBehavior": "Keep recent session titles visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Recently Closed refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last recent-session list when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -143,15 +143,15 @@
         ]
       },
       "presentation": {
-        "compact": "Recently Closed primary fact with no filler",
-        "standard": "Recently Closed summary with one useful supporting detail",
-        "full": "Recently Closed detail that uses added space for context rather than whitespace",
-        "docked": "Recently Closed single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Latest closed title and tab or window type",
+        "standard": "Five recently closed tabs or windows with closed age",
+        "full": "Up to 25 sessions grouped as tabs and windows with restore targets",
+        "docked": "Closed count · latest title",
+        "interaction": "Restore the chosen tab or complete window by session ID",
+        "empty": "State that Chrome has no restorable recent session",
+        "loading": "Show a content-tight loading state for recent Chrome sessions.",
+        "stale": "Keep recent session titles visible with its last-updated time while refreshing.",
+        "error": "Keep the last recent-session list when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -190,7 +190,7 @@
         ],
         "origins": [],
         "userWarnings": [
-          "Chrome may display a permission warning for downloads"
+          "Manage your downloads."
         ]
       },
       "privacy": {
@@ -205,10 +205,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Query active plus recent downloads on visibility and refresh from chrome.downloads.onChanged.",
+        "staleBehavior": "Keep download filenames and progress visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Downloads refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last download list when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -224,15 +224,15 @@
         ]
       },
       "presentation": {
-        "compact": "Downloads primary fact with no filler",
-        "standard": "Downloads summary with one useful supporting detail",
-        "full": "Downloads detail that uses added space for context rather than whitespace",
-        "docked": "Downloads single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Active count and most recent filename",
+        "standard": "Active progress plus recent filename, state, and size",
+        "full": "Active, completed, interrupted, and dangerous rows with progress and recovery state",
+        "docked": "Active count · latest filename",
+        "interaction": "Pause, resume, cancel, retry, show in folder, or open Chrome Downloads as supported by state",
+        "empty": "State that there are no active or recent downloads",
+        "loading": "Show a content-tight loading state for download activity.",
+        "stale": "Keep download filenames and progress visible with its last-updated time while refreshing.",
+        "error": "Keep the last download list when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -267,18 +267,17 @@
       },
       "access": {
         "chromePermissions": [
-          "tabGroups",
-          "tabs"
+          "tabGroups"
         ],
         "origins": [],
         "userWarnings": [
-          "Chrome may display a permission warning for tabGroups and tabs"
+          "View and manage your tab groups."
         ]
       },
       "privacy": {
         "sends": [],
         "receives": [
-          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+          "Chrome-owned group title, color, window, and collapse state; no tab URL or title without a separate future tabs decision"
         ],
         "stores": [
           "Display preferences only"
@@ -287,10 +286,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Query groups on visibility and refresh on tab-group create, update, move, and remove events.",
+        "staleBehavior": "Keep group titles and colors visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Tab Groups refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last tab-group list when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -306,15 +305,15 @@
         ]
       },
       "presentation": {
-        "compact": "Tab Groups primary fact with no filler",
-        "standard": "Tab Groups summary with one useful supporting detail",
-        "full": "Tab Groups detail that uses added space for context rather than whitespace",
-        "docked": "Tab Groups single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Group count and active group title or color",
+        "standard": "Group title, color, window, and collapsed state",
+        "full": "All groups by window with title, color, collapse state, and focus action",
+        "docked": "Group count · active group",
+        "interaction": "Focus the group window and expand or collapse the chosen group without reading page contents",
+        "empty": "State that no Chrome tab groups exist",
+        "loading": "Show a content-tight loading state for tab group metadata.",
+        "stale": "Keep group titles and colors visible with its last-updated time while refreshing.",
+        "error": "Keep the last tab-group list when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -350,7 +349,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://linear.app/*"
+          "https://api.linear.app/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Linear GraphQL API"
@@ -372,10 +371,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh assigned issues every 5 minutes while visible and on explicit refresh.",
+        "staleBehavior": "Keep issue titles and workflow state visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Linear refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Linear snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -391,15 +390,15 @@
         ]
       },
       "presentation": {
-        "compact": "Linear primary fact with no filler",
-        "standard": "Linear summary with one useful supporting detail",
-        "full": "Linear detail that uses added space for context rather than whitespace",
-        "docked": "Linear single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Assigned issue count and nearest due item",
+        "standard": "Assigned and created issue rows with status, priority, and team",
+        "full": "Grouped backlog, active work, due dates, and cycle progress for selected teams",
+        "docked": "Assigned count · due soon",
+        "interaction": "Open the issue in Linear or narrow Aurora to the selected team",
+        "empty": "Explain that no selected Linear issue is assigned",
+        "loading": "Show a content-tight loading state for Linear issue summaries.",
+        "stale": "Keep issue titles and workflow state visible with its last-updated time while refreshing.",
+        "error": "Keep the last Linear snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -437,7 +436,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://docs.sentry.io/*"
+          "https://sentry.io/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Sentry Web API"
@@ -459,10 +458,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected project issues every 5 minutes while visible and on explicit refresh.",
+        "staleBehavior": "Keep issue titles and project health visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Sentry refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Sentry snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -478,15 +477,15 @@
         ]
       },
       "presentation": {
-        "compact": "Sentry primary fact with no filler",
-        "standard": "Sentry summary with one useful supporting detail",
-        "full": "Sentry detail that uses added space for context rather than whitespace",
-        "docked": "Sentry single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Unresolved issue count and worst trend",
+        "standard": "Top regressions with project, level, events, and last seen",
+        "full": "Project health, regressions, affected users, event counts, and release context",
+        "docked": "Unresolved count · top regression",
+        "interaction": "Open the issue or project in Sentry",
+        "empty": "State that selected projects have no unresolved issues",
+        "loading": "Show a content-tight loading state for Sentry issue summaries.",
+        "stale": "Keep issue titles and project health visible with its last-updated time while refreshing.",
+        "error": "Keep the last Sentry snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -524,7 +523,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developer.todoist.com/*"
+          "https://api.todoist.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Todoist API v1"
@@ -546,10 +545,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh due tasks every 5 minutes while visible and on explicit refresh.",
+        "staleBehavior": "Keep task content and due dates visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Todoist refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Todoist snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -565,15 +564,15 @@
         ]
       },
       "presentation": {
-        "compact": "Todoist primary fact with no filler",
-        "standard": "Todoist summary with one useful supporting detail",
-        "full": "Todoist detail that uses added space for context rather than whitespace",
-        "docked": "Todoist single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Due today count and next task",
+        "standard": "Overdue and today tasks with project and due time",
+        "full": "Overdue, today, and upcoming sections with project and priority context",
+        "docked": "Due today · overdue count",
+        "interaction": "Open the task in Todoist or complete it after explicit confirmation",
+        "empty": "State that no Todoist task is due",
+        "loading": "Show a content-tight loading state for Todoist tasks.",
+        "stale": "Keep task content and due dates visible with its last-updated time while refreshing.",
+        "error": "Keep the last Todoist snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -611,7 +610,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://www.mediawiki.org/*"
+          "https://api.wikimedia.org/*"
         ],
         "userWarnings": []
       },
@@ -630,10 +629,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh once per local calendar day and when the local date changes.",
+        "staleBehavior": "Keep historical event text visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate On This Day refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last local-date result when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -647,15 +646,15 @@
         ]
       },
       "presentation": {
-        "compact": "On This Day primary fact with no filler",
-        "standard": "On This Day summary with one useful supporting detail",
-        "full": "On This Day detail that uses added space for context rather than whitespace",
-        "docked": "On This Day single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Year and one event headline",
+        "standard": "Three events with year, text, and article link",
+        "full": "Events, births, and deaths for today with images only when the source supplies them",
+        "docked": "Year · event headline",
+        "interaction": "Open the supporting Wikimedia article",
+        "empty": "Explain that no event was returned for the local date",
+        "loading": "Show a content-tight loading state for today in history.",
+        "stale": "Keep historical event text visible with its last-updated time while refreshing.",
+        "error": "Keep the last local-date result when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -691,7 +690,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://github.com/*"
+          "https://date.nager.at/*"
         ],
         "userWarnings": []
       },
@@ -710,10 +709,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh once per local day and whenever country, subdivision, or year changes.",
+        "staleBehavior": "Keep holiday names and dates visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Public Holidays refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last holiday calendar when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -727,15 +726,15 @@
         ]
       },
       "presentation": {
-        "compact": "Public Holidays primary fact with no filler",
-        "standard": "Public Holidays summary with one useful supporting detail",
-        "full": "Public Holidays detail that uses added space for context rather than whitespace",
-        "docked": "Public Holidays single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Next holiday name and days away",
+        "standard": "Next three holidays with local name and date",
+        "full": "Year calendar grouped by month with national and subdivision applicability",
+        "docked": "Next holiday · date",
+        "interaction": "Open country and subdivision settings",
+        "empty": "Ask for country and optional subdivision before fetching",
+        "loading": "Show a content-tight loading state for public holidays.",
+        "stale": "Keep holiday names and dates visible with its last-updated time while refreshing.",
+        "error": "Keep the last holiday calendar when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -770,17 +769,15 @@
       },
       "access": {
         "chromePermissions": [],
-        "origins": [
-          "https://www.weather.gov/*"
-        ],
-        "userWarnings": []
+        "origins": [],
+        "userWarnings": [
+          "No separate permission: severe-weather value is absorbed into the existing Weather authority."
+        ]
       },
       "privacy": {
-        "sends": [
-          "Public query parameters and filters"
-        ],
+        "sends": [],
         "receives": [
-          "Severe Weather facts, labels, states, and timestamps from National Weather Service API"
+          "Only alert facts supplied through the accepted Weather provider contract"
         ],
         "stores": [
           "Bounded public-data cache",
@@ -790,10 +787,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Use Weather authority refresh timing; this absorbed candidate owns no request.",
+        "staleBehavior": "Keep alert headlines visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Severe Weather refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve Weather alert state when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -807,15 +804,15 @@
         ]
       },
       "presentation": {
-        "compact": "Severe Weather primary fact with no filler",
-        "standard": "Severe Weather summary with one useful supporting detail",
-        "full": "Severe Weather detail that uses added space for context rather than whitespace",
-        "docked": "Severe Weather single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Absorbed into Weather alerts",
+        "standard": "Weather owns active alert severity, headline, and expiry",
+        "full": "Weather details owns alert instructions and affected area when a provider supports them",
+        "docked": "Alert severity · headline",
+        "interaction": "Open Weather details rather than create a second weather owner",
+        "empty": "Show no separate widget because Weather is the authority",
+        "loading": "Show a content-tight loading state for Weather alert data.",
+        "stale": "Keep alert headlines visible with its last-updated time while refreshing.",
+        "error": "Keep Weather alert state when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -870,10 +867,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh NOAA products every 15 minutes while visible and on explicit refresh.",
+        "staleBehavior": "Keep Kp values and forecast times visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Aurora & Kp refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last NOAA forecast when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -887,15 +884,15 @@
         ]
       },
       "presentation": {
-        "compact": "Aurora & Kp primary fact with no filler",
-        "standard": "Aurora & Kp summary with one useful supporting detail",
-        "full": "Aurora & Kp detail that uses added space for context rather than whitespace",
-        "docked": "Aurora & Kp single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Current Kp and viewing likelihood",
+        "standard": "Kp trend, forecast peak, and local darkness window",
+        "full": "Three-day Kp forecast with storm scale, peak time, and viewing guidance",
+        "docked": "Kp value · peak time",
+        "interaction": "Open NOAA forecast context and location guidance",
+        "empty": "State that NOAA has no current Kp product",
+        "loading": "Show a content-tight loading state for NOAA space-weather products.",
+        "stale": "Keep Kp values and forecast times visible with its last-updated time while refreshing.",
+        "error": "Keep the last NOAA forecast when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -931,7 +928,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developers.notion.com/*"
+          "https://api.notion.com/*"
         ],
         "userWarnings": [
           "Notion can expose sensitive personal or workplace context"
@@ -953,10 +950,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Future design: refresh selected databases no faster than every 10 minutes.",
+        "staleBehavior": "Keep page titles and selected properties visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Notion refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Notion snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -972,15 +969,15 @@
         ]
       },
       "presentation": {
-        "compact": "Notion primary fact with no filler",
-        "standard": "Notion summary with one useful supporting detail",
-        "full": "Notion detail that uses added space for context rather than whitespace",
-        "docked": "Notion single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Future: selected database count and next row",
+        "standard": "Future: chosen properties for recent database rows",
+        "full": "Future: filtered database view with only owner-selected properties",
+        "docked": "Future: count · next row",
+        "interaction": "Open the page in Notion after OAuth and scope acceptance",
+        "empty": "Keep the widget unavailable until OAuth and property privacy are accepted",
+        "loading": "Show a content-tight loading state for Notion database rows.",
+        "stale": "Keep page titles and selected properties visible with its last-updated time while refreshing.",
+        "error": "Keep the last Notion snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -1021,7 +1018,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://api.slack.com/*"
+          "https://slack.com/*"
         ],
         "userWarnings": [
           "Slack can expose sensitive personal or workplace context"
@@ -1043,10 +1040,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Future design: refresh mentions no faster than every 5 minutes without background message collection.",
+        "staleBehavior": "Keep message previews and channel names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Slack refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Slack snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1062,15 +1059,15 @@
         ]
       },
       "presentation": {
-        "compact": "Slack primary fact with no filler",
-        "standard": "Slack summary with one useful supporting detail",
-        "full": "Slack detail that uses added space for context rather than whitespace",
-        "docked": "Slack single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Future: unread mentions and top channel",
+        "standard": "Future: mentions with sender, channel, and time",
+        "full": "Future: mentions and selected-channel digest without message hoarding",
+        "docked": "Future: mentions · top channel",
+        "interaction": "Open the message in Slack after OAuth and scope acceptance",
+        "empty": "Keep the widget unavailable until Slack OAuth and message-data boundaries are accepted",
+        "loading": "Show a content-tight loading state for Slack mentions.",
+        "stale": "Keep message previews and channel names visible with its last-updated time while refreshing.",
+        "error": "Keep the last Slack snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -1111,7 +1108,8 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developer.spotify.com/*"
+          "https://accounts.spotify.com/*",
+          "https://api.spotify.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Spotify Web API"
@@ -1133,10 +1131,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Future design: poll playback every 15 seconds only while visible and react to explicit controls.",
+        "staleBehavior": "Keep track, artist, artwork, and device names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Spotify refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last playback snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1152,15 +1150,15 @@
         ]
       },
       "presentation": {
-        "compact": "Spotify primary fact with no filler",
-        "standard": "Spotify summary with one useful supporting detail",
-        "full": "Spotify detail that uses added space for context rather than whitespace",
-        "docked": "Spotify single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Future: now playing title and artist",
+        "standard": "Future: artwork, progress, device, and playback state",
+        "full": "Future: now playing plus queue and device controls when scopes permit",
+        "docked": "Future: title · artist",
+        "interaction": "Open Spotify or use explicitly scoped playback controls",
+        "empty": "Keep the widget unavailable until PKCE, scopes, and playback policy are accepted",
+        "loading": "Show a content-tight loading state for Spotify playback state.",
+        "stale": "Keep track, artist, artwork, and device names visible with its last-updated time while refreshing.",
+        "error": "Keep the last playback snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -1218,10 +1216,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Query Chrome on visibility; do not persist a second browsing profile.",
+        "staleBehavior": "Keep site titles and hosts visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Top Sites refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last top-sites list when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1237,15 +1235,15 @@
         ]
       },
       "presentation": {
-        "compact": "Top Sites primary fact with no filler",
-        "standard": "Top Sites summary with one useful supporting detail",
-        "full": "Top Sites detail that uses added space for context rather than whitespace",
-        "docked": "Top Sites single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Top site favicon and title",
+        "standard": "Most visited sites as a readable launch row",
+        "full": "Ranked top sites with favicon, title, and host",
+        "docked": "Top site · host",
+        "interaction": "Open the selected site in the current tab",
+        "empty": "State that Chrome returned no top sites",
+        "loading": "Show a content-tight loading state for Chrome top sites.",
+        "stale": "Keep site titles and hosts visible with its last-updated time while refreshing.",
+        "error": "Keep the last top-sites list when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -1299,10 +1297,10 @@
         "redaction": "Sensitive titles, URLs, and content are excluded from backup and logs"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Deferred design: compute locally on explicit request, never continuously in the background.",
+        "staleBehavior": "Keep page titles and visit times visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate History Digest refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the local history digest when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1318,15 +1316,15 @@
         ]
       },
       "presentation": {
-        "compact": "History Digest primary fact with no filler",
-        "standard": "History Digest summary with one useful supporting detail",
-        "full": "History Digest detail that uses added space for context rather than whitespace",
-        "docked": "History Digest single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Deferred: recent research topic count",
+        "standard": "Deferred: clustered recent titles with sensitive-context warning",
+        "full": "Deferred: local-only browsing clusters with deletion and exclusion controls",
+        "docked": "Deferred: recent topic · page count",
+        "interaction": "Open History controls before any browsing-title processing",
+        "empty": "Keep disabled until privacy, deletion, and local summarization rules are accepted",
+        "loading": "Show a content-tight loading state for local browsing history.",
+        "stale": "Keep page titles and visit times visible with its last-updated time while refreshing.",
+        "error": "Keep the local history digest when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -1364,7 +1362,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://docs.github.com/*"
+          "https://api.github.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to GitHub REST API"
@@ -1386,10 +1384,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected workflow runs every 5 minutes while visible.",
+        "staleBehavior": "Keep repository and workflow names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate GitHub Actions refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Actions snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1405,15 +1403,15 @@
         ]
       },
       "presentation": {
-        "compact": "GitHub Actions primary fact with no filler",
-        "standard": "GitHub Actions summary with one useful supporting detail",
-        "full": "GitHub Actions detail that uses added space for context rather than whitespace",
-        "docked": "GitHub Actions single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Failing or running workflow count",
+        "standard": "Recent workflow runs with repo, branch, state, and duration",
+        "full": "Selected repositories with run history, failure step, actor, and rerun link",
+        "docked": "Failing count · latest workflow",
+        "interaction": "Open the workflow run on GitHub",
+        "empty": "State that selected repositories have no recent runs",
+        "loading": "Show a content-tight loading state for GitHub workflow runs.",
+        "stale": "Keep repository and workflow names visible with its last-updated time while refreshing.",
+        "error": "Keep the last Actions snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1451,7 +1449,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://docs.gitlab.com/*"
+          "https://gitlab.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to GitLab Pipelines API"
@@ -1473,10 +1471,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected pipelines every 5 minutes while visible.",
+        "staleBehavior": "Keep project, branch, and job names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate GitLab Pipelines refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last pipeline snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1492,15 +1490,15 @@
         ]
       },
       "presentation": {
-        "compact": "GitLab Pipelines primary fact with no filler",
-        "standard": "GitLab Pipelines summary with one useful supporting detail",
-        "full": "GitLab Pipelines detail that uses added space for context rather than whitespace",
-        "docked": "GitLab Pipelines single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Failed or running pipeline count",
+        "standard": "Recent pipelines with project, ref, state, and duration",
+        "full": "Selected projects with stages, failed jobs, actor, and pipeline links",
+        "docked": "Failed count · latest pipeline",
+        "interaction": "Open the pipeline in GitLab",
+        "empty": "State that selected projects have no pipelines",
+        "loading": "Show a content-tight loading state for GitLab pipelines.",
+        "stale": "Keep project, branch, and job names visible with its last-updated time while refreshing.",
+        "error": "Keep the last pipeline snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1538,7 +1536,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developer.pagerduty.com/*"
+          "https://api.pagerduty.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to PagerDuty REST API"
@@ -1560,10 +1558,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh incidents every 2 minutes while visible and on explicit refresh.",
+        "staleBehavior": "Keep incident titles, services, and assignees visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate PagerDuty refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last incident snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1579,15 +1577,15 @@
         ]
       },
       "presentation": {
-        "compact": "PagerDuty primary fact with no filler",
-        "standard": "PagerDuty summary with one useful supporting detail",
-        "full": "PagerDuty detail that uses added space for context rather than whitespace",
-        "docked": "PagerDuty single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Triggered incident count and highest urgency",
+        "standard": "Triggered and acknowledged incidents with service and age",
+        "full": "Incidents grouped by urgency with assignee, escalation, and service context",
+        "docked": "Triggered count · top service",
+        "interaction": "Open the incident in PagerDuty",
+        "empty": "State that no selected PagerDuty service has an incident",
+        "loading": "Show a content-tight loading state for PagerDuty incidents.",
+        "stale": "Keep incident titles, services, and assignees visible with its last-updated time while refreshing.",
+        "error": "Keep the last incident snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1625,7 +1623,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://docs.datadoghq.com/*"
+          "https://api.datadoghq.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Datadog API"
@@ -1647,10 +1645,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected monitor states every 5 minutes while visible.",
+        "staleBehavior": "Keep monitor names, tags, and values visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Datadog refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last monitor snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1666,15 +1664,15 @@
         ]
       },
       "presentation": {
-        "compact": "Datadog primary fact with no filler",
-        "standard": "Datadog summary with one useful supporting detail",
-        "full": "Datadog detail that uses added space for context rather than whitespace",
-        "docked": "Datadog single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Alerting monitor count and worst state",
+        "standard": "Top monitors with state, scope, and last change",
+        "full": "Monitor groups with current value, threshold, tags, and incident link",
+        "docked": "Alerting count · worst monitor",
+        "interaction": "Open the monitor in Datadog",
+        "empty": "State that selected monitors are healthy or absent",
+        "loading": "Show a content-tight loading state for Datadog monitor states.",
+        "stale": "Keep monitor names, tags, and values visible with its last-updated time while refreshing.",
+        "error": "Keep the last monitor snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1712,7 +1710,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developers.cloudflare.com/*"
+          "https://api.cloudflare.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Cloudflare GraphQL Analytics API"
@@ -1734,10 +1732,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected zone aggregates every 15 minutes while visible.",
+        "staleBehavior": "Keep zone names and traffic metrics visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Cloudflare Analytics refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last analytics snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1753,15 +1751,15 @@
         ]
       },
       "presentation": {
-        "compact": "Cloudflare Analytics primary fact with no filler",
-        "standard": "Cloudflare Analytics summary with one useful supporting detail",
-        "full": "Cloudflare Analytics detail that uses added space for context rather than whitespace",
-        "docked": "Cloudflare Analytics single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Request count and error rate",
+        "standard": "Traffic, cache hit rate, bandwidth, and 4xx or 5xx trend",
+        "full": "Selected zones with traffic series, threats, cache, latency, and errors",
+        "docked": "Requests · error rate",
+        "interaction": "Open the selected zone in Cloudflare",
+        "empty": "Ask the user to select an accessible zone",
+        "loading": "Show a content-tight loading state for Cloudflare analytics.",
+        "stale": "Keep zone names and traffic metrics visible with its last-updated time while refreshing.",
+        "error": "Keep the last analytics snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1799,7 +1797,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://buildkite.com/*"
+          "https://api.buildkite.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Buildkite REST API"
@@ -1821,10 +1819,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected builds every 5 minutes while visible.",
+        "staleBehavior": "Keep pipeline, branch, and job names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Buildkite refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last build snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1840,15 +1838,15 @@
         ]
       },
       "presentation": {
-        "compact": "Buildkite primary fact with no filler",
-        "standard": "Buildkite summary with one useful supporting detail",
-        "full": "Buildkite detail that uses added space for context rather than whitespace",
-        "docked": "Buildkite single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Failed or running build count",
+        "standard": "Recent builds with pipeline, branch, state, and duration",
+        "full": "Pipelines with build history, failed jobs, actor, commit, and links",
+        "docked": "Failed count · latest pipeline",
+        "interaction": "Open the build in Buildkite",
+        "empty": "State that selected pipelines have no builds",
+        "loading": "Show a content-tight loading state for Buildkite builds.",
+        "stale": "Keep pipeline, branch, and job names visible with its last-updated time while refreshing.",
+        "error": "Keep the last build snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1886,10 +1884,10 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://www.jenkins.io/*"
+          "https://*/*"
         ],
         "userWarnings": [
-          "Aurora sends a scoped request to Jenkins Remote Access API"
+          "Aurora requests only the exact user-configured HTTPS Jenkins origin."
         ]
       },
       "privacy": {
@@ -1908,10 +1906,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected jobs every 5 minutes while visible.",
+        "staleBehavior": "Keep controller, job, and build names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Jenkins refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Jenkins snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -1927,15 +1925,15 @@
         ]
       },
       "presentation": {
-        "compact": "Jenkins primary fact with no filler",
-        "standard": "Jenkins summary with one useful supporting detail",
-        "full": "Jenkins detail that uses added space for context rather than whitespace",
-        "docked": "Jenkins single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Failed or building job count",
+        "standard": "Recent jobs with result, build number, branch, and duration",
+        "full": "Selected controller jobs with queue, stages when available, health, and links",
+        "docked": "Failed count · latest job",
+        "interaction": "Open the job on the user-configured Jenkins controller",
+        "empty": "Ask for one HTTPS Jenkins controller and selected jobs",
+        "loading": "Show a content-tight loading state for Jenkins job state.",
+        "stale": "Keep controller, job, and build names visible with its last-updated time while refreshing.",
+        "error": "Keep the last Jenkins snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -1973,7 +1971,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developers.asana.com/*"
+          "https://app.asana.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Asana API"
@@ -1995,10 +1993,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh assigned tasks every 10 minutes while visible.",
+        "staleBehavior": "Keep task and project names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Asana refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Asana snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2014,15 +2012,15 @@
         ]
       },
       "presentation": {
-        "compact": "Asana primary fact with no filler",
-        "standard": "Asana summary with one useful supporting detail",
-        "full": "Asana detail that uses added space for context rather than whitespace",
-        "docked": "Asana single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Due task count and next task",
+        "standard": "Assigned tasks with project, due date, and completion state",
+        "full": "My Tasks grouped by overdue, today, and upcoming with project context",
+        "docked": "Due count · next task",
+        "interaction": "Open the task in Asana",
+        "empty": "State that no selected Asana task is due",
+        "loading": "Show a content-tight loading state for Asana tasks.",
+        "stale": "Keep task and project names visible with its last-updated time while refreshing.",
+        "error": "Keep the last Asana snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -2060,7 +2058,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developer.atlassian.com/*"
+          "https://api.trello.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Trello REST API"
@@ -2082,10 +2080,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected boards every 10 minutes while visible.",
+        "staleBehavior": "Keep board, list, and card names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Trello refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Trello snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2101,15 +2099,15 @@
         ]
       },
       "presentation": {
-        "compact": "Trello primary fact with no filler",
-        "standard": "Trello summary with one useful supporting detail",
-        "full": "Trello detail that uses added space for context rather than whitespace",
-        "docked": "Trello single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Due card count and next card",
+        "standard": "Assigned cards with board, list, labels, and due date",
+        "full": "Selected boards with due, blocked, and recently moved cards",
+        "docked": "Due count · next card",
+        "interaction": "Open the card in Trello",
+        "empty": "Ask the user to select boards or state that none need attention",
+        "loading": "Show a content-tight loading state for Trello cards.",
+        "stale": "Keep board, list, and card names visible with its last-updated time while refreshing.",
+        "error": "Keep the last Trello snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -2147,7 +2145,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developer.clickup.com/*"
+          "https://api.clickup.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to ClickUp API"
@@ -2169,10 +2167,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh assigned tasks every 10 minutes while visible.",
+        "staleBehavior": "Keep space, list, and task names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate ClickUp refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last ClickUp snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2188,15 +2186,15 @@
         ]
       },
       "presentation": {
-        "compact": "ClickUp primary fact with no filler",
-        "standard": "ClickUp summary with one useful supporting detail",
-        "full": "ClickUp detail that uses added space for context rather than whitespace",
-        "docked": "ClickUp single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Due task count and next task",
+        "standard": "Assigned tasks with space, list, status, and due date",
+        "full": "Selected spaces with overdue, active, blocked, and upcoming work",
+        "docked": "Due count · next task",
+        "interaction": "Open the task in ClickUp",
+        "empty": "State that no selected ClickUp task is due",
+        "loading": "Show a content-tight loading state for ClickUp tasks.",
+        "stale": "Keep space, list, and task names visible with its last-updated time while refreshing.",
+        "error": "Keep the last ClickUp snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -2234,7 +2232,8 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://learn.microsoft.com/*"
+          "https://graph.microsoft.com/*",
+          "https://login.microsoftonline.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Microsoft Graph To Do API"
@@ -2256,10 +2255,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Future design: refresh task lists every 10 minutes while visible.",
+        "staleBehavior": "Keep list and task names visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Microsoft To Do refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last To Do snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2275,15 +2274,15 @@
         ]
       },
       "presentation": {
-        "compact": "Microsoft To Do primary fact with no filler",
-        "standard": "Microsoft To Do summary with one useful supporting detail",
-        "full": "Microsoft To Do detail that uses added space for context rather than whitespace",
-        "docked": "Microsoft To Do single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Future: due task count and next task",
+        "standard": "Future: chosen lists with due and important tasks",
+        "full": "Future: overdue, today, important, and upcoming tasks by list",
+        "docked": "Future: due count · next task",
+        "interaction": "Open Microsoft To Do after OAuth acceptance",
+        "empty": "Keep unavailable until Microsoft OAuth and task-data scopes are accepted",
+        "loading": "Show a content-tight loading state for Microsoft To Do tasks.",
+        "stale": "Keep list and task names visible with its last-updated time while refreshing.",
+        "error": "Keep the last To Do snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -2323,7 +2322,8 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developers.google.com/*"
+          "https://accounts.google.com/*",
+          "https://www.googleapis.com/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Google Calendar API"
@@ -2345,10 +2345,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Future design: refresh the active agenda every 10 minutes and at local-day rollover.",
+        "staleBehavior": "Keep event titles, attendees, and locations visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Google Calendar refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Google Calendar snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2364,15 +2364,15 @@
         ]
       },
       "presentation": {
-        "compact": "Google Calendar primary fact with no filler",
-        "standard": "Google Calendar summary with one useful supporting detail",
-        "full": "Google Calendar detail that uses added space for context rather than whitespace",
-        "docked": "Google Calendar single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Future: next event and start time",
+        "standard": "Future: selected calendars with next events and meet links",
+        "full": "Future: day agenda with calendar colors, conflicts, and conferencing",
+        "docked": "Future: next event · time",
+        "interaction": "Open the event in Google Calendar after OAuth acceptance",
+        "empty": "Keep unavailable until Google OAuth and calendar scopes are accepted",
+        "loading": "Show a content-tight loading state for Google Calendar events.",
+        "stale": "Keep event titles, attendees, and locations visible with its last-updated time while refreshing.",
+        "error": "Keep the last Google Calendar snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -2431,10 +2431,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh the selected USGS feed every 5 minutes while visible.",
+        "staleBehavior": "Keep earthquake places and magnitudes visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Earthquakes refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last USGS feed when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2448,15 +2448,15 @@
         ]
       },
       "presentation": {
-        "compact": "Earthquakes primary fact with no filler",
-        "standard": "Earthquakes summary with one useful supporting detail",
-        "full": "Earthquakes detail that uses added space for context rather than whitespace",
-        "docked": "Earthquakes single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Largest nearby magnitude and distance",
+        "standard": "Recent nearby quakes with magnitude, place, depth, and age",
+        "full": "Map-free regional list with threshold, distance, depth, and official detail links",
+        "docked": "Magnitude · place",
+        "interaction": "Open the event on USGS",
+        "empty": "State that no event meets the selected region and magnitude",
+        "loading": "Show a content-tight loading state for USGS earthquake feed.",
+        "stale": "Keep earthquake places and magnitudes visible with its last-updated time while refreshing.",
+        "error": "Keep the last USGS feed when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -2492,7 +2492,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://thespacedevs.com/*"
+          "https://ll.thespacedevs.com/*"
         ],
         "userWarnings": []
       },
@@ -2511,10 +2511,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh the launch schedule every 30 minutes and more often only near a launch window.",
+        "staleBehavior": "Keep mission names and launch windows visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Space Launches refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last launch snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2528,15 +2528,15 @@
         ]
       },
       "presentation": {
-        "compact": "Space Launches primary fact with no filler",
-        "standard": "Space Launches summary with one useful supporting detail",
-        "full": "Space Launches detail that uses added space for context rather than whitespace",
-        "docked": "Space Launches single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Next launch mission and countdown",
+        "standard": "Next three launches with provider, pad, and status",
+        "full": "Launch schedule with mission, vehicle, provider, pad, window, stream, and status",
+        "docked": "Next launch · countdown",
+        "interaction": "Open the official or Launch Library detail",
+        "empty": "State that no upcoming launch matches selected agencies",
+        "loading": "Show a content-tight loading state for launch schedule.",
+        "stale": "Keep mission names and launch windows visible with its last-updated time while refreshing.",
+        "error": "Keep the last launch snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -2559,10 +2559,10 @@
       "userValue": "See current ISS position context",
       "glanceQuestion": "Where is the ISS now?",
       "source": {
-        "provider": "Open Notify",
-        "docsUrl": "https://open-notify.org/Open-Notify-API/ISS-Location-Now/",
-        "transport": "HTTPS JSON API",
-        "termsRisk": "low"
+        "provider": "Where the ISS at?",
+        "docsUrl": "https://ord.wheretheiss.at/w/developer",
+        "transport": "HTTPS JSON",
+        "termsRisk": "medium"
       },
       "auth": {
         "mode": "none",
@@ -2572,7 +2572,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://open-notify.org/*"
+          "https://api.wheretheiss.at/*"
         ],
         "userWarnings": []
       },
@@ -2591,10 +2591,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh position no faster than once per minute while visible.",
+        "staleBehavior": "Keep coordinates and orbital facts visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate ISS Tracker refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last ISS position when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2608,20 +2608,20 @@
         ]
       },
       "presentation": {
-        "compact": "ISS Tracker primary fact with no filler",
-        "standard": "ISS Tracker summary with one useful supporting detail",
-        "full": "ISS Tracker detail that uses added space for context rather than whitespace",
-        "docked": "ISS Tracker single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "ISS latitude, longitude, and visibility",
+        "standard": "Current position, altitude, velocity, visibility, and update age",
+        "full": "Position facts with next refresh and a link to a user-selected map service",
+        "docked": "ISS position · visibility",
+        "interaction": "Open the coordinates in the selected map service",
+        "empty": "State that the ISS position service is unavailable",
+        "loading": "Show a content-tight loading state for ISS position.",
+        "stale": "Keep coordinates and orbital facts visible with its last-updated time while refreshing.",
+        "error": "Keep the last ISS position when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
         "drivers": [
-          "Provider availability and response schema"
+          "Provider availability and one-request-per-second rate limit"
         ]
       },
       "decision": {
@@ -2652,7 +2652,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://dictionaryapi.com/*"
+          "https://www.dictionaryapi.com/*"
         ],
         "userWarnings": []
       },
@@ -2672,10 +2672,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh once per local calendar day.",
+        "staleBehavior": "Keep word definitions and examples visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Word of the Day refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last dictionary result when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2689,15 +2689,15 @@
         ]
       },
       "presentation": {
-        "compact": "Word of the Day primary fact with no filler",
-        "standard": "Word of the Day summary with one useful supporting detail",
-        "full": "Word of the Day detail that uses added space for context rather than whitespace",
-        "docked": "Word of the Day single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Word, part of speech, and short definition",
+        "standard": "Word with pronunciation, definition, and one example",
+        "full": "Definitions, pronunciation, examples, and etymology when supplied",
+        "docked": "Word · short definition",
+        "interaction": "Open the complete dictionary entry",
+        "empty": "Ask for an API key or state that no word was returned",
+        "loading": "Show a content-tight loading state for dictionary word of the day.",
+        "stale": "Keep word definitions and examples visible with its last-updated time while refreshing.",
+        "error": "Keep the last dictionary result when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -2752,10 +2752,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Fetch one question only on explicit new-question action; keep answer state locally.",
+        "staleBehavior": "Keep question and answer text visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Daily Trivia refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last unanswered question when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2769,15 +2769,15 @@
         ]
       },
       "presentation": {
-        "compact": "Daily Trivia primary fact with no filler",
-        "standard": "Daily Trivia summary with one useful supporting detail",
-        "full": "Daily Trivia detail that uses added space for context rather than whitespace",
-        "docked": "Daily Trivia single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Question category and difficulty",
+        "standard": "One question with selectable answers and reveal state",
+        "full": "A short local session with score, explanations when available, and category mix",
+        "docked": "Category · difficulty",
+        "interaction": "Answer locally, then reveal the source answer",
+        "empty": "Offer a new question when no trivia is cached",
+        "loading": "Show a content-tight loading state for trivia question.",
+        "stale": "Keep question and answer text visible with its last-updated time while refreshing.",
+        "error": "Keep the last unanswered question when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -2835,10 +2835,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh live events every 2 minutes and scheduled events every 15 minutes while visible.",
+        "staleBehavior": "Keep team names and results visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Sports Scores refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last sports snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -2854,15 +2854,15 @@
         ]
       },
       "presentation": {
-        "compact": "Sports Scores primary fact with no filler",
-        "standard": "Sports Scores summary with one useful supporting detail",
-        "full": "Sports Scores detail that uses added space for context rather than whitespace",
-        "docked": "Sports Scores single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Selected team score or next game",
+        "standard": "Recent and upcoming games with teams, score, status, and time",
+        "full": "League and team schedule with form, venue, broadcast facts when supplied",
+        "docked": "Team · score or start time",
+        "interaction": "Open the event detail at the source",
+        "empty": "Ask for a league and team before fetching",
+        "loading": "Show a content-tight loading state for sports schedule and scores.",
+        "stale": "Keep team names and results visible with its last-updated time while refreshing.",
+        "error": "Keep the last sports snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "medium",
@@ -2902,9 +2902,11 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://gtfs.org/*"
+          "https://*/*"
         ],
-        "userWarnings": []
+        "userWarnings": [
+          "Aurora requests only the exact selected agency feed origins; some agencies require API keys."
+        ]
       },
       "privacy": {
         "sends": [
@@ -2921,10 +2923,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected realtime feeds every 30 seconds only while visible.",
+        "staleBehavior": "Keep routes, stops, and departure times visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Transit Commute refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last transit snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -2938,15 +2940,15 @@
         ]
       },
       "presentation": {
-        "compact": "Transit Commute primary fact with no filler",
-        "standard": "Transit Commute summary with one useful supporting detail",
-        "full": "Transit Commute detail that uses added space for context rather than whitespace",
-        "docked": "Transit Commute single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Next departure and delay",
+        "standard": "Selected stops with route, destination, departure, and delay",
+        "full": "Commute board with departures, vehicle positions, alerts, and transfer risk when feeds supply them",
+        "docked": "Route · departure · delay",
+        "interaction": "Open provider context or commute settings",
+        "empty": "Ask for agency feeds, stops, and commute direction",
+        "loading": "Show a content-tight loading state for GTFS realtime feeds.",
+        "stale": "Keep routes, stops, and departure times visible with its last-updated time while refreshing.",
+        "error": "Keep the last transit snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -2984,7 +2986,7 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://github.com/*"
+          "https://registry.npmjs.org/*"
         ],
         "userWarnings": []
       },
@@ -3003,10 +3005,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Refresh selected package metadata every 30 minutes while visible.",
+        "staleBehavior": "Keep package names and versions visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Package Updates refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last package snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -3020,15 +3022,15 @@
         ]
       },
       "presentation": {
-        "compact": "Package Updates primary fact with no filler",
-        "standard": "Package Updates summary with one useful supporting detail",
-        "full": "Package Updates detail that uses added space for context rather than whitespace",
-        "docked": "Package Updates single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Outdated package count and highest-risk update",
+        "standard": "Selected packages with current, latest, age, and release tag",
+        "full": "Update groups with semver delta, publish time, deprecation, and registry links",
+        "docked": "Outdated count · top package",
+        "interaction": "Open the package on npm",
+        "empty": "Ask for package names or a pasted manifest without storing source code",
+        "loading": "Show a content-tight loading state for npm package metadata.",
+        "stale": "Keep package names and versions visible with its last-updated time while refreshing.",
+        "error": "Keep the last package snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -3063,25 +3065,31 @@
       },
       "access": {
         "chromePermissions": [],
-        "origins": [],
-        "userWarnings": []
+        "origins": [
+          "https://*/*"
+        ],
+        "userWarnings": [
+        "Aurora sends health-check requests only to each user-selected endpoint over HTTPS."
+        ]
       },
       "privacy": {
-        "sends": [],
+        "sends": [
+          "Health-check request method, headers limited to safe defaults, and timing to each user-selected endpoint"
+        ],
         "receives": [
-          "Existing Aurora-owned local records selected by the user"
+          "HTTP status, response timing, availability failure, and selected safe headers needed for the health result"
         ],
         "stores": [
-          "Existing Aurora-owned local data and display preferences"
+          "Endpoint label and URL plus a bounded local status and latency history"
         ],
-        "backup": "Only user preferences may enter backup",
-        "redaction": "No secret is present; fetched snapshots stay outside backup"
+        "backup": "Endpoint labels and URLs may enter backup; measured history does not.",
+        "redaction": "Authorization, cookies, response bodies, and capability URLs are never accepted, logged, or backed up."
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Check only user-selected HTTPS endpoints at the configured interval while Aurora is visible.",
+        "staleBehavior": "Keep endpoint labels, status, and latency visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Uptime refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last local health-check result when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -3095,15 +3103,15 @@
         ]
       },
       "presentation": {
-        "compact": "Uptime primary fact with no filler",
-        "standard": "Uptime summary with one useful supporting detail",
-        "full": "Uptime detail that uses added space for context rather than whitespace",
-        "docked": "Uptime single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Down or slow endpoint count",
+        "standard": "Selected endpoints with status, latency, checked age, and failure reason",
+        "full": "Endpoint history with bounded local samples, current status, latency, and certificate date when available",
+        "docked": "Down count · slowest endpoint",
+        "interaction": "Open the endpoint only after an explicit user action",
+        "empty": "Ask for one or more HTTPS endpoints and a safe interval",
+        "loading": "Show a content-tight loading state for selected endpoint checks.",
+        "stale": "Keep endpoint labels, status, and latency visible with its last-updated time while refreshing.",
+        "error": "Keep the last local health-check result when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -3139,7 +3147,8 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://developers.google.com/*"
+          "https://accounts.google.com/*",
+          "https://gmail.googleapis.com/*"
         ],
         "userWarnings": [
           "Email Inbox can expose sensitive personal or workplace context"
@@ -3161,10 +3170,10 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Deferred design: refresh selected unread metadata every 10 minutes while visible.",
+        "staleBehavior": "Keep senders, subjects, labels, and timestamps visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Email Inbox refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last inbox snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
@@ -3180,15 +3189,15 @@
         ]
       },
       "presentation": {
-        "compact": "Email Inbox primary fact with no filler",
-        "standard": "Email Inbox summary with one useful supporting detail",
-        "full": "Email Inbox detail that uses added space for context rather than whitespace",
-        "docked": "Email Inbox single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Deferred: unread count and top sender",
+        "standard": "Deferred: unread message metadata with sender, subject, and age",
+        "full": "Deferred: labels and selected unread metadata without storing message bodies",
+        "docked": "Deferred: unread count · top sender",
+        "interaction": "Open Gmail after OAuth and sensitive-scope acceptance",
+        "empty": "Keep unavailable until Gmail restricted-scope and policy costs are accepted",
+        "loading": "Show a content-tight loading state for Gmail message metadata.",
+        "stale": "Keep senders, subjects, labels, and timestamps visible with its last-updated time while refreshing.",
+        "error": "Keep the last inbox snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "high",
@@ -3242,10 +3251,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Derive from local Habits state on change; perform no network request.",
+        "staleBehavior": "Keep habit names and completion dates visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Habit Insights refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve local Habits state when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -3259,15 +3268,15 @@
         ]
       },
       "presentation": {
-        "compact": "Habit Insights primary fact with no filler",
-        "standard": "Habit Insights summary with one useful supporting detail",
-        "full": "Habit Insights detail that uses added space for context rather than whitespace",
-        "docked": "Habit Insights single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Today completion and current streak",
+        "standard": "Existing Habits owns completion, streak, and recent consistency",
+        "full": "Existing Habits may add local trends without a second widget identity",
+        "docked": "Done today · streak",
+        "interaction": "Open the existing Habits panel",
+        "empty": "Use the existing Habits empty state",
+        "loading": "Show a content-tight loading state for local habit log.",
+        "stale": "Keep habit names and completion dates visible with its last-updated time while refreshing.",
+        "error": "Keep local Habits state when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
@@ -3302,10 +3311,10 @@
       },
       "access": {
         "chromePermissions": [],
-        "origins": [
-          "https://www.rssboard.org/*"
-        ],
-        "userWarnings": []
+        "origins": [],
+        "userWarnings": [
+          "No separate permission: current-events value is absorbed into the existing Headlines authority."
+        ]
       },
       "privacy": {
         "sends": [
@@ -3322,10 +3331,10 @@
         "redaction": "No secret is present; fetched snapshots stay outside backup"
       },
       "cache": {
-        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
-        "staleBehavior": "Keep the last useful value visibly marked stale",
-        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
-        "failure": "Keep the last useful value and show a concise retry or setup action"
+        "freshness": "Use the existing Headlines refresh and cache authority; perform no second request.",
+        "staleBehavior": "Keep feed titles and article metadata visibly marked with its age while a refresh is pending.",
+        "refresh": "Deduplicate Current Events refreshes so only one source operation is in flight per identity.",
+        "failure": "Preserve the last Headlines snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [],
@@ -3339,15 +3348,15 @@
         ]
       },
       "presentation": {
-        "compact": "Current Events primary fact with no filler",
-        "standard": "Current Events summary with one useful supporting detail",
-        "full": "Current Events detail that uses added space for context rather than whitespace",
-        "docked": "Current Events single-line fact or null when no useful fact exists",
-        "interaction": "Open source detail or settings without changing layout placement",
-        "empty": "Explain what is missing and offer the relevant setup path",
-        "loading": "Reserve only the content-tight footprint needed for the result",
-        "stale": "Show the last useful value with a visible stale label",
-        "error": "Show a concise recovery action without exposing sensitive data"
+        "compact": "Top selected headline",
+        "standard": "Existing Headlines owns source, title, and published time",
+        "full": "Existing Headlines may add topic filters and more selected sources",
+        "docked": "Source · headline",
+        "interaction": "Open the item through the existing Headlines widget",
+        "empty": "Use the existing Headlines setup and empty state",
+        "loading": "Show a content-tight loading state for configured RSS feeds.",
+        "stale": "Keep feed titles and article metadata visible with its last-updated time while refreshing.",
+        "error": "Keep the last Headlines snapshot when useful and offer one bounded retry or setup action."
       },
       "maintenance": {
         "risk": "low",
