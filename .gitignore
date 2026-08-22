@@ -85,3 +85,6 @@ output/
 .qa-expansion-platform-*/
 
 .playwright-profile-measure/
+
+# Superpowers visual-companion sessions are local design scratch.
+.superpowers/
