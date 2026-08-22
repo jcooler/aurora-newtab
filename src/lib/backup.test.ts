@@ -910,6 +910,22 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
 })
 
 describe('validateBackupShape: migration-then-validate order', () => {
+  it('a v15 backup gains browser-native toggles before strict validation', () => {
+    const widgets = { ...defaults().settings.widgets } as Record<string, boolean>
+    for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const migrated = migrate({ ...defaults(), settings: { ...defaults().settings, widgets } }, 15)
+    const result = validateBackupShape(migrated)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.settings.widgets).toMatchObject({
+        readingList: false,
+        recentlyClosed: false,
+        downloads: false,
+        tabGroups: false,
+      })
+    }
+  })
+
   it('a valid v1-era backup migrates forward and then still passes validation', () => {
     const v1Settings = {
       ...defaults().settings,

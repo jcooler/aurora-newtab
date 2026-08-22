@@ -55,6 +55,7 @@ import { isPremium } from '../lib/premium'
 vi.mock('../services/permissions', async (importActual) => {
   const actual = await importActual<typeof import('../services/permissions')>()
   const ensureOrigin = vi.fn()
+  const ensurePermission = vi.fn()
   // Existing card tests assert connector-specific input/origin mapping through
   // this singular spy. TokenConnectForm now correctly calls ensureOrigins via
   // its transaction, so the test boundary delegates that one-origin batch to
@@ -67,9 +68,9 @@ vi.mock('../services/permissions', async (importActual) => {
     }
     return granted
   })
-  return { ...actual, ensureOrigin, removeOrigin: vi.fn(), ensureOrigins }
+  return { ...actual, ensurePermission, ensureOrigin, removeOrigin: vi.fn(), ensureOrigins }
 })
-import { ensureOrigin, ensureOrigins, originPattern, removeOrigin } from '../services/permissions'
+import { ensurePermission, ensureOrigin, ensureOrigins, originPattern, removeOrigin } from '../services/permissions'
 import { initializePermissionMirror } from '../services/permissionMirror'
 
 // The GitHub connector card's connect flow calls whoamiGithub (a real network
@@ -391,8 +392,13 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     for (const name of ['World clocks', 'Countdown', 'Sun times', 'Moon phase']) {
       expect(timeAndSky.getByRole('switch', { name })).toBeTruthy()
     }
+    const browser = screen.getByRole('region', { name: 'Browser' })
+    expect(within(browser).getAllByRole('switch')).toHaveLength(4)
+    for (const name of ['Reading List', 'Recently Closed', 'Downloads', 'Tab Groups']) {
+      expect(within(browser).getByRole('switch', { name })).toBeTruthy()
+    }
     const grids = document.querySelectorAll('[data-widget-toggle-grid]')
-    expect(grids).toHaveLength(3)
+    expect(grids).toHaveLength(4)
     for (const grid of grids) {
       expect(grid.className).toContain('grid-cols-1')
       expect(grid.className).toContain('min-[900px]:grid-cols-2')
@@ -723,6 +729,50 @@ describe('SettingsPanel Widgets section (bookmarks permission)', () => {
     expect(ensureBookmarksPermission).not.toHaveBeenCalled()
     expect(attr(toggle, 'aria-checked')).toBe('false')
     expect((await storage.get('settings')).widgets.bookmarks).toBe(false)
+  })
+})
+
+describe('SettingsPanel Widgets section (browser-native permissions)', () => {
+  const cases = [
+    ['Reading List', 'readingList', 'readingList'],
+    ['Recently Closed', 'recentlyClosed', 'sessions'],
+    ['Downloads', 'downloads', 'downloads'],
+    ['Tab Groups', 'tabGroups', 'tabGroups'],
+  ] as const
+
+  beforeEach(() => {
+    vi.mocked(ensurePermission).mockReset()
+  })
+
+  it.each(cases)('requests only %s access and enables only after grant', async (label, key, permission) => {
+    vi.mocked(ensurePermission).mockResolvedValue(true)
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText(label) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect(ensurePermission).toHaveBeenCalledOnce()
+    expect(ensurePermission).toHaveBeenCalledWith(permission)
+    expect((await storage.get('settings')).widgets[key]).toBe(true)
+  })
+
+  it.each(cases)('keeps %s off with feature-specific copy after denial', async (label, key) => {
+    vi.mocked(ensurePermission).mockResolvedValue(false)
+    const storage = await renderPanel()
+    openTab('Widgets')
+    const toggle = screen.getByLabelText(label) as HTMLButtonElement
+
+    await act(async () => {
+      fireEvent.click(toggle)
+    })
+
+    expect((await storage.get('settings')).widgets[key]).toBe(false)
+    const alert = await screen.findByRole('alert')
+    expect(alert.textContent).toContain(label)
+    expect(toggle.getAttribute('aria-describedby')).toBe(alert.id)
   })
 })
 

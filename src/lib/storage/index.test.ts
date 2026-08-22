@@ -489,6 +489,30 @@ describe('createStorage', () => {
     expect(await storage.get('layouts')).toBeNull()
   })
 
+  it('upgrades v15 through the full migration path so nested browser toggles exist', async () => {
+    const widgets = { ...defaults().settings.widgets } as Record<string, boolean>
+    for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const seed = {
+      ...defaults(),
+      settings: { ...defaults().settings, name: 'Exact v15', widgets },
+      'aurora:version': 15,
+      unknown: { sentinel: 'keep' },
+    }
+    const controlled = controllableDriver(seed)
+
+    await createStorage(controlled.driver, createInProcessStorageAuthority()).init()
+
+    expect(controlled.writes).toHaveLength(1)
+    expect(controlled.writes[0]['aurora:version']).toBe(16)
+    expect((controlled.writes[0].settings as ReturnType<typeof defaults>['settings']).widgets).toMatchObject({
+      readingList: false,
+      recentlyClosed: false,
+      downloads: false,
+      tabGroups: false,
+    })
+    expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
+  })
+
   it('upgrades v14 atomically, materializing timerSession null and preserving both layout authorities', async () => {
     const seed = {
       ...defaults(),
@@ -513,7 +537,7 @@ describe('createStorage', () => {
     expect(controlled.writes[0].layout).toEqual(before.layout)
     expect(controlled.writes[0].layouts).toEqual(before.layouts)
     expect(controlled.writes[0].settings).toEqual(before.settings)
-    expect(controlled.writes[0]['aurora:version']).toBe(15)
+    expect(controlled.writes[0]['aurora:version']).toBe(16)
     expect(controlled.base.dump().unknown).toEqual(before.unknown)
   })
 

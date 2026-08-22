@@ -30,6 +30,10 @@ function makeCtx(links: QuickLink[] = []): CommandContext {
       monthCal: false,
       sun: false,
       moon: false,
+      readingList: false,
+      recentlyClosed: false,
+      downloads: false,
+      tabGroups: false,
     },
   }
   return {

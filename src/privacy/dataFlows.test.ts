@@ -191,6 +191,30 @@ describe('code-backed privacy inventory', () => {
     expect(BROWSER_DATA_FLOWS.favicon.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.navigation.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.geolocation.transmission).toBe('none')
+    expect(BROWSER_DATA_FLOWS.readingList).toEqual({
+      transmission: 'none',
+      permission: 'readingList',
+      warning: 'Read and change entries in the reading list.',
+      stored: 'preferences-only',
+    })
+    expect(BROWSER_DATA_FLOWS.recentlyClosed).toEqual({
+      transmission: 'none',
+      permission: 'sessions',
+      warning: 'No standalone warning.',
+      stored: 'preferences-only',
+    })
+    expect(BROWSER_DATA_FLOWS.downloads).toEqual({
+      transmission: 'none',
+      permission: 'downloads',
+      warning: 'Manage your downloads.',
+      stored: 'preferences-only',
+    })
+    expect(BROWSER_DATA_FLOWS.tabGroups).toEqual({
+      transmission: 'none',
+      permission: 'tabGroups',
+      warning: 'View and manage your tab groups.',
+      stored: 'preferences-only',
+    })
   })
 
   it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
@@ -214,15 +238,21 @@ describe('code-backed privacy inventory', () => {
     expect(production).toMatchObject({
       description: MANIFEST_PRIVACY_DESCRIPTION,
       permissions: ['storage', 'favicon', 'geolocation', 'search'],
-      optional_permissions: ['bookmarks'],
+      optional_permissions: ['bookmarks', 'readingList', 'sessions', 'downloads', 'tabGroups'],
       optional_host_permissions: ['https://*/*'],
     })
     const preview = await manifestFor('preview')
     expect(preview).toMatchObject({
       description: MANIFEST_PRIVACY_DESCRIPTION,
-      permissions: ['storage', 'favicon', 'bookmarks', 'geolocation', 'search'],
+      permissions: ['storage', 'favicon', 'bookmarks', 'readingList', 'sessions', 'downloads', 'tabGroups', 'geolocation', 'search'],
       optional_permissions: [],
       optional_host_permissions: ['https://*/*'],
     })
+    for (const built of [production, preview]) {
+      const declared = [...(built.permissions ?? []), ...(built.optional_permissions ?? [])]
+      expect(declared).not.toContain('tabs')
+      expect(declared).not.toContain('history')
+      expect(declared).not.toContain('downloads.open')
+    }
   })
 })

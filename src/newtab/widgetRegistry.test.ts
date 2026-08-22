@@ -39,6 +39,7 @@ const ALL_WIDGETS_OFF: WidgetToggles = {
   search: false, weather: false, links: false, todo: false, timer: false, quote: false,
   bookmarks: false, notes: false, clocks: false, countdown: false, habits: false,
   monthCal: false, sun: false, moon: false,
+  readingList: false, recentlyClosed: false, downloads: false, tabGroups: false,
 }
 
 const TOGGLE_MAPPING = [

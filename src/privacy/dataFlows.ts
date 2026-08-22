@@ -147,6 +147,30 @@ export const BROWSER_DATA_FLOWS = {
   favicon: { transmission: 'browser-mediated' as const, description: 'Chrome supplies favicons through its local extension API.' },
   navigation: { transmission: 'browser-mediated' as const, description: 'Opening a Quick Link hands its safe HTTP(S) URL to Chrome.' },
   geolocation: { transmission: 'none' as const, description: 'Chrome provides coordinates; Aurora sends them only in the separately listed weather flows.' },
+  readingList: {
+    transmission: 'none' as const,
+    permission: 'readingList' as const,
+    warning: 'Read and change entries in the reading list.' as const,
+    stored: 'preferences-only' as const,
+  },
+  recentlyClosed: {
+    transmission: 'none' as const,
+    permission: 'sessions' as const,
+    warning: 'No standalone warning.' as const,
+    stored: 'preferences-only' as const,
+  },
+  downloads: {
+    transmission: 'none' as const,
+    permission: 'downloads' as const,
+    warning: 'Manage your downloads.' as const,
+    stored: 'preferences-only' as const,
+  },
+  tabGroups: {
+    transmission: 'none' as const,
+    permission: 'tabGroups' as const,
+    warning: 'View and manage your tab groups.' as const,
+    stored: 'preferences-only' as const,
+  },
 }
 
 export const MANIFEST_PRIVACY_DESCRIPTION =

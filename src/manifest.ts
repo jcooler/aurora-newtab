@@ -57,6 +57,12 @@ import { MANIFEST_PRIVACY_DESCRIPTION } from './privacy/dataFlows'
 // building, so this recomputes per build with no extra env var or
 // cross-build state to keep in sync beyond package.json's own scripts.
 const PREVIEW = 'preview'
+const OPTIONAL_BROWSER_WIDGET_PERMISSIONS = [
+  'readingList',
+  'sessions',
+  'downloads',
+  'tabGroups',
+] as const
 
 export default defineManifest((env) => ({
   manifest_version: 3,
@@ -78,7 +84,7 @@ export default defineManifest((env) => ({
   // gesture in Settings.
   permissions:
     env.mode === PREVIEW
-      ? ['storage', 'favicon', 'bookmarks', 'geolocation', 'search']
+      ? ['storage', 'favicon', 'bookmarks', ...OPTIONAL_BROWSER_WIDGET_PERMISSIONS, 'geolocation', 'search']
       : ['storage', 'favicon', 'geolocation', 'search'],
   // Chrome disallows (warns/rejects) listing the same permission as both
   // install-time and optional, so the preview build drops `bookmarks` from
@@ -86,7 +92,9 @@ export default defineManifest((env) => ({
   // `geolocation` can NEVER appear in this array, in either mode — see the
   // comment above the `permissions` array for the exact Chrome warning that
   // rules it out.
-  optional_permissions: env.mode === PREVIEW ? [] : ['bookmarks'],
+  optional_permissions: env.mode === PREVIEW
+    ? []
+    : ['bookmarks', ...OPTIONAL_BROWSER_WIDGET_PERMISSIONS],
   // Per-origin host access for connectors (src/services/permissions.ts's
   // originPattern/hasOrigin/ensureOrigin/removeOrigin): every https origin
   // is requestable, but none is pre-granted — a connector still gets

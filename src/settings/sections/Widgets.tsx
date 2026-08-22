@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ensureBookmarksPermission } from '../../services/bookmarks'
+import { ensurePermission } from '../../services/permissions'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type {
   Countdown,
@@ -52,7 +53,36 @@ const WIDGET_GROUPS: readonly WidgetGroup[] = [
       ['moon', 'Moon phase'],
     ],
   },
+  {
+    title: 'Browser',
+    widgets: [
+      ['readingList', 'Reading List'],
+      ['recentlyClosed', 'Recently Closed'],
+      ['downloads', 'Downloads'],
+      ['tabGroups', 'Tab Groups'],
+    ],
+  },
 ]
+
+const BROWSER_WIDGET_PERMISSIONS = Object.freeze({
+  readingList: 'readingList',
+  recentlyClosed: 'sessions',
+  downloads: 'downloads',
+  tabGroups: 'tabGroups',
+} satisfies Partial<Record<keyof WidgetToggles, chrome.runtime.ManifestPermission>>)
+
+type BrowserWidgetKey = keyof typeof BROWSER_WIDGET_PERMISSIONS
+
+const BROWSER_WIDGET_LABELS = Object.freeze({
+  readingList: 'Reading List',
+  recentlyClosed: 'Recently Closed',
+  downloads: 'Downloads',
+  tabGroups: 'Tab Groups',
+} satisfies Record<BrowserWidgetKey, string>)
+
+function isBrowserWidgetKey(key: keyof WidgetToggles): key is BrowserWidgetKey {
+  return key in BROWSER_WIDGET_PERMISSIONS
+}
 
 export const WIDGET_CONTROL_KEYS: readonly (keyof WidgetToggles)[] = Object.freeze(
   WIDGET_GROUPS.flatMap((group) => group.widgets.map(([key]) => key)),
@@ -79,6 +109,7 @@ export default function Widgets({
   location: StoredLocation | null | undefined
 }) {
   const [bookmarksPermissionDenied, setBookmarksPermissionDenied] = useState(false)
+  const [browserPermissionDenied, setBrowserPermissionDenied] = useState<BrowserWidgetKey | null>(null)
 
   const updateHabits = (fn: (list: Habit[]) => Habit[]) => void storage.update('habits', fn)
 
@@ -108,7 +139,26 @@ export default function Widgets({
         return
       }
     }
+    const browserWidgetKey = isBrowserWidgetKey(key) ? key : null
+    const browserPermission = browserWidgetKey
+      ? BROWSER_WIDGET_PERMISSIONS[browserWidgetKey]
+      : undefined
+    if (browserPermission && checked) {
+      let granted: boolean
+      try {
+        // Keep this as the first await. Chrome requires request() to remain
+        // inside the switch's direct user gesture.
+        granted = await ensurePermission(browserPermission)
+      } catch {
+        granted = false
+      }
+      if (!granted) {
+        setBrowserPermissionDenied(browserWidgetKey)
+        return
+      }
+    }
     if (key === 'bookmarks') setBookmarksPermissionDenied(false)
+    if (browserPermissionDenied === key) setBrowserPermissionDenied(null)
     patch({ widgets: { ...settings.widgets, [key]: checked } })
   }
 
@@ -139,6 +189,8 @@ export default function Widgets({
                     describedBy={
                       key === 'bookmarks' && bookmarksPermissionDenied
                         ? 'w-bookmarks-error'
+                        : key === browserPermissionDenied
+                          ? `w-${key}-permission-error`
                         : (key === 'sun' || key === 'moon') && !location
                           ? SKY_LOCATION_HINT_ID
                           : undefined
@@ -164,6 +216,16 @@ export default function Widgets({
         <p id="w-bookmarks-error" role="alert" className="mt-2 text-xs text-fg-muted">
           Bookmarks permission was denied, so the widget stays off. Turn it on
           again to re-request it.
+        </p>
+      ) : null}
+
+      {browserPermissionDenied ? (
+        <p
+          id={`w-${browserPermissionDenied}-permission-error`}
+          role="alert"
+          className="mt-2 text-xs text-fg-muted"
+        >
+          {BROWSER_WIDGET_LABELS[browserPermissionDenied]} access was denied, so the widget stays off. Turn it on again to re-request it.
         </p>
       ) : null}
 

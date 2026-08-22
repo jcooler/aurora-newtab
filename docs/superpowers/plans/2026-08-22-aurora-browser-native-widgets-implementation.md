@@ -49,14 +49,14 @@ Vite/CRXJS, Playwright/Chromium, Node test runner.
 - Modify: `src/privacy/dataFlows.ts`
 - Modify: `src/privacy/dataFlows.test.ts`
 
-- [ ] **Step 1: Write schema and migration failures**
+- [x] **Step 1: Write schema and migration failures**
 
 Add failing assertions that `CURRENT_VERSION` is 16, migration step 15 backfills
 exactly the four false toggles into old nested settings while preserving
 unknown keys and all prior fields, widget introduction metadata records 16,
 and a v15 backup remains importable after migration.
 
-- [ ] **Step 2: Observe storage RED**
+- [x] **Step 2: Observe storage RED**
 
 Run:
 
@@ -66,25 +66,27 @@ npx vitest run src/lib/storage/migrations.test.ts src/lib/storage/widgetToggleVe
 
 Expected: FAIL on the missing v16 keys and migration.
 
-- [ ] **Step 3: Implement additive schema v16**
+- [x] **Step 3: Implement additive schema v16**
 
 Add `readingList`, `recentlyClosed`, `downloads`, and `tabGroups` to
-`WidgetToggles`, default all four to false, add migration 15 using the existing
-generic widget-default merge, move `METADATA_ONLY_FLOOR` if required by the
-non-identity step, and update exact validators/fixtures without weakening them.
+`WidgetToggles`, default all four to false, and add migration 15. The migration
+must merge defaults only into an already-valid settings/widget map so malformed
+older documents still reach strict rejection instead of being laundered into a
+valid shape. Move `METADATA_ONLY_FLOOR` for the non-identity step and update
+exact validators/fixtures without weakening them.
 
-- [ ] **Step 4: Reach storage GREEN**
+- [x] **Step 4: Reach storage GREEN**
 
 Run the focused storage command from Step 2 and `npx tsc --noEmit`.
 
-- [ ] **Step 5: Write manifest and privacy failures**
+- [x] **Step 5: Write manifest and privacy failures**
 
 Pin production optional permissions to bookmarks plus the four new names,
 preview install-time permissions to bookmarks plus the four new names, and the
 absence of `tabs`, `history`, `downloads.open`, and new origins. Pin four
 browser-mediated privacy entries and the official warning copy.
 
-- [ ] **Step 6: Observe manifest/privacy RED**
+- [x] **Step 6: Observe manifest/privacy RED**
 
 Run:
 
@@ -94,13 +96,13 @@ npx vitest run src/privacy/dataFlows.test.ts
 
 Expected: FAIL because the manifest and inventory do not yet declare Program F.
 
-- [ ] **Step 7: Implement the permission split and inventory**
+- [x] **Step 7: Implement the permission split and inventory**
 
 Generalize the Bookmarks preview split without duplicating a permission between
 `permissions` and `optional_permissions`. Add the four exact browser-data flow
 entries. Do not add an origin or product request.
 
-- [ ] **Step 8: Commit the foundation slice**
+- [x] **Step 8: Commit the foundation slice**
 
 Run focused GREEN, TypeScript, and `git diff --check`, then commit:
 

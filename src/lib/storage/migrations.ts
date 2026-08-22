@@ -214,6 +214,22 @@ export const migrations: Record<number, Migration> = {
   // registry step stays identity; migrate()'s final defaults merge supplies
   // null without touching any prior user value.
   14: (data) => data,
+  // v15 -> v16: Program F adds four nested browser-native widget toggles.
+  // This is the same generic nested-widget merge used by v6 -> v7 and
+  // v8 -> v9: current defaults fill only missing toggle keys while every
+  // stored choice and Settings sibling wins unchanged.
+  15: (data) => {
+    const d = defaults()
+    const settings = data.settings
+    if (!isPlainObject(settings) || !isPlainObject(settings.widgets)) return data
+    return {
+      ...data,
+      settings: {
+        ...settings,
+        widgets: { ...d.settings.widgets, ...settings.widgets },
+      },
+    }
+  },
 }
 
 export function migrate(

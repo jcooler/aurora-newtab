@@ -92,14 +92,19 @@ describe('migrate', () => {
         calls.push(13)
         return data
       },
-      // registry[14] upgrades v14 -> v15 (CURRENT_VERSION)
+      // registry[14] upgrades v14 -> v15
       14: (data) => {
         calls.push(14)
         return data
       },
+      // registry[15] upgrades v15 -> v16 (CURRENT_VERSION)
+      15: (data) => {
+        calls.push(15)
+        return data
+      },
     }
     const out = migrate({}, 0, registry)
-    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14])
+    expect(calls).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])
     expect(out.focus?.text).toBe('migrated')
   })
 
@@ -615,7 +620,7 @@ describe('v10 -> v11', () => {
     const settings = v10Settings({ name: 'Keep me', muted: true })
     const out = migrate({ settings }, 10)
 
-    expect(CURRENT_VERSION).toBe(15)
+    expect(CURRENT_VERSION).toBe(16)
     expect(out.settings).toEqual({
       ...settings,
       layoutDensity: 'auto',
@@ -707,7 +712,7 @@ describe('v11 -> v12', () => {
 
     const out = migrate(snapshot, 11) as AuroraData & { unknownStore: { future: string[] } }
 
-    expect(CURRENT_VERSION).toBe(15)
+    expect(CURRENT_VERSION).toBe(16)
     expect(out.layout).toEqual(layout)
     // The v13->v14 ink backfill is the ONLY settings delta on the way up.
     expect(out.settings).toEqual({
@@ -752,7 +757,7 @@ describe('v12 -> v13', () => {
     expect(migrated.layouts).toBeNull()
   })
 
-  // Guard for index.ts's METADATA_ONLY_FLOOR (15, mirrored here by value):
+  // Guard for index.ts's METADATA_ONLY_FLOOR (16, mirrored here by value):
   // live init stamps only `aurora:version` for any stored version >= that
   // floor, which is safe ONLY while every migration step in the range is the
   // identity. A future packet that adds a NON-identity step without raising
@@ -775,9 +780,13 @@ describe('v12 -> v13', () => {
     // snapshot — the documented reason the floor sits at 14.
     expect(migrations[13](structuredClone(probe))).not.toEqual(probe)
     // v14 -> v15 adds only the top-level timerSession key supplied by the
-    // defaults merge, so the registry step itself must remain the identity.
+    // defaults merge, so the registry step itself remains the identity.
     expect(migrations[14](structuredClone(probe))).toEqual(probe)
-    for (let v = 15; v < CURRENT_VERSION; v++) {
+    // v15 -> v16 is NOT identity: Program F adds four nested widget toggles.
+    const preBrowser = structuredClone(probe)
+    delete (preBrowser.settings.widgets as Record<string, unknown>).readingList
+    expect(migrations[15](structuredClone(preBrowser))).not.toEqual(preBrowser)
+    for (let v = 16; v < CURRENT_VERSION; v++) {
       const before = structuredClone(probe)
       const out = migrations[v](structuredClone(probe))
       expect(out, `migrations[${v}] must be the identity`).toEqual(before)
@@ -794,6 +803,35 @@ describe('v14 -> v15', () => {
     expect(migrations[14](structuredClone(snapshot))).toEqual(before)
     const migrated = migrate(snapshot, 14) as AuroraData & { unknownStore: { future: string[] } }
     expect(migrated.timerSession).toBeNull()
+    expect(migrated.layout).toEqual(before.layout)
+    expect(migrated.layouts).toEqual(before.layouts)
+    expect(migrated.unknownStore).toEqual(before.unknownStore)
+    expect(snapshot).toEqual(before)
+  })
+})
+
+describe('v15 -> v16', () => {
+  it('backfills exactly the four browser-native toggles and preserves every sibling', () => {
+    const current = defaults()
+    const widgets = { ...current.settings.widgets } as Record<string, boolean>
+    for (const key of ['readingList', 'recentlyClosed', 'downloads', 'tabGroups']) delete widgets[key]
+    const snapshot = {
+      ...current,
+      settings: { ...current.settings, name: 'Keep me', widgets },
+      unknownStore: { future: ['keep'] },
+    }
+    const before = structuredClone(snapshot)
+
+    const migrated = migrate(snapshot, 15) as AuroraData & { unknownStore: { future: string[] } }
+
+    expect(migrated.settings.widgets).toEqual({
+      ...widgets,
+      readingList: false,
+      recentlyClosed: false,
+      downloads: false,
+      tabGroups: false,
+    })
+    expect(migrated.settings.name).toBe('Keep me')
     expect(migrated.layout).toEqual(before.layout)
     expect(migrated.layouts).toEqual(before.layouts)
     expect(migrated.unknownStore).toEqual(before.unknownStore)
