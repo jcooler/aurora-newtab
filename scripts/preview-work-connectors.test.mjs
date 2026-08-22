@@ -59,4 +59,6 @@ test('waits for live resize state and isolates expected fault injection from rea
   assert.ok(source.includes('expectedFaultSignals'))
   assert.ok(source.includes('expectedFailedRequests.has(request)'))
   assert.ok(source.includes('markHarnessNavigation()'))
+  assert.ok(source.includes('async function resetForSettings(widget)'))
+  assert.ok(source.includes("widgets[id] = { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'standard', layer: 0 }"))
 })

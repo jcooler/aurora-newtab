@@ -467,17 +467,18 @@ async function openConnectors() {
   await page.getByPlaceholder('Search connectors').waitFor()
 }
 
-async function resetForSettings() {
+async function resetForSettings(widget) {
   networkModes.clear()
-  await page.evaluate(async (allWidgetIds) => {
+  await page.evaluate(async ({ allWidgetIds, id }) => {
     const { settings } = await chrome.storage.local.get('settings')
     const widgets = Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))
+    widgets[id] = { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'standard', layer: 0 }
     await chrome.storage.local.set({
       settings,
       connectors: {}, connectorSnapshots: {},
       layouts: { version: 1, activeLayoutId: 'work-settings-qa', layouts: [{ id: 'work-settings-qa', name: 'Work Settings QA', widgets }] },
     })
-  }, ALL_WIDGET_IDS)
+  }, { allWidgetIds: ALL_WIDGET_IDS, id: widget.id })
   await reloadForHarness()
   await waitForSurface()
   await openConnectors()
@@ -496,7 +497,7 @@ async function fillSetup(widget) {
 }
 
 async function exerciseSettings(widget) {
-  await resetForSettings()
+  await resetForSettings(widget)
   const search = page.getByPlaceholder('Search connectors')
   await search.fill(widget.title)
   await page.getByRole('button', { name: `Set up ${widget.title}` }).click()
