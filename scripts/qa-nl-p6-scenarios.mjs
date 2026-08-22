@@ -164,3 +164,42 @@ SCENARIOS.push({
     })
   },
 })
+
+// Flow is storage-owned rather than widget-toggle-owned. Seed it from the
+// same initialized store as every other scenario so the sweep proves the
+// production App switch, not a preview-only route or component mount.
+SCENARIOS.push({
+  id: 'flow',
+  note: 'A running persisted Flow session with today\'s focus and two unfinished tasks; the dashboard must be wholly absent.',
+  seed: async (page) => {
+    await page.evaluate(async () => {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).formatToParts(new Date())
+      const value = (type) => parts.find((part) => part.type === type)?.value
+      const day = `${value('year')}-${value('month')}-${value('day')}`
+      const remainingMs = 20 * 60_000
+      await chrome.storage.local.set({
+        focus: { text: 'Finish one meaningful thing', date: day, done: false },
+        todoLists: [{
+          id: 'flow-today',
+          name: 'Today',
+          items: [
+            { id: 'flow-first', text: 'Review the quiet work surface', done: false },
+            { id: 'flow-second', text: 'Record the cross-tab evidence', done: false },
+          ],
+        }],
+        timerSession: {
+          mode: 'work',
+          running: true,
+          endsAt: Date.now() + remainingMs,
+          remainingMs,
+          cycles: 1,
+          flow: true,
+        },
+      })
+    })
+  },
+})

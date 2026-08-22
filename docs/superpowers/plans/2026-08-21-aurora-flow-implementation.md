@@ -223,23 +223,23 @@ git commit -m "feat(flow): clear the dashboard down to the work"
 - Modify: `scripts/preview-information-first.test.mjs`
 - Create: `docs/superpowers/reports/FLOW-QA.md`
 
-- [ ] **RED - harness contract:** Extend the Node contract test to require a
+- [x] **RED - harness contract:** Extend the Node contract test to require a
   sixth `flow` storage scenario, Flow-aware product readiness/invariants, an
   ignored edit chord rather than a missing-session false failure, and explicit
   no-layout-write checks. Observe failure before changing the drivers.
-- [ ] Seed Flow with a long-running absolute deadline, today's focus sentence,
+- [x] Seed Flow with a long-running absolute deadline, today's focus sentence,
   and at least two unchecked tasks. Make the matrix wait for either the normal
   canvas or `[data-flow-screen]`; keep existing scenarios' assertions exact.
-- [ ] At every existing viewport capture Flow in its normal state and after the
+- [x] At every existing viewport capture Flow in its normal state and after the
   attempted edit chord. Assert the screen is present and bounded, the timer and
   exit control are reachable, the canvas/docks/fixed controls remain absent,
   no horizontal overflow exists, and no storage write occurs merely because
   the screen rendered.
-- [ ] Extend the real-window witness at exact 1408x445 with Flow entry/exit and
+- [x] Extend the real-window witness at exact 1408x445 with Flow entry/exit and
   dashboard restoration. Add a real second new-tab page assertion that both
   tabs show the same mode/deadline and displayed countdown within one second;
   pause in one and observe the other update.
-- [ ] Run the focused Node contract GREEN. Build `dist` from the implementation
+- [x] Run the focused Node contract GREEN. Build `dist` from the implementation
   commit, then run the sweep and window witness only into `.qa-flow-*` scratch
   output. Inspect Flow at 599x800, 720x900, 1024x600, 1408x445, 1600x900,
   1920x550, and 3440x1440 at original resolution. Record exact evidence and

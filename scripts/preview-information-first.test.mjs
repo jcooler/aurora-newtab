@@ -12,6 +12,7 @@ import {
 } from './information-first-viewports.mjs'
 import { CONNECTOR_SIZE_PROMISES } from './information-first-fixtures.mjs'
 import { mergeInformationFirstEvidence } from './information-first-evidence.mjs'
+import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
 
 const exactViewports = [
   [320, 568], [360, 800], [375, 812], [390, 844], [412, 915],
@@ -120,4 +121,37 @@ test('a green focused rerun can resume without repeating its viewport', () => {
   assert.equal(merged.states.length, 2)
   assert.equal(merged.states[0].marker, 'focused')
   assert.deepEqual(merged.deepInteractions, [{ viewport: '1024x768' }])
+})
+
+test('Flow is a first-class NL-P6 scenario with immersive and cross-tab proof', () => {
+  assert.deepEqual(SCENARIOS.map(({ id }) => id), [
+    'fresh',
+    'legacy-v1',
+    'named-saved',
+    'connectors',
+    'connectors-default',
+    'flow',
+  ])
+
+  const scenarios = readFileSync(new URL('./qa-nl-p6-scenarios.mjs', import.meta.url), 'utf8')
+  for (const token of ['timerSession', 'flow: true', 'focus:', 'todoLists:']) {
+    assert.match(scenarios, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+  }
+
+  const sweep = readFileSync(new URL('./qa-nl-p6.mjs', import.meta.url), 'utf8')
+  for (const token of [
+    '[data-canvas-surface], [data-flow-screen]',
+    'flow screen missing',
+    'dashboard leaked into Flow',
+    'edit chord changed Flow',
+    'Flow rendered with storage writes',
+  ]) assert.match(sweep, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+
+  const windowWitness = readFileSync(new URL('./qa-nl-p6-window.mjs', import.meta.url), 'utf8')
+  for (const token of [
+    'window-flow-second-tab',
+    'countdowns differ by',
+    'Pause timer',
+    'dashboard did not restore',
+  ]) assert.match(windowWitness, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
 })

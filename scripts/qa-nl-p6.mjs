@@ -77,8 +77,8 @@ page.on('requestfailed', (r) => {
   }
 })
 
-const waitForCanvas = async () => {
-  await page.waitForSelector('[data-canvas-surface]')
+const waitForProductSurface = async () => {
+  await page.waitForSelector('[data-canvas-surface], [data-flow-screen]')
   await page.waitForTimeout(350)
 }
 const armWriteLog = () => page.evaluate(() => {
@@ -90,12 +90,24 @@ const armWriteLog = () => page.evaluate(() => {
 const harvestWrites = async (label) => {
   const writes = await page.evaluate(() => window.__writeLog ?? [])
   for (const keys of writes) evidence.writes.push(`${label}:${keys}`)
+  return writes
 }
 
 async function assertInvariants(cell) {
   const truth = await page.evaluate(() => {
     const doc = document.documentElement
     const surface = document.querySelector('[data-canvas-surface]')
+    const flow = document.querySelector('[data-flow-screen]')
+    const flowRect = flow?.getBoundingClientRect()
+    const flowLeaks = flow ? [
+      '[data-canvas-surface]',
+      'nav[aria-label="Top bar"]',
+      'nav[aria-label="Bottom bar"]',
+      'button[aria-label="Open settings"]',
+      'button[aria-label="Open utility tray"]',
+      'button[aria-label="New background photo"]',
+      '[role="toolbar"][aria-label="Edit layout"]',
+    ].filter((selector) => document.querySelector(selector)) : []
     const items = [...document.querySelectorAll('[data-block-id]')]
     // A widget marked data-canvas-empty rendered nothing BY DESIGN (the
     // no-husk law: unconfigured World clocks, Countdown, Habits). It is
@@ -125,12 +137,29 @@ async function assertInvariants(cell) {
     return {
       hOverflow: doc.scrollWidth > doc.clientWidth,
       surfacePresent: Boolean(surface),
+      flowPresent: Boolean(flow),
+      flowBounded: Boolean(flowRect
+        && flowRect.left >= -1 && flowRect.top >= -1
+        && flowRect.right <= window.innerWidth + 1
+        && flowRect.bottom <= Math.max(window.innerHeight, flowRect.height) + 1),
+      flowTimerPresent: Boolean(flow?.querySelector('[data-flow-timer]')),
+      flowExitPresent: Boolean(flow?.querySelector('button[aria-label="End flow"]')),
+      flowLeaks,
       zero,
       offscreen,
       gearHit,
     }
   })
   if (truth.hOverflow) fail(`${cell}: horizontal page overflow`)
+  if (truth.flowPresent) {
+    if (!truth.flowBounded || !truth.flowTimerPresent || !truth.flowExitPresent) {
+      fail(`${cell}: flow screen missing or unbounded`)
+    }
+    if (truth.surfacePresent || truth.flowLeaks.length) {
+      fail(`${cell}: dashboard leaked into Flow (${truth.flowLeaks.join(',')})`)
+    }
+    return
+  }
   if (!truth.surfacePresent) fail(`${cell}: canvas surface missing`)
   if (truth.zero.length) fail(`${cell}: degenerate widgets ${truth.zero.join(',')}`)
   if (truth.offscreen.length) fail(`${cell}: fully offscreen widgets ${truth.offscreen.join(',')}`)
@@ -180,6 +209,25 @@ async function scenarioChecks(id) {
     ))
     if (!/PR|issue|clear/i.test(github)) fail(`connectors: github dock line reads "${github}"`)
   }
+  if (id === 'flow') {
+    const flowTruth = await page.evaluate(async () => {
+      const { timerSession, focus, todoLists } = await chrome.storage.local.get(['timerSession', 'focus', 'todoLists'])
+      return {
+        screen: Boolean(document.querySelector('[data-flow-screen]')),
+        running: timerSession?.running,
+        flow: timerSession?.flow,
+        deadline: timerSession?.endsAt,
+        focus: focus?.text,
+        unfinished: todoLists?.[0]?.items?.filter((item) => !item.done).length,
+      }
+    })
+    if (!flowTruth.screen || !flowTruth.running || !flowTruth.flow || !flowTruth.deadline) {
+      fail(`flow: persisted running screen missing ${JSON.stringify(flowTruth)}`)
+    }
+    if (!flowTruth.focus || flowTruth.unfinished !== 2) {
+      fail(`flow: focus/task fixture missing ${JSON.stringify(flowTruth)}`)
+    }
+  }
 }
 
 let caughtError
@@ -188,13 +236,13 @@ try {
     // Fresh storage per scenario: clear all, reload to re-init defaults,
     // then seed and reload once more.
     await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
-    await waitForCanvas()
+    await waitForProductSurface()
     await page.evaluate(async () => { await chrome.storage.local.clear() })
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await waitForCanvas()
+    await waitForProductSurface()
     await scenario.seed(page)
     await page.reload({ waitUntil: 'domcontentloaded' })
-    await waitForCanvas()
+    await waitForProductSurface()
     await armWriteLog()
     await page.setViewportSize({ width: 1600, height: 900 })
     await page.waitForTimeout(250)
@@ -209,17 +257,22 @@ try {
       await assertInvariants(`${cell}-normal`)
       await capture(`${cell}-normal`)
 
-      // Edit state: keyboard chord in, capture, exact-cancel out. Below the
-      // narrow floor the stack renders and the session is still permitted;
-      // the capture shows what the user gets.
+      // Edit state: normal dashboards enter and exact-cancel. Flow must
+      // ignore the same chord and remain the sole product surface.
       await page.keyboard.press('Control+Shift+E')
       await page.waitForTimeout(300)
       const sessionLive = await page.evaluate(() => Boolean(document.querySelector('[role="toolbar"][aria-label="Edit layout"]')))
-      if (!sessionLive) fail(`${cell}-edit: session did not open`)
-      await assertInvariants(`${cell}-edit`)
-      await capture(`${cell}-edit`)
-      await page.keyboard.press('Escape')
-      await page.waitForTimeout(250)
+      if (scenario.id === 'flow') {
+        if (sessionLive) fail(`${cell}: edit chord changed Flow`)
+        await assertInvariants(`${cell}-edit-ignored`)
+        await capture(`${cell}-edit-ignored`)
+      } else {
+        if (!sessionLive) fail(`${cell}-edit: session did not open`)
+        await assertInvariants(`${cell}-edit`)
+        await capture(`${cell}-edit`)
+        await page.keyboard.press('Escape')
+        await page.waitForTimeout(250)
+      }
 
       if ((scenario.id === 'named-saved' || scenario.id === 'connectors') && HOVER_DOCK_VIEWPORTS.has(vpId)) {
         const member = page.locator('nav[aria-label="Bottom bar"] [data-block-id]').first()
@@ -235,7 +288,10 @@ try {
         }
       }
     }
-    await harvestWrites(scenario.id)
+    const scenarioWrites = await harvestWrites(scenario.id)
+    if (scenario.id === 'flow' && scenarioWrites.length > 0) {
+      fail(`flow: Flow rendered with storage writes ${scenarioWrites.join(';')}`)
+    }
   }
 
   // Write-log law: after each scenario's own seeding, the running product

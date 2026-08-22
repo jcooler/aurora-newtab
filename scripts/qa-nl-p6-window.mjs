@@ -36,7 +36,7 @@ if (!existsSync(dist)) {
   }
 }
 
-const evidence = { measuredInner: null, stages: [], writes: [], failures: [], runtimeErrors: [], failedRequests: [] }
+const evidence = { measuredInner: null, stages: [], writes: [], flowCrossTab: null, failures: [], runtimeErrors: [], failedRequests: [] }
 const fail = (message) => { evidence.failures.push(message) }
 
 // HEADED with a real window: the outer size approximates the target; the
@@ -73,6 +73,10 @@ page.on('requestfailed', (r) => {
 const waitForCanvas = async () => {
   await page.waitForSelector('[data-canvas-surface]')
   await page.waitForTimeout(400)
+}
+const waitForFlow = async (target = page) => {
+  await target.waitForSelector('[data-flow-screen]')
+  await target.waitForTimeout(400)
 }
 const armWriteLog = () => page.evaluate(() => {
   window.__writeLog = []
@@ -182,6 +186,69 @@ try {
   await page.waitForTimeout(250)
   const cancelWrites = await page.evaluate(() => window.__writeLog ?? [])
   if (cancelWrites.length > 0) fail(`window cancel: session wrote ${cancelWrites.join(';')}`)
+
+  // (5) Flow owns the real window and the same persisted deadline is visible
+  // in a second real extension tab. A pause in one must update the other.
+  const flowScenario = SCENARIOS.find((scenario) => scenario.id === 'flow')
+  await flowScenario.seed(page)
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForFlow()
+  await armWriteLog()
+  await stage('window-1408x445-flow', `Flow replaced the dashboard in the real ${inner.width}x${inner.height} window`)
+
+  const firstSession = await page.evaluate(async () => (await chrome.storage.local.get('timerSession')).timerSession)
+  const firstCountdown = await page.locator('[data-flow-timer] p[aria-label*="timer"]').textContent()
+  const secondPage = await context.newPage()
+  secondPage.setDefaultTimeout(20_000)
+  secondPage.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`second-tab console: ${m.text()}`) })
+  secondPage.on('pageerror', (e) => evidence.runtimeErrors.push(`second-tab page: ${String(e)}`))
+  await secondPage.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
+  await waitForFlow(secondPage)
+  const secondSession = await secondPage.evaluate(async () => (await chrome.storage.local.get('timerSession')).timerSession)
+  const secondCountdown = await secondPage.locator('[data-flow-timer] p[aria-label*="timer"]').textContent()
+  await secondPage.screenshot({ path: resolve(outDir, 'window-flow-second-tab.png') })
+  evidence.stages.push({ name: 'window-flow-second-tab', note: 'second extension tab shares Flow mode and deadline' })
+
+  if (firstSession?.endsAt !== secondSession?.endsAt || !firstSession?.flow || !secondSession?.flow) {
+    fail(`window Flow tabs disagree on session ${JSON.stringify({ firstSession, secondSession })}`)
+  }
+  const countdownSeconds = (text) => {
+    const [minutes, seconds] = String(text).trim().split(':').map(Number)
+    return minutes * 60 + seconds
+  }
+  const countdownDelta = Math.abs(countdownSeconds(firstCountdown) - countdownSeconds(secondCountdown))
+  if (countdownDelta > 1) fail(`window Flow countdowns differ by ${countdownDelta}s`)
+
+  await page.getByRole('button', { name: 'Pause timer' }).click()
+  await secondPage.getByRole('button', { name: 'Resume timer' }).waitFor()
+
+  await page.getByRole('button', { name: 'End flow' }).click()
+  await page.waitForSelector('[data-canvas-surface]')
+  await secondPage.waitForSelector('[data-canvas-surface]')
+  const flowWrites = await page.evaluate(() => window.__writeLog ?? [])
+  evidence.writes.push(...flowWrites.map((keys) => `flow:${keys}`))
+  if (flowWrites.some((keys) => keys.split(',').some((key) => key === 'layout' || key === 'layouts'))) {
+    fail(`window Flow wrote layout state ${flowWrites.join(';')}`)
+  }
+  const restored = await page.evaluate(() => ({
+    canvas: Boolean(document.querySelector('[data-canvas-surface]')),
+    flow: Boolean(document.querySelector('[data-flow-screen]')),
+  }))
+  const secondRestored = await secondPage.evaluate(() => ({
+    canvas: Boolean(document.querySelector('[data-canvas-surface]')),
+    flow: Boolean(document.querySelector('[data-flow-screen]')),
+  }))
+  evidence.flowCrossTab = {
+    sameDeadline: firstSession?.endsAt === secondSession?.endsAt,
+    countdownDeltaSeconds: countdownDelta,
+    pauseObservedInSecondTab: true,
+    firstTabRestored: restored.canvas && !restored.flow,
+    secondTabRestored: secondRestored.canvas && !secondRestored.flow,
+  }
+  if (!restored.canvas || restored.flow) fail(`window Flow dashboard did not restore ${JSON.stringify(restored)}`)
+  if (!secondRestored.canvas || secondRestored.flow) fail(`window Flow second-tab dashboard did not restore ${JSON.stringify(secondRestored)}`)
+  await stage('window-1408x445-flow-exit', 'pause synchronized across tabs and ending Flow restored the named dashboard')
+  await secondPage.close()
 } catch (error) {
   caughtError = error
 } finally {
