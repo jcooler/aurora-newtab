@@ -165,6 +165,20 @@ describe('Background', () => {
     unmount()
   })
 
+  it('keeps the photograph but suppresses photo controls for an immersive surface', async () => {
+    const prefs: PhotoPrefs = { mode: 'auto', index: 0, lastRotated: '2026-07-26' }
+    const storage = createStorage(memoryDriver())
+    render(
+      <StorageProvider storage={storage}>
+        <Background prefs={prefs} onPrefsChange={vi.fn()} showControls={false} />
+      </StorageProvider>,
+    )
+    await act(async () => {})
+
+    expect(document.querySelector('img')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'New background photo' })).toBeNull()
+  })
+
   it('upload mode with an empty gallery falls back to the bundled photo set', async () => {
     vi.mocked(listUploads).mockResolvedValue([])
     const onPrefsChange = vi.fn()

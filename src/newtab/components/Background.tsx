@@ -48,10 +48,12 @@ export default function Background({
   prefs,
   onPrefsChange,
   utilityTray,
+  showControls = true,
 }: {
   prefs: PhotoPrefs
   onPrefsChange: (next: PhotoPrefs) => void
   utilityTray?: UtilityTrayBridge
+  showControls?: boolean
 }) {
   // null = not loaded yet (or not in upload mode); [] = loaded and confirmed
   // empty — the distinction matters because only a confirmed-empty gallery
@@ -330,7 +332,7 @@ export default function Background({
             photo-vs-UI cohesion, not as the primary legibility mechanism. */}
         <div className="absolute inset-0" style={{ background: 'var(--scrim)' }} />
       </div>
-      {showRefresh && (
+      {showControls && showRefresh && (
         <button
           type="button"
           aria-label="New background photo"
@@ -348,7 +350,7 @@ export default function Background({
           </svg>
         </button>
       )}
-      {utilityTray?.activeTool === 'refresh' && utilityTray.host
+      {showControls && utilityTray?.activeTool === 'refresh' && utilityTray.host
         ? createPortal(
             <section aria-label="Background refresh" className="flex flex-col gap-3">
               <h3 className="text-sm font-semibold">Background refresh</h3>

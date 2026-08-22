@@ -183,29 +183,29 @@ git commit -m "feat(flow): give the timer one cross-tab authority"
 - Modify: `src/newtab/index.css` only for Flow-specific responsive tokens that
   cannot be expressed truthfully with existing utilities
 
-- [ ] **RED - Flow content:** Add component tests for today's existing mantra,
+- [x] **RED - Flow content:** Add component tests for today's existing mantra,
   the empty mantra input writing the same `focus` key, stale-focus handling,
   the first unchecked task, accurate remaining count, atomic task completion
   and promotion, and no task husk when absent.
-- [ ] **RED - Flow controls:** Require a large accurate timer, named work/break
+- [x] **RED - Flow controls:** Require a large accurate timer, named work/break
   phase, progress rail, Pause/Resume, End flow, Escape through the shared stack,
   focus entry, visible focus indicators, and reduced-motion-safe classes.
-- [ ] Implement the restrained photo-field composition using the existing
+- [x] Implement the restrained photo-field composition using the existing
   display/body fonts, `text-photo`, `--canvas-fg`, `--canvas-fg-muted`, and
   `--accent`. Do not add a generic opaque card, hard-code for black widgets,
   or create new color settings.
-- [ ] **RED - Background boundary:** Prove Flow can retain the photograph while
+- [x] **RED - Background boundary:** Prove Flow can retain the photograph while
   suppressing the change-photo control. Add the smallest explicit Background
   prop and preserve default behavior byte-for-byte.
-- [ ] **RED - App switch:** Add integration tests that stored `flow: true`
+- [x] **RED - App switch:** Add integration tests that stored `flow: true`
   renders Background plus FlowScreen but no canvas surface, widget, dock,
   layout badge, settings gear, tray, palette, or photo button; Ctrl/Cmd+Shift+E
   is ignored; End/Escape restores the exact dashboard; timer state continues;
   and the complete interaction write log contains no `layout` or `layouts`.
-- [ ] Implement the mutually exclusive App branch. All existing dashboard
+- [x] Implement the mutually exclusive App branch. All existing dashboard
   hooks may remain mounted only if they perform no hidden presentation work;
   no dashboard component or second timer consumer may mount beneath Flow.
-- [ ] Run focused GREEN, accessibility-oriented queries, TypeScript, and diff
+- [x] Run focused GREEN, accessibility-oriented queries, TypeScript, and diff
   hygiene. Commit:
 
 ```powershell

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StorageProvider } from '../lib/storage/context'
 import { memoryDriver } from '../lib/storage/driver'
@@ -67,6 +67,46 @@ describe('App Canvas composition', () => {
     for (const name of ['Day', 'Now', 'Work Pulse', 'Signal Dock']) {
       expect(screen.queryByRole('region', { name })).toBeNull()
     }
+  })
+
+  it('renders Flow as a mutually exclusive surface and restores the untouched dashboard on exit', async () => {
+    const storage = createStorage(memoryDriver({
+      ...defaults(),
+      timerSession: {
+        mode: 'work',
+        running: false,
+        endsAt: null,
+        remainingMs: 11 * 60_000,
+        cycles: 2,
+        flow: true,
+      },
+      'aurora:version': 15,
+    }))
+    await storage.init()
+    const beforeLayout = JSON.stringify(await storage.get('layout'))
+    const beforeLayouts = JSON.stringify(await storage.get('layouts'))
+
+    await renderApp(storage)
+
+    expect(document.querySelector('[data-flow-screen]')).toBeTruthy()
+    expect(document.querySelector('[data-canvas-surface]')).toBeNull()
+    expect(document.querySelector('[data-edit-toolbar]')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Open settings' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'New background photo' })).toBeNull()
+
+    fireEvent.keyDown(window, { key: 'E', ctrlKey: true, shiftKey: true })
+    expect(document.querySelector('[data-edit-toolbar]')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'End flow' }))
+    await waitFor(() => expect(document.querySelector('[data-canvas-surface]')).toBeTruthy())
+
+    expect(await storage.get('timerSession')).toMatchObject({
+      flow: false,
+      remainingMs: 11 * 60_000,
+      cycles: 2,
+    })
+    expect(JSON.stringify(await storage.get('layout'))).toBe(beforeLayout)
+    expect(JSON.stringify(await storage.get('layouts'))).toBe(beforeLayouts)
   })
 
   // The tray trigger renders only when the tray offers more than the corner

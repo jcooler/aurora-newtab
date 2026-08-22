@@ -52,7 +52,8 @@ import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
-import { TimerSessionProvider } from './widgets/timer/TimerSessionProvider'
+import { TimerSessionProvider, useTimerSession } from './widgets/timer/TimerSessionProvider'
+import FlowScreen from './flow/FlowScreen'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
 
@@ -71,6 +72,7 @@ function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayou
 }
 
 function AuroraApp() {
+  const timer = useTimerSession()
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
@@ -318,13 +320,17 @@ function AuroraApp() {
       // A live session ignores the chord entirely — re-entry would discard
       // the draft (review fix C1; begin is also identity-guarded).
       if (sessionLiveRef.current) return
+      // Flow is mutually exclusive with every Canvas editing surface. The
+      // hidden dashboard never accepts edit commands while the timer owns
+      // the viewport.
+      if (timer.session.flow) return
       if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       event.preventDefault()
       editMode.begin(document.activeElement instanceof HTMLElement ? document.activeElement : null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editMode])
+  }, [editMode, timer.session.flow])
 
   // Arrow keys move the selection by 8px, Shift+Arrow by 1px (spec 2.5),
   // converted to percent against the live viewport span.
@@ -344,7 +350,18 @@ function AuroraApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [editMode, session])
 
-  if (!inputsReady || !settings || !photoPrefs || !storedLayout || !connectors || !activeLayout) return null
+  if (!settings || !photoPrefs || !timer.hydrated) return null
+
+  if (timer.session.flow) {
+    return (
+      <main data-aurora-flow="" className="aurora-canvas text-fg">
+        <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} showControls={false} />
+        <FlowScreen />
+      </main>
+    )
+  }
+
+  if (!inputsReady || !storedLayout || !connectors || !activeLayout) return null
 
   const homeAssistant = connectors.homeassistant as HomeAssistantConfig | undefined
   const utilityTools: { id: UtilityToolId; label: string }[] = [
