@@ -1,6 +1,9 @@
 import { useCallback, useRef, useState } from 'react'
 import {
   beginEditSession,
+  selectStack,
+  selectWidget,
+  type EditSelection,
   type EditSession,
 } from '../../lib/layout/editSession'
 import { saveLayoutsDocument } from '../../lib/layout/layoutOperations'
@@ -13,7 +16,8 @@ import { isPremium } from '../../lib/premium'
 export interface EditModeApi {
   session: EditSession | null
   begin: (invoker?: HTMLElement | null) => void
-  select: (id: BlockId | null) => void
+  /** String ids remain accepted until the Task 4 canvas cutover. */
+  select: (selection: EditSelection | BlockId | null) => void
   dispatch: (updater: (session: EditSession) => EditSession) => void
   cancel: () => void
   save: () => Promise<void>
@@ -50,8 +54,16 @@ export function useEditMode(input: {
     setSession(beginEditSession(resolved, enabledIds))
   }, [])
 
-  const select = useCallback((id: BlockId | null) => {
-    setSession((current) => (current ? { ...current, selectedId: id } : current))
+  const select = useCallback((selection: EditSelection | BlockId | null) => {
+    setSession((current) => {
+      if (!current) return current
+      if (selection === null || typeof selection === 'string') {
+        return selectWidget(current, selection)
+      }
+      return selection.kind === 'stack'
+        ? selectStack(current, selection.id)
+        : selectWidget(current, selection.id)
+    })
   }, [])
 
   const dispatch = useCallback((updater: (session: EditSession) => EditSession) => {

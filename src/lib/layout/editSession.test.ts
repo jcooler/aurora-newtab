@@ -3,6 +3,8 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  createStackFromDrop,
+  detachSelectedStackMember,
   dockOrder,
   dockSelected,
   dockSelectedLive,
@@ -11,9 +13,13 @@ import {
   moveSelectedLive,
   nudgeSelected,
   resetSession,
+  removeSelectedStackMember,
+  reorderSelectedStackMember,
   restoreHiddenWidget,
   restoreSelectedDefaults,
   selectWidget,
+  selectStack,
+  setSelectedStackFacing,
   setSelectedTier,
   stepSelectedLayer,
   undo,
@@ -42,6 +48,33 @@ function fresh() {
   return beginEditSession(structuredClone(DOC), [...ENABLED])
 }
 
+const STACK_DOC: LayoutsDocument = {
+  version: 1,
+  activeLayoutId: 'a',
+  layouts: [{
+    id: 'a',
+    name: 'Desktop',
+    widgets: {
+      monthCal: { kind: 'free', anchor: 'left', offsetX: 9, offsetY: 0, tier: 'standard', layer: 1 },
+      quote: { kind: 'free', anchor: 'bottom', offsetX: 0, offsetY: -12, tier: 'compact', layer: 3 },
+    },
+    stacks: [{
+      id: 'stack-day',
+      members: ['weather', 'clock', 'notes'],
+      facing: 'notes',
+      anchor: 'top-right',
+      offsetX: -7,
+      offsetY: 13,
+      tier: 'standard',
+      layer: 2,
+    }],
+  }],
+}
+
+function stackFresh() {
+  return beginEditSession(structuredClone(STACK_DOC), ['weather', 'clock', 'notes', 'monthCal', 'quote'])
+}
+
 describe('beginEditSession', () => {
   it('materializes enabled-but-absent widgets into the baseline draft without dirtying', () => {
     // The baseline is the initial MATERIALIZED draft — what the user sees on
@@ -56,6 +89,16 @@ describe('beginEditSession', () => {
     // The stored widgets survive byte-exactly in the baseline.
     expect(session.baseline.layouts[0].widgets.clock).toEqual(DOC.layouts[0].widgets.clock)
     expect(session.baseline.layouts[0].widgets.bookmarks).toEqual(DOC.layouts[0].widgets.bookmarks)
+  })
+
+  it('does not materialize widget entries for identities already owned by a stack', () => {
+    const session = stackFresh()
+    const layout = activeDraftLayout(session)
+    expect(layout.widgets.weather).toBeUndefined()
+    expect(layout.widgets.clock).toBeUndefined()
+    expect(layout.widgets.notes).toBeUndefined()
+    expect(layout.stacks?.[0].members).toEqual(['weather', 'clock', 'notes'])
+    expect(session.selection).toBeNull()
   })
 })
 
@@ -124,7 +167,7 @@ describe('hide, restore, bulk, reset', () => {
   it('hideSelected records the hidden kind and clears the selection', () => {
     const session = hideSelected(selectWidget(fresh(), 'weather'))
     expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'hidden' })
-    expect(session.selectedId).toBeNull()
+    expect(session.selection).toBeNull()
   })
 
   it('restoreHiddenWidget un-hides to the designed slot and is identity for non-hidden entries (review fix I2)', () => {
@@ -242,5 +285,83 @@ describe('hide, restore, bulk, reset', () => {
     expect(session.dirty).toBe(false)
     expect(undo(session).dirty).toBe(true)
     expect(DOC).toEqual(original)
+  })
+})
+
+describe('stack edit session operations', () => {
+  it('moves, nudges, sizes, layers, and bulk-sizes a selected stack as one object', () => {
+    let session = selectStack(stackFresh(), 'stack-day')
+    expect(session.selection).toEqual({ kind: 'stack', id: 'stack-day' })
+    session = moveSelected(session, { xPct: 20, yPct: 80 })
+    expect(activeDraftLayout(session).stacks?.[0]).toMatchObject({
+      anchor: 'bottom-left', offsetX: 20, offsetY: -20, tier: 'standard', layer: 2,
+    })
+    session = nudgeSelected(session, { xPct: 1, yPct: -2 })
+    expect(activeDraftLayout(session).stacks?.[0]).toMatchObject({
+      anchor: 'bottom-left', offsetX: 21, offsetY: -22,
+    })
+    session = setSelectedTier(session, 'full')
+    expect(activeDraftLayout(session).stacks?.[0].tier).toBe('full')
+    session = stepSelectedLayer(session, 'forward')
+    expect(activeDraftLayout(session).stacks?.[0].layer).toBe(3)
+    expect((activeDraftLayout(session).widgets.quote as FreeWidgetPlacement).layer).toBe(2)
+    session = applyBulkTier(session, 'compact')
+    expect(activeDraftLayout(session).stacks?.[0].tier).toBe('compact')
+  })
+
+  it('creates a stack at drop as the drag gesture single undo entry', () => {
+    let session = selectWidget(fresh(), 'clock')
+    session = moveSelected(session, { xPct: 80, yPct: 20 })
+    session = createStackFromDrop(session, 'clock', { kind: 'widget', id: 'weather' }, 'stack-new', false)
+    expect(session.past).toHaveLength(1)
+    expect(session.selection).toEqual({ kind: 'stack', id: 'stack-new' })
+    expect(activeDraftLayout(session).stacks?.[0]).toMatchObject({
+      id: 'stack-new', members: ['weather', 'clock'], facing: 'clock',
+    })
+    expect(undo(session).dirty).toBe(false)
+  })
+
+  it('pages, reorders, and removes with one undo entry per explicit operation', () => {
+    let session = selectStack(stackFresh(), 'stack-day')
+    session = setSelectedStackFacing(session, 'weather')
+    expect(session.past).toHaveLength(1)
+    expect(activeDraftLayout(session).stacks?.[0].facing).toBe('weather')
+
+    session = { ...session, past: [] }
+    session = reorderSelectedStackMember(session, 'notes', -1)
+    expect(session.past).toHaveLength(1)
+    expect(activeDraftLayout(session).stacks?.[0].members).toEqual(['weather', 'notes', 'clock'])
+
+    session = { ...session, past: [] }
+    session = removeSelectedStackMember(session, 'clock')
+    expect(session.past).toHaveLength(1)
+    expect(activeDraftLayout(session).stacks?.[0].members).toEqual(['weather', 'notes'])
+    expect(activeDraftLayout(session).widgets.clock?.kind).toBe('free')
+  })
+
+  it('direct member detach selects the free member and dissolves a two-member stack', () => {
+    let session = selectStack(stackFresh(), 'stack-day')
+    session = removeSelectedStackMember(session, 'notes')
+    session = { ...session, past: [] }
+    session = detachSelectedStackMember(session, 'clock', { xPct: 22, yPct: 78 })
+    expect(session.past).toHaveLength(1)
+    expect(session.selection).toEqual({ kind: 'widget', id: 'clock' })
+    expect(activeDraftLayout(session).stacks).toBeUndefined()
+    expect(activeDraftLayout(session).widgets.weather).toMatchObject({
+      kind: 'free', anchor: 'top-right', offsetX: -7, offsetY: 13,
+    })
+    expect(activeDraftLayout(session).widgets.clock).toMatchObject({
+      kind: 'free', anchor: 'bottom-left', offsetX: 22, offsetY: -22,
+    })
+  })
+
+  it('hides a selected stack as one undoable operation and clears selection', () => {
+    const session = hideSelected(selectStack(stackFresh(), 'stack-day'))
+    expect(session.past).toHaveLength(1)
+    expect(session.selection).toBeNull()
+    expect(activeDraftLayout(session).stacks).toBeUndefined()
+    expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'hidden' })
+    expect(activeDraftLayout(session).widgets.clock).toEqual({ kind: 'hidden' })
+    expect(activeDraftLayout(session).widgets.notes).toEqual({ kind: 'hidden' })
   })
 })

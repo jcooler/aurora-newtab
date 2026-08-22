@@ -8,10 +8,24 @@ import {
   type LayoutsDocument,
   type NamedLayoutPlacement,
   type NamedLayout,
+  type WidgetStack,
   type WidgetTier,
 } from './namedLayouts'
 import { defaultFreePlacement } from './defaultPlacements'
+import {
+  createOrAppendStack,
+  detachStackMember,
+  hideStack,
+  removeStackMember,
+  reorderStackMember,
+  setStackFacing,
+  type StackDropTarget,
+} from './stacks'
 import { BLOCK_IDS, type BlockId } from './types'
+
+export type EditSelection =
+  | Readonly<{ kind: 'widget'; id: BlockId }>
+  | Readonly<{ kind: 'stack'; id: string }>
 
 /** The live edit session's draft model (named-layouts spec 2.5). Pure: every
  *  operation returns a new session; the ONLY storage write in the whole
@@ -27,6 +41,9 @@ import { BLOCK_IDS, type BlockId } from './types'
 export interface EditSession {
   baseline: LayoutsDocument
   draft: LayoutsDocument
+  selection: EditSelection | null
+  /** Compatibility bridge for the pre-stack canvas. Removed when Task 4
+   *  moves every UI consumer to the tagged selection. */
   selectedId: BlockId | null
   past: readonly LayoutsDocument[]
   dirty: boolean
@@ -66,13 +83,15 @@ export function beginEditSession(
   const enabled = new Set<BlockId>(enabledIds)
   const materialized = withActiveLayout(cleanLayoutsDocument(document), (layout) => {
     const widgets = { ...layout.widgets }
+    const stacked = new Set(layout.stacks?.flatMap((stack) => stack.members) ?? [])
     let maxLayer = -1
     for (const id of BLOCK_IDS) {
       const placement = widgets[id]
       if (placement?.kind === 'free') maxLayer = Math.max(maxLayer, placement.layer)
     }
+    for (const stack of layout.stacks ?? []) maxLayer = Math.max(maxLayer, stack.layer)
     for (const id of BLOCK_IDS) {
-      if (!enabled.has(id) || widgets[id]) continue
+      if (!enabled.has(id) || widgets[id] || stacked.has(id)) continue
       widgets[id] = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
     }
     return { ...layout, widgets }
@@ -80,6 +99,7 @@ export function beginEditSession(
   return {
     baseline: materialized,
     draft: materialized,
+    selection: null,
     selectedId: null,
     past: [],
     dirty: false,
@@ -96,13 +116,50 @@ function commit(session: EditSession, draft: LayoutsDocument, pushUndo = true): 
   }
 }
 
+function commitActiveLayoutUpdate(
+  session: EditSession,
+  update: (layout: NamedLayout) => NamedLayout,
+  pushUndo = true,
+): EditSession {
+  const current = activeDraftLayout(session)
+  const next = update(current)
+  if (next === current) return session
+  return commit(session, withActiveLayout(session.draft, () => next), pushUndo)
+}
+
 export function selectWidget(session: EditSession, id: BlockId | null): EditSession {
-  return { ...session, selectedId: id }
+  return {
+    ...session,
+    selection: id ? { kind: 'widget', id } : null,
+    selectedId: id,
+  }
+}
+
+export function selectStack(session: EditSession, id: string): EditSession {
+  if (!activeDraftLayout(session).stacks?.some((stack) => stack.id === id)) return session
+  return { ...session, selection: { kind: 'stack', id }, selectedId: null }
+}
+
+function stackAsFreePlacement(stack: WidgetStack): FreeWidgetPlacement {
+  return {
+    kind: 'free',
+    anchor: stack.anchor,
+    offsetX: stack.offsetX,
+    offsetY: stack.offsetY,
+    tier: stack.tier,
+    layer: stack.layer,
+  }
 }
 
 function selectedFree(session: EditSession): FreeWidgetPlacement | null {
-  if (!session.selectedId) return null
-  const placement = activeDraftLayout(session).widgets[session.selectedId]
+  const selection = session.selection
+  if (!selection) return null
+  const layout = activeDraftLayout(session)
+  if (selection.kind === 'stack') {
+    const stack = layout.stacks?.find((candidate) => candidate.id === selection.id)
+    return stack ? stackAsFreePlacement(stack) : null
+  }
+  const placement = layout.widgets[selection.id]
   return placement?.kind === 'free' ? placement : null
 }
 
@@ -111,11 +168,25 @@ function replaceSelected(
   placement: NamedLayoutPlacement,
   pushUndo = true,
 ): EditSession {
-  const id = session.selectedId
-  if (!id) return session
+  const selection = session.selection
+  if (!selection) return session
+  if (selection.kind === 'stack') {
+    if (placement.kind !== 'free') return session
+    return commit(session, withActiveLayout(session.draft, (layout) => ({
+      ...layout,
+      stacks: layout.stacks?.map((stack) => stack.id === selection.id ? {
+        ...stack,
+        anchor: placement.anchor,
+        offsetX: placement.offsetX,
+        offsetY: placement.offsetY,
+        tier: placement.tier,
+        layer: placement.layer,
+      } : stack),
+    })), pushUndo)
+  }
   return commit(session, withActiveLayout(session.draft, (layout) => ({
     ...layout,
-    widgets: { ...layout.widgets, [id]: placement },
+    widgets: { ...layout.widgets, [selection.id]: placement },
   })), pushUndo)
 }
 
@@ -162,9 +233,11 @@ export function nudgeSelected(
 }
 
 export function setSelectedTier(session: EditSession, tier: WidgetTier): EditSession {
-  const id = session.selectedId
-  if (!id) return session
-  const placement = activeDraftLayout(session).widgets[id]
+  const selection = session.selection
+  if (!selection) return session
+  const placement = selection.kind === 'widget'
+    ? activeDraftLayout(session).widgets[selection.id]
+    : undefined
   // Docked members size within the strip too (owner direction 2026-08-18:
   // docked Bookmarks compact = the one-letter mark bar).
   if (placement?.kind === 'docked') {
@@ -179,50 +252,74 @@ export function stepSelectedLayer(
   session: EditSession,
   direction: 'forward' | 'backward',
 ): EditSession {
-  const id = session.selectedId
+  const selection = session.selection
   const current = selectedFree(session)
-  if (!id || !current) return session
+  if (!selection || !current) return session
   const layout = activeDraftLayout(session)
-  const free = BLOCK_IDS.flatMap((blockId) => {
+  const freeWidgets = BLOCK_IDS.flatMap((blockId) => {
     const placement = layout.widgets[blockId]
-    return placement?.kind === 'free' ? [{ id: blockId, placement }] : []
+    return placement?.kind === 'free'
+      ? [{ kind: 'widget' as const, id: blockId, layer: placement.layer }]
+      : []
   })
-  const candidates = free
-    .filter((entry) => entry.id !== id && (
+  const freeStacks = (layout.stacks ?? []).map((stack) => ({
+    kind: 'stack' as const,
+    id: stack.id,
+    layer: stack.layer,
+  }))
+  const candidates = [...freeWidgets, ...freeStacks]
+    .filter((entry) => !(entry.kind === selection.kind && entry.id === selection.id) && (
       direction === 'forward'
-        ? entry.placement.layer > current.layer
-        : entry.placement.layer < current.layer
+        ? entry.layer > current.layer
+        : entry.layer < current.layer
     ))
     .sort((a, b) => (
       direction === 'forward'
-        ? a.placement.layer - b.placement.layer
-        : b.placement.layer - a.placement.layer
+        ? a.layer - b.layer
+        : b.layer - a.layer
     ))
   const neighbor = candidates[0]
   if (!neighbor) return session
-  return commit(session, withActiveLayout(session.draft, (draftLayout) => ({
-    ...draftLayout,
-    widgets: {
-      ...draftLayout.widgets,
-      [id]: { ...current, layer: neighbor.placement.layer },
-      [neighbor.id]: { ...neighbor.placement, layer: current.layer },
-    },
-  })))
+  return commit(session, withActiveLayout(session.draft, (draftLayout) => {
+    const widgets = { ...draftLayout.widgets }
+    const stacks = draftLayout.stacks?.map((stack) => {
+      if (selection.kind === 'stack' && stack.id === selection.id) {
+        return { ...stack, layer: neighbor.layer }
+      }
+      if (neighbor.kind === 'stack' && stack.id === neighbor.id) {
+        return { ...stack, layer: current.layer }
+      }
+      return stack
+    })
+    if (selection.kind === 'widget') {
+      const placement = widgets[selection.id]
+      if (placement?.kind === 'free') widgets[selection.id] = { ...placement, layer: neighbor.layer }
+    }
+    if (neighbor.kind === 'widget') {
+      const placement = widgets[neighbor.id]
+      if (placement?.kind === 'free') widgets[neighbor.id] = { ...placement, layer: current.layer }
+    }
+    return { ...draftLayout, widgets, ...(stacks ? { stacks } : {}) }
+  }))
 }
 
 export function hideSelected(session: EditSession): EditSession {
-  const id = session.selectedId
-  if (!id) return session
-  const next = commit(session, withActiveLayout(session.draft, (layout) => ({
-    ...layout,
-    widgets: { ...layout.widgets, [id]: { kind: 'hidden' } },
-  })))
-  return { ...next, selectedId: null }
+  const selection = session.selection
+  if (!selection) return session
+  const next = selection.kind === 'stack'
+    ? commitActiveLayoutUpdate(session, (layout) => hideStack(layout, selection.id))
+    : commit(session, withActiveLayout(session.draft, (layout) => ({
+      ...layout,
+      widgets: { ...layout.widgets, [selection.id]: { kind: 'hidden' } },
+    })))
+  if (next === session) return session
+  return { ...next, selection: null, selectedId: null }
 }
 
 export function restoreSelectedDefaults(session: EditSession): EditSession {
-  const id = session.selectedId
-  if (!id) return session
+  const selection = session.selection
+  if (selection?.kind !== 'widget') return session
+  const id = selection.id
   const current = activeDraftLayout(session).widgets[id]
   const layer = current?.kind === 'free' ? current.layer : BLOCK_IDS.indexOf(id)
   return commit(session, withActiveLayout(session.draft, (layout) => ({
@@ -258,8 +355,70 @@ export function applyBulkTier(session: EditSession, tier: WidgetTier): EditSessi
       const placement = widgets[id]
       if (placement?.kind === 'free') widgets[id] = { ...placement, tier }
     }
-    return { ...layout, widgets, bulkTier: tier }
+    const stacks = layout.stacks?.map((stack) => ({ ...stack, tier }))
+    return { ...layout, widgets, ...(stacks ? { stacks } : {}), bulkTier: tier }
   }))
+}
+
+export function createStackFromDrop(
+  session: EditSession,
+  sourceId: BlockId,
+  target: StackDropTarget,
+  newStackId: string,
+  pushUndo = true,
+): EditSession {
+  const next = commitActiveLayoutUpdate(
+    session,
+    (layout) => createOrAppendStack(layout, sourceId, target, newStackId),
+    pushUndo,
+  )
+  if (next === session) return session
+  return { ...next, selection: { kind: 'stack', id: target.kind === 'stack' ? target.id : newStackId }, selectedId: null }
+}
+
+export function setSelectedStackFacing(session: EditSession, face: BlockId): EditSession {
+  const selection = session.selection
+  if (selection?.kind !== 'stack') return session
+  return commitActiveLayoutUpdate(session, (layout) => setStackFacing(layout, selection.id, face))
+}
+
+export function reorderSelectedStackMember(
+  session: EditSession,
+  memberId: BlockId,
+  direction: -1 | 1,
+): EditSession {
+  const selection = session.selection
+  if (selection?.kind !== 'stack') return session
+  return commitActiveLayoutUpdate(
+    session,
+    (layout) => reorderStackMember(layout, selection.id, memberId, direction),
+  )
+}
+
+export function removeSelectedStackMember(session: EditSession, memberId: BlockId): EditSession {
+  const selection = session.selection
+  if (selection?.kind !== 'stack') return session
+  const next = commitActiveLayoutUpdate(
+    session,
+    (layout) => removeStackMember(layout, selection.id, memberId),
+  )
+  if (next === session) return session
+  const stackSurvives = activeDraftLayout(next).stacks?.some((stack) => stack.id === selection.id) ?? false
+  return stackSurvives ? next : selectWidget(next, memberId)
+}
+
+export function detachSelectedStackMember(
+  session: EditSession,
+  memberId: BlockId,
+  point: { xPct: number; yPct: number },
+): EditSession {
+  const selection = session.selection
+  if (selection?.kind !== 'stack') return session
+  const next = commitActiveLayoutUpdate(
+    session,
+    (layout) => detachStackMember(layout, selection.id, memberId, point),
+  )
+  return next === session ? session : selectWidget(next, memberId)
 }
 
 /** A dock's members in order — pure helper for insertion-index math. */

@@ -7,6 +7,7 @@ import {
   reorderLayouts,
   saveLayoutsDocument,
   switchActiveLayout,
+  updateStoredStackFacing,
 } from './layoutOperations'
 import { LayoutsDocumentValidationError, type LayoutsDocument } from './namedLayouts'
 import { createStorage } from '../storage/index'
@@ -129,5 +130,74 @@ describe('saveLayoutsDocument', () => {
     const bad = { ...doc(), activeLayoutId: 'missing' }
     await expect(saveLayoutsDocument(storage, bad)).rejects.toThrow(LayoutsDocumentValidationError)
     expect(await storage.get('layouts')).toBeNull()
+  })
+})
+
+describe('updateStoredStackFacing', () => {
+  function stackedDoc(): LayoutsDocument {
+    return {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{
+        id: 'a',
+        name: 'Desktop',
+        widgets: {},
+        stacks: [{
+          id: 'stack-day',
+          members: ['weather', 'clock', 'notes'],
+          facing: 'weather',
+          anchor: 'top-right',
+          offsetX: -8,
+          offsetY: 12,
+          tier: 'standard',
+          layer: 2,
+        }],
+      }],
+    }
+  }
+
+  it('serializes rapid paging against fresh stored state and writes only layouts', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('layouts', stackedDoc())
+    const legacyBefore = await storage.get('layout')
+    const writes: string[][] = []
+    const originalWrite = driver.write.bind(driver)
+    driver.write = async (patch: Record<string, unknown>) => {
+      writes.push(Object.keys(patch).sort())
+      return originalWrite(patch)
+    }
+
+    await Promise.all([
+      updateStoredStackFacing(storage, 'a', 'stack-day', 'next'),
+      updateStoredStackFacing(storage, 'a', 'stack-day', 'next'),
+    ])
+
+    expect((await storage.get('layouts'))?.layouts[0].stacks?.[0].facing).toBe('notes')
+    expect(writes).toEqual([['layouts'], ['layouts']])
+    expect(await storage.get('layout')).toEqual(legacyBefore)
+  })
+
+  it('supports an exact face and performs no write when the exact layout or stack is absent', async () => {
+    const driver = memoryDriver()
+    const storage = createStorage(driver)
+    await storage.init()
+    await storage.set('layouts', stackedDoc())
+    const writes: string[][] = []
+    const originalWrite = driver.write.bind(driver)
+    driver.write = async (patch: Record<string, unknown>) => {
+      writes.push(Object.keys(patch).sort())
+      return originalWrite(patch)
+    }
+
+    await updateStoredStackFacing(storage, 'a', 'stack-day', 'clock')
+    expect((await storage.get('layouts'))?.layouts[0].stacks?.[0].facing).toBe('clock')
+    expect(writes).toEqual([['layouts']])
+
+    writes.length = 0
+    await updateStoredStackFacing(storage, 'missing', 'stack-day', 'next')
+    await updateStoredStackFacing(storage, 'a', 'missing', 'next')
+    expect(writes).toEqual([])
   })
 })

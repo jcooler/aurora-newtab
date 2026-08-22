@@ -19,7 +19,30 @@ const DOC: LayoutsDocument = {
   }],
 }
 
-async function setup() {
+const STACK_DOC: LayoutsDocument = {
+  version: 1,
+  activeLayoutId: 'stack-layout',
+  layouts: [{
+    id: 'stack-layout',
+    name: 'Stacks',
+    widgets: {},
+    stacks: [{
+      id: 'stack-day',
+      members: ['weather', 'notes'],
+      facing: 'weather',
+      anchor: 'top-right',
+      offsetX: -8,
+      offsetY: 12,
+      tier: 'standard',
+      layer: 1,
+    }],
+  }],
+}
+
+async function setup(
+  document: LayoutsDocument = DOC,
+  enabledIds: readonly ('clock' | 'weather' | 'notes')[] = ['clock'],
+) {
   const driver = memoryDriver()
   const storage = createStorage(driver)
   await storage.init()
@@ -30,14 +53,31 @@ async function setup() {
     return originalWrite(patch)
   }
   const rendered = renderHook(() => useEditMode({
-    document: DOC,
-    enabledIds: ['clock'],
+    document,
+    enabledIds,
     storage,
   }))
   return { storage, writes, rendered }
 }
 
 describe('useEditMode', () => {
+  it('select accepts the tagged widget and stack identities and clears both aliases', async () => {
+    const { rendered } = await setup(STACK_DOC, ['weather', 'notes'])
+    act(() => rendered.result.current.begin())
+
+    act(() => rendered.result.current.select({ kind: 'stack', id: 'stack-day' }))
+    expect(rendered.result.current.session?.selection).toEqual({ kind: 'stack', id: 'stack-day' })
+    expect(rendered.result.current.session?.selectedId).toBeNull()
+
+    act(() => rendered.result.current.select({ kind: 'widget', id: 'notes' }))
+    expect(rendered.result.current.session?.selection).toEqual({ kind: 'widget', id: 'notes' })
+    expect(rendered.result.current.session?.selectedId).toBe('notes')
+
+    act(() => rendered.result.current.select(null))
+    expect(rendered.result.current.session?.selection).toBeNull()
+    expect(rendered.result.current.session?.selectedId).toBeNull()
+  })
+
   it('save writes the draft to exactly the layouts key once and ends the session', async () => {
     const { storage, writes, rendered } = await setup()
     act(() => rendered.result.current.begin())

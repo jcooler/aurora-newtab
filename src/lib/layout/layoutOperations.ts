@@ -4,6 +4,8 @@ import {
   type NamedLayout,
 } from './namedLayouts'
 import type { AuroraStorage } from '../storage/index'
+import { setStackFacing, stepStackFacing } from './stacks'
+import type { BlockId } from './types'
 
 function requireIndex(doc: LayoutsDocument, layoutId: string): number {
   const index = doc.layouts.findIndex((layout) => layout.id === layoutId)
@@ -109,4 +111,40 @@ export async function saveLayoutsDocument(
   next: LayoutsDocument,
 ): Promise<void> {
   await storage.set('layouts', cleanLayoutsDocument(next))
+}
+
+export type StackFacingCommand = BlockId | 'next' | 'previous'
+
+/** Normal-mode stack paging is the one intentional live layout write. It
+ *  runs through the existing serialized storage authority so rapid arrows
+ *  compose against fresh stored state, and it never touches the legacy
+ *  `layout` recovery input. */
+export async function updateStoredStackFacing(
+  storage: AuroraStorage,
+  layoutId: string,
+  stackId: string,
+  command: StackFacingCommand,
+): Promise<void> {
+  const before = await storage.get('layouts')
+  const beforeLayout = before?.layouts.find((layout) => layout.id === layoutId)
+  const beforeStack = beforeLayout?.stacks?.find((stack) => stack.id === stackId)
+  if (!beforeStack) return
+  if (command !== 'next' && command !== 'previous' && !beforeStack.members.includes(command)) return
+  if (command !== 'next' && command !== 'previous' && beforeStack.facing === command) return
+
+  await storage.update('layouts', (current) => {
+    if (!current) return current
+    const layoutIndex = current.layouts.findIndex((layout) => layout.id === layoutId)
+    if (layoutIndex < 0) return current
+    const layout = current.layouts[layoutIndex]
+    if (!layout.stacks?.some((stack) => stack.id === stackId)) return current
+    const nextLayout = command === 'next' || command === 'previous'
+      ? stepStackFacing(layout, stackId, command === 'next' ? 1 : -1)
+      : setStackFacing(layout, stackId, command)
+    if (nextLayout === layout) return current
+    const layouts = current.layouts.map((candidate, index) => (
+      index === layoutIndex ? nextLayout : candidate
+    ))
+    return cleanLayoutsDocument({ ...current, layouts })
+  })
 }
