@@ -32,6 +32,7 @@ test('pins the deterministic built-extension browser-native witness', async () =
     'tier text duplicated',
     'data-browser-widget-scroll',
     'scrollHeight',
+    'dock-state',
     'evidenceCommit',
     'apiCalls',
     'storageWrites',

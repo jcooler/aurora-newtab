@@ -368,7 +368,12 @@ async function seed(widget, tier, mode = 'ready') {
   await page.reload({ waitUntil: 'domcontentloaded' })
   await waitForSurface()
   await page.locator(`[data-block-id="${widget.id}"]`).waitFor()
-  if (mode === 'permission-required') {
+  if (tier === 'docked') {
+    const line = page.locator(`[data-block-id="${widget.id}"] [data-dock-line]`)
+    await line.waitFor()
+    if (mode === 'permission-required') await line.filter({ hasText: 'Enable in Settings' }).waitFor()
+    if (mode === 'error') await line.filter({ hasText: 'unavailable' }).waitFor()
+  } else if (mode === 'permission-required') {
     await page.locator(`[data-block-id="${widget.id}"] [data-browser-resource-state="permission-required"]`).waitFor()
   } else if (mode === 'error') {
     await page.getByRole('status').filter({ hasText: 'Native preview failure' }).waitFor()
@@ -548,6 +553,12 @@ try {
     for (const state of STATES) {
       await seed(widget, 'standard', state)
       await capture(widget, state, 'standard', VIEWPORTS[0])
+
+      await seed(widget, 'docked', state)
+      await page.locator(`[data-block-id="${widget.id}"] [data-dock-line]`).click()
+      await page.locator('[data-browser-dock-detail]').waitFor()
+      await capture(widget, state, 'docked', VIEWPORTS[0], 'dock-state')
+      await page.keyboard.press('Escape')
     }
 
     await seed(widget, 'docked')
