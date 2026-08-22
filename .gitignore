@@ -71,6 +71,9 @@ output/
 # Focused Weather environmental-enrichment witness scratch.
 .qa-weather-enrichment-*
 
+# Browser-native widget Chromium evidence and persistent profile scratch.
+.qa-browser-native-*
+
 # Expansion platform scratch scaffolds and Chromium catalog evidence.
 .aurora-expansion-*/
 .qa-expansion-platform-*/

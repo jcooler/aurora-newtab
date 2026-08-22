@@ -349,14 +349,14 @@ feat(browser): integrate native widgets
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 - Modify: this plan
 
-- [ ] **Step 1: Write harness and output-safety failures**
+- [x] **Step 1: Write harness and output-safety failures**
 
 Pin a required explicit `.qa-browser-native-*` direct-child output, rejection of
 source/canonical/protected/non-empty/link targets, deterministic preview
 adapters installed before React, exact API call logs, no browser-data storage,
 and every required scenario.
 
-- [ ] **Step 2: Observe harness RED and implement**
+- [x] **Step 2: Observe harness RED and implement**
 
 Build a preview harness that captures all four tiers plus permission-required,
 empty, error, dock-detail, edit, and action states. Include 1600x900 and exact
@@ -364,7 +364,7 @@ empty, error, dock-detail, edit, and action states. Include 1600x900 and exact
 degenerate geometry, unpainted content, inaccessible actions, forbidden API
 calls, or any browser-result storage write.
 
-- [ ] **Step 3: Build and inspect the exact implementation**
+- [x] **Step 3: Build and inspect the exact implementation**
 
 Run `npm run build:preview`, execute the focused harness, and inspect every
 original PNG. Record per-capture usefulness judgments rather than one aggregate
