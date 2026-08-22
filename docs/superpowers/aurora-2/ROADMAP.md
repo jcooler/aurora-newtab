@@ -199,6 +199,7 @@ The owner-approved authority is [`2026-08-17-aurora-named-layouts-live-canvas-de
 | NL-P5 Tier catalog and live refinements | Verified - owner approved | Widget-by-widget tier review, docked forms, owner refinements, free-x dock placement, appearance inks, and installed-extension defect corrections. | Through `aab24ca`, followed by accepted refinements |
 | NL-P6 Product QA | Verified - owner accepted | 124 judged captures over five storage shapes and twelve viewports, exact 1408x445 real-window interaction witness, F9 explicitly accepted as user-owned density. | `1ff6650`, `3e9a003` |
 | NL-P7 Stabilization | Verified as Program A | Warning-free tests, current ledgers, scratch-only QA reruns, one reviewed full gate, and rebuilt `dist`; release restaging remains deferred. | Program A checkpoint |
+| Flow | In progress | One persisted cross-tab timer authority plus the immersive mantra, timer, and top-task screen; exact dashboard restoration and zero layout writes. | [`2026-08-21-aurora-flow-implementation.md`](../plans/2026-08-21-aurora-flow-implementation.md) |
 
 The active approved sequence is Flow, widget stacks, Weather enrichment, the expansion platform, and bounded widget/connector addition waves. Flow and stacks are approved designs; Flow is the current packet.
 
