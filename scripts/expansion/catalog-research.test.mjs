@@ -10,7 +10,7 @@ const CATALOG = JSON.parse(await readFile(path.join(ROOT, 'docs', 'superpowers',
 const EXPECTED_ORIGINS = {
   readingList: [], recentlyClosed: [], downloads: [], tabGroups: [],
   linear: ['https://api.linear.app/*'],
-  sentry: ['https://sentry.io/*'],
+  sentry: ['https://sentry.io/*', 'https://us.sentry.io/*', 'https://de.sentry.io/*'],
   todoist: ['https://api.todoist.com/*'],
   onThisDay: ['https://api.wikimedia.org/*'],
   publicHolidays: ['https://date.nager.at/*'],
@@ -80,4 +80,17 @@ test('records browser warnings and Uptime network truth explicitly', () => {
   assert.equal(byId.uptime.privacy.sends.some((value) => /health-check request/i.test(value)), true)
   assert.equal(byId.uptime.privacy.receives.some((value) => /status|latency|response/i.test(value)), true)
   assert.equal(byId.uptime.access.userWarnings.some((value) => /selected endpoint/i.test(value)), true)
+})
+
+test('records the implemented Work connector boundaries instead of generic research promises', () => {
+  const byId = Object.fromEntries(CATALOG.candidates.map((candidate) => [candidate.id, candidate]))
+  assert.equal(byId.linear.status, 'approved-wave')
+  assert.equal(byId.sentry.status, 'approved-wave')
+  assert.equal(byId.todoist.status, 'approved-wave')
+  assert.match(byId.linear.cache.freshness, /15(?:-| )minute/i)
+  assert.match([...byId.sentry.settings.setup, ...byId.sentry.settings.controls].join(' '), /region.*project.*item count/i)
+  assert.match(byId.todoist.presentation.interaction, /explicit confirmation/i)
+  assert.equal(byId.linear.decision.blockers.length, 0)
+  assert.equal(byId.sentry.decision.blockers.length, 0)
+  assert.equal(byId.todoist.decision.blockers.length, 0)
 })

@@ -10,13 +10,13 @@ import {
 
 const EXPECTED_IDS = [
   'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'links', 'monthCal',
+  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'monthCal',
   'moon', 'notes', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
-  'status', 'sun', 'tabGroups', 'tasks', 'timer',
+  'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'timer', 'todoist',
   'vercel', 'weather', 'worldClocks',
 ]
 
-test('covers all 30 identities exactly once across disjoint catalog batches', () => {
+test('covers all 33 identities exactly once across disjoint catalog batches', () => {
   const batches = Object.entries(CATALOG_BATCHES)
   const ids = batches.flatMap(([, entries]) => entries.map(({ id }) => id))
   assert.deepEqual(ids.sort(), EXPECTED_IDS)
@@ -31,6 +31,7 @@ test('returns the declared capture tiers without deriving presentation', () => {
   assert.deepEqual(captureTiersFor('monthCal'), ['standard'])
   assert.deepEqual(captureTiersFor('moon'), ['compact', 'docked'])
   assert.deepEqual(captureTiersFor('readingList'), ['compact', 'standard', 'full', 'docked'])
+  assert.deepEqual(captureTiersFor('linear'), ['compact', 'standard', 'full', 'docked'])
   assert.equal(CODED_DOCK_LINES.has('weather'), true)
   assert.equal(CODED_DOCK_LINES.has('monthCal'), false)
 })

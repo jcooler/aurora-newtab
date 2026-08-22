@@ -371,30 +371,30 @@
         "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
       },
       "cache": {
-        "freshness": "Refresh assigned issues every 5 minutes while visible and on explicit refresh.",
-        "staleBehavior": "Keep issue titles and workflow state visibly marked with its age while a refresh is pending.",
+        "freshness": "Refresh missing or stale assigned work at a 15-minute minimum boundary while mounted, on visible-window restoration, and on explicit refresh.",
+        "staleBehavior": "Keep issue titles and workflow state visibly marked with their age while a refresh is pending.",
         "refresh": "Deduplicate Linear refreshes so only one source operation is in flight per identity.",
         "failure": "Preserve the last Linear snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state."
       },
       "settings": {
         "setup": [
-          "Add a Linear API token"
+          "Add a Linear personal API key for the fixed api.linear.app origin"
         ],
         "controls": [
-          "Visible facts",
-          "Item limit",
-          "Refresh preference"
+          "Team checkbox picker with Select all and Clear",
+          "Item count from 3 through 10",
+          "Reconnect and disconnect"
         ],
         "validation": [
-          "Credential and selected resource can be verified"
+          "Viewer identity and team metadata validate without GraphQL errors before persistence"
         ]
       },
       "presentation": {
-        "compact": "Assigned issue count and nearest due item",
-        "standard": "Assigned and created issue rows with status, priority, and team",
-        "full": "Grouped backlog, active work, due dates, and cycle progress for selected teams",
+        "compact": "Assigned count, due-soon count, and nearest due issue identifier",
+        "standard": "Prioritized assigned rows with identifier, title, state, team, priority, and due context",
+        "full": "Up to 25 locally scrollable assigned issues grouped by state with cycle and due context",
         "docked": "Assigned count · due soon",
-        "interaction": "Open the issue in Linear or narrow Aurora to the selected team",
+        "interaction": "Open the normalized issue URL in Linear; Aurora performs no Linear mutation",
         "empty": "Explain that no selected Linear issue is assigned",
         "loading": "Show a content-tight loading state for Linear issue summaries.",
         "stale": "Keep issue titles and workflow state visible with its last-updated time while refreshing.",
@@ -409,7 +409,7 @@
         ]
       },
       "decision": {
-        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "rationale": "Shipped as a bounded read-only assigned-work connector with fixed origin, validated personal-key setup, and four useful tiers",
         "blockers": []
       }
     },
@@ -436,7 +436,9 @@
       "access": {
         "chromePermissions": [],
         "origins": [
-          "https://sentry.io/*"
+          "https://sentry.io/*",
+          "https://us.sentry.io/*",
+          "https://de.sentry.io/*"
         ],
         "userWarnings": [
           "Aurora sends a scoped request to Sentry Web API"
@@ -465,21 +467,22 @@
       },
       "settings": {
         "setup": [
-          "Add a Sentry API token"
+          "Choose a region: Global, US, or DE before connection",
+          "Add an organization slug and Sentry API token with event:read"
         ],
         "controls": [
-          "Visible facts",
-          "Item limit",
-          "Refresh preference"
+          "Project checkbox picker with Select all and Clear",
+          "Item count from 3 through 10",
+          "Reconnect and disconnect"
         ],
         "validation": [
-          "Credential and selected resource can be verified"
+          "The selected fixed region and organization issue endpoint validate before persistence"
         ]
       },
       "presentation": {
-        "compact": "Unresolved issue count and worst trend",
-        "standard": "Top regressions with project, level, events, and last seen",
-        "full": "Project health, regressions, affected users, event counts, and release context",
+        "compact": "Unresolved count, strongest level, and top trending issue identifier",
+        "standard": "Named unresolved issues with project, level, event count, users, and last seen",
+        "full": "Up to 25 locally scrollable unresolved issues with trend, first and last seen, priority, events, users, and project context",
         "docked": "Unresolved count · top regression",
         "interaction": "Open the issue or project in Sentry",
         "empty": "State that selected projects have no unresolved issues",
@@ -496,7 +499,7 @@
         ]
       },
       "decision": {
-        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "rationale": "Shipped as a read-only unresolved-issue connector constrained to three explicit official region origins",
         "blockers": []
       }
     },
@@ -552,21 +555,21 @@
       },
       "settings": {
         "setup": [
-          "Add a Todoist API token"
+          "Add a Todoist API token for the fixed api.todoist.com origin"
         ],
         "controls": [
-          "Visible facts",
-          "Item limit",
-          "Refresh preference"
+          "Project checkbox picker with Select all and Clear",
+          "Item count from 3 through 10",
+          "Reconnect and disconnect"
         ],
         "validation": [
-          "Credential and selected resource can be verified"
+          "A bounded project request validates the credential before persistence"
         ]
       },
       "presentation": {
-        "compact": "Due today count and next task",
-        "standard": "Overdue and today tasks with project and due time",
-        "full": "Overdue, today, and upcoming sections with project and priority context",
+        "compact": "Overdue count, due-today count, and next task",
+        "standard": "Overdue and today sections with title, project, time, priority, and recurrence",
+        "full": "Up to 25 locally scrollable overdue, today, and upcoming tasks with project, priority, duration, and recurrence context",
         "docked": "Due today · overdue count",
         "interaction": "Open the task in Todoist or complete it after explicit confirmation",
         "empty": "State that no Todoist task is due",
@@ -583,7 +586,7 @@
         ]
       },
       "decision": {
-        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "rationale": "Shipped as a due-task connector with bounded pagination and explicit confirmation before its only provider mutation",
         "blockers": []
       }
     },

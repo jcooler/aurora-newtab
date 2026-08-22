@@ -10,9 +10,9 @@ import { CATALOG_BATCHES, CATALOG_CONTRACTS, captureTiersFor } from '../../scrip
 
 const EXPECTED_WIDGET_IDS = [
   'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'links', 'monthCal',
+  'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'monthCal',
   'moon', 'notes', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
-  'status', 'sun', 'tabGroups', 'tasks', 'timer',
+  'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'timer', 'todoist',
   'vercel', 'weather', 'worldClocks',
 ] as const satisfies readonly BlockId[]
 

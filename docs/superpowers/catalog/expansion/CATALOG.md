@@ -181,24 +181,24 @@
 - **Privacy stored:** Scoped connector snapshot; Non-secret connector settings
 - **Backup:** Only non-secret settings may enter backup; credentials, content, and snapshots do not
 - **Redaction:** Tokens, authorization headers, user content, identifiers, and capability URLs are removed
-- **Freshness:** Refresh assigned issues every 5 minutes while visible and on explicit refresh.
-- **Stale behavior:** Keep issue titles and workflow state visibly marked with its age while a refresh is pending.
+- **Freshness:** Refresh missing or stale assigned work at a 15-minute minimum boundary while mounted, on visible-window restoration, and on explicit refresh.
+- **Stale behavior:** Keep issue titles and workflow state visibly marked with their age while a refresh is pending.
 - **Refresh:** Deduplicate Linear refreshes so only one source operation is in flight per identity.
 - **Failure:** Preserve the last Linear snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
-- **Setup:** Add a Linear API token
-- **Controls:** Visible facts; Item limit; Refresh preference
-- **Validation:** Credential and selected resource can be verified
-- **Compact:** Assigned issue count and nearest due item
-- **Standard:** Assigned and created issue rows with status, priority, and team
-- **Full:** Grouped backlog, active work, due dates, and cycle progress for selected teams
+- **Setup:** Add a Linear personal API key for the fixed api.linear.app origin
+- **Controls:** Team checkbox picker with Select all and Clear; Item count from 3 through 10; Reconnect and disconnect
+- **Validation:** Viewer identity and team metadata validate without GraphQL errors before persistence
+- **Compact:** Assigned count, due-soon count, and nearest due issue identifier
+- **Standard:** Prioritized assigned rows with identifier, title, state, team, priority, and due context
+- **Full:** Up to 25 locally scrollable assigned issues grouped by state with cycle and due context
 - **Docked:** Assigned count · due soon
-- **Interaction:** Open the issue in Linear or narrow Aurora to the selected team
+- **Interaction:** Open the normalized issue URL in Linear; Aurora performs no Linear mutation
 - **Empty:** Explain that no selected Linear issue is assigned
 - **Loading:** Show a content-tight loading state for Linear issue summaries.
 - **Stale:** Keep issue titles and workflow state visible with its last-updated time while refreshing.
 - **Error:** Keep the last Linear snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
-- **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
+- **Rationale:** Shipped as a bounded read-only assigned-work connector with fixed origin, validated personal-key setup, and four useful tiers
 - **Blockers:** None
 
 ### Sentry (`sentry`)
@@ -208,7 +208,7 @@
 - **Source:** [Sentry Web API](https://docs.sentry.io/api/), `HTTPS JSON API`
 - **Authentication:** api-token; direct MV3: Yes; Credential material stays out of backup, logs, fixtures, and generated artifacts
 - **Chrome permissions:** None
-- **Origins:** https://sentry.io/*
+- **Origins:** https://sentry.io/*; https://us.sentry.io/*; https://de.sentry.io/*
 - **User warnings:** Aurora sends a scoped request to Sentry Web API
 - **Privacy sent:** Scoped credential; Selected query and filters
 - **Privacy received:** Sentry facts, labels, states, and timestamps from Sentry Web API
@@ -219,12 +219,12 @@
 - **Stale behavior:** Keep issue titles and project health visibly marked with its age while a refresh is pending.
 - **Refresh:** Deduplicate Sentry refreshes so only one source operation is in flight per identity.
 - **Failure:** Preserve the last Sentry snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
-- **Setup:** Add a Sentry API token
-- **Controls:** Visible facts; Item limit; Refresh preference
-- **Validation:** Credential and selected resource can be verified
-- **Compact:** Unresolved issue count and worst trend
-- **Standard:** Top regressions with project, level, events, and last seen
-- **Full:** Project health, regressions, affected users, event counts, and release context
+- **Setup:** Choose a region: Global, US, or DE before connection; Add an organization slug and Sentry API token with event:read
+- **Controls:** Project checkbox picker with Select all and Clear; Item count from 3 through 10; Reconnect and disconnect
+- **Validation:** The selected fixed region and organization issue endpoint validate before persistence
+- **Compact:** Unresolved count, strongest level, and top trending issue identifier
+- **Standard:** Named unresolved issues with project, level, event count, users, and last seen
+- **Full:** Up to 25 locally scrollable unresolved issues with trend, first and last seen, priority, events, users, and project context
 - **Docked:** Unresolved count · top regression
 - **Interaction:** Open the issue or project in Sentry
 - **Empty:** State that selected projects have no unresolved issues
@@ -232,7 +232,7 @@
 - **Stale:** Keep issue titles and project health visible with its last-updated time while refreshing.
 - **Error:** Keep the last Sentry snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
-- **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
+- **Rationale:** Shipped as a read-only unresolved-issue connector constrained to three explicit official region origins
 - **Blockers:** None
 
 ### Todoist (`todoist`)
@@ -253,12 +253,12 @@
 - **Stale behavior:** Keep task content and due dates visibly marked with its age while a refresh is pending.
 - **Refresh:** Deduplicate Todoist refreshes so only one source operation is in flight per identity.
 - **Failure:** Preserve the last Todoist snapshot when it is still truthful; otherwise show the candidate-specific empty or setup state.
-- **Setup:** Add a Todoist API token
-- **Controls:** Visible facts; Item limit; Refresh preference
-- **Validation:** Credential and selected resource can be verified
-- **Compact:** Due today count and next task
-- **Standard:** Overdue and today tasks with project and due time
-- **Full:** Overdue, today, and upcoming sections with project and priority context
+- **Setup:** Add a Todoist API token for the fixed api.todoist.com origin
+- **Controls:** Project checkbox picker with Select all and Clear; Item count from 3 through 10; Reconnect and disconnect
+- **Validation:** A bounded project request validates the credential before persistence
+- **Compact:** Overdue count, due-today count, and next task
+- **Standard:** Overdue and today sections with title, project, time, priority, and recurrence
+- **Full:** Up to 25 locally scrollable overdue, today, and upcoming tasks with project, priority, duration, and recurrence context
 - **Docked:** Due today · overdue count
 - **Interaction:** Open the task in Todoist or complete it after explicit confirmation
 - **Empty:** State that no Todoist task is due
@@ -266,7 +266,7 @@
 - **Stale:** Keep task content and due dates visible with its last-updated time while refreshing.
 - **Error:** Keep the last Todoist snapshot when useful and offer one bounded retry or setup action.
 - **Maintenance:** medium; Provider API changes; Rate limits; Authentication lifecycle
-- **Rationale:** The glance question is repeatable and the source contract is narrow enough for a future bounded packet
+- **Rationale:** Shipped as a due-task connector with bounded pagination and explicit confirmation before its only provider mutation
 - **Blockers:** None
 
 ## At a glance

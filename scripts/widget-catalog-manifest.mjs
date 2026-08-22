@@ -4,6 +4,7 @@ const KNOWN_WIDGET_IDS = new Set([
   'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'habits', 'monthCal', 'sun',
   'moon', 'status', 'homeassistant', 'readingList', 'recentlyClosed',
   'downloads', 'tabGroups',
+  'linear', 'sentry', 'todoist',
 ])
 
 const batch = (entries) => Object.freeze(entries.map((entry) => Object.freeze({
@@ -48,6 +49,11 @@ export const CATALOG_BATCHES = Object.freeze({
     { id: 'downloads', label: 'Downloads', tiers: ['compact', 'standard', 'full', 'docked'] },
     { id: 'tabGroups', label: 'Tab Groups', tiers: ['compact', 'standard', 'full', 'docked'] },
   ]),
+  '4': batch([
+    { id: 'linear', label: 'Linear', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'sentry', label: 'Sentry', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'todoist', label: 'Todoist', tiers: ['compact', 'standard', 'full', 'docked'] },
+  ]),
 })
 
 export const CATALOG_CONTRACTS = Object.freeze({
@@ -87,6 +93,11 @@ export const CATALOG_CONTRACTS = Object.freeze({
     downloads: { compact: 'Active count and newest filename', standard: 'Active and recent downloads', full: 'All recent download states', docked: 'Active count and newest filename' },
     tabGroups: { compact: 'Group count and first group', standard: 'Open browser workspaces', full: 'All groups by window', docked: 'Group count and first group' },
   }),
+  '4': Object.freeze({
+    linear: { compact: 'Assigned and due counts', standard: 'Prioritized assigned work', full: 'All assigned work that fits', docked: 'Assigned and due counts' },
+    sentry: { compact: 'Unresolved count and top issue', standard: 'Named unresolved issues', full: 'All unresolved issues that fit', docked: 'Unresolved count and top issue' },
+    todoist: { compact: 'Due and overdue counts', standard: 'Due task sections', full: 'All due tasks that fit', docked: 'Due and overdue counts' },
+  }),
 })
 
 export const CODED_DOCK_LINES = new Set([
@@ -94,6 +105,7 @@ export const CODED_DOCK_LINES = new Set([
   'github', 'gitlab', 'jira', 'vercel', 'status', 'rss', 'crypto',
   'homeassistant', 'ics', 'habits', 'sun', 'moon',
   'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
+  'linear', 'sentry', 'todoist',
 ])
 
 export function captureTiersFor(id, batches = CATALOG_BATCHES) {
