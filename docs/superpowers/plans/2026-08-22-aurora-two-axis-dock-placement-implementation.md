@@ -131,6 +131,7 @@ export const DY_VIEWPORTS = Object.freeze([
 ```
 
 The `--phase=baseline` run writes only `.qa-dy-p1-baseline`; later `--phase=after` reads but never rewrites it.
+`--phase=after --baseline-only` performs only the absent-Y rectangle, narrow-order, storage-shape, runtime, request, and write comparisons needed by Task 5; it skips the interaction stages that Task 7 adds.
 
 - [ ] **Step 1: Write the failing harness contract**
 
@@ -924,9 +925,9 @@ node scripts/qa-dy-p1-window.mjs --dist=dist
 
 Both commands exit nonzero for any contract failure, runtime error, failed request, unexpected write, legacy `layout` write, stale guide, page movement, or absent-Y mismatch.
 
-- [ ] **Step 1: Extend the failing harness contract**
+- [ ] **Step 1: Extend the failing executable harness contract**
 
-Static-test the script source for every required viewport, `returnTier`, `pointercancel`, `Alt`, top-to-bottom and bottom-to-top stage names, baseline rectangle comparison, byte-stable `layouts`, `layout`-write rejection, and `--dist` provenance. Assert no write target under `docs/superpowers/qa/nl-p6`.
+Add a no-browser `--describe` mode that emits the harness manifest as JSON. Spawn the real scripts from `qa-dy-p1.test.mjs`, parse that output, and assert every required viewport and behavior id (`return-tier`, `pointer-cancel`, `alt-bypass`, `top-to-bottom`, `bottom-to-top`, `legacy-baseline`, `byte-stable-layouts`, and `legacy-layout-write-rejection`) plus reviewed-dist provenance. Exercise `prepareDyOutputDir` with a controlled temporary path and assert it rejects every target under `docs/superpowers/qa/nl-p6`. Do not grep source text; the test must fail when the runnable manifest or path behavior is wrong.
 
 - [ ] **Step 2: Run the harness RED**
 
