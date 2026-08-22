@@ -149,7 +149,7 @@ test('the runnable real-window manifest requires the caller-reviewed dist and re
     distArgumentRequired: true,
     mutatesBuild: false,
   })
-  for (const id of ['return-tier', 'pointer-cancel', 'top-to-bottom', 'byte-stable-layouts']) {
+  for (const id of ['fresh-profile-bootstrap', 'return-tier', 'pointer-cancel', 'top-to-bottom', 'byte-stable-layouts']) {
     assert.equal(manifest.behaviors.includes(id), true, id)
   }
 })

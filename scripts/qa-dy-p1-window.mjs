@@ -8,6 +8,7 @@ import { BLOCK_IDS } from '../src/lib/layout/types.ts'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 
 export const DY_WINDOW_BEHAVIORS = Object.freeze([
+  'fresh-profile-bootstrap',
   'return-tier',
   'pointer-cancel',
   'escape-zero-write',
@@ -84,8 +85,12 @@ page.on('requestfailed', (request) => {
   evidence.failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText ?? 'failed'}`)
 })
 
-const waitForCanvas = async () => {
+const waitForCanvasRoot = async () => {
   await page.waitForSelector('[data-canvas-surface]')
+  await page.waitForTimeout(220)
+}
+const waitForCanvas = async () => {
+  await waitForCanvasRoot()
   await page.waitForFunction(() => ['weather', 'bookmarks', 'tasks'].every((id) => {
     const node = document.querySelector(`[data-block-id="${id}"]`)
     return node && !node.hasAttribute('data-canvas-empty') && node.getBoundingClientRect().width > 4
@@ -161,7 +166,10 @@ const stage = async (id, detail) => {
 let caughtError = null
 try {
   await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
-  await waitForCanvas()
+  // A brand-new profile does not yet have the fixture-enabled Bookmarks and
+  // Tasks identities. Prove the exact extension canvas loaded, measure the
+  // real OS window, then seed before requiring fixture-dependent widgets.
+  await waitForCanvasRoot()
   evidence.measuredInner = await page.evaluate(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
