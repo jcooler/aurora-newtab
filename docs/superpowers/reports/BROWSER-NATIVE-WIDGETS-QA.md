@@ -2,20 +2,30 @@
 
 Date: 2026-08-22
 Packet: Program F, Browser-native widgets
-Evidence source: `.qa-browser-native-run-20260822-final`
-Evidence commit: `ef19bac197815a33d2f3876cc0565420978e5726`
+Evidence source: `.qa-browser-native-run-20260822-accessible`
+Evidence commit: `a22dfe90399452a27446fa0c43b08f1fb687e2c6`
 Reviewed build: `npm run build:preview`, 229 modules
 Harness result: 56 captures, 0 failures, 0 console errors, 0 page errors, 0 failed requests, 0 external requests
 
 ## Decision
 
-The implementation and its single review-fix cycle are ready for bounded
-rereview. Reading List,
-Recently Closed, Downloads, and Tab Groups each provide distinct Compact,
+The implementation is Verified after its bounded review and capped
+stabilization. Reading List, Recently Closed, Downloads, and Tab Groups each provide distinct Compact,
 Standard, Full, and Docked compositions. Every captured state is bounded,
 painted, readable, and useful at 1600x900. Each Standard composition also fits
 the exact 1408x445 short-window witness after waiting for the live viewport
 geometry to settle.
+
+The initial review found six Important issues. One RED/GREEN fix cycle closed
+all six. Rereview confirmed those closures and found one new Important caused
+by the sessions-only privacy correction: multiple generic Closed tab restore
+actions had duplicate accessible names. A focused observed RED preceded
+`a22dfe9`; row and Restore names now include session type, visible age, window
+tab count where applicable, and position within the rendered group. The full
+177-file suite passes at 2,841 tests, the 15-file packet slice passes at 544,
+TypeScript is clean, and the exact rebuilt commit repeated all 56 Chromium
+captures with zero failures. A second review loop was not opened because the
+packet review cap had been reached.
 
 Every Full capture uses the maximum 25-item browser fixture. The four local
 scrollports measured 1,198, 1,399, 1,936, and 1,636 CSS px of content inside a
@@ -140,6 +150,8 @@ scan the set are scratch-only derivatives and are not accepted evidence.
   fails when adjacent tier text is duplicated.
 - Edit mode paints selection controls without moving or obscuring the widget.
 - Every action has an accessible name and nonzero hit box.
+- Recently Closed regressions require repeated privacy-safe session rows and
+  Restore actions to have distinct state-rich accessible names.
 - Storage is searched for every browser fixture token after every capture, its
   complete snapshot must remain equal to the post-seed baseline, and any write
   after seed is a failure.
