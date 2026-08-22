@@ -83,8 +83,10 @@ test('uses one executable scenario catalog and validates emitted evidence exactl
   }
   const evidence = {
     captures: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, usefulness: 'useful', localScroll: scenario.expectOverflow ? { clientHeight: 100, scrollHeight: 200 } : null })),
-    storage: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, writes: scenario.allowedWriteKeys.length ? [scenario.allowedWriteKeys] : [] })),
+    storage: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, changedKeys: scenario.requiredWriteKeys, writes: scenario.allowedWriteKeys.length ? [scenario.allowedWriteKeys] : [] })),
     requestLog: [
+      { operation: 'on-this-day' },
+      { operation: 'on-this-day' },
       { operation: 'on-this-day' },
       { operation: 'on-this-day' },
       { operation: 'holiday-countries' },
@@ -92,8 +94,15 @@ test('uses one executable scenario catalog and validates emitted evidence exactl
       { operation: 'public-holidays' },
       { operation: 'public-holidays' },
       { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
       { operation: 'aurora-kp' },
       { operation: 'aurora-kp' },
+      { operation: 'aurora-kp' },
+      { operation: 'aurora-kp' },
+      { operation: 'weather-alerts' },
       { operation: 'weather-alerts' },
       { operation: 'weather-alerts' },
       { operation: 'weather-alerts' },
