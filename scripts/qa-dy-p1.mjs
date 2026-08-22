@@ -441,7 +441,10 @@ const runDesktopInteractions = async (viewport) => {
   }
 
   await enterEdit()
-  const hiddenSummary = page.getByText('Hidden 1', { exact: true })
+  // Always-on identities (Clock, Greeting, Focus) remain active even when
+  // every toggle-backed widget is disabled, so the count is fixture-shape
+  // metadata. The behavior under test is the named recovery action itself.
+  const hiddenSummary = page.getByText(/^Hidden \d+$/)
   await hiddenSummary.click()
   await page.getByRole('button', { name: 'Show Clock' }).click()
   await page.waitForSelector('[data-block-id="clock"]')
