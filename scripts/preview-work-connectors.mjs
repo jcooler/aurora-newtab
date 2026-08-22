@@ -180,6 +180,7 @@ const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
 const expectedFailedRequestCounts = new Map()
 const pendingProviderRequests = new Set()
+const activeProviderRoutes = new Set()
 const delayedProviderRoutes = new Map()
 const lastProviderRequestAt = new Map()
 let harnessNavigating = false
@@ -312,7 +313,16 @@ async function delayed(route) {
   }
 }
 
-await context.route('https://api.linear.app/**', async (route) => {
+async function trackedProviderRoute(route, handler) {
+  activeProviderRoutes.add(route)
+  try {
+    return await handler()
+  } finally {
+    activeProviderRoutes.delete(route)
+  }
+}
+
+await context.route('https://api.linear.app/**', (route) => trackedProviderRoute(route, async () => {
   const checked = await checkedRouteRequest(route)
   if (!checked) return
   const { operation } = checked
@@ -327,9 +337,9 @@ await context.route('https://api.linear.app/**', async (route) => {
     priority: issue.priority === 'urgent' ? 1 : issue.priority === 'high' ? 2 : 3,
   }))
   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { viewer: { assignedIssues: { nodes } } } }) })
-})
+}))
 
-await context.route(/https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\/.*/, async (route) => {
+await context.route(/https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\/.*/, (route) => trackedProviderRoute(route, async () => {
   const checked = await checkedRouteRequest(route)
   if (!checked) return
   const mode = networkModes.get('sentry') ?? 'ready'
@@ -344,9 +354,9 @@ await context.route(/https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\/.*/, async 
     statusDetails: issue.isRegression ? { type: 'regression' } : {},
   }))
   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) })
-})
+}))
 
-await context.route('https://api.todoist.com/**', async (route) => {
+await context.route('https://api.todoist.com/**', (route) => trackedProviderRoute(route, async () => {
   const checked = await checkedRouteRequest(route)
   if (!checked) return
   const { request, operation } = checked
@@ -369,7 +379,7 @@ await context.route('https://api.todoist.com/**', async (route) => {
     priority: task.priority, labels: task.labels, duration: task.duration, parent_id: task.parentId, is_completed: false,
   }))
   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results, next_cursor: null }) })
-})
+}))
 
 const page = context.pages()[0] ?? await context.newPage()
 page.setDefaultTimeout(20_000)
@@ -439,7 +449,7 @@ async function settleProvider(provider, { cancelDelayed = false } = {}) {
         if (entry.provider === provider) entry.release()
       }
     }
-    const pending = [...pendingProviderRequests].some((request) => providerForUrl(request.url()) === provider)
+    const pending = [...activeProviderRoutes].some((route) => providerForUrl(route.request().url()) === provider)
     const lastRequestAt = lastProviderRequestAt.get(provider) ?? startedAt
     if (!pending && Date.now() - lastRequestAt >= 200) return
     if (Date.now() >= deadline) throw new Error(`${provider} requests did not settle during ${activeRequestScenario}`)
