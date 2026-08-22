@@ -180,6 +180,8 @@ const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
 const expectedFailedRequestCounts = new Map()
 const pendingProviderRequests = new Set()
+const delayedProviderRoutes = new Map()
+const lastProviderRequestAt = new Map()
 let harnessNavigating = false
 const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
@@ -293,8 +295,21 @@ async function checkedRouteRequest(route) {
 
 async function delayed(route) {
   authorizeRequestFailure(expectedFailedRequestCounts, route.request())
-  await new Promise((resolveDelay) => setTimeout(resolveDelay, DELAYED_FAULT_MS))
-  await route.abort('failed').catch(() => {})
+  const provider = providerForUrl(route.request().url())
+  let release
+  const released = new Promise((resolveDelay) => { release = resolveDelay })
+  const timer = setTimeout(release, DELAYED_FAULT_MS)
+  const done = (async () => {
+    await released
+    clearTimeout(timer)
+    await route.abort('failed').catch(() => {})
+  })()
+  delayedProviderRoutes.set(route, { provider, release, done })
+  try {
+    await done
+  } finally {
+    delayedProviderRoutes.delete(route)
+  }
 }
 
 await context.route('https://api.linear.app/**', async (route) => {
@@ -384,6 +399,7 @@ page.on('request', (request) => {
   const url = request.url()
   if (providerForUrl(url)) {
     pendingProviderRequests.add(request)
+    lastProviderRequestAt.set(providerForUrl(url), Date.now())
     if (harnessNavigating) authorizeRequestFailure(expectedFailedRequestCounts, request)
   }
   else if (url.startsWith('http')) fail(`unexpected external request: ${request.method()} ${url}`)
@@ -404,6 +420,24 @@ async function waitForLoggedRequest(startIndex, predicate, label) {
   const deadline = Date.now() + 5_000
   while (!evidence.requestLog.slice(startIndex).some(predicate)) {
     if (Date.now() >= deadline) throw new Error(`${label} request was not observed`)
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25))
+  }
+}
+
+async function settleProvider(provider, { cancelDelayed = false } = {}) {
+  if (cancelDelayed) {
+    const delayed = [...delayedProviderRoutes.values()].filter((entry) => entry.provider === provider)
+    for (const entry of delayed) entry.release()
+    await Promise.allSettled(delayed.map((entry) => entry.done))
+  }
+
+  const startedAt = Date.now()
+  const deadline = startedAt + 5_000
+  while (true) {
+    const pending = [...pendingProviderRequests].some((request) => providerForUrl(request.url()) === provider)
+    const lastRequestAt = lastProviderRequestAt.get(provider) ?? startedAt
+    if (!pending && Date.now() - lastRequestAt >= 200) return
+    if (Date.now() >= deadline) throw new Error(`${provider} requests did not settle`)
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 25))
   }
 }
@@ -589,6 +623,7 @@ async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPOR
   }
   const path = join(outDir, `${label}.png`)
   await page.screenshot({ path, fullPage: true })
+  await settleProvider(widget.id, { cancelDelayed: state === 'loading' || state === 'stale' })
   const stored = await storageTruth()
   if (stored.writes.length) fail(`${label}: storage mutation outside expected keys ${JSON.stringify(stored.writes)}`)
   if (stored.writes.some((keys) => keys.includes('layout'))) fail(`${label}: legacy layout write`)
@@ -603,6 +638,7 @@ async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPOR
 
 async function assertDeepLink(widget) {
   await seed(widget, 'standard')
+  await settleProvider(widget.id)
   const link = page.locator(`[data-block-id="${widget.id}"] a`).first()
   const details = await link.evaluate((node) => ({ href: node.getAttribute('href'), target: node.getAttribute('target'), rel: node.getAttribute('rel') }))
   const expectedHost = widget.id === 'linear' ? 'linear.app' : widget.id === 'sentry' ? 'us.sentry.io' : 'app.todoist.com'
@@ -670,6 +706,7 @@ async function exerciseSettings(widget) {
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.enabled === true), widget.id)
   await page.waitForFunction((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots?.[id]?.data), widget.id)
+  await settleProvider(widget.id)
   await assertStorageStep(`${widget.id}-settings-connect`, beforeConnect, ['connectors', 'connectorSnapshots'])
 
   const beforePreferences = await storageCheckpoint()
@@ -690,6 +727,7 @@ async function exerciseSettings(widget) {
   const countLabel = widget.id === 'todoist' ? 'Tasks shown' : 'Issues shown'
   await page.getByLabel(countLabel).selectOption('7')
   await page.waitForFunction(({ id }) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.itemLimit === 7), { id: widget.id })
+  await settleProvider(widget.id)
   await assertStorageStep(`${widget.id}-settings-preferences`, beforePreferences, ['connectors', 'connectorSnapshots'])
 
   const path = join(outDir, `${widget.id}-settings-connected.png`)
@@ -736,7 +774,7 @@ async function exerciseSettings(widget) {
       'Linear reconnect cleared-team filter',
     )
   }
-  await page.waitForTimeout(250)
+  await settleProvider(widget.id)
   await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
   await recordSettingsState(`${widget.id}-after-reconnect`, widget.id)
   const reconnected = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors[id]), widget.id)
@@ -749,7 +787,7 @@ async function exerciseSettings(widget) {
   await page.waitForFunction((id) => chrome.storage.local.get(['connectors', 'connectorSnapshots']).then(({ connectors, connectorSnapshots }) => (
     connectors?.[id] === undefined && !(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
   )), widget.id)
-  await page.waitForTimeout(250)
+  await settleProvider(widget.id)
   await assertStorageStep(`${widget.id}-settings-disconnect`, beforeDisconnect, ['connectors', 'connectorSnapshots'])
   await recordSettingsState(`${widget.id}-after-disconnect`, widget.id)
   const disconnectedSnapshotPresent = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => (
@@ -768,6 +806,7 @@ async function exerciseTodoistCompletion(widget) {
   closeMode = 'success'
   closedTasks.clear()
   await seed(widget, 'standard')
+  await settleProvider(widget.id)
   const beforeCancel = await storageTruth()
   const postBefore = evidence.requestLog.filter((entry) => entry.method === 'POST' && entry.url.includes('/close')).length
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
@@ -788,6 +827,7 @@ async function exerciseTodoistCompletion(widget) {
 
   closeMode = 'error'
   await seed(widget, 'standard')
+  await settleProvider(widget.id)
   markRequestScenario('todoist-completion:error')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
   await page.getByRole('button', { name: 'Confirm completion' }).click()
