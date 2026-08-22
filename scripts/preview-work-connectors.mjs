@@ -852,6 +852,7 @@ async function exerciseTodoistCompletion(widget) {
   if (closeRequests.length !== 1) fail(`Todoist completion sent ${closeRequests.length} close requests`)
 
   closeMode = 'error'
+  closedTasks.clear()
   await seed(widget, 'standard')
   await settleProvider(widget.id)
   markRequestScenario('todoist-completion:error')
