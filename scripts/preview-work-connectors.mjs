@@ -156,6 +156,7 @@ const evidence = {
   storageWrites: [],
   permissionCalls: [],
   expectedFaultSignals: [],
+  expectedRequestAborts: [],
   runtimeErrors: [],
   failedRequests: [],
   failures: [],
@@ -298,9 +299,12 @@ page.on('console', (message) => {
 page.on('pageerror', (error) => evidence.runtimeErrors.push(`page: ${String(error)}`))
 page.on('requestfailed', (request) => {
   const url = request.url()
+  const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (!url.startsWith('chrome-extension://') && !expectedFailedRequests.has(request)) {
-    evidence.failedRequests.push(`${request.method()} ${url}: ${request.failure()?.errorText ?? 'failed'}`)
+  if (providerForUrl(url) && errorText === 'net::ERR_ABORTED') {
+    evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
+  } else if (!url.startsWith('chrome-extension://') && !expectedFailedRequests.has(request)) {
+    evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
   }
 })
 page.on('requestfinished', (request) => pendingProviderRequests.delete(request))
@@ -648,7 +652,7 @@ for (const token of Object.values(FAKE_TOKENS)) {
   if (evidenceJson.includes(token)) fail('live-looking credential leaked into evidence')
 }
 writeFileSync(join(outDir, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
-writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Expected injected fault signals: ${evidence.expectedFaultSignals.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNGs inspected individually before checkpoint: pending coordinator inspection\n`, 'utf8')
+writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Expected injected fault signals: ${evidence.expectedFaultSignals.length}\n- Expected harness-navigation request aborts: ${evidence.expectedRequestAborts.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNGs inspected individually before checkpoint: pending coordinator inspection\n`, 'utf8')
 process.stdout.write(`Work connector QA: ${evidence.captures.length} captures, ${evidence.requestLog.length} requests, ${evidence.failures.length} failures\n`)
 for (const failure of evidence.failures) process.stderr.write(`FAIL ${failure}\n`)
 if (evidence.failures.length) process.exitCode = 1
