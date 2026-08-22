@@ -71,4 +71,8 @@ output/
 # Focused Weather environmental-enrichment witness scratch.
 .qa-weather-enrichment-*
 
+# Expansion platform scratch scaffolds and Chromium catalog evidence.
+.aurora-expansion-*/
+.qa-expansion-platform-*/
+
 .playwright-profile-measure/
