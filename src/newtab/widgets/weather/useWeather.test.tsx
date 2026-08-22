@@ -7,7 +7,8 @@ import { memoryDriver } from '../../../lib/storage/driver'
 import type { StorageDriver } from '../../../lib/storage/driver'
 import { createInProcessStorageAuthority } from '../../../lib/storage/authority'
 import { createStorage, type AuroraStorage } from '../../../lib/storage/index'
-import type { StoredLocation, WeatherSnapshot } from '../../../lib/storage/schema'
+import type { StoredLocation, WeatherEnvironmentSnapshot, WeatherSnapshot } from '../../../lib/storage/schema'
+import { environmentRequestIdentity } from '../../../services/weather/environmentIdentity'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
 import { useWeather } from './useWeather'
 
@@ -21,6 +22,21 @@ const MAX_AGE_MS = 30 * 60 * 1000
 const TEXAS: StoredLocation = { lat: 32.7767, lon: -96.797, label: 'Springfield', manual: true }
 const GEORGIA: StoredLocation = { lat: 34.0232, lon: -84.3616, label: 'Springfield', manual: true }
 
+function environmentFor(
+  location: StoredLocation,
+  overrides: Partial<Extract<WeatherEnvironmentSnapshot, { status: 'available' }>> = {},
+): WeatherEnvironmentSnapshot {
+  return {
+    requestIdentity: environmentRequestIdentity(location.lat, location.lon),
+    fetchedAt: Date.now(),
+    status: 'available',
+    usAqi: 42,
+    uvIndex: 3,
+    pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 2 }] },
+    ...overrides,
+  }
+}
+
 function snapshotFor(
   location: StoredLocation,
   tempC: number,
@@ -32,6 +48,7 @@ function snapshotFor(
     fetchedAt: Date.now(),
     locationLabel: location.label,
     requestIdentity: weatherRequestIdentity(location.lat, location.lon),
+    environment: environmentFor(location, { fetchedAt: overrides.fetchedAt ?? Date.now() }),
     ...overrides,
   }
 }
@@ -181,6 +198,99 @@ describe('useWeather identity and request generations', () => {
     expect(fetchSnapshot).not.toHaveBeenCalled()
   })
 
+  it('renders forecast while one old or mismatched environmental leg self-heals quietly', async () => {
+    const firstRequest = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(firstRequest.promise)
+    const { environment: _environment, ...prePacket } = snapshotFor(TEXAS, 21)
+    const first = await renderProbe({ location: TEXAS, cache: prePacket })
+
+    expect(latest?.snapshot?.current.tempC).toBe(21)
+    expect(latest?.snapshot?.environment).toBeUndefined()
+    expect(latest?.loading).toBe(false)
+    expect(latest?.enrichmentPending).toBe(true)
+    expect(latest?.state).toEqual({ operation: 'success', freshness: 'fresh', hasData: true })
+    expect(fetchSnapshot).toHaveBeenCalledTimes(1)
+    first.unmount()
+
+    fetchSnapshot.mockReset()
+    const secondRequest = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(secondRequest.promise)
+    const mismatched = snapshotFor(TEXAS, 22, { environment: environmentFor(GEORGIA) })
+    const second = await renderProbe({ location: TEXAS, cache: mismatched })
+
+    expect(latest?.snapshot?.current.tempC).toBe(22)
+    expect(latest?.snapshot?.environment).toBeUndefined()
+    expect(latest?.loading).toBe(false)
+    expect(latest?.enrichmentPending).toBe(true)
+    expect(latest?.state).toEqual({ operation: 'success', freshness: 'fresh', hasData: true })
+    expect(fetchSnapshot).toHaveBeenCalledTimes(1)
+    second.unmount()
+  })
+
+  it('does not loop on recent unavailable enrichment and retries it without hiding forecast', async () => {
+    const unavailable: WeatherEnvironmentSnapshot = {
+      requestIdentity: environmentRequestIdentity(TEXAS.lat, TEXAS.lon),
+      fetchedAt: Date.now(),
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    await renderProbe({ location: TEXAS, cache: snapshotFor(TEXAS, 21, { environment: unavailable }) })
+    expect(fetchSnapshot).not.toHaveBeenCalled()
+    expect(latest?.enrichmentPending).toBe(false)
+
+    const retry = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(retry.promise)
+    await act(async () => {
+      void latest?.refresh()
+    })
+    expect(fetchSnapshot).toHaveBeenCalledTimes(1)
+    expect(latest?.loading).toBe(false)
+    expect(latest?.enrichmentPending).toBe(true)
+    expect(latest?.state).toEqual({ operation: 'success', freshness: 'fresh', hasData: true })
+
+    await act(async () => {
+      retry.resolve(snapshotFor(TEXAS, 23))
+      await retry.promise
+    })
+    expect(latest?.snapshot?.environment?.status).toBe('available')
+    expect(latest?.enrichmentPending).toBe(false)
+    expect(latest?.loading).toBe(false)
+  })
+
+  it('refreshes once when only environmental freshness reaches the exact TTL', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-14T12:00:00Z'))
+    const pending = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(pending.promise)
+    const cache = snapshotFor(TEXAS, 21, {
+      environment: environmentFor(TEXAS, { fetchedAt: Date.now() - MAX_AGE_MS + 1 }),
+    })
+    await renderProbe({ location: TEXAS, cache })
+    expect(fetchSnapshot).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(fetchSnapshot).toHaveBeenCalledTimes(1)
+    expect(latest?.loading).toBe(false)
+    expect(latest?.enrichmentPending).toBe(true)
+  })
+
+  it('rejects a provider result whose environmental identity is not owned by the active location', async () => {
+    const pending = deferred<WeatherSnapshot>()
+    fetchSnapshot.mockReturnValue(pending.promise)
+    const { storage } = await renderProbe({ location: TEXAS, cache: null })
+
+    await act(async () => {
+      pending.resolve(snapshotFor(TEXAS, 25, { environment: environmentFor(GEORGIA) }))
+      await pending.promise
+    })
+    expect(await storage.get('weatherCache')).toBeNull()
+    expect(latest?.snapshot).toBeNull()
+  })
+
   it('waits for both location and cache hydration before deciding to fetch', async () => {
     const baseDriver = memoryDriver()
     const setupStorage = createStorage(baseDriver)
@@ -241,6 +351,9 @@ describe('useWeather identity and request generations', () => {
     expect(latest?.error).toBeNull()
     expect((await storage.get('weatherCache'))?.requestIdentity).toBe(
       weatherRequestIdentity(GEORGIA.lat, GEORGIA.lon),
+    )
+    expect((await storage.get('weatherCache'))?.environment?.requestIdentity).toBe(
+      environmentRequestIdentity(GEORGIA.lat, GEORGIA.lon),
     )
   })
 
