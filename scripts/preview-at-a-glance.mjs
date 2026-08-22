@@ -4,7 +4,11 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 import sharp from 'sharp'
 
-import { inspectAtAGlanceRequest } from './at-a-glance-harness-contracts.mjs'
+import {
+  AT_A_GLANCE_SCENARIOS,
+  inspectAtAGlanceRequest,
+  validateAtAGlanceEvidence,
+} from './at-a-glance-harness-contracts.mjs'
 import { assertCleanTrackedStatus } from './build-contracts.mjs'
 import { assertAllowedStorageChange, assertBuildProvenance } from './work-connector-harness-contracts.mjs'
 import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'
@@ -42,38 +46,18 @@ safeScratch(outDir, '.qa-at-a-glance-')
 safeScratch(profileDir, '.qa-at-a-glance-')
 assertBuildProvenance(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'), expectedCommit)
 
-const VIEWPORTS = [
-  { width: 1600, height: 900, label: 'common' },
-  { width: 1408, height: 445, label: 'exact-short' },
-]
-const TIERS = ['compact', 'standard', 'full', 'docked']
+const VIEWPORTS = Object.freeze({
+  common: { width: 1600, height: 900, label: 'common' },
+  'exact-short': { width: 1408, height: 445, label: 'exact-short' },
+})
 const ALL_WIDGET_IDS = [...new Set(Object.values(CATALOG_BATCHES).flatMap((batch) => batch.map((entry) => entry.id)))]
 const today = new Date()
 const localDayKey = [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-')
-const WIDGETS = [
-  { id: 'onThisDay', title: 'On This Day', config: { enabled: true }, useful: ['On This Day', 'Aurora history witness'] },
-  { id: 'publicHolidays', title: 'Public Holidays', config: { enabled: true, countryCode: 'US' }, useful: ['Public Holidays', 'QA Holiday'] },
-  { id: 'auroraKp', title: 'Aurora & Kp', config: { enabled: true }, useful: ['Kp', 'peak'] },
-]
-
-// Declarations are a static audit surface for the harness contract test.
-const SCENARIOS = [
-  { id: 'onThisDay', kind: 'max-data', tier: 'full' },
-  { id: 'onThisDay', kind: 'empty', tier: 'standard' },
-  { id: 'onThisDay', kind: 'stale', tier: 'standard' },
-  { id: 'publicHolidays', kind: 'year-boundary', tier: 'full' },
-  { id: 'auroraKp', kind: 'error', tier: 'standard' },
-  { id: 'weather', kind: 'active', tier: 'standard' },
-  { id: 'weather', kind: 'unsupported', tier: 'standard' },
-  { id: 'weather', kind: 'empty', tier: 'standard' },
-  { id: 'weather', kind: 'stale', tier: 'standard' },
-  { id: 'weather', kind: 'error', tier: 'standard' },
-  { id: 'onThisDay', kind: 'dock-detail', tier: 'docked' },
-  { id: 'weather', kind: 'dock-detail', tier: 'docked' },
-  { id: 'weather', kind: 'active', tier: 'compact' },
-  { id: 'weather', kind: 'active', tier: 'full' },
-]
-void SCENARIOS
+const CONFIGS = Object.freeze({
+  onThisDay: { enabled: true },
+  publicHolidays: { enabled: true, countryCode: 'US' },
+  auroraKp: { enabled: true },
+})
 
 const evidence = {
   commit: evidenceCommit,
@@ -99,7 +83,7 @@ let navigating = false
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
   headless: !headed,
-  viewport: VIEWPORTS[0],
+  viewport: VIEWPORTS.common,
   deviceScaleFactor: 1,
   reducedMotion: 'reduce',
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
@@ -202,6 +186,46 @@ function kpRows() {
     ])
   }
   return [header, ...rows]
+}
+
+function onThisSnapshot(prefix = 'Aurora history witness') {
+  const normalized = (section, count, offset = 0) => eventRows(`${prefix} ${section}`, count, offset)
+    .map(({ year, text, pages }) => ({ year, text, url: pages[0].content_urls.desktop.page }))
+  return {
+    dateKey: localDayKey.slice(5),
+    events: normalized('event', 12),
+    births: normalized('birth', 4, 40),
+    deaths: normalized('death', 4, 60),
+  }
+}
+
+function publicHolidaysSnapshot() {
+  const year = today.getFullYear()
+  return {
+    countryCode: 'US',
+    year,
+    holidays: [...holidayRows(year, 'US'), ...holidayRows(year + 1, 'US')]
+      .map(({ date, name, localName }) => ({ date, name, localName })),
+  }
+}
+
+function auroraSnapshot() {
+  const current = {
+    time: new Date(Date.now() - 3 * 60 * 60_000).toISOString(),
+    kp: 3.67,
+    source: 'observed',
+    scale: null,
+  }
+  const forecast = Array.from({ length: 24 }, (_, index) => {
+    const kp = index === 6 ? 6 : 2 + (index % 4)
+    return {
+      time: new Date(Date.now() + (index + 1) * 3 * 60 * 60_000).toISOString(),
+      kp,
+      source: 'predicted',
+      scale: kp >= 6 ? 'G2' : kp >= 5 ? 'G1' : null,
+    }
+  })
+  return { current, forecast, peak: forecast[6] }
 }
 
 await context.route('https://services.swpc.noaa.gov/**', (route) => auditedRoute(route, async () => {
@@ -366,21 +390,28 @@ async function seed({ id, tier, config = null, snapshotData, snapshotFresh = tru
     weather, weatherAlert,
   })
   await clearWriteLog()
+  const runtimeBefore = await page.evaluate(() => chrome.storage.local.get(null))
   await reload()
   await page.locator(`[data-block-id="${id}"]`).waitFor()
+  return runtimeBefore
 }
 
-async function waitReady(id, tier) {
+async function waitReady(id, tier, kind) {
   if (tier === 'docked') return page.locator(`[data-block-id="${id}"] [data-dock-line]`).waitFor()
   if (id === 'weather') return page.locator(`[data-block-id="weather"] [data-weather-summary]`).waitFor()
+  if (kind === 'setup') return page.locator(`[data-block-id="${id}"] [data-work-resource-state="setup"]`).waitFor()
+  if (kind === 'empty') return page.locator(`[data-block-id="${id}"] [data-work-resource-state="empty"]`).waitFor()
+  if (kind === 'stale' || kind === 'stale-error') return page.locator(`[data-block-id="${id}"] [data-work-resource-state="retained-error"]`).waitFor()
+  if (kind === 'error') return page.locator(`[data-block-id="${id}"] [data-work-resource-state="hard-error"]`).waitFor()
   return page.locator(`[data-block-id="${id}"] [data-work-resource-state="ready"]`).waitFor()
 }
 
-async function capture({ id, kind, tier, viewport = VIEWPORTS[0], openDetail = tier === 'docked', openWeather = false, expected = [] }) {
-  activeScenario = `${id}:${kind}:${tier}:${viewport.label}`
+async function capture({ scenario, viewport, openDetail = scenario.tier === 'docked', openWeather = false }) {
+  const { id, kind, tier, expected } = scenario
+  activeScenario = scenario.key
   await page.setViewportSize(viewport)
   await page.waitForFunction(({ width, height }) => innerWidth === width && innerHeight === height, viewport)
-  await waitReady(id, tier).catch(() => undefined)
+  await waitReady(id, tier, kind)
   if (openDetail) {
     await page.locator(`[data-block-id="${id}"] [data-dock-line]`).click()
     await page.getByRole('dialog', { name: `${id === 'auroraKp' ? 'Aurora & Kp' : id === 'onThisDay' ? 'On This Day' : id === 'publicHolidays' ? 'Public Holidays' : 'Weather'} details` }).waitFor()
@@ -388,7 +419,10 @@ async function capture({ id, kind, tier, viewport = VIEWPORTS[0], openDetail = t
     await page.locator('[data-block-id="weather"] [data-weather-summary]').click()
     await page.getByRole('dialog', { name: 'Weather details' }).waitFor()
   }
-  await page.waitForTimeout(150)
+  await page.waitForFunction((terms) => {
+    const text = document.body.innerText.toLowerCase()
+    return terms.every((term) => text.includes(term.toLowerCase()))
+  }, expected)
   const truth = await page.evaluate((widgetId) => {
     const item = document.querySelector(`[data-block-id="${widgetId}"]`)
     const detail = document.querySelector('[data-work-dock-detail], [data-weather-details]')
@@ -412,105 +446,123 @@ async function capture({ id, kind, tier, viewport = VIEWPORTS[0], openDetail = t
   if (missing.length) fail(`${label}: missing useful content ${missing.join(' | ')}`)
   const path = join(outDir, `${label}.png`)
   await page.screenshot({ path, fullPage: true })
-  evidence.captures.push({ label, path, id, kind, tier, viewport, text: truth.text, geometry: truth.rect, localScroll: truth.localScroll, usefulness: missing.length ? 'failed' : 'useful' })
+  evidence.captures.push({ scenario: scenario.key, label, path, id, kind, tier, viewport, text: truth.text, geometry: truth.rect, localScroll: truth.localScroll, usefulness: missing.length ? 'failed' : 'useful' })
   if (openDetail || openWeather) await page.keyboard.press('Escape')
 }
 
-async function assertRuntimeWrites(label, before, allowedKeys) {
+async function assertRuntimeWrites(scenario, before) {
   await page.waitForTimeout(250)
   const after = await page.evaluate(() => chrome.storage.local.get(null))
   const writes = await currentWrites()
   try {
-    const changedKeys = assertAllowedStorageChange(before, after, allowedKeys)
-    const allowed = new Set(allowedKeys)
+    const changedKeys = assertAllowedStorageChange(before, after, scenario.allowedWriteKeys)
+    const allowed = new Set(scenario.allowedWriteKeys)
     const forbiddenWrites = [...new Set(writes.flat())].filter((key) => !allowed.has(key))
     if (forbiddenWrites.length) throw new Error(`Unexpected storage writes: ${forbiddenWrites.join(', ')}`)
     if (writes.some((keys) => keys.includes('layout'))) throw new Error('legacy layout key was written')
-    evidence.storage.push({ label, changedKeys, writes })
+    evidence.storage.push({ scenario: scenario.key, changedKeys, writes })
   } catch (error) {
-    fail(`${label}: ${error instanceof Error ? error.message : String(error)}`)
+    fail(`${scenario.key}: ${error instanceof Error ? error.message : String(error)}`)
+    evidence.storage.push({ scenario: scenario.key, changedKeys: [], writes })
   }
+}
+
+function snapshotFor(id) {
+  if (id === 'onThisDay') return onThisSnapshot()
+  if (id === 'publicHolidays') return publicHolidaysSnapshot()
+  if (id === 'auroraKp') return auroraSnapshot()
+  return undefined
+}
+
+async function witnessCountryPicker() {
+  await page.getByRole('button', { name: 'Open settings' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  await page.getByRole('tab', { name: 'Connectors' }).click()
+  await page.getByRole('button', { name: /(?:Configure|Edit) Public Holidays/ }).click()
+  await page.getByRole('combobox', { name: 'Country' }).waitFor()
+  await page.getByRole('button', { name: 'Close settings' }).click()
+}
+
+async function runScenario(scenario) {
+  activeScenario = scenario.key
+  modes.set('onThisDay', 'ready')
+  modes.set('publicHolidays', 'ready')
+  modes.set('auroraKp', 'ready')
+  modes.set('weatherAlerts', 'active')
+
+  let config = CONFIGS[scenario.id] ?? null
+  let snapshotData = scenario.fixture === 'snapshot' ? snapshotFor(scenario.id) : undefined
+  let snapshotFresh = true
+  let weatherAlert
+
+  if (scenario.fixture === 'empty') {
+    if (scenario.id === 'onThisDay') {
+      snapshotData = { dateKey: localDayKey.slice(5), events: [], births: [], deaths: [] }
+    } else if (scenario.id === 'auroraKp') {
+      snapshotData = { current: null, forecast: [], peak: null }
+    } else if (scenario.id === 'weather') {
+      modes.set('weatherAlerts', 'empty')
+      weatherAlert = null
+    }
+  } else if (scenario.fixture === 'stale-error') {
+    if (scenario.id === 'onThisDay') {
+      modes.set('onThisDay', 'error')
+      snapshotData = onThisSnapshot('Saved historical event')
+      snapshotFresh = false
+    } else if (scenario.id === 'weather') {
+      modes.set('weatherAlerts', 'error')
+      weatherAlert = alertCache('supported', true)
+    }
+  } else if (scenario.fixture === 'local-midnight') {
+    snapshotData = onThisSnapshot('Local midnight witness')
+  } else if (scenario.fixture === 'year-boundary') {
+    snapshotData = publicHolidaysSnapshot()
+  } else if (scenario.fixture === 'setup') {
+    config = { enabled: true, countryCode: '' }
+  } else if (scenario.fixture === 'error') {
+    if (scenario.id === 'publicHolidays') modes.set('publicHolidays', 'error')
+    if (scenario.id === 'auroraKp') modes.set('auroraKp', 'error')
+    if (scenario.id === 'weather') modes.set('weatherAlerts', 'error')
+    weatherAlert = scenario.id === 'weather' ? null : undefined
+  } else if (scenario.fixture === 'active-live') {
+    weatherAlert = null
+  } else if (scenario.fixture === 'active-snapshot') {
+    weatherAlert = alertCache()
+  } else if (scenario.fixture === 'unsupported') {
+    modes.set('weatherAlerts', 'unsupported')
+    weatherAlert = null
+  }
+
+  const before = await seed({
+    id: scenario.id,
+    tier: scenario.tier,
+    config,
+    snapshotData,
+    snapshotFresh,
+    weatherAlert,
+  })
+
+  if (scenario.fixture === 'setup') await witnessCountryPicker()
+  if (scenario.id === 'weather' && ['empty', 'unsupported'].includes(scenario.fixture)) {
+    const status = scenario.fixture === 'unsupported' ? 'unsupported' : 'supported'
+    await page.waitForFunction((expectedStatus) => (
+      chrome.storage.local.get('weatherAlertCache')
+        .then(({ weatherAlertCache }) => weatherAlertCache?.status === expectedStatus)
+    ), status)
+  }
+
+  await capture({
+    scenario,
+    viewport: VIEWPORTS[scenario.viewport],
+    openWeather: scenario.id === 'weather' && ['empty', 'unsupported', 'error', 'stale-error'].includes(scenario.fixture),
+  })
+  await assertRuntimeWrites(scenario, before)
 }
 
 try {
   await page.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
   await page.locator('[data-canvas-surface]').waitFor()
-
-  for (const widget of WIDGETS) {
-    let preserveSnapshot = false
-    for (const tier of TIERS) {
-      modes.set(widget.id, 'ready')
-      activeScenario = `${widget.id}:tiers:${tier}:seed`
-      await seed({ id: widget.id, tier, config: widget.config, preserveSnapshot })
-      await waitReady(widget.id, tier)
-      preserveSnapshot = true
-      await capture({ id: widget.id, kind: tier === 'docked' ? 'dock-detail' : 'tiers', tier, expected: widget.useful })
-    }
-    for (const tier of ['standard', 'full']) {
-      await seed({ id: widget.id, tier, config: widget.config, preserveSnapshot: true })
-      await capture({ id: widget.id, kind: 'short-window', tier, viewport: VIEWPORTS[1], expected: widget.useful })
-    }
-  }
-
-  const onThisEmpty = { dateKey: localDayKey.slice(5), events: [], births: [], deaths: [] }
-  await seed({ id: 'onThisDay', tier: 'standard', config: WIDGETS[0].config, snapshotData: onThisEmpty })
-  await capture({ id: 'onThisDay', kind: 'empty', tier: 'standard', expected: ['No event returned for today'] })
-
-  const retained = {
-    dateKey: localDayKey.slice(5),
-    events: eventRows('Saved historical event', 12).map(({ year, text, pages }) => ({ year, text, url: pages[0].content_urls.desktop.page })),
-    births: [], deaths: [],
-  }
-  modes.set('onThisDay', 'error')
-  activeScenario = 'onThisDay:stale:standard:seed'
-  await seed({ id: 'onThisDay', tier: 'standard', config: WIDGETS[0].config, snapshotData: retained, snapshotFresh: false })
-  await page.locator('[data-work-resource-state="retained-error"]').waitFor()
-  await capture({ id: 'onThisDay', kind: 'stale', tier: 'standard', expected: ['Saved', 'Saved historical event'] })
-  modes.set('onThisDay', 'ready')
-
-  await seed({ id: 'publicHolidays', tier: 'full', config: WIDGETS[1].config, preserveSnapshot: true })
-  await capture({ id: 'publicHolidays', kind: 'year-boundary', tier: 'full', expected: ['QA Holiday', String(today.getFullYear() + 1)] })
-
-  modes.set('auroraKp', 'error')
-  activeScenario = 'auroraKp:error:standard:seed'
-  await seed({ id: 'auroraKp', tier: 'standard', config: WIDGETS[2].config })
-  await page.locator('[data-work-resource-state="hard-error"]').waitFor()
-  await capture({ id: 'auroraKp', kind: 'error', tier: 'standard', expected: ['Aurora & Kp is unavailable'] })
-  modes.set('auroraKp', 'ready')
-
-  let preserveAlert = false
-  for (const tier of TIERS) {
-    modes.set('weatherAlerts', 'active')
-    activeScenario = `weather:active:${tier}:seed`
-    await seed({ id: 'weather', tier, weatherAlert: preserveAlert ? alertCache() : null })
-    await page.locator(
-      '[data-block-id="weather"] [data-weather-alert-badge], [data-block-id="weather"] [data-weather-alert-line]',
-    ).waitFor()
-    preserveAlert = true
-    await capture({ id: 'weather', kind: tier === 'docked' ? 'dock-detail' : 'active', tier, expected: ['Severe Thunderstorm Warning'], openDetail: tier === 'docked' })
-  }
-  await seed({ id: 'weather', tier: 'standard', weatherAlert: alertCache() })
-  await capture({ id: 'weather', kind: 'short-window', tier: 'standard', viewport: VIEWPORTS[1], expected: ['Severe Thunderstorm Warning'] })
-
-  for (const mode of ['empty', 'unsupported']) {
-    modes.set('weatherAlerts', mode)
-    activeScenario = `weather:${mode}:standard:seed`
-    await seed({ id: 'weather', tier: 'standard', weatherAlert: null })
-    const before = await page.evaluate(() => chrome.storage.local.get(null))
-    await page.waitForFunction((status) => chrome.storage.local.get('weatherAlertCache').then(({ weatherAlertCache }) => weatherAlertCache?.status === status), mode === 'unsupported' ? 'unsupported' : 'supported')
-    await capture({ id: 'weather', kind: mode, tier: 'standard', openWeather: true, expected: [mode === 'unsupported' ? 'New York' : 'No active NWS alerts'] })
-    await assertRuntimeWrites(`weather:${mode}`, before, ['weatherAlertCache'])
-  }
-
-  modes.set('weatherAlerts', 'error')
-  activeScenario = 'weather:error:standard:seed'
-  await seed({ id: 'weather', tier: 'standard', weatherAlert: null })
-  await page.locator('[data-block-id="weather"] [data-weather-summary]').waitFor()
-  await capture({ id: 'weather', kind: 'error', tier: 'standard', openWeather: true, expected: ['NWS alerts unavailable', 'New York'] })
-
-  activeScenario = 'weather:stale:standard:seed'
-  await seed({ id: 'weather', tier: 'standard', weatherAlert: alertCache('supported', true) })
-  await capture({ id: 'weather', kind: 'stale', tier: 'standard', openWeather: true, expected: ['Saved alert data', 'Severe Thunderstorm Warning'] })
+  for (const scenario of AT_A_GLANCE_SCENARIOS) await runScenario(scenario)
 } finally {
   navigating = true
   await context.close()
@@ -519,8 +571,10 @@ try {
 
 if (evidence.runtimeErrors.length) fail(`runtime errors: ${evidence.runtimeErrors.join(' | ')}`)
 if (evidence.failedRequests.length) fail(`failed requests: ${evidence.failedRequests.join(' | ')}`)
-for (const required of ['on-this-day', 'public-holidays', 'aurora-kp', 'weather-alerts']) {
-  if (!evidence.requestLog.some((entry) => entry.operation === required)) fail(`provider operation was not witnessed: ${required}`)
+try {
+  validateAtAGlanceEvidence(evidence)
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error))
 }
 
 for (const id of ['onThisDay', 'publicHolidays', 'auroraKp', 'weather']) {

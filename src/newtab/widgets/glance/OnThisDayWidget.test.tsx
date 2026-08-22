@@ -73,6 +73,14 @@ describe('OnThisDayWidget', () => {
     expect(screen.getByText('From Wikipedia')).toBeTruthy()
   })
 
+  it('visually clamps a long Compact event to two lines without truncating its accessible text', async () => {
+    const text = 'A deliberately long historical event whose full provider text remains available while the compact card stays at two visual lines.'
+    mount(await seededStorage({ ...DATA, events: [{ year: 1969, text, url: 'https://en.wikipedia.org/wiki/Apollo_11' }] }), { canvasSize: 'compact' })
+    const link = await screen.findByRole('link', { name: text })
+    expect(link.className).toContain('[-webkit-line-clamp:2]')
+    expect(link.getAttribute('title')).toBe(text)
+  })
+
   it('uses Full space for six events plus bounded births and deaths in local overflow', async () => {
     mount(await seededStorage(), { canvasSize: 'full' })
     expect(await screen.findByText('Historical event 5')).toBeTruthy()

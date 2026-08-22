@@ -122,6 +122,40 @@ describe('useWeatherAlerts', () => {
     expect(latest?.snapshot).toEqual(stale)
   })
 
+  it('retries a failed visible request on a bounded cadence', async () => {
+    fetchWeatherAlerts
+      .mockRejectedValueOnce(new Error('private failure'))
+      .mockResolvedValueOnce({ status: 'supported', alerts: [] })
+    await mount(TEXAS, null)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(29_999) })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(2)
+  })
+
+  it('cannot repopulate an alert cache after an identical-location restore clears it', async () => {
+    const beforeRestore = deferred<{ status: 'supported'; alerts: typeof alert[] }>()
+    const afterRestore = deferred<{ status: 'supported'; alerts: typeof alert[] }>()
+    fetchWeatherAlerts
+      .mockReturnValueOnce(beforeRestore.promise)
+      .mockReturnValueOnce(afterRestore.promise)
+    const { storage } = await mount(TEXAS, null)
+    const restored = { ...await storage.snapshot(), weatherAlertCache: null }
+    await act(async () => {
+      await storage.replaceAllWithRollback(restored, async () => undefined)
+      await Promise.resolve()
+    })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(2)
+    beforeRestore.resolve({ status: 'supported', alerts: [alert] })
+    await act(async () => { await beforeRestore.promise; await Promise.resolve() })
+    expect(await storage.get('weatherAlertCache')).toBeNull()
+    afterRestore.resolve({ status: 'supported', alerts: [] })
+    await act(async () => { await afterRestore.promise; await Promise.resolve() })
+    expect((await storage.get('weatherAlertCache'))?.alerts).toEqual([])
+  })
+
   it('persists unsupported coverage as a truthful cache state', async () => {
     fetchWeatherAlerts.mockResolvedValue({ status: 'unsupported' })
     const { storage } = await mount(TEXAS, null)

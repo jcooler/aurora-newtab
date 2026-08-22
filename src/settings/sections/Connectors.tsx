@@ -552,6 +552,8 @@ function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
   const [countryCode, setCountryCode] = useState(current ?? '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [ownerFingerprint] = useState(() => publicHolidaysOwnerFingerprint(config))
 
   useEffect(() => {
     let live = true
@@ -581,14 +583,30 @@ function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
           setError('Choose a country from the list.')
           return
         }
-        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
-          const nextSnapshots = { ...connectorSnapshots }
-          delete nextSnapshots.publicHolidays
-          return {
-            connectors: { ...connectors, publicHolidays: { enabled: true, countryCode: normalized } },
-            connectorSnapshots: nextSnapshots,
+        setSubmitting(true)
+        setError(null)
+        void (async () => {
+          try {
+            await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+              if (publicHolidaysOwnerFingerprint(connectors.publicHolidays) !== ownerFingerprint) {
+                throw new PublicHolidaysOwnershipError()
+              }
+              const nextSnapshots = { ...connectorSnapshots }
+              delete nextSnapshots.publicHolidays
+              return {
+                connectors: { ...connectors, publicHolidays: { enabled: true, countryCode: normalized } },
+                connectorSnapshots: nextSnapshots,
+              }
+            })
+            closeEditor()
+          } catch (saveError) {
+            setError(saveError instanceof PublicHolidaysOwnershipError
+              ? 'Public Holidays changed elsewhere. Reopen it before saving.'
+              : 'Public Holidays could not be saved. Try again.')
+          } finally {
+            setSubmitting(false)
           }
-        }).then(closeEditor)
+        })()
       }}
     >
       <div>
@@ -612,12 +630,22 @@ function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
       <p className="text-xs leading-relaxed text-fg-muted">
         Aurora sends this country code and the current and next local year to Nager.Date. No account, key, or permission is required.
       </p>
-      <button type="submit" disabled={loading || countries.length === 0} className={submitBtn}>
-        {current ? 'Save Public Holidays country' : 'Add Public Holidays to canvas'}
+      <button type="submit" disabled={loading || submitting || countries.length === 0} className={submitBtn}>
+        {submitting ? 'Saving…' : current ? 'Save Public Holidays country' : 'Add Public Holidays to canvas'}
       </button>
       {error ? <p role="alert" className="text-xs text-fg-muted">{error}</p> : null}
     </form>
   )
+}
+
+class PublicHolidaysOwnershipError extends Error {}
+
+function publicHolidaysOwnerFingerprint(config: ConnectorConfig | undefined): string {
+  if (!config || !('countryCode' in config)) return 'missing'
+  return JSON.stringify([
+    config.enabled,
+    normalizeHolidayCountryCode(config.countryCode) ?? null,
+  ])
 }
 
 function AuroraKpBody({ config, storage, closeEditor }: BodyProps) {

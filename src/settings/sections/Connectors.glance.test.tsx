@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
@@ -74,6 +74,32 @@ describe('At a glance Settings', () => {
     expect((await storage.get('connectorSnapshots')).publicHolidays).toBeUndefined()
     expect((await storage.get('connectorSnapshots')).crypto).toBeTruthy()
     expect(chrome.permissions.request).not.toHaveBeenCalled()
+    fetchSpy.mockRestore()
+  })
+
+  it('rejects a stale Public Holidays editor after authoritative configuration changes', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', { publicHolidays: { enabled: true, countryCode: 'CA' } })
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify([
+      { countryCode: 'CA', name: 'Canada' },
+      { countryCode: 'US', name: 'United States' },
+    ]), { status: 200 }))
+    render(<StorageProvider storage={storage}><Harness storage={storage} /></StorageProvider>)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Public Holidays' }))
+    const picker = await screen.findByRole('combobox', { name: 'Country' })
+    fireEvent.change(picker, { target: { value: 'US' } })
+    await act(async () => {
+      await storage.set('connectors', { publicHolidays: { enabled: false, countryCode: 'CA' } })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Public Holidays country' }))
+
+    expect(await screen.findByRole('alert')).toHaveProperty(
+      'textContent',
+      'Public Holidays changed elsewhere. Reopen it before saving.',
+    )
+    expect((await storage.get('connectors')).publicHolidays).toEqual({ enabled: false, countryCode: 'CA' })
     fetchSpy.mockRestore()
   })
 

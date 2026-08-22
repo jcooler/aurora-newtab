@@ -519,6 +519,35 @@ describe('useConnectorSnapshot', () => {
     expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
   })
 
+  it('rejects a pending response when an identical-config restore clears derived snapshots', async () => {
+    const storage = await freshStorage()
+    const beforeRestore = deferred<string>()
+    const afterRestore = deferred<string>()
+    const refresh = vi.fn()
+      .mockReturnValueOnce(beforeRestore.promise)
+      .mockReturnValueOnce(afterRestore.promise)
+    mount(storage, refresh, 60_000, configA)
+    await act(async () => { await tick() })
+
+    const restored = { ...await storage.snapshot(), connectorSnapshots: {} }
+    await act(async () => {
+      await storage.replaceAllWithRollback(restored, async () => undefined)
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      beforeRestore.resolve('stale-after-identical-restore')
+      await tick()
+    })
+
+    expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
+    await act(async () => {
+      afterRestore.resolve('fresh-after-identical-restore')
+      await tick()
+    })
+    expect((await storage.get('connectorSnapshots')).rss?.data).toBe('fresh-after-identical-restore')
+  })
+
   it('does not start an old-owner refresh after authoritative disconnect before React rerenders', async () => {
     const storage = await freshStorage(configA, {
       fetchedAt: Date.now(),

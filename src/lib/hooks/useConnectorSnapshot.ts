@@ -1,5 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { useStorage } from '../storage/context'
+import {
+  currentCacheAuthorityEpoch,
+  subscribeCacheAuthority,
+} from '../cacheAuthority'
 import type { ConnectorConfig, ConnectorId, ConnectorSnapshot } from '../../services/connectors/types'
 import { getConnector } from '../../services/connectors/registry'
 import {
@@ -53,8 +57,14 @@ export function useConnectorSnapshot<T>(
   state: AsyncResourceState
 } {
   const storage = useStorage()
+  const cacheAuthorityEpoch = useSyncExternalStore(
+    subscribeCacheAuthority,
+    currentCacheAuthorityEpoch,
+    currentCacheAuthorityEpoch,
+  )
   const runtimeKey = runtimeScope === undefined ? '' : canonicalConnectorRuntimeScope(runtimeScope)
-  const configKey = `${canonicalConnectorEventConfig(id, config)}\n${runtimeKey}`
+  const connectorConfigKey = `${canonicalConnectorEventConfig(id, config)}\n${runtimeKey}`
+  const configKey = `${connectorConfigKey}\ncache:${cacheAuthorityEpoch}`
   const [state, setState] = useState<SnapshotState<T>>(EMPTY_STATE)
 
   const refreshRef = useRef(refresh)
@@ -73,7 +83,10 @@ export function useConnectorSnapshot<T>(
     let removeRestorationListeners: () => void = () => undefined
     let expiryTimer: number | undefined
 
-    const isCurrent = () => latestConfigKeys.get(id) === configKey
+    const isCurrent = () => (
+      latestConfigKeys.get(id) === configKey &&
+      currentCacheAuthorityEpoch() === cacheAuthorityEpoch
+    )
 
     const clearExpiryTimer = () => {
       if (expiryTimer !== undefined) {
@@ -132,9 +145,9 @@ export function useConnectorSnapshot<T>(
         // separate React/storage notifications. Revalidate before issuing
         // the request so the old mounted owner cannot make one last call with
         // credentials that authoritative storage has already disconnected.
-        if (!authoritativeConfig?.enabled || authoritativeConfigKey !== configKey) return
+        if (!authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) return
 
-        const requestKey = `${id}\n${scope}`
+        const requestKey = `${id}\n${scope}\ncache:${cacheAuthorityEpoch}`
         let pending = inFlight.get(requestKey)
         const owner = pending === undefined
         if (pending === undefined) {
@@ -164,7 +177,7 @@ export function useConnectorSnapshot<T>(
               // authoritative connector record inside the same queued update
               // that would write the derived cache; render-local generation
               // ownership alone cannot authorize a stale completion.
-              if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== configKey) {
+              if (!isCurrent() || !authoritativeConfig?.enabled || authoritativeConfigKey !== connectorConfigKey) {
                 return {}
               }
               return {
@@ -241,7 +254,7 @@ export function useConnectorSnapshot<T>(
         // A render can observe the next config while an earlier queued
         // storage update is still finishing. Once storage confirms that same
         // owner, retry freshness; removed or different owners stay silent.
-        if (authoritativeConfig?.enabled && authoritativeConfigKey === configKey) {
+        if (authoritativeConfig?.enabled && authoritativeConfigKey === connectorConfigKey) {
           void checkFreshness()
         }
       })
@@ -288,7 +301,7 @@ export function useConnectorSnapshot<T>(
       unsubscribeConnectors()
       removeRestorationListeners()
     }
-  }, [id, storage, configKey, ttlMs])
+  }, [id, storage, configKey, connectorConfigKey, cacheAuthorityEpoch, ttlMs])
 
   const current = state.configKey === configKey ? state : EMPTY_STATE
   const now = Date.now()

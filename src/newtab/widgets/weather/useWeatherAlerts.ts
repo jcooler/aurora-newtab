@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 
+import {
+  currentCacheAuthorityEpoch,
+  subscribeCacheAuthority,
+} from '../../../lib/cacheAuthority'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import type { WeatherAlertCache } from '../../../lib/storage/schema'
 import { fetchWeatherAlerts, weatherAlertRequestIdentity } from '../../../services/weatherAlerts'
 
 const MAX_AGE_MS = 5 * 60_000
+const RETRY_MS = 30_000
 
 interface InFlightAlerts {
   identity: string
+  cacheAuthorityEpoch: number
   generation: number
   controller: AbortController
   promise: Promise<void>
@@ -16,11 +22,17 @@ interface InFlightAlerts {
 
 export function useWeatherAlerts() {
   const storage = useStorage()
+  const cacheAuthorityEpoch = useSyncExternalStore(
+    subscribeCacheAuthority,
+    currentCacheAuthorityEpoch,
+    currentCacheAuthorityEpoch,
+  )
   const [location] = useStoredKey('location')
   const [storedSnapshot] = useStoredKey('weatherAlertCache')
   const storageReady = location !== undefined && storedSnapshot !== undefined
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retryAt, setRetryAt] = useState<number | null>(null)
   const mountedRef = useRef(false)
   const identityRef = useRef<string | null>(null)
   const generationRef = useRef(0)
@@ -54,27 +66,36 @@ export function useWeatherAlerts() {
     identityRef.current = currentIdentity
     generationRef.current += 1
     const active = inFlightRef.current
-    if (active && active.identity !== currentIdentity) {
+    if (active && (
+      active.identity !== currentIdentity ||
+      active.cacheAuthorityEpoch !== cacheAuthorityEpoch
+    )) {
       active.controller.abort()
       inFlightRef.current = null
     }
     setLoading(false)
     setError(null)
-  }, [currentIdentity])
+    setRetryAt(null)
+  }, [currentIdentity, cacheAuthorityEpoch])
 
   const refresh = useCallback(async (): Promise<void> => {
     if (!storageReady || !location || !currentIdentity) return
     const active = inFlightRef.current
-    if (active?.identity === currentIdentity) return active.promise
+    if (
+      active?.identity === currentIdentity &&
+      active.cacheAuthorityEpoch === cacheAuthorityEpoch
+    ) return active.promise
     if (active) active.controller.abort()
 
     const controller = new AbortController()
+    const requestEpoch = cacheAuthorityEpoch
     const generation = generationRef.current + 1
     generationRef.current = generation
     const request = (async () => {
       if (mountedRef.current && identityRef.current === currentIdentity) {
         setLoading(true)
         setError(null)
+        setRetryAt(null)
       }
       try {
         const result = await fetchWeatherAlerts(location.lat, location.lon, fetch, controller.signal)
@@ -82,7 +103,8 @@ export function useWeatherAlerts() {
           controller.signal.aborted ||
           !mountedRef.current ||
           generationRef.current !== generation ||
-          identityRef.current !== currentIdentity
+          identityRef.current !== currentIdentity ||
+          currentCacheAuthorityEpoch() !== requestEpoch
         ) return
         const next: WeatherAlertCache = {
           requestIdentity: currentIdentity,
@@ -94,6 +116,7 @@ export function useWeatherAlerts() {
           if (
             controller.signal.aborted ||
             generationRef.current !== generation ||
+            currentCacheAuthorityEpoch() !== requestEpoch ||
             !storedLocation
           ) return {}
           try {
@@ -109,9 +132,11 @@ export function useWeatherAlerts() {
           controller.signal.aborted ||
           !mountedRef.current ||
           generationRef.current !== generation ||
-          identityRef.current !== currentIdentity
+          identityRef.current !== currentIdentity ||
+          currentCacheAuthorityEpoch() !== requestEpoch
         ) return
         setError('NWS weather alerts are unavailable.')
+        setRetryAt(Date.now() + RETRY_MS)
       } finally {
         const activeRequest = inFlightRef.current
         if (activeRequest?.generation === generation) {
@@ -120,9 +145,15 @@ export function useWeatherAlerts() {
         }
       }
     })()
-    inFlightRef.current = { identity: currentIdentity, generation, controller, promise: request }
+    inFlightRef.current = {
+      identity: currentIdentity,
+      cacheAuthorityEpoch: requestEpoch,
+      generation,
+      controller,
+      promise: request,
+    }
     return request
-  }, [currentIdentity, location, storage, storageReady])
+  }, [cacheAuthorityEpoch, currentIdentity, location, storage, storageReady])
 
   useEffect(() => {
     if (!currentIdentity || document.visibilityState !== 'visible' || fresh) return
@@ -138,6 +169,12 @@ export function useWeatherAlerts() {
     }, remaining)
     return () => window.clearTimeout(timeout)
   }, [currentIdentity, matchingSnapshot, refresh])
+
+  useEffect(() => {
+    if (!currentIdentity || retryAt === null || document.visibilityState !== 'visible') return
+    const timeout = window.setTimeout(() => void refresh(), Math.max(0, retryAt - Date.now()))
+    return () => window.clearTimeout(timeout)
+  }, [currentIdentity, refresh, retryAt])
 
   useEffect(() => {
     const onVisibilityChange = () => {

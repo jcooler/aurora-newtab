@@ -6,6 +6,121 @@ function exactAccept(request, expected, provider) {
   expect(request.accept === expected, `${provider} Accept contract mismatch`)
 }
 
+function scenario({
+  id,
+  kind,
+  tier,
+  viewport = 'common',
+  fixture,
+  expected,
+  allowedWriteKeys = [],
+  requiredWriteKeys = [],
+  expectOverflow = false,
+}) {
+  return Object.freeze({
+    key: `${id}:${kind}:${tier}:${viewport}`,
+    id,
+    kind,
+    tier,
+    viewport,
+    fixture,
+    expected: Object.freeze([...expected]),
+    allowedWriteKeys: Object.freeze([...allowedWriteKeys]),
+    requiredWriteKeys: Object.freeze([...requiredWriteKeys]),
+    expectOverflow,
+  })
+}
+
+function tierScenarios(id, expected, { fullOverflow = false } = {}) {
+  return [
+    scenario({ id, kind: 'tier', tier: 'compact', fixture: 'live', expected, allowedWriteKeys: ['connectorSnapshots'], requiredWriteKeys: ['connectorSnapshots'] }),
+    scenario({ id, kind: 'tier', tier: 'standard', fixture: 'snapshot', expected }),
+    scenario({ id, kind: 'max-data', tier: 'full', fixture: 'snapshot', expected, expectOverflow: fullOverflow }),
+    scenario({ id, kind: 'dock-detail', tier: 'docked', fixture: 'snapshot', expected }),
+    scenario({ id, kind: 'short-window', tier: 'standard', viewport: 'exact-short', fixture: 'snapshot', expected }),
+    scenario({ id, kind: 'short-window', tier: 'full', viewport: 'exact-short', fixture: 'snapshot', expected }),
+  ]
+}
+
+export const AT_A_GLANCE_SCENARIOS = Object.freeze([
+  ...tierScenarios('onThisDay', ['On This Day', 'Aurora history witness']),
+  ...tierScenarios('publicHolidays', ['Public Holidays', 'QA Holiday'], { fullOverflow: true }),
+  ...tierScenarios('auroraKp', ['Kp', 'peak'], { fullOverflow: true }),
+  scenario({ id: 'onThisDay', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No event returned for today'] }),
+  scenario({ id: 'onThisDay', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'Saved historical event'] }),
+  scenario({ id: 'onThisDay', kind: 'local-midnight', tier: 'standard', fixture: 'local-midnight', expected: ['Local midnight witness'] }),
+  scenario({ id: 'publicHolidays', kind: 'setup', tier: 'standard', fixture: 'setup', expected: ['Choose a country in Settings'] }),
+  scenario({ id: 'publicHolidays', kind: 'year-boundary', tier: 'full', fixture: 'year-boundary', expected: ['QA Holiday', String(new Date().getFullYear() + 1)], expectOverflow: true }),
+  scenario({ id: 'publicHolidays', kind: 'error', tier: 'standard', fixture: 'error', expected: ['Public Holidays is unavailable'] }),
+  scenario({ id: 'auroraKp', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['NOAA has no current Kp forecast'] }),
+  scenario({ id: 'auroraKp', kind: 'error', tier: 'standard', fixture: 'error', expected: ['Aurora & Kp is unavailable'] }),
+  scenario({ id: 'weather', kind: 'active', tier: 'compact', fixture: 'active-live', expected: ['Severe Thunderstorm Warning'], allowedWriteKeys: ['weatherAlertCache'], requiredWriteKeys: ['weatherAlertCache'] }),
+  scenario({ id: 'weather', kind: 'active', tier: 'standard', fixture: 'active-snapshot', expected: ['Severe Thunderstorm Warning'] }),
+  scenario({ id: 'weather', kind: 'max-data', tier: 'full', fixture: 'active-snapshot', expected: ['Severe Thunderstorm Warning'] }),
+  scenario({ id: 'weather', kind: 'dock-detail', tier: 'docked', fixture: 'active-snapshot', expected: ['Severe Thunderstorm Warning'] }),
+  scenario({ id: 'weather', kind: 'short-window', tier: 'standard', viewport: 'exact-short', fixture: 'active-snapshot', expected: ['Severe Thunderstorm Warning'] }),
+  scenario({ id: 'weather', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No active NWS alerts'], allowedWriteKeys: ['weatherAlertCache'], requiredWriteKeys: ['weatherAlertCache'] }),
+  scenario({ id: 'weather', kind: 'unsupported', tier: 'standard', fixture: 'unsupported', expected: ['New York'], allowedWriteKeys: ['weatherAlertCache'], requiredWriteKeys: ['weatherAlertCache'] }),
+  scenario({ id: 'weather', kind: 'error', tier: 'standard', fixture: 'error', expected: ['NWS alerts unavailable', 'New York'] }),
+  scenario({ id: 'weather', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved alert data', 'Severe Thunderstorm Warning'] }),
+])
+
+const EXPECTED_OPERATION_COUNTS = Object.freeze({
+  'on-this-day': 2,
+  'holiday-countries': 1,
+  'public-holidays': 4,
+  'aurora-kp': 2,
+  'weather-alerts': 5,
+})
+
+export function validateAtAGlanceEvidence(evidence) {
+  expect(evidence.runtimeErrors.length === 0, `runtime errors: ${evidence.runtimeErrors.join(' | ')}`)
+  expect(evidence.failedRequests.length === 0, `failed requests: ${evidence.failedRequests.join(' | ')}`)
+  expect(evidence.failures.length === 0, `reported failures: ${evidence.failures.join(' | ')}`)
+
+  const expectedKeys = new Set(AT_A_GLANCE_SCENARIOS.map((entry) => entry.key))
+  const exactRows = (rows, label) => {
+    const counts = new Map()
+    for (const row of rows) counts.set(row.scenario, (counts.get(row.scenario) ?? 0) + 1)
+    for (const key of expectedKeys) expect(counts.get(key) === 1, `${label} for scenario ${key} must appear exactly once`)
+    for (const key of counts.keys()) expect(expectedKeys.has(key), `unexpected ${label} for scenario ${key}`)
+  }
+  exactRows(evidence.captures, 'scenario capture')
+  exactRows(evidence.storage, 'scenario storage')
+
+  for (const entry of AT_A_GLANCE_SCENARIOS) {
+    const capture = evidence.captures.find((row) => row.scenario === entry.key)
+    expect(capture.usefulness === 'useful', `scenario capture ${entry.key} is not useful`)
+    if (entry.expectOverflow) {
+      expect(
+        capture.localScroll && capture.localScroll.scrollHeight > capture.localScroll.clientHeight,
+        `scenario capture ${entry.key} did not prove local Full overflow`,
+      )
+    }
+
+    const storage = evidence.storage.find((row) => row.scenario === entry.key)
+    const written = new Set(storage.writes.flat())
+    expect(!written.has('layout'), `scenario storage ${entry.key} wrote legacy layout`)
+    for (const key of written) {
+      expect(entry.allowedWriteKeys.includes(key), `scenario storage ${entry.key} wrote unexpected key ${key}`)
+    }
+    for (const key of entry.requiredWriteKeys) {
+      expect(written.has(key), `scenario storage ${entry.key} did not write required key ${key}`)
+    }
+  }
+
+  const actualCounts = new Map()
+  for (const request of evidence.requestLog) {
+    actualCounts.set(request.operation, (actualCounts.get(request.operation) ?? 0) + 1)
+  }
+  for (const [operation, expectedCount] of Object.entries(EXPECTED_OPERATION_COUNTS)) {
+    expect(actualCounts.get(operation) === expectedCount, `${operation} request count must be exactly ${expectedCount}`)
+  }
+  for (const operation of actualCounts.keys()) {
+    expect(operation in EXPECTED_OPERATION_COUNTS, `unexpected provider operation ${operation}`)
+  }
+}
+
 export function inspectAtAGlanceRequest(request) {
   const url = new URL(request.url)
   const method = String(request.method).toUpperCase()

@@ -10,6 +10,7 @@ import type { StorageAuthority } from './authority'
 import { LegacyLayoutValidationError } from '../layout/v2'
 import { LAYOUT_DENSITY_PREFERENCES } from '../layout/types'
 import { isPlainObject } from '../object'
+import { invalidateCacheAuthority } from '../cacheAuthority'
 
 const VERSION_KEY = 'aurora:version'
 const DATA_KEYS = Object.keys(defaults()) as DataKey[]
@@ -335,6 +336,7 @@ export function createStorage(
         if (!structurallyEqual(verified, target)) {
           throw new Error('Aurora storage target verification failed')
         }
+        invalidateCacheAuthority()
         const value = await finalize(previous)
         return { previous, value }
       } catch (primaryError) {
@@ -344,6 +346,7 @@ export function createStorage(
           if (!structurallyEqual(rolledBack, previous)) {
             throw new Error('Aurora storage rollback verification failed')
           }
+          invalidateCacheAuthority()
         } catch (rollbackError) {
           throw new AtomicRestoreRollbackError(primaryError, rollbackError)
         }

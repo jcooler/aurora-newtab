@@ -6,7 +6,11 @@ import {
   assertAllowedStorageChange,
   assertBuildProvenance,
 } from './work-connector-harness-contracts.mjs'
-import { inspectAtAGlanceRequest } from './at-a-glance-harness-contracts.mjs'
+import {
+  AT_A_GLANCE_SCENARIOS,
+  inspectAtAGlanceRequest,
+  validateAtAGlanceEvidence,
+} from './at-a-glance-harness-contracts.mjs'
 
 function request(url, overrides = {}) {
   return {
@@ -63,18 +67,44 @@ test('pins storage and build attribution boundaries', () => {
 
 test('declares every tier, viewport, degradation, and dock-detail witness', async () => {
   const source = await readFile(new URL('./preview-at-a-glance.mjs', import.meta.url), 'utf8')
-  for (const id of ['onThisDay', 'publicHolidays', 'auroraKp', 'weather']) {
-    assert.match(source, new RegExp(`id: '${id}'`))
-  }
-  for (const tier of ['compact', 'standard', 'full', 'docked']) {
-    assert.match(source, new RegExp(`tier: '${tier}'`))
-  }
-  for (const kind of ['max-data', 'empty', 'stale', 'error', 'year-boundary', 'unsupported', 'active', 'dock-detail']) {
-    assert.match(source, new RegExp(`kind: '${kind}'`))
-  }
   assert.match(source, /width: 1408, height: 445/)
   assert.match(source, /width: 1600, height: 900/)
   assert.match(source, /build-provenance\.json/)
   assert.match(source, /assertCleanTrackedStatus/)
   assert.match(source, /assertAllowedStorageChange/)
+  assert.match(source, /for \(const scenario of AT_A_GLANCE_SCENARIOS\)/)
+})
+
+test('uses one executable scenario catalog and validates emitted evidence exactly', () => {
+  const ids = new Set(AT_A_GLANCE_SCENARIOS.map((scenario) => scenario.id))
+  assert.deepEqual([...ids].sort(), ['auroraKp', 'onThisDay', 'publicHolidays', 'weather'])
+  for (const kind of ['setup', 'max-data', 'empty', 'stale', 'error', 'local-midnight', 'year-boundary', 'unsupported', 'active', 'dock-detail']) {
+    assert.equal(AT_A_GLANCE_SCENARIOS.some((scenario) => scenario.kind === kind), true, kind)
+  }
+  const evidence = {
+    captures: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, usefulness: 'useful', localScroll: scenario.expectOverflow ? { clientHeight: 100, scrollHeight: 200 } : null })),
+    storage: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, writes: scenario.allowedWriteKeys.length ? [scenario.allowedWriteKeys] : [] })),
+    requestLog: [
+      { operation: 'on-this-day' },
+      { operation: 'on-this-day' },
+      { operation: 'holiday-countries' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'aurora-kp' },
+      { operation: 'aurora-kp' },
+      { operation: 'weather-alerts' },
+      { operation: 'weather-alerts' },
+      { operation: 'weather-alerts' },
+      { operation: 'weather-alerts' },
+      { operation: 'weather-alerts' },
+    ],
+    runtimeErrors: [], failedRequests: [], failures: [],
+  }
+  assert.doesNotThrow(() => validateAtAGlanceEvidence(evidence))
+  assert.throws(() => validateAtAGlanceEvidence({ ...evidence, captures: evidence.captures.slice(1) }), /scenario capture/i)
+  assert.throws(() => validateAtAGlanceEvidence({ ...evidence, storage: evidence.storage.slice(1) }), /scenario storage/i)
+  assert.throws(() => validateAtAGlanceEvidence({ ...evidence, requestLog: evidence.requestLog.slice(1) }), /on-this-day/i)
+  assert.throws(() => validateAtAGlanceEvidence({ ...evidence, storage: [{ scenario: AT_A_GLANCE_SCENARIOS[0].key, writes: [['layout']] }, ...evidence.storage.slice(1)] }), /layout/i)
 })

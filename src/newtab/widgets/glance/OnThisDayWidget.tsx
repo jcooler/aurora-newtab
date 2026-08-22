@@ -98,7 +98,7 @@ function OnThisDayInner({
       errorMessage={lastError ?? undefined}
       onRefresh={retry}
     >
-      <EventList events={visible} />
+      <EventList events={visible} clamp={canvasSize === 'compact'} />
       {canvasSize === 'full' && data ? (
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <EventSection title="Born" events={data.births} />
@@ -120,7 +120,13 @@ function EventSection({ title, events }: { title: string; events: readonly OnThi
   )
 }
 
-function EventList({ events }: { events: readonly OnThisDayEvent[] }) {
+function EventList({
+  events,
+  clamp = false,
+}: {
+  events: readonly OnThisDayEvent[]
+  clamp?: boolean
+}) {
   if (events.length === 0) return null
   return (
     <ul className="flex flex-col gap-2">
@@ -132,12 +138,18 @@ function EventList({ events }: { events: readonly OnThisDayEvent[] }) {
               href={event.url}
               target="_blank"
               rel="noopener noreferrer"
-              className={`min-w-0 text-sm leading-5 focus-visible:outline-2 focus-visible:outline-accent ${glanceRowClass}`}
+              title={clamp ? event.text : undefined}
+              className={`min-w-0 text-sm leading-5 focus-visible:outline-2 focus-visible:outline-accent ${clamp ? 'overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]' : ''} ${glanceRowClass}`}
             >
               {event.text}
             </a>
           ) : (
-            <span className={`min-w-0 text-sm leading-5 ${glanceRowClass}`}>{event.text}</span>
+            <span
+              title={clamp ? event.text : undefined}
+              className={`min-w-0 text-sm leading-5 ${clamp ? 'overflow-hidden [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2]' : ''} ${glanceRowClass}`}
+            >
+              {event.text}
+            </span>
           )}
         </li>
       ))}
