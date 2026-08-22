@@ -40,8 +40,8 @@ expanded panel shrinks when facts are absent; it does not reserve blank slots.
 ### 2.2 Air quality
 
 Aurora requests Open-Meteo's current `us_aqi` value and labels the scale as
-`US AQI`. The displayed value is rounded to a whole number and paired with the
-official EPA category:
+`US AQI`. The value is rounded to a whole number once; both the displayed
+number and official EPA category derive from that same rounded value:
 
 - 0 through 50: Good
 - 51 through 100: Moderate
@@ -58,8 +58,9 @@ Reference: [AirNow AQI basics](https://www.airnow.gov/aqi/aqi-basics/).
 
 ### 2.3 UV
 
-Aurora requests the current cloud-adjusted `uv_index`, rounds it to one decimal
-when needed, and pairs it with the international exposure category:
+Aurora requests the current cloud-adjusted `uv_index`, rounds it to the nearest
+whole number as WHO reporting guidance recommends, and derives the exposure
+category from that same displayed integer:
 
 - 0 through 2: Low
 - 3 through 5: Moderate
@@ -135,9 +136,10 @@ The fixed data-flow inventory gains `weatherEnvironment` with:
 ### 3.3 Attribution
 
 Expanded Weather includes the quiet visible line `Air quality and pollen: CAMS
-via Open-Meteo`. It links only on an explicit click and does not transmit Aurora
-state. This satisfies the provider's attribution requirement without adding a
-new control to Compact or Docked Weather.
+ENSEMBLE via Open-Meteo`. It links to the Open-Meteo Air Quality documentation
+only on an explicit click, uses safe external-link attributes, and does not
+transmit Aurora state. This satisfies the provider's attribution requirement
+without adding a new control to Compact or Docked Weather.
 
 ## 4. Storage and recovery
 
@@ -164,8 +166,12 @@ cache.
 
 No schema-version migration is required because the field is optional and the
 top-level storage shape does not change. Backup validation accepts only the
-exact nested shape, known species identities, finite non-negative readings, and
-nullable finite AQI/UV values. Export and exact restore continue to include the
+exact nested key sets, known species identities, finite non-negative readings,
+and nullable finite AQI/UV values. `status: unavailable` requires null AQI/UV
+and unavailable pollen. Available pollen requires a nonempty, unique,
+canonically ordered subsequence of the provider species list; null provider
+species may be omitted. Unknown keys, contradictory discriminants, duplicates,
+and reordering are invalid. Export and exact restore continue to include the
 whole weather cache. No credential, capability URL, or new sensitive field is
 introduced.
 
@@ -187,10 +193,14 @@ One `useWeather` refresh generation owns both provider legs and one
    identity is checked against the same stored coordinates in that updater.
 6. A pre-packet cache or a cache with a missing/mismatched environmental leg is
    usable for forecast display but causes one deduplicated refresh while the
-   document is visible.
+   document is visible. This uses a distinct `enrichmentPending` presentation
+   state under the same fetch owner: closed Compact/Docked/Standard/Full Weather
+   does not gain a `Refreshing` row or change geometry. An already-open details
+   panel may say `Loading environmental data` until facts arrive.
 7. Both legs use the existing 30-minute Weather freshness cadence. A cached
-   unavailable result prevents request loops and is retried at the next normal
-   refresh boundary or explicit Refresh action.
+   unavailable result prevents request loops and exposes a visible Refresh
+   action in the details dialog. That action retries under the same generation
+   without suppressing the cached forecast or changing closed-widget content.
 
 Location/cache clearing remains one atomic multi-key mutation. The packet does
 not add a second storage key or a second React data owner.
@@ -207,6 +217,10 @@ not add a second storage key or a second React data owner.
 
 Environmental data never changes widget geometry while the details panel is
 closed. The expanded panel remains content-tight and viewport-clamped.
+Successful partial responses render only present AQI/UV cells plus the truthful
+pollen state. If a successful response contains none of the three fact families,
+one full-width `Environmental readings unavailable for this location` line
+replaces blank cells. Endpoint failure uses `Environmental data unavailable`.
 
 ## 7. Accessibility and visual behavior
 
@@ -216,7 +230,8 @@ closed. The expanded panel remains content-tight and viewport-clamped.
 - Values use tabular numerals where scanning benefits.
 - Soft text remains readable over any supported widget color; high-alert tones
   do not paint an opaque background over the user's photo.
-- Attribution meets the metadata floor and is keyboard reachable if linked.
+- The exact `Air quality and pollen: CAMS ENSEMBLE via Open-Meteo` attribution
+  meets the metadata floor and is keyboard reachable through its safe link.
 - The details dialog preserves Escape close and invoker focus restoration.
 
 ## 8. Tests and evidence
@@ -225,17 +240,19 @@ Strict TDD covers:
 
 - canonical environmental URL and identity, coordinate normalization, and
   contract drift;
-- provider mapping for available, zero, null, malformed, HTTP-error, and abort
-  responses;
-- AQI and UV category boundaries;
+- provider mapping for available, zero, null, malformed, HTTP-error, adversarial
+  promise ordering, and abort responses;
+- AQI and UV category boundaries, including fractional values whose rounded
+  display and category must agree;
 - pollen maximum, zero, fixed ordering, and explicit unavailable behavior;
 - backup accept/reject boundaries and exact restore;
 - missing/mismatched environmental cache self-heal;
 - environmental failure preserving forecast, no request loop, explicit retry,
   location races, late completion, unmount, and exact updater-time ownership;
-- expanded UI with all facts, unavailable environmental data, unavailable
-  pollen, old-cache compatibility, attribution, and unchanged Compact/Docked
-  contracts.
+- expanded UI with all facts, every AQI-only/UV-only/pollen-only/none partial
+  combination, unavailable environmental data, unavailable pollen, visible
+  retry, old-cache compatibility, exact attribution, and unchanged
+  Compact/Docked contracts during enrichment.
 
 The built-extension Weather witness must cover:
 
@@ -246,6 +263,8 @@ The built-extension Weather witness must cover:
 - pollen unavailable;
 - environmental endpoint failure with forecast still useful;
 - stale/reload/cache identity behavior;
+- unchanged permission grants and origin ownership before/after the new
+  provider-direct request;
 - zero unexpected requests, runtime errors, failed requests, overflow, or
   selection chrome in normal use.
 
