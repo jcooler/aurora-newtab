@@ -81,6 +81,105 @@
   overflow: visible;
 }
 
+/* Manual widget stacks reserve the largest mounted member in one shared
+   grid cell. The stack adds no panel of its own: every widget keeps its
+   native surface while the quiet controls float just outside that surface. */
+.stack-card {
+  position: relative;
+  display: grid;
+  place-items: center;
+  touch-action: pan-y;
+  transition: filter 120ms ease;
+}
+.stack-card__members {
+  display: grid;
+  place-items: center;
+}
+.stack-card__member {
+  grid-area: 1 / 1;
+  align-self: center;
+  justify-self: center;
+}
+.stack-card__member[data-stack-active="false"] {
+  visibility: hidden;
+  pointer-events: none;
+}
+.stack-card__arrow {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  display: grid;
+  width: 24px;
+  height: 32px;
+  translate: 0 -50%;
+  place-items: center;
+  border: 0;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
+  color: var(--fg-muted);
+  opacity: 0.38;
+  cursor: pointer;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+.stack-card__arrow--previous { left: -28px; }
+.stack-card__arrow--next { right: -28px; }
+.stack-card:hover .stack-card__arrow,
+.stack-card:focus-within .stack-card__arrow {
+  opacity: 0.9;
+}
+.stack-card__arrow:hover {
+  background: var(--panel-solid);
+  color: var(--fg);
+}
+.stack-card__dots {
+  position: absolute;
+  z-index: 2;
+  bottom: -20px;
+  left: 50%;
+  display: flex;
+  translate: -50% 0;
+  opacity: 0.45;
+  transition: opacity 120ms ease;
+}
+.stack-card:hover .stack-card__dots,
+.stack-card:focus-within .stack-card__dots,
+.stack-card__dots--editing {
+  opacity: 1;
+}
+.stack-card__dot {
+  position: relative;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.stack-card__dot::before {
+  position: absolute;
+  inset: 7px;
+  border-radius: 9999px;
+  background: var(--fg-muted);
+  content: "";
+}
+.stack-card__dot[aria-pressed="true"]::before {
+  background: var(--fg);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--panel-solid) 75%, transparent);
+}
+.stack-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.stack-card__arrow:focus-visible,
+.stack-card__dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .stack-card,
+  .stack-card__arrow,
+  .stack-card__dots { transition: none; }
+}
+
 /* The Docked tier's dense line (named-layouts spec 2.3): one text-first row,
    middle dots separating facts, never wrapping — the strip owns overflow. */
 /* Dock lines wear the SAME chip metrics as the Tasks/Notes launchers

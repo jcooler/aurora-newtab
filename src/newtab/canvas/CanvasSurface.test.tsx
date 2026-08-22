@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { NamedLayout } from '../../lib/layout/namedLayouts'
 import { WIDGET_REGISTRY } from '../widgetRegistry'
 import CanvasSurface from './CanvasSurface'
@@ -222,6 +222,95 @@ describe('CanvasSurface (anchored named layout)', () => {
     // The hover-chrome reveal keys on :focus-within (opacity only, spec 2.5
     // grips/gears); a RING would be an outline declaration in such a rule.
     expect(indexCss).not.toMatch(/:focus-within[^{]*\{[^}]*outline/)
+  })
+})
+
+describe('CanvasSurface widget stacks', () => {
+  afterEach(cleanup)
+
+  const stackEntries = WIDGET_REGISTRY.filter(({ id }) => ['weather', 'clock', 'timer'].includes(id))
+  const stackLayout: NamedLayout = {
+    id: 'stack-layout',
+    name: 'Stacks',
+    widgets: {},
+    stacks: [{
+      id: 'stack-day',
+      members: ['weather', 'clock', 'timer'],
+      facing: 'clock',
+      anchor: 'top-right',
+      offsetX: -8,
+      offsetY: 13,
+      tier: 'full',
+      layer: 4,
+    }],
+  }
+
+  it('mounts every member renderer once at its nearest supported stack tier in one stable object', () => {
+    const rendered: string[] = []
+    const onStepStack = vi.fn()
+    const { rerender } = render(
+      <CanvasSurface
+        activeLayout={stackLayout}
+        entries={stackEntries}
+        viewport={{ width: 1408, height: 445 }}
+        chrome="normal"
+        onStepStack={onStepStack}
+        renderWidget={(entry, size) => { rendered.push(`${entry.id}:${size}`); return <span>{entry.label}:{size}</span> }}
+      />,
+    )
+
+    expect(rendered).toEqual(['weather:full', 'clock:full', 'timer:compact'])
+    const item = screen.getByTestId('canvas-item-stack:stack-day')
+    expect(item.dataset.canvasObjectId).toBe('stack:stack-day')
+    expect(item.dataset.blockId).toBe('clock')
+    expect(item.style.left).toBe('92%')
+    expect(item.style.top).toBe('13%')
+    expect(item.style.zIndex).toBe('4')
+    expect(within(item).getByRole('group').getAttribute('aria-label')).toBe('Clock, 2 of 3')
+    expect(within(item).getByRole('button', { name: 'Move Clock +2' })).toBeTruthy()
+    expect(within(item).getByRole('button', { name: 'Clock settings' })).toBeTruthy()
+    expect(item.querySelectorAll('[data-stack-member]')).toHaveLength(3)
+    expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
+    expect(screen.queryByTestId('canvas-item-clock')).toBeNull()
+    expect(screen.queryByTestId('canvas-item-timer')).toBeNull()
+
+    fireEvent.click(within(item).getByRole('button', { name: 'Next widget' }))
+    expect(onStepStack).toHaveBeenCalledWith('stack-day', 1)
+
+    const nextLayout: NamedLayout = {
+      ...stackLayout,
+      stacks: [{ ...stackLayout.stacks![0], facing: 'weather' }],
+    }
+    rerender(
+      <CanvasSurface
+        activeLayout={nextLayout}
+        entries={stackEntries}
+        viewport={{ width: 1408, height: 445 }}
+        chrome="normal"
+        onStepStack={onStepStack}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+    expect(screen.getByTestId('canvas-item-stack:stack-day')).toBe(item)
+    expect(within(item).getByRole('group').getAttribute('aria-label')).toBe('Weather, 1 of 3')
+  })
+
+  it('routes edit-mode dots directly while leaving ordinary docked and standalone rendering unchanged', () => {
+    const onFaceStack = vi.fn()
+    render(
+      <CanvasSurface
+        activeLayout={stackLayout}
+        entries={stackEntries}
+        viewport={{ width: 1408, height: 445 }}
+        chrome="editing"
+        onFaceStack={onFaceStack}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+    const item = screen.getByTestId('canvas-item-stack:stack-day')
+    expect(within(item).queryByRole('button', { name: 'Next widget' })).toBeNull()
+    fireEvent.click(within(item).getByRole('button', { name: 'Show Timer' }))
+    expect(onFaceStack).toHaveBeenCalledWith('stack-day', 'timer')
   })
 })
 

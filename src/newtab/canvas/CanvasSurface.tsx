@@ -14,6 +14,8 @@ import CanvasLegibilityLayer from './CanvasLegibilityLayer'
 import GuideOverlay from '../edit/GuideOverlay'
 import type { CanvasGuide } from '../arrange/canvasSnap'
 import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
+import StackCard, { type StackCardMember } from './StackCard'
+import type { BlockId } from '../../lib/layout/types'
 
 interface CanvasSurfaceProps {
   activeLayout: NamedLayout
@@ -25,11 +27,15 @@ interface CanvasSurfaceProps {
    *  out of a dock); only the mechanical narrow stack stays chrome-free. */
   chrome?: 'none' | 'normal' | 'editing'
   selectedId?: WidgetRegistryEntry['id'] | null
+  selectedStackId?: string | null
   guides?: readonly CanvasGuide[]
   onSelectItem?: (id: WidgetRegistryEntry['id']) => void
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
+  onStackGeometryChange?: (id: string, rect: DOMRectReadOnly | null) => void
+  onStepStack?: (stackId: string, direction: -1 | 1) => void
+  onFaceStack?: (stackId: string, id: BlockId) => void
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, docked: boolean) => ReactNode
 }
 
@@ -65,11 +71,15 @@ export default function CanvasSurface({
   elevatedIds,
   chrome = 'none',
   selectedId = null,
+  selectedStackId = null,
   guides = [],
   onSelectItem,
   onGripPointerDown,
   onGearClick,
   onItemGeometryChange,
+  onStackGeometryChange,
+  onStepStack,
+  onFaceStack,
   renderWidget,
 }: CanvasSurfaceProps) {
   const byId = useMemo(() => new Map(entries.map((entry) => [entry.id, entry])), [entries])
@@ -103,6 +113,48 @@ export default function CanvasSurface({
     const size = item.mode === 'docked'
       ? dockedRenderSize(entry, item.dockTier)
       : 'tier' in item ? item.tier : 'compact'
+    if ('stack' in item && item.stack) {
+      const stack = item.stack
+      const objectId = `stack:${stack.id}`
+      const members = stack.members.flatMap((memberId): StackCardMember[] => {
+        const memberEntry = byId.get(memberId)
+        if (!memberEntry) return []
+        const memberSize = resolveRenderTier(memberEntry.canvasSizes, item.tier)
+        return [{
+          id: memberId,
+          label: memberEntry.label,
+          size: memberSize,
+          content: renderWidget(memberEntry, memberSize, false),
+        }]
+      })
+      return (
+        <CanvasItem
+          key={objectId}
+          entry={entry}
+          item={item}
+          objectId={objectId}
+          movementLabel={`${entry.label} +${Math.max(0, members.length - 1)}`}
+          size={size}
+          className={stack.members.some((id) => elevatedIds?.has(id)) ? 'canvas-item--elevated' : ''}
+          chrome={item.mode === 'stacked' ? 'none' : chrome}
+          selected={selectedStackId === stack.id}
+          onSelect={onSelectItem}
+          onGripPointerDown={onGripPointerDown}
+          onGearClick={onGearClick}
+          onObjectGeometryChange={onStackGeometryChange}
+        >
+          <StackCard
+            id={stack.id}
+            members={members}
+            facing={stack.facing}
+            editing={chrome === 'editing'}
+            onStep={(direction) => onStepStack?.(stack.id, direction)}
+            onFace={(id) => onFaceStack?.(stack.id, id)}
+          />
+        </CanvasItem>
+      )
+    }
+
     return (
       <CanvasItem
         key={entry.id}

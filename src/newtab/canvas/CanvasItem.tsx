@@ -8,6 +8,10 @@ import WidgetBoundary from '../components/WidgetBoundary'
 interface CanvasItemProps {
   entry: WidgetRegistryEntry
   item: LayoutRenderItem
+  /** Stable placement identity. Stack faces may change without remounting
+   *  the one card or moving its geometry record. */
+  objectId?: string
+  movementLabel?: string
   /** The resolved render size (docked members resolve through
    *  dockedRenderSize); omitted = the item's own tier or compact. */
   size?: CanvasSize
@@ -22,6 +26,7 @@ interface CanvasItemProps {
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
+  onObjectGeometryChange?: (id: string, rect: DOMRectReadOnly | null) => void
   children: ReactNode
 }
 
@@ -42,6 +47,8 @@ function hasRenderedContent(node: HTMLElement): boolean {
 export default function CanvasItem({
   entry,
   item,
+  objectId = entry.id,
+  movementLabel = entry.label,
   size: sizeProp,
   className = '',
   chrome = 'none',
@@ -50,6 +57,7 @@ export default function CanvasItem({
   onGripPointerDown,
   onGearClick,
   onGeometryChange,
+  onObjectGeometryChange,
   children,
 }: CanvasItemProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -82,7 +90,7 @@ export default function CanvasItem({
   }, [])
 
   useLayoutEffect(() => {
-    if (!onGeometryChange || !ref.current) return
+    if ((!onGeometryChange && !onObjectGeometryChange) || !ref.current) return
     // An empty widget occupies nothing, so it publishes nothing — that is
     // what keeps it out of the inspector's overlap warning. Read the DOM
     // directly rather than the `empty` STATE: state settles one render
@@ -91,17 +99,23 @@ export default function CanvasItem({
     const publish = () => {
       const node = ref.current
       if (!node) return
-      onGeometryChange(entry.id, hasRenderedContent(node) ? node.getBoundingClientRect() : null)
+      const rect = hasRenderedContent(node) ? node.getBoundingClientRect() : null
+      onGeometryChange?.(entry.id, rect)
+      onObjectGeometryChange?.(objectId, rect)
     }
     publish()
-    if (typeof ResizeObserver === 'undefined') return () => onGeometryChange(entry.id, null)
+    if (typeof ResizeObserver === 'undefined') return () => {
+      onGeometryChange?.(entry.id, null)
+      onObjectGeometryChange?.(objectId, null)
+    }
     const observer = new ResizeObserver(publish)
     observer.observe(ref.current)
     return () => {
       observer.disconnect()
-      onGeometryChange(entry.id, null)
+      onGeometryChange?.(entry.id, null)
+      onObjectGeometryChange?.(objectId, null)
     }
-  }, [empty, entry.id, onGeometryChange])
+  }, [empty, entry.id, objectId, onGeometryChange, onObjectGeometryChange])
 
   // ResizeObserver fires on SIZE changes only — a position-only move (drag,
   // nudge, dock/undock re-flow) would leave the published rect stale at the
@@ -111,10 +125,12 @@ export default function CanvasItem({
   // re-publishes; cheap, and the RO effect above keeps ownership of
   // observation and the null cleanup.
   useLayoutEffect(() => {
-    if (!onGeometryChange || !ref.current) return
+    if ((!onGeometryChange && !onObjectGeometryChange) || !ref.current) return
     const node = ref.current
-    onGeometryChange(entry.id, hasRenderedContent(node) ? node.getBoundingClientRect() : null)
-  }, [empty, entry.id, item, onGeometryChange])
+    const rect = hasRenderedContent(node) ? node.getBoundingClientRect() : null
+    onGeometryChange?.(entry.id, rect)
+    onObjectGeometryChange?.(objectId, rect)
+  }, [empty, entry.id, item, objectId, onGeometryChange, onObjectGeometryChange])
 
   // Edge safety clamp (NL-P6 finding F6). Anchored placements are stored as
   // PERCENT points while widgets have PIXEL widths, so the same document
@@ -194,11 +210,13 @@ export default function CanvasItem({
     const node = ref.current
     if (!node) return
     for (const child of node.children) {
-      if (child.classList.contains('canvas-item-chrome')) continue
+      if (child.classList.contains('canvas-item-chrome') || child.hasAttribute('data-stack-card')) continue
       child.toggleAttribute('inert', editing)
     }
     return () => {
-      for (const child of node.children) child.removeAttribute('inert')
+      for (const child of node.children) {
+        if (!child.hasAttribute('data-stack-card')) child.removeAttribute('inert')
+      }
     }
   }, [editing, children])
 
@@ -213,7 +231,7 @@ export default function CanvasItem({
       tabIndex={editing && !empty ? 0 : -1}
       role={editing && !empty ? 'button' : undefined}
       aria-pressed={editing && !empty ? selected : undefined}
-      aria-label={editing && !empty ? `Select ${entry.label}` : undefined}
+      aria-label={editing && !empty ? `Select ${movementLabel}` : undefined}
       onClick={editing && !empty ? () => onSelect?.(entry.id) : undefined}
       // In edit mode the whole widget is the drag handle (spec 2.5: "drag
       // moves with pointer capture"); a press with no movement is a click,
@@ -222,8 +240,9 @@ export default function CanvasItem({
       onPointerDown={editing && !empty && (item.mode === 'anchored' || item.mode === 'docked')
         ? (event) => onGripPointerDown?.(entry.id, event)
         : undefined}
-      data-testid={`canvas-item-${entry.id}`}
+      data-testid={`canvas-item-${objectId}`}
       data-block-id={entry.id}
+      data-canvas-object-id={objectId}
       data-canvas-size={size}
       data-canvas-mode={item.mode}
       data-canvas-empty={empty ? '' : undefined}
@@ -251,7 +270,7 @@ export default function CanvasItem({
         <span className="canvas-item-chrome">
           <button
             type="button"
-            aria-label={`Move ${entry.label}`}
+            aria-label={`Move ${movementLabel}`}
             className="canvas-item-chrome__button"
             onPointerDown={(event) => onGripPointerDown?.(entry.id, event)}
           >

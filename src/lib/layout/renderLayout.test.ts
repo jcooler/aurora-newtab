@@ -113,6 +113,63 @@ describe('hidden placements', () => {
   })
 })
 
+describe('widget stacks', () => {
+  const stackedLayout: NamedLayout = {
+    id: 'stack-layout',
+    name: 'Stacks',
+    widgets: {
+      quote: { kind: 'free', anchor: 'bottom', offsetX: 0, offsetY: -10, tier: 'standard', layer: 0 },
+    },
+    stacks: [{
+      id: 'stack-day',
+      members: ['weather', 'clock', 'notes'],
+      facing: 'clock',
+      anchor: 'top-right',
+      offsetX: -8,
+      offsetY: 13,
+      tier: 'full',
+      layer: 4,
+    }],
+  }
+  const stackEnabled: readonly BlockId[] = ['weather', 'clock', 'notes', 'quote']
+
+  it('emits one stable item at the stack geometry and never emits or defaults a member separately', () => {
+    const plan = planLayoutRender(stackedLayout, stackEnabled, 1408)
+    expect(plan.items).toHaveLength(2)
+    const stack = plan.items.find((item) => 'stack' in item)
+    expect(stack).toEqual({
+      id: 'clock',
+      mode: 'anchored',
+      leftPct: 92,
+      topPct: 13,
+      tier: 'full',
+      layer: 4,
+      stack: {
+        id: 'stack-day',
+        members: ['weather', 'clock', 'notes'],
+        facing: 'clock',
+      },
+    })
+    expect(plan.items.filter((item) => ['weather', 'clock', 'notes'].includes(item.id))).toHaveLength(1)
+  })
+
+  it('keeps the stored face unchanged across widths and reload-shaped calls, including one narrow item', () => {
+    const first = planLayoutRender(structuredClone(stackedLayout), stackEnabled, 1600)
+    const second = planLayoutRender(structuredClone(stackedLayout), stackEnabled, 800)
+    const narrow = planLayoutRender(structuredClone(stackedLayout), stackEnabled, 599)
+    expect(first.items.find((item) => 'stack' in item)?.id).toBe('clock')
+    expect(second.items.find((item) => 'stack' in item)?.id).toBe('clock')
+    const narrowStack = narrow.items.find((item) => 'stack' in item)
+    expect(narrowStack).toMatchObject({ id: 'clock', mode: 'stacked', tier: 'full' })
+    expect(narrow.items.filter((item) => ['weather', 'clock', 'notes'].includes(item.id))).toHaveLength(1)
+  })
+
+  it('suppresses the whole stack when its stored face is disabled and never guesses another face', () => {
+    const plan = planLayoutRender(stackedLayout, ['weather', 'notes', 'quote'], 1408)
+    expect(plan.items.map((item) => item.id)).toEqual(['quote'])
+  })
+})
+
 describe('dock eligibility safety (owner-reported 2026-08-18: docked Month)', () => {
   // A stored docked placement for a widget that declares NO Docked tier is
   // invalid contract data (a month grid has no honest strip form). The safety

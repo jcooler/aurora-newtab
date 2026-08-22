@@ -14,6 +14,12 @@ import { BLOCK_IDS, type BlockId } from './types'
  *  and purely mechanical. */
 export const NARROW_FLOOR_WIDTH = 600
 
+export interface RenderStack {
+  id: string
+  members: readonly BlockId[]
+  facing: BlockId
+}
+
 export interface AnchoredRenderItem {
   id: BlockId
   mode: 'anchored'
@@ -21,8 +27,9 @@ export interface AnchoredRenderItem {
   topPct: number
   tier: WidgetTier
   layer: number
+  stack?: RenderStack
 }
-export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier }
+export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier; stack?: RenderStack }
 export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
 export type LayoutRenderItem = AnchoredRenderItem | StackedRenderItem | DockedRenderItem
 export interface LayoutRenderPlan { narrow: boolean; items: LayoutRenderItem[] }
@@ -84,7 +91,7 @@ export function enforceDockEligibility(
   return changed ? { ...document, layouts } : document
 }
 
-interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number }
+interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number; stack?: RenderStack }
 interface PlannedDock { id: BlockId; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
 
 /** The size a docked member renders at: its stored tier when the user chose
@@ -115,10 +122,28 @@ export function planLayoutRender(
   const free: PlannedFree[] = []
   const docked: PlannedDock[] = []
   const undockable: BlockId[] = []
+  const stackMembers = new Set<BlockId>()
   let maxLayer = -1
 
+  for (const stack of layout.stacks ?? []) {
+    for (const member of stack.members) stackMembers.add(member)
+    // The stored face is the only authority. If it is globally disabled,
+    // suppress the card instead of guessing another member.
+    if (!enabled.has(stack.facing)) continue
+    const anchor = ANCHOR_POINTS[stack.anchor]
+    free.push({
+      id: stack.facing,
+      leftPct: clampPct(anchor.x + stack.offsetX),
+      topPct: clampPct(anchor.y + stack.offsetY),
+      tier: stack.tier,
+      layer: stack.layer,
+      stack: { id: stack.id, members: stack.members, facing: stack.facing },
+    })
+    maxLayer = Math.max(maxLayer, stack.layer)
+  }
+
   for (const id of BLOCK_IDS) {
-    if (!enabled.has(id)) continue
+    if (!enabled.has(id) || stackMembers.has(id)) continue
     const placement = layout.widgets[id]
     if (!placement) continue
     // Hidden = enabled globally but not shown in this layout (spec 2.5). The
@@ -160,7 +185,7 @@ export function planLayoutRender(
   // by reading these derived absolute layers back. Nothing is written here;
   // membership persists at the user's next explicit save.
   for (const id of BLOCK_IDS) {
-    if (!enabled.has(id)) continue
+    if (!enabled.has(id) || stackMembers.has(id)) continue
     if (layout.widgets[id] && !undockable.includes(id)) continue
     const placement = defaultFreePlacement(id, maxLayer + 1 + BLOCK_IDS.indexOf(id))
     const anchor = ANCHOR_POINTS[placement.anchor]
@@ -198,6 +223,7 @@ export function planLayoutRender(
       mode: 'stacked',
       order,
       tier: stackTier(item),
+      ...('stack' in item && item.stack ? { stack: item.stack } : {}),
     }))
     return { narrow: true, items }
   }
@@ -211,6 +237,7 @@ export function planLayoutRender(
       })),
       ...free.map((item): AnchoredRenderItem => ({
         id: item.id, mode: 'anchored', leftPct: item.leftPct, topPct: item.topPct, tier: item.tier, layer: item.layer,
+        ...(item.stack ? { stack: item.stack } : {}),
       })),
     ],
   }

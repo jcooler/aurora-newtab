@@ -96,6 +96,37 @@ describe('CanvasItem', () => {
     expect(screen.queryByRole('button', { name: 'Clock settings' })).toBeNull()
   })
 
+  it('publishes a stable stack object identity while keeping facing-widget settings', () => {
+    const onObjectGeometryChange = vi.fn()
+    render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.weather}
+        item={{
+          id: 'weather',
+          mode: 'anchored',
+          leftPct: 80,
+          topPct: 20,
+          tier: 'standard',
+          layer: 4,
+          stack: { id: 'stack-day', members: ['weather', 'clock', 'notes'], facing: 'weather' },
+        }}
+        objectId="stack:stack-day"
+        movementLabel="Weather +2"
+        chrome="normal"
+        onObjectGeometryChange={onObjectGeometryChange}
+      >
+        <span>Stack content</span>
+      </CanvasItem>,
+    )
+
+    const item = screen.getByTestId('canvas-item-stack:stack-day')
+    expect(item.dataset.canvasObjectId).toBe('stack:stack-day')
+    expect(item.dataset.blockId).toBe('weather')
+    expect(screen.getByRole('button', { name: 'Move Weather +2' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Weather settings' })).toBeTruthy()
+    expect(onObjectGeometryChange).toHaveBeenCalledWith('stack:stack-day', expect.any(Object))
+  })
+
   // NL-P6 finding F7: an enabled-but-unconfigured widget (World clocks with
   // no clocks, Countdown with no countdowns, Habits with no habits) renders
   // null by the no-husk law — but the WRAPPER still painted, leaving an
