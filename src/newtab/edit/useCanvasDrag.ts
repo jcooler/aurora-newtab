@@ -1,67 +1,108 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   snapCanvasPosition,
   type CanvasGuide,
   type SnapNeighbor,
 } from '../arrange/canvasSnap'
 import type { DockEdge } from '../../lib/layout/namedLayouts'
-import type { BlockId } from '../../lib/layout/types'
+import type { StackDropTarget } from '../../lib/layout/stacks'
+import { BLOCK_IDS, type BlockId } from '../../lib/layout/types'
 
 /** Dragging within this many CSS px of the surface's top/bottom edge offers
  *  the dock drop zone (named-layouts spec 2.5). */
 export const DOCK_ZONE_THRESHOLD = 56
+export const STACK_HOLD_MS = 500
 
-export interface CanvasDragApi {
-  dragging: BlockId | null
-  guides: readonly CanvasGuide[]
-  startDrag: (id: BlockId, e: { clientX: number; clientY: number; pointerId: number }) => void
+export type CanvasDragSubject =
+  | Readonly<{ kind: 'widget'; id: BlockId }>
+  | Readonly<{ kind: 'stack'; id: string }>
+  | Readonly<{ kind: 'stack-member'; stackId: string; id: BlockId }>
+
+export interface CanvasDragDrop {
+  zone: DockEdge | null
+  pointerX: number
+  point: { xPct: number; yPct: number }
+  stackTarget: StackDropTarget | null
 }
 
-/** Pointer-capture drag for the live edit session (named-layouts spec 2.5),
- *  reusing the retained snap machinery: 8px grid, magnetic guides at 6px,
- *  safe-margin clamping inside the surface. The final position is reported
- *  as a CENTER percent so the session re-anchors it exactly. One undo entry
- *  per drag: the first move reports `first: true` (the caller pushes), the
- *  stream reports `false` (the caller uses moveSelectedLive). */
+export interface CanvasDragApi {
+  dragging: CanvasDragSubject | null
+  stackTarget: StackDropTarget | null
+  guides: readonly CanvasGuide[]
+  startDrag: (
+    subject: CanvasDragSubject,
+    event: { clientX: number; clientY: number; pointerId: number },
+  ) => void
+}
+
+function objectKey(subject: CanvasDragSubject): string {
+  return subject.kind === 'widget' ? subject.id : `stack:${subject.kind === 'stack' ? subject.id : subject.stackId}`
+}
+
+function targetFromKey(key: string): StackDropTarget | null {
+  if (key.startsWith('stack:')) return { kind: 'stack', id: key.slice('stack:'.length) }
+  return BLOCK_IDS.includes(key as BlockId) ? { kind: 'widget', id: key as BlockId } : null
+}
+
+/** Pointer-capture drag for standalone widgets, whole stacks, and inspector-
+ *  origin stack members. A standalone widget becomes stack-eligible only
+ *  after a continuous 500ms hold over one live object. Nothing guesses from
+ *  overlap alone, and stack/member subjects can neither dock nor stack. */
 export function useCanvasDrag(input: {
   getSurface: () => HTMLElement | null
-  getItemRects: () => ReadonlyMap<BlockId, DOMRectReadOnly>
-  /** Every move carries the CURRENT dock-band state (owner-reported
-   *  2026-08-18: entering the band docks live, moving within it reorders
-   *  live, leaving it undocks — the widget follows the gesture instead of
-   *  popping out of the strip on the first move). */
+  getItemRects: () => ReadonlyMap<string, DOMRectReadOnly>
   onPreviewMove: (
-    id: BlockId,
+    subject: CanvasDragSubject,
     point: { xPct: number; yPct: number },
     first: boolean,
     drag: { zone: DockEdge | null; pointerX: number },
   ) => void
   onZoneChange?: (zone: DockEdge | null) => void
-  onDrop: (context: { zone: DockEdge | null; pointerX: number }) => void
-  /** Dock eligibility (spec 2.3: a widget without a Docked tier has no
-   *  honest strip form). A widget this predicate rejects is never offered a
-   *  dock zone — its edge drop is an ordinary free placement. Omitted =
-   *  every widget dockable. */
+  onDrop: (context: CanvasDragDrop) => void
   canDock?: (id: BlockId) => boolean
+  canStackTarget?: (sourceId: BlockId, target: StackDropTarget) => boolean
 }): CanvasDragApi {
-  const [dragging, setDragging] = useState<BlockId | null>(null)
+  const [dragging, setDragging] = useState<CanvasDragSubject | null>(null)
+  const [stackTarget, setStackTarget] = useState<StackDropTarget | null>(null)
   const [guides, setGuides] = useState<readonly CanvasGuide[]>([])
   const inputRef = useRef(input)
+  const activeCleanupRef = useRef<(() => void) | null>(null)
   inputRef.current = input
 
-  const startDrag = useCallback((id: BlockId, start: { clientX: number; clientY: number; pointerId: number }) => {
+  useEffect(() => () => activeCleanupRef.current?.(), [])
+
+  const startDrag = useCallback((
+    subject: CanvasDragSubject,
+    start: { clientX: number; clientY: number; pointerId: number },
+  ) => {
+    activeCleanupRef.current?.()
     const surface = inputRef.current.getSurface()
-    const itemRect = inputRef.current.getItemRects().get(id)
+    const sourceKey = objectKey(subject)
+    const itemRect = inputRef.current.getItemRects().get(sourceKey)
     if (!surface || !itemRect) return
     const surfaceRect = surface.getBoundingClientRect()
-    const pointerOffset = {
-      x: start.clientX - itemRect.left,
-      y: start.clientY - itemRect.top,
-    }
+    const pointerOffset = subject.kind === 'stack-member'
+      ? { x: itemRect.width / 2, y: itemRect.height / 2 }
+      : { x: start.clientX - itemRect.left, y: start.clientY - itemRect.top }
     const box = { width: itemRect.width, height: itemRect.height }
     let moved = false
     let zone: DockEdge | null = null
     let lastPointerX = start.clientX
+    let lastPoint = {
+      xPct: (itemRect.left - surfaceRect.left + itemRect.width / 2) / surfaceRect.width * 100,
+      yPct: (itemRect.top - surfaceRect.top + itemRect.height / 2) / surfaceRect.height * 100,
+    }
+    let holdTimer: number | null = null
+    let candidateKey: string | null = null
+    let markedTarget: StackDropTarget | null = null
+
+    const clearStackHold = () => {
+      if (holdTimer !== null) window.clearTimeout(holdTimer)
+      holdTimer = null
+      candidateKey = null
+      markedTarget = null
+      setStackTarget(null)
+    }
 
     const setZone = (next: DockEdge | null) => {
       if (next === zone) return
@@ -69,24 +110,51 @@ export function useCanvasDrag(input: {
       inputRef.current.onZoneChange?.(next)
     }
 
+    const armStackHold = (target: StackDropTarget | null) => {
+      if (subject.kind !== 'widget' || zone !== null || target === null) {
+        clearStackHold()
+        return
+      }
+      const nextKey = `${target.kind}:${target.id}`
+      if (candidateKey === nextKey) return
+      clearStackHold()
+      candidateKey = nextKey
+      holdTimer = window.setTimeout(() => {
+        if (candidateKey !== nextKey || zone !== null) return
+        markedTarget = target
+        setStackTarget(target)
+      }, STACK_HOLD_MS)
+    }
+
     try {
       surface.setPointerCapture?.(start.pointerId)
     } catch {
-      // jsdom and detached surfaces: capture is an enhancement, not a
-      // requirement — move/up listeners below still complete the drag.
+      // Pointer capture is an enhancement. Document listeners below are the
+      // correctness path, including drags that begin in the inspector.
     }
 
-    const dockable = inputRef.current.canDock?.(id) ?? true
+    const dockable = subject.kind === 'widget'
+      ? inputRef.current.canDock?.(subject.id) ?? true
+      : false
 
-    // The strips are FIXED overlays whose height follows their members, so
-    // "in the band" must include the RENDERED strip rect, not just the 56px
-    // edge threshold — measured fresh each move (a strip can appear or grow
-    // mid-gesture as items dock live).
     const inStrip = (edge: DockEdge, clientY: number): boolean => {
       const bar = document.querySelector(edge === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar')
       if (!bar) return false
       const rect = bar.getBoundingClientRect()
       return clientY >= rect.top && clientY <= rect.bottom
+    }
+
+    const stackCandidateAt = (clientX: number, clientY: number): StackDropTarget | null => {
+      if (subject.kind !== 'widget') return null
+      for (const [key, rect] of inputRef.current.getItemRects()) {
+        if (key === sourceKey) continue
+        if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) continue
+        const target = targetFromKey(key)
+        if (!target) continue
+        if (inputRef.current.canStackTarget?.(subject.id, target) === false) continue
+        return target
+      }
+      return null
     }
 
     const onMove = (event: PointerEvent) => {
@@ -102,10 +170,12 @@ export function useCanvasDrag(input: {
               ? 'bottom'
               : null,
       )
+      armStackHold(zone === null ? stackCandidateAt(event.clientX, event.clientY) : null)
+
       const bounds = { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
       const neighbors: SnapNeighbor[] = []
       for (const [neighborId, rect] of inputRef.current.getItemRects()) {
-        if (neighborId === id) continue
+        if (neighborId === sourceKey) continue
         neighbors.push({
           id: neighborId,
           left: rect.left - surfaceRect.left,
@@ -122,36 +192,55 @@ export function useCanvasDrag(input: {
         neighbors,
       })
       setGuides(snapped.guides)
-      const first = !moved
-      moved = true
-      inputRef.current.onPreviewMove(id, {
+      lastPoint = {
         xPct: (snapped.left + box.width / 2) / surfaceRect.width * 100,
         yPct: (snapped.top + box.height / 2) / surfaceRect.height * 100,
-      }, first, { zone, pointerX: event.clientX })
+      }
+      const first = !moved
+      moved = true
+      inputRef.current.onPreviewMove(subject, lastPoint, first, { zone, pointerX: event.clientX })
     }
 
     const finish = (event: PointerEvent) => {
       if (event.pointerId !== start.pointerId) return
-      surface.removeEventListener('pointermove', onMove)
-      surface.removeEventListener('pointerup', finish)
-      surface.removeEventListener('pointercancel', finish)
+      const droppedZone = zone
+      const droppedTarget = event.type === 'pointercancel' || droppedZone !== null ? null : markedTarget
+      removeListeners()
+      setDragging(null)
+      setGuides([])
+      setStackTarget(null)
+      candidateKey = null
+      markedTarget = null
+      setZone(null)
+      inputRef.current.onDrop({
+        zone: droppedZone,
+        pointerX: lastPointerX,
+        point: lastPoint,
+        stackTarget: droppedTarget,
+      })
+    }
+
+    const removeListeners = () => {
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', finish)
+      document.removeEventListener('pointercancel', finish)
+      if (holdTimer !== null) window.clearTimeout(holdTimer)
+      holdTimer = null
       try {
         surface.releasePointerCapture?.(start.pointerId)
       } catch {
-        // released or never captured — nothing to undo
+        // Already released or never captured.
       }
-      setDragging(null)
-      setGuides([])
-      const droppedZone = zone
-      setZone(null)
-      inputRef.current.onDrop({ zone: droppedZone, pointerX: lastPointerX })
+      if (activeCleanupRef.current === removeListeners) activeCleanupRef.current = null
     }
 
-    surface.addEventListener('pointermove', onMove)
-    surface.addEventListener('pointerup', finish)
-    surface.addEventListener('pointercancel', finish)
-    setDragging(id)
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', finish)
+    document.addEventListener('pointercancel', finish)
+    activeCleanupRef.current = removeListeners
+    setDragging(subject)
+    setStackTarget(null)
   }, [])
 
-  return { dragging, guides, startDrag }
+  return { dragging, stackTarget, guides, startDrag }
 }

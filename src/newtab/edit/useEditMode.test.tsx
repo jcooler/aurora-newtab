@@ -61,21 +61,18 @@ async function setup(
 }
 
 describe('useEditMode', () => {
-  it('select accepts the tagged widget and stack identities and clears both aliases', async () => {
+  it('select accepts tagged widget and stack identities and clears the selection', async () => {
     const { rendered } = await setup(STACK_DOC, ['weather', 'notes'])
     act(() => rendered.result.current.begin())
 
     act(() => rendered.result.current.select({ kind: 'stack', id: 'stack-day' }))
     expect(rendered.result.current.session?.selection).toEqual({ kind: 'stack', id: 'stack-day' })
-    expect(rendered.result.current.session?.selectedId).toBeNull()
 
     act(() => rendered.result.current.select({ kind: 'widget', id: 'notes' }))
     expect(rendered.result.current.session?.selection).toEqual({ kind: 'widget', id: 'notes' })
-    expect(rendered.result.current.session?.selectedId).toBe('notes')
 
     act(() => rendered.result.current.select(null))
     expect(rendered.result.current.session?.selection).toBeNull()
-    expect(rendered.result.current.session?.selectedId).toBeNull()
   })
 
   it('save writes the draft to exactly the layouts key once and ends the session', async () => {

@@ -1,5 +1,3 @@
-import type { BlockId } from '../../lib/layout/types'
-
 export interface CanvasPoint {
   x: number
   y: number
@@ -15,7 +13,7 @@ export interface CanvasSnapBounds extends CanvasSnapBox {
 }
 
 export interface SnapNeighbor extends CanvasSnapBox {
-  id: BlockId
+  id: string
   left: number
   top: number
 }
@@ -24,7 +22,7 @@ export interface CanvasGuide {
   axis: 'x' | 'y'
   value: number
   kind: 'canvas-center' | 'neighbor-edge' | 'neighbor-center'
-  neighborId?: BlockId
+  neighborId?: string
 }
 
 export interface CanvasSnapResult {

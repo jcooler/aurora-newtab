@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { StorageProvider } from '../lib/storage/context'
 import { memoryDriver } from '../lib/storage/driver'
 import { createStorage } from '../lib/storage/index'
 import { defaults } from '../lib/storage/schema'
 import type { LayoutV3 } from '../lib/layout/canvasTypes'
+import type { LayoutsDocument } from '../lib/layout/namedLayouts'
 import { emptyLayoutV2 } from '../lib/layout/v2'
 import { hasBookmarksPermission, loadBarModel } from '../services/bookmarks'
 import { weatherRequestIdentity } from '../services/weather/identity'
@@ -40,9 +41,51 @@ function canvasGeometry(id: string) {
   }
 }
 
-function itemPoint(id: string): { x: number; y: number } {
-  const item = canvasItem(id)
+function itemPoint(target: string | HTMLElement): { x: number; y: number } {
+  const item = typeof target === 'string' ? canvasItem(target) : target
   return { x: Number.parseFloat(item.style.left), y: Number.parseFloat(item.style.top) }
+}
+
+function testRect(left: number, top: number, width: number, height: number): DOMRectReadOnly {
+  return {
+    left, top, width, height,
+    right: left + width, bottom: top + height,
+    x: left, y: top,
+    toJSON: () => ({}),
+  } as DOMRectReadOnly
+}
+
+function installStackGeometry() {
+  return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.hasAttribute('data-canvas-surface')) return testRect(0, 0, 1000, 600)
+    const objectId = this.getAttribute('data-canvas-object-id')
+    if (objectId === 'clock') return testRect(100, 100, 220, 120)
+    if (objectId === 'weather') return testRect(500, 100, 260, 180)
+    if (objectId === 'stack:stack-day') return testRect(500, 100, 300, 220)
+    return testRect(20, 500, 100, 50)
+  })
+}
+
+function stackedDocument(): LayoutsDocument {
+  return {
+    version: 1,
+    activeLayoutId: 'stack-layout',
+    layouts: [{
+      id: 'stack-layout',
+      name: 'Stacks',
+      widgets: {},
+      stacks: [{
+        id: 'stack-day',
+        members: ['notes', 'tasks'],
+        facing: 'notes',
+        anchor: 'top-right',
+        offsetX: -8,
+        offsetY: 13,
+        tier: 'compact',
+        layer: 4,
+      }],
+    }],
+  }
 }
 
 describe('App Canvas composition', () => {
@@ -568,6 +611,196 @@ describe('App Canvas composition', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Focus timer' })).toBeNull()
     expect(document.activeElement).toBe(timer)
+  })
+
+  it('requires the full 500ms target hold to create a stack and preserves the one-gesture undo', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{
+        id: 'a',
+        name: 'Desktop',
+        widgets: {
+          clock: { kind: 'free', anchor: 'top-left', offsetX: 20, offsetY: 20, tier: 'full', layer: 2 },
+          weather: { kind: 'free', anchor: 'top-right', offsetX: -20, offsetY: 20, tier: 'standard', layer: 1 },
+        },
+      }],
+    })
+    await renderApp(storage)
+    vi.useFakeTimers()
+    try {
+      fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }), {
+        pointerId: 31, clientX: 110, clientY: 110,
+      })
+      await act(async () => {})
+      fireEvent.pointerMove(document, { pointerId: 31, clientX: 550, clientY: 140 })
+      act(() => vi.advanceTimersByTime(499))
+      expect(screen.queryByText('Stack with Weather')).toBeNull()
+      fireEvent.pointerUp(document, { pointerId: 31, clientX: 550, clientY: 140 })
+      await act(async () => {})
+      expect(screen.queryByTestId(/canvas-item-stack:/)).toBeNull()
+
+      fireEvent.pointerDown(canvasItem('clock'), { pointerId: 32, clientX: 550, clientY: 140 })
+      fireEvent.pointerMove(document, { pointerId: 32, clientX: 550, clientY: 140 })
+      act(() => vi.advanceTimersByTime(500))
+      expect(screen.getByText('Stack with Weather')).toBeTruthy()
+      fireEvent.pointerUp(document, { pointerId: 32, clientX: 550, clientY: 140 })
+      await act(async () => {})
+
+      expect(document.querySelector('[data-canvas-object-id^="stack:"]')).toBeTruthy()
+      expect(screen.getByRole('dialog', { name: 'Clock +1 inspector' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      await act(async () => {})
+      expect(document.querySelector('[data-canvas-object-id^="stack:"]')).toBeNull()
+      expect(canvasItem('clock')).toBeTruthy()
+      expect(canvasItem('weather')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('appends a standalone widget to an existing stack only after the same explicit hold', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    await renderApp(storage)
+    vi.useFakeTimers()
+    try {
+      fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }), {
+        pointerId: 33, clientX: 110, clientY: 110,
+      })
+      await act(async () => {})
+      fireEvent.pointerMove(document, { pointerId: 33, clientX: 550, clientY: 140 })
+      act(() => vi.advanceTimersByTime(500))
+      expect(screen.getByText('Stack with Notes')).toBeTruthy()
+      fireEvent.pointerUp(document, { pointerId: 33, clientX: 550, clientY: 140 })
+      await act(async () => {})
+
+      expect(screen.getByRole('dialog', { name: 'Clock +2 inspector' })).toBeTruthy()
+      expect(within(screen.getByTestId('canvas-item-stack:stack-day')).getByRole('button', { name: 'Show Clock' })).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+      await act(async () => {})
+      expect(screen.getByRole('group', { name: 'Notes, 1 of 2' })).toBeTruthy()
+      expect(canvasItem('clock')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('moves a whole stack as one card and restores its exact point with one Undo', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    await renderApp(storage)
+
+    const card = screen.getByTestId('canvas-item-stack:stack-day')
+    expect(itemPoint(card)).toEqual({ x: 92, y: 13 })
+    fireEvent.pointerDown(within(card).getByRole('button', { name: 'Move Notes +1' }), {
+      pointerId: 34, clientX: 510, clientY: 110,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 34, clientX: 300, clientY: 300 })
+    fireEvent.pointerUp(document, { pointerId: 34, clientX: 300, clientY: 300 })
+    await act(async () => {})
+
+    expect(itemPoint(screen.getByTestId('canvas-item-stack:stack-day'))).not.toEqual({ x: 92, y: 13 })
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await act(async () => {})
+    expect(itemPoint(screen.getByTestId('canvas-item-stack:stack-day'))).toEqual({ x: 92, y: 13 })
+  })
+
+  it('normal stack paging persists only the face and plain face clicks still open the widget', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    const legacyBefore = JSON.stringify(await storage.get('layout'))
+    const updateSpy = vi.spyOn(storage, 'update')
+    await renderApp(storage)
+
+    const card = screen.getByTestId('canvas-item-stack:stack-day')
+    fireEvent.click(within(card).getByRole('button', { name: /^Notes$/ }))
+    expect(await screen.findByRole('dialog', { name: 'Notes' })).toBeTruthy()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {})
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Next widget' }))
+    await waitFor(() => expect(screen.getByRole('group', { name: 'Tasks, 2 of 2' })).toBeTruthy())
+    expect((await storage.get('layouts'))?.layouts[0].stacks?.[0].facing).toBe('tasks')
+    expect(updateSpy.mock.calls.every(([key]) => key === 'layouts')).toBe(true)
+    expect(JSON.stringify(await storage.get('layout'))).toBe(legacyBefore)
+  })
+
+  it('edit dots are undoable, Save reloads the exact stack, and Cancel remains write-free', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    const setSpy = vi.spyOn(storage, 'set')
+    await renderApp(storage)
+
+    const card = screen.getByTestId('canvas-item-stack:stack-day')
+    fireEvent.pointerDown(within(card).getByRole('button', { name: 'Move Notes +1' }), {
+      pointerId: 31, clientX: 510, clientY: 110,
+    })
+    fireEvent.pointerUp(document, { pointerId: 31, clientX: 510, clientY: 110 })
+    await act(async () => {})
+    // The real release emits one click over the object; edit entry swallows it
+    // so it cannot activate the face that just replaced the hover grip.
+    fireEvent.click(screen.getByTestId('canvas-item-stack:stack-day'))
+    fireEvent.click(within(screen.getByTestId('canvas-item-stack:stack-day')).getByRole('button', { name: 'Show Tasks' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(false))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+    expect((await storage.get('layouts'))?.layouts[0].stacks?.[0].facing).toBe('notes')
+    expect(setSpy.mock.calls.filter(([key]) => key === 'layouts')).toHaveLength(0)
+
+    fireEvent.pointerDown(within(screen.getByTestId('canvas-item-stack:stack-day')).getByRole('button', { name: 'Move Notes +1' }))
+    await act(async () => {})
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Notes +1 inspector' })).getByRole('radio', { name: 'Full' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await act(async () => {})
+    expect(setSpy.mock.calls.filter(([key]) => key === 'layouts').map(([key]) => key)).toEqual(['layouts'])
+    expect((await storage.get('layouts'))?.layouts[0].stacks?.[0]).toEqual({
+      ...stackedDocument().layouts[0].stacks?.[0],
+      tier: 'full',
+    })
+
+    cleanup()
+    await renderApp(storage)
+    expect(screen.getByTestId('canvas-item-stack:stack-day').dataset.canvasSize).toBe('compact')
+    expect(screen.getByRole('group', { name: 'Notes, 1 of 2' })).toBeTruthy()
+  })
+
+  it('dragging a member out dissolves a two-member stack and one Undo restores it', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    await renderApp(storage)
+
+    const card = screen.getByTestId('canvas-item-stack:stack-day')
+    fireEvent.pointerDown(within(card).getByRole('button', { name: 'Move Notes +1' }), {
+      pointerId: 41, clientX: 510, clientY: 110,
+    })
+    await act(async () => {})
+    const inspector = screen.getByRole('dialog', { name: 'Notes +1 inspector' })
+    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Move Tasks out of stack' }), {
+      pointerId: 42, clientX: 900, clientY: 400,
+    })
+    fireEvent.pointerMove(document, { pointerId: 42, clientX: 300, clientY: 300 })
+    fireEvent.pointerUp(document, { pointerId: 42, clientX: 300, clientY: 300 })
+    await act(async () => {})
+
+    expect(screen.queryByTestId('canvas-item-stack:stack-day')).toBeNull()
+    expect(canvasItem('notes')).toBeTruthy()
+    expect(canvasItem('tasks')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await act(async () => {})
+    expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
   })
 
   it('uses one body-owned document-safe tool sheet on Small', async () => {

@@ -42,9 +42,6 @@ export interface EditSession {
   baseline: LayoutsDocument
   draft: LayoutsDocument
   selection: EditSelection | null
-  /** Compatibility bridge for the pre-stack canvas. Removed when Task 4
-   *  moves every UI consumer to the tagged selection. */
-  selectedId: BlockId | null
   past: readonly LayoutsDocument[]
   dirty: boolean
 }
@@ -100,7 +97,6 @@ export function beginEditSession(
     baseline: materialized,
     draft: materialized,
     selection: null,
-    selectedId: null,
     past: [],
     dirty: false,
   }
@@ -131,13 +127,12 @@ export function selectWidget(session: EditSession, id: BlockId | null): EditSess
   return {
     ...session,
     selection: id ? { kind: 'widget', id } : null,
-    selectedId: id,
   }
 }
 
 export function selectStack(session: EditSession, id: string): EditSession {
   if (!activeDraftLayout(session).stacks?.some((stack) => stack.id === id)) return session
-  return { ...session, selection: { kind: 'stack', id }, selectedId: null }
+  return { ...session, selection: { kind: 'stack', id } }
 }
 
 function stackAsFreePlacement(stack: WidgetStack): FreeWidgetPlacement {
@@ -313,7 +308,7 @@ export function hideSelected(session: EditSession): EditSession {
       widgets: { ...layout.widgets, [selection.id]: { kind: 'hidden' } },
     })))
   if (next === session) return session
-  return { ...next, selection: null, selectedId: null }
+  return { ...next, selection: null }
 }
 
 export function restoreSelectedDefaults(session: EditSession): EditSession {
@@ -373,7 +368,7 @@ export function createStackFromDrop(
     pushUndo,
   )
   if (next === session) return session
-  return { ...next, selection: { kind: 'stack', id: target.kind === 'stack' ? target.id : newStackId }, selectedId: null }
+  return { ...next, selection: { kind: 'stack', id: target.kind === 'stack' ? target.id : newStackId } }
 }
 
 export function setSelectedStackFacing(session: EditSession, face: BlockId): EditSession {
@@ -440,8 +435,9 @@ function dockSelectedInternal(
   xPct: number,
   pushUndo: boolean,
 ): EditSession {
-  const id = session.selectedId
-  if (!id) return session
+  const selection = session.selection
+  if (selection?.kind !== 'widget') return session
+  const id = selection.id
   const clampedX = Math.min(100, Math.max(0, xPct))
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
@@ -493,8 +489,9 @@ function undockSelectedInternal(
   point: { xPct: number; yPct: number },
   pushUndo: boolean,
 ): EditSession {
-  const id = session.selectedId
-  if (!id) return session
+  const selection = session.selection
+  if (selection?.kind !== 'widget') return session
+  const id = selection.id
   const layout = activeDraftLayout(session)
   if (layout.widgets[id]?.kind !== 'docked') return session
   let maxLayer = -1

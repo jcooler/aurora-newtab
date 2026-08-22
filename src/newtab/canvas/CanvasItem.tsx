@@ -16,6 +16,7 @@ interface CanvasItemProps {
    *  dockedRenderSize); omitted = the item's own tier or compact. */
   size?: CanvasSize
   className?: string
+  stackTargetLabel?: string
   /** Hover controls (named-layouts spec 2.5). 'none' (default) keeps strips
    *  and the narrow stack chrome-free; 'normal' fades in the grip + gear on
    *  hover/focus; 'editing' is Task 4's edit-session chrome. */
@@ -41,6 +42,7 @@ function hasRenderedContent(node: HTMLElement): boolean {
     if (!(child instanceof Element)) return false
     return !child.classList.contains('canvas-item-chrome')
       && !child.classList.contains('canvas-item-footprint')
+      && !child.classList.contains('canvas-item-stack-target')
   })
 }
 
@@ -51,6 +53,7 @@ export default function CanvasItem({
   movementLabel = entry.label,
   size: sizeProp,
   className = '',
+  stackTargetLabel,
   chrome = 'none',
   selected = false,
   onSelect,
@@ -250,6 +253,11 @@ export default function CanvasItem({
       style={style}
     >
       <WidgetBoundary name={entry.label}>{children}</WidgetBoundary>
+      {stackTargetLabel ? (
+        <span className="canvas-item-stack-target" role="status">
+          {stackTargetLabel}
+        </span>
+      ) : null}
       {editing && entry.expandedFootprint && item.mode === 'anchored' ? (
         // Dashed expansion footprint (spec 2.6): opens the way the real
         // panel does — toward the horizontal center, downward from the top

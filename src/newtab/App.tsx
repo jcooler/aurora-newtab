@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { useStoredKey } from '../lib/hooks/useStoredKey'
 import { adaptStoredLayout } from '../lib/layout/canvasAdapter'
 import type { CanvasSize, StoredLayout } from '../lib/layout/canvasTypes'
@@ -7,6 +7,8 @@ import {
   activeDraftLayout,
   applyBulkTier,
   beginEditSession,
+  createStackFromDrop,
+  detachSelectedStackMember,
   dockSelected,
   dockSelectedLive,
   hideSelected,
@@ -14,8 +16,12 @@ import {
   moveSelectedLive,
   nudgeSelected,
   resetSession,
+  removeSelectedStackMember,
+  reorderSelectedStackMember,
   restoreSelectedDefaults,
+  selectStack,
   selectWidget,
+  setSelectedStackFacing,
   setSelectedTier,
   stepSelectedLayer,
   undo,
@@ -24,9 +30,15 @@ import {
 } from '../lib/layout/editSession'
 import type { DockEdge } from '../lib/layout/namedLayouts'
 import WidgetInspector from './edit/WidgetInspector'
-import { useCanvasDrag } from './edit/useCanvasDrag'
+import StackInspector from './edit/StackInspector'
+import { useCanvasDrag, type CanvasDragSubject } from './edit/useCanvasDrag'
 import { useLongPress } from './arrange/useLongPress'
-import { createLayout, saveLayoutsDocument, switchActiveLayout } from '../lib/layout/layoutOperations'
+import {
+  createLayout,
+  saveLayoutsDocument,
+  switchActiveLayout,
+  updateStoredStackFacing,
+} from '../lib/layout/layoutOperations'
 import LayoutBadge from './edit/LayoutBadge'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
 import { enforceDockEligibility, NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
@@ -234,14 +246,21 @@ function AuroraApp() {
   const sessionLiveRef = useRef(false)
   sessionLiveRef.current = session !== null
 
-  const itemRectsRef = useRef(new Map<BlockId, DOMRectReadOnly>())
+  const itemRectsRef = useRef(new Map<string, DOMRectReadOnly>())
+  const [, setGeometryRevision] = useState(0)
   const onItemGeometryChange = useCallback((id: BlockId, rect: DOMRectReadOnly | null) => {
     if (rect) itemRectsRef.current.set(id, rect)
     else itemRectsRef.current.delete(id)
+    setGeometryRevision((current) => current + 1)
+  }, [])
+  const onStackGeometryChange = useCallback((id: string, rect: DOMRectReadOnly | null) => {
+    if (rect) itemRectsRef.current.set(id, rect)
+    else itemRectsRef.current.delete(id)
+    setGeometryRevision((current) => current + 1)
   }, [])
 
   const [dragZone, setDragZone] = useState<DockEdge | null>(null)
-  const draggingIdRef = useRef<BlockId | null>(null)
+  const draggingSubjectRef = useRef<CanvasDragSubject | null>(null)
   // The pointer maps DIRECTLY to a strip position (spec 2.4, owner-refined
   // 2026-08-18: complete control, exactly like the canvas). Clamped so the
   // dragged member's own box stays inside the bar — measured live because
@@ -264,18 +283,21 @@ function AuroraApp() {
     // and re-docking was a fight). The widget follows the gesture: pointer
     // in a dock band docks/reorders LIVE, leaving the band undocks, and the
     // whole gesture stays one undo entry (the first operation pushes it).
-    onPreviewMove: (id, point, first, context) => {
-      draggingIdRef.current = id
+    onPreviewMove: (subject, point, first, context) => {
+      draggingSubjectRef.current = subject
+      if (subject.kind === 'stack-member') return
       editMode.dispatch((current) => {
-        const selected = selectWidget(current, id)
+        const selected = subject.kind === 'widget'
+          ? selectWidget(current, subject.id)
+          : selectStack(current, subject.id)
         const layout = activeDraftLayout(selected)
-        if (context.zone) {
-          const xPct = dockXPercent(context.zone, id, context.pointerX)
+        if (subject.kind === 'widget' && context.zone) {
+          const xPct = dockXPercent(context.zone, subject.id, context.pointerX)
           return first
             ? dockSelected(selected, context.zone, xPct)
             : dockSelectedLive(selected, context.zone, xPct)
         }
-        if (layout.widgets[id]?.kind === 'docked') {
+        if (subject.kind === 'widget' && layout.widgets[subject.id]?.kind === 'docked') {
           return first ? undockSelected(selected, point) : undockSelectedLive(selected, point)
         }
         return first
@@ -288,19 +310,73 @@ function AuroraApp() {
     // no Docked tier is never offered a dock zone — its edge drop is an
     // ordinary free placement.
     canDock: (id) => activeEntries.some((entry) => entry.id === id && entry.supportsDocked),
-    onDrop: ({ zone, pointerX }) => {
-      const id = draggingIdRef.current
-      draggingIdRef.current = null
-      if (!zone || !id) return
+    canStackTarget: (sourceId, target) => {
+      const layout = session ? activeDraftLayout(session) : activeLayout
+      if (!layout) return false
+      if (layout.widgets[sourceId]?.kind !== 'free') return false
+      if (target.kind === 'widget') return target.id !== sourceId && layout.widgets[target.id]?.kind === 'free'
+      return layout.stacks?.some((stack) => stack.id === target.id && !stack.members.includes(sourceId)) ?? false
+    },
+    onDrop: ({ zone, pointerX, point, stackTarget }) => {
+      const subject = draggingSubjectRef.current
+      draggingSubjectRef.current = null
+      if (!subject) return
       editMode.dispatch((current) => {
-        const selected = selectWidget(current, id)
+        if (subject.kind === 'stack-member') {
+          return detachSelectedStackMember(selectStack(current, subject.stackId), subject.id, point)
+        }
+        if (subject.kind === 'stack') return current
+        const selected = selectWidget(current, subject.id)
+        if (stackTarget) {
+          // The first live move already owns this gesture's undo snapshot.
+          return createStackFromDrop(selected, subject.id, stackTarget, crypto.randomUUID(), false)
+        }
+        if (!zone) return current
         // The moves already docked it live; this re-measures the final
         // position at the exact drop pointer, reusing the gesture's one
         // undo entry (review fix I2).
-        return dockSelectedLive(selected, zone, dockXPercent(zone, id, pointerX))
+        return dockSelectedLive(selected, zone, dockXPercent(zone, subject.id, pointerX))
       })
     },
   })
+
+  const startCanvasObjectDrag = (
+    subject: CanvasDragSubject,
+    objectId: string,
+    event: ReactPointerEvent,
+  ) => {
+    event.preventDefault()
+    // Starting edit mode unmounts the normal hover grip under the pointer.
+    // Swallow only the release click that lands back on the grabbed object.
+    let timeoutId: number | undefined
+    const cleanupSuppressor = () => {
+      document.removeEventListener('click', swallowClick, { capture: true })
+      if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+      clickSuppressorCleanupsRef.current.delete(cleanupSuppressor)
+    }
+    const swallowClick = (clickEvent: MouseEvent) => {
+      cleanupSuppressor()
+      const object = clickEvent.target instanceof Element
+        ? clickEvent.target.closest('[data-canvas-object-id]')
+        : null
+      if (object?.getAttribute('data-canvas-object-id') === objectId) {
+        clickEvent.preventDefault()
+        clickEvent.stopPropagation()
+      }
+    }
+    document.addEventListener('click', swallowClick, { capture: true })
+    timeoutId = window.setTimeout(cleanupSuppressor, 500)
+    clickSuppressorCleanupsRef.current.add(cleanupSuppressor)
+    if (!session) editMode.begin(event.currentTarget as HTMLElement)
+    editMode.select(subject.kind === 'stack-member'
+      ? { kind: 'stack', id: subject.stackId }
+      : subject)
+    drag.startDrag(subject, {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      pointerId: event.pointerId,
+    })
+  }
 
   // Long-press enters edit mode on TOUCH ONLY (spec 2.5, review fix I3) —
   // the retained document-level detector stays untouched; the filter lives
@@ -310,8 +386,8 @@ function AuroraApp() {
     if (event.pointerType !== 'touch') return
     if (window.innerWidth < NARROW_FLOOR_WIDTH) return
     if (!sessionLiveRef.current) editMode.begin(null)
-    editMode.select(blockId)
-    drag.startDrag(blockId, event)
+    editMode.select({ kind: 'widget', id: blockId })
+    drag.startDrag({ kind: 'widget', id: blockId }, event)
   })
 
   // Escape cancels the edit session exactly (spec 2.5), through the shared
@@ -436,48 +512,42 @@ function AuroraApp() {
           viewport={viewport}
           elevatedIds={elevatedIds}
           chrome={session ? 'editing' : 'normal'}
-          selectedId={session?.selectedId ?? null}
+          selectedId={session?.selection?.kind === 'widget' ? session.selection.id : null}
+          selectedStackId={session?.selection?.kind === 'stack' ? session.selection.id : null}
+          stackTarget={session ? drag.stackTarget : null}
           // Guides are session chrome only: if the session cancels while a
           // drag is mid-flight (Escape), the hook's guide state survives
           // until the next pointerup — without this gate the accent
           // hairlines stayed painted on the normal page (owner-reported
           // 2026-08-18 "blue lines where borders are").
           guides={session ? drag.guides : []}
-          onSelectItem={editMode.select}
+          onSelectItem={(id) => editMode.select({ kind: 'widget', id })}
+          onSelectStack={(id) => editMode.select({ kind: 'stack', id })}
           onItemGeometryChange={onItemGeometryChange}
+          onStackGeometryChange={onStackGeometryChange}
           onGripPointerDown={(id, event) => {
-            event.preventDefault()
-            // The grip press begins the session, which unmounts the hover
-            // chrome under the pointer — the released click would fall
-            // through to whatever the grip overlaid (a docked BOOKMARK
-            // navigated the page; witness stage 9 caught it). Swallow the
-            // one click this press produces, and ONLY if it lands inside
-            // the grabbed widget — clicks anywhere else (toolbar, another
-            // widget) are unrelated and pass through.
-            const grabbedId = id
-            let timeoutId: number | undefined
-            const cleanupSuppressor = () => {
-              document.removeEventListener('click', swallowClick, { capture: true })
-              if (timeoutId !== undefined) window.clearTimeout(timeoutId)
-              clickSuppressorCleanupsRef.current.delete(cleanupSuppressor)
+            startCanvasObjectDrag({ kind: 'widget', id }, id, event)
+          }}
+          onStackGripPointerDown={(id, event) => {
+            startCanvasObjectDrag({ kind: 'stack', id }, `stack:${id}`, event)
+          }}
+          onStepStack={(id, direction) => {
+            if (session) {
+              const stack = activeDraftLayout(session).stacks?.find((candidate) => candidate.id === id)
+              if (!stack) return
+              const index = stack.members.indexOf(stack.facing)
+              const next = stack.members[(index + direction + stack.members.length) % stack.members.length]
+              editMode.dispatch((current) => setSelectedStackFacing(selectStack(current, id), next))
+              return
             }
-            const swallowClick = (clickEvent: MouseEvent) => {
-              cleanupSuppressor()
-              if (clickEvent.target instanceof Element && clickEvent.target.closest(`[data-block-id="${grabbedId}"]`)) {
-                clickEvent.preventDefault()
-                clickEvent.stopPropagation()
-              }
+            void updateStoredStackFacing(storage, renderedLayout.id, id, direction === 1 ? 'next' : 'previous')
+          }}
+          onFaceStack={(id, face) => {
+            if (session) {
+              editMode.dispatch((current) => setSelectedStackFacing(selectStack(current, id), face))
+              return
             }
-            document.addEventListener('click', swallowClick, { capture: true })
-            timeoutId = window.setTimeout(cleanupSuppressor, 500)
-            clickSuppressorCleanupsRef.current.add(cleanupSuppressor)
-            if (!session) editMode.begin(event.currentTarget as HTMLElement)
-            editMode.select(id)
-            drag.startDrag(id, {
-              clientX: event.clientX,
-              clientY: event.clientY,
-              pointerId: event.pointerId,
-            })
+            void updateStoredStackFacing(storage, renderedLayout.id, id, face)
           }}
           onGearClick={openSettingsForWidget}
           renderWidget={renderWidget}
@@ -504,32 +574,74 @@ function AuroraApp() {
         ) : null}
         {session ? <div className="edit-scrim" aria-hidden /> : null}
         {session && dragZone ? <div className="dock-drop-zone" data-edge={dragZone} aria-hidden /> : null}
-        {session && session.selectedId ? (() => {
-          const selectedId = session.selectedId
-          const entry = activeEntries.find((candidate) => candidate.id === selectedId)
-          const placement = activeDraftLayout(session).widgets[selectedId]
-          const anchorRect = itemRectsRef.current.get(selectedId)
-          if (!entry || !placement || !anchorRect) return null
-          // Overlap is a FREE-placement concept (spec 2.2): docked members
-          // live in the strips and hidden widgets render nowhere, so neither
-          // belongs in the warning (owner-reported 2026-08-18: the note
-          // listed widgets nowhere near the selection).
-          const draftWidgets = activeDraftLayout(session).widgets
-          const overlapLabels = placement.kind !== 'free' ? [] : [...itemRectsRef.current]
-            .filter(([id, rect]) => (
-              id !== selectedId
-              && draftWidgets[id]?.kind !== 'docked'
-              && draftWidgets[id]?.kind !== 'hidden'
-              && rect.left < anchorRect.right && rect.right > anchorRect.left
-              && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
-            ))
-            .map(([id]) => activeEntries.find((candidate) => candidate.id === id)?.label ?? id)
+        {session && session.selection ? (() => {
+          const draftLayout = activeDraftLayout(session)
+          const selection = session.selection
+          const objectId = selection.kind === 'stack' ? `stack:${selection.id}` : selection.id
+          const anchorRect = itemRectsRef.current.get(objectId)
+          if (!anchorRect) return null
+
+          const overlapLabels = [...itemRectsRef.current]
+            .filter(([candidateId, rect]) => {
+              if (candidateId === objectId) return false
+              if (!candidateId.startsWith('stack:')) {
+                const placement = draftLayout.widgets[candidateId as BlockId]
+                if (placement?.kind !== 'free') return false
+              }
+              return rect.left < anchorRect.right && rect.right > anchorRect.left
+                && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
+            })
+            .map(([candidateId]) => {
+              if (candidateId.startsWith('stack:')) {
+                const stack = draftLayout.stacks?.find((candidate) => `stack:${candidate.id}` === candidateId)
+                const facing = activeEntries.find((entry) => entry.id === stack?.facing)
+                return stack ? `${facing?.label ?? 'Widget'} +${stack.members.length - 1}` : candidateId
+              }
+              return activeEntries.find((entry) => entry.id === candidateId)?.label ?? candidateId
+            })
+
+          if (selection.kind === 'stack') {
+            const stack = draftLayout.stacks?.find((candidate) => candidate.id === selection.id)
+            if (!stack) return null
+            const entries = stack.members.flatMap((id) => {
+              const entry = activeEntries.find((candidate) => candidate.id === id)
+              return entry ? [entry] : []
+            })
+            return (
+              <StackInspector
+                stack={stack}
+                entries={entries}
+                anchorRect={anchorRect}
+                overlapLabels={overlapLabels}
+                onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
+                onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
+                onReorder={(id, direction) => editMode.dispatch((current) => (
+                  reorderSelectedStackMember(selectStack(current, stack.id), id, direction)
+                ))}
+                onRemove={(id) => editMode.dispatch((current) => (
+                  removeSelectedStackMember(selectStack(current, stack.id), id)
+                ))}
+                onMemberPointerDown={(id, event) => {
+                  startCanvasObjectDrag(
+                    { kind: 'stack-member', stackId: stack.id, id },
+                    `stack:${stack.id}`,
+                    event,
+                  )
+                }}
+                onHide={() => editMode.dispatch((current) => hideSelected(selectStack(current, stack.id)))}
+              />
+            )
+          }
+
+          const entry = activeEntries.find((candidate) => candidate.id === selection.id)
+          const placement = draftLayout.widgets[selection.id]
+          if (!entry || !placement) return null
           return (
             <WidgetInspector
               entry={entry}
               placement={placement}
               anchorRect={anchorRect}
-              overlapLabels={overlapLabels}
+              overlapLabels={placement.kind === 'free' ? overlapLabels : []}
               onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
               onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
               onHide={() => editMode.dispatch(hideSelected)}

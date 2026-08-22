@@ -16,6 +16,7 @@ import type { CanvasGuide } from '../arrange/canvasSnap'
 import { dockedRenderSize, type WidgetRegistryEntry } from '../widgetRegistry'
 import StackCard, { type StackCardMember } from './StackCard'
 import type { BlockId } from '../../lib/layout/types'
+import type { StackDropTarget } from '../../lib/layout/stacks'
 
 interface CanvasSurfaceProps {
   activeLayout: NamedLayout
@@ -28,9 +29,12 @@ interface CanvasSurfaceProps {
   chrome?: 'none' | 'normal' | 'editing'
   selectedId?: WidgetRegistryEntry['id'] | null
   selectedStackId?: string | null
+  stackTarget?: StackDropTarget | null
   guides?: readonly CanvasGuide[]
   onSelectItem?: (id: WidgetRegistryEntry['id']) => void
+  onSelectStack?: (id: string) => void
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
+  onStackGripPointerDown?: (id: string, e: React.PointerEvent) => void
   onGearClick?: (id: WidgetRegistryEntry['id']) => void
   onItemGeometryChange?: (id: WidgetRegistryEntry['id'], rect: DOMRectReadOnly | null) => void
   onStackGeometryChange?: (id: string, rect: DOMRectReadOnly | null) => void
@@ -72,9 +76,12 @@ export default function CanvasSurface({
   chrome = 'none',
   selectedId = null,
   selectedStackId = null,
+  stackTarget = null,
   guides = [],
   onSelectItem,
+  onSelectStack,
   onGripPointerDown,
+  onStackGripPointerDown,
   onGearClick,
   onItemGeometryChange,
   onStackGeometryChange,
@@ -116,6 +123,7 @@ export default function CanvasSurface({
     if ('stack' in item && item.stack) {
       const stack = item.stack
       const objectId = `stack:${stack.id}`
+      const targeted = stackTarget?.kind === 'stack' && stackTarget.id === stack.id
       const members = stack.members.flatMap((memberId): StackCardMember[] => {
         const memberEntry = byId.get(memberId)
         if (!memberEntry) return []
@@ -135,11 +143,12 @@ export default function CanvasSurface({
           objectId={objectId}
           movementLabel={`${entry.label} +${Math.max(0, members.length - 1)}`}
           size={size}
-          className={stack.members.some((id) => elevatedIds?.has(id)) ? 'canvas-item--elevated' : ''}
+          className={`${stack.members.some((id) => elevatedIds?.has(id)) ? 'canvas-item--elevated ' : ''}${targeted ? 'canvas-item--stack-target' : ''}`.trim()}
+          stackTargetLabel={targeted ? `Stack with ${entry.label}` : undefined}
           chrome={item.mode === 'stacked' ? 'none' : chrome}
           selected={selectedStackId === stack.id}
-          onSelect={onSelectItem}
-          onGripPointerDown={onGripPointerDown}
+          onSelect={() => onSelectStack?.(stack.id)}
+          onGripPointerDown={(_, event) => onStackGripPointerDown?.(stack.id, event)}
           onGearClick={onGearClick}
           onObjectGeometryChange={onStackGeometryChange}
         >
@@ -155,13 +164,15 @@ export default function CanvasSurface({
       )
     }
 
+    const targeted = stackTarget?.kind === 'widget' && stackTarget.id === entry.id
     return (
       <CanvasItem
         key={entry.id}
         entry={entry}
         item={item}
         size={size}
-        className={elevatedIds?.has(entry.id) ? 'canvas-item--elevated' : ''}
+        className={`${elevatedIds?.has(entry.id) ? 'canvas-item--elevated ' : ''}${targeted ? 'canvas-item--stack-target' : ''}`.trim()}
+        stackTargetLabel={targeted ? `Stack with ${entry.label}` : undefined}
         // Spec 2.5's "hovering a widget fades in two small controls" applies
         // to docked members too — the grip is the visible way OUT of a dock
         // (owner-reported 2026-08-18). Only the mechanical narrow stack is
