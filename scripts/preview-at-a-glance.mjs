@@ -391,7 +391,7 @@ async function capture({ id, kind, tier, viewport = VIEWPORTS[0], openDetail = t
   await page.waitForTimeout(150)
   const truth = await page.evaluate((widgetId) => {
     const item = document.querySelector(`[data-block-id="${widgetId}"]`)
-    const detail = document.querySelector('[role="dialog"]')
+    const detail = document.querySelector('[data-work-dock-detail], [data-weather-details]')
     const rect = item?.getBoundingClientRect()
     const text = `${item?.textContent ?? ''} ${detail?.textContent ?? ''}`.replace(/\s+/g, ' ').trim()
     const scroll = item?.querySelector('[data-work-widget-scroll]')
