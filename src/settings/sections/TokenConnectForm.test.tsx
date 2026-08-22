@@ -521,3 +521,40 @@ describe('TokenConnectForm per-instance ids', () => {
     expect(document.activeElement).toBe(inputs[0])
   })
 })
+
+describe('TokenConnectForm select fields', () => {
+  it('submits one labelled fixed-choice field with the other credential values', async () => {
+    const fields: TokenField[] = [
+      {
+        id: 'region',
+        label: 'Data region',
+        type: 'select',
+        placeholder: 'Choose a region',
+        defaultValue: 'global',
+        options: [
+          { value: 'global', label: 'Global' },
+          { value: 'us', label: 'United States' },
+          { value: 'de', label: 'Germany' },
+        ],
+      },
+      { id: 'token', label: 'Auth token', type: 'password', placeholder: 'token' },
+    ]
+    const validate = vi.fn(async () => ({ ok: true as const, identity: 'acme' }))
+    await renderForm({ fields, validate })
+
+    const region = screen.getByLabelText('Data region')
+    expect(region.tagName).toBe('SELECT')
+    expect([...region.querySelectorAll('option')].map((option) => option.textContent)).toEqual([
+      'Global',
+      'United States',
+      'Germany',
+    ])
+    fireEvent.change(region, { target: { value: 'de' } })
+    fireEvent.change(screen.getByLabelText('Auth token'), { target: { value: 'secret-token' } })
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    })
+
+    expect(validate).toHaveBeenCalledWith({ region: 'de', token: 'secret-token' })
+  })
+})

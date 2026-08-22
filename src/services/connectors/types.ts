@@ -15,7 +15,10 @@
 import type { HomeAssistantConfig } from './homeassistant'
 import type { CalendarColor } from './calendarColors'
 
-export const CONNECTOR_IDS = ['rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant'] as const
+export const CONNECTOR_IDS = [
+  'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
+  'linear', 'sentry', 'todoist',
+] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
 // Task 79 (W3-SP1): the drawer (Task 80) groups connector cards by purpose
@@ -181,6 +184,33 @@ export interface StatusConfig extends ConnectorCacheIdentity {
   services?: StatusService[] // up to MAX_SERVICES (status.ts); absent/malformed → [] (statusServicesOf)
 }
 
+export interface LinearConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  displayName: string
+  teamIds?: string[]
+  itemLimit?: number
+}
+
+export type SentryRegion = 'global' | 'us' | 'de'
+
+export interface SentryConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  organization: string
+  region: SentryRegion
+  projectSlugs?: string[]
+  itemLimit?: number
+}
+
+export interface TodoistConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  token: string
+  accountLabel: string
+  projectIds?: string[]
+  itemLimit?: number
+}
+
 export type ConnectorConfig =
   | RssConfig
   | GithubConfig
@@ -191,6 +221,9 @@ export type ConnectorConfig =
   | IcsConfig
   | StatusConfig
   | HomeAssistantConfig
+  | LinearConfig
+  | SentryConfig
+  | TodoistConfig
 
 export interface ConnectorSnapshot {
   /** Missing only on legacy v1 caches; the hook treats those as absent. */

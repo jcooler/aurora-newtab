@@ -50,6 +50,9 @@ export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>
   downloads: contract(['compact', 'standard', 'full'], 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename'),
   tabGroups: contract(['compact', 'standard', 'full'], 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group'),
   timer: contract(['compact'], 'Timer action', undefined, undefined, 'Timer state'), tasks: contract(['compact'], 'Tasks action', undefined, undefined, 'Tasks action'), notes: contract(['compact'], 'Notes action', undefined, undefined, 'Notes action'),
+  linear: contract(['compact', 'standard', 'full'], 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts'),
+  sentry: contract(['compact', 'standard', 'full'], 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue'),
+  todoist: contract(['compact', 'standard', 'full'], 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts'),
 })
 
 function joinNames(items: readonly SelectedCanvasContent[]): string {

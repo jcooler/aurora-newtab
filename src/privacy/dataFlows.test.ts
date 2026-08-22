@@ -122,7 +122,7 @@ describe('code-backed privacy inventory', () => {
       expect(flow.destinationKind).toMatch(/^(fixed|configured)-provider$/)
       expect(flow.destinations.length).toBeGreaterThan(0)
       expect(flow.trigger.length).toBeGreaterThan(0)
-      expect(flow.methods).toContain('GET')
+      expect(flow.methods.length).toBeGreaterThan(0)
       expect(flow.sends.length).toBeGreaterThan(0)
       expect(flow.receives.length).toBeGreaterThan(0)
       expect(flow.cache).toBe('connectorSnapshots-excluded-from-backup')
@@ -145,6 +145,11 @@ describe('code-backed privacy inventory', () => {
       'GET /api/ for action-only health',
       'POST /api/services/{domain}/{service} only on an action click',
     ])
+    expect(CONNECTOR_DATA_FLOWS.linear.methods).toEqual(['POST'])
+    expect(CONNECTOR_DATA_FLOWS.sentry.destinations).toEqual([
+      'the selected official sentry.io, us.sentry.io, or de.sentry.io region',
+    ])
+    expect(CONNECTOR_DATA_FLOWS.todoist.methods).toEqual(['GET', 'POST'])
   })
 
   it('distinguishes Aurora network requests from browser-mediated and navigation flows', () => {

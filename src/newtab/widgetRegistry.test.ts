@@ -37,6 +37,9 @@ const EXPECTED = [
   ['timer', 'Timer', 'dock', 0, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
   ['tasks', 'Tasks', 'dock', 1, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
   ['notes', 'Notes', 'dock', 2, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
+  ['linear', 'Linear', 'pulse', 12, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['sentry', 'Sentry', 'pulse', 13, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['todoist', 'Todoist', 'pulse', 14, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
 ] as const
 
 const ALL_WIDGETS_OFF: WidgetToggles = {
@@ -156,7 +159,7 @@ describe('source-owned widget registry', () => {
     }
   })
 
-  it('maps all nine connectors by enabled alone, including incomplete setup/data', () => {
+  it('maps all twelve connectors by enabled alone, including incomplete setup/data', () => {
     const settings = settingsWith(ALL_WIDGETS_OFF)
     for (const connectorId of CONNECTOR_IDS) {
       const enabled = { [connectorId]: connector(true) } as Partial<Record<ConnectorId, ConnectorConfig>>
@@ -198,7 +201,7 @@ describe('source-owned widget registry', () => {
   it('resolves every registry renderer exhaustively with exact key set equality', () => {
     const registryKeys = WIDGET_REGISTRY.map((row) => row.rendererKey)
     expect(WIDGET_RENDERER_KEYS).toEqual(registryKeys)
-    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(30)
+    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(33)
     for (const key of registryKeys) expect(typeof resolveWidgetRenderer(key), key).toBe('function')
   })
 })

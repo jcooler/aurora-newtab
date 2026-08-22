@@ -93,6 +93,11 @@ const SOURCES: readonly RegistrySource[] = [
   { id: 'timer', label: 'Timer', zone: 'dock', order: 0, priority: 'dock', eligibleZones: ['dock'], defaultVariant: 'compact', footprints: { compact: [1, 1] }, availability: widget('timer') },
   { id: 'tasks', label: 'Tasks', zone: 'dock', order: 1, priority: 'dock', eligibleZones: ['dock'], defaultVariant: 'compact', footprints: { compact: [1, 1] }, availability: widget('todo') },
   { id: 'notes', label: 'Notes', zone: 'dock', order: 2, priority: 'dock', eligibleZones: ['dock'], defaultVariant: 'compact', footprints: { compact: [1, 1] }, availability: widget('notes') },
+  // Appended after every existing identity so adding Work connectors cannot
+  // renumber legacy default layers. Their pulse orders are additive too.
+  { id: 'linear', label: 'Linear', zone: 'pulse', order: 12, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('linear') },
+  { id: 'sentry', label: 'Sentry', zone: 'pulse', order: 13, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('sentry') },
+  { id: 'todoist', label: 'Todoist', zone: 'pulse', order: 14, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('todoist') },
 ] as const
 
 const PROFILE_ORDER: readonly LayoutProfile[] = ['compact', 'standard', 'display', 'ultrawide']
@@ -198,6 +203,9 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
       ].filter(Boolean) as SelectedCanvasContent[]
     }
     case 'ics': return [selected('Selected calendar view', 'compact')]
+    case 'linear': return [selected('Assigned work', 'compact')]
+    case 'sentry': return [selected('Unresolved issues', 'compact')]
+    case 'todoist': return [selected('Due tasks', 'compact')]
   }
 }
 

@@ -34,7 +34,7 @@ describe('DEFAULT_WIDGET_POINTS composition contract (QA F1-F5)', () => {
   })
 
   it('work-column connectors default to their compact glance tier; clock leads Full; others Standard', () => {
-    for (const id of ['status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto', 'readingList', 'recentlyClosed', 'downloads', 'tabGroups'] as const) {
+    for (const id of ['status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto', 'readingList', 'recentlyClosed', 'downloads', 'tabGroups', 'linear', 'sentry', 'todoist'] as const) {
       expect(defaultFreePlacement(id, 0).tier, `${id} defaults compact`).toBe('compact')
     }
     expect(defaultFreePlacement('clock', 0).tier).toBe('full')
@@ -62,5 +62,17 @@ describe('DEFAULT_WIDGET_POINTS composition contract (QA F1-F5)', () => {
     ]).size).toBe(4)
     expect(DEFAULT_WIDGET_POINTS.status).toEqual({ x: 87, y: 25 })
     expect(DEFAULT_WIDGET_POINTS.crypto).toEqual({ x: 87, y: 87 })
+  })
+
+  it('adds three static Work connector points in a separate glance column', () => {
+    expect({
+      linear: DEFAULT_WIDGET_POINTS.linear,
+      sentry: DEFAULT_WIDGET_POINTS.sentry,
+      todoist: DEFAULT_WIDGET_POINTS.todoist,
+    }).toEqual({
+      linear: { x: 28, y: 34 },
+      sentry: { x: 28, y: 51 },
+      todoist: { x: 28, y: 68 },
+    })
   })
 })

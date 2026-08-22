@@ -49,4 +49,26 @@ export const COMPLETE_CONNECTOR_CONTRACT_FIXTURES = {
     token: 'contract-token',
     locationName: 'Contract home',
   },
+  linear: {
+    enabled: true,
+    token: 'contract-token',
+    displayName: 'Contract Linear user',
+    teamIds: ['contract-linear-team'],
+    itemLimit: 6,
+  },
+  sentry: {
+    enabled: true,
+    token: 'contract-token',
+    organization: 'contract-sentry-org',
+    region: 'us',
+    projectSlugs: ['contract-sentry-project'],
+    itemLimit: 6,
+  },
+  todoist: {
+    enabled: true,
+    token: 'contract-token',
+    accountLabel: 'Contract Todoist account',
+    projectIds: ['contract-todoist-project'],
+    itemLimit: 6,
+  },
 } as const satisfies Record<ConnectorId, ConnectorConfig>

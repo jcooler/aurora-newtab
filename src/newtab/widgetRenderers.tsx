@@ -29,6 +29,9 @@ import TimerWidget from './widgets/timer/TimerWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import WeatherWidget from './widgets/weather/WeatherWidget'
+import LinearWidget from './widgets/linear/LinearWidget'
+import SentryWidget from './widgets/sentry/SentryWidget'
+import TodoistWidget from './widgets/todoist/TodoistWidget'
 import type { WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
@@ -90,6 +93,9 @@ export const WIDGET_RENDERERS = {
   timer: ({ onTimerOpenChange }) => <TimerWidget onOpenChange={onTimerOpenChange} />,
   tasks: ({ onTasksOpenChange }) => <TodoWidget onOpenChange={onTasksOpenChange} />,
   notes: ({ onNotesOpenChange }) => <NotesWidget onOpenChange={onNotesOpenChange} />,
+  linear: (props) => <LinearWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  sentry: (props) => <SentryWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  todoist: (props) => <TodoistWidget canvasSize={props.canvasSize} docked={props.docked} />,
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(

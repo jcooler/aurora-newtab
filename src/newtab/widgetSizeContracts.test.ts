@@ -7,6 +7,15 @@ describe('Canvas widget size contracts', () => {
     expect(WIDGET_SIZE_CONTRACTS.jira.sizes).toEqual(['compact', 'standard', 'full'])
     expect(WIDGET_SIZE_CONTRACTS.crypto.sizes).toEqual(['compact', 'standard'])
     expect(WIDGET_SIZE_CONTRACTS.timer.sizes).toEqual(['compact'])
+    for (const id of ['linear', 'sentry', 'todoist'] as const) {
+      expect(WIDGET_SIZE_CONTRACTS[id]).toEqual({
+        sizes: ['compact', 'standard', 'full'],
+        compact: expect.any(String),
+        standard: expect.any(String),
+        full: expect.any(String),
+        docked: expect.any(String),
+      })
+    }
   })
 
   it('names selected content that needs a larger size instead of inventing a fitting choice', () => {
@@ -30,9 +39,9 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
       .sort()
     expect(docked).toEqual([
       'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-      'habits', 'homeassistant', 'ics', 'jira', 'moon', 'notes', 'readingList',
-      'recentlyClosed', 'rss', 'status', 'sun', 'tabGroups', 'tasks',
-      'timer', 'vercel', 'weather', 'worldClocks',
+      'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'readingList',
+      'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups', 'tasks',
+      'timer', 'todoist', 'vercel', 'weather', 'worldClocks',
     ])
     expect(WIDGET_SIZE_CONTRACTS.weather.docked).toBe('Temperature · location · condition')
     expect(WIDGET_SIZE_CONTRACTS.clock.docked).toBe('Time · date')

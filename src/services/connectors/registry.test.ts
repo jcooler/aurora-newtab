@@ -118,6 +118,9 @@ describe('descriptor categories', () => {
       rss: 'news-markets',
       crypto: 'news-markets',
       homeassistant: 'home',
+      linear: 'development',
+      sentry: 'development',
+      todoist: 'calendar-tasks',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])

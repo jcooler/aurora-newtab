@@ -111,10 +111,16 @@ after an explicit confirmation. It never changes Linear or Sentry state.
 - Refresh: on missing/stale mounted data, visible-window restoration, explicit
   refresh, and at a five-minute freshness boundary while mounted.
 
-## 5. Storage and migration
+## 5. Storage and additive identity
 
-Schema v17 adds widget toggles `linear`, `sentry`, and `todoist`, all false for
-existing and new users. It extends the connector union with:
+The storage schema remains v16. Aurora's connector authority is already a
+`Partial<Record<ConnectorId, ConnectorConfig>>`; absent connector entries are
+the canonical disabled and unconfigured state for existing and new users.
+Adding a second `settings.widgets` switch for a connector would create a
+competing visibility owner, so Linear, Sentry, and Todoist follow every current
+connector and use only `connectors[id].enabled`.
+
+The connector union gains:
 
 ```ts
 interface LinearConfig {
@@ -151,10 +157,10 @@ arrays, region membership, and item limits from 3 through 10 with a default of
 6. Persisted malformed configuration degrades to disconnected or to safe
 defaults; origin derivation never throws.
 
-Migration 16 to 17 adds only the three false widget keys. It preserves every
-other byte-shaped value, unknown key, connector config, snapshot, layout, and
-legacy `layout`. Existing schema-16 malformed nested settings fail before the
-version stamp exactly as the schema-15 guard now does.
+There is no migration and no version stamp write. A schema-v16 document that
+predates these connector IDs remains byte-identical on initialization. The
+existing widget-toggle introduction ledger, metadata-only floor, migration
+registry, and malformed-settings guards remain unchanged.
 
 Tokens are descriptor-declared secret fields. Connector snapshots stay
 excluded from backup. Non-secret selection preferences may be exported, but
@@ -265,8 +271,8 @@ Chromium evidence uses inert synthetic responses and unmistakably fake tokens.
 
 The Work wave is one bounded packet executed in this order:
 
-1. schema v17, identities, descriptors, privacy, backup, fixtures, registry,
-   and exact migration;
+1. additive identities, descriptors, privacy, backup, fixtures, and registry
+   with schema v16 unchanged;
 2. Linear service, settings, widget, tiers, and tests;
 3. Sentry service, settings, widget, tiers, and tests;
 4. Todoist service, settings, widget, confirmation mutation, tiers, and tests;
@@ -278,8 +284,8 @@ The packet does not run the exhaustive NL-P6 matrix.
 
 ## 11. Acceptance criteria
 
-- [ ] Schema v17 adds exactly three false widget toggles and preserves all
-  unrelated current and legacy data.
+- [ ] Schema remains v16; current defaults and initialization add no Work
+  connector entry, toggle, version write, or migration.
 - [ ] Connector IDs, descriptors, settings bodies, fixtures, privacy flows,
   backup redaction, origin ownership, widgets, renderers, size contracts,
   default placements, and catalog coverage have exact parity.
@@ -309,4 +315,3 @@ picker changes, deep links, Todoist confirm/Cancel/single-flight, reload cache
 continuity, exact request allowlists, expected snapshot-only writes, and exact
 1408x445 usefulness. Original-resolution captures are inspected individually;
 contact sheets are navigation aids only.
-

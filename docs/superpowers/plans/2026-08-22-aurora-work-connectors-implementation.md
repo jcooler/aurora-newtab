@@ -10,9 +10,10 @@ Chromium evidence.
 
 **Architecture:** Extend the existing typed connector registry and
 configuration-scoped snapshot system. Each provider gets one pure service
-boundary, one settings body, and one widget renderer. Schema v17 introduces all
-three identities together; the packet then implements each provider in
-sequence before one integration and evidence gate.
+boundary, one settings body, and one widget renderer. The existing additive
+connector map introduces all three identities without a schema change; the
+packet then implements each provider in sequence before one integration and
+evidence gate.
 
 **Design authority:**
 `docs/superpowers/specs/2026-08-22-aurora-work-connectors-design.md`
@@ -28,12 +29,10 @@ sequence before one integration and evidence gate.
 - Never write legacy `layout`; preserve exact named-layout and backup recovery.
 - One bounded review and at most one fix/rereview cycle for this packet.
 
-## Task 1: Establish schema v17 and identity parity
+## Task 1: Establish additive connector identities without a schema change
 
 **Tests first:**
 
-- `src/lib/storage/migrations.test.ts`
-- `src/lib/storage/index.test.ts`
 - `src/services/connectors/expansionConnectorContracts.test.ts`
 - `src/services/connectors/registry.test.ts`
 - `src/privacy/dataFlows.test.ts`
@@ -45,9 +44,6 @@ sequence before one integration and evidence gate.
 
 **Production after RED:**
 
-- `src/lib/storage/schema.ts`
-- `src/lib/storage/migrations.ts`
-- `src/lib/storage/index.ts`
 - `src/services/connectors/types.ts`
 - `src/services/connectors/registry.ts`
 - `src/privacy/dataFlows.ts`
@@ -60,37 +56,36 @@ sequence before one integration and evidence gate.
 
 **RED proof:**
 
-1. Pin `CURRENT_VERSION === 17` and a 16 to 17 migration that adds exactly
-   `linear`, `sentry`, and `todoist` false widget keys.
-2. Pin exact preservation of every other setting, connector, snapshot, layout,
-   legacy `layout`, unknown key, and source object.
-3. Pin malformed schema-16 nested widget maps fail without a v17 stamp.
-4. Pin exact identity parity across connector, widget, privacy, backup,
+1. Pin `CURRENT_VERSION === 16`, no new widget-toggle key, and no migration or
+   initialization write for a pre-Work schema-v16 document.
+2. Pin exact identity parity across connector, widget, privacy, backup,
    placement, tier, settings-body, fixture, and catalog authorities.
-5. Pin tokens and conservative account/resource identifiers never appear in
+3. Pin tokens and conservative account/resource identifiers never appear in
    prepared backup output and all three require re-entry.
-6. Pin exact fixed origins, including Sentry's three official region choices.
+4. Pin exact fixed origins, including Sentry's three official region choices.
 
 **GREEN implementation:**
 
 1. Add normalized Linear, Sentry, and Todoist config types and IDs.
 2. Add pure descriptors with TTL, secret fields, origin ownership, backup
    redaction, identity fields, categories, and no side effects.
-3. Add false defaults and one migration step; move the metadata-only floor to
-   17 because migration 16 is not identity.
-4. Add widget identities, default points, tier contracts, and disabled
-   availability without adding placeholder presentation.
-5. Extend inert contract fixtures using only reserved fake values.
+3. Leave schema, defaults, widget toggles, migrations, and the metadata-only
+   floor byte-identical.
+4. Add widget identities, default points, tier contracts, and connector-backed
+   availability as the real renderers land.
+5. Extend inert contract fixtures using only reserved fake values. Cross-authority
+   parity intentionally closes in Task 9 after the three real settings bodies
+   and renderers exist; no placeholder UI is introduced to satisfy it early.
 
 **Focused gate:**
 
 ```powershell
-npx vitest run src/lib/storage/migrations.test.ts src/lib/storage/index.test.ts src/services/connectors/registry.test.ts src/services/connectors/expansionConnectorContracts.test.ts src/privacy/dataFlows.test.ts src/lib/backup.test.ts src/newtab/widgetRegistry.test.ts src/newtab/widgetSizeContracts.test.ts
-npm run test:expansion-contract
+npx vitest run src/services/connectors/registry.test.ts src/privacy/dataFlows.test.ts src/lib/backup.test.ts
 npx tsc --noEmit
 ```
 
-**Commit:** `feat(work): establish connector identities and schema v17`
+Do not checkpoint Task 1 by itself. Its connector union is intentionally closed
+by the vertical provider tasks before the first packet checkpoint.
 
 ## Task 2: Add shared work-connector presentation primitives
 
@@ -389,7 +384,7 @@ git diff --check
 
 1. Refuse dirty tracked source, wrong commit, unsafe output, live-looking token,
    unexpected request, console/page/request failure, or external URL.
-2. Seed existing-layout-shaped schema-v17 storage and inert scoped snapshots.
+2. Seed existing-layout-shaped schema-v16 storage and inert scoped snapshots.
 3. Capture all four tiers and every degraded family for all three widgets at
    1600x900 and exact 1408x445.
 4. Capture maximum 25-item Full cards and assert measured local overflow.
@@ -455,4 +450,3 @@ local-overflow measurements, runtime failures, and manual-inspection scope.
    and clean, and no Store action.
 7. Continue directly to the At-a-glance wave without asking for routine
    continuation.
-

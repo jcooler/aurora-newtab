@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType } from 'react'
 import type { AuroraStorage } from '../../lib/storage/index'
 import type { AuroraData } from '../../lib/storage/schema'
-import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, RssConfig, StatusConfig, StatusService, VercelConfig, VercelViews } from '../../services/connectors/types'
+import type { ConnectorConfig, ConnectorDescriptor, ConnectorId, CryptoConfig, GithubConfig, GithubViews, GitlabConfig, GitlabViews, IcsCalendar, IcsConfig, JiraConfig, JiraViews, LinearConfig, RssConfig, SentryConfig, StatusConfig, StatusService, TodoistConfig, VercelConfig, VercelViews } from '../../services/connectors/types'
 import { CATEGORY_LABELS, CATEGORY_ORDER } from '../../services/connectors/types'
 import { CONNECTORS, getConnector } from '../../services/connectors/registry'
 import { whoamiGithub, resolveGithubViews } from '../../services/connectors/github'
@@ -9,6 +9,9 @@ import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gi
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
 import { newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
+import { isSentryData, sentryBaseUrl, sentryItemLimit, sentryProjectSlugs, sentryRegion, validateSentryConnection } from '../../services/connectors/sentry'
+import { isLinearWorkData, LINEAR_ORIGIN, linearItemLimit, linearTeamIds, whoamiLinear } from '../../services/connectors/linear'
+import { fetchTodoistProjects, isTodoistData, TODOIST_ORIGIN, todoistItemLimit, todoistProjectIds } from '../../services/connectors/todoist'
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, MAX_CALENDARS } from '../../services/connectors/ics'
 import { CALENDAR_COLORS, calendarColorClass, calendarColorOf, isCalendarColor, type CalendarColor } from '../../services/connectors/calendarColors'
@@ -42,6 +45,7 @@ import {
   deriveConnectorCardState,
   type ConnectorCardMode,
 } from '../connectors/connectorCardState'
+import { useStoredKey } from '../../lib/hooks/useStoredKey'
 
 const MAX_FEEDS = 5
 const SHOWN_COUNT_OPTIONS = [3, 4, 5, 6, 7, 8]
@@ -59,7 +63,7 @@ interface BodyProps {
   closeEditor(): void
 }
 
-type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto'
+type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto' | 'linear' | 'sentry' | 'todoist'
 
 function canonicalCandidates(candidates: readonly string[]): string[] {
   const canonical = new Set<string>()
@@ -365,6 +369,9 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   ics: IcsBody,
   status: StatusBody,
   homeassistant: HomeAssistantBody,
+  linear: LinearBody,
+  sentry: SentryBody,
+  todoist: TodoistBody,
 }
 
 export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
@@ -1812,6 +1819,391 @@ function IcsBody({ config, storage, reportPendingCleanup }: BodyProps) {
 // today (handleCuratedPick below, handleCustomAdd further down), and the
 // flip touches only which of them the select's own choice feeds through, not
 // addService itself.
+function WorkPreferenceControls({
+  groupLabel,
+  emptyLabel,
+  options,
+  selected,
+  onToggle,
+  onSelectAll,
+  onClear,
+  countLabel,
+  count,
+  onCount,
+}: {
+  groupLabel: string
+  emptyLabel: string
+  options: readonly { id: string; label: string }[]
+  selected: readonly string[]
+  onToggle(id: string): void
+  onSelectAll(): void
+  onClear(): void
+  countLabel: string
+  count: number
+  onCount(value: number): void
+}) {
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{groupLabel}</p>
+        {options.length > 0 ? (
+          <>
+            <div className="flex flex-wrap gap-1.5">
+              {options.map((option) => (
+                <ToggleChip key={option.id} label={option.label} on={selected.includes(option.id)} onClick={() => onToggle(option.id)} />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button type="button" className={btnQuiet} onClick={onSelectAll}>Select all</button>
+              <button type="button" className={btnQuiet} onClick={onClear}>Clear</button>
+            </div>
+          </>
+        ) : <p className="text-xs text-fg-muted">{emptyLabel}</p>}
+      </div>
+      <div>
+        <label htmlFor={`connector-work-count-${countLabel.replace(/\s+/g, '-').toLowerCase()}`} className="mb-1 block text-xs text-fg-muted">
+          {countLabel}
+        </label>
+        <select
+          id={`connector-work-count-${countLabel.replace(/\s+/g, '-').toLowerCase()}`}
+          value={count}
+          className={`${select} w-full`}
+          onChange={(event) => onCount(Number(event.currentTarget.value))}
+        >
+          {[3, 4, 5, 6, 7, 8, 9, 10].map((value) => <option key={value} value={value}>{value}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+}
+
+function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const linear = config as LinearConfig | undefined
+  const token = typeof linear?.token === 'string' ? linear.token : ''
+  const displayName = typeof linear?.displayName === 'string' ? linear.displayName : ''
+  const connectedAs = token && displayName ? displayName : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = snapshots?.linear?.data
+  const issues = isLinearWorkData(snapshotData) ? snapshotData.issues : []
+  const teams = [...new Map(issues.map((issue) => [issue.team.id, issue.team])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const selected = linearTeamIds(linear)
+
+  async function updatePreferences(update: (current: LinearConfig) => LinearConfig) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.linear as LinearConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.linear
+      return { connectors: { ...connectors, linear: update(current) }, connectorSnapshots: nextSnapshots }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[{ id: 'token', label: 'Linear personal API key', type: 'password', placeholder: 'lin_api_…' }]}
+      originsFor={() => [LINEAR_ORIGIN]}
+      validate={async (values) => {
+        const result = await whoamiLinear(values.token)
+        return result.ok ? { ok: true, identity: result.identity } : result
+      }}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.linear as LinearConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.linear
+          return {
+            connectors: {
+              ...connectors,
+              linear: {
+                enabled: true,
+                token: values.token,
+                displayName: identity,
+                snapshotEpoch: newSnapshotEpoch(),
+                ...(previous?.teamIds ? { teamIds: previous.teamIds } : {}),
+                itemLimit: linearItemLimit(previous),
+              },
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={linear?.token === undefined && linear?.displayName === undefined}
+      connectedExtras={
+        <WorkPreferenceControls
+          groupLabel="Teams"
+          emptyLabel="Teams appear after the first successful refresh."
+          options={teams.map((team) => ({ id: team.id, label: team.name }))}
+          selected={selected}
+          onToggle={(id) => void updatePreferences((current) => {
+            const ids = linearTeamIds(current)
+            return { ...current, teamIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
+          })}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, teamIds: teams.map((team) => team.id) }))}
+          onClear={() => void updatePreferences((current) => ({ ...current, teamIds: [] }))}
+          countLabel="Issues shown"
+          count={linearItemLimit(linear)}
+          onCount={(value) => void updatePreferences((current) => ({ ...current, itemLimit: value }))}
+        />
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'linear')}
+    />
+  )
+}
+
+function TodoistBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const todoist = config as TodoistConfig | undefined
+  const token = typeof todoist?.token === 'string' ? todoist.token : ''
+  const accountLabel = typeof todoist?.accountLabel === 'string' ? todoist.accountLabel : ''
+  const connectedAs = token && accountLabel ? accountLabel : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = snapshots?.todoist?.data
+  const projects = isTodoistData(snapshotData) ? snapshotData.projects : []
+  const selected = todoistProjectIds(todoist)
+
+  async function updatePreferences(update: (current: TodoistConfig) => TodoistConfig) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.todoist as TodoistConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.todoist
+      return { connectors: { ...connectors, todoist: update(current) }, connectorSnapshots: nextSnapshots }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[{ id: 'token', label: 'Todoist API token', type: 'password', placeholder: 'Todoist API token' }]}
+      originsFor={() => [TODOIST_ORIGIN]}
+      validate={async (values) => {
+        try {
+          await fetchTodoistProjects(values.token)
+          return { ok: true as const, identity: 'Todoist' }
+        } catch (error) {
+          return { ok: false as const, message: error instanceof Error ? error.message : 'Todoist request failed.' }
+        }
+      }}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.todoist as TodoistConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.todoist
+          return {
+            connectors: {
+              ...connectors,
+              todoist: {
+                enabled: true,
+                token: values.token,
+                accountLabel: identity,
+                snapshotEpoch: newSnapshotEpoch(),
+                ...(previous?.projectIds ? { projectIds: previous.projectIds } : {}),
+                itemLimit: todoistItemLimit(previous),
+              },
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={todoist?.token === undefined && todoist?.accountLabel === undefined}
+      connectedExtras={
+        <WorkPreferenceControls
+          groupLabel="Projects"
+          emptyLabel="Projects appear after the first successful refresh."
+          options={projects.map((project) => ({ id: project.id, label: project.name }))}
+          selected={selected}
+          onToggle={(id) => void updatePreferences((current) => {
+            const ids = todoistProjectIds(current)
+            return { ...current, projectIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
+          })}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, projectIds: projects.map((project) => project.id) }))}
+          onClear={() => void updatePreferences((current) => ({ ...current, projectIds: [] }))}
+          countLabel="Tasks shown"
+          count={todoistItemLimit(todoist)}
+          onCount={(value) => void updatePreferences((current) => ({ ...current, itemLimit: value }))}
+        />
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'todoist')}
+    />
+  )
+}
+
+function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }: BodyProps) {
+  const sentry = config as SentryConfig | undefined
+  const token = typeof sentry?.token === 'string' ? sentry.token : ''
+  const organization = typeof sentry?.organization === 'string' ? sentry.organization : ''
+  const region = sentryRegion(sentry?.region)
+  const connectedAs = token && organization ? organization : null
+  const [snapshots] = useStoredKey('connectorSnapshots')
+  const snapshotData = snapshots?.sentry?.data
+  const issues = isSentryData(snapshotData) ? snapshotData.issues : []
+  const projects = [...new Map(issues.map((issue) => [issue.project.slug, issue.project])).values()]
+    .sort((a, b) => a.name.localeCompare(b.name))
+  const selectedProjects = sentryProjectSlugs(sentry)
+  const itemLimit = sentryItemLimit(sentry)
+
+  async function updatePreferences(
+    update: (current: SentryConfig) => SentryConfig,
+  ) {
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const current = connectors.sentry as SentryConfig | undefined
+      if (!current) return {}
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextSnapshots.sentry
+      return {
+        connectors: { ...connectors, sentry: update(current) },
+        connectorSnapshots: nextSnapshots,
+      }
+    })
+  }
+
+  return (
+    <TokenConnectForm
+      storage={storage}
+      reportPendingCleanup={reportPendingCleanup}
+      managedMode={mode}
+      onManagedClose={closeEditor}
+      fields={[
+        {
+          id: 'region',
+          label: 'Data region',
+          type: 'select',
+          placeholder: 'Choose a region',
+          defaultValue: region,
+          options: [
+            { value: 'global', label: 'Global' },
+            { value: 'us', label: 'United States' },
+            { value: 'de', label: 'Germany' },
+          ],
+        },
+        {
+          id: 'organization',
+          label: 'Organization slug',
+          type: 'text',
+          placeholder: 'acme',
+          defaultValue: organization,
+        },
+        {
+          id: 'token',
+          label: 'Sentry auth token',
+          type: 'password',
+          placeholder: 'sntrys_…',
+        },
+      ]}
+      originsFor={(values) => [`${sentryBaseUrl(values.region)}/*`]}
+      validate={(values) => validateSentryConnection({
+        region: sentryRegion(values.region),
+        organization: values.organization,
+        token: values.token,
+      })}
+      onConnected={async (values, identity) => {
+        await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const previous = connectors.sentry as SentryConfig | undefined
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.sentry
+          return {
+            connectors: {
+              ...connectors,
+              sentry: {
+                enabled: true,
+                token: values.token,
+                organization: identity,
+                region: sentryRegion(values.region),
+                snapshotEpoch: newSnapshotEpoch(),
+                ...(previous?.projectSlugs ? { projectSlugs: previous.projectSlugs } : {}),
+                itemLimit: sentryItemLimit(previous),
+              },
+            },
+            connectorSnapshots: nextSnapshots,
+          }
+        })
+      }}
+      connectedAs={connectedAs}
+      initiallyCollapsed={sentry?.token === undefined && sentry?.organization === undefined}
+      connectedExtras={
+        <div className="space-y-3">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
+              Projects
+            </p>
+            {projects.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {projects.map((project) => (
+                  <ToggleChip
+                    key={project.slug}
+                    label={project.name}
+                    on={selectedProjects.includes(project.slug)}
+                    onClick={() => void updatePreferences((current) => {
+                      const selected = sentryProjectSlugs(current)
+                      return {
+                        ...current,
+                        projectSlugs: selected.includes(project.slug)
+                          ? selected.filter((slug) => slug !== project.slug)
+                          : [...selected, project.slug],
+                      }
+                    })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-fg-muted">Projects appear after the first successful refresh.</p>
+            )}
+            {projects.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className={btnQuiet}
+                  onClick={() => void updatePreferences((current) => ({
+                    ...current,
+                    projectSlugs: projects.map((project) => project.slug),
+                  }))}
+                >
+                  Select all
+                </button>
+                <button
+                  type="button"
+                  className={btnQuiet}
+                  onClick={() => void updatePreferences((current) => ({ ...current, projectSlugs: [] }))}
+                >
+                  Clear
+                </button>
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <label htmlFor="connector-sentry-item-limit" className="mb-1 block text-xs text-fg-muted">
+              Issues shown
+            </label>
+            <select
+              id="connector-sentry-item-limit"
+              value={itemLimit}
+              className={`${select} w-full`}
+              onChange={(event) => {
+                const value = Number(event.currentTarget.value)
+                void updatePreferences((current) => ({ ...current, itemLimit: value }))
+              }}
+            >
+              {[3, 4, 5, 6, 7, 8, 9, 10].map((value) => (
+                <option key={value} value={value}>{value}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      }
+      onDisconnect={() => disconnectTokenConnector(storage, 'sentry')}
+    />
+  )
+}
+
 function StatusBody({ config, storage, reportPendingCleanup }: BodyProps) {
   // Same narrowing rationale as every other body above: BodyProps.config is
   // the generic union (the body map is shared across ids), and this

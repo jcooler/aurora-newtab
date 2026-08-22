@@ -4,7 +4,7 @@
 // rss.test.ts's fetchHeadlines abort case (see that file's comment for why
 // the mock rejects on the signal's 'abort' event rather than a bare timeout).
 import { describe, expect, it, vi } from 'vitest'
-import { getJson, conditionalGetJson, postJson, type JsonError } from './http'
+import { getJson, conditionalGetJson, postEmpty, postJson, type JsonError } from './http'
 
 // Minimal fetch Response stand-in: only the members getJson/conditionalGetJson
 // actually touch (ok, status, headers.get, json()). Cast through `unknown` at
@@ -188,5 +188,73 @@ describe('postJson', () => {
     })
     const result = await postJson('https://api.example.com/graphql', {}, {}, fetchFn as unknown as typeof fetch)
     expect(result).toEqual({ ok: false, status: null, message: 'network down' })
+  })
+})
+
+describe('postEmpty', () => {
+  it('POSTs without a request body or content-type and returns a typed empty success', async () => {
+    const res = fakeResponse({ ok: true, status: 204, etag: 'W/"closed"' })
+    const fetchFn = vi.fn(async () => res)
+
+    const result = await postEmpty(
+      'https://api.example.com/items/one/close',
+      { Authorization: 'Bearer t' },
+      fetchFn as unknown as typeof fetch,
+    )
+
+    expect(result).toEqual({ ok: true, status: 204, body: null, etag: 'W/"closed"' })
+    expect(fetchFn).toHaveBeenCalledTimes(1)
+    const [, init] = (fetchFn.mock.calls as unknown as Array<[string, RequestInit]>)[0]
+    expect(init).toEqual(expect.objectContaining({
+      method: 'POST',
+      headers: { Authorization: 'Bearer t' },
+      signal: expect.anything(),
+    }))
+    expect(init).not.toHaveProperty('body')
+    expect(init).not.toHaveProperty('Content-Type')
+    expect(res.json).not.toHaveBeenCalled()
+  })
+
+  it('preserves the shared typed status failure without reading the response body', async () => {
+    const res = fakeResponse({ ok: false, status: 409, body: { secret: 'do not read' } })
+    const fetchFn = vi.fn(async () => res)
+
+    const result = await postEmpty('https://api.example.com/items/one/close', {}, fetchFn as unknown as typeof fetch)
+
+    expect(result).toEqual({ ok: false, status: 409, message: 'Request failed with status 409' })
+    expect(res.json).not.toHaveBeenCalled()
+  })
+
+  it('preserves the shared typed network failure', async () => {
+    const fetchFn = vi.fn(async () => {
+      throw new Error('network down')
+    })
+
+    const result = await postEmpty('https://api.example.com/items/one/close', {}, fetchFn as unknown as typeof fetch)
+
+    expect(result).toEqual({ ok: false, status: null, message: 'network down' })
+  })
+
+  it('uses the shared eight-second abort discipline', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchFn = vi.fn(
+        (_url: string, init?: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              const error = new Error('The operation was aborted')
+              error.name = 'AbortError'
+              reject(error)
+            })
+          }),
+      )
+
+      const promise = postEmpty('https://api.example.com/items/one/close', {}, fetchFn as unknown as typeof fetch)
+      await vi.advanceTimersByTimeAsync(8_000)
+
+      expect(await promise).toEqual({ ok: false, status: null, message: 'The operation was aborted' })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

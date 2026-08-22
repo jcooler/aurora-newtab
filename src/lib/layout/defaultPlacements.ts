@@ -67,6 +67,11 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   recentlyClosed: { x: 72, y: 47 },
   downloads: { x: 72, y: 66 },
   tabGroups: { x: 72, y: 85 },
+  // New Work connectors use their own static glance column. They never move
+  // the existing work or browser-native columns and remain user-placeable.
+  linear: { x: 28, y: 34 },
+  sentry: { x: 28, y: 51 },
+  todoist: { x: 28, y: 68 },
 })
 
 /** Work-column connector identities that DEFAULT to their compact glance
@@ -75,6 +80,7 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
 const COMPACT_DEFAULT_IDS: ReadonlySet<BlockId> = new Set([
   'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
   'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
+  'linear', 'sentry', 'todoist',
 ])
 
 /** Default tier mirrors the retired preferred-size rule for the Desktop

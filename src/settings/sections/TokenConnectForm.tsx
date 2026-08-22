@@ -11,9 +11,10 @@ import type { ConnectorCardMode } from '../connectors/connectorCardState'
 export interface TokenField {
   id: string
   label: string
-  type: 'text' | 'password'
+  type: 'text' | 'password' | 'select'
   placeholder: string
   defaultValue?: string
+  options?: readonly { value: string; label: string }[]
 }
 
 export interface TokenDisconnectResult {
@@ -97,7 +98,7 @@ export function TokenConnectForm(props: {
   const [error, setError] = useState<string | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [revealed, setRevealed] = useState(() => managed || (connectedAs === null && !initiallyCollapsed))
-  const firstFieldRef = useRef<HTMLInputElement>(null)
+  const firstFieldRef = useRef<HTMLInputElement | HTMLSelectElement>(null)
   const setupButtonRef = useRef<HTMLButtonElement>(null)
   const editButtonRef = useRef<HTMLButtonElement>(null)
   const focusFieldAfterRevealRef = useRef(false)
@@ -286,28 +287,45 @@ export function TokenConnectForm(props: {
       {managed && connectedAs !== null && connectedExtras ? (
         <div className="mb-1 border-b border-hairline pb-3">{connectedExtras}</div>
       ) : null}
-      {fields.map((field, index) => (
+      {fields.map((field, index) => {
+        const id = `${uid}-${field.id}`
+        const common = {
+          id,
+          value: values[field.id] ?? '',
+          onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+            const next = event.currentTarget.value
+            setValues((prev) => ({ ...prev, [field.id]: next }))
+            setError(null)
+          },
+          'aria-describedby': error ? `${uid}-error` : undefined,
+          className: `${control} w-full`,
+        }
+        return (
         <div key={field.id}>
           <label htmlFor={`${uid}-${field.id}`} className="sr-only">
             {field.label}
           </label>
-          <input
-            ref={index === 0 ? firstFieldRef : undefined}
-            id={`${uid}-${field.id}`}
-            type={field.type}
-            placeholder={field.placeholder}
-            value={values[field.id] ?? ''}
-            autoComplete={field.type === 'password' ? 'off' : undefined}
-            onChange={(e) => {
-              const next = e.currentTarget.value
-              setValues((prev) => ({ ...prev, [field.id]: next }))
-              setError(null)
-            }}
-            aria-describedby={error ? `${uid}-error` : undefined}
-            className={`${control} w-full`}
-          />
+          {field.type === 'select' ? (
+            <select
+              ref={index === 0 ? (node) => { firstFieldRef.current = node } : undefined}
+              {...common}
+            >
+              {(field.options ?? []).map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              ref={index === 0 ? (node) => { firstFieldRef.current = node } : undefined}
+              type={field.type}
+              placeholder={field.placeholder}
+              autoComplete={field.type === 'password' ? 'off' : undefined}
+              {...common}
+            />
+          )}
         </div>
-      ))}
+        )
+      })}
 
       <div className="flex flex-wrap gap-3">
         <button type="submit" disabled={connecting} className={submitBtn}>

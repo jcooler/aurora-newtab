@@ -18,6 +18,9 @@ import { cryptoDescriptor } from './crypto'
 import { icsDescriptor } from './ics'
 import { statusDescriptor } from './status'
 import { homeassistantDescriptor } from './homeassistant'
+import { linearDescriptor } from './linear'
+import { sentryDescriptor } from './sentry'
+import { todoistDescriptor } from './todoist'
 
 // Task 46 grows ConnectorConfig into a real 7-member union, which is exactly
 // the situation types.ts's ConnectorDescriptor variance comment predicted:
@@ -62,6 +65,9 @@ export const CONNECTORS: ConnectorDescriptor[] = [
   icsDescriptor as ConnectorDescriptor,
   statusDescriptor as ConnectorDescriptor,
   homeassistantDescriptor as ConnectorDescriptor,
+  linearDescriptor as ConnectorDescriptor,
+  sentryDescriptor as ConnectorDescriptor,
+  todoistDescriptor as ConnectorDescriptor,
 ]
 
 /** The descriptor for `id`, or undefined if none is registered. Linear scan

@@ -12,10 +12,12 @@ import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from './types'
 
 const EXPECTED_CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
+  'linear', 'sentry', 'todoist',
 ] as const satisfies readonly ConnectorId[]
 
 const EXPECTED_REENTRY_IDS: readonly ConnectorId[] = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'ics', 'homeassistant',
+  'linear', 'sentry', 'todoist',
 ]
 
 const EXPECTED_ORIGINS: Readonly<Record<ConnectorId, readonly string[]>> = {
@@ -28,10 +30,14 @@ const EXPECTED_ORIGINS: Readonly<Record<ConnectorId, readonly string[]>> = {
   ics: ['https://calendar.example.invalid/*'],
   status: ['https://status.example.invalid/*'],
   homeassistant: ['https://home.example.invalid/*'],
+  linear: ['https://api.linear.app/*'],
+  sentry: ['https://us.sentry.io/*'],
+  todoist: ['https://api.todoist.com/*'],
 }
 
 const HELD_WHEN_INCOMPLETE = new Set<ConnectorId>([
   'github', 'gitlab', 'jira', 'vercel', 'crypto', 'homeassistant',
+  'linear', 'sentry', 'todoist',
 ])
 
 const INCOMPLETE: Record<ConnectorId, ConnectorConfig> = {
@@ -44,13 +50,16 @@ const INCOMPLETE: Record<ConnectorId, ConnectorConfig> = {
   ics: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.ics, url: undefined, calendars: [] },
   status: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.status, services: [] },
   homeassistant: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.homeassistant, token: '' },
+  linear: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.linear, token: '' },
+  sentry: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.sentry, token: '' },
+  todoist: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.todoist, token: '' },
 }
 
 const photoPrefs = defaults().photoPrefs
 const sorted = (values: readonly string[]) => [...values].sort()
 
 describe('expansion connector authorities', () => {
-  it('keeps all nine identities in exact type, descriptor, widget, Settings, and fixture parity', () => {
+  it('keeps all twelve identities in exact type, descriptor, widget, Settings, and fixture parity', () => {
     expect(CONNECTOR_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(CONNECTORS.map(({ id }) => id)).toEqual(EXPECTED_CONNECTOR_IDS)
     expect(CONNECTOR_BODY_IDS).toEqual(EXPECTED_CONNECTOR_IDS)
@@ -90,6 +99,9 @@ describe('expansion connector authorities', () => {
       ics: { enabled: true, calendars: [] },
       status: { enabled: true, services: [{ name: 'Contract service', url: 'https://status.example.invalid/api/v2/status.json' }] },
       homeassistant: { enabled: true, instanceUrl: 'https://home.example.invalid', locationName: 'Contract home' },
+      linear: { enabled: true, itemLimit: 6 },
+      sentry: { enabled: true, region: 'us', itemLimit: 6 },
+      todoist: { enabled: true, itemLimit: 6 },
     })
     expect(redactions.reentryRequired).toEqual(EXPECTED_REENTRY_IDS)
     expect(requiredReentryConnectorIds(redacted.connectors, EXPECTED_REENTRY_IDS, true)).toEqual(EXPECTED_REENTRY_IDS)

@@ -15,6 +15,9 @@ const configured: Record<ConnectorId, ConnectorConfig> = {
   ics: { enabled: true, calendars: [{ name: 'Studio', url: 'https://calendar.example.test/private.ics' }] },
   status: { enabled: true, services: [{ name: 'API', url: 'https://status.example.test/api/v2/status.json' }] },
   homeassistant: { enabled: true, instanceUrl: 'https://home.example.test', token: 'ha_test', locationName: 'Home' },
+  linear: { enabled: true, token: 'linear_test', displayName: 'Sam', itemLimit: 6 },
+  sentry: { enabled: true, token: 'sentry_test', organization: 'team', region: 'us', itemLimit: 6 },
+  todoist: { enabled: true, token: 'todoist_test', accountLabel: 'Todoist', itemLimit: 6 },
 }
 
 const reconnect: Record<ConnectorId, ConnectorConfig> = {
@@ -27,6 +30,9 @@ const reconnect: Record<ConnectorId, ConnectorConfig> = {
   ics: { enabled: true, calendars: [] },
   status: { enabled: true, services: [] },
   homeassistant: { enabled: true, instanceUrl: 'https://home.example.test', token: '', locationName: 'Home' },
+  linear: { enabled: true, token: '', displayName: 'Sam', itemLimit: 6 },
+  sentry: { enabled: true, token: '', organization: 'team', region: 'us', itemLimit: 6 },
+  todoist: { enabled: true, token: '', accountLabel: 'Todoist', itemLimit: 6 },
 }
 
 const setupExpected: Expected = {
@@ -91,6 +97,9 @@ const identities: Partial<Record<ConnectorId, string>> = {
   jira: 'Connected as Sam',
   vercel: 'Connected as sam',
   homeassistant: 'Connected to Home',
+  linear: 'Connected as Sam',
+  sentry: 'Connected to team',
+  todoist: 'Connected to Todoist',
 }
 
 describe('deriveConnectorCardState', () => {

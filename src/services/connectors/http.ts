@@ -94,6 +94,22 @@ export async function postJson<T>(
   return { ok: true, status: res.status, body: parsed, etag: res.headers.get('etag') }
 }
 
+/** POST with no request body. This is for provider actions whose documented
+ *  success response is empty (for example, Todoist's task-close endpoint).
+ *  It deliberately adds no Content-Type header and never calls res.json(),
+ *  while preserving the shared timeout and typed status/network failures. */
+export async function postEmpty(
+  url: string,
+  headers: Record<string, string>,
+  fetchFn: typeof fetch = fetch,
+): Promise<JsonResult<null> | JsonError> {
+  const outcome = await fetchWithTimeout(url, headers, fetchFn, { method: 'POST' })
+  if (outcome.failed) return outcome.error
+  const { res } = outcome
+  if (!res.ok) return statusError(res)
+  return { ok: true, status: res.status, body: null, etag: res.headers.get('etag') }
+}
+
 /** Conditional GET: sends `If-None-Match` when `etag` is non-null. A 304
  *  means "unchanged" — it returns `{ ok: true, status: 304, body: null, etag
  *  }` (the SAME etag passed in) without touching res.json() at all, so a
