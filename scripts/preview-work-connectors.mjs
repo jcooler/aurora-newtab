@@ -804,9 +804,12 @@ async function exerciseSettings(widget) {
   if (widget.id === 'linear' && reconnected.teamIds?.includes('ops')) fail('linear: reconnect retained stale account-scoped team ids')
   if (widget.id === 'sentry' && reconnected.projectSlugs?.includes('api')) fail('sentry: reconnect retained stale account-scoped project slugs')
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
+  const editRegion = page.getByRole('region', { name: `${widget.title} settings` })
+  await editRegion.waitFor()
   const beforeDisconnect = await storageCheckpoint()
   markRequestScenario(`settings:${widget.id}:disconnect`)
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
+  await editRegion.waitFor({ state: 'detached' })
   await page.waitForFunction((id) => chrome.storage.local.get(['connectors', 'connectorSnapshots']).then(({ connectors, connectorSnapshots }) => (
     connectors?.[id] === undefined && !(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
   )), widget.id)
