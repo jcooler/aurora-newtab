@@ -52,11 +52,15 @@ export async function resolveSafeExpansionOutput({
   requested,
   protectedRoot,
   plannedChildren = [],
+  requiredPrefix = OUTPUT_PREFIX,
 }) {
   if (typeof repoRoot !== 'string' || typeof requested !== 'string' || typeof protectedRoot !== 'string') {
     throw new Error('repoRoot, requested, and protectedRoot are required paths')
   }
   if (!Array.isArray(plannedChildren)) throw new Error('plannedChildren must be an array')
+  if (typeof requiredPrefix !== 'string' || requiredPrefix.length === 0) {
+    throw new Error('requiredPrefix must be a nonblank string')
+  }
 
   const active = await realpath(repoRoot)
   const protectedCheckout = await realpath(protectedRoot)
@@ -68,8 +72,8 @@ export async function resolveSafeExpansionOutput({
   }
 
   const name = path.basename(output)
-  if (!name.startsWith(OUTPUT_PREFIX) || name.length === OUTPUT_PREFIX.length) {
-    throw new Error(`output must use the ${OUTPUT_PREFIX} prefix with a nonblank suffix`)
+  if (!name.startsWith(requiredPrefix) || name.length === requiredPrefix.length) {
+    throw new Error(`output must use the ${requiredPrefix} prefix with a nonblank suffix`)
   }
 
   await rejectLinkedChain(active, output)

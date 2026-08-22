@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import path from 'node:path'
 
 import { CATALOG_BATCHES, CATALOG_CONTRACTS } from './widget-catalog-manifest.mjs'
+import { resolveSafeExpansionOutput } from './expansion/output-safety.mjs'
 
 const HEADER_1 = [
   '# NL-P5 Tier Catalog — Batch 1',
@@ -59,7 +60,7 @@ const VERDICTS = Object.freeze({
 })
 
 export function parseCatalogArgs(args, cwd = process.cwd()) {
-  const options = { batch: '1', headed: false, check: false, outDir: undefined }
+  const options = { batch: '1', headed: false, check: false, outDir: undefined, outDirExplicit: false }
   for (let index = 0; index < args.length; index += 1) {
     const argument = args[index]
     if (argument === '--headed') {
@@ -81,12 +82,101 @@ export function parseCatalogArgs(args, cwd = process.cwd()) {
       const value = inline ?? args[++index]
       if (!value) throw new Error('--out-dir requires a path')
       options.outDir = path.resolve(cwd, value)
+      options.outDirExplicit = true
       continue
     }
     throw new Error(`unknown argument: ${argument}`)
   }
   options.outDir ??= path.resolve(cwd, `docs/superpowers/catalog/batch-${options.batch}`)
   return options
+}
+
+export async function prepareCatalogScratchPaths({ repoRoot, protectedRoot, requested, batch }) {
+  if (batch !== '1' && batch !== '2') throw new Error('batch must be 1 or 2')
+  const catalogChild = `batch-${batch}`
+  const evidenceChild = `evidence-batch-${batch}.json`
+  const root = await resolveSafeExpansionOutput({
+    repoRoot,
+    protectedRoot,
+    requested,
+    requiredPrefix: '.qa-expansion-platform-',
+    plannedChildren: ['preview-dist', 'playwright-profile', catalogChild, evidenceChild],
+  })
+  return {
+    root,
+    catalogDir: path.join(root, catalogChild),
+    dist: path.join(root, 'preview-dist'),
+    profileDir: path.join(root, 'playwright-profile'),
+    evidencePath: path.join(root, evidenceChild),
+  }
+}
+
+export function catalogRequestFailure({ url, status, allowedUrls }) {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) return null
+  if (allowedUrls.has(url)) return null
+  return `unexpected external response ${status ?? 'unknown'}: ${url}`
+}
+
+function elementIsHidden(element) {
+  for (let cursor = element; cursor; cursor = cursor.parentElement) {
+    if (cursor.hidden || cursor.getAttribute('aria-hidden') === 'true') return true
+    const view = cursor.ownerDocument?.defaultView
+    const style = view?.getComputedStyle?.(cursor)
+    if (style?.display === 'none' || style?.visibility === 'hidden' || style?.visibility === 'collapse') return true
+  }
+  return false
+}
+
+export function catalogWidgetUsefulness(rootOrProbe) {
+  if (!rootOrProbe || typeof rootOrProbe !== 'object') {
+    return { width: 0, height: 0, hasUsefulContent: false }
+  }
+  if (typeof rootOrProbe.getBoundingClientRect !== 'function') {
+    const width = Number(rootOrProbe.width) || 0
+    const height = Number(rootOrProbe.height) || 0
+    return {
+      width,
+      height,
+      hasUsefulContent: Boolean(rootOrProbe.hasVisibleText || rootOrProbe.hasSemanticImage || rootOrProbe.hasEnabledControl),
+    }
+  }
+
+  const root = rootOrProbe
+  const rect = root.getBoundingClientRect()
+  const view = root.ownerDocument?.defaultView
+  const NodeFilterCtor = view?.NodeFilter
+  let hasVisibleText = false
+  if (NodeFilterCtor) {
+    const walker = root.ownerDocument.createTreeWalker(root, NodeFilterCtor.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const parent = node.parentElement
+      if (node.textContent?.trim() && parent && !elementIsHidden(parent)) {
+        hasVisibleText = true
+        break
+      }
+    }
+  }
+
+  const semanticImages = root.querySelectorAll?.('img[alt], [role="img"][aria-label], svg[aria-label], svg title') ?? []
+  const hasSemanticImage = [...semanticImages].some((element) => {
+    if (elementIsHidden(element)) return false
+    if (element.matches?.('img[alt]')) return Boolean(element.getAttribute('alt')?.trim())
+    if (element.matches?.('svg title')) return Boolean(element.textContent?.trim())
+    return Boolean(element.getAttribute?.('aria-label')?.trim())
+  })
+  const controls = root.querySelectorAll?.('button, input, select, textarea, a[href], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="slider"], [role="listbox"]') ?? []
+  const hasEnabledControl = [...controls].some((element) => (
+    !elementIsHidden(element)
+    && !element.hasAttribute('disabled')
+    && element.getAttribute('aria-disabled') !== 'true'
+    && element.getAttribute('type') !== 'hidden'
+  ))
+
+  return {
+    width: rect.width,
+    height: rect.height,
+    hasUsefulContent: hasVisibleText || hasSemanticImage || hasEnabledControl,
+  }
 }
 
 export function renderCatalogMarkdown({ batch, captureHash }) {

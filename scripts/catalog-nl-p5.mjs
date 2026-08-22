@@ -14,32 +14,50 @@ import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
-import { checkCatalogArtifacts, parseCatalogArgs, renderCatalogMarkdown } from './catalog-nl-p5-content.mjs'
+import {
+  catalogRequestFailure,
+  catalogWidgetUsefulness,
+  checkCatalogArtifacts,
+  parseCatalogArgs,
+  prepareCatalogScratchPaths,
+  renderCatalogMarkdown,
+} from './catalog-nl-p5-content.mjs'
 import { CATALOG_BATCHES, CATALOG_CONTRACTS, CODED_DOCK_LINES } from './widget-catalog-manifest.mjs'
 
 const options = parseCatalogArgs(process.argv.slice(2))
-const { batch, headed, outDir } = options
+const { batch, headed } = options
 if (options.check) {
-  const result = await checkCatalogArtifacts({ batch, outDir, readFile })
+  const result = await checkCatalogArtifacts({ batch, outDir: options.outDir, readFile })
   if (!result.ok) result.errors.forEach((error) => process.stderr.write(`${error}\n`))
   process.exit(result.ok ? 0 : 1)
 }
 
 const repoRoot = process.cwd()
-const dist = resolve('.preview-nl-p5-dist')
-const profileDir = resolve('.playwright-profile-nl-p5')
+const protectedRoot = resolve(repoRoot, '..', 'Chrome plugin')
+const scratchPaths = options.outDirExplicit
+  ? await prepareCatalogScratchPaths({ repoRoot, protectedRoot, requested: options.outDir, batch })
+  : null
+const dist = scratchPaths?.dist ?? resolve('.preview-nl-p5-dist')
+const profileDir = scratchPaths?.profileDir ?? resolve('.playwright-profile-nl-p5')
+const outDir = scratchPaths?.catalogDir ?? options.outDir
+const evidencePath = scratchPaths?.evidencePath ?? null
 
-for (const [path, suffix] of [
-  [dist, '.preview-nl-p5-dist'],
-  [profileDir, '.playwright-profile-nl-p5'],
-  [outDir, `batch-${batch}`],
-]) {
-  if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
+if (scratchPaths) {
+  mkdirSync(scratchPaths.root)
+  mkdirSync(outDir)
+} else {
+  for (const [path, suffix] of [
+    [dist, '.preview-nl-p5-dist'],
+    [profileDir, '.playwright-profile-nl-p5'],
+    [outDir, `batch-${batch}`],
+  ]) {
+    if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
+  }
+  rmSync(dist, { recursive: true, force: true })
+  rmSync(profileDir, { recursive: true, force: true })
+  rmSync(outDir, { recursive: true, force: true })
+  mkdirSync(outDir, { recursive: true })
 }
-rmSync(dist, { recursive: true, force: true })
-rmSync(profileDir, { recursive: true, force: true })
-rmSync(outDir, { recursive: true, force: true })
-mkdirSync(outDir, { recursive: true })
 
 const build = spawnSync(process.execPath, [
   resolve('node_modules/vite/bin/vite.js'),
@@ -54,7 +72,32 @@ if (build.status !== 0) {
 // Shared with executable widget/tier contracts. Owner verdicts remain below.
 const BATCH = CATALOG_BATCHES[batch]
 
-const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [] }
+const LOCATION = { lat: 32.7767, lon: -96.797, label: 'Dallas', manual: true }
+const seedDay = new Date().toISOString().slice(0, 10)
+const seedFetchedAt = Date.now()
+const normalizedCoordinate = (value) => Number(value.toFixed(4))
+const forecastParams = new URLSearchParams()
+forecastParams.set('temperature_unit', 'celsius')
+forecastParams.set('wind_speed_unit', 'kmh')
+forecastParams.set('forecast_hours', '12')
+forecastParams.set('forecast_days', '1')
+forecastParams.set('timezone', 'auto')
+forecastParams.set('timeformat', 'iso8601')
+forecastParams.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,is_day')
+forecastParams.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
+forecastParams.set('daily', 'sunrise,sunset')
+forecastParams.set('latitude', String(normalizedCoordinate(LOCATION.lat)))
+forecastParams.set('longitude', String(normalizedCoordinate(LOCATION.lon)))
+const forecastUrl = `https://api.open-meteo.com/v1/forecast?${forecastParams.toString()}`
+const environmentParams = new URLSearchParams()
+environmentParams.set('timezone', 'auto')
+environmentParams.set('current', 'us_aqi,uv_index,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen')
+environmentParams.set('latitude', String(normalizedCoordinate(LOCATION.lat)))
+environmentParams.set('longitude', String(normalizedCoordinate(LOCATION.lon)))
+const environmentUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?${environmentParams.toString()}`
+const allowedUrls = new Set([forecastUrl, environmentUrl])
+
+const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [], externalRequests: [] }
 const fail = (message) => { evidence.failures.push(message) }
 
 const context = await chromium.launchPersistentContext(profileDir, {
@@ -65,12 +108,67 @@ const context = await chromium.launchPersistentContext(profileDir, {
   reducedMotion: 'reduce',
   args: [`--disable-extensions-except=${dist}`, `--load-extension=${dist}`],
 })
+await context.route(/^https?:\/\//, async (route) => {
+  const url = route.request().url()
+  if (url === forecastUrl) {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        current: {
+          temperature_2m: 24.4,
+          apparent_temperature: 25,
+          weather_code: 2,
+          wind_speed_10m: 11,
+          wind_direction_10m: 315,
+          relative_humidity_2m: 48,
+          is_day: 1,
+        },
+        hourly: {
+          time: Array.from({ length: 12 }, (_, index) => `${seedDay}T${String((9 + index) % 24).padStart(2, '0')}:00`),
+          temperature_2m: Array.from({ length: 12 }, (_, index) => 22 + index * 0.6),
+          precipitation_probability: Array.from({ length: 12 }, (_, index) => index === 4 ? 35 : 5),
+          weather_code: Array.from({ length: 12 }, () => 2),
+          is_day: Array.from({ length: 12 }, (_, index) => index < 10 ? 1 : 0),
+        },
+        daily: { sunrise: [`${seedDay}T07:02`], sunset: [`${seedDay}T20:23`] },
+      }),
+    })
+    return
+  }
+  if (url === environmentUrl) {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        current: {
+          us_aqi: 54,
+          uv_index: 3.2,
+          alder_pollen: 0,
+          birch_pollen: 1.5,
+          grass_pollen: 4,
+          mugwort_pollen: 0.2,
+          olive_pollen: 0,
+          ragweed_pollen: 0,
+        },
+      }),
+    })
+    return
+  }
+  const failure = catalogRequestFailure({ url, status: null, allowedUrls })
+  if (failure) evidence.externalRequests.push(failure)
+  await route.abort('blockedbyclient')
+})
 const page = await context.newPage()
 page.setDefaultTimeout(15_000)
 page.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`console: ${m.text()}`) })
 page.on('pageerror', (e) => evidence.runtimeErrors.push(`page: ${String(e)}`))
+page.on('response', (response) => {
+  const failure = catalogRequestFailure({ url: response.url(), status: response.status(), allowedUrls })
+  if (failure) evidence.externalRequests.push(failure)
+})
 page.on('requestfailed', (r) => {
-  if (!r.url().startsWith('chrome-extension://')) {
+  if (r.url().startsWith('http://') || r.url().startsWith('https://')) {
     evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
   }
 })
@@ -83,27 +181,50 @@ await page.waitForSelector('[data-canvas-surface]')
 if (batch === '2') {
   // The authoritative nine-connector fixture (configs + scope-valid
   // snapshots), shared with the information-first evidence path.
-  await seedInformationFirstFixtures(page)
+  await seedInformationFirstFixtures(page, {
+    weatherFixture: {
+      location: LOCATION,
+      weatherCache: {
+        current: { tempC: 24.4, feelsLikeC: 25, code: 2, windKmh: 11, windDirection: 315, humidity: 48, isDay: true },
+        hourly: Array.from({ length: 12 }, (_, index) => ({
+          time: `${seedDay}T${String((9 + index) % 24).padStart(2, '0')}:00`,
+          tempC: 22 + index * 0.6,
+          precipProb: index === 4 ? 35 : 5,
+          code: 2,
+          isDay: index < 10,
+        })),
+        fetchedAt: seedFetchedAt,
+        locationLabel: LOCATION.label,
+        requestIdentity: `open-meteo:v1:${forecastUrl}`,
+        sunriseISO: `${seedDay}T07:02`,
+        sunsetISO: `${seedDay}T20:23`,
+        environment: {
+          requestIdentity: `open-meteo-air:v1:${environmentUrl}`,
+          fetchedAt: seedFetchedAt,
+          status: 'available',
+          usAqi: 54,
+          uvIndex: 3.2,
+          pollen: {
+            status: 'available',
+            readings: [
+              { species: 'alder', grainsPerCubicMeter: 0 },
+              { species: 'birch', grainsPerCubicMeter: 1.5 },
+              { species: 'grass', grainsPerCubicMeter: 4 },
+              { species: 'mugwort', grainsPerCubicMeter: 0.2 },
+              { species: 'olive', grainsPerCubicMeter: 0 },
+              { species: 'ragweed', grainsPerCubicMeter: 0 },
+            ],
+          },
+        },
+      },
+    },
+  })
 }
-await page.evaluate(async () => {
+await page.evaluate(async ({ location, forecastIdentity, environmentIdentity }) => {
   const { settings } = await chrome.storage.local.get('settings')
   const day = new Date().toISOString().slice(0, 10)
-  const location = { lat: 32.7767, lon: -96.797, label: 'Dallas', manual: true }
-  const normalize = (v) => Number(v.toFixed(4))
-  const params = new URLSearchParams()
-  params.set('temperature_unit', 'celsius')
-  params.set('wind_speed_unit', 'kmh')
-  params.set('forecast_hours', '12')
-  params.set('forecast_days', '1')
-  params.set('timezone', 'auto')
-  params.set('timeformat', 'iso8601')
-  params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
-  params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
-  params.set('daily', 'sunrise,sunset')
-  params.set('latitude', String(normalize(location.lat)))
-  params.set('longitude', String(normalize(location.lon)))
-  const requestIdentity = `open-meteo:v1:https://api.open-meteo.com/v1/forecast?${params.toString()}`
   const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+  const fetchedAt = Date.now()
   await chrome.storage.local.set({
     settings: { ...settings, name: 'Jon', units: 'imperial' },
     focus: { text: 'Review the tier catalog', done: false, date: day },
@@ -113,7 +234,7 @@ await page.evaluate(async () => {
       { id: 'b', text: 'Approve Docked lines', done: false },
     ] }],
     weatherCache: {
-      current: { tempC: 24.4, feelsLikeC: 25, code: 2, windKmh: 11, humidity: 48, isDay: true },
+      current: { tempC: 24.4, feelsLikeC: 25, code: 2, windKmh: 11, windDirection: 315, humidity: 48, isDay: true },
       hourly: Array.from({ length: 12 }, (_, index) => ({
         time: `${day}T${String((9 + index) % 24).padStart(2, '0')}:00`,
         tempC: 22 + index * 0.6,
@@ -121,11 +242,29 @@ await page.evaluate(async () => {
         code: 2,
         isDay: index < 10,
       })),
-      fetchedAt: Date.now(),
+      fetchedAt,
       locationLabel: location.label,
-      requestIdentity,
+      requestIdentity: forecastIdentity,
       sunriseISO: `${day}T07:02`,
       sunsetISO: `${day}T20:23`,
+      environment: {
+        requestIdentity: environmentIdentity,
+        fetchedAt,
+        status: 'available',
+        usAqi: 54,
+        uvIndex: 3.2,
+        pollen: {
+          status: 'available',
+          readings: [
+            { species: 'alder', grainsPerCubicMeter: 0 },
+            { species: 'birch', grainsPerCubicMeter: 1.5 },
+            { species: 'grass', grainsPerCubicMeter: 4 },
+            { species: 'mugwort', grainsPerCubicMeter: 0.2 },
+            { species: 'olive', grainsPerCubicMeter: 0 },
+            { species: 'ragweed', grainsPerCubicMeter: 0 },
+          ],
+        },
+      },
     },
     location,
     worldClocks: [
@@ -153,6 +292,10 @@ await page.evaluate(async () => {
       }
     }
   }
+}, {
+  location: LOCATION,
+  forecastIdentity: `open-meteo:v1:${forecastUrl}`,
+  environmentIdentity: `open-meteo-air:v1:${environmentUrl}`,
 })
 
 const captureWidget = async ({ id, tiers }) => {
@@ -201,11 +344,51 @@ const captureWidget = async ({ id, tiers }) => {
     const box = await page.evaluate((id) => {
       const nodes = document.querySelectorAll(`[data-block-id="${id}"]`)
       if (nodes.length !== 1) return { error: `${nodes.length} nodes` }
-      const rect = nodes[0].getBoundingClientRect()
-      return { left: rect.left, top: rect.top, width: rect.width, height: rect.height, dockLine: Boolean(nodes[0].querySelector('[data-dock-line]')) }
+      const root = nodes[0]
+      const rect = root.getBoundingClientRect()
+      const hidden = (element) => {
+        for (let cursor = element; cursor; cursor = cursor.parentElement) {
+          if (cursor.hidden || cursor.getAttribute('aria-hidden') === 'true') return true
+          const style = getComputedStyle(cursor)
+          if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') return true
+        }
+        return false
+      }
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+      let hasVisibleText = false
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.textContent?.trim() && node.parentElement && !hidden(node.parentElement)) {
+          hasVisibleText = true
+          break
+        }
+      }
+      const hasSemanticImage = [...root.querySelectorAll('img[alt], [role="img"][aria-label], svg[aria-label], svg title')].some((element) => {
+        if (hidden(element)) return false
+        if (element.matches('img[alt]')) return Boolean(element.getAttribute('alt')?.trim())
+        if (element.matches('svg title')) return Boolean(element.textContent?.trim())
+        return Boolean(element.getAttribute('aria-label')?.trim())
+      })
+      const hasEnabledControl = [...root.querySelectorAll('button, input, select, textarea, a[href], [role="button"], [role="link"], [role="checkbox"], [role="radio"], [role="switch"], [role="tab"], [role="slider"], [role="listbox"]')].some((element) => (
+        !hidden(element)
+        && !element.hasAttribute('disabled')
+        && element.getAttribute('aria-disabled') !== 'true'
+        && element.getAttribute('type') !== 'hidden'
+      ))
+      return {
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height,
+        hasVisibleText,
+        hasSemanticImage,
+        hasEnabledControl,
+        dockLine: Boolean(root.querySelector('[data-dock-line]')),
+      }
     }, id)
     if (box.error) { fail(`${name}: ${box.error}`); continue }
-    if (box.width < 8 || box.height < 8) { fail(`${name}: degenerate size ${box.width}x${box.height}`); continue }
+    const usefulness = catalogWidgetUsefulness(box)
+    if (usefulness.width < 8 || usefulness.height < 8) { fail(`${name}: degenerate size ${box.width}x${box.height}`); continue }
+    if (!usefulness.hasUsefulContent) { fail(`${name}: no visible text, semantic image, or enabled control`); continue }
     if (tier === 'docked' && CODED_DOCK_LINES.has(id) && !box.dockLine) {
       fail(`${name}: designed dock line missing`)
     }
@@ -269,12 +452,23 @@ const summary = {
   failures: evidence.failures,
   runtimeErrors: evidence.runtimeErrors,
   failedRequests: evidence.failedRequests,
+  externalRequests: evidence.externalRequests,
+}
+if (evidencePath) {
+  writeFileSync(evidencePath, JSON.stringify({
+    ...evidence,
+    batch,
+    allowedUrls: [...allowedUrls],
+    catalogDir: outDir,
+    buildDir: dist,
+    profileDir,
+  }, null, 2))
 }
 console.log(JSON.stringify(summary, null, 2))
 if (caughtError) {
   console.error('CATALOG ERROR:', caughtError)
   process.exitCode = 1
-} else if (evidence.failures.length > 0 || evidence.runtimeErrors.length > 0 || evidence.failedRequests.length > 0) {
+} else if (evidence.failures.length > 0 || evidence.runtimeErrors.length > 0 || evidence.failedRequests.length > 0 || evidence.externalRequests.length > 0) {
   console.error(`FAIL: NL-P5 batch ${batch} catalog`)
   process.exitCode = 1
 } else {
