@@ -238,19 +238,19 @@ feat(browser): add Recently Closed widget
 - Create: `src/newtab/widgets/downloads/DownloadsWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Write Downloads failures**
+- [x] **Step 1: Write Downloads failures**
 
 Pin real progress values, unknown-total text, active/completed/interrupted/
 dangerous states, tier row caps, Docked detail parity, Pause, Resume, two-step
 Cancel, Show in folder, action-failure announcements, and the structural
 absence of Open/Accept/Delete/Erase actions.
 
-- [ ] **Step 2: Observe RED, implement, and reach GREEN**
+- [x] **Step 2: Observe RED, implement, and reach GREEN**
 
 Run the new widget test, implement the actual progress-track visual signature,
 then rerun focused tests with TypeScript and diff hygiene.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```text
 feat(browser): add Downloads widget
