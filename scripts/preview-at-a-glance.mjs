@@ -483,7 +483,9 @@ try {
     modes.set('weatherAlerts', 'active')
     activeScenario = `weather:active:${tier}:seed`
     await seed({ id: 'weather', tier, weatherAlert: preserveAlert ? alertCache() : null })
-    await page.locator('[data-block-id="weather"] [data-weather-alert-badge]').waitFor()
+    await page.locator(
+      '[data-block-id="weather"] [data-weather-alert-badge], [data-block-id="weather"] [data-weather-alert-line]',
+    ).waitFor()
     preserveAlert = true
     await capture({ id: 'weather', kind: tier === 'docked' ? 'dock-detail' : 'active', tier, expected: ['Severe Thunderstorm Warning'], openDetail: tier === 'docked' })
   }
