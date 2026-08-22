@@ -264,18 +264,18 @@ feat(browser): add Downloads widget
 - Create: `src/newtab/widgets/tabGroups/TabGroupsWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Write Tab Groups failures**
+- [x] **Step 1: Write Tab Groups failures**
 
 Pin title/color/collapsed/shared/window metadata, untitled fallbacks, stable
 window ordinals, tier row caps, Docked detail parity, exact Focus and
 Expand/Collapse calls, and zero calls to `chrome.tabs`.
 
-- [ ] **Step 2: Observe RED, implement, and reach GREEN**
+- [x] **Step 2: Observe RED, implement, and reach GREEN**
 
 Run the new widget test, implement a narrow real-color tab spine with quiet
 surfaces, then rerun focused tests with TypeScript and diff hygiene.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```text
 feat(browser): add Tab Groups widget
