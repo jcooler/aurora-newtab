@@ -172,7 +172,9 @@ export function useWeatherAlerts() {
 
   useEffect(() => {
     if (!currentIdentity || retryAt === null || document.visibilityState !== 'visible') return
-    const timeout = window.setTimeout(() => void refresh(), Math.max(0, retryAt - Date.now()))
+    const timeout = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') void refresh()
+    }, Math.max(0, retryAt - Date.now()))
     return () => window.clearTimeout(timeout)
   }, [currentIdentity, refresh, retryAt])
 

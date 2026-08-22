@@ -43,16 +43,19 @@ function tierScenarios(id, expected, { fullOverflow = false } = {}) {
 }
 
 export const AT_A_GLANCE_SCENARIOS = Object.freeze([
-  ...tierScenarios('onThisDay', ['On This Day', 'Aurora history witness']),
+  ...tierScenarios('onThisDay', ['On This Day', 'Aurora history witness'], { fullOverflow: true }),
   ...tierScenarios('publicHolidays', ['Public Holidays', 'QA Holiday'], { fullOverflow: true }),
   ...tierScenarios('auroraKp', ['Kp', 'peak'], { fullOverflow: true }),
   scenario({ id: 'onThisDay', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No event returned for today'] }),
   scenario({ id: 'onThisDay', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'Saved historical event'] }),
-  scenario({ id: 'onThisDay', kind: 'local-midnight', tier: 'standard', fixture: 'local-midnight', expected: ['Local midnight witness'] }),
+  scenario({ id: 'onThisDay', kind: 'local-midnight', tier: 'standard', fixture: 'local-midnight', expected: ['After midnight witness'], allowedWriteKeys: ['connectorSnapshots'], requiredWriteKeys: ['connectorSnapshots'] }),
   scenario({ id: 'publicHolidays', kind: 'setup', tier: 'standard', fixture: 'setup', expected: ['Choose a country in Settings'] }),
+  scenario({ id: 'publicHolidays', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No upcoming national holidays returned for US'] }),
+  scenario({ id: 'publicHolidays', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'QA Holiday'] }),
   scenario({ id: 'publicHolidays', kind: 'year-boundary', tier: 'full', fixture: 'year-boundary', expected: ['QA Holiday', String(new Date().getFullYear() + 1)], expectOverflow: true }),
   scenario({ id: 'publicHolidays', kind: 'error', tier: 'standard', fixture: 'error', expected: ['Public Holidays is unavailable'] }),
   scenario({ id: 'auroraKp', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['NOAA has no current Kp forecast'] }),
+  scenario({ id: 'auroraKp', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'Kp'] }),
   scenario({ id: 'auroraKp', kind: 'error', tier: 'standard', fixture: 'error', expected: ['Aurora & Kp is unavailable'] }),
   scenario({ id: 'weather', kind: 'active', tier: 'compact', fixture: 'active-live', expected: ['Severe Thunderstorm Warning'], allowedWriteKeys: ['weatherAlertCache'], requiredWriteKeys: ['weatherAlertCache'] }),
   scenario({ id: 'weather', kind: 'active', tier: 'standard', fixture: 'active-snapshot', expected: ['Severe Thunderstorm Warning'] }),
@@ -69,10 +72,10 @@ const EXPECTED_OPERATION_COUNTS = Object.freeze({
   // Aurora ships under React StrictMode. Fast live/error requests complete
   // between its development remounts, so those connector calls are witnessed
   // twice; the exact counts below intentionally include both real requests.
-  'on-this-day': 4,
+  'on-this-day': 5,
   'holiday-countries': 1,
-  'public-holidays': 8,
-  'aurora-kp': 4,
+  'public-holidays': 12,
+  'aurora-kp': 6,
   'weather-alerts': 6,
 })
 

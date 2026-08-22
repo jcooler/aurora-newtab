@@ -81,10 +81,19 @@ test('uses one executable scenario catalog and validates emitted evidence exactl
   for (const kind of ['setup', 'max-data', 'empty', 'stale', 'error', 'local-midnight', 'year-boundary', 'unsupported', 'active', 'dock-detail']) {
     assert.equal(AT_A_GLANCE_SCENARIOS.some((scenario) => scenario.kind === kind), true, kind)
   }
+  assert.equal(AT_A_GLANCE_SCENARIOS.find((scenario) => scenario.key === 'onThisDay:max-data:full:common')?.expectOverflow, true)
+  assert.equal(AT_A_GLANCE_SCENARIOS.some((scenario) => scenario.id === 'publicHolidays' && scenario.kind === 'empty'), true)
+  assert.equal(AT_A_GLANCE_SCENARIOS.some((scenario) => scenario.id === 'publicHolidays' && scenario.kind === 'stale'), true)
+  assert.equal(AT_A_GLANCE_SCENARIOS.some((scenario) => scenario.id === 'auroraKp' && scenario.kind === 'stale'), true)
+  assert.deepEqual(
+    AT_A_GLANCE_SCENARIOS.find((scenario) => scenario.kind === 'local-midnight')?.requiredWriteKeys,
+    ['connectorSnapshots'],
+  )
   const evidence = {
     captures: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, usefulness: 'useful', localScroll: scenario.expectOverflow ? { clientHeight: 100, scrollHeight: 200 } : null })),
     storage: AT_A_GLANCE_SCENARIOS.map((scenario) => ({ scenario: scenario.key, changedKeys: scenario.requiredWriteKeys, writes: scenario.allowedWriteKeys.length ? [scenario.allowedWriteKeys] : [] })),
     requestLog: [
+      { operation: 'on-this-day' },
       { operation: 'on-this-day' },
       { operation: 'on-this-day' },
       { operation: 'on-this-day' },
@@ -98,6 +107,12 @@ test('uses one executable scenario catalog and validates emitted evidence exactl
       { operation: 'public-holidays' },
       { operation: 'public-holidays' },
       { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'public-holidays' },
+      { operation: 'aurora-kp' },
+      { operation: 'aurora-kp' },
       { operation: 'aurora-kp' },
       { operation: 'aurora-kp' },
       { operation: 'aurora-kp' },

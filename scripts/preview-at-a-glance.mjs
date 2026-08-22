@@ -124,14 +124,16 @@ const eventRows = (prefix, count, offset = 0) => Array.from({ length: count }, (
 }))
 
 await context.route('https://en.wikipedia.org/**', (route) => auditedRoute(route, async () => {
-  if (modes.get('onThisDay') === 'error') return route.fulfill({ status: 503, body: '{}' })
-  const empty = modes.get('onThisDay') === 'empty'
+  const mode = modes.get('onThisDay')
+  if (mode === 'error') return route.fulfill({ status: 503, body: '{}' })
+  const empty = mode === 'empty'
+  const prefix = mode === 'after-midnight' ? 'After midnight witness' : 'Aurora history witness'
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
     body: JSON.stringify({
-      selected: empty ? [] : eventRows('Selected event', 6),
-      events: empty ? [] : eventRows('Event', 8, 20),
+      selected: empty ? [] : eventRows(`${prefix} selected event`, 6),
+      events: empty ? [] : eventRows(`${prefix} event`, 8, 20),
       births: empty ? [] : eventRows('Birth', 4, 40),
       deaths: empty ? [] : eventRows('Death', 4, 60),
     }),
@@ -188,11 +190,11 @@ function kpRows() {
   return [header, ...rows]
 }
 
-function onThisSnapshot(prefix = 'Aurora history witness') {
+function onThisSnapshot(prefix = 'Aurora history witness', date = today) {
   const normalized = (section, count, offset = 0) => eventRows(`${prefix} ${section}`, count, offset)
     .map(({ year, text, pages }) => ({ year, text, url: pages[0].content_urls.desktop.page }))
   return {
-    dateKey: localDayKey.slice(5),
+    dateKey: dateKey(date).slice(5),
     events: normalized('event', 12),
     births: normalized('birth', 4, 40),
     deaths: normalized('death', 4, 60),
@@ -257,6 +259,7 @@ await context.route('https://api.weather.gov/**', (route) => auditedRoute(route,
 }))
 
 const page = context.pages()[0] ?? await context.newPage()
+await page.clock.install({ time: today })
 page.setDefaultTimeout(20_000)
 page.on('console', (message) => {
   if (message.type() !== 'error') return
@@ -348,7 +351,7 @@ function alertCache(status = 'supported', stale = false) {
   }
 }
 
-async function seed({ id, tier, config = null, snapshotData, snapshotFresh = true, preserveSnapshot = false, weatherAlert = undefined }) {
+async function seed({ id, tier, config = null, snapshotData, snapshotFresh = true, preserveSnapshot = false, weatherAlert = undefined, runtimeScopeOverride = undefined }) {
   const weather = weatherSnapshot()
   await page.evaluate(async ({ id, tier, config, snapshotData, snapshotFresh, preserveSnapshot, allWidgetIds, runtimeScope, weather, weatherAlert }) => {
     const canonical = (value) => {
@@ -386,7 +389,7 @@ async function seed({ id, tier, config = null, snapshotData, snapshotFresh = tru
     })
   }, {
     id, tier, config, snapshotData, snapshotFresh, preserveSnapshot, allWidgetIds: ALL_WIDGET_IDS,
-    runtimeScope: id === 'onThisDay' || id === 'publicHolidays' ? localDayKey : undefined,
+    runtimeScope: runtimeScopeOverride ?? (id === 'onThisDay' || id === 'publicHolidays' ? localDayKey : undefined),
     weather, weatherAlert,
   })
   await clearWriteLog()
@@ -494,10 +497,14 @@ async function runScenario(scenario) {
   let snapshotData = scenario.fixture === 'snapshot' ? snapshotFor(scenario.id) : undefined
   let snapshotFresh = true
   let weatherAlert
+  let runtimeScopeOverride
+  let midnightStart
 
   if (scenario.fixture === 'empty') {
     if (scenario.id === 'onThisDay') {
       snapshotData = { dateKey: localDayKey.slice(5), events: [], births: [], deaths: [] }
+    } else if (scenario.id === 'publicHolidays') {
+      snapshotData = { countryCode: 'US', year: today.getFullYear(), holidays: [] }
     } else if (scenario.id === 'auroraKp') {
       snapshotData = { current: null, forecast: [], peak: null }
     } else if (scenario.id === 'weather') {
@@ -509,12 +516,23 @@ async function runScenario(scenario) {
       modes.set('onThisDay', 'error')
       snapshotData = onThisSnapshot('Saved historical event')
       snapshotFresh = false
+    } else if (scenario.id === 'publicHolidays') {
+      modes.set('publicHolidays', 'error')
+      snapshotData = publicHolidaysSnapshot()
+      snapshotFresh = false
+    } else if (scenario.id === 'auroraKp') {
+      modes.set('auroraKp', 'error')
+      snapshotData = auroraSnapshot()
+      snapshotFresh = false
     } else if (scenario.id === 'weather') {
       modes.set('weatherAlerts', 'error')
       weatherAlert = alertCache('supported', true)
     }
   } else if (scenario.fixture === 'local-midnight') {
-    snapshotData = onThisSnapshot('Local midnight witness')
+    midnightStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 30)
+    await page.clock.setSystemTime(midnightStart)
+    snapshotData = onThisSnapshot('Before midnight witness', midnightStart)
+    runtimeScopeOverride = dateKey(midnightStart)
   } else if (scenario.fixture === 'year-boundary') {
     snapshotData = publicHolidaysSnapshot()
   } else if (scenario.fixture === 'setup') {
@@ -540,9 +558,14 @@ async function runScenario(scenario) {
     snapshotData,
     snapshotFresh,
     weatherAlert,
+    runtimeScopeOverride,
   })
 
   if (scenario.fixture === 'setup') await witnessCountryPicker()
+  if (scenario.fixture === 'local-midnight') {
+    modes.set('onThisDay', 'after-midnight')
+    await page.clock.runFor(31_000)
+  }
   if (scenario.id === 'weather' && ['empty', 'unsupported'].includes(scenario.fixture)) {
     const status = scenario.fixture === 'unsupported' ? 'unsupported' : 'supported'
     await page.waitForFunction((expectedStatus) => (
@@ -557,6 +580,7 @@ async function runScenario(scenario) {
     openWeather: scenario.id === 'weather' && ['empty', 'unsupported', 'error', 'stale-error'].includes(scenario.fixture),
   })
   await assertRuntimeWrites(scenario, before)
+  if (midnightStart) await page.clock.setSystemTime(today)
 }
 
 try {

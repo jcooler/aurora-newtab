@@ -68,6 +68,7 @@ beforeEach(() => {
   fetchWeatherAlerts.mockReset()
   vi.useFakeTimers()
   vi.setSystemTime(NOW)
+  Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
 })
 
 afterEach(() => {
@@ -132,6 +133,20 @@ describe('useWeatherAlerts', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(29_999) })
     expect(fetchWeatherAlerts).toHaveBeenCalledTimes(1)
     await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not run an armed retry after the document becomes hidden', async () => {
+    fetchWeatherAlerts
+      .mockRejectedValueOnce(new Error('private failure'))
+      .mockResolvedValueOnce({ status: 'supported', alerts: [] })
+    await mount(TEXAS, null)
+    await act(async () => { await Promise.resolve(); await Promise.resolve() })
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' })
+    await act(async () => { await vi.advanceTimersByTimeAsync(30_000) })
+    expect(fetchWeatherAlerts).toHaveBeenCalledTimes(1)
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' })
+    await act(async () => { document.dispatchEvent(new Event('visibilitychange')); await Promise.resolve() })
     expect(fetchWeatherAlerts).toHaveBeenCalledTimes(2)
   })
 
