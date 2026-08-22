@@ -396,6 +396,7 @@ async function seed(widget, tier, state = 'ready') {
     const widgets = Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))
     widgets[id] = placement
     await chrome.storage.local.set({
+      settings: { ...current.settings, widgets: { ...current.settings.widgets, [id]: true } },
       connectors: { [id]: config },
       connectorSnapshots: snapshot ? { [id]: { scope: await scopeFor(), fetchedAt: Date.now() - (stale ? 60 * 60_000 : 0), data } } : {},
       layouts: {
@@ -530,7 +531,7 @@ async function resetForSettings(widget) {
     const widgets = Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))
     widgets[id] = { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier: 'standard', layer: 0 }
     await chrome.storage.local.set({
-      settings,
+      settings: { ...settings, widgets: { ...settings.widgets, [id]: true } },
       connectors: {}, connectorSnapshots: {},
       layouts: { version: 1, activeLayoutId: 'work-settings-qa', layouts: [{ id: 'work-settings-qa', name: 'Work Settings QA', widgets }] },
     })
