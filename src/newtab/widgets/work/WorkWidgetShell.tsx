@@ -87,13 +87,17 @@ export function WorkWidgetShell({
   onRefresh?: () => void
   children: ReactNode
 }) {
+  const widthClass = presentation === 'ready' || presentation === 'stale' || presentation === 'retained-error'
+    ? SIZE_CLASS[canvasSize]
+    : 'w-max max-w-[calc(100vw_-_2rem)]'
+
   return (
     <section
       aria-label={title}
       data-work-widget=""
       data-work-resource-state={presentation}
       data-canvas-size={canvasSize}
-      className={`${SIZE_CLASS[canvasSize]} overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
+      className={`${widthClass} overflow-hidden rounded-panel border border-panel-border bg-panel-solid text-fg shadow-lg shadow-black/25 backdrop-blur-[var(--panel-blur)]`}
     >
       <header className="flex min-h-10 items-center justify-between gap-3 border-b border-hairline px-3 py-2">
         <h2 className="text-sm font-semibold">{title}</h2>

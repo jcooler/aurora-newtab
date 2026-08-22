@@ -15,6 +15,40 @@ const CASES: Array<[WorkPresentationState, string]> = [
 ]
 
 describe('WorkWidgetShell', () => {
+  it.each<WorkPresentationState>(['setup', 'loading', 'empty', 'hard-error'])(
+    'shrinks the %s no-row state to its useful content',
+    (presentation) => {
+      render(
+        <WorkWidgetShell
+          title="Linear"
+          canvasSize="full"
+          presentation={presentation}
+          emptyLabel="No assigned issues."
+          errorMessage="Linear is unavailable."
+        >
+          <p>ISS-42</p>
+        </WorkWidgetShell>,
+      )
+      expect(screen.getByRole('region', { name: 'Linear' }).className).toContain('w-max')
+    },
+  )
+
+  it('keeps data-bearing states on their requested tier width', () => {
+    render(
+      <WorkWidgetShell
+        title="Linear"
+        canvasSize="full"
+        presentation="ready"
+        emptyLabel="No assigned issues."
+      >
+        <p>ISS-42</p>
+      </WorkWidgetShell>,
+    )
+    const shell = screen.getByRole('region', { name: 'Linear' })
+    expect(shell.className).toContain('w-[min(30rem,calc(100vw_-_2rem))]')
+    expect(shell.className).not.toContain('w-max')
+  })
+
   it.each(CASES)('renders %s without a blank shell', (presentation, expected) => {
     render(
       <WorkWidgetShell
