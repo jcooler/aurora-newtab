@@ -31,7 +31,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   timerSession: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Current timer phase, deadline, progress, and Flow state.' },
   photoPrefs: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Background-photo mode and rotation state.' },
   location: { storage: 'chrome.storage.local', sensitivity: ['approximate-location'], export: 'included', transmission: 'provider-direct', description: 'Chosen or browser-provided coordinates and label.' },
-  weatherCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'included', transmission: 'none', description: 'Cached weather response for the selected location.' },
+  weatherCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'included', transmission: 'none', description: 'Cached forecast and environmental response for the selected location.' },
   notes: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'User-authored notes.' },
   worldClocks: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Selected world-clock cities.' },
   countdowns: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'User-authored countdown labels and dates.' },
@@ -133,8 +133,9 @@ interface FixedDataFlow {
   backend: 'none'
 }
 
-export const FIXED_DATA_FLOWS: Record<'weatherForecast' | 'citySearch' | 'reverseGeocode' | 'apod', FixedDataFlow> = {
+export const FIXED_DATA_FLOWS: Record<'weatherForecast' | 'weatherEnvironment' | 'citySearch' | 'reverseGeocode' | 'apod', FixedDataFlow> = {
   weatherForecast: { destinations: ['api.open-meteo.com'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and a stale or mismatched cache'], sends: ['rounded coordinates'], receives: ['current, hourly, sunrise, and sunset forecast data'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherCache-included-in-backup', backend: 'none' },
+  weatherEnvironment: { destinations: ['air-quality-api.open-meteo.com'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and missing, mismatched, or stale environmental data'], sends: ['rounded coordinates'], receives: ['current US AQI, UV index, and provider-available pollen values'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherCache-included-in-backup', backend: 'none' },
   citySearch: { destinations: ['geocoding-api.open-meteo.com'], transmission: 'provider-direct', trigger: ['debounced active city query of at least two characters'], sends: ['city search text'], receives: ['matching place names and coordinates'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
   reverseGeocode: { destinations: ['api.bigdatacloud.net'], transmission: 'provider-direct', trigger: ['Use my location click after Chrome supplies coordinates'], sends: ['rounded coordinates'], receives: ['place label'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
   apod: { destinations: ['api.nasa.gov', 'apod.nasa.gov'], transmission: 'provider-direct', trigger: ['user selects APOD and the local-day cache needs a photo'], sends: ['shared NASA DEMO_KEY'], receives: ['APOD metadata', 'selected image bytes'], methods: ['GET'], permission: 'optional-per-origin', cache: 'apodCache-excluded-from-backup', backend: 'none' },

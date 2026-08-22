@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import privacyPolicy from '../../PRIVACY.md?raw'
 import manifest from '../manifest'
 import { serializeBackup, validateBackupShape } from '../lib/backup'
 import { defaults } from '../lib/storage/schema'
@@ -80,6 +81,17 @@ describe('code-backed privacy inventory', () => {
         hourly: [],
         fetchedAt: 1,
         locationLabel: 'Somewhere',
+        environment: {
+          requestIdentity: 'open-meteo-air:v1:public-contract',
+          fetchedAt: 1,
+          status: 'available' as const,
+          usAqi: 42,
+          uvIndex: 3,
+          pollen: {
+            status: 'available' as const,
+            readings: [{ species: 'grass' as const, grainsPerCubicMeter: 2 }],
+          },
+        },
       },
       connectorSnapshots: { crypto: { fetchedAt: 1, data: { coins: [] } } },
       apodCache: { date: '2026-08-14', photo: null },
@@ -136,7 +148,13 @@ describe('code-backed privacy inventory', () => {
   })
 
   it('distinguishes Aurora network requests from browser-mediated and navigation flows', () => {
-    expect(Object.keys(FIXED_DATA_FLOWS)).toEqual(['weatherForecast', 'citySearch', 'reverseGeocode', 'apod'])
+    expect(Object.keys(FIXED_DATA_FLOWS)).toEqual([
+      'weatherForecast',
+      'weatherEnvironment',
+      'citySearch',
+      'reverseGeocode',
+      'apod',
+    ])
     expect(Object.values(FIXED_DATA_FLOWS).every((flow) => flow.transmission === 'provider-direct')).toBe(true)
     for (const flow of Object.values(FIXED_DATA_FLOWS)) {
       expect(flow.destinations.length).toBeGreaterThan(0)
@@ -157,11 +175,29 @@ describe('code-backed privacy inventory', () => {
     })
     expect(FIXED_DATA_FLOWS.weatherForecast.sends).toEqual(['rounded coordinates'])
     expect(FIXED_DATA_FLOWS.weatherForecast.cache).toBe('weatherCache-included-in-backup')
+    expect(FIXED_DATA_FLOWS.weatherEnvironment).toEqual({
+      destinations: ['air-quality-api.open-meteo.com'],
+      transmission: 'provider-direct',
+      trigger: ['enabled Weather widget with a selected location and missing, mismatched, or stale environmental data'],
+      sends: ['rounded coordinates'],
+      receives: ['current US AQI, UV index, and provider-available pollen values'],
+      methods: ['GET'],
+      permission: 'not-separately-requested-by-flow',
+      cache: 'weatherCache-included-in-backup',
+      backend: 'none',
+    })
     expect(BROWSER_DATA_FLOWS.search.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.bookmarks.transmission).toBe('none')
     expect(BROWSER_DATA_FLOWS.favicon.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.navigation.transmission).toBe('browser-mediated')
     expect(BROWSER_DATA_FLOWS.geolocation.transmission).toBe('none')
+  })
+
+  it('keeps the canonical privacy policy synchronized with the fixed environmental flow', () => {
+    expect(privacyPolicy).toContain('exactly four **fixed** endpoints')
+    expect(privacyPolicy).toContain('air-quality-api.open-meteo.com')
+    expect(privacyPolicy).toContain('US AQI, UV index, and provider-available pollen values')
+    expect(privacyPolicy).toContain('stored inside the included weather cache')
   })
 
   it('drives both manifest modes and the in-product local plaintext warning', async () => {

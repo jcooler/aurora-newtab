@@ -726,6 +726,115 @@ describe('validateBackupShape rejections (per-key structural check)', () => {
     } as never)).toEqual({ ok: false, reason: 'That backup\'s "weatherCache" data is invalid.' })
   })
 
+  it('accepts exact available, partial-pollen, and unavailable environmental cache shapes', () => {
+    const baseWeather = {
+      current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+      hourly: [],
+      fetchedAt: 123,
+      locationLabel: 'Springfield',
+      requestIdentity: 'open-meteo:v1:public-contract',
+    }
+    const available = {
+      requestIdentity: 'open-meteo-air:v1:public-contract',
+      fetchedAt: 123,
+      status: 'available',
+      usAqi: 42,
+      uvIndex: 3.5,
+      pollen: {
+        status: 'available',
+        readings: [
+          { species: 'birch', grainsPerCubicMeter: 0 },
+          { species: 'grass', grainsPerCubicMeter: 2.5 },
+          { species: 'ragweed', grainsPerCubicMeter: 1 },
+        ],
+      },
+    }
+    const unavailable = {
+      requestIdentity: 'open-meteo-air:v1:public-contract',
+      fetchedAt: 124,
+      status: 'unavailable',
+      usAqi: null,
+      uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, environment: available },
+    } as never).ok).toBe(true)
+    expect(validateBackupShape({
+      ...defaults(),
+      weatherCache: { ...baseWeather, environment: unavailable },
+    } as never).ok).toBe(true)
+  })
+
+  it.each([
+    ['unknown environment key', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: 1, uvIndex: 1,
+      pollen: { status: 'unavailable' }, surprise: true,
+    }],
+    ['unavailable with a reading', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'unavailable', usAqi: 1, uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['unavailable with available pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'unavailable', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 1 }] },
+    }],
+    ['empty available pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [] },
+    }],
+    ['duplicate pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'grass', grainsPerCubicMeter: 1 },
+        { species: 'grass', grainsPerCubicMeter: 2 },
+      ] },
+    }],
+    ['reordered pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'ragweed', grainsPerCubicMeter: 1 },
+        { species: 'alder', grainsPerCubicMeter: 2 },
+      ] },
+    }],
+    ['unknown pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'cedar', grainsPerCubicMeter: 1 }] },
+    }],
+    ['negative pollen', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: -1 }] },
+    }],
+    ['non-finite AQI', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: Number.NaN, uvIndex: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['missing nullable UV', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null,
+      pollen: { status: 'unavailable' },
+    }],
+    ['unknown reading key', {
+      requestIdentity: 'air', fetchedAt: 1, status: 'available', usAqi: null, uvIndex: null,
+      pollen: { status: 'available', readings: [
+        { species: 'grass', grainsPerCubicMeter: 1, label: 'Grass' },
+      ] },
+    }],
+  ])('rejects malformed environmental cache: %s', (_name, environment) => {
+    const result = validateBackupShape({
+      ...defaults(),
+      weatherCache: {
+        current: { tempC: 20, feelsLikeC: 19, code: 0, windKmh: 5, humidity: 50 },
+        hourly: [],
+        fetchedAt: 123,
+        locationLabel: 'Springfield',
+        requestIdentity: 'open-meteo:v1:public-contract',
+        environment,
+      },
+    } as never)
+    expect(result).toEqual({ ok: false, reason: 'That backup\'s "weatherCache" data is invalid.' })
+  })
+
   it.each([
     { lat: 91, lon: 0 },
     { lat: -91, lon: 0 },

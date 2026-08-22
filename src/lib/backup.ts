@@ -373,6 +373,43 @@ function isHourlyPoint(v: unknown): boolean {
   )
 }
 
+const POLLEN_SPECIES = ['alder', 'birch', 'grass', 'mugwort', 'olive', 'ragweed'] as const
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+}
+
+function isWeatherPollen(v: unknown): boolean {
+  if (!isPlainObject(v)) return false
+  if (v.status === 'unavailable') return hasExactKeys(v, ['status'])
+  if (v.status !== 'available' || !hasExactKeys(v, ['status', 'readings']) || !Array.isArray(v.readings) || v.readings.length === 0) return false
+
+  let previousIndex = -1
+  for (const reading of v.readings) {
+    if (!isPlainObject(reading) || !hasExactKeys(reading, ['species', 'grainsPerCubicMeter'])) return false
+    const speciesIndex = POLLEN_SPECIES.indexOf(reading.species as typeof POLLEN_SPECIES[number])
+    if (speciesIndex <= previousIndex || !isNumber(reading.grainsPerCubicMeter) || reading.grainsPerCubicMeter < 0) return false
+    previousIndex = speciesIndex
+  }
+  return true
+}
+
+function isWeatherEnvironment(v: unknown): boolean {
+  if (!isPlainObject(v) || !hasExactKeys(v, ['requestIdentity', 'fetchedAt', 'status', 'usAqi', 'uvIndex', 'pollen'])) return false
+  if (!isString(v.requestIdentity) || !isNumber(v.fetchedAt) || v.fetchedAt < 0 || !isWeatherPollen(v.pollen)) return false
+
+  if (v.status === 'unavailable') {
+    return v.usAqi === null && v.uvIndex === null && isPlainObject(v.pollen) && v.pollen.status === 'unavailable'
+  }
+  return (
+    v.status === 'available' &&
+    (v.usAqi === null || (isNumber(v.usAqi) && v.usAqi >= 0)) &&
+    (v.uvIndex === null || (isNumber(v.uvIndex) && v.uvIndex >= 0))
+  )
+}
+
 function isWeatherCache(v: unknown): boolean {
   if (v === null) return true
   if (!isPlainObject(v)) return false
@@ -384,7 +421,8 @@ function isWeatherCache(v: unknown): boolean {
     isString(v.locationLabel) &&
     isOptional(v.requestIdentity, isString) &&
     isOptional(v.sunriseISO, isString) &&
-    isOptional(v.sunsetISO, isString)
+    isOptional(v.sunsetISO, isString) &&
+    isOptional(v.environment, isWeatherEnvironment)
   )
 }
 

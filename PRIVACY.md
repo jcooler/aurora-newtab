@@ -1,6 +1,6 @@
 # Aurora Privacy Policy
 
-**Effective date:** August 16, 2026
+**Effective date:** August 22, 2026
 
 Aurora is a new-tab dashboard extension for Chrome. This policy describes,
 completely, what Aurora stores, what it sends over the network, and to whom.
@@ -15,7 +15,7 @@ transfer it for advertising, profiling, lending, or any unrelated purpose.
 There is no analytics and no tracking of any kind. Everything
 Aurora stores lives only on your own device. The outbound network calls
 Aurora makes on its own, with no action from you beyond turning a widget
-on, are three read-only, keyless weather/location lookups described in full
+on, are four read-only, keyless weather/location lookups described in full
 below. Beyond those, Aurora's **Connectors** framework lets you point it at
 outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel, Crypto,
 Calendar, Status, and Home Assistant today — and every such request goes
@@ -51,7 +51,7 @@ anywhere except as explicitly described under "Network calls" below:
 - Background photo preferences (which mode — bundled rotation, your own
   upload, a flat gradient, or NASA's photo of the day — and, in rotation
   mode, which photo)
-- Weather cache (the last forecast fetched)
+- Weather cache (the last forecast and environmental context fetched)
 - NASA photo-of-the-day cache (the single photo fetched for the current
   local day, if you've chosen that background source — see "Network calls"
   below), so it isn't refetched on every new tab
@@ -110,29 +110,37 @@ through.
 
 ## Network calls
 
-Aurora makes network requests to exactly three **fixed** endpoints, all
+Aurora makes network requests to exactly four **fixed** endpoints, all
 operated by third-party services (Aurora itself has no server), all
 read-only, all keyless (no account, sign-in, or API key involved), and all
 sent no more data than described below — plus two **opt-in** sources: a
 Connector, if and only if you've configured one (the site(s) you configured,
-item 4 below), and NASA's Astronomy Picture of the Day, if and only if
-you've chosen it as your background (item 5 below):
+item 5 below), and NASA's Astronomy Picture of the Day, if and only if
+you've chosen it as your background (item 6 below):
 
 1. **Weather forecast** — `api.open-meteo.com`, once the Weather widget is
    turned on and a location is set. Sends only your saved latitude/longitude
    (rounded to ~1 km, as stored). Refreshed periodically while the widget is
    visible and on demand when you click refresh.
-2. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
+2. **Weather environmental context** - `air-quality-api.open-meteo.com`, once
+   the Weather widget is turned on and a location is set. Sends only the same
+   rounded coordinates as the forecast request and receives current
+   US AQI, UV index, and provider-available pollen values. The result is
+   stored inside the included weather cache and follows the same 30-minute freshness window
+   and manual refresh control as the forecast. Open-Meteo currently provides
+   pollen values only in Europe during pollen season, so Aurora shows them as
+   unavailable when the provider does not return them.
+3. **City search (geocoding)** — `geocoding-api.open-meteo.com`, only while
    the Weather widget is on and you're actively typing into its city search
    box (debounced ~300ms, and only once you've typed at least 2 characters —
    not on every keystroke, and not at all unless you open that search box).
    Sends only the text you've typed so far.
-3. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
+4. **One-time reverse geocode** — `api.bigdatacloud.net`, only at the exact
    moment you click "Use my location" in the Weather widget, so Aurora can
    label the forecast with a real place name instead of "My location." Sends
    the same ~1 km-rounded coordinates the forecast call already uses. This
    call happens once per click of that button, never on a schedule.
-4. **Connector fetches** — only to the connector(s) you've actually
+5. **Connector fetches** — only to the connector(s) you've actually
    configured yourself in Settings → Connectors (RSS, GitHub, GitLab, Jira,
    Vercel, Crypto, Calendar, Status, Home Assistant); there are none until
    you add or connect one. Each fetch is a single HTTP request sent
@@ -148,7 +156,7 @@ you've chosen it as your background (item 5 below):
    below for the full disclosure of that write path. See "Connectors"
    below for the full, per-connector disclosure, including the permission
    model that gates which sites Aurora is even allowed to reach.
-5. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
+6. **NASA's Astronomy Picture of the Day** — `api.nasa.gov` (the daily photo
    lookup) and `apod.nasa.gov` (the separate host that actually serves the
    image), only once you've chosen "NASA photo of the day" as your
    background in Settings → General → Background. Sends only NASA's shared,
