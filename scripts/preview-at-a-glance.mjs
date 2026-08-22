@@ -385,7 +385,7 @@ async function capture({ id, kind, tier, viewport = VIEWPORTS[0], openDetail = t
     await page.locator(`[data-block-id="${id}"] [data-dock-line]`).click()
     await page.getByRole('dialog', { name: `${id === 'auroraKp' ? 'Aurora & Kp' : id === 'onThisDay' ? 'On This Day' : id === 'publicHolidays' ? 'Public Holidays' : 'Weather'} details` }).waitFor()
   } else if (openWeather) {
-    await page.getByRole('button', { name: 'Weather details' }).click()
+    await page.locator('[data-block-id="weather"] [data-weather-summary]').click()
     await page.getByRole('dialog', { name: 'Weather details' }).waitFor()
   }
   await page.waitForTimeout(150)
@@ -498,19 +498,19 @@ try {
     await seed({ id: 'weather', tier: 'standard', weatherAlert: null })
     const before = await page.evaluate(() => chrome.storage.local.get(null))
     await page.waitForFunction((status) => chrome.storage.local.get('weatherAlertCache').then(({ weatherAlertCache }) => weatherAlertCache?.status === status), mode === 'unsupported' ? 'unsupported' : 'supported')
-    await capture({ id: 'weather', kind: mode, tier: 'standard', openWeather: true, expected: [mode === 'unsupported' ? 'Forecast & conditions' : 'No active NWS alerts'] })
+    await capture({ id: 'weather', kind: mode, tier: 'standard', openWeather: true, expected: [mode === 'unsupported' ? 'New York' : 'No active NWS alerts'] })
     await assertRuntimeWrites(`weather:${mode}`, before, ['weatherAlertCache'])
   }
 
   modes.set('weatherAlerts', 'error')
   activeScenario = 'weather:error:standard:seed'
   await seed({ id: 'weather', tier: 'standard', weatherAlert: null })
-  await page.getByRole('button', { name: 'Weather details' }).waitFor()
-  await capture({ id: 'weather', kind: 'error', tier: 'standard', openWeather: true, expected: ['NWS alerts unavailable', 'Hourly forecast'] })
+  await page.locator('[data-block-id="weather"] [data-weather-summary]').waitFor()
+  await capture({ id: 'weather', kind: 'error', tier: 'standard', openWeather: true, expected: ['NWS alerts unavailable', 'New York'] })
 
   activeScenario = 'weather:stale:standard:seed'
   await seed({ id: 'weather', tier: 'standard', weatherAlert: alertCache('supported', true) })
-  await capture({ id: 'weather', kind: 'stale', tier: 'standard', openWeather: true, expected: ['Saved data', 'Severe Thunderstorm Warning'] })
+  await capture({ id: 'weather', kind: 'stale', tier: 'standard', openWeather: true, expected: ['Saved alert data', 'Severe Thunderstorm Warning'] })
 } finally {
   navigating = true
   await context.close()
