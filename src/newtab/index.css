@@ -88,6 +88,11 @@
   position: relative;
   display: grid;
   place-items: center;
+  /* Keep every painted control inside the card's real hit box. Absolute
+     controls outside that box looked correct but Chromium hit-tested the
+     Canvas surface instead, making the arrows and dots decorative. The
+     gutters are transparent control space, not a second card surface. */
+  padding: 0 28px 20px;
   touch-action: pan-y;
   transition: filter 120ms ease;
 }
@@ -107,7 +112,7 @@
 .stack-card__arrow {
   position: absolute;
   z-index: 2;
-  top: 50%;
+  top: calc(50% - 10px);
   display: grid;
   width: 24px;
   height: 32px;
@@ -121,8 +126,8 @@
   cursor: pointer;
   transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
 }
-.stack-card__arrow--previous { left: -28px; }
-.stack-card__arrow--next { right: -28px; }
+.stack-card__arrow--previous { left: 0; }
+.stack-card__arrow--next { right: 0; }
 .stack-card:hover .stack-card__arrow,
 .stack-card:focus-within .stack-card__arrow {
   opacity: 0.9;
@@ -134,7 +139,7 @@
 .stack-card__dots {
   position: absolute;
   z-index: 2;
-  bottom: -20px;
+  bottom: 0;
   left: 50%;
   display: flex;
   translate: -50% 0;
@@ -1773,14 +1778,14 @@ select > option {
 /* These canvas-only widgets intentionally have no controls. Let pointer hit
    testing fall through their glyphs to the BoardItem (which still owns the
    Arrange long-press) instead of masking a neighbouring compact control. */
-.canvas-item[data-block-id="clock"] > *,
-.canvas-item[data-block-id="greeting"] > *,
-.canvas-item[data-block-id="worldClocks"] > *,
-.canvas-item[data-block-id="countdown"] > *,
-.canvas-item[data-block-id="quote"] > *,
-.canvas-item[data-block-id="sun"] > *,
-.canvas-item[data-block-id="moon"] > *,
-.canvas-item[data-block-id="status"] > section {
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="clock"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="worldClocks"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="countdown"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="quote"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="sun"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="moon"] > *,
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] > section {
   pointer-events: none;
 }
 

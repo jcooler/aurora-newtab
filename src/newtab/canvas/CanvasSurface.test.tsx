@@ -312,6 +312,19 @@ describe('CanvasSurface widget stacks', () => {
     fireEvent.click(within(item).getByRole('button', { name: 'Show Timer' }))
     expect(onFaceStack).toHaveBeenCalledWith('stack-day', 'timer')
   })
+
+  it('keeps stack controls hit-testable when the facing widget is normally pointer-transparent', () => {
+    // Clock, Quote, Sun, Moon, and Status deliberately let ordinary clicks
+    // fall through their standalone readouts. A stack inherits the facing
+    // id on its outer CanvasItem, so every such selector must exclude the
+    // stable stack object or it disables arrows and dots with it.
+    for (const id of ['clock', 'greeting', 'worldClocks', 'countdown', 'quote', 'sun', 'moon', 'status']) {
+      expect(indexCss).toContain(`.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="${id}"]`)
+    }
+    expect(indexCss).toMatch(/\.stack-card\s*\{[^}]*padding:\s*0 28px 20px/)
+    expect(indexCss).toMatch(/\.stack-card__arrow--next\s*\{\s*right:\s*0;/)
+    expect(indexCss).toMatch(/\.stack-card__dots\s*\{[^}]*bottom:\s*0;/)
+  })
 })
 
 describe('Docked item chrome and safety (owner-reported 2026-08-18)', () => {

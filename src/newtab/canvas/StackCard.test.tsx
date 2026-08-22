@@ -68,12 +68,28 @@ describe('StackCard', () => {
   })
 
   it('preserves plain click parity below the swipe threshold', () => {
-    const { card, onStep } = setup()
-    fireEvent.pointerDown(card, { pointerId: 2, clientX: 100 })
-    fireEvent.pointerUp(card, { pointerId: 2, clientX: 61 })
-    fireEvent.click(within(card).getByRole('button', { name: 'Open weather' }))
+    const openWeather = vi.fn()
+    const onStep = vi.fn()
+    render(
+      <StackCard
+        id="stack-day"
+        members={[{ ...MEMBERS[0], content: <button type="button" onClick={openWeather}>Open weather</button> }, ...MEMBERS.slice(1)]}
+        facing="weather"
+        editing={false}
+        onStep={onStep}
+        onFace={vi.fn()}
+      />,
+    )
+    const card = screen.getByRole('group')
+    const capture = vi.fn()
+    Object.defineProperty(card, 'setPointerCapture', { configurable: true, value: capture })
+    const trigger = within(card).getByRole('button', { name: 'Open weather' })
+    fireEvent.pointerDown(trigger, { pointerId: 2, clientX: 100 })
+    fireEvent.pointerUp(trigger, { pointerId: 2, clientX: 61 })
+    fireEvent.click(trigger)
     expect(onStep).not.toHaveBeenCalled()
-    expect(within(card).getByRole('button', { name: 'Open weather' })).toBeTruthy()
+    expect(capture).not.toHaveBeenCalled()
+    expect(openWeather).toHaveBeenCalledOnce()
   })
 
   it('uses Left and Right only when the stack card itself holds focus', () => {

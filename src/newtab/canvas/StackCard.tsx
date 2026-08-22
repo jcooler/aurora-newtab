@@ -28,7 +28,7 @@ export default function StackCard({
   onStep,
   onFace,
 }: StackCardProps) {
-  const pointer = useRef<{ id: number; x: number } | null>(null)
+  const pointer = useRef<{ id: number; x: number; captured: boolean } | null>(null)
   const suppressReleaseClick = useRef(false)
   const faceIndex = Math.max(0, members.findIndex((member) => member.id === facing))
   const face = members[faceIndex]
@@ -50,7 +50,17 @@ export default function StackCard({
       onPointerDown={(event) => {
         if (editing || event.button !== 0) return
         if ((event.target as Element).closest('[data-stack-control]')) return
-        pointer.current = { id: event.pointerId, x: event.clientX }
+        // Do not capture a simple press. Capturing here retargets pointerup
+        // from the nested widget button to the stack card, so Chromium never
+        // synthesizes the widget's click. Capture begins only once an actual
+        // 40px paging swipe is established below.
+        pointer.current = { id: event.pointerId, x: event.clientX, captured: false }
+      }}
+      onPointerMove={(event) => {
+        const start = pointer.current
+        if (editing || !start || start.id !== event.pointerId || start.captured) return
+        if (Math.abs(event.clientX - start.x) < SWIPE_THRESHOLD) return
+        start.captured = true
         event.currentTarget.setPointerCapture?.(event.pointerId)
       }}
       onPointerUp={(event) => {
