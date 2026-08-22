@@ -7,9 +7,9 @@ import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'
 import {
   assertAllowedStorageChange,
   assertBuildProvenance,
+  authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
-  requestFailureKey,
 } from './work-connector-harness-contracts.mjs'
 
 const repoRoot = resolve(process.cwd())
@@ -169,7 +169,7 @@ const evidence = {
 }
 const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
-const expectedFailedRequestKeys = new Set()
+const expectedFailedRequestCounts = new Map()
 const pendingProviderRequests = new Set()
 let harnessNavigating = false
 const permissionCallTimeline = []
@@ -251,7 +251,7 @@ async function checkedRouteRequest(route) {
     }, FAKE_TOKENS)
   } catch (error) {
     fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
-    expectedFailedRequestKeys.add(requestFailureKey(request))
+    authorizeRequestFailure(expectedFailedRequestCounts, request)
     await route.abort('failed').catch(() => {})
     return null
   }
@@ -266,7 +266,7 @@ async function checkedRouteRequest(route) {
 }
 
 async function delayed(route) {
-  expectedFailedRequestKeys.add(requestFailureKey(route.request()))
+  authorizeRequestFailure(expectedFailedRequestCounts, route.request())
   await new Promise((resolveDelay) => setTimeout(resolveDelay, DELAYED_FAULT_MS))
   await route.abort('failed').catch(() => {})
 }
@@ -336,7 +336,7 @@ page.on('console', (message) => {
   if (message.type() !== 'error') return
   const text = message.text()
   if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text) ||
-      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequestKeys.size > 0)) {
+      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequestCounts.size > 0)) {
     evidence.expectedFaultSignals.push(`console: ${text}`)
   } else {
     evidence.runtimeErrors.push(`console: ${text}`)
@@ -347,7 +347,7 @@ page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (isExpectedRequestFailure(request, errorText, expectedFailedRequestKeys)) {
+  if (isExpectedRequestFailure(request, errorText, expectedFailedRequestCounts)) {
     evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
   } else if (!url.startsWith('chrome-extension://')) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
@@ -358,7 +358,7 @@ page.on('request', (request) => {
   const url = request.url()
   if (providerForUrl(url)) {
     pendingProviderRequests.add(request)
-    if (harnessNavigating) expectedFailedRequestKeys.add(requestFailureKey(request))
+    if (harnessNavigating) authorizeRequestFailure(expectedFailedRequestCounts, request)
   }
   else if (url.startsWith('http')) fail(`unexpected external request: ${request.method()} ${url}`)
 })
@@ -371,7 +371,7 @@ function providerForUrl(url) {
 }
 
 function markHarnessNavigation() {
-  for (const request of pendingProviderRequests) expectedFailedRequestKeys.add(requestFailureKey(request))
+  for (const request of pendingProviderRequests) authorizeRequestFailure(expectedFailedRequestCounts, request)
 }
 
 async function harvestPermissionCalls() {

@@ -4,6 +4,7 @@ import test from 'node:test'
 import {
   assertAllowedStorageChange,
   assertBuildProvenance,
+  authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
   requestFailureKey,
@@ -76,11 +77,16 @@ test('requires exact dist provenance and exact request-instance failure authoriz
   assert.throws(() => assertBuildProvenance(JSON.stringify({ commit: 'stale' }), 'abc123'), /stale/)
   const expected = request({ url: 'https://api.todoist.com/api/v1/tasks?limit=200' })
   const unexpected = request({ url: 'https://api.todoist.com/api/v1/projects?limit=200' })
-  const authorized = new Set([requestFailureKey(expected)])
+  const authorized = new Map()
+  authorizeRequestFailure(authorized, expected)
+  authorizeRequestFailure(authorized, expected)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), true)
+  assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), true)
+  assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), false)
   assert.equal(isExpectedRequestFailure(unexpected, 'net::ERR_ABORTED', authorized), false)
-  authorized.add(requestFailureKey(expected))
+  authorizeRequestFailure(authorized, expected)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_CONNECTION_REFUSED', authorized), false)
+  assert.equal(authorized.get(requestFailureKey(expected)), 1)
 })
 
 test('the production build emits a commit provenance artifact', async () => {

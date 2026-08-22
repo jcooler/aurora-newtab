@@ -115,10 +115,17 @@ export function requestFailureKey(request) {
   })
 }
 
-export function isExpectedRequestFailure(request, errorText, authorizedRequestKeys) {
+export function authorizeRequestFailure(authorizedRequestCounts, request) {
+  const key = requestFailureKey(request)
+  authorizedRequestCounts.set(key, (authorizedRequestCounts.get(key) ?? 0) + 1)
+}
+
+export function isExpectedRequestFailure(request, errorText, authorizedRequestCounts) {
   if (errorText !== 'net::ERR_ABORTED' && errorText !== 'net::ERR_FAILED') return false
   const key = requestFailureKey(request)
-  if (!authorizedRequestKeys.has(key)) return false
-  authorizedRequestKeys.delete(key)
+  const remaining = authorizedRequestCounts.get(key) ?? 0
+  if (remaining < 1) return false
+  if (remaining === 1) authorizedRequestCounts.delete(key)
+  else authorizedRequestCounts.set(key, remaining - 1)
   return true
 }
