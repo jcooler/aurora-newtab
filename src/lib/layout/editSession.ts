@@ -442,18 +442,15 @@ function clampPct(value: number): number {
 function dockSelectedInternal(
   session: EditSession,
   dock: DockEdge,
-  point: DockPoint | number,
+  point: DockPoint,
   pushUndo: boolean,
   memory?: DockGestureMemory,
 ): EditSession {
   const selection = session.selection
   if (selection?.kind !== 'widget') return session
   const id = selection.id
-  // Number is a short-lived compatibility path for the pre-DY App callsite:
-  // it preserves absent Y exactly until Task 6 supplies measured DockPoint
-  // values. New callers always use DockPoint.
-  const xPct = typeof point === 'number' ? point : point.xPct
-  const yPct = typeof point === 'number' ? undefined : point.yPct
+  const xPct = point.xPct
+  const yPct = point.yPct
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
     const existing = draftLayout.widgets[id]
@@ -505,14 +502,14 @@ function dockSelectedInternal(
   }), pushUndo)
 }
 
-/** Docks the selected widget with its CENTER at `xPct` percent of the
- *  edge's strip (named-layouts spec 2.4, owner-refined 2026-08-18: complete
- *  control — any position within the bar, exactly like the canvas). Orders
- *  in both docks are derived from position. Never called automatically. */
+/** Docks the selected widget with its center at an exact X/Y point inside
+ *  the edge band (named-layouts spec 2.4, owner-refined 2026-08-22: complete
+ *  two-axis control, exactly like the canvas). Orders remain an X-derived
+ *  narrow-floor fallback. Never called automatically. */
 export function dockSelected(
   session: EditSession,
   dock: DockEdge,
-  point: DockPoint | number,
+  point: DockPoint,
   memory?: DockGestureMemory,
 ): EditSession {
   return dockSelectedInternal(session, dock, point, true, memory)
@@ -524,7 +521,7 @@ export function dockSelected(
 export function dockSelectedLive(
   session: EditSession,
   dock: DockEdge,
-  point: DockPoint | number,
+  point: DockPoint,
   memory?: DockGestureMemory,
 ): EditSession {
   return dockSelectedInternal(session, dock, point, false, memory)

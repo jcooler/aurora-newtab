@@ -427,20 +427,20 @@
   pointer-events: none;
 }
 
-/* Dock drop zones during an edit-mode drag (spec 2.5): dragging near the
-   top or bottom edge offers the zone; nothing docks without this drop. */
+/* Dock drop boundary during an edit-mode drag: it traces the same transparent
+   responsive band that owns placement, never a full-width painted strip. */
 .dock-drop-zone {
   position: fixed;
   z-index: 45;
-  right: 0;
-  left: 0;
-  height: 56px;
+  right: 72px;
+  left: 72px;
+  height: clamp(96px, 16vh, 128px);
   border: 1px dashed color-mix(in srgb, var(--accent) 60%, transparent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: var(--radius-panel);
   pointer-events: none;
 }
-.dock-drop-zone[data-edge="top"] { top: 0; }
-.dock-drop-zone[data-edge="bottom"] { bottom: 0; }
+.dock-drop-zone[data-edge="top"] { top: 16px; }
+.dock-drop-zone[data-edge="bottom"] { bottom: 16px; }
 
 /* The floating inspector beside the selection (spec 2.5). */
 .edit-inspector {

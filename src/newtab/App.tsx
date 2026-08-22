@@ -24,6 +24,7 @@ import {
   setSelectedStackFacing,
   setSelectedTier,
   stepSelectedLayer,
+  type DockGestureMemory,
   type EditSession,
   undo,
   undockSelected,
@@ -42,6 +43,7 @@ import {
 } from '../lib/layout/layoutOperations'
 import LayoutBadge from './edit/LayoutBadge'
 import { canvasKeyboardDelta } from './arrange/canvasSnap'
+import { fallbackDockBandRect, nudgeDockPoint } from './edit/dockGeometry'
 import { enforceDockEligibility, NARROW_FLOOR_WIDTH } from '../lib/layout/renderLayout'
 import { restoreHiddenWidget } from '../lib/layout/editSession'
 import { useDialogEscape } from '../lib/dialogStack'
@@ -263,19 +265,19 @@ function AuroraApp() {
   const [dragZone, setDragZone] = useState<DockEdge | null>(null)
   const draggingSubjectRef = useRef<CanvasDragSubject | null>(null)
   const dragOriginSessionRef = useRef<EditSession | null>(null)
-  // The pointer maps DIRECTLY to a strip position (spec 2.4, owner-refined
-  // 2026-08-18: complete control, exactly like the canvas). Clamped so the
-  // dragged member's own box stays inside the bar — measured live because
-  // the strip may not exist yet on the first entry into an empty band.
-  const dockXPercent = (zone: DockEdge, id: BlockId, pointerX: number): number => {
-    const bar = document.querySelector(zone === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar')
-    const rect = bar?.getBoundingClientRect()
-    const left = rect ? rect.left : 72
-    const width = rect && rect.width > 0 ? rect.width : Math.max(1, window.innerWidth - 144)
-    const raw = ((pointerX - left) / width) * 100
-    const memberWidth = itemRectsRef.current.get(id)?.width ?? 0
-    const halfPct = Math.min(50, (memberWidth / 2 / width) * 100)
-    return Math.min(100 - halfPct, Math.max(halfPct, raw))
+  const dragTierMemoryRef = useRef<DockGestureMemory | null>(null)
+  const rememberDragTier = (subject: CanvasDragSubject) => {
+    if (subject.kind !== 'widget') {
+      dragTierMemoryRef.current = null
+      return
+    }
+    const layout = session ? activeDraftLayout(session) : activeLayout
+    const placement = layout?.widgets[subject.id]
+    dragTierMemoryRef.current = placement?.kind === 'free'
+      ? { returnTier: placement.tier }
+      : placement?.kind === 'docked'
+        ? { dockTier: placement.tier, returnTier: placement.returnTier }
+        : null
   }
   const drag = useCanvasDrag({
     getSurface: () => document.querySelector<HTMLElement>('[data-canvas-surface]'),
@@ -285,7 +287,7 @@ function AuroraApp() {
     // and re-docking was a fight). The widget follows the gesture: pointer
     // in a dock band docks/reorders LIVE, leaving the band undocks, and the
     // whole gesture stays one undo entry (the first operation pushes it).
-    onPreviewMove: (subject, point, first, context) => {
+    onPreviewMove: (subject, placement, first) => {
       draggingSubjectRef.current = subject
       if (subject.kind === 'stack-member') return
       editMode.dispatch((current) => {
@@ -294,18 +296,20 @@ function AuroraApp() {
           ? selectWidget(current, subject.id)
           : selectStack(current, subject.id)
         const layout = activeDraftLayout(selected)
-        if (subject.kind === 'widget' && context.zone) {
-          const xPct = dockXPercent(context.zone, subject.id, context.pointerX)
+        if (subject.kind === 'widget' && placement.kind === 'dock') {
           return first
-            ? dockSelected(selected, context.zone, xPct)
-            : dockSelectedLive(selected, context.zone, xPct)
+            ? dockSelected(selected, placement.dock, placement.point, dragTierMemoryRef.current ?? undefined)
+            : dockSelectedLive(selected, placement.dock, placement.point, dragTierMemoryRef.current ?? undefined)
         }
+        if (placement.kind !== 'canvas') return selected
         if (subject.kind === 'widget' && layout.widgets[subject.id]?.kind === 'docked') {
-          return first ? undockSelected(selected, point) : undockSelectedLive(selected, point)
+          return first
+            ? undockSelected(selected, placement.point)
+            : undockSelectedLive(selected, placement.point)
         }
         return first
-          ? moveSelected(selected, point)
-          : moveSelectedLive(selected, point)
+          ? moveSelected(selected, placement.point)
+          : moveSelectedLive(selected, placement.point)
       })
     },
     onZoneChange: setDragZone,
@@ -313,6 +317,7 @@ function AuroraApp() {
       draggingSubjectRef.current = null
       const origin = dragOriginSessionRef.current
       dragOriginSessionRef.current = null
+      dragTierMemoryRef.current = null
       if (origin) editMode.dispatch(() => origin)
     },
     // Dock eligibility (spec 2.3, owner-reported 2026-08-18): a widget with
@@ -326,26 +331,35 @@ function AuroraApp() {
       if (target.kind === 'widget') return target.id !== sourceId && layout.widgets[target.id]?.kind === 'free'
       return layout.stacks?.some((stack) => stack.id === target.id && !stack.members.includes(sourceId)) ?? false
     },
-    onDrop: ({ zone, pointerX, point, stackTarget }) => {
+    onDrop: ({ placement, stackTarget }) => {
       const subject = draggingSubjectRef.current
+      const memory = dragTierMemoryRef.current ?? undefined
       draggingSubjectRef.current = null
       dragOriginSessionRef.current = null
+      dragTierMemoryRef.current = null
       if (!subject) return
       editMode.dispatch((current) => {
         if (subject.kind === 'stack-member') {
-          return detachSelectedStackMember(selectStack(current, subject.stackId), subject.id, point)
+          return placement.kind === 'canvas'
+            ? detachSelectedStackMember(selectStack(current, subject.stackId), subject.id, placement.point)
+            : current
         }
-        if (subject.kind === 'stack') return current
+        if (subject.kind === 'stack') {
+          return placement.kind === 'canvas'
+            ? moveSelectedLive(selectStack(current, subject.id), placement.point)
+            : current
+        }
         const selected = selectWidget(current, subject.id)
         if (stackTarget) {
           // The first live move already owns this gesture's undo snapshot.
           return createStackFromDrop(selected, subject.id, stackTarget, crypto.randomUUID(), false)
         }
-        if (!zone) return current
-        // The moves already docked it live; this re-measures the final
-        // position at the exact drop pointer, reusing the gesture's one
-        // undo entry (review fix I2).
-        return dockSelectedLive(selected, zone, dockXPercent(zone, subject.id, pointerX))
+        if (placement.kind === 'dock') {
+          return dockSelectedLive(selected, placement.dock, placement.point, memory)
+        }
+        return activeDraftLayout(selected).widgets[subject.id]?.kind === 'docked'
+          ? undockSelectedLive(selected, placement.point)
+          : moveSelectedLive(selected, placement.point)
       })
     },
   })
@@ -357,6 +371,8 @@ function AuroraApp() {
   ) => {
     event.preventDefault()
     dragOriginSessionRef.current = null
+    draggingSubjectRef.current = subject
+    rememberDragTier(subject)
     // Starting edit mode unmounts the normal hover grip under the pointer.
     // Swallow only the release click that lands back on the grabbed object.
     let timeoutId: number | undefined
@@ -398,12 +414,18 @@ function AuroraApp() {
     if (window.innerWidth < NARROW_FLOOR_WIDTH) return
     if (!sessionLiveRef.current) editMode.begin(null)
     editMode.select({ kind: 'widget', id: blockId })
-    drag.startDrag({ kind: 'widget', id: blockId }, event)
+    const subject = { kind: 'widget' as const, id: blockId }
+    draggingSubjectRef.current = subject
+    rememberDragTier(subject)
+    drag.startDrag(subject, event)
   })
 
   // Escape cancels the edit session exactly (spec 2.5), through the shared
   // dialog stack so it composes with every other Escape consumer.
-  useDialogEscape(() => { editMode.cancel() }, session !== null)
+  useDialogEscape(() => {
+    drag.cancelDrag()
+    editMode.cancel()
+  }, session !== null)
 
   // The keyboard command entry (scope decision 4): Ctrl/Cmd+Shift+E.
   useEffect(() => {
@@ -434,10 +456,39 @@ function AuroraApp() {
       if (!delta) return
       if (event.target instanceof Element && event.target.closest('input, textarea, select')) return
       event.preventDefault()
-      editMode.dispatch((current) => nudgeSelected(current, {
-        xPct: delta.x / window.innerWidth * 100,
-        yPct: delta.y / window.innerHeight * 100,
-      }))
+      editMode.dispatch((current) => {
+        const selection = current.selection
+        const placement = selection?.kind === 'widget'
+          ? activeDraftLayout(current).widgets[selection.id]
+          : undefined
+        if (selection?.kind === 'widget' && placement?.kind === 'docked') {
+          const memberRect = itemRectsRef.current.get(selection.id)
+          if (!memberRect) return current
+          const bar = document.querySelector<HTMLElement>(
+            placement.dock === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar',
+          )
+          const measured = bar?.getBoundingClientRect()
+          const fallback = fallbackDockBandRect(placement.dock, {
+            width: window.innerWidth,
+            height: window.innerHeight,
+          })
+          const band = measured && measured.width > 0 && measured.height > 0
+            ? measured
+            : fallback
+          return dockSelected(current, placement.dock, nudgeDockPoint({
+            memberRect,
+            band,
+            delta,
+          }), {
+            dockTier: placement.tier,
+            returnTier: placement.returnTier,
+          })
+        }
+        return nudgeSelected(current, {
+          xPct: delta.x / window.innerWidth * 100,
+          yPct: delta.y / window.innerHeight * 100,
+        })
+      })
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -526,12 +577,11 @@ function AuroraApp() {
           selectedId={session?.selection?.kind === 'widget' ? session.selection.id : null}
           selectedStackId={session?.selection?.kind === 'stack' ? session.selection.id : null}
           stackTarget={session ? drag.stackTarget : null}
-          // Guides are session chrome only: if the session cancels while a
-          // drag is mid-flight (Escape), the hook's guide state survives
-          // until the next pointerup — without this gate the accent
-          // hairlines stayed painted on the normal page (owner-reported
-          // 2026-08-18 "blue lines where borders are").
-          guides={session ? drag.guides : []}
+          // Guides are session chrome only. The hook also clears them on
+          // every finish/cancel path, while this gate makes edit-session
+          // ownership explicit (owner-reported 2026-08-18 "blue lines where
+          // borders are").
+          guideSet={session ? drag.guideSet : null}
           onSelectItem={(id) => editMode.select({ kind: 'widget', id })}
           onSelectStack={(id) => editMode.select({ kind: 'stack', id })}
           onItemGeometryChange={onItemGeometryChange}
@@ -591,13 +641,20 @@ function AuroraApp() {
           const objectId = selection.kind === 'stack' ? `stack:${selection.id}` : selection.id
           const anchorRect = itemRectsRef.current.get(objectId)
           if (!anchorRect) return null
+          const selectedPlacement = selection.kind === 'widget'
+            ? draftLayout.widgets[selection.id]
+            : undefined
 
           const overlapLabels = [...itemRectsRef.current]
             .filter(([candidateId, rect]) => {
               if (candidateId === objectId) return false
-              if (!candidateId.startsWith('stack:')) {
-                const placement = draftLayout.widgets[candidateId as BlockId]
-                if (placement?.kind !== 'free') return false
+              if (selectedPlacement?.kind === 'docked') {
+                if (candidateId.startsWith('stack:')) return false
+                const candidate = draftLayout.widgets[candidateId as BlockId]
+                if (candidate?.kind !== 'docked' || candidate.dock !== selectedPlacement.dock) return false
+              } else if (!candidateId.startsWith('stack:')) {
+                const candidate = draftLayout.widgets[candidateId as BlockId]
+                if (candidate?.kind !== 'free') return false
               }
               return rect.left < anchorRect.right && rect.right > anchorRect.left
                 && rect.top < anchorRect.bottom && rect.bottom > anchorRect.top
@@ -652,7 +709,7 @@ function AuroraApp() {
               entry={entry}
               placement={placement}
               anchorRect={anchorRect}
-              overlapLabels={placement.kind === 'free' ? overlapLabels : []}
+              overlapLabels={overlapLabels}
               onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
               onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}
               onHide={() => editMode.dispatch(hideSelected)}
@@ -679,7 +736,10 @@ function AuroraApp() {
             onBulkTier={(tier) => editMode.dispatch((current) => applyBulkTier(current, tier))}
             onUndo={() => editMode.dispatch(undo)}
             onReset={() => editMode.dispatch(resetSession)}
-            onCancel={editMode.cancel}
+            onCancel={() => {
+              drag.cancelDrag()
+              editMode.cancel()
+            }}
             onSave={() => void editMode.save()}
           />
         ) : null}

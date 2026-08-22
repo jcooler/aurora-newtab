@@ -66,6 +66,34 @@ function installStackGeometry() {
   })
 }
 
+function installDockGeometry() {
+  return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+    if (this.hasAttribute('data-canvas-surface')) return testRect(0, 0, 1000, 600)
+    if (this.classList.contains('canvas-top-bar')) return testRect(72, 16, 856, 96)
+    if (this.classList.contains('canvas-bottom-bar')) return testRect(72, 488, 856, 96)
+    const objectId = this.getAttribute('data-canvas-object-id')
+    if (objectId === 'weather' || objectId === 'clock') {
+      const width = objectId === 'weather' ? 180 : 160
+      const height = objectId === 'weather' ? 40 : 36
+      if (this.dataset.canvasMode === 'docked') {
+        const edge = this.closest('.canvas-top-bar') ? 'top' : 'bottom'
+        const band = edge === 'top' ? testRect(72, 16, 856, 96) : testRect(72, 488, 856, 96)
+        const xPct = Number.parseFloat(this.style.left || this.style.marginLeft || '50')
+        const yPct = Number.parseFloat(this.style.top || '50')
+        const centerX = band.left + band.width * xPct / 100
+        const centerY = band.top + band.height * yPct / 100
+        return testRect(centerX - width / 2, centerY - height / 2, width, height)
+      }
+      const freeWidth = objectId === 'weather' ? 260 : 220
+      const freeHeight = objectId === 'weather' ? 180 : 120
+      const centerX = Number.parseFloat(this.style.left || (objectId === 'weather' ? '50' : '25')) * 10
+      const centerY = Number.parseFloat(this.style.top || (objectId === 'weather' ? '40' : '30')) * 6
+      return testRect(centerX - freeWidth / 2, centerY - freeHeight / 2, freeWidth, freeHeight)
+    }
+    return testRect(20, 620, 100, 50)
+  })
+}
+
 function stackedDocument(): LayoutsDocument {
   return {
     version: 1,
@@ -887,6 +915,223 @@ describe('App Canvas composition', () => {
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
     expect(document.querySelector('[data-canvas-object-id="tasks"]')).toBeNull()
     expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('docks Standard Weather without a Compact prerequisite and restores Standard after undock', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'weather-tier',
+      layouts: [{
+        id: 'weather-tier',
+        name: 'Weather tier',
+        widgets: {
+          weather: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -10, tier: 'standard', layer: 1 },
+        },
+      }],
+    })
+    await renderApp(storage)
+    const before = canvasGeometry('weather')
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 61, clientX: 500, clientY: 240,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 61, clientX: 500, clientY: 536 })
+    await act(async () => {})
+    expect(canvasItem('weather').dataset.canvasMode).toBe('docked')
+    expect(canvasItem('weather').dataset.canvasSize).toBe('compact')
+    expect(document.querySelector('.dock-drop-zone')?.getAttribute('data-edge')).toBe('bottom')
+
+    fireEvent.pointerMove(document, { pointerId: 61, clientX: 400, clientY: 300 })
+    await act(async () => {})
+    expect(canvasItem('weather').dataset.canvasMode).toBe('anchored')
+    expect(canvasItem('weather').dataset.canvasSize).toBe('standard')
+    expect(document.querySelector('.dock-drop-zone')).toBeNull()
+    fireEvent.pointerUp(document, { pointerId: 61, clientX: 400, clientY: 300 })
+    await act(async () => {})
+
+    fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
+    await act(async () => {})
+    expect(canvasGeometry('weather')).toEqual(before)
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('keeps dock tier and return tier through bottom -> canvas -> top in one gesture', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'dock-memory',
+      layouts: [{
+        id: 'dock-memory',
+        name: 'Dock memory',
+        widgets: {
+          weather: {
+            kind: 'docked', dock: 'bottom', order: 0, x: 50, y: 50,
+            tier: 'compact', returnTier: 'full',
+          },
+        },
+      }],
+    })
+    await renderApp(storage)
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 62, clientX: 500, clientY: 536,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 62, clientX: 400, clientY: 300 })
+    await act(async () => {})
+    expect(canvasItem('weather').dataset.canvasMode).toBe('anchored')
+    expect(canvasItem('weather').dataset.canvasSize).toBe('full')
+    fireEvent.pointerMove(document, { pointerId: 62, clientX: 600, clientY: 64 })
+    await act(async () => {})
+    expect(canvasItem('weather').dataset.canvasMode).toBe('docked')
+    expect(canvasItem('weather').dataset.canvasSize).toBe('compact')
+    fireEvent.pointerUp(document, { pointerId: 62, clientX: 600, clientY: 64 })
+    await act(async () => {})
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await act(async () => {})
+
+    expect((await storage.get('layouts'))?.layouts[0].widgets.weather).toMatchObject({
+      kind: 'docked', dock: 'top', tier: 'compact', returnTier: 'full',
+    })
+  })
+
+  it('nudges dock X/Y by 8px and Shift by 1px through measured containment', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'dock-keyboard',
+      layouts: [{
+        id: 'dock-keyboard',
+        name: 'Dock keyboard',
+        widgets: {
+          weather: { kind: 'docked', dock: 'bottom', order: 0, x: 50, y: 50, tier: 'compact' },
+        },
+      }],
+    })
+    await renderApp(storage)
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 63, clientX: 500, clientY: 536,
+    })
+    fireEvent.pointerUp(document, { pointerId: 63, clientX: 500, clientY: 536 })
+    await act(async () => {})
+    fireEvent.keyDown(window, { key: 'ArrowUp' })
+    await act(async () => {})
+    expect(Number.parseFloat(canvasItem('weather').style.top)).toBeCloseTo(40 / 96 * 100, 5)
+    fireEvent.keyDown(window, { key: 'ArrowRight', shiftKey: true })
+    await act(async () => {})
+    expect(Number.parseFloat(canvasItem('weather').style.left)).toBeCloseTo(429 / 856 * 100, 5)
+  })
+
+  it('shows and clears same-dock overlap from current rectangles during the gesture', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'dock-overlap',
+      layouts: [{
+        id: 'dock-overlap',
+        name: 'Dock overlap',
+        widgets: {
+          weather: { kind: 'docked', dock: 'bottom', order: 0, x: 45, y: 50, tier: 'compact' },
+          clock: { kind: 'docked', dock: 'bottom', order: 1, x: 49, y: 50, tier: 'compact' },
+        },
+      }],
+    })
+    await renderApp(storage)
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 64, clientX: 457, clientY: 536,
+    })
+    await act(async () => {})
+    expect(within(screen.getByRole('dialog', { name: 'Weather inspector' })).getByText('Overlaps Clock')).toBeTruthy()
+
+    fireEvent.pointerMove(document, { pointerId: 64, clientX: 800, clientY: 520, altKey: true })
+    await act(async () => {})
+    expect(within(screen.getByRole('dialog', { name: 'Weather inspector' })).queryByText('Overlaps Clock')).toBeNull()
+    fireEvent.pointerUp(document, { pointerId: 64, clientX: 800, clientY: 520 })
+  })
+
+  it('Escape during a drag restores the origin, clears dock chrome, and writes nothing', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'escape-drag',
+      layouts: [{
+        id: 'escape-drag',
+        name: 'Escape drag',
+        widgets: {
+          weather: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -10, tier: 'standard', layer: 1 },
+        },
+      }],
+    })
+    const layoutsBefore = JSON.stringify(await storage.get('layouts'))
+    const setSpy = vi.spyOn(storage, 'set')
+    await renderApp(storage)
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 65, clientX: 500, clientY: 240,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 65, clientX: 500, clientY: 536 })
+    await act(async () => {})
+    expect(document.querySelector('.dock-drop-zone')).toBeTruthy()
+    expect(document.querySelector('.edit-guides--dock')).toBeTruthy()
+
+    fireEvent.keyDown(document, { key: 'Escape' })
+    await act(async () => {})
+    expect(document.querySelector('main[data-editing]')).toBeNull()
+    expect(document.querySelector('.dock-drop-zone')).toBeNull()
+    expect(document.querySelector('.edit-guides')).toBeNull()
+    expect(JSON.stringify(await storage.get('layouts'))).toBe(layoutsBefore)
+    expect(setSpy.mock.calls.filter(([key]) => key === 'layouts')).toHaveLength(0)
+  })
+
+  it('the visible Cancel action tears down an active drag before a later edit session', async () => {
+    installDockGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'button-cancel-drag',
+      layouts: [{
+        id: 'button-cancel-drag',
+        name: 'Button cancel drag',
+        widgets: {
+          weather: { kind: 'free', anchor: 'center', offsetX: 0, offsetY: -10, tier: 'standard', layer: 1 },
+        },
+      }],
+    })
+    await renderApp(storage)
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 66, clientX: 500, clientY: 240,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 66, clientX: 500, clientY: 536 })
+    await act(async () => {})
+    expect(document.querySelector('.dock-drop-zone')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    await act(async () => {})
+
+    // A stale listener would continue changing the hidden drag zone. On the
+    // next edit entry that stale state would repaint a lying band boundary.
+    fireEvent.pointerMove(document, { pointerId: 66, clientX: 500, clientY: 64 })
+    fireEvent.keyDown(window, { key: 'E', ctrlKey: true, shiftKey: true })
+    await act(async () => {})
+    expect(document.querySelector('main[data-editing]')).toBeTruthy()
+    expect(document.querySelector('.dock-drop-zone')).toBeNull()
   })
 
   it('uses one body-owned document-safe tool sheet on Small', async () => {

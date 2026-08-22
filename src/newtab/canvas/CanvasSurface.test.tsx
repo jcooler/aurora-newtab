@@ -214,6 +214,13 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.dock-lane__legacy\[data-edge="bottom"\]\s*\{\s*bottom:\s*0;\s*\}/)
   })
 
+  it('limits the transient edit boundary to the real transparent dock band', () => {
+    expect(indexCss).toMatch(/\.dock-drop-zone\s*\{[^}]*right:\s*72px;[^}]*left:\s*72px;[^}]*height:\s*clamp\(96px,\s*16vh,\s*128px\)/)
+    expect(indexCss).toMatch(/\.dock-drop-zone\[data-edge="top"\]\s*\{\s*top:\s*16px;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-drop-zone\[data-edge="bottom"\]\s*\{\s*bottom:\s*16px;\s*\}/)
+    expect(indexCss).not.toMatch(/\.dock-drop-zone\s*\{[^}]*background:/)
+  })
+
   it('the ordered-row scroller machinery is retired, not merely unreachable (free-x docks, owner-refined 2026-08-18)', () => {
     // Free positioning replaced the flowing row: nothing scrolls or clips,
     // so no scroller, nub, or overflow-fade rule may survive to squeeze a
