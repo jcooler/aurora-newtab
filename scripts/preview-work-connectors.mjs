@@ -721,6 +721,7 @@ async function exerciseSettings(widget) {
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.enabled === true), widget.id)
   await page.waitForFunction((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots?.[id]?.data), widget.id)
+  await page.getByRole('region', { name: `${widget.title} setup` }).waitFor({ state: 'detached' })
   await settleProvider(widget.id)
   await assertStorageStep(`${widget.id}-settings-connect`, beforeConnect, ['connectors', 'connectorSnapshots'])
 
@@ -737,8 +738,14 @@ async function exerciseSettings(widget) {
       'Linear selected-team filter',
     )
   }
-  if (widget.id === 'sentry') await page.getByRole('button', { name: 'API' }).click()
-  if (widget.id === 'todoist') await page.getByRole('button', { name: 'Personal' }).click()
+  if (widget.id === 'sentry') {
+    await page.getByRole('button', { name: 'API' }).click()
+    await page.waitForFunction(() => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.sentry?.projectSlugs?.includes('api')))
+  }
+  if (widget.id === 'todoist') {
+    await page.getByRole('button', { name: 'Personal' }).click()
+    await page.waitForFunction(() => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.todoist?.projectIds?.includes('personal')))
+  }
   const countLabel = widget.id === 'todoist' ? 'Tasks shown' : 'Issues shown'
   await page.getByLabel(countLabel).selectOption('7')
   await page.waitForFunction(({ id }) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.itemLimit === 7), { id: widget.id })
@@ -782,6 +789,7 @@ async function exerciseSettings(widget) {
     if (id === 'sentry') return !connector.projectSlugs?.includes('api')
     return true
   }), widget.id)
+  await reconnectRegion.waitFor({ state: 'detached' })
   if (widget.id === 'linear') {
     await waitForLoggedRequest(
       reconnectRequestStart,
