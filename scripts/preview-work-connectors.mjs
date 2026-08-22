@@ -769,7 +769,13 @@ try {
     await exerciseSettings(widget)
   }
 } finally {
+  // Closing the controlled browser is expected to abort any refresh still in
+  // flight. Authorize those exact request fingerprints before teardown so a
+  // genuinely unexpected provider failure during the witness still fails.
+  harnessNavigating = true
+  markHarnessNavigation()
   await context.close()
+  harnessNavigating = false
 }
 
 for (const request of evidence.requestLog) {
