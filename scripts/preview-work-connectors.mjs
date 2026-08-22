@@ -3,6 +3,7 @@ import { lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:
 import { basename, dirname, join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 import sharp from 'sharp'
+import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'
 
 const repoRoot = resolve(process.cwd())
 const protectedRoot = resolve('D:/DEV/Chrome plugin')
@@ -50,6 +51,7 @@ const EXACT_REQUEST_MARKERS = [
   '/api/v1/tasks/task-1/close',
 ]
 void EXACT_REQUEST_MARKERS
+const ALL_WIDGET_IDS = [...new Set(Object.values(CATALOG_BATCHES).flatMap((batch) => batch.map((entry) => entry.id)))]
 
 const TIERS = ['compact', 'standard', 'full', 'docked']
 const DEGRADED_STATES = ['setup', 'loading', 'empty', 'hard-error', 'retained-error', 'stale']
@@ -153,12 +155,15 @@ const evidence = {
   requestLog: [],
   storageWrites: [],
   permissionCalls: [],
+  expectedFaultSignals: [],
   runtimeErrors: [],
   failedRequests: [],
   failures: [],
 }
 const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
+const expectedFailedRequests = new WeakSet()
+const pendingProviderRequests = new Set()
 let closeMode = 'success'
 const closedTasks = new Set()
 
@@ -217,6 +222,7 @@ function logRequest(request) {
 }
 
 async function delayed(route) {
+  expectedFailedRequests.add(route.request())
   await new Promise((resolveDelay) => setTimeout(resolveDelay, 1800))
   await route.abort('failed').catch(() => {})
 }
@@ -280,17 +286,28 @@ await context.route('https://api.todoist.com/**', async (route) => {
 
 const page = context.pages()[0] ?? await context.newPage()
 page.setDefaultTimeout(20_000)
-page.on('console', (message) => { if (message.type() === 'error') evidence.runtimeErrors.push(`console: ${message.text()}`) })
+page.on('console', (message) => {
+  if (message.type() !== 'error') return
+  const text = message.text()
+  if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text)) {
+    evidence.expectedFaultSignals.push(`console: ${text}`)
+  } else {
+    evidence.runtimeErrors.push(`console: ${text}`)
+  }
+})
 page.on('pageerror', (error) => evidence.runtimeErrors.push(`page: ${String(error)}`))
 page.on('requestfailed', (request) => {
   const url = request.url()
-  if (!url.startsWith('chrome-extension://') && !['loading', 'stale'].includes(networkModes.get(providerForUrl(url)))) {
+  pendingProviderRequests.delete(request)
+  if (!url.startsWith('chrome-extension://') && !expectedFailedRequests.has(request)) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${request.failure()?.errorText ?? 'failed'}`)
   }
 })
+page.on('requestfinished', (request) => pendingProviderRequests.delete(request))
 page.on('request', (request) => {
   const url = request.url()
-  if (url.startsWith('http') && !providerForUrl(url)) fail(`unexpected external request: ${request.method()} ${url}`)
+  if (providerForUrl(url)) pendingProviderRequests.add(request)
+  else if (url.startsWith('http')) fail(`unexpected external request: ${request.method()} ${url}`)
 })
 
 function providerForUrl(url) {
@@ -298,6 +315,15 @@ function providerForUrl(url) {
   if (/^https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\//.test(url)) return 'sentry'
   if (url.startsWith('https://api.todoist.com/')) return 'todoist'
   return null
+}
+
+function markHarnessNavigation() {
+  for (const request of pendingProviderRequests) expectedFailedRequests.add(request)
+}
+
+async function reloadForHarness() {
+  markHarnessNavigation()
+  await page.reload({ waitUntil: 'domcontentloaded' })
 }
 
 async function waitForSurface() {
@@ -312,7 +338,7 @@ async function seed(widget, tier, state = 'ready') {
   const data = state === 'empty' ? widget.empty : widget.data
   const snapshot = ['ready', 'empty', 'retained-error', 'stale'].includes(state)
   const stale = state === 'retained-error' || state === 'stale'
-  await page.evaluate(async ({ id, tier, config, data, snapshot, stale }) => {
+  await page.evaluate(async ({ id, tier, config, data, snapshot, stale, allWidgetIds }) => {
     const canonical = (value) => {
       if (value === null) return 'null'
       if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
@@ -332,6 +358,8 @@ async function seed(widget, tier, state = 'ready') {
     const placement = tier === 'docked'
       ? { kind: 'docked', dock: 'bottom', order: 0, offsetX: 0, dockTier: 'compact' }
       : { kind: 'free', anchor: 'center', offsetX: 0, offsetY: 0, tier, layer: 0 }
+    const widgets = Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))
+    widgets[id] = placement
     await chrome.storage.local.set({
       connectors: { [id]: config },
       connectorSnapshots: snapshot ? { [id]: { scope: await scopeFor(), fetchedAt: Date.now() - (stale ? 60 * 60_000 : 0), data } } : {},
@@ -340,15 +368,12 @@ async function seed(widget, tier, state = 'ready') {
         activeLayoutId: 'work-qa',
         layouts: [{
           id: 'work-qa', name: 'Work QA',
-          widgets: {
-            clock: { kind: 'hidden' }, greeting: { kind: 'hidden' }, focus: { kind: 'hidden' },
-            [id]: placement,
-          },
+          widgets,
         }],
       },
     })
-  }, { id: widget.id, tier, config, data, snapshot, stale })
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  }, { id: widget.id, tier, config, data, snapshot, stale, allWidgetIds: ALL_WIDGET_IDS })
+  await reloadForHarness()
   await waitForSurface()
   await page.locator(`[data-block-id="${widget.id}"]`).waitFor()
   if (tier === 'docked') {
@@ -368,6 +393,10 @@ async function storageTruth() {
 
 async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPORTS[0], openDock = tier === 'docked' }) {
   await page.setViewportSize({ width: viewport.width, height: viewport.height })
+  await page.waitForFunction(({ height }) => {
+    const surface = document.querySelector('[data-canvas-surface]')
+    return window.innerHeight === height && surface?.style.minHeight === `${height}px`
+  }, { height: viewport.height })
   if (openDock) {
     await page.locator(`[data-block-id="${widget.id}"] [data-dock-line]`).click()
     await page.locator('[data-work-dock-detail]').waitFor()
@@ -440,15 +469,16 @@ async function openConnectors() {
 
 async function resetForSettings() {
   networkModes.clear()
-  await page.evaluate(async () => {
+  await page.evaluate(async (allWidgetIds) => {
     const { settings } = await chrome.storage.local.get('settings')
+    const widgets = Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))
     await chrome.storage.local.set({
       settings,
       connectors: {}, connectorSnapshots: {},
-      layouts: { version: 1, activeLayoutId: 'work-settings-qa', layouts: [{ id: 'work-settings-qa', name: 'Work Settings QA', widgets: { clock: { kind: 'hidden' }, greeting: { kind: 'hidden' }, focus: { kind: 'hidden' } } }] },
+      layouts: { version: 1, activeLayoutId: 'work-settings-qa', layouts: [{ id: 'work-settings-qa', name: 'Work Settings QA', widgets }] },
     })
-  })
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  }, ALL_WIDGET_IDS)
+  await reloadForHarness()
   await waitForSurface()
   await openConnectors()
 }
@@ -501,7 +531,7 @@ async function exerciseSettings(widget) {
     const identity = id === 'linear' ? { displayName: current.displayName } : id === 'sentry' ? { organization: current.organization, region: current.region } : { accountLabel: current.accountLabel }
     await chrome.storage.local.set({ connectors: { ...connectors, [id]: { enabled: true, ...identity } } })
   }, widget.id)
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  await reloadForHarness()
   await waitForSurface()
   await openConnectors()
   await page.getByPlaceholder('Search connectors').fill(widget.title)
@@ -617,7 +647,7 @@ for (const token of Object.values(FAKE_TOKENS)) {
   if (evidenceJson.includes(token)) fail('live-looking credential leaked into evidence')
 }
 writeFileSync(join(outDir, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
-writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNGs inspected individually before checkpoint: pending coordinator inspection\n`, 'utf8')
+writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Expected injected fault signals: ${evidence.expectedFaultSignals.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNGs inspected individually before checkpoint: pending coordinator inspection\n`, 'utf8')
 process.stdout.write(`Work connector QA: ${evidence.captures.length} captures, ${evidence.requestLog.length} requests, ${evidence.failures.length} failures\n`)
 for (const failure of evidence.failures) process.stderr.write(`FAIL ${failure}\n`)
 if (evidence.failures.length) process.exitCode = 1

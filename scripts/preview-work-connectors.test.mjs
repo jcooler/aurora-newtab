@@ -50,3 +50,13 @@ test('checks the manifest wildcard while policing legacy layout writes through t
   assert.ok(source.includes("stored.writes.some((keys) => keys.includes('layout'))"))
   assert.ok(source.includes("getByRole('button', { name: `Reconnect ${widget.title}` }).click()"))
 })
+
+test('waits for live resize state and isolates expected fault injection from real browser errors', async () => {
+  const source = await readFile(new URL('./preview-work-connectors.mjs', import.meta.url), 'utf8')
+  assert.ok(source.includes("import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'"))
+  assert.ok(source.includes("Object.fromEntries(allWidgetIds.map((widgetId) => [widgetId, { kind: 'hidden' }]))"))
+  assert.ok(source.includes('await page.waitForFunction(({ height }) =>'))
+  assert.ok(source.includes('expectedFaultSignals'))
+  assert.ok(source.includes('expectedFailedRequests.has(request)'))
+  assert.ok(source.includes('markHarnessNavigation()'))
+})
