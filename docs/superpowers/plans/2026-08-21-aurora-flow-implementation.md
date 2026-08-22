@@ -300,7 +300,7 @@ git commit -m "docs: checkpoint Aurora Flow"
 git push origin feat/aurora-2-observatory
 ```
 
-- [ ] Prove active `HEAD` equals upstream with a clean worktree. Prove the
+- [x] Prove active `HEAD` equals upstream with a clean worktree. Prove the
   protected original remains clean on `main` at
   `eb1354b6a5b041fb6d494655c3dae1862572bc51`. Then proceed directly to the
   widget-stacks just-in-time plan.
