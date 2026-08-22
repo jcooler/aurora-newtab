@@ -170,6 +170,7 @@ const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
 const expectedFailedRequestKeys = new Set()
 const pendingProviderRequests = new Set()
+let harnessNavigating = false
 const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
@@ -332,7 +333,10 @@ page.on('requestfailed', (request) => {
 page.on('requestfinished', (request) => pendingProviderRequests.delete(request))
 page.on('request', (request) => {
   const url = request.url()
-  if (providerForUrl(url)) pendingProviderRequests.add(request)
+  if (providerForUrl(url)) {
+    pendingProviderRequests.add(request)
+    if (harnessNavigating) expectedFailedRequestKeys.add(requestFailureKey(request))
+  }
   else if (url.startsWith('http')) fail(`unexpected external request: ${request.method()} ${url}`)
 })
 
@@ -356,9 +360,14 @@ async function harvestPermissionCalls() {
 }
 
 async function reloadForHarness() {
+  harnessNavigating = true
   markHarnessNavigation()
   await harvestPermissionCalls()
-  await page.reload({ waitUntil: 'domcontentloaded' })
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+  } finally {
+    harnessNavigating = false
+  }
 }
 
 async function waitForSurface() {
@@ -611,7 +620,13 @@ async function exerciseSettings(widget) {
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
-  await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => Boolean(connectors?.[id]?.token)), widget.id)
+  await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
+    const connector = connectors?.[id]
+    if (!connector?.token) return false
+    if (id === 'linear') return !connector.teamIds?.includes('ops')
+    if (id === 'sentry') return !connector.projectSlugs?.includes('api')
+    return true
+  }), widget.id)
   await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
   const reconnected = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors[id]), widget.id)
   if (widget.id === 'linear' && reconnected.teamIds?.includes('ops')) fail('linear: reconnect retained stale account-scoped team ids')
@@ -619,7 +634,9 @@ async function exerciseSettings(widget) {
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   const beforeDisconnect = await storageCheckpoint()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
-  await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id] === undefined), widget.id)
+  await page.waitForFunction((id) => chrome.storage.local.get(['connectors', 'connectorSnapshots']).then(({ connectors, connectorSnapshots }) => (
+    connectors?.[id] === undefined && !(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
+  )), widget.id)
   await assertStorageStep(`${widget.id}-settings-disconnect`, beforeDisconnect, ['connectors', 'connectorSnapshots'])
   const disconnectedSnapshotPresent = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => (
     Boolean(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
