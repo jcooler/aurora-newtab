@@ -185,6 +185,14 @@ const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
 const closedTasks = new Set()
+let requestScenarioSequence = 0
+let activeRequestScenario = 'bootstrap'
+
+function markRequestScenario(label) {
+  requestScenarioSequence += 1
+  activeRequestScenario = `${requestScenarioSequence}:${label}`
+  return evidence.requestLog.length
+}
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
@@ -272,6 +280,7 @@ async function checkedRouteRequest(route) {
     fail(`Linear work request used an unplanned team filter: ${JSON.stringify(contract.linearTeamIds)}`)
   }
   evidence.requestLog.push({
+    scenario: activeRequestScenario,
     method: request.method(),
     url: request.url(),
     authKind: authorization.startsWith('Bearer ') ? 'bearer' : authorization ? 'raw' : 'none',
@@ -424,6 +433,7 @@ async function waitForSurface() {
 }
 
 async function seed(widget, tier, state = 'ready') {
+  markRequestScenario(`seed:${widget.id}:${tier}:${state}`)
   networkModes.clear()
   networkModes.set(widget.id, state)
   const config = state === 'setup' ? { enabled: true } : widget.config
@@ -638,6 +648,7 @@ async function fillSetup(widget) {
 }
 
 async function exerciseSettings(widget) {
+  markRequestScenario(`settings:${widget.id}:reset`)
   await resetForSettings(widget)
   const permissionCursor = permissionCallTimeline.length
   const search = page.getByPlaceholder('Search connectors')
@@ -645,6 +656,7 @@ async function exerciseSettings(widget) {
   await page.getByRole('button', { name: `Set up ${widget.title}` }).click()
   await fillSetup(widget)
   const beforeDenied = await storageCheckpoint()
+  markRequestScenario(`settings:${widget.id}:denied-connect`)
   await page.evaluate(() => { globalThis.__auroraWorkPermissionHarness.mode = 'deny' })
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: 'denied' }).waitFor()
@@ -653,6 +665,7 @@ async function exerciseSettings(widget) {
   if (denied !== undefined) fail(`${widget.id}: denied setup persisted a connector`)
 
   const beforeConnect = await storageCheckpoint()
+  markRequestScenario(`settings:${widget.id}:connect`)
   await page.evaluate(() => { globalThis.__auroraWorkPermissionHarness.mode = 'grant' })
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.enabled === true), widget.id)
@@ -660,6 +673,7 @@ async function exerciseSettings(widget) {
   await assertStorageStep(`${widget.id}-settings-connect`, beforeConnect, ['connectors', 'connectorSnapshots'])
 
   const beforePreferences = await storageCheckpoint()
+  markRequestScenario(`settings:${widget.id}:preferences`)
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   if (widget.id === 'linear') {
     const requestStart = evidence.requestLog.length
@@ -695,6 +709,7 @@ async function exerciseSettings(widget) {
     await chrome.storage.local.set({ connectors: { ...connectors, [id]: { enabled: true, ...identity, ...staleAccountPicks } } })
   }, widget.id)
   await recordSettingsState(`${widget.id}-stripped`, widget.id)
+  markRequestScenario(`settings:${widget.id}:stripped-reload`)
   await reloadForHarness()
   await waitForSurface()
   await openConnectors()
@@ -705,7 +720,7 @@ async function exerciseSettings(widget) {
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
   await recordSettingsState(`${widget.id}-before-reconnect`, widget.id)
-  const reconnectRequestStart = evidence.requestLog.length
+  const reconnectRequestStart = markRequestScenario(`settings:${widget.id}:reconnect`)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
     const connector = connectors?.[id]
@@ -729,6 +744,7 @@ async function exerciseSettings(widget) {
   if (widget.id === 'sentry' && reconnected.projectSlugs?.includes('api')) fail('sentry: reconnect retained stale account-scoped project slugs')
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   const beforeDisconnect = await storageCheckpoint()
+  markRequestScenario(`settings:${widget.id}:disconnect`)
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get(['connectors', 'connectorSnapshots']).then(({ connectors, connectorSnapshots }) => (
     connectors?.[id] === undefined && !(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
@@ -762,6 +778,7 @@ async function exerciseTodoistCompletion(widget) {
     fail('Todoist Cancel caused a request or storage write')
   }
 
+  markRequestScenario('todoist-completion:success')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
   const confirm = page.getByRole('button', { name: 'Confirm completion' })
   await confirm.evaluate((button) => { button.click(); button.click() })
@@ -771,6 +788,7 @@ async function exerciseTodoistCompletion(widget) {
 
   closeMode = 'error'
   await seed(widget, 'standard')
+  markRequestScenario('todoist-completion:error')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
   await page.getByRole('button', { name: 'Confirm completion' }).click()
   await page.getByRole('alert').filter({ hasText: 'status 500' }).waitFor()
