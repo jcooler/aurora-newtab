@@ -69,6 +69,29 @@ test('all nine connector identities enumerate exactly the registry-promised size
   }
 })
 
+test('Weather QA fixtures mirror the live Open-Meteo current-field contract', () => {
+  const currentFields = [
+    'temperature_2m',
+    'apparent_temperature',
+    'weather_code',
+    'wind_speed_10m',
+    'wind_direction_10m',
+    'relative_humidity_2m',
+    'is_day',
+  ].join(',')
+  const production = readFileSync(new URL('../src/services/weather/identity.ts', import.meta.url), 'utf8')
+
+  for (const field of currentFields.split(',')) {
+    assert.match(production, new RegExp(`['\"]${field}['\"]`), `production contract must include ${field}`)
+  }
+
+  for (const fixturePath of ['./qa-nl-p6-scenarios.mjs', './information-first-fixtures.mjs']) {
+    const fixture = readFileSync(new URL(fixturePath, import.meta.url), 'utf8')
+    assert.match(fixture, new RegExp(`params\\.set\\(['\"]current['\"], ['\"]${currentFields}['\"]\\)`),
+      `${fixturePath} must seed the exact production current-field identity`)
+  }
+})
+
 test('Weather exercises all four legal corners and owner gate names all eight originals', () => {
   assert.deepEqual(WEATHER_CORNER_CASES.map(({ corner }) => corner), [
     'top-left', 'top-right', 'bottom-left', 'bottom-right',

@@ -23,7 +23,7 @@ async function seedNamedSaved(page) {
     params.set('forecast_days', '1')
     params.set('timezone', 'auto')
     params.set('timeformat', 'iso8601')
-    params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,relative_humidity_2m,is_day')
+    params.set('current', 'temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,relative_humidity_2m,is_day')
     params.set('hourly', 'temperature_2m,precipitation_probability,weather_code,is_day')
     params.set('daily', 'sunrise,sunset')
     params.set('latitude', String(normalize(location.lat)))
