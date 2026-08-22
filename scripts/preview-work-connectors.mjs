@@ -170,6 +170,7 @@ const networkModes = new Map()
 const expectedFailedRequests = new WeakSet()
 const pendingProviderRequests = new Set()
 const permissionCallTimeline = []
+const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
 const closedTasks = new Set()
 
@@ -241,7 +242,7 @@ async function checkedRouteRequest(route) {
 
 async function delayed(route) {
   expectedFailedRequests.add(route.request())
-  await new Promise((resolveDelay) => setTimeout(resolveDelay, 1800))
+  await new Promise((resolveDelay) => setTimeout(resolveDelay, DELAYED_FAULT_MS))
   await route.abort('failed').catch(() => {})
 }
 
