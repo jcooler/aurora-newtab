@@ -92,6 +92,46 @@ describe('StackCard', () => {
     expect(openWeather).toHaveBeenCalledOnce()
   })
 
+  it('never arms stack paging from an editable descendant', () => {
+    const onStep = vi.fn()
+    render(
+      <StackCard
+        id="stack-day"
+        members={[
+          {
+            id: 'weather',
+            label: 'Weather',
+            content: (
+              <div>
+                <input aria-label="Stack text input" />
+                <textarea aria-label="Stack textarea" />
+                <select aria-label="Stack select"><option>One</option></select>
+                <div role="textbox" aria-label="Stack content editor" contentEditable />
+              </div>
+            ),
+          },
+          ...MEMBERS.slice(1),
+        ]}
+        facing="weather"
+        editing={false}
+        onStep={onStep}
+        onFace={vi.fn()}
+      />,
+    )
+
+    const controls = [
+      screen.getByRole('textbox', { name: 'Stack text input' }),
+      screen.getByRole('textbox', { name: 'Stack textarea' }),
+      screen.getByRole('combobox', { name: 'Stack select' }),
+      screen.getByRole('textbox', { name: 'Stack content editor' }),
+    ]
+    controls.forEach((control, index) => {
+      fireEvent.pointerDown(control, { pointerId: index + 10, clientX: 100 })
+      fireEvent.pointerUp(control, { pointerId: index + 10, clientX: 40 })
+    })
+    expect(onStep).not.toHaveBeenCalled()
+  })
+
   it('uses Left and Right only when the stack card itself holds focus', () => {
     const { card, onStep } = setup()
     card.focus()

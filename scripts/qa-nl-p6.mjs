@@ -384,6 +384,16 @@ async function stackInteractionChecks() {
     const style = getComputedStyle(node)
     return Number(style.opacity) >= 0.89 && style.visibility === 'visible' && style.pointerEvents === 'auto'
   })
+  const tabOrder = []
+  for (const expected of ['Previous widget', 'Next widget', 'Show Month']) {
+    await page.keyboard.press('Tab')
+    const focusedLabel = await page.evaluate(() => document.activeElement?.getAttribute('aria-label'))
+    tabOrder.push(focusedLabel)
+    if (focusedLabel !== expected) {
+      fail(`stacks: Tab reached ${JSON.stringify(focusedLabel)} instead of ${JSON.stringify(expected)}`)
+    }
+  }
+  await card.focus()
   await page.keyboard.press('ArrowRight')
   await waitForFace('Month, 1 of 3')
   await waitForStoredFace('monthCal')
@@ -425,6 +435,7 @@ async function stackInteractionChecks() {
     swipeWithoutClick: true,
     swipeWithoutSelection: true,
     keyboardFocusRevealsArrows: true,
+    tabOrder,
     keyboardPaging: true,
     reloadFacing: 'monthCal',
     cancelledDraftFacing: 'weather',
@@ -520,6 +531,13 @@ try {
       await page.evaluate(() => {
         if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
       })
+      const stackRest = await page.evaluate(() => ({
+        hovered: document.querySelector('[data-stack-card]:hover')?.getAttribute('data-stack-card') ?? null,
+        focused: document.querySelector('[data-stack-card]:focus-within')?.getAttribute('data-stack-card') ?? null,
+      }))
+      if (stackRest.hovered || stackRest.focused) {
+        fail(`${cell}-normal: stack controls are not at rest ${JSON.stringify(stackRest)}`)
+      }
       await assertInvariants(`${cell}-normal`, scenario.id)
       await capture(`${cell}-normal`)
 

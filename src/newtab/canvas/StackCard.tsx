@@ -19,6 +19,7 @@ export interface StackCardProps {
 }
 
 const SWIPE_THRESHOLD = 40
+const SWIPE_EXCLUSION = '[data-stack-control], input, textarea, select, [contenteditable], [role="textbox"]'
 
 export default function StackCard({
   id,
@@ -49,7 +50,7 @@ export default function StackCard({
       }}
       onPointerDown={(event) => {
         if (editing || event.button !== 0) return
-        if ((event.target as Element).closest('[data-stack-control]')) return
+        if (event.target instanceof Element && event.target.closest(SWIPE_EXCLUSION)) return
         // Do not capture a simple press. Capturing here retargets pointerup
         // from the nested widget button to the stack card, so Chromium never
         // synthesizes the widget's click. Capture begins only once an actual
