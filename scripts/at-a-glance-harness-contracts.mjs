@@ -48,7 +48,6 @@ export const AT_A_GLANCE_SCENARIOS = Object.freeze([
   ...tierScenarios('auroraKp', ['Kp', 'peak'], { fullOverflow: true }),
   scenario({ id: 'onThisDay', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No event returned for today'] }),
   scenario({ id: 'onThisDay', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'Saved historical event'] }),
-  scenario({ id: 'onThisDay', kind: 'local-midnight', tier: 'standard', fixture: 'local-midnight', expected: ['After midnight witness'], allowedWriteKeys: ['connectorSnapshots'], requiredWriteKeys: ['connectorSnapshots'] }),
   scenario({ id: 'publicHolidays', kind: 'setup', tier: 'standard', fixture: 'setup', expected: ['Choose a country in Settings'] }),
   scenario({ id: 'publicHolidays', kind: 'empty', tier: 'standard', fixture: 'empty', expected: ['No upcoming national holidays returned for US'] }),
   scenario({ id: 'publicHolidays', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved', 'QA Holiday'] }),
@@ -66,6 +65,9 @@ export const AT_A_GLANCE_SCENARIOS = Object.freeze([
   scenario({ id: 'weather', kind: 'unsupported', tier: 'standard', fixture: 'unsupported', expected: ['New York'], allowedWriteKeys: ['weatherAlertCache'], requiredWriteKeys: ['weatherAlertCache'] }),
   scenario({ id: 'weather', kind: 'error', tier: 'standard', fixture: 'error', expected: ['NWS alerts unavailable', 'New York'] }),
   scenario({ id: 'weather', kind: 'stale', tier: 'standard', fixture: 'stale-error', expected: ['Saved alert data', 'Severe Thunderstorm Warning'] }),
+  // Keep clock emulation last so it cannot affect unrelated viewport or
+  // background timers in earlier evidence.
+  scenario({ id: 'onThisDay', kind: 'local-midnight', tier: 'standard', fixture: 'local-midnight', expected: ['After midnight witness'], allowedWriteKeys: ['connectorSnapshots'], requiredWriteKeys: ['connectorSnapshots'] }),
 ])
 
 const EXPECTED_OPERATION_COUNTS = Object.freeze({

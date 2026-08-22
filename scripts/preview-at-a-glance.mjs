@@ -259,7 +259,6 @@ await context.route('https://api.weather.gov/**', (route) => auditedRoute(route,
 }))
 
 const page = context.pages()[0] ?? await context.newPage()
-await page.clock.install({ time: today })
 page.setDefaultTimeout(20_000)
 page.on('console', (message) => {
   if (message.type() !== 'error') return
@@ -530,7 +529,7 @@ async function runScenario(scenario) {
     }
   } else if (scenario.fixture === 'local-midnight') {
     midnightStart = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 30)
-    await page.clock.setSystemTime(midnightStart)
+    await page.clock.install({ time: midnightStart })
     snapshotData = onThisSnapshot('Before midnight witness', midnightStart)
     runtimeScopeOverride = dateKey(midnightStart)
   } else if (scenario.fixture === 'year-boundary') {
@@ -564,7 +563,8 @@ async function runScenario(scenario) {
   if (scenario.fixture === 'setup') await witnessCountryPicker()
   if (scenario.fixture === 'local-midnight') {
     modes.set('onThisDay', 'after-midnight')
-    await page.clock.runFor(31_000)
+    await page.clock.setSystemTime(new Date(midnightStart.getTime() + 31_000))
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')))
   }
   if (scenario.id === 'weather' && ['empty', 'unsupported'].includes(scenario.fixture)) {
     const status = scenario.fixture === 'unsupported' ? 'unsupported' : 'supported'
