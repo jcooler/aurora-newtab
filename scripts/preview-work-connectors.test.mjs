@@ -11,7 +11,6 @@ import {
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
-  requestFailureKey,
 } from './work-connector-harness-contracts.mjs'
 
 const TOKENS = { linear: 'linear-fake', sentry: 'sentry-fake', todoist: 'todoist-fake' }
@@ -106,17 +105,18 @@ test('requires exact dist provenance and exact request-instance failure authoriz
   assert.doesNotThrow(() => assertBuildProvenance(JSON.stringify({ commit: 'abc123' }), 'abc123'))
   assert.throws(() => assertBuildProvenance(JSON.stringify({ commit: 'stale' }), 'abc123'), /stale/)
   const expected = request({ url: 'https://api.todoist.com/api/v1/tasks?limit=200' })
+  const sameFingerprintDifferentRequest = request({ url: 'https://api.todoist.com/api/v1/tasks?limit=200' })
   const unexpected = request({ url: 'https://api.todoist.com/api/v1/projects?limit=200' })
-  const authorized = new Map()
+  const authorized = new Set()
   authorizeRequestFailure(authorized, expected)
-  authorizeRequestFailure(authorized, expected)
-  assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), true)
+  authorizeRequestFailure(authorized, sameFingerprintDifferentRequest)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), true)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), false)
+  assert.equal(isExpectedRequestFailure(sameFingerprintDifferentRequest, 'net::ERR_ABORTED', authorized), true)
   assert.equal(isExpectedRequestFailure(unexpected, 'net::ERR_ABORTED', authorized), false)
   authorizeRequestFailure(authorized, expected)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_CONNECTION_REFUSED', authorized), false)
-  assert.equal(authorized.get(requestFailureKey(expected)), 1)
+  assert.equal(authorized.has(expected), true)
 })
 
 test('requires the exact provider operation totals', () => {

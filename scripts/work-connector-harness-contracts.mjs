@@ -141,30 +141,11 @@ export function assertOperationCounts(requestLog, expectedCounts) {
   return Object.fromEntries([...actual.entries()].sort(([a], [b]) => a.localeCompare(b)))
 }
 
-function requestValue(request, field) {
-  const value = request[field]
-  return typeof value === 'function' ? value.call(request) : value
+export function authorizeRequestFailure(authorizedRequests, request) {
+  authorizedRequests.add(request)
 }
 
-export function requestFailureKey(request) {
-  return JSON.stringify({
-    method: requestValue(request, 'method'),
-    url: requestValue(request, 'url'),
-    body: requestValue(request, 'postData') ?? requestValue(request, 'body') ?? null,
-  })
-}
-
-export function authorizeRequestFailure(authorizedRequestCounts, request) {
-  const key = requestFailureKey(request)
-  authorizedRequestCounts.set(key, (authorizedRequestCounts.get(key) ?? 0) + 1)
-}
-
-export function isExpectedRequestFailure(request, errorText, authorizedRequestCounts) {
+export function isExpectedRequestFailure(request, errorText, authorizedRequests) {
   if (errorText !== 'net::ERR_ABORTED' && errorText !== 'net::ERR_FAILED') return false
-  const key = requestFailureKey(request)
-  const remaining = authorizedRequestCounts.get(key) ?? 0
-  if (remaining < 1) return false
-  if (remaining === 1) authorizedRequestCounts.delete(key)
-  else authorizedRequestCounts.set(key, remaining - 1)
-  return true
+  return authorizedRequests.delete(request)
 }

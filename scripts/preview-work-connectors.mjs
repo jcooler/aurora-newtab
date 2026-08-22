@@ -178,7 +178,7 @@ const evidence = {
 }
 const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
-const expectedFailedRequestCounts = new Map()
+const expectedFailedRequests = new Set()
 const pendingProviderRequests = new Set()
 const activeProviderRoutes = new Set()
 const delayedProviderRoutes = new Map()
@@ -271,7 +271,7 @@ async function checkedRouteRequest(route) {
     }, FAKE_TOKENS)
   } catch (error) {
     fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
-    authorizeRequestFailure(expectedFailedRequestCounts, request)
+    authorizeRequestFailure(expectedFailedRequests, request)
     await route.abort('failed').catch(() => {})
     return null
   }
@@ -295,7 +295,7 @@ async function checkedRouteRequest(route) {
 }
 
 async function delayed(route) {
-  authorizeRequestFailure(expectedFailedRequestCounts, route.request())
+  authorizeRequestFailure(expectedFailedRequests, route.request())
   const provider = providerForUrl(route.request().url())
   let release
   const released = new Promise((resolveDelay) => { release = resolveDelay })
@@ -387,7 +387,7 @@ page.on('console', (message) => {
   if (message.type() !== 'error') return
   const text = message.text()
   if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text) ||
-      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequestCounts.size > 0)) {
+      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequests.size > 0)) {
     evidence.expectedFaultSignals.push(`console: ${text}`)
   } else {
     evidence.runtimeErrors.push(`console: ${text}`)
@@ -398,7 +398,7 @@ page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (isExpectedRequestFailure(request, errorText, expectedFailedRequestCounts)) {
+  if (isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
     evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
   } else if (!url.startsWith('chrome-extension://')) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
@@ -410,7 +410,7 @@ page.on('request', (request) => {
   if (providerForUrl(url)) {
     pendingProviderRequests.add(request)
     lastProviderRequestAt.set(providerForUrl(url), Date.now())
-    if (harnessNavigating) authorizeRequestFailure(expectedFailedRequestCounts, request)
+    if (harnessNavigating) authorizeRequestFailure(expectedFailedRequests, request)
   }
   else if (url.startsWith('http')) fail(`unexpected external request: ${request.method()} ${url}`)
 })
@@ -423,7 +423,7 @@ function providerForUrl(url) {
 }
 
 function markHarnessNavigation() {
-  for (const request of pendingProviderRequests) authorizeRequestFailure(expectedFailedRequestCounts, request)
+  for (const request of pendingProviderRequests) authorizeRequestFailure(expectedFailedRequests, request)
 }
 
 async function waitForLoggedRequest(startIndex, predicate, label) {
