@@ -312,14 +312,14 @@ git commit -m "test(qa): protect accepted NL-P6 evidence from reruns"
 - Consumes: Tasks 1-3 commits and the existing NL-P6 harness.
 - Produces: reviewed baseline checkpoint, rebuilt `dist`, and pushed local/upstream equality.
 
-- [ ] **Step 1: Request one bounded review**
+- [x] **Step 1: Request one bounded review**
 
 Review the complete Task 1-3 range for current-state accuracy, warning-free
 behavior, QA-output safety, accidental product changes, Store-boundary
 preservation, and protected-checkout safety. Only Critical/Important findings
 block. Use at most one fix/rereview cycle.
 
-- [ ] **Step 2: Run the stabilized full gate**
+- [x] **Step 2: Run the stabilized full gate**
 
 Run once after review fixes:
 
@@ -338,7 +338,7 @@ Expected: 155 Vitest files / 2570 tests or a larger count caused only by
 intentional later tests; TypeScript and build exit 0; both Node contract
 commands pass; no React state-update warning appears.
 
-- [ ] **Step 3: Run the real-Chromium baseline witness into scratch evidence**
+- [x] **Step 3: Run the real-Chromium baseline witness into scratch evidence**
 
 Run the NL-P6 sweep and real-window witness without touching accepted evidence:
 
@@ -354,11 +354,11 @@ Inspect at least the fresh, named-saved, connectors-default, edit, and exact
 -- docs/superpowers/qa/nl-p6` so the accepted canonical report and captures are
 byte-unchanged.
 
-- [ ] **Step 4: Rebuild and prove the reviewed source**
+- [x] **Step 4: Rebuild and prove the reviewed source**
 
 Run `npm run build` again only if a review fix changed source after Step 2. Record the exact reviewed commit and verify `dist` was produced after that commit. Do not package or upload.
 
-- [ ] **Step 5: Update evidence and checkpoint**
+- [x] **Step 5: Update evidence and checkpoint**
 
 Update STATUS with exact counts, reviewed range, Chromium result, and remaining manual ceilings. Commit:
 
@@ -368,7 +368,7 @@ git commit -m "docs: checkpoint the stabilized Aurora baseline"
 git push origin feat/aurora-2-observatory
 ```
 
-- [ ] **Step 6: Prove both repositories and close this packet**
+- [x] **Step 6: Prove both repositories and close this packet**
 
 Verify the active worktree is clean and local `HEAD` equals upstream. Verify the protected checkout is still clean on `main` at `eb1354b6a5b041fb6d494655c3dae1862572bc51`. This plan ends at that proof. The separate Flow packet begins by writing its own just-in-time plan under the continuous roadmap authorization.
 
