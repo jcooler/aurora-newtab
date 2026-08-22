@@ -27,7 +27,7 @@ function request(overrides = {}) {
   }
 }
 
-test('accepts only the five exact provider request contracts', () => {
+test('accepts only the six exact provider request contracts', () => {
   assert.equal(inspectProviderRequest(request(), TOKENS).operation, 'todoist-projects')
   assert.equal(inspectProviderRequest(request({ url: 'https://api.todoist.com/api/v1/tasks?limit=200' }), TOKENS).operation, 'todoist-tasks')
   assert.equal(inspectProviderRequest(request({ method: 'POST', url: 'https://api.todoist.com/api/v1/tasks/task-1/close' }), TOKENS).operation, 'todoist-close')

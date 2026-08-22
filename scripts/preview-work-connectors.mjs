@@ -384,6 +384,14 @@ function markHarnessNavigation() {
   for (const request of pendingProviderRequests) authorizeRequestFailure(expectedFailedRequestCounts, request)
 }
 
+async function waitForProviderIdle(provider) {
+  const deadline = Date.now() + 5_000
+  while ([...pendingProviderRequests].some((request) => providerForUrl(request.url()) === provider)) {
+    if (Date.now() >= deadline) throw new Error(`${provider} requests did not become idle`)
+    await new Promise((resolveDelay) => setTimeout(resolveDelay, 25))
+  }
+}
+
 async function harvestPermissionCalls() {
   const calls = await page.evaluate(() => {
     const current = globalThis.__auroraWorkPermissionHarness?.calls ?? []
@@ -648,8 +656,10 @@ async function exerciseSettings(widget) {
   const beforePreferences = await storageCheckpoint()
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   if (widget.id === 'linear') {
+    await waitForProviderIdle('linear')
     expectedLinearTeamIds = ['ops']
     await page.getByRole('button', { name: 'Ops' }).click()
+    await page.waitForFunction(() => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.linear?.teamIds?.includes('ops')))
   }
   if (widget.id === 'sentry') await page.getByRole('button', { name: 'API' }).click()
   if (widget.id === 'todoist') await page.getByRole('button', { name: 'Personal' }).click()
@@ -685,7 +695,10 @@ async function exerciseSettings(widget) {
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
   await recordSettingsState(`${widget.id}-before-reconnect`, widget.id)
-  if (widget.id === 'linear') expectedLinearTeamIds = []
+  if (widget.id === 'linear') {
+    await waitForProviderIdle('linear')
+    expectedLinearTeamIds = []
+  }
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
     const connector = connectors?.[id]
