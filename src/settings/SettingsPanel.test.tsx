@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { AtomicRestoreRollbackError, createStorage, type AuroraStorage } from '../lib/storage/index'
 import { memoryDriver, type StorageDriver } from '../lib/storage/driver'
 import { createInProcessStorageAuthority } from '../lib/storage/authority'
@@ -267,6 +267,25 @@ function openTab(name: 'General' | 'Widgets' | 'Connectors' | 'Data') {
   fireEvent.click(screen.getByRole('tab', { name }))
 }
 
+async function openWidgetsTabAndWaitForLayout(storage: AuroraStorage) {
+  const get = vi.spyOn(storage, 'get')
+  openTab('Widgets')
+  await waitFor(() => {
+    expect(get).toHaveBeenCalledWith('layout')
+  })
+  const read = get.mock.results.find((result, index) =>
+    get.mock.calls[index]?.[0] === 'layout' && result.type === 'return'
+  )?.value as Promise<unknown> | undefined
+  if (!read) throw new Error('Layout storage read was not captured')
+  try {
+    await act(async () => {
+      await read
+    })
+  } finally {
+    get.mockRestore()
+  }
+}
+
 function openWidgetEditor(name: 'Weather location' | 'World clocks' | 'Countdowns' | 'Habits') {
   const button = screen.getByRole('button', { name })
   if (button.getAttribute('aria-expanded') !== 'true') fireEvent.click(button)
@@ -353,8 +372,8 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
   })
 
   it('groups compact Widget toggles and keeps editor bodies closed until requested', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
 
     expect(screen.getByRole('region', { name: 'Widgets' })).toBeTruthy()
     const core = within(screen.getByRole('region', { name: 'Core' }))
@@ -405,7 +424,7 @@ describe('SettingsPanel tabs (General / Widgets / Data)', () => {
     await screen.findByLabelText('Your name')
 
     expect(screen.queryByRole('region', { name: 'Weather' })).toBeNull() // not on General
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
     const disclosure = screen.getByRole('button', { name: 'Weather location' })
     expect(screen.queryByRole('region', { name: 'Weather location' })).toBeNull()
     fireEvent.click(disclosure)
@@ -533,8 +552,8 @@ describe('SettingsPanel appearance inks (owner-approved 2026-08-18)', () => {
 
 describe('SettingsPanel Weather section (clear-location control)', () => {
   it('is absent when no location is stored', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     expect(screen.queryByRole('button', { name: 'Weather location' })).toBeNull()
   })
 
@@ -2253,8 +2272,8 @@ describe('SettingsPanel Habits section', () => {
   }
 
   it('the Habits label is present on the Widgets tab, off by default', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
     // The editor stays absent until the toggle is on — unlike World clocks/
@@ -2266,7 +2285,7 @@ describe('SettingsPanel Habits section', () => {
 
   it('turning the toggle on writes widgets.habits and offers a closed editor below it', async () => {
     const storage = await renderPanel()
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Habits') as HTMLButtonElement
 
     await act(async () => {
@@ -2301,7 +2320,7 @@ describe('SettingsPanel Habits section', () => {
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
     openWidgetEditor('Habits')
     return storage
   }
@@ -2382,8 +2401,8 @@ describe('SettingsPanel Habits section', () => {
 // side-effect.
 describe('SettingsPanel Widgets section (Month calendar toggle)', () => {
   it('the Month calendar label is present on the Widgets tab, off by default', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const toggle = screen.getByLabelText('Month calendar') as HTMLButtonElement
     expect(attr(toggle, 'aria-checked')).toBe('false')
   })
@@ -2417,8 +2436,8 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     'Sun times and moon phase use the weather location. Turn on the weather widget and set a location first.'
 
   it('the Sun times and Moon phase labels are present on the Widgets tab, off by default', async () => {
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
     const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
     expect(attr(sun, 'aria-checked')).toBe('false')
@@ -2463,8 +2482,8 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
     // renderPanel() never sets `location`, so it resolves to defaults()'s own
     // `null` (unset) once storage.init() backfills it — the exact "no
     // location" state SunWidget/MoonWidget gate on.
-    await renderPanel()
-    openTab('Widgets')
+    const storage = await renderPanel()
+    await openWidgetsTabAndWaitForLayout(storage)
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement
     const moon = screen.getByLabelText('Moon phase') as HTMLButtonElement
 
@@ -2488,7 +2507,7 @@ describe('SettingsPanel Widgets section (sun/moon toggles + location hint)', () 
       </StorageProvider>,
     )
     await screen.findByLabelText('Your name')
-    openTab('Widgets')
+    await openWidgetsTabAndWaitForLayout(storage)
 
     expect(screen.queryByText(HINT_TEXT)).toBeNull()
     const sun = screen.getByLabelText('Sun times') as HTMLButtonElement

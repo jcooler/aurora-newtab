@@ -60,7 +60,7 @@ documents are tracked before implementation begins.
 - Consumes: existing `act`, `fireEvent`, `screen`, `SettingsPanel`, `CanvasItem`, and `scripts/preview-information-first.test.mjs`.
 - Produces: `npm run test:information-first-contract` and focused test runs with no React state-update warning.
 
-- [ ] **Step 1: Preserve the focused RED warning evidence**
+- [x] **Step 1: Preserve the focused RED warning evidence**
 
 Run:
 
@@ -75,7 +75,7 @@ Record the command, exact test name, component name, and the warning sentence
 in `docs/superpowers/reports/BASELINE-STABILIZATION-RED.md`. Do not paste the
 repeated React help paragraph.
 
-- [ ] **Step 2: Make Widget-tab test entry await Layout hydration**
+- [x] **Step 2: Make Widget-tab test entry await Layout hydration**
 
 Add a test-only helper beside `openTab` that waits for the exact storage read
 Layout started, not an arbitrary number of microtasks. It accepts the storage
@@ -111,7 +111,7 @@ storage. The read promise is the test-controlled completion signal for the
 default Canvas V3 fixture, whose correct post-read UI has no Reset button. Do
 not add product-only readiness markers.
 
-- [ ] **Step 3: Keep the empty-widget test alive through its observer cycle**
+- [x] **Step 3: Keep the empty-widget test alive through its observer cycle**
 
 Import `waitFor`, make the focused test asynchronous, and wait for the
 observer-driven state to expose its real DOM outcome:
@@ -129,7 +129,7 @@ it('marks a widget that rendered NOTHING as empty and gives it no chrome', async
 
 Do not change CanvasItem production timing to satisfy the test.
 
-- [ ] **Step 4: Add the Node-only contract command**
+- [x] **Step 4: Add the Node-only contract command**
 
 Add this script without changing the existing `test` command:
 
@@ -139,7 +139,7 @@ Add this script without changing the existing `test` command:
 
 This file intentionally uses `node:test`; Vitest continues excluding `scripts/**`.
 
-- [ ] **Step 5: Verify focused GREEN**
+- [x] **Step 5: Verify focused GREEN**
 
 Run:
 
@@ -160,7 +160,7 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 if ($focused -match 'was not wrapped in act') { throw 'React act warning remained in focused gate' }
 ```
 
-- [ ] **Step 6: Commit the test boundary**
+- [x] **Step 6: Commit the test boundary**
 
 ```powershell
 git add package.json src/settings/SettingsPanel.test.tsx src/newtab/canvas/CanvasItem.test.tsx docs/superpowers/reports/BASELINE-STABILIZATION-RED.md

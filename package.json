@@ -10,6 +10,7 @@
     "package": "npm run build && node scripts/package.mjs",
     "pretest": "node scripts/verify-photo-manifest.mjs",
     "test": "vitest run",
+    "test:information-first-contract": "node --test scripts/preview-information-first.test.mjs",
     "test:watch": "vitest",
     "store-shots": "node scripts/store-shots.mjs",
     "qa:information-first": "node scripts/preview-information-first.mjs",

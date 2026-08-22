@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WIDGET_REGISTRY_BY_ID } from '../widgetRegistry'
 import CanvasItem from './CanvasItem'
@@ -101,7 +101,7 @@ describe('CanvasItem', () => {
   // null by the no-husk law — but the WRAPPER still painted, leaving an
   // invisible ghost that was selectable, draggable, chrome-bearing, and
   // counted in overlap warnings.
-  it('marks a widget that rendered NOTHING as empty and gives it no chrome', () => {
+  it('marks a widget that rendered NOTHING as empty and gives it no chrome', async () => {
     render(
       <CanvasItem
         entry={WIDGET_REGISTRY_BY_ID.worldClocks}
@@ -112,7 +112,9 @@ describe('CanvasItem', () => {
       </CanvasItem>,
     )
     const item = screen.getByTestId('canvas-item-worldClocks')
-    expect(item.hasAttribute('data-canvas-empty')).toBe(true)
+    await waitFor(() => {
+      expect(item.hasAttribute('data-canvas-empty')).toBe(true)
+    })
     expect(screen.queryByRole('button', { name: 'Move World clocks' })).toBeNull()
   })
 
