@@ -6,6 +6,8 @@ Deterministic source commit: `0d1eb7258af23012065898a289ac597518c0fc2b`
 
 Immutable absent-Y baseline commit: `d299fdd0b9f3eab7b7e9aa45d1d4572fc736d09d`
 
+Exact real-window build commit: `dc828c34abfece5f50fbb9e541c16c82f382ee0f`
+
 This is additive DY-P1 evidence. It does not replace or rewrite the frozen
 NL-P6 evidence. Every browser artifact is confined to the gitignored
 `.qa-dy-p1-baseline`, `.qa-dy-p1-after`, and `.qa-dy-p1-window` roots.
@@ -128,14 +130,34 @@ The single packet review verdict was **With fixes**. The accepted findings
 were implemented in the bounded fix range `18120ce..0d1eb72`, with 28 files
 and 558 focused packet tests green, 8 executable harness-contract tests
 green, TypeScript clean, and the deterministic browser witness above green.
-The same reviewer receives only this fix range for the one allowed rereview.
+The same reviewer examined only that bounded correction range and returned
+**Ready** with no Critical or Important issue open. Its one Minor wording
+observation was corrected in `087eeb0`: DOM order was checked at every edge
+stage, while tab order was checked during the three edit-mode stages.
+
+The stabilized full gate passed 197 files / 3,075 tests. The two subsequent
+changes were witness-only corrections, each preceded by a focused failing
+harness contract: fresh-profile readiness now waits for the root before
+seeding widget data, and the real-window seed owns a deterministic Weather
+environment so setup traffic cannot contaminate product-write or request
+evidence. Neither change touched production source.
 
 ## Real operating-system window status
 
-The headed, non-emulated witness exists and its executable contract is green,
-but it has not yet been run for this checkpoint. DY-P1 requires it to consume
-the exact reviewed `dist`; Task 9 performs that run only after the bounded
-packet review and exact build provenance check.
+The headed, non-emulated witness passed against the exact reviewed build at
+`dc828c34abfece5f50fbb9e541c16c82f382ee0f`. The build emitted 248 modules,
+`dist/build-provenance.json` named that exact commit, and the loaded manifest
+was Aurora 2.0.0 with SHA-256
+`57E6E106D6B1F0BB14AB1E9818AEE5FB34AAFBF3D9D9AF0A46824643A168D269`.
+
+The operating-system window measured exactly 1408x445 CSS px at DPR 1. The
+three inspected stages proved the settled layout, a direct two-axis Weather
+move to top-dock X 73.12% and Y 28.65%, and exact cancellation. Native
+`pointercancel` returned within 0.00 CSS px, Escape wrote nothing, explicit
+Save wrote only `layouts`, and reload preserved the saved layouts document
+byte-for-byte. Runtime errors, failed requests, and harness failures were all
+zero. The three original-resolution screenshots are retained under
+`.qa-dy-p1-window`.
 
 ## Manual ceilings
 
