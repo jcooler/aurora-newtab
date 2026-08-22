@@ -33,7 +33,7 @@ test('accepts only the five exact provider request contracts', () => {
     body: JSON.stringify({ query: 'query AuroraLinearWork($filter: IssueFilter) { viewer { assignedIssues(first: 50, filter: $filter) { nodes { id } } } }', variables: { filter: null } }),
   }), TOKENS).operation, 'linear-work')
   assert.equal(inspectProviderRequest(request({
-    url: 'https://us.sentry.io/api/0/organizations/acme-labs/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=50',
+    url: 'https://us.sentry.io/api/0/organizations/acme-labs/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25',
     authorization: `Bearer ${TOKENS.sentry}`,
   }), TOKENS).operation, 'sentry-issues')
 })
@@ -47,7 +47,7 @@ test('rejects broad-route false positives and malformed request bodies', () => {
     contentType: 'application/json', body: JSON.stringify({ query: 'query Other { viewer { id } }' }),
   }), TOKENS), /operation/)
   assert.throws(() => inspectProviderRequest(request({
-    url: 'https://us.sentry.io/api/0/organizations/other/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=50',
+    url: 'https://us.sentry.io/api/0/organizations/other/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25',
     authorization: `Bearer ${TOKENS.sentry}`,
   }), TOKENS), /Unexpected Sentry/)
 })

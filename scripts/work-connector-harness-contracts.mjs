@@ -52,7 +52,7 @@ export function inspectProviderRequest(request, tokens) {
       ['sort', 'trends'],
       ['statsPeriod', '24h'],
       ['groupStatsPeriod', '24h'],
-      ['limit', '50'],
+      ['limit', '25'],
     ]), `Unexpected Sentry query: ${url.search}`)
     expect(authorization === `Bearer ${tokens.sentry}`, 'Sentry authorization contract mismatch')
     return { provider: 'sentry', operation: 'sentry-issues' }
