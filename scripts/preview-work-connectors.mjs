@@ -868,7 +868,11 @@ async function exerciseTodoistCompletion(widget) {
   markRequestScenario('todoist-completion:success')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
   const confirm = page.getByRole('button', { name: 'Confirm completion' })
+  const successfulCloseResponse = page.waitForResponse((response) => (
+    response.url().endsWith('/api/v1/tasks/task-1/close') && response.status() === 200
+  ))
   await confirm.evaluate((button) => { button.click(); button.click() })
+  await (await successfulCloseResponse).finished()
   await page.waitForFunction(() => !document.querySelector('[role="dialog"][aria-label="Complete Ship Aurora 01?"]'))
   const closeRequests = evidence.requestLog.filter((entry) => entry.method === 'POST' && entry.url.endsWith('/api/v1/tasks/task-1/close'))
   if (closeRequests.length !== 1) fail(`Todoist completion sent ${closeRequests.length} close requests`)
@@ -883,7 +887,7 @@ async function exerciseTodoistCompletion(widget) {
     response.url().endsWith('/api/v1/tasks/task-1/close') && response.status() === 500
   ))
   await page.getByRole('button', { name: 'Confirm completion' }).click()
-  await failedCloseResponse
+  await (await failedCloseResponse).finished()
   await page.getByRole('alert').filter({ hasText: 'status 500' }).waitFor()
   await settleProvider(widget.id)
   const path = join(outDir, 'todoist-completion-error.png')
