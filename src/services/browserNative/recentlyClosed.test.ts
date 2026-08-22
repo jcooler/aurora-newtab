@@ -18,10 +18,13 @@ describe('Recently Closed adapter', () => {
     vi.stubGlobal('chrome', { sessions: { getRecentlyClosed } })
 
     await expect(loadRecentlyClosed()).resolves.toEqual([
-      { sessionId: 'window-a', type: 'window', title: '3 tabs', tabCount: 3, closedAt: 40_000 },
-      { sessionId: 'tab-b', type: 'tab', title: 'news.example', tabCount: 1, closedAt: 30_000 },
-      { sessionId: 'tab-a', type: 'tab', title: 'Aurora', tabCount: 1, closedAt: 20_000 },
+      { sessionId: 'window-a', type: 'window', title: 'Closed window', tabCount: 3, closedAt: 40_000 },
+      { sessionId: 'tab-b', type: 'tab', title: 'Closed tab', tabCount: 1, closedAt: 30_000 },
+      { sessionId: 'tab-a', type: 'tab', title: 'Closed tab', tabCount: 1, closedAt: 20_000 },
     ])
+    const serialized = JSON.stringify(await loadRecentlyClosed())
+    expect(serialized).not.toContain('news.example')
+    expect(serialized).not.toContain('Aurora')
     expect(getRecentlyClosed).toHaveBeenCalledWith({ maxResults: 25 })
   })
 

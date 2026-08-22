@@ -51,7 +51,13 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
       full: 'Unread and recently read pages',
       docked: 'Unread count and newest title',
     })
-    expect(WIDGET_SIZE_CONTRACTS.recentlyClosed.sizes).toEqual(['compact', 'standard', 'full'])
+    expect(WIDGET_SIZE_CONTRACTS.recentlyClosed).toEqual({
+      sizes: ['compact', 'standard', 'full'],
+      compact: 'Latest closed type and age',
+      standard: 'Recently closed session types',
+      full: 'All restorable session types by kind',
+      docked: 'Closed count and latest type',
+    })
     expect(WIDGET_SIZE_CONTRACTS.downloads.sizes).toEqual(['compact', 'standard', 'full'])
     expect(WIDGET_SIZE_CONTRACTS.tabGroups.sizes).toEqual(['compact', 'standard', 'full'])
   })

@@ -103,4 +103,23 @@ describe('ReadingListWidget', () => {
     expect(screen.getByText('Launch notes')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('Reading List unavailable')
   })
+
+  it('renders all-read Standard as clear instead of a blank card', () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'ready', data: ITEMS.map((item) => ({ ...item, hasBeenRead: true })), refreshedAt: 1, refreshing: false },
+      refresh,
+    })
+    render(<ReadingListWidget canvasSize="standard" />)
+    expect(screen.getByText('Reading list clear')).toBeTruthy()
+    expect(document.querySelector('[data-browser-widget]')?.textContent?.trim()).not.toBe('Reading List')
+  })
+
+  it('keeps permission loss as a dense Docked line instead of a card in the strip', async () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({ state: { status: 'permission-required' }, refresh })
+    render(<ReadingListWidget docked />)
+    expect(document.querySelector('[data-browser-widget]')).toBeNull()
+    const line = screen.getByRole('button', { name: 'Reading List: Reading List · Enable in Settings' })
+    await act(async () => { line.click() })
+    expect(screen.getByText('Enable Reading List in Settings.')).toBeTruthy()
+  })
 })

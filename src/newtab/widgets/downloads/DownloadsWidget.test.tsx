@@ -77,6 +77,15 @@ describe('DownloadsWidget', () => {
     expect(screen.getByRole('button', { name: 'Pause aurora.zip' })).toBeTruthy()
   })
 
+  it('keeps missing permission as a dense Docked line', async () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({ state: { status: 'permission-required' }, refresh })
+    render(<DownloadsWidget docked />)
+    expect(document.querySelector('[data-browser-widget]')).toBeNull()
+    const line = screen.getByRole('button', { name: 'Downloads: Downloads · Enable in Settings' })
+    await act(async () => { line.click() })
+    expect(screen.getByText('Enable Downloads in Settings.')).toBeTruthy()
+  })
+
   it('Pause, Resume, and Show call exactly the selected download', async () => {
     render(<DownloadsWidget canvasSize="full" />)
     await act(async () => { screen.getByRole('button', { name: 'Pause aurora.zip' }).click() })

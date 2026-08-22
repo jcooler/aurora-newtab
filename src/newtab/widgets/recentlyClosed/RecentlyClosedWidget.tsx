@@ -7,7 +7,7 @@ import {
   subscribeRecentlyClosed,
   type RecentlyClosedItem,
 } from '../../../services/browserNative/recentlyClosed'
-import { BrowserDockDetail, BrowserWidgetShell } from '../browser/BrowserWidgetShell'
+import { BrowserDockDetail, BrowserWidgetShell, browserDockSummary } from '../browser/BrowserWidgetShell'
 
 function dataOf(state: BrowserResourceState<RecentlyClosedItem[]>): RecentlyClosedItem[] | null {
   return state.status === 'ready' || state.status === 'error' ? state.data : null
@@ -37,12 +37,24 @@ export default function RecentlyClosedWidget({
   })
   const data = dataOf(resource.state) ?? []
 
-  if (docked && dataOf(resource.state) !== null) {
-    const summary = data.length === 0
+  if (docked) {
+    const latest = data[0]
+    const latestFact = latest?.type === 'window'
+      ? `Window · ${latest.tabCount} ${latest.tabCount === 1 ? 'tab' : 'tabs'} · ${closedAge(latest.closedAt)}`
+      : latest ? `Tab ${closedAge(latest.closedAt)}` : 'Recent sessions'
+    const readySummary = data.length === 0
       ? 'Nothing recently closed'
-      : `${data.length} closed · ${data[0]?.title ?? 'Recent sessions'}`
+      : `${data.length} closed · ${latestFact}`
+    const summary = browserDockSummary('Recently Closed', resource.state, readySummary)
     return (
-      <BrowserDockDetail label="Recently Closed" summary={summary}>
+      <BrowserDockDetail
+        label="Recently Closed"
+        summary={summary}
+        state={resource.state}
+        empty={data.length === 0}
+        emptyLabel="Nothing recently closed."
+        onRefresh={() => void resource.refresh()}
+      >
         <RecentlyClosedDetail items={data} onRefresh={resource.refresh} full />
       </BrowserDockDetail>
     )
@@ -63,7 +75,9 @@ export default function RecentlyClosedWidget({
           <div className="flex min-w-0 items-center gap-2">
             <span aria-hidden className="h-px w-5 shrink-0 bg-fg-muted/50" />
             <span className="min-w-0 flex-1 truncate text-sm font-medium">{latest.title}</span>
-            <span className="shrink-0 text-xs text-fg-muted">{latest.type === 'tab' ? 'Tab' : 'Window'}</span>
+            <span className="shrink-0 text-xs text-fg-muted">
+              {latest.type === 'tab' ? 'Tab' : 'Window'} · {closedAge(latest.closedAt)}
+            </span>
           </div>
         ) : null}
       </BrowserWidgetShell>
@@ -129,7 +143,9 @@ function RecentlyClosedDetail({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.title}</span>
                   <span className="block text-xs text-fg-muted">
-                    {item.type === 'tab' ? 'Tab' : `Window · ${item.title}`} · {closedAge(item.closedAt)}
+                    {item.type === 'tab'
+                      ? 'Tab'
+                      : `Window · ${item.tabCount} ${item.tabCount === 1 ? 'tab' : 'tabs'}`} · {closedAge(item.closedAt)}
                   </span>
                 </span>
                 <button

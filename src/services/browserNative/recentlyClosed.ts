@@ -8,22 +8,13 @@ export interface RecentlyClosedItem {
   closedAt: number
 }
 
-function tabTitle(tab: chrome.tabs.Tab): string {
-  const title = tab.title?.trim()
-  if (title) return title
-  try {
-    return tab.url ? new URL(tab.url).hostname || 'Untitled tab' : 'Untitled tab'
-  } catch {
-    return 'Untitled tab'
-  }
-}
-
 function normalizeSession(session: chrome.sessions.Session): RecentlyClosedItem | null {
   if (session.tab?.sessionId) {
     return {
       sessionId: session.tab.sessionId,
       type: 'tab',
-      title: tabTitle(session.tab),
+      // sessions-only access does not promise tab title or URL metadata.
+      title: 'Closed tab',
       tabCount: 1,
       closedAt: session.lastModified * 1_000,
     }
@@ -33,7 +24,7 @@ function normalizeSession(session: chrome.sessions.Session): RecentlyClosedItem 
     return {
       sessionId: session.window.sessionId,
       type: 'window',
-      title: `${tabCount} ${tabCount === 1 ? 'tab' : 'tabs'}`,
+      title: 'Closed window',
       tabCount,
       closedAt: session.lastModified * 1_000,
     }

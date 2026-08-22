@@ -3,6 +3,7 @@ import { __resetBrowserNativeBoundaryForTests } from './boundary'
 import {
   focusTabGroupWindow,
   loadTabGroups,
+  normalizeTabGroups,
   setTabGroupCollapsed,
   subscribeTabGroups,
 } from './tabGroups'
@@ -27,6 +28,18 @@ describe('Tab Groups adapter', () => {
       { id: 8, windowId: 22, windowOrdinal: 2, title: 'Untitled red group', color: 'red', collapsed: true, shared: false },
     ])
     expect(query).toHaveBeenCalledWith({})
+  })
+
+  it('caps browser-owned metadata at 25 rows before presentation', () => {
+    const rows = Array.from({ length: 30 }, (_, index) => ({
+      id: index,
+      windowId: 1,
+      title: `Group ${String(index).padStart(2, '0')}`,
+      color: 'blue' as const,
+      collapsed: false,
+      shared: false,
+    }))
+    expect(normalizeTabGroups(rows)).toHaveLength(25)
   })
 
   it('focuses only the selected window and changes only collapsed state', async () => {

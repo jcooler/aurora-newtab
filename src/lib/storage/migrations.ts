@@ -221,7 +221,10 @@ export const migrations: Record<number, Migration> = {
   15: (data) => {
     const d = defaults()
     const settings = data.settings
-    if (!isPlainObject(settings) || !isPlainObject(settings.widgets)) return data
+    if (!isPlainObject(settings)) return data
+    if (!isPlainObject(settings.widgets)) {
+      throw new Error('Invalid settings.widgets in schema v15')
+    }
     return {
       ...data,
       settings: {

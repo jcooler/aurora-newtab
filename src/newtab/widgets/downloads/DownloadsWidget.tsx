@@ -10,7 +10,7 @@ import {
   subscribeDownloads,
   type BrowserDownloadItem,
 } from '../../../services/browserNative/downloads'
-import { BrowserDockDetail, BrowserWidgetShell } from '../browser/BrowserWidgetShell'
+import { BrowserDockDetail, BrowserWidgetShell, browserDockSummary } from '../browser/BrowserWidgetShell'
 
 function dataOf(state: BrowserResourceState<BrowserDownloadItem[]>): BrowserDownloadItem[] | null {
   return state.status === 'ready' || state.status === 'error' ? state.data : null
@@ -42,12 +42,20 @@ export default function DownloadsWidget({
   const active = data.filter((item) => item.state === 'in_progress')
   const lead = active[0] ?? data[0]
 
-  if (docked && dataOf(resource.state) !== null) {
-    const summary = data.length === 0
+  if (docked) {
+    const readySummary = data.length === 0
       ? 'No recent downloads'
       : `${active.length} active · ${lead?.filename ?? 'Recent downloads'}`
+    const summary = browserDockSummary('Downloads', resource.state, readySummary)
     return (
-      <BrowserDockDetail label="Downloads" summary={summary}>
+      <BrowserDockDetail
+        label="Downloads"
+        summary={summary}
+        state={resource.state}
+        empty={data.length === 0}
+        emptyLabel="No recent downloads."
+        onRefresh={() => void resource.refresh()}
+      >
         <DownloadDetail items={data} onRefresh={resource.refresh} full />
       </BrowserDockDetail>
     )

@@ -73,6 +73,15 @@ describe('TabGroupsWidget', () => {
     expect(screen.getByRole('button', { name: 'Focus Work window' })).toBeTruthy()
   })
 
+  it('keeps missing permission as a dense Docked line', async () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({ state: { status: 'permission-required' }, refresh })
+    render(<TabGroupsWidget docked />)
+    expect(document.querySelector('[data-browser-widget]')).toBeNull()
+    const line = screen.getByRole('button', { name: 'Tab Groups: Tab Groups · Enable in Settings' })
+    await act(async () => { line.click() })
+    expect(screen.getByText('Enable Tab Groups in Settings.')).toBeTruthy()
+  })
+
   it('focuses the selected window and toggles only the selected group', async () => {
     render(<TabGroupsWidget canvasSize="full" />)
     await act(async () => { screen.getByRole('button', { name: 'Focus Research window' }).click() })

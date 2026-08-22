@@ -24,6 +24,7 @@ export function normalizeTabGroups(groups: readonly chrome.tabGroups.TabGroup[])
       shared: group.shared,
     }))
     .sort((a, b) => a.windowOrdinal - b.windowOrdinal || a.title.localeCompare(b.title) || a.id - b.id)
+    .slice(0, 25)
 }
 
 export async function loadTabGroups(): Promise<BrowserTabGroup[]> {

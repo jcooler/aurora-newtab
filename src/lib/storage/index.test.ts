@@ -513,6 +513,22 @@ describe('createStorage', () => {
     expect(controlled.base.dump().unknown).toEqual({ sentinel: 'keep' })
   })
 
+  it('rejects malformed v15 widget settings without writing or stamping v16', async () => {
+    const seed = {
+      ...defaults(),
+      settings: { ...defaults().settings, widgets: 'oops' },
+      'aurora:version': 15,
+    }
+    const controlled = controllableDriver(seed)
+
+    await expect(createStorage(controlled.driver, createInProcessStorageAuthority()).init())
+      .rejects.toBeInstanceOf(storageModule.StorageInitializationError)
+
+    expect(controlled.writes).toEqual([])
+    expect(controlled.base.dump()['aurora:version']).toBe(15)
+    expect((controlled.base.dump().settings as Record<string, unknown>).widgets).toBe('oops')
+  })
+
   it('upgrades v14 atomically, materializing timerSession null and preserving both layout authorities', async () => {
     const seed = {
       ...defaults(),

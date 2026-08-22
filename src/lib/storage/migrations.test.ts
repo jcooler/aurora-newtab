@@ -837,6 +837,11 @@ describe('v15 -> v16', () => {
     expect(migrated.unknownStore).toEqual(before.unknownStore)
     expect(snapshot).toEqual(before)
   })
+
+  it('strictly rejects a malformed nested widget map instead of stamping v16', () => {
+    const snapshot = { ...defaults(), settings: { ...defaults().settings, widgets: 'oops' } }
+    expect(() => migrate(snapshot as unknown as Record<string, unknown>, 15)).toThrow(/settings\.widgets/i)
+  })
 })
 
 function migrationsWithoutNine(): Record<number, Migration> {

@@ -756,7 +756,10 @@ describe('SettingsPanel Widgets section (browser-native permissions)', () => {
 
     expect(ensurePermission).toHaveBeenCalledOnce()
     expect(ensurePermission).toHaveBeenCalledWith(permission)
-    expect((await storage.get('settings')).widgets[key]).toBe(true)
+    expect((await storage.get('settings')).widgets).toEqual({
+      ...defaults().settings.widgets,
+      [key]: true,
+    })
   })
 
   it.each(cases)('keeps %s off with feature-specific copy after denial', async (label, key) => {
@@ -773,6 +776,37 @@ describe('SettingsPanel Widgets section (browser-native permissions)', () => {
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain(label)
     expect(toggle.getAttribute('aria-describedby')).toBe(alert.id)
+  })
+
+  it('keeps the selected browser widget off when the permission request rejects', async () => {
+    vi.mocked(ensurePermission).mockRejectedValueOnce(new Error('permission request failed'))
+    const storage = await renderPanel()
+    openTab('Widgets')
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Downloads'))
+    })
+
+    expect((await storage.get('settings')).widgets).toEqual(defaults().settings.widgets)
+    expect((await screen.findByRole('alert')).textContent).toContain('Downloads')
+  })
+
+  it('turns a browser widget off without requesting permission again', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('settings', {
+      ...defaults().settings,
+      widgets: { ...defaults().settings.widgets, tabGroups: true },
+    })
+    await renderPanel(storage)
+    openTab('Widgets')
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText('Tab Groups'))
+    })
+
+    expect(ensurePermission).not.toHaveBeenCalled()
+    expect((await storage.get('settings')).widgets.tabGroups).toBe(false)
   })
 })
 

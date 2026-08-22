@@ -83,7 +83,7 @@ export const CATALOG_CONTRACTS = Object.freeze({
   }),
   '3': Object.freeze({
     readingList: { compact: 'Unread count and newest title', standard: 'Unread reading queue', full: 'Unread and recently read pages', docked: 'Unread count and newest title' },
-    recentlyClosed: { compact: 'Latest closed session', standard: 'Recently closed sessions', full: 'All restorable sessions', docked: 'Closed count and latest title' },
+    recentlyClosed: { compact: 'Latest closed type and age', standard: 'Recently closed session types', full: 'All restorable session types by kind', docked: 'Closed count and latest type' },
     downloads: { compact: 'Active count and newest filename', standard: 'Active and recent downloads', full: 'All recent download states', docked: 'Active count and newest filename' },
     tabGroups: { compact: 'Group count and first group', standard: 'Open browser workspaces', full: 'All groups by window', docked: 'Group count and first group' },
   }),

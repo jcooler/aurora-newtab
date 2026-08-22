@@ -11,6 +11,66 @@ const SIZE_CLASS: Record<CanvasSize, string> = {
   full: 'w-[min(30rem,calc(100vw_-_2rem))]',
 }
 
+export function browserDockSummary<T>(
+  label: string,
+  state: BrowserResourceState<T>,
+  readySummary: string,
+): string {
+  if (state.status === 'checking') return `Checking ${label}`
+  if (state.status === 'permission-required') return `${label} · Enable in Settings`
+  if (state.status === 'error') {
+    return state.data === null ? `${label} unavailable` : `${readySummary} · Update failed`
+  }
+  return readySummary
+}
+
+function BrowserResourceBody<T>({
+  title,
+  state,
+  empty,
+  emptyLabel,
+  onRefresh,
+  children,
+}: {
+  title: string
+  state: BrowserResourceState<T>
+  empty: boolean
+  emptyLabel: string
+  onRefresh?: () => void
+  children: ReactNode
+}) {
+  const hasRetainedData = state.status === 'error' && state.data !== null
+  const showContent = state.status === 'ready' || hasRetainedData
+
+  return (
+    <>
+      {state.status === 'permission-required' ? (
+        <p className="text-sm text-fg-muted">Enable {title} in Settings.</p>
+      ) : state.status === 'checking' ? (
+        <p className="text-sm text-fg-muted">Checking {title}…</p>
+      ) : showContent && empty ? (
+        <p className="text-sm text-fg-muted">{emptyLabel}</p>
+      ) : showContent ? children : null}
+
+      {state.status === 'error' ? (
+        <div className={hasRetainedData ? 'mt-3 border-t border-hairline pt-2' : ''}>
+          <p role="status" className="text-xs text-fg-muted">{state.message}</p>
+          {onRefresh ? (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="mt-2 inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+              aria-label={`Refresh ${title}`}
+            >
+              Refresh
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </>
+  )
+}
+
 export function BrowserWidgetShell<T>({
   title,
   canvasSize = 'standard',
@@ -28,8 +88,6 @@ export function BrowserWidgetShell<T>({
   onRefresh?: () => void
   children: ReactNode
 }) {
-  const hasRetainedData = state.status === 'error' && state.data !== null
-  const showContent = state.status === 'ready' || hasRetainedData
   return (
     <section
       aria-label={title}
@@ -44,30 +102,16 @@ export function BrowserWidgetShell<T>({
           <span className="text-xs text-fg-muted">Refreshing…</span>
         ) : null}
       </header>
-      <div className="p-3">
-        {state.status === 'permission-required' ? (
-          <p className="text-sm text-fg-muted">Enable {title} in Settings.</p>
-        ) : state.status === 'checking' ? (
-          <p className="text-sm text-fg-muted">Checking {title}…</p>
-        ) : showContent && empty ? (
-          <p className="text-sm text-fg-muted">{emptyLabel}</p>
-        ) : showContent ? children : null}
-
-        {state.status === 'error' ? (
-          <div className={hasRetainedData ? 'mt-3 border-t border-hairline pt-2' : ''}>
-            <p role="status" className="text-xs text-fg-muted">{state.message}</p>
-            {onRefresh ? (
-              <button
-                type="button"
-                onClick={onRefresh}
-                className="mt-2 inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
-                aria-label={`Refresh ${title}`}
-              >
-                Refresh
-              </button>
-            ) : null}
-          </div>
-        ) : null}
+      <div data-browser-widget-scroll="" className="max-h-[min(42rem,calc(100vh_-_6rem))] overflow-y-auto p-3">
+        <BrowserResourceBody
+          title={title}
+          state={state}
+          empty={empty}
+          emptyLabel={emptyLabel}
+          onRefresh={onRefresh}
+        >
+          {children}
+        </BrowserResourceBody>
       </div>
     </section>
   )
@@ -78,10 +122,18 @@ const DOCK_PANEL_SIZE = { w: 384, h: 440 }
 export function BrowserDockDetail({
   label,
   summary,
+  state,
+  empty,
+  emptyLabel,
+  onRefresh,
   children,
 }: {
   label: string
   summary: ReactNode
+  state: BrowserResourceState<unknown>
+  empty: boolean
+  emptyLabel: string
+  onRefresh?: () => void
   children: ReactNode
 }) {
   const [open, setOpen] = useState(false)
@@ -143,7 +195,17 @@ export function BrowserDockDetail({
                 ×
               </button>
             </header>
-            <div className="min-h-0 overflow-y-auto p-3">{children}</div>
+            <div className="min-h-0 overflow-y-auto p-3">
+              <BrowserResourceBody
+                title={label}
+                state={state}
+                empty={empty}
+                emptyLabel={emptyLabel}
+                onRefresh={onRefresh}
+              >
+                {children}
+              </BrowserResourceBody>
+            </div>
           </div>,
           document.body,
         )

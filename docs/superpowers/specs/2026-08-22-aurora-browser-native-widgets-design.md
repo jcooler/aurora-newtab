@@ -134,12 +134,16 @@ Glance question: What did I save to read next?
 Glance question: What did I just close?
 
 - Query at most Chrome's documented maximum of 25.
-- Compact: latest restorable title and Tab or Window.
-- Standard: up to five entries with type and closed age.
-- Full: up to 25 entries, grouped as tabs and windows, with a Restore action.
-- Docked: count plus latest title; click opens detail.
-- A window without a useful title is named by its tab count. Missing optional
-  fields never create blank rows.
+- The widget deliberately uses `sessions` permission without `tabs` or host
+  access. Chrome does not promise closed tab titles or URLs at that boundary.
+- Compact: latest restorable type and closed age.
+- Standard: up to five generic Closed tab or Closed window entries with type,
+  window tab count where available, and closed age.
+- Full: up to 25 generic entries, grouped as tabs and windows, with a Restore
+  action.
+- Docked: count plus latest type and age; click opens detail.
+- Missing optional fields never create blank rows or invite Aurora to infer
+  browser content it was not permitted to read.
 - Restore is always a direct user action and uses the selected session ID.
 - Empty: "Nothing recently closed."
 

@@ -8,7 +8,7 @@ import {
   subscribeReadingList,
   type ReadingListItem,
 } from '../../../services/browserNative/readingList'
-import { BrowserDockDetail, BrowserWidgetShell } from '../browser/BrowserWidgetShell'
+import { BrowserDockDetail, BrowserWidgetShell, browserDockSummary } from '../browser/BrowserWidgetShell'
 
 function ageOf(timestamp: number): string {
   const elapsed = Math.max(0, Date.now() - timestamp)
@@ -41,13 +41,21 @@ export default function ReadingListWidget({
   const data = dataOf(resource.state) ?? []
   const unread = data.filter((item) => !item.hasBeenRead)
 
-  if (docked && dataOf(resource.state) !== null) {
+  if (docked) {
     const newest = unread[0]
-    const summary = unread.length === 0
+    const readySummary = unread.length === 0
       ? 'Reading list clear'
       : `${unread.length} unread · ${newest?.title ?? 'Saved pages'}`
+    const summary = browserDockSummary('Reading List', resource.state, readySummary)
     return (
-      <BrowserDockDetail label="Reading List" summary={summary}>
+      <BrowserDockDetail
+        label="Reading List"
+        summary={summary}
+        state={resource.state}
+        empty={data.length === 0}
+        emptyLabel="Reading list clear"
+        onRefresh={() => void resource.refresh()}
+      >
         <ReadingListDetail items={data} onRefresh={resource.refresh} full />
       </BrowserDockDetail>
     )
@@ -77,7 +85,7 @@ export default function ReadingListWidget({
       title="Reading List"
       canvasSize={canvasSize}
       state={resource.state}
-      empty={data.length === 0}
+      empty={canvasSize === 'full' ? data.length === 0 : unread.length === 0}
       emptyLabel="Reading list clear"
       onRefresh={() => void resource.refresh()}
     >

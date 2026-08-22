@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { BrowserDockDetail, BrowserWidgetShell } from './BrowserWidgetShell'
+import { BrowserDockDetail, BrowserWidgetShell, browserDockSummary } from './BrowserWidgetShell'
 
 describe('BrowserWidgetShell', () => {
   it('renders truthful permission, checking, and empty states without a blank card', () => {
@@ -41,9 +41,48 @@ describe('BrowserWidgetShell', () => {
     expect(refresh).toHaveBeenCalledTimes(1)
   })
 
+  it('bounds maximum result sets inside a local widget scrollport', () => {
+    render(
+      <BrowserWidgetShell title="Downloads" canvasSize="full" state={{ status: 'ready', data: Array.from({ length: 25 }), refreshedAt: 1, refreshing: false }} empty={false} emptyLabel="No downloads">
+        <p>maximum rows</p>
+      </BrowserWidgetShell>,
+    )
+    const scrollport = document.querySelector('[data-browser-widget-scroll]')
+    expect(scrollport).toBeTruthy()
+    expect(scrollport?.className).toContain('overflow-y-auto')
+    expect(scrollport?.className).toContain('max-h-')
+  })
+
+  it('keeps every degraded resource state as one truthful dock line with detail and retry', async () => {
+    const refresh = vi.fn()
+    expect(browserDockSummary('Reading List', { status: 'checking' }, '2 unread')).toBe('Checking Reading List')
+    expect(browserDockSummary('Reading List', { status: 'permission-required' }, '2 unread')).toBe('Reading List · Enable in Settings')
+    expect(browserDockSummary('Reading List', { status: 'error', data: null, refreshedAt: null, message: 'Offline' }, '2 unread')).toBe('Reading List unavailable')
+    expect(browserDockSummary('Reading List', { status: 'error', data: ['kept'], refreshedAt: 1, message: 'Offline' }, '2 unread')).toBe('2 unread · Update failed')
+
+    render(
+      <BrowserDockDetail
+        label="Reading List"
+        summary="Reading List unavailable"
+        state={{ status: 'error', data: null, refreshedAt: null, message: 'Offline' }}
+        empty
+        emptyLabel="Reading list clear"
+        onRefresh={refresh}
+      >
+        <p>rows</p>
+      </BrowserDockDetail>,
+    )
+    const trigger = screen.getByRole('button', { name: 'Reading List: Reading List unavailable' })
+    expect(trigger.getAttribute('data-dock-line')).toBe('')
+    await act(async () => { trigger.click() })
+    expect(screen.getByRole('status').textContent).toContain('Offline')
+    screen.getByRole('button', { name: 'Refresh Reading List' }).click()
+    expect(refresh).toHaveBeenCalledTimes(1)
+  })
+
   it('docked detail is keyboard-operable, closes on Escape, and restores trigger focus', async () => {
     render(
-      <BrowserDockDetail label="Reading List" summary="2 unread · Launch notes">
+      <BrowserDockDetail label="Reading List" summary="2 unread · Launch notes" state={{ status: 'ready', data: ['row'], refreshedAt: 1, refreshing: false }} empty={false} emptyLabel="Reading list clear">
         <p>Reading list details</p>
       </BrowserDockDetail>,
     )

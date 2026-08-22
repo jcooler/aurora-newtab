@@ -8,7 +8,7 @@ import {
   subscribeTabGroups,
   type BrowserTabGroup,
 } from '../../../services/browserNative/tabGroups'
-import { BrowserDockDetail, BrowserWidgetShell } from '../browser/BrowserWidgetShell'
+import { BrowserDockDetail, BrowserWidgetShell, browserDockSummary } from '../browser/BrowserWidgetShell'
 
 const COLOR_CLASS: Record<BrowserTabGroup['color'], string> = {
   blue: 'bg-blue-400',
@@ -41,12 +41,20 @@ export default function TabGroupsWidget({
   })
   const data = dataOf(resource.state) ?? []
 
-  if (docked && dataOf(resource.state) !== null) {
-    const summary = data.length === 0
+  if (docked) {
+    const readySummary = data.length === 0
       ? 'No tab groups open'
       : `${data.length} ${data.length === 1 ? 'group' : 'groups'} · ${data[0]?.title ?? 'Browser workspace'}`
+    const summary = browserDockSummary('Tab Groups', resource.state, readySummary)
     return (
-      <BrowserDockDetail label="Tab Groups" summary={summary}>
+      <BrowserDockDetail
+        label="Tab Groups"
+        summary={summary}
+        state={resource.state}
+        empty={data.length === 0}
+        emptyLabel="No tab groups open."
+        onRefresh={() => void resource.refresh()}
+      >
         <TabGroupDetail groups={data} onRefresh={resource.refresh} full />
       </BrowserDockDetail>
     )

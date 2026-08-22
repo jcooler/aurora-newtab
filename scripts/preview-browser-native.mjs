@@ -1,5 +1,6 @@
 import { lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
+import { execFileSync } from 'node:child_process'
 import { chromium } from 'playwright'
 
 import { prepareBrowserNativeOutput } from './browser-native-output-safety.mjs'
@@ -11,6 +12,14 @@ const outDir = await prepareBrowserNativeOutput({ repoRoot, protectedRoot, reque
 const dist = resolve('dist')
 const profileDir = resolve('.qa-browser-native-profile')
 const headed = process.argv.includes('--headed')
+const evidenceCommit = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim()
+const requestedCommit = process.env.GIT_COMMIT?.trim()
+if (requestedCommit && requestedCommit !== evidenceCommit) {
+  throw new Error(`evidence commit mismatch: requested ${requestedCommit}, checked out ${evidenceCommit}`)
+}
+if (execFileSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: repoRoot, encoding: 'utf8' }).trim()) {
+  throw new Error('browser-native evidence requires a clean tracked worktree')
+}
 
 if (dirname(profileDir) !== resolve(repoRoot) || basename(profileDir) !== '.qa-browser-native-profile') {
   throw new Error(`unsafe browser-native profile path: ${profileDir}`)
@@ -42,6 +51,70 @@ const VIEWPORTS = [
   { width: 1600, height: 900, label: 'common' },
   { width: 1408, height: 445, label: 'exact-short' },
 ]
+const EXPECTED_API_NAMES = new Set([
+  'readingList.query', 'readingList.updateEntry', 'readingList.removeEntry',
+  'sessions.getRecentlyClosed', 'sessions.restore',
+  'downloads.search', 'downloads.pause', 'downloads.resume', 'downloads.cancel', 'downloads.show',
+  'tabGroups.query', 'tabGroups.update', 'windows.update',
+])
+const READ_API_NAMES = new Set([
+  'readingList.query', 'sessions.getRecentlyClosed', 'downloads.search', 'tabGroups.query',
+])
+const EXPECTED_ACTION_CALLS = {
+  readingList: [
+    { api: 'readingList.updateEntry', args: [{ url: 'https://example.test/architecture', hasBeenRead: true }] },
+    { api: 'readingList.removeEntry', args: [{ url: 'https://example.test/design' }] },
+  ],
+  recentlyClosed: [{ api: 'sessions.restore', args: ['session-tab-1'] }],
+  downloads: [
+    { api: 'downloads.pause', args: [101] },
+    { api: 'downloads.resume', args: [101] },
+    { api: 'downloads.cancel', args: [101] },
+    { api: 'downloads.show', args: [102] },
+  ],
+  tabGroups: [
+    { api: 'windows.update', args: [8, { focused: true }] },
+    { api: 'tabGroups.update', args: [201, { collapsed: true }] },
+  ],
+}
+const EXPECTED_TIER_FACTS = {
+  readingList: {
+    compact: ['unread', 'Aurora native architecture'],
+    standard: ['Aurora native architecture', 'Calm browser widget design'],
+    full: ['Unread', 'Recently read', 'Read product archive'],
+    docked: ['unread', 'Aurora native architecture'],
+  },
+  recentlyClosed: {
+    compact: ['Closed tab', 'Tab'],
+    standard: ['Closed tab', 'Closed window'],
+    full: ['Tabs', 'Windows', 'Closed window'],
+    docked: ['closed', 'Tab'],
+  },
+  downloads: {
+    compact: ['active', 'aurora-build.zip'],
+    standard: ['aurora-build.zip', 'catalog-report.pdf'],
+    full: ['aurora-build.zip', 'widget-icons.svg'],
+    docked: ['active', 'aurora-build.zip'],
+  },
+  tabGroups: {
+    compact: ['groups', 'Aurora Work'],
+    standard: ['Aurora Work', 'Research'],
+    full: ['Window 1', 'Window 2', 'Personal'],
+    docked: ['groups', 'Aurora Work'],
+  },
+}
+const EMPTY_FACTS = {
+  readingList: 'Reading list clear',
+  recentlyClosed: 'Nothing recently closed.',
+  downloads: 'No recent downloads.',
+  tabGroups: 'No tab groups open.',
+}
+const EXPECTED_ACTION_FACTS = {
+  readingList: 'Removed Calm browser widget design',
+  recentlyClosed: 'Restored Closed tab',
+  downloads: 'Showing catalog-report.pdf in folder',
+  tabGroups: 'Collapsed Aurora Work',
+}
 
 // Source-visible scenario declarations are part of the harness contract.
 const SCENARIOS = [
@@ -56,7 +129,7 @@ const SCENARIOS = [
 void SCENARIOS
 
 const evidence = {
-  commit: process.env.GIT_COMMIT ?? null,
+  commit: evidenceCommit,
   manifest: {
     permissions: manifest.permissions,
     optional_permissions: manifest.optional_permissions,
@@ -69,6 +142,8 @@ const evidence = {
   failures: [],
 }
 const fail = (message) => evidence.failures.push(message)
+const tierText = new Map()
+let storageBaseline = null
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
@@ -106,9 +181,9 @@ await page.addInitScript(() => {
       { url: 'https://example.test/archive', title: 'Read product archive', hasBeenRead: true, creationTime: now - 400_000, lastUpdateTime: now - 300_000 },
     ],
     sessions: [
-      { lastModified: (now - 30_000) / 1_000, tab: { sessionId: 'session-tab-1', title: 'Aurora release notes', url: 'https://example.test/release' } },
-      { lastModified: (now - 90_000) / 1_000, window: { sessionId: 'session-window-1', tabs: [{ title: 'One' }, { title: 'Two' }, { title: 'Three' }] } },
-      { lastModified: (now - 180_000) / 1_000, tab: { sessionId: 'session-tab-2', title: 'Connector research', url: 'https://example.test/research' } },
+      { lastModified: (now - 30_000) / 1_000, tab: { sessionId: 'session-tab-1' } },
+      { lastModified: (now - 90_000) / 1_000, window: { sessionId: 'session-window-1', tabs: [{}, {}, {}] } },
+      { lastModified: (now - 180_000) / 1_000, tab: { sessionId: 'session-tab-2' } },
     ],
     downloads: [
       { id: 101, filename: 'C:\\Downloads\\aurora-build.zip', finalUrl: 'https://example.test/aurora-build.zip', url: 'https://example.test/aurora-build.zip', state: 'in_progress', paused: false, canResume: true, danger: 'safe', bytesReceived: 48, totalBytes: 100, startTime: new Date(now - 30_000).toISOString(), exists: true },
@@ -124,6 +199,52 @@ await page.addInitScript(() => {
       { id: 203, windowId: 12, title: 'Personal', color: 'green', collapsed: false, shared: false },
     ],
   }
+  for (let index = 4; index <= 25; index += 1) {
+    state.readingList.push({
+      url: `https://example.test/saved-${index}`,
+      title: `Saved article ${String(index).padStart(2, '0')}`,
+      hasBeenRead: index % 3 === 0,
+      creationTime: now - index * 300_000,
+      lastUpdateTime: now - index * 120_000,
+    })
+    state.sessions.push(index % 5 === 0
+      ? { lastModified: (now - index * 120_000) / 1_000, window: { sessionId: `session-window-${index}`, tabs: Array.from({ length: index % 4 + 1 }, () => ({})) } }
+      : { lastModified: (now - index * 120_000) / 1_000, tab: { sessionId: `session-tab-${index}` } })
+  }
+  while (state.downloads.length < 25) {
+    const id = 101 + state.downloads.length
+    state.downloads.push({
+      id,
+      filename: `C:\\Downloads\\browser-item-${id}.dat`,
+      finalUrl: `https://example.test/browser-item-${id}.dat`,
+      url: `https://example.test/browser-item-${id}.dat`,
+      state: 'complete',
+      paused: false,
+      canResume: false,
+      danger: 'safe',
+      bytesReceived: id,
+      totalBytes: id,
+      startTime: new Date(now - id * 1_000).toISOString(),
+      exists: true,
+    })
+  }
+  while (state.tabGroups.length < 25) {
+    const id = 201 + state.tabGroups.length
+    state.tabGroups.push({
+      id,
+      windowId: 20 + Math.floor(state.tabGroups.length / 5),
+      title: `Browser group ${id}`,
+      color: ['blue', 'cyan', 'green', 'grey', 'orange', 'pink', 'purple', 'red', 'yellow'][id % 9],
+      collapsed: id % 2 === 0,
+      shared: false,
+    })
+  }
+  const browserContentTokens = [...new Set([
+    ...state.readingList.flatMap((item) => [item.url, item.title]),
+    ...state.sessions.flatMap((session) => [session.tab?.sessionId, session.window?.sessionId]),
+    ...state.downloads.flatMap((item) => [item.filename, item.finalUrl, item.url]),
+    ...state.tabGroups.map((group) => group.title),
+  ].filter(Boolean))]
   const apiCalls = []
   const storageWrites = []
   const call = (api, args = []) => apiCalls.push({ api, args })
@@ -180,7 +301,7 @@ await page.addInitScript(() => {
     },
   }
   globalThis.__auroraBrowserNativeHarnessApi = api
-  window.__auroraBrowserNativeHarness = { apiCalls, storageWrites, configured, state }
+  window.__auroraBrowserNativeHarness = { apiCalls, storageWrites, configured, state, browserContentTokens }
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local') storageWrites.push(Object.keys(changes).sort())
   })
@@ -256,21 +377,24 @@ async function seed(widget, tier, mode = 'ready') {
   } else {
     await page.locator(`[data-block-id="${widget.id}"] [data-browser-resource-state="ready"]`).waitFor()
   }
+  storageBaseline = await page.evaluate(async () => JSON.stringify(await chrome.storage.local.get(null)))
 }
 
 async function assertNoBrowserContentStorage(label) {
   const truth = await page.evaluate(async () => {
     const values = await chrome.storage.local.get(null)
     const serialized = JSON.stringify(values)
+    const harness = window.__auroraBrowserNativeHarness
     return {
-      leaked: [
-        'Aurora native architecture', 'Aurora release notes', 'aurora-build.zip', 'Aurora Work',
-      ].filter((token) => serialized.includes(token)),
-      writes: window.__auroraBrowserNativeHarness?.storageWrites ?? [],
-      apiCalls: window.__auroraBrowserNativeHarness?.apiCalls ?? [],
+      serialized,
+      leaked: (harness?.browserContentTokens ?? []).filter((token) => serialized.includes(token)),
+      writes: harness?.storageWrites ?? [],
+      apiCalls: harness?.apiCalls ?? [],
     }
   })
   if (truth.leaked.length > 0) fail(`${label}: browser content leaked into storage: ${truth.leaked.join(', ')}`)
+  if (truth.writes.length > 0) fail(`${label}: storage changed after seed: ${JSON.stringify(truth.writes)}`)
+  if (storageBaseline === null || truth.serialized !== storageBaseline) fail(`${label}: storage snapshot changed after seed`)
   evidence.storageWrites.push({ label, writes: truth.writes })
   evidence.apiCalls.push({ label, calls: truth.apiCalls })
 }
@@ -292,8 +416,14 @@ async function capture(widget, kind, tier, viewport, suffix = '') {
     const doc = document.documentElement
     const item = document.querySelector(`[data-block-id="${id}"]`)
     const painted = item?.querySelector('[data-browser-widget], [data-dock-line], [data-browser-dock-detail]')
+    const detail = document.querySelector('[data-browser-dock-detail]')
+    const scrollport = item?.querySelector('[data-browser-widget-scroll]')
     const rect = item?.getBoundingClientRect()
-    const text = painted?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
+    const text = [painted?.textContent, detail?.textContent]
+      .filter(Boolean)
+      .join(' ')
+      .replace(/\s+/g, ' ')
+      .trim()
     const controls = [...document.querySelectorAll('button, a')]
       .filter((node) => item?.contains(node) || node.closest('[data-browser-dock-detail]'))
       .map((node) => {
@@ -306,7 +436,10 @@ async function capture(widget, kind, tier, viewport, suffix = '') {
       text,
       controls,
       editing: document.querySelector('[data-editing="true"]') !== null,
-      dockDetail: document.querySelector('[data-browser-dock-detail]') !== null,
+      dockDetail: detail !== null,
+      localScroll: scrollport
+        ? { clientHeight: scrollport.clientHeight, scrollHeight: scrollport.scrollHeight }
+        : null,
     }
   }, widget.id)
   if (truth.horizontalOverflow) fail(`${label}: horizontal overflow`)
@@ -319,6 +452,28 @@ async function capture(widget, kind, tier, viewport, suffix = '') {
     if (!control.name) fail(`${label}: inaccessible unnamed action`)
     if (control.width < 1 || control.height < 1) fail(`${label}: inaccessible zero-size action ${control.name}`)
   }
+  const expectedFacts = kind === 'permission-required'
+    ? [`Enable ${widget.title} in Settings.`]
+    : kind === 'empty'
+      ? [EMPTY_FACTS[widget.id]]
+      : kind === 'error'
+        ? ['Native preview failure', 'Refresh']
+        : kind === 'actions'
+          ? [EXPECTED_ACTION_FACTS[widget.id]]
+          : kind === 'dock-detail'
+            ? EXPECTED_TIER_FACTS[widget.id].full
+            : EXPECTED_TIER_FACTS[widget.id][tier]
+  const missingFacts = expectedFacts.filter((fact) => !truth.text.includes(fact))
+  if (missingFacts.length > 0) fail(`${label}: missing useful facts: ${missingFacts.join(', ')}`)
+  if (kind === 'tiers' && tier === 'docked' && truth.rect && truth.rect.height > 48) {
+    fail(`${label}: docked tier exceeds 48px (${Math.round(truth.rect.height)}px)`)
+  }
+  if (kind === 'tiers' && tier === 'full' && viewport.label === 'common') {
+    if (!truth.localScroll || truth.localScroll.scrollHeight <= truth.localScroll.clientHeight) {
+      fail(`${label}: maximum dataset does not use the bounded local scrollport`)
+    }
+  }
+  if (kind === 'tiers' && viewport.label === 'common') tierText.set(`${widget.id}:${tier}`, truth.text)
   const path = join(outDir, `${label}.png`)
   await page.screenshot({ path: path, fullPage: true })
   evidence.captures.push({
@@ -332,9 +487,10 @@ async function capture(widget, kind, tier, viewport, suffix = '') {
     text: truth.text,
     editChrome: truth.editing,
     dockDetail: truth.dockDetail,
+    localScroll: truth.localScroll,
     usefulness: {
-      judgment: truth.text.length > 0 && truth.rect?.width >= 4 && truth.rect?.height >= 4 ? 'useful' : 'failed',
-      reason: `${tier} paints ${truth.text.split(' ').length} readable words in a bounded ${Math.round(truth.rect?.width ?? 0)}x${Math.round(truth.rect?.height ?? 0)} box`,
+      judgment: missingFacts.length === 0 && truth.text.length > 0 && truth.rect?.width >= 4 && truth.rect?.height >= 4 ? 'useful' : 'failed',
+      reason: `${tier} exposes ${expectedFacts.join(' | ')} in a bounded ${Math.round(truth.rect?.width ?? 0)}x${Math.round(truth.rect?.height ?? 0)} box`,
     },
   })
   await assertNoBrowserContentStorage(label)
@@ -348,7 +504,7 @@ async function exerciseActions(widget) {
     await page.getByRole('button', { name: 'Remove Calm browser widget design' }).click()
     await page.getByRole('button', { name: 'Confirm remove Calm browser widget design' }).click()
   } else if (widget.id === 'recentlyClosed') {
-    await page.getByRole('button', { name: 'Restore Aurora release notes' }).click()
+    await page.getByRole('button', { name: 'Restore Closed tab' }).first().click()
   } else if (widget.id === 'downloads') {
     await page.getByRole('button', { name: 'Pause aurora-build.zip' }).click()
     await page.getByRole('button', { name: 'Resume aurora-build.zip' }).click()
@@ -360,6 +516,15 @@ async function exerciseActions(widget) {
     await page.getByRole('button', { name: 'Collapse Aurora Work' }).click()
   }
   await page.waitForFunction((count) => (window.__auroraBrowserNativeHarness?.apiCalls.length ?? 0) > count, before)
+  await page.getByRole('status').filter({ hasText: EXPECTED_ACTION_FACTS[widget.id] }).waitFor()
+  const actionCalls = await page.evaluate(({ before, readApis }) => (
+    window.__auroraBrowserNativeHarness?.apiCalls.slice(before)
+      .filter((entry) => !readApis.includes(entry.api)) ?? []
+  ), { before, readApis: [...READ_API_NAMES] })
+  const expected = EXPECTED_ACTION_CALLS[widget.id]
+  if (JSON.stringify(actionCalls) !== JSON.stringify(expected)) {
+    fail(`${widget.id}: action calls differ: expected ${JSON.stringify(expected)}, received ${JSON.stringify(actionCalls)}`)
+  }
 }
 
 try {
@@ -371,6 +536,11 @@ try {
       await seed(widget, tier)
       await capture(widget, 'tiers', tier, VIEWPORTS[0])
     }
+    const compactText = tierText.get(`${widget.id}:compact`)
+    const standardText = tierText.get(`${widget.id}:standard`)
+    const fullText = tierText.get(`${widget.id}:full`)
+    if (!compactText || compactText === standardText) fail(`${widget.id}: compact and standard tier text duplicated`)
+    if (!standardText || standardText === fullText) fail(`${widget.id}: standard and full tier text duplicated`)
 
     await seed(widget, 'standard')
     await capture(widget, 'tiers', 'standard', VIEWPORTS[1], 'short')
@@ -402,6 +572,7 @@ try {
 
 for (const entry of evidence.apiCalls) {
   for (const call of entry.calls) {
+    if (!EXPECTED_API_NAMES.has(call.api)) fail(`${entry.label}: unexpected native API call ${call.api}`)
     if (/^(tabs\.|history\.|downloads\.open)/.test(call.api)) fail(`${entry.label}: forbidden API call ${call.api}`)
   }
 }
