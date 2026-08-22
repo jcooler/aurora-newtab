@@ -23,7 +23,7 @@ collisions. Scratch PNGs, Markdown, evidence JSON, preview build, and Playwright
 profile all remain below the accepted root. Canonical catalog evidence is not
 read, removed, or rewritten in this mode.
 
-The focused safety contract passed 9 tests across the catalog and shared output
+The focused safety contract passed 11 tests across the catalog and shared output
 guards. `node --check scripts/catalog-nl-p5.mjs` and `git diff --check` were
 clean.
 

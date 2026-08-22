@@ -333,6 +333,21 @@ back to `null`, restoring the default surface.
 
 ## Adding a widget
 
+Aurora's verified Expansion Platform should be the starting point for new
+identities. It keeps research and starter output deterministic while production
+registries, renderers, storage, permissions, and provider code remain the
+authorities:
+
+```powershell
+npm run test:expansion-contract
+node scripts/expansion/scaffold.mjs --id=<catalog-id> --label="<Label>" --kind=<builtin|connector|provider> --out-dir=.aurora-expansion-<identity>
+```
+
+The scaffold writes only to a new guarded `.aurora-expansion-*` scratch directory. It
+does not install a feature or modify production source. Review
+[`docs/superpowers/catalog/expansion/CATALOG.md`](docs/superpowers/catalog/expansion/CATALOG.md)
+and the generated checklist before following the production steps below.
+
 1. Create a folder under `src/newtab/widgets/<name>/` with a
    `<Name>Widget.tsx` default export. Gate its rendering on
    `settings.widgets.<key>` at the top of the component (return `null` when

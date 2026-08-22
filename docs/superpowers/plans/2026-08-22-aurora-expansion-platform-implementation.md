@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use
 > superpowers:subagent-driven-development (recommended) or
 > superpowers:executing-plans to implement this plan task-by-task. Steps use
-> checkbox (`- [ ]`) syntax for tracking.
+> checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make Aurora additions repeatable through a truthful candidate
 catalog, guarded scratch scaffold, and executable parity/privacy/tier
@@ -56,7 +56,7 @@ Playwright 1.62, MV3 Chrome APIs, JSON and Markdown documentation.
 - The renderer CLI accepts `--check`; check mode exits nonzero when committed
   Markdown differs and never writes.
 
-- [ ] **Step 1: Write catalog validation failures**
+- [x] **Step 1: Write catalog validation failures**
 
 Create a `validCatalog()` test builder with 36 uniquely identified complete
 candidates and mutate it one field at a time. The builder uses literal field
@@ -78,7 +78,7 @@ The complete valid fixture must exercise every enum value and both allowed
 empty-array and populated-array cases. The test must name the break: accepting
 research that cannot support a permission, privacy, or tier decision.
 
-- [ ] **Step 2: Observe catalog RED**
+- [x] **Step 2: Observe catalog RED**
 
 Run:
 
@@ -88,18 +88,18 @@ node --test scripts/expansion/catalog-schema.test.mjs
 
 Expected: FAIL because `catalog-schema.mjs` does not exist.
 
-- [ ] **Step 3: Implement the schema validator**
+- [x] **Step 3: Implement the schema validator**
 
 Implement small path-aware validators for object, enum, text, HTTPS URL,
 string-array, integer range, ISO date, and uniqueness. Return all errors sorted
 lexically. Freeze the successful normalized object recursively and preserve
 candidate order. Do not silently default or discard a field.
 
-- [ ] **Step 4: Reach schema GREEN**
+- [x] **Step 4: Reach schema GREEN**
 
 Run the same Node test command. Expected: all schema tests pass with no warning.
 
-- [ ] **Step 5: Write renderer and atomic-write failures**
+- [x] **Step 5: Write renderer and atomic-write failures**
 
 Tests run the exported renderer against a two-candidate literal and assert the
 complete hand-written Markdown string, including warning/auth/risk/blocker
@@ -113,7 +113,7 @@ returns nonzero for stale output without changing its bytes; normal mode writes
 through a sibling temporary file and leaves no temporary file after success or
 validation failure.
 
-- [ ] **Step 6: Observe renderer RED**
+- [x] **Step 6: Observe renderer RED**
 
 Run:
 
@@ -123,7 +123,7 @@ node --test scripts/expansion/render-catalog.test.mjs
 
 Expected: FAIL because the renderer and CLI do not exist.
 
-- [ ] **Step 7: Implement deterministic rendering**
+- [x] **Step 7: Implement deterministic rendering**
 
 Render title, source date, status legend, approved-wave summary, then stable
 sections in this exact wave order:
@@ -137,7 +137,7 @@ lossy summary: the table is a scan view and each candidate receives a detail
 subsection for auth, access, privacy, cache, settings, four tiers, interaction,
 states, maintenance, rationale, and blockers.
 
-- [ ] **Step 8: Populate at least 36 researched candidates**
+- [x] **Step 8: Populate at least 36 researched candidates**
 
 The JSON must include these roadmap IDs exactly:
 
@@ -162,7 +162,7 @@ Use official HTTPS documentation URLs. Mark overlaps as `absorbed`, broad
 history/email warnings as `deferred`, and client-secret-required public OAuth
 as `blocked`. Keep the four roadmap waves in their approved order.
 
-- [ ] **Step 9: Generate and check the catalog**
+- [x] **Step 9: Generate and check the catalog**
 
 Run:
 
@@ -174,7 +174,7 @@ node --test scripts/expansion/catalog-schema.test.mjs scripts/expansion/render-c
 
 Expected: 40 valid candidates, byte-stable Markdown, all tests pass.
 
-- [ ] **Step 10: Commit the catalog slice**
+- [x] **Step 10: Commit the catalog slice**
 
 ```powershell
 git add -- scripts/expansion docs/superpowers/catalog/expansion
@@ -204,7 +204,7 @@ git commit -m "docs: add Aurora expansion catalog"
   path. `files` covers payload files and excludes `manifest.json`, which cannot
   contain its own digest.
 
-- [ ] **Step 1: Write path-safety failures**
+- [x] **Step 1: Write path-safety failures**
 
 In temporary directories, assert rejection before any write for repository
 root, protected root, `src`, `docs`, `scripts`, `dist`, traversal, wrong prefix,
@@ -213,7 +213,7 @@ Assert `.aurora-expansion-readingList` resolves successfully only inside the
 active repository fixture. QA roots are tested separately in Task 6 and must
 use `.qa-expansion-platform-`.
 
-- [ ] **Step 2: Observe output-safety RED**
+- [x] **Step 2: Observe output-safety RED**
 
 Run:
 
@@ -223,19 +223,19 @@ node --test scripts/expansion/output-safety.test.mjs
 
 Expected: FAIL because `output-safety.mjs` is missing.
 
-- [ ] **Step 3: Implement preflight-only path safety**
+- [x] **Step 3: Implement preflight-only path safety**
 
 Use `lstat`, `realpath`, `path.relative`, and case-insensitive Windows path
 comparison. Validate the complete ancestor chain and all planned children
 before `mkdir`. Never call `rm`, never clean an existing target, and never
 follow a link.
 
-- [ ] **Step 4: Reach output-safety GREEN**
+- [x] **Step 4: Reach output-safety GREEN**
 
 Run the focused test. Expected: all path cases pass and temporary fixtures are
 removed by test-owned cleanup.
 
-- [ ] **Step 5: Write scaffold behavior failures**
+- [x] **Step 5: Write scaffold behavior failures**
 
 For each kind, invoke `scaffoldAddition` in a temporary repository fixture and
 assert an exact sorted payload-file list. Scan only production TypeScript stubs
@@ -249,7 +249,7 @@ not itself. Assert invalid IDs, blank labels, unknown kinds, an unavailable
 candidate ID, and a kind that disagrees with the candidate catalog fail before
 output exists.
 
-- [ ] **Step 6: Observe scaffold RED**
+- [x] **Step 6: Observe scaffold RED**
 
 Run:
 
@@ -259,7 +259,7 @@ node --test scripts/expansion/scaffold.test.mjs
 
 Expected: FAIL because `scaffold.mjs` is missing.
 
-- [ ] **Step 7: Implement deterministic starter generation**
+- [x] **Step 7: Implement deterministic starter generation**
 
 Generate these exact relative files:
 
@@ -281,14 +281,14 @@ replaced before integration. Generated components return `null`; their starter
 tests deliberately fail with `throw new Error('Write the first behavior test')`
 so copied code cannot create a false green.
 
-- [ ] **Step 8: Document the complete addition workflow**
+- [x] **Step 8: Document the complete addition workflow**
 
 Write the eight-step workflow from spec section 8. Include concrete commands,
 all current authority files, observed RED requirement, connector credential and
 origin rules, visual tier catalog, one-review/fix-cycle rule, local/upstream
 proof, protected checkout proof, and W6-P5 Store prohibition.
 
-- [ ] **Step 9: Ignore scratch roots and verify all kinds**
+- [x] **Step 9: Ignore scratch roots and verify all kinds**
 
 Add:
 
@@ -301,7 +301,7 @@ Run scaffold CLI three times into fresh ignored roots, compare their manifests
 to actual bytes, then remove only those exact verified scratch roots using one
 PowerShell process and `Remove-Item -LiteralPath`.
 
-- [ ] **Step 10: Commit the scaffold slice**
+- [x] **Step 10: Commit the scaffold slice**
 
 ```powershell
 git add -- .gitignore scripts/expansion docs/ADDING-AURORA-CAPABILITY.md
@@ -336,7 +336,7 @@ git commit -m "feat(dev): add guarded Aurora addition scaffold"
 - The existing catalog script consumes those exports without changing existing
   batch verdicts or canonical output.
 
-- [ ] **Step 1: Write an independent renderer parity failure**
+- [x] **Step 1: Write an independent renderer parity failure**
 
 Add a Vitest test that imports the proposed `WIDGET_RENDERERS` export and
 compares a hand-written sorted 26-ID literal against registry IDs,
@@ -344,7 +344,7 @@ size-contract keys, default-point keys, `Object.keys(WIDGET_RENDERERS)`, and
 `WIDGET_RENDERER_KEYS`. Compare every registry entry's `rendererKey` to its own
 ID as a separate mapping assertion.
 
-- [ ] **Step 2: Observe widget parity RED**
+- [x] **Step 2: Observe widget parity RED**
 
 Run:
 
@@ -355,7 +355,7 @@ npx vitest run src/newtab/expansionWidgetContracts.test.ts
 Expected: FAIL because `WIDGET_RENDERERS` is not exported and the new contract
 file cannot compile.
 
-- [ ] **Step 3: Derive renderer keys from the implementation map**
+- [x] **Step 3: Derive renderer keys from the implementation map**
 
 Rename and export the renderer map, then implement:
 
@@ -369,12 +369,12 @@ Add assertions that every declared size has a nonblank matching contract, no
 undeclared tier promise exists, Docked support equals a nonblank Docked promise,
 and every widget availability key exists in `defaults().settings.widgets`.
 
-- [ ] **Step 4: Reach widget parity GREEN**
+- [x] **Step 4: Reach widget parity GREEN**
 
 Run the focused Vitest test plus existing registry, renderer, size-contract,
 and default-placement tests. Expected: all pass.
 
-- [ ] **Step 5: Write widget-toggle migration contract failures**
+- [x] **Step 5: Write widget-toggle migration contract failures**
 
 Use this hand-written expected introduction-version map for every current
 `WidgetToggles` key:
@@ -395,7 +395,7 @@ literal original-key set and defaults. Also assert exact key parity among the
 ledger, `defaults().settings.widgets`, and the Settings widget controls. The initial
 RED is a compile failure because `widgetToggleVersions.ts` does not exist.
 
-- [ ] **Step 6: Implement and prove migration metadata**
+- [x] **Step 6: Implement and prove migration metadata**
 
 Add only the immutable introduction-version ledger. Do not change schema or
 migrations. Run:
@@ -408,7 +408,7 @@ Expected: every existing toggle proves a complete migration path. Future
 toggle additions must update the ledger, defaults, Settings, version, migration,
 and metadata floor or this family fails.
 
-- [ ] **Step 7: Write visual-catalog parity failures**
+- [x] **Step 7: Write visual-catalog parity failures**
 
 Extend the Vitest contract to import the typed `.mjs` tooling manifest and
 compare it to this exact current production expectation: all 26 `BLOCK_IDS`
@@ -417,7 +417,7 @@ exists exactly for nonblank `docked`; and batch 1 plus batch 2 have no overlap.
 The Node test exercises `captureTiersFor(id)` and rejects duplicate and unknown
 manifest identities without parsing TypeScript source text.
 
-- [ ] **Step 8: Observe catalog-manifest RED**
+- [x] **Step 8: Observe catalog-manifest RED**
 
 Run:
 
@@ -427,7 +427,7 @@ node --test scripts/widget-catalog-manifest.test.mjs
 
 Expected: FAIL because the shared manifest is missing.
 
-- [ ] **Step 9: Extract one tooling manifest and reach parity GREEN**
+- [x] **Step 9: Extract one tooling manifest and reach parity GREEN**
 
 Move the current `BATCH_1`, `BATCH_2`, contract labels, and coded-dock-line set
 from `catalog-nl-p5.mjs` without changing values or order. Import them back into
@@ -435,34 +435,34 @@ the existing script. Keep all owner verdicts in the existing script as data.
 Run the Node manifest test and the Vitest widget parity contract. Expected: all
 manifest, tier, Docked, and batch assertions pass.
 
-- [ ] **Step 10: Write the focused non-writing check-mode failure**
+- [x] **Step 10: Write the focused non-writing check-mode failure**
 
 Add an argument and CLI contract test proving `--check` performs no directory
 deletion, browser launch, screenshot write, Markdown write, or accepted-evidence
 mutation, and returns nonzero when committed Markdown references a missing
 declared PNG.
 
-- [ ] **Step 11: Observe check-mode RED against the current script**
+- [x] **Step 11: Observe check-mode RED against the current script**
 
 Run only the new check-mode test. Expected: FAIL because the current script
 ignores `--check` and reaches its mutating capture setup. The test fixture must
 intercept the first attempted mutation so accepted repository evidence remains
 untouched during RED.
 
-- [ ] **Step 12: Implement real check mode**
+- [x] **Step 12: Implement real check mode**
 
 Refactor argument parsing and Markdown computation into exported pure helpers.
 `--check` may read committed Markdown and PNGs to verify the manifest and hash
 disclosures, but it must return before any removal, profile creation, Chromium
 launch, capture, or write.
 
-- [ ] **Step 13: Prove catalog output stability without capture**
+- [x] **Step 13: Prove catalog output stability without capture**
 
 Run both batch catalog generators in `--check` mode against committed Markdown
 and assert zero writes using the new contract. Then run the Node manifest,
 widget parity, and migration families.
 
-- [ ] **Step 14: Commit the widget-contract slice**
+- [x] **Step 14: Commit the widget-contract slice**
 
 ```powershell
 git add -- src/newtab/widgetRenderers.tsx src/newtab/expansionWidgetContracts.test.ts src/lib/storage/widgetToggleVersions.ts src/lib/storage/widgetToggleVersions.test.ts scripts/widget-catalog-manifest.mjs scripts/widget-catalog-manifest.d.mts scripts/widget-catalog-manifest.test.mjs scripts/catalog-nl-p5.mjs
@@ -488,7 +488,7 @@ git commit -m "test: enforce Aurora widget addition contracts"
   `Record<ConnectorId, ConnectorConfig>` with reserved `.invalid` origins and
   unmistakably inert values such as `contract-token` that are never logged.
 
-- [ ] **Step 1: Write connector authority failures**
+- [x] **Step 1: Write connector authority failures**
 
 Add literal expected IDs for the current nine connectors and compare them to
 `CONNECTOR_IDS`, descriptor IDs, connector-backed widget availability IDs,
@@ -497,7 +497,7 @@ nonblank auth, positive TTL, complete origin declaration, and every declared
 secret field present in the corresponding complete fixture. Do not invent
 descriptor copy fields that the production interface does not own.
 
-- [ ] **Step 2: Observe connector parity RED**
+- [x] **Step 2: Observe connector parity RED**
 
 Run:
 
@@ -507,19 +507,19 @@ npx vitest run src/services/connectors/expansionConnectorContracts.test.ts src/s
 
 Expected: FAIL because body IDs and complete fixtures are not exported.
 
-- [ ] **Step 3: Export actual settings body IDs and build complete fixtures**
+- [x] **Step 3: Export actual settings body IDs and build complete fixtures**
 
 Derive body IDs from `Object.keys(BODY_COMPONENTS)`. Build exact fixtures for
 `rss`, `github`, `gitlab`, `jira`, `vercel`, `crypto`, `ics`, `status`, and
 `homeassistant`. Use `example.invalid`, `*.invalid`, and labels such as
 `contract-token`; no fixture value may match a real service account.
 
-- [ ] **Step 4: Reach identity GREEN**
+- [x] **Step 4: Reach identity GREEN**
 
 Run the focused tests. Expected: exact nine-way parity and no Settings behavior
 change.
 
-- [ ] **Step 5: Write backup and origin behavior failures**
+- [x] **Step 5: Write backup and origin behavior failures**
 
 Use real `redactBackupData`, `requiredReentryConnectorIds`,
 `ownedOriginPatterns`, `heldOrigins`, connector descriptors, and the complete
@@ -543,7 +543,7 @@ origins held by enabled complete configs. Test disabled, invalid,
 configured-hidden, and configured-visible UI states through
 `deriveConnectorCardState` using real configs.
 
-- [ ] **Step 6: Observe privacy/origin RED where coverage is missing**
+- [x] **Step 6: Observe privacy/origin RED where coverage is missing**
 
 Run the focused test and record the exact missing assertion or behavior. If all
 current production behavior already passes, temporarily remove one test fixture
@@ -551,12 +551,12 @@ secret and one origin-owning field to prove the test fails, restore the fixture,
 then record that characterization RED in the plan ledger without changing
 production code.
 
-- [ ] **Step 7: Complete the generic contract**
+- [x] **Step 7: Complete the generic contract**
 
 Add only the minimal exports or test-fixture corrections required. Do not alter
 descriptor request, credential, TTL, redaction, or ownership behavior.
 
-- [ ] **Step 8: Commit the connector-contract slice**
+- [x] **Step 8: Commit the connector-contract slice**
 
 ```powershell
 git add -- src/test/connectorContractFixtures.ts src/services/connectors/expansionConnectorContracts.test.ts src/settings/sections/Connectors.tsx src/settings/sections/Connectors.test.tsx
@@ -580,7 +580,7 @@ git commit -m "test: enforce Aurora connector addition contracts"
   order, streams output, and stops at the first nonzero child exit.
 - `npm run test:expansion-contract` invokes only that runner.
 
-- [ ] **Step 1: Write runner orchestration failures**
+- [x] **Step 1: Write runner orchestration failures**
 
 Use an injected spawn function returning literal exit codes. Assert exact
 command/argument order, inherited stdio, Windows-safe `npx.cmd` selection, and
@@ -599,7 +599,7 @@ src/services/connectors/expansionConnectorContracts.test.ts
 src/settings/sections/Connectors.test.tsx
 ```
 
-- [ ] **Step 2: Observe runner RED**
+- [x] **Step 2: Observe runner RED**
 
 Run:
 
@@ -609,7 +609,7 @@ node --test scripts/expansion/run-contracts.test.mjs
 
 Expected: FAIL because the runner is missing.
 
-- [ ] **Step 3: Implement and register the runner**
+- [x] **Step 3: Implement and register the runner**
 
 Add package script:
 
@@ -619,7 +619,7 @@ Add package script:
 
 The runner invokes only checked-in commands and accepts no shell fragments.
 
-- [ ] **Step 4: Reach command GREEN**
+- [x] **Step 4: Reach command GREEN**
 
 Run:
 
@@ -630,7 +630,7 @@ npm run test:expansion-contract
 
 Expected: orchestration tests and the real expansion contract pass.
 
-- [ ] **Step 5: Commit the command slice**
+- [x] **Step 5: Commit the command slice**
 
 ```powershell
 git add -- package.json scripts/expansion/run-contracts.mjs scripts/expansion/run-contracts.test.mjs
@@ -656,7 +656,7 @@ git commit -m "test: add Aurora expansion contract command"
 - Scratch output safety reuses `resolveSafeExpansionOutput` and writes batch
   subdirectories without following links.
 
-- [ ] **Step 1: Write catalog scratch-safety failures**
+- [x] **Step 1: Write catalog scratch-safety failures**
 
 Invoke the argument parser and output preflight against temporary roots. Prove
 that canonical docs remain byte-identical in scratch mode and that protected,
@@ -666,7 +666,7 @@ which an unexpected successful HTTPS response still makes the harness fail, and
 a DOM fixture whose wrapper is larger than 8px but contains no visible text,
 semantic image, or interactive control and therefore fails usefulness.
 
-- [ ] **Step 2: Observe browser-harness RED**
+- [x] **Step 2: Observe browser-harness RED**
 
 Run:
 
@@ -676,7 +676,7 @@ node --test scripts/catalog-output-safety.test.mjs
 
 Expected: FAIL because `--out-dir` is not implemented.
 
-- [ ] **Step 3: Implement guarded scratch output**
+- [x] **Step 3: Implement guarded scratch output**
 
 Route PNG, Markdown, evidence JSON, preview, and Playwright profile paths under
 the preflighted scratch root. Add `.qa-expansion-platform-*/` to `.gitignore`.
@@ -689,11 +689,11 @@ Weather seed to the exact current forecast request identity plus complete
 environment identity/data, and route both exact endpoints so a catalog run can
 never reach live Open-Meteo.
 
-- [ ] **Step 4: Reach harness-contract GREEN**
+- [x] **Step 4: Reach harness-contract GREEN**
 
 Run the Node safety test and `node --check scripts/catalog-nl-p5.mjs`.
 
-- [ ] **Step 5: Build exact reviewed source and run both batches**
+- [x] **Step 5: Build exact reviewed source and run both batches**
 
 Run:
 
@@ -706,7 +706,7 @@ node scripts/catalog-nl-p5.mjs --batch=2 --out-dir=.qa-expansion-platform-batch-
 Expected: all 26 identities and every declared free/Docked capture complete,
 zero unexpected external requests, runtime errors, and failed requests.
 
-- [ ] **Step 6: Inspect representative originals**
+- [x] **Step 6: Inspect representative originals**
 
 Open and judge at original resolution:
 
@@ -723,7 +723,7 @@ Record per-capture usefulness, no-whitespace, legibility, content-tight bounds,
 and Docked-line judgment in the QA report. Record real-screen-reader and live
 credential/provider combinations as manual ceilings.
 
-- [ ] **Step 7: Commit the browser-proof slice**
+- [x] **Step 7: Commit the browser-proof slice**
 
 ```powershell
 git add -- .gitignore scripts/catalog-nl-p5.mjs scripts/catalog-output-safety.test.mjs docs/superpowers/reports/EXPANSION-PLATFORM-QA.md
@@ -745,7 +745,7 @@ git commit -m "test: witness Aurora expansion platform"
 **Interfaces:** None. This task records exact evidence and the next Program F
 packet boundary.
 
-- [ ] **Step 1: Request one bounded implementation review**
+- [x] **Step 1: Request one bounded implementation review**
 
 Give the reviewer the exact implementation range and ask for Critical,
 Important, and Minor findings against spec acceptance criteria, scaffold path
@@ -753,13 +753,13 @@ safety, JSON/Markdown consistency, real authority independence, secret leakage,
 origin ownership, visual-catalog completeness, frozen boundaries, and test
 claims.
 
-- [ ] **Step 2: Apply at most one confirmed-finding fix cycle**
+- [x] **Step 2: Apply at most one confirmed-finding fix cycle**
 
 For every Critical or Important finding, first write and observe a focused RED,
 then make the minimum fix and rerun the affected slice. Record Minor deferrals
 in STATUS. Ask the same reviewer to rereview only the fix range.
 
-- [ ] **Step 3: Run one stabilized final gate**
+- [x] **Step 3: Run one stabilized final gate**
 
 Run exactly once after review stabilization:
 
@@ -778,14 +778,14 @@ manifest, renderer keys, tier contracts, or browser-visible code. Otherwise
 retain Task 6 evidence from the exact reviewed commit and rebuild `dist` after
 the documentation commit.
 
-- [ ] **Step 4: Update durable ledgers**
+- [x] **Step 4: Update durable ledgers**
 
 Record exact commit range, RED/GREEN evidence, reviewer verdict, final counts,
 capture counts, representative judgments, manual ceilings, Store prohibition,
 active/protected proof, and Program F browser-native as next. Add A2-D066:
 Expansion Platform is a developer-facing safety system, not runtime authority.
 
-- [ ] **Step 5: Checkpoint, push, and prove repositories**
+- [x] **Step 5: Checkpoint, push, and prove repositories**
 
 ```powershell
 git add -- README.md docs/superpowers/plans/2026-08-22-aurora-expansion-platform-implementation.md docs/superpowers/aurora-2/STATUS.md docs/superpowers/aurora-2/ROADMAP.md docs/superpowers/aurora-2/DECISIONS.md docs/superpowers/reports/EXPANSION-PLATFORM-QA.md
