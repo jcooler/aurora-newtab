@@ -9,6 +9,7 @@ import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
 
 export const DY_WINDOW_BEHAVIORS = Object.freeze([
   'fresh-profile-bootstrap',
+  'isolated-weather-fixture',
   'return-tier',
   'pointer-cancel',
   'escape-zero-write',
@@ -182,7 +183,9 @@ try {
 
   await seedInformationFirstFixtures(page)
   await page.evaluate(async ({ blockIds }) => {
-    const { settings } = await chrome.storage.local.get('settings')
+    const { settings, location, weatherCache } = await chrome.storage.local.get([
+      'settings', 'location', 'weatherCache',
+    ])
     const flags = Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false]))
     Object.assign(flags, { weather: true, bookmarks: true, todo: true })
     const widgets = Object.fromEntries(blockIds.map((id) => [id, { kind: 'hidden' }]))
@@ -191,6 +194,13 @@ try {
       bookmarks: { kind: 'docked', dock: 'top', order: 0, x: 18, y: 24, tier: 'standard' },
       tasks: { kind: 'docked', dock: 'bottom', order: 0, x: 82, y: 72, tier: 'compact' },
     })
+    const normalized = (value) => Number(value.toFixed(4))
+    const environmentParams = new URLSearchParams()
+    environmentParams.set('timezone', 'auto')
+    environmentParams.set('current', 'us_aqi,uv_index,alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen')
+    environmentParams.set('latitude', String(normalized(location.lat)))
+    environmentParams.set('longitude', String(normalized(location.lon)))
+    const now = Date.now()
     await chrome.storage.local.set({
       settings: { ...settings, widgets: flags },
       layouts: {
@@ -198,10 +208,33 @@ try {
         activeLayoutId: 'dy-window',
         layouts: [{ id: 'dy-window', name: 'DY real window', widgets }],
       },
+      weatherCache: {
+        ...weatherCache,
+        fetchedAt: now,
+        environment: {
+          requestIdentity: `open-meteo-air:v1:https://air-quality-api.open-meteo.com/v1/air-quality?${environmentParams.toString()}`,
+          fetchedAt: now,
+          status: 'available',
+          usAqi: 42,
+          uvIndex: 3,
+          pollen: { status: 'available', readings: [{ species: 'grass', grainsPerCubicMeter: 4 }] },
+        },
+      },
+      weatherAlertCache: {
+        requestIdentity: `nws-alerts:v1:https://api.weather.gov/alerts/active?point=${normalized(location.lat)},${normalized(location.lon)}`,
+        fetchedAt: now,
+        status: 'supported',
+        alerts: [],
+      },
     })
   }, { blockIds: BLOCK_IDS })
   await page.reload({ waitUntil: 'domcontentloaded' })
   await waitForCanvas()
+  await page.waitForTimeout(250)
+  // Fixture setup is not product interaction evidence. Once every current
+  // cache is settled, start the write/network witness from a clean slate.
+  evidence.runtimeErrors.length = 0
+  evidence.failedRequests.length = 0
   await armWrites()
   const baselineBytes = await layoutsBytes()
   await stage('real-window-settled', `measured ${inner.width}x${inner.height} at DPR ${inner.dpr}`)
