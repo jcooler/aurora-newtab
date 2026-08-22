@@ -5,6 +5,9 @@ const KNOWN_WIDGET_IDS = new Set([
   'moon', 'status', 'homeassistant', 'readingList', 'recentlyClosed',
   'downloads', 'tabGroups',
   'linear', 'sentry', 'todoist',
+  'onThisDay',
+  'publicHolidays',
+  'auroraKp',
 ])
 
 const batch = (entries) => Object.freeze(entries.map((entry) => Object.freeze({
@@ -54,6 +57,11 @@ export const CATALOG_BATCHES = Object.freeze({
     { id: 'sentry', label: 'Sentry', tiers: ['compact', 'standard', 'full', 'docked'] },
     { id: 'todoist', label: 'Todoist', tiers: ['compact', 'standard', 'full', 'docked'] },
   ]),
+  '5': batch([
+    { id: 'onThisDay', label: 'On This Day', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'publicHolidays', label: 'Public Holidays', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'auroraKp', label: 'Aurora & Kp', tiers: ['compact', 'standard', 'full', 'docked'] },
+  ]),
 })
 
 export const CATALOG_CONTRACTS = Object.freeze({
@@ -98,6 +106,11 @@ export const CATALOG_CONTRACTS = Object.freeze({
     sentry: { compact: 'Unresolved count and top issue', standard: 'Named unresolved issues', full: 'All unresolved issues that fit', docked: 'Unresolved count and top issue' },
     todoist: { compact: 'Due and overdue counts', standard: 'Due task sections', full: 'All due tasks that fit', docked: 'Due and overdue counts' },
   }),
+  '5': Object.freeze({
+    onThisDay: { compact: 'One historical event', standard: 'Three historical events', full: 'Events, births, and deaths', docked: 'Year and event' },
+    publicHolidays: { compact: 'Next national holiday', standard: 'Next three national holidays', full: 'Current and next-year national holidays', docked: 'Next holiday and date' },
+    auroraKp: { compact: 'Current Kp and next peak', standard: 'Current Kp and next four intervals', full: 'Bounded three-day Kp forecast', docked: 'Current Kp and next peak' },
+  }),
 })
 
 export const CODED_DOCK_LINES = new Set([
@@ -106,6 +119,9 @@ export const CODED_DOCK_LINES = new Set([
   'homeassistant', 'ics', 'habits', 'sun', 'moon',
   'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
   'linear', 'sentry', 'todoist',
+  'onThisDay',
+  'publicHolidays',
+  'auroraKp',
 ])
 
 export function captureTiersFor(id, batches = CATALOG_BATCHES) {

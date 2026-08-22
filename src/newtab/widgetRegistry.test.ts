@@ -40,6 +40,9 @@ const EXPECTED = [
   ['linear', 'Linear', 'pulse', 12, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['sentry', 'Sentry', 'pulse', 13, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['todoist', 'Todoist', 'pulse', 14, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['onThisDay', 'On This Day', 'pulse', 15, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['publicHolidays', 'Public Holidays', 'pulse', 16, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['auroraKp', 'Aurora & Kp', 'pulse', 17, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
 ] as const
 
 const ALL_WIDGETS_OFF: WidgetToggles = {
@@ -159,9 +162,10 @@ describe('source-owned widget registry', () => {
     }
   })
 
-  it('maps all twelve connectors by enabled alone, including incomplete setup/data', () => {
+  it('maps every delivered connector widget by enabled alone, including incomplete setup/data', () => {
     const settings = settingsWith(ALL_WIDGETS_OFF)
-    for (const connectorId of CONNECTOR_IDS) {
+    const delivered = CONNECTOR_IDS.filter((id) => id !== 'auroraKp')
+    for (const connectorId of delivered) {
       const enabled = { [connectorId]: connector(true) } as Partial<Record<ConnectorId, ConnectorConfig>>
       const disabled = { [connectorId]: connector(false) } as Partial<Record<ConnectorId, ConnectorConfig>>
       expect(ids(selectActiveWidgetRegistry(settings, enabled))).toContain(connectorId)
@@ -201,7 +205,7 @@ describe('source-owned widget registry', () => {
   it('resolves every registry renderer exhaustively with exact key set equality', () => {
     const registryKeys = WIDGET_REGISTRY.map((row) => row.rendererKey)
     expect(WIDGET_RENDERER_KEYS).toEqual(registryKeys)
-    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(33)
+    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(36)
     for (const key of registryKeys) expect(typeof resolveWidgetRenderer(key), key).toBe('function')
   })
 })

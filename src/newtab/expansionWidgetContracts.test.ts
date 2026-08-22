@@ -9,9 +9,9 @@ import { WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 import { CATALOG_BATCHES, CATALOG_CONTRACTS, captureTiersFor } from '../../scripts/widget-catalog-manifest.mjs'
 
 const EXPECTED_WIDGET_IDS = [
-  'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
+  'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
   'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'linear', 'links', 'monthCal',
-  'moon', 'notes', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
+  'moon', 'notes', 'onThisDay', 'publicHolidays', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
   'sentry', 'status', 'sun', 'tabGroups', 'tasks', 'timer', 'todoist',
   'vercel', 'weather', 'worldClocks',
 ] as const satisfies readonly BlockId[]

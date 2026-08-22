@@ -361,6 +361,7 @@ describe('backup restore coordinator', () => {
       photoPrefs: { mode: 'gradient', index: 7, lastRotated: '2026-08-13' },
       location: { lat: 42.9, lon: -85.6, label: 'Grand Rapids', manual: true },
       weatherCache: null,
+      weatherAlertCache: null,
       notes: { text: 'Literal note', updatedAt: 1234 },
       worldClocks: [{ zone: 'Europe/London', label: 'London' }],
       countdowns: [{ id: 'before-countdown', name: 'Before countdown', date: '2026-12-31' }],

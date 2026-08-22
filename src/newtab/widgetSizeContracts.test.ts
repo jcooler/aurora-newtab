@@ -18,6 +18,10 @@ describe('Canvas widget size contracts', () => {
     }
   })
 
+  it('pins delivered At a glance identities to useful four-tier contracts', () => {
+    expect(Object.keys(WIDGET_SIZE_CONTRACTS).slice(-3)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp'])
+  })
+
   it('names selected content that needs a larger size instead of inventing a fitting choice', () => {
     const graph: SelectedCanvasContent = { label: 'Contribution graph', minimumSize: 'standard' }
     const pulls: SelectedCanvasContent = { label: 'Pull requests', minimumSize: 'standard' }
@@ -38,8 +42,8 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
       .map(([id]) => id)
       .sort()
     expect(docked).toEqual([
-      'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
-      'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'readingList',
+      'auroraKp', 'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
+      'habits', 'homeassistant', 'ics', 'jira', 'linear', 'moon', 'notes', 'onThisDay', 'publicHolidays', 'readingList',
       'recentlyClosed', 'rss', 'sentry', 'status', 'sun', 'tabGroups', 'tasks',
       'timer', 'todoist', 'vercel', 'weather', 'worldClocks',
     ])

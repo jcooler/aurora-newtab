@@ -32,6 +32,9 @@ import WeatherWidget from './widgets/weather/WeatherWidget'
 import LinearWidget from './widgets/linear/LinearWidget'
 import SentryWidget from './widgets/sentry/SentryWidget'
 import TodoistWidget from './widgets/todoist/TodoistWidget'
+import OnThisDayWidget from './widgets/glance/OnThisDayWidget'
+import PublicHolidaysWidget from './widgets/glance/PublicHolidaysWidget'
+import AuroraKpWidget from './widgets/glance/AuroraKpWidget'
 import type { WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
@@ -96,6 +99,9 @@ export const WIDGET_RENDERERS = {
   linear: (props) => <LinearWidget canvasSize={props.canvasSize} docked={props.docked} />,
   sentry: (props) => <SentryWidget canvasSize={props.canvasSize} docked={props.docked} />,
   todoist: (props) => <TodoistWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  onThisDay: (props) => <OnThisDayWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  publicHolidays: (props) => <PublicHolidaysWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  auroraKp: (props) => <AuroraKpWidget canvasSize={props.canvasSize} docked={props.docked} />,
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(

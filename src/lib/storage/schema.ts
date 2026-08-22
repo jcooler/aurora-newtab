@@ -221,6 +221,32 @@ export interface WeatherSnapshot {
   environment?: WeatherEnvironmentSnapshot
 }
 
+export type WeatherAlertSeverity = 'Extreme' | 'Severe' | 'Moderate' | 'Minor' | 'Unknown'
+
+export interface WeatherAlert {
+  id: string
+  event: string
+  severity: WeatherAlertSeverity
+  urgency: string
+  headline: string
+  areaDescription: string
+  effective: string | null
+  onset: string | null
+  expires: string | null
+  description: string
+  instruction: string
+}
+
+/** Independent five-minute NWS enrichment. It is intentionally separate from
+ *  WeatherSnapshot because alert coverage, failure, and freshness must never
+ *  suppress the useful Open-Meteo forecast or environmental data. */
+export interface WeatherAlertCache {
+  requestIdentity: string
+  fetchedAt: number
+  status: 'supported' | 'unsupported'
+  alerts: WeatherAlert[]
+}
+
 export interface Notes {
   text: string
   updatedAt: number
@@ -282,6 +308,7 @@ export interface AuroraData {
   photoPrefs: PhotoPrefs
   location: StoredLocation | null
   weatherCache: WeatherSnapshot | null
+  weatherAlertCache: WeatherAlertCache | null
   notes: Notes
   worldClocks: WorldClock[]
   countdowns: Countdown[]
@@ -355,6 +382,7 @@ export function defaults(): AuroraData {
     photoPrefs: { mode: 'auto', index: 0, lastRotated: '' },
     location: null,
     weatherCache: null,
+    weatherAlertCache: null,
     notes: { text: '', updatedAt: 0 },
     worldClocks: [],
     countdowns: [],

@@ -98,6 +98,9 @@ const SOURCES: readonly RegistrySource[] = [
   { id: 'linear', label: 'Linear', zone: 'pulse', order: 12, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('linear') },
   { id: 'sentry', label: 'Sentry', zone: 'pulse', order: 13, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('sentry') },
   { id: 'todoist', label: 'Todoist', zone: 'pulse', order: 14, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('todoist') },
+  { id: 'onThisDay', label: 'On This Day', zone: 'pulse', order: 15, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('onThisDay') },
+  { id: 'publicHolidays', label: 'Public Holidays', zone: 'pulse', order: 16, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('publicHolidays') },
+  { id: 'auroraKp', label: 'Aurora & Kp', zone: 'pulse', order: 17, priority: 'automatic', eligibleZones: ['pulse', 'dock'], defaultVariant: 'compact', footprints: { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }, availability: connector('auroraKp') },
 ] as const
 
 const PROFILE_ORDER: readonly LayoutProfile[] = ['compact', 'standard', 'display', 'ultrawide']
@@ -206,6 +209,9 @@ function selectedConnectorContent(id: ConnectorId, config: ConnectorConfig | und
     case 'linear': return [selected('Assigned work', 'compact')]
     case 'sentry': return [selected('Unresolved issues', 'compact')]
     case 'todoist': return [selected('Due tasks', 'compact')]
+    case 'onThisDay': return [selected('Historical events', 'compact')]
+    case 'publicHolidays': return [selected('National holidays', 'compact')]
+    case 'auroraKp': return [selected('Geomagnetic forecast', 'compact')]
   }
 }
 

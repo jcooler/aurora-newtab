@@ -12,6 +12,7 @@ import { connectorSnapshotScope, newSnapshotEpoch } from '../../services/connect
 import { isSentryData, sentryBaseUrl, sentryItemLimit, sentryProjectSlugs, sentryRegion, validateSentryConnection } from '../../services/connectors/sentry'
 import { isLinearWorkData, LINEAR_ORIGIN, linearItemLimit, linearTeamIds, whoamiLinear } from '../../services/connectors/linear'
 import { fetchTodoistProjects, isTodoistData, TODOIST_ORIGIN, todoistItemLimit, todoistProjectIds } from '../../services/connectors/todoist'
+import { fetchHolidayCountries, normalizeHolidayCountryCode, type HolidayCountry } from '../../services/connectors/publicHolidays'
 import { resolveViews } from '../../services/connectors/views'
 import { icsCalendarsOf, icsViewOf, MAX_CALENDARS } from '../../services/connectors/ics'
 import { CALENDAR_COLORS, calendarColorClass, calendarColorOf, isCalendarColor, type CalendarColor } from '../../services/connectors/calendarColors'
@@ -444,6 +445,9 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   linear: LinearBody,
   sentry: SentryBody,
   todoist: TodoistBody,
+  onThisDay: OnThisDayBody,
+  publicHolidays: PublicHolidaysBody,
+  auroraKp: AuroraKpBody,
 }
 
 export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
@@ -500,6 +504,156 @@ function ConnectorCard({
         />
       ) : null}
     </ConnectorCardShell>
+  )
+}
+
+function OnThisDayBody({ config, storage, closeEditor }: BodyProps) {
+  const configured = config?.enabled === true || config?.enabled === false
+
+  if (configured) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Uses today&apos;s local month and day to request public historical facts from English Wikipedia.
+        </p>
+        <button type="button" onClick={closeEditor} className={submitBtn}>Done</button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.onThisDay
+          return {
+            connectors: { ...connectors, onThisDay: { enabled: true } },
+            connectorSnapshots: nextSnapshots,
+          }
+        }).then(closeEditor)
+      }}
+    >
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora sends only today&apos;s local month and day to English Wikipedia. No account, key, or permission is required.
+      </p>
+      <button type="submit" className={submitBtn}>Add On This Day to canvas</button>
+    </form>
+  )
+}
+
+function PublicHolidaysBody({ config, storage, closeEditor }: BodyProps) {
+  const current = config && 'countryCode' in config
+    ? normalizeHolidayCountryCode(config.countryCode)
+    : null
+  const [countries, setCountries] = useState<HolidayCountry[]>([])
+  const [countryCode, setCountryCode] = useState(current ?? '')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let live = true
+    setLoading(true)
+    void fetchHolidayCountries()
+      .then((rows) => {
+        if (!live) return
+        setCountries(rows)
+        setError(null)
+      })
+      .catch(() => {
+        if (live) setError('Country choices are unavailable. Try again.')
+      })
+      .finally(() => {
+        if (live) setLoading(false)
+      })
+    return () => { live = false }
+  }, [])
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        const normalized = normalizeHolidayCountryCode(countryCode)
+        if (!normalized || !countries.some((country) => country.countryCode === normalized)) {
+          setError('Choose a country from the list.')
+          return
+        }
+        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.publicHolidays
+          return {
+            connectors: { ...connectors, publicHolidays: { enabled: true, countryCode: normalized } },
+            connectorSnapshots: nextSnapshots,
+          }
+        }).then(closeEditor)
+      }}
+    >
+      <div>
+        <label htmlFor="connector-public-holidays-country" className={label}>Country</label>
+        <select
+          id="connector-public-holidays-country"
+          value={countryCode}
+          disabled={loading}
+          onChange={(event) => {
+            setCountryCode(event.currentTarget.value)
+            setError(null)
+          }}
+          className={`${select} w-full`}
+        >
+          <option value="">{loading ? 'Loading countries…' : 'Choose a country'}</option>
+          {countries.map((country) => (
+            <option key={country.countryCode} value={country.countryCode}>{country.name}</option>
+          ))}
+        </select>
+      </div>
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora sends this country code and the current and next local year to Nager.Date. No account, key, or permission is required.
+      </p>
+      <button type="submit" disabled={loading || countries.length === 0} className={submitBtn}>
+        {current ? 'Save Public Holidays country' : 'Add Public Holidays to canvas'}
+      </button>
+      {error ? <p role="alert" className="text-xs text-fg-muted">{error}</p> : null}
+    </form>
+  )
+}
+
+function AuroraKpBody({ config, storage, closeEditor }: BodyProps) {
+  const configured = config?.enabled === true || config?.enabled === false
+
+  if (configured) {
+    return (
+      <div className="flex flex-col gap-3">
+        <p className="text-xs leading-relaxed text-fg-muted">
+          Uses NOAA&apos;s public planetary K-index forecast. Aurora sends no account or personal data.
+        </p>
+        <button type="button" onClick={closeEditor} className={submitBtn}>Done</button>
+      </div>
+    )
+  }
+
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(event) => {
+        event.preventDefault()
+        void storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+          const nextSnapshots = { ...connectorSnapshots }
+          delete nextSnapshots.auroraKp
+          return {
+            connectors: { ...connectors, auroraKp: { enabled: true } },
+            connectorSnapshots: nextSnapshots,
+          }
+        }).then(closeEditor)
+      }}
+    >
+      <p className="text-xs leading-relaxed text-fg-muted">
+        Aurora reads NOAA&apos;s public geomagnetic forecast. No account, key, location, or permission is required.
+      </p>
+      <button type="submit" className={submitBtn}>Add Aurora &amp; Kp to canvas</button>
+    </form>
   )
 }
 

@@ -32,6 +32,7 @@ export const STORED_DATA_FLOWS: Record<DataKey, StoredDataFlow> = {
   photoPrefs: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Background-photo mode and rotation state.' },
   location: { storage: 'chrome.storage.local', sensitivity: ['approximate-location'], export: 'included', transmission: 'provider-direct', description: 'Chosen or browser-provided coordinates and label.' },
   weatherCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'included', transmission: 'none', description: 'Cached forecast and environmental response for the selected location.' },
+  weatherAlertCache: { storage: 'chrome.storage.local', sensitivity: ['provider-content'], export: 'excluded', transmission: 'none', description: 'Rebuildable official NWS alert cache for the selected Weather location.' },
   notes: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'User-authored notes.' },
   worldClocks: { storage: 'chrome.storage.local', sensitivity: ['preferences'], export: 'included', transmission: 'none', description: 'Selected world-clock cities.' },
   countdowns: { storage: 'chrome.storage.local', sensitivity: ['user-content'], export: 'included', transmission: 'none', description: 'User-authored countdown labels and dates.' },
@@ -66,7 +67,7 @@ interface ConnectorDataFlow {
   authenticationFields: readonly string[]
   capabilityFields: readonly string[]
   backup: 'included' | 'redacted'
-  permission: 'optional-per-origin'
+  permission: 'optional-per-origin' | 'none'
   transmission: 'provider-direct'
   destinationKind: 'fixed-provider' | 'configured-provider'
   destinations: readonly string[]
@@ -85,6 +86,18 @@ function connectorFlow(
   return {
     ...details,
     permission: 'optional-per-origin',
+    transmission: 'provider-direct',
+    cache: 'connectorSnapshots-excluded-from-backup',
+    backend: 'none',
+  }
+}
+
+function publicConnectorFlow(
+  details: Omit<ConnectorDataFlow, 'permission' | 'transmission' | 'cache' | 'backend'>,
+): ConnectorDataFlow {
+  return {
+    ...details,
+    permission: 'none',
     transmission: 'provider-direct',
     cache: 'connectorSnapshots-excluded-from-backup',
     backend: 'none',
@@ -158,6 +171,45 @@ export const CONNECTOR_DATA_FLOWS: Record<ConnectorId, ConnectorDataFlow> = {
     receives: ['project names and due task content, dates, priorities, labels, recurrence, and duration'],
     operations: ['GET /api/v1/projects', 'GET /api/v1/tasks', 'POST /api/v1/tasks/{task_id}/close after confirmation'],
   }),
+  onThisDay: publicConnectorFlow({
+    account: 'none',
+    authenticationFields: [],
+    capabilityFields: [],
+    backup: 'included',
+    destinationKind: 'fixed-provider',
+    destinations: ['en.wikipedia.org'],
+    trigger: ['mounted local-day refresh or explicit retry'],
+    methods: ['GET'],
+    sends: ['local month and day'],
+    receives: ['public historical events, births, deaths, and article links'],
+    operations: ['GET /api/rest_v1/feed/onthisday/all/{MM}/{DD}'],
+  }),
+  publicHolidays: publicConnectorFlow({
+    account: 'none',
+    authenticationFields: [],
+    capabilityFields: [],
+    backup: 'included',
+    destinationKind: 'fixed-provider',
+    destinations: ['date.nager.at'],
+    trigger: ['country editor open, mounted local-day refresh, or explicit retry'],
+    methods: ['GET'],
+    sends: ['selected country code and current/next local year'],
+    receives: ['public country list and national holiday facts'],
+    operations: ['GET /api/v3/AvailableCountries', 'GET /api/v3/PublicHolidays/{year}/{countryCode}'],
+  }),
+  auroraKp: publicConnectorFlow({
+    account: 'none',
+    authenticationFields: [],
+    capabilityFields: [],
+    backup: 'included',
+    destinationKind: 'fixed-provider',
+    destinations: ['services.swpc.noaa.gov'],
+    trigger: ['mounted fifteen-minute refresh or explicit retry'],
+    methods: ['GET'],
+    sends: ['no user data'],
+    receives: ['public observed, estimated, and predicted planetary K-index rows'],
+    operations: ['GET /products/noaa-planetary-k-index-forecast.json'],
+  }),
 }
 
 interface FixedDataFlow {
@@ -168,13 +220,14 @@ interface FixedDataFlow {
   receives: readonly string[]
   methods: readonly ['GET']
   permission: 'not-separately-requested-by-flow' | 'optional-per-origin'
-  cache: 'none' | 'weatherCache-included-in-backup' | 'apodCache-excluded-from-backup'
+  cache: 'none' | 'weatherCache-included-in-backup' | 'apodCache-excluded-from-backup' | 'weatherAlertCache-excluded-from-backup'
   backend: 'none'
 }
 
-export const FIXED_DATA_FLOWS: Record<'weatherForecast' | 'weatherEnvironment' | 'citySearch' | 'reverseGeocode' | 'apod', FixedDataFlow> = {
+export const FIXED_DATA_FLOWS: Record<'weatherForecast' | 'weatherEnvironment' | 'weatherAlerts' | 'citySearch' | 'reverseGeocode' | 'apod', FixedDataFlow> = {
   weatherForecast: { destinations: ['api.open-meteo.com'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and a stale or mismatched cache'], sends: ['rounded coordinates'], receives: ['current, hourly, sunrise, and sunset forecast data'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherCache-included-in-backup', backend: 'none' },
   weatherEnvironment: { destinations: ['air-quality-api.open-meteo.com'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and missing, mismatched, or stale environmental data'], sends: ['rounded coordinates'], receives: ['current US AQI, UV index, and provider-available pollen values'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherCache-included-in-backup', backend: 'none' },
+  weatherAlerts: { destinations: ['api.weather.gov'], transmission: 'provider-direct', trigger: ['enabled Weather widget with a selected location and a stale or mismatched five-minute alert cache'], sends: ['rounded coordinates'], receives: ['active NWS watches, warnings, and advisories for that point'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'weatherAlertCache-excluded-from-backup', backend: 'none' },
   citySearch: { destinations: ['geocoding-api.open-meteo.com'], transmission: 'provider-direct', trigger: ['debounced active city query of at least two characters'], sends: ['city search text'], receives: ['matching place names and coordinates'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
   reverseGeocode: { destinations: ['api.bigdatacloud.net'], transmission: 'provider-direct', trigger: ['Use my location click after Chrome supplies coordinates'], sends: ['rounded coordinates'], receives: ['place label'], methods: ['GET'], permission: 'not-separately-requested-by-flow', cache: 'none', backend: 'none' },
   apod: { destinations: ['api.nasa.gov', 'apod.nasa.gov'], transmission: 'provider-direct', trigger: ['user selects APOD and the local-day cache needs a photo'], sends: ['shared NASA DEMO_KEY'], receives: ['APOD metadata', 'selected image bytes'], methods: ['GET'], permission: 'optional-per-origin', cache: 'apodCache-excluded-from-backup', backend: 'none' },

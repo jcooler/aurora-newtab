@@ -282,10 +282,11 @@ describe('serializeBackup / parseBackup round-trip', () => {
     const result = parseBackup(json)
     expect(result.ok).toBe(true)
     if (result.ok) {
-      const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expected } = input
+      const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expected } = input
       expect(result.data).toEqual(expected)
       expect('connectorSnapshots' in result.data).toBe(false)
       expect('apodCache' in result.data).toBe(false)
+      expect('weatherAlertCache' in result.data).toBe(false)
       expect(result.version).toBe(CURRENT_VERSION)
     }
   })
@@ -297,7 +298,7 @@ describe('serializeBackup / parseBackup round-trip', () => {
     expect(envelope.version).toBe(CURRENT_VERSION)
     expect(typeof envelope.exportedAt).toBe('string')
     expect(new Date(envelope.exportedAt).toString()).not.toBe('Invalid Date')
-    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...expectedData } = defaults()
+    const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, weatherAlertCache: _weatherAlertCache, ...expectedData } = defaults()
     expect(envelope.data).toEqual(expectedData)
     // Pretty-printed: multiple lines, not a single minified line.
     expect(json.split('\n').length).toBeGreaterThan(1)
@@ -547,6 +548,42 @@ describe('apodCache export / import exclusion (Task 95)', () => {
     const result = validateBackupShape(defaults())
     expect(result.ok).toBe(true)
     if (result.ok) expect(result.data.apodCache).toBeNull()
+  })
+})
+
+describe('weatherAlertCache export / import exclusion', () => {
+  it('keeps the current schema at v16 and defaults the additive cache to null', () => {
+    expect(CURRENT_VERSION).toBe(16)
+    expect(defaults().weatherAlertCache).toBeNull()
+    expect(migrate({}, CURRENT_VERSION).weatherAlertCache).toBeNull()
+  })
+
+  it('never exports a populated alert cache', () => {
+    const input = {
+      ...defaults(),
+      weatherAlertCache: {
+        requestIdentity: 'nws-alerts:v1:https://api.weather.gov/alerts/active?point=1,2',
+        fetchedAt: 123,
+        status: 'supported' as const,
+        alerts: [],
+      },
+    }
+    const envelope = JSON.parse(serializeBackup(input))
+    expect('weatherAlertCache' in envelope.data).toBe(false)
+  })
+
+  it('resets a forged or missing imported alert cache to null', () => {
+    const forged = validateBackupShape({
+      ...defaults(),
+      weatherAlertCache: { requestIdentity: 'forged', fetchedAt: 1, status: 'supported', alerts: [{ secret: true }] },
+    } as unknown as AuroraData)
+    expect(forged.ok).toBe(true)
+    if (forged.ok) expect(forged.data.weatherAlertCache).toBeNull()
+
+    const { weatherAlertCache: _weatherAlertCache, ...missing } = defaults()
+    const legacy = validateBackupShape(missing as AuroraData)
+    expect(legacy.ok).toBe(true)
+    if (legacy.ok) expect(legacy.data.weatherAlertCache).toBeNull()
   })
 })
 

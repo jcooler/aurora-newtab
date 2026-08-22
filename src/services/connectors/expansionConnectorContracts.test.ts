@@ -13,6 +13,7 @@ import { CONNECTOR_IDS, type ConnectorConfig, type ConnectorId } from './types'
 const EXPECTED_CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
   'linear', 'sentry', 'todoist',
+  'onThisDay', 'publicHolidays', 'auroraKp',
 ] as const satisfies readonly ConnectorId[]
 
 const EXPECTED_REENTRY_IDS: readonly ConnectorId[] = [
@@ -33,6 +34,9 @@ const EXPECTED_ORIGINS: Readonly<Record<ConnectorId, readonly string[]>> = {
   linear: ['https://api.linear.app/*'],
   sentry: ['https://us.sentry.io/*'],
   todoist: ['https://api.todoist.com/*'],
+  onThisDay: [],
+  publicHolidays: [],
+  auroraKp: [],
 }
 
 const HELD_WHEN_INCOMPLETE = new Set<ConnectorId>([
@@ -53,6 +57,9 @@ const INCOMPLETE: Record<ConnectorId, ConnectorConfig> = {
   linear: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.linear, token: '' },
   sentry: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.sentry, token: '' },
   todoist: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.todoist, token: '' },
+  onThisDay: { enabled: undefined } as unknown as ConnectorConfig,
+  publicHolidays: { ...COMPLETE_CONNECTOR_CONTRACT_FIXTURES.publicHolidays, countryCode: '' },
+  auroraKp: { enabled: undefined } as unknown as ConnectorConfig,
 }
 
 const photoPrefs = defaults().photoPrefs
@@ -102,6 +109,9 @@ describe('expansion connector authorities', () => {
       linear: { enabled: true, itemLimit: 6 },
       sentry: { enabled: true, region: 'us', itemLimit: 6 },
       todoist: { enabled: true, itemLimit: 6 },
+      onThisDay: { enabled: true },
+      publicHolidays: { enabled: true, countryCode: 'US' },
+      auroraKp: { enabled: true },
     })
     expect(redactions.reentryRequired).toEqual(EXPECTED_REENTRY_IDS)
     expect(requiredReentryConnectorIds(redacted.connectors, EXPECTED_REENTRY_IDS, true)).toEqual(EXPECTED_REENTRY_IDS)

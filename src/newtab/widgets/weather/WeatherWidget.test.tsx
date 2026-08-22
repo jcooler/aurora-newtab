@@ -5,9 +5,10 @@ import { createStorage } from '../../../lib/storage/index'
 import { memoryDriver } from '../../../lib/storage/driver'
 import { StorageProvider } from '../../../lib/storage/context'
 import type { WidgetVariant } from '../../../lib/layout/types'
-import type { StoredLocation, WeatherEnvironmentSnapshot, WeatherSnapshot } from '../../../lib/storage/schema'
+import type { StoredLocation, WeatherAlertCache, WeatherEnvironmentSnapshot, WeatherSnapshot } from '../../../lib/storage/schema'
 import { environmentRequestIdentity } from '../../../services/weather/environmentIdentity'
 import { weatherRequestIdentity } from '../../../services/weather/identity'
+import { weatherAlertRequestIdentity } from '../../../services/weatherAlerts'
 import WeatherWidget from './WeatherWidget'
 
 const NEW_YORK: StoredLocation = { lat: 40.71, lon: -74.01, label: 'New York', manual: true }
@@ -59,6 +60,7 @@ async function renderWidget({
   stageVariant = 'standard',
   docked = false,
   use24Hour = false,
+  alertCache,
 }: {
   location?: StoredLocation | null
   snapshot?: WeatherSnapshot | null
@@ -66,6 +68,7 @@ async function renderWidget({
   stageVariant?: WidgetVariant
   docked?: boolean
   use24Hour?: boolean
+  alertCache?: WeatherAlertCache | null
 } = {}) {
   const storage = createStorage(memoryDriver())
   await storage.init()
@@ -75,6 +78,14 @@ async function renderWidget({
   }
   await storage.set('location', location)
   await storage.set('weatherCache', snapshot)
+  await storage.set('weatherAlertCache', alertCache === undefined
+    ? {
+        requestIdentity: weatherAlertRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+        fetchedAt: Date.now(),
+        status: 'unsupported',
+        alerts: [],
+      }
+    : alertCache)
   const view = render(
     <StorageProvider storage={storage}>
       <WeatherWidget onExpandedChange={onExpandedChange} stageVariant={stageVariant} docked={docked} />
@@ -82,6 +93,27 @@ async function renderWidget({
   )
   await act(async () => {})
   return { storage, view }
+}
+
+function activeAlertCache(severity: 'Extreme' | 'Severe' | 'Moderate' | 'Minor' = 'Severe'): WeatherAlertCache {
+  return {
+    requestIdentity: weatherAlertRequestIdentity(NEW_YORK.lat, NEW_YORK.lon),
+    fetchedAt: Date.now(),
+    status: 'supported',
+    alerts: [{
+      id: 'https://api.weather.gov/alerts/urn:oid:test',
+      event: 'Severe Thunderstorm Warning',
+      severity,
+      urgency: 'Immediate',
+      headline: 'Severe thunderstorms are moving through New York',
+      areaDescription: 'New York County',
+      effective: '2026-08-22T12:00:00.000Z',
+      onset: '2026-08-22T12:00:00.000Z',
+      expires: '2026-08-22T13:00:00.000Z',
+      description: 'Damaging winds are possible.',
+      instruction: 'Move indoors.',
+    }],
+  }
 }
 
 const toggle = () => screen.getByRole('button', { expanded: false })
@@ -786,6 +818,62 @@ describe('WeatherWidget environmental briefing', () => {
     await waitFor(() => expect(details.getByText('Air quality').nextElementSibling?.textContent).toBe('35 Good'))
     expect(details.queryByText('Environmental data unavailable.')).toBeNull()
     view.unmount()
+  })
+})
+
+describe('WeatherWidget official NWS alerts', () => {
+  it('adds a named Severe or Extreme badge to Compact without replacing weather', async () => {
+    await renderWidget({ stageVariant: 'compact', alertCache: activeAlertCache('Severe') })
+    expect(document.querySelector('[data-weather-current]')?.textContent).toBe('21°C')
+    expect(screen.getByLabelText('Partly cloudy - New York')).toBeTruthy()
+    expect(screen.getByText('Severe Thunderstorm Warning')).toBeTruthy()
+  })
+
+  it('adds the highest named active alert to Standard', async () => {
+    await renderWidget({ stageVariant: 'standard', alertCache: activeAlertCache('Moderate') })
+    expect(screen.getByText('Moderate · Severe Thunderstorm Warning')).toBeTruthy()
+  })
+
+  it('adds ALERT and the event to Docked while preserving click parity', async () => {
+    await renderWidget({ docked: true, alertCache: activeAlertCache('Extreme') })
+    const trigger = screen.getByRole('button', { name: /ALERT, Severe Thunderstorm Warning/i })
+    fireEvent.click(trigger)
+    expect(screen.getByRole('dialog', { name: 'Weather details' })).toBeTruthy()
+  })
+
+  it('shows supported empty and active context only in expanded Weather details', async () => {
+    const empty = { ...activeAlertCache(), alerts: [] }
+    const first = await renderWidget({ alertCache: empty })
+    await expandPanel()
+    expect(screen.getByText('No active NWS alerts')).toBeTruthy()
+    expect(screen.getByText('National Weather Service')).toBeTruthy()
+    first.view.unmount()
+
+    await renderWidget({ alertCache: activeAlertCache() })
+    await expandPanel()
+    const alerts = screen.getByRole('region', { name: 'NWS alerts' })
+    expect(within(alerts).getByText('Severe Thunderstorm Warning')).toBeTruthy()
+    expect(within(alerts).getByText('Severe thunderstorms are moving through New York')).toBeTruthy()
+    expect(within(alerts).getByText('New York County')).toBeTruthy()
+    fireEvent.click(within(alerts).getByText('Details and instructions'))
+    expect(within(alerts).getByText('Damaging winds are possible.')).toBeTruthy()
+    expect(within(alerts).getByText('Move indoors.')).toBeTruthy()
+  })
+
+  it('omits NWS entirely when coverage is unsupported', async () => {
+    await renderWidget()
+    await expandPanel()
+    expect(screen.queryByRole('region', { name: 'NWS alerts' })).toBeNull()
+    expect(screen.queryByText(/NWS alert/i)).toBeNull()
+  })
+
+  it('keeps forecast and environment useful when alert enrichment fails', async () => {
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'))
+    await renderWidget({ alertCache: null })
+    expect(document.querySelector('[data-weather-current]')?.textContent).toBe('21°C')
+    await expandPanel()
+    expect(screen.getByText('Environment')).toBeTruthy()
+    expect(screen.getByText('NWS alerts unavailable.')).toBeTruthy()
   })
 })
 

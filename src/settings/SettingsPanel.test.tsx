@@ -592,9 +592,10 @@ describe('SettingsPanel Weather section (clear-location control)', () => {
     })
 
     expect(write).toHaveBeenCalledTimes(1)
-    expect(write).toHaveBeenCalledWith({ location: null, weatherCache: null })
+    expect(write).toHaveBeenCalledWith({ location: null, weatherCache: null, weatherAlertCache: null })
     expect(await storage.get('location')).toBeNull()
     expect(await storage.get('weatherCache')).toBeNull()
+    expect(await storage.get('weatherAlertCache')).toBeNull()
   })
 
   it('reports an atomic clear failure, preserves state, and permits retry', async () => {

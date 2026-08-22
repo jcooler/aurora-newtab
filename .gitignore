@@ -77,6 +77,9 @@ output/
 # Work connector Chromium evidence and persistent profile scratch.
 .qa-work-connectors-*
 
+# At-a-glance widget and NWS Weather Chromium evidence scratch.
+.qa-at-a-glance-*
+
 # Expansion platform scratch scaffolds and Chromium catalog evidence.
 .aurora-expansion-*/
 .qa-expansion-platform-*/

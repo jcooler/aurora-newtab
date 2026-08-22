@@ -18,6 +18,9 @@ const configured: Record<ConnectorId, ConnectorConfig> = {
   linear: { enabled: true, token: 'linear_test', displayName: 'Sam', itemLimit: 6 },
   sentry: { enabled: true, token: 'sentry_test', organization: 'team', region: 'us', itemLimit: 6 },
   todoist: { enabled: true, token: 'todoist_test', accountLabel: 'Todoist', itemLimit: 6 },
+  onThisDay: { enabled: true },
+  publicHolidays: { enabled: true, countryCode: 'US' },
+  auroraKp: { enabled: true },
 }
 
 const reconnect: Record<ConnectorId, ConnectorConfig> = {
@@ -33,6 +36,9 @@ const reconnect: Record<ConnectorId, ConnectorConfig> = {
   linear: { enabled: true, token: '', displayName: 'Sam', itemLimit: 6 },
   sentry: { enabled: true, token: '', organization: 'team', region: 'us', itemLimit: 6 },
   todoist: { enabled: true, token: '', accountLabel: 'Todoist', itemLimit: 6 },
+  onThisDay: { enabled: undefined } as unknown as ConnectorConfig,
+  publicHolidays: { enabled: true, countryCode: '' },
+  auroraKp: { enabled: undefined } as unknown as ConnectorConfig,
 }
 
 const setupExpected: Expected = {

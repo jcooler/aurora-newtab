@@ -71,4 +71,14 @@ export const COMPLETE_CONNECTOR_CONTRACT_FIXTURES = {
     projectIds: ['contract-todoist-project'],
     itemLimit: 6,
   },
+  onThisDay: {
+    enabled: true,
+  },
+  publicHolidays: {
+    enabled: true,
+    countryCode: 'US',
+  },
+  auroraKp: {
+    enabled: true,
+  },
 } as const satisfies Record<ConnectorId, ConnectorConfig>

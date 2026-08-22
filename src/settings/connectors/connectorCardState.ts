@@ -62,6 +62,14 @@ function hasMeaningfulLocalConfig(
     }
     case 'status':
       return (config as StatusConfig).services?.some((service) => !!text(service?.url)) === true
+    case 'onThisDay':
+    case 'publicHolidays':
+    case 'auroraKp':
+      try {
+        return descriptor.ownsOrigins(config) === true
+      } catch {
+        return false
+      }
     default:
       return false
   }

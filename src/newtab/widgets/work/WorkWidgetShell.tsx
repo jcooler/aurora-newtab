@@ -18,6 +18,7 @@ function WorkResourceBody({
   presentation,
   emptyLabel,
   errorMessage,
+  setupLabel,
   onRefresh,
   children,
 }: {
@@ -25,12 +26,13 @@ function WorkResourceBody({
   presentation: WorkPresentationState
   emptyLabel: string
   errorMessage?: string
+  setupLabel?: string
   onRefresh?: () => void
   children: ReactNode
 }) {
   const showRows = presentation === 'ready' || presentation === 'stale' || presentation === 'retained-error'
   const message = presentation === 'setup'
-    ? `Connect ${title} in Settings.`
+    ? setupLabel ?? `Connect ${title} in Settings.`
     : presentation === 'loading'
       ? `Loading ${title}…`
       : presentation === 'empty'
@@ -76,6 +78,7 @@ export function WorkWidgetShell({
   presentation,
   emptyLabel,
   errorMessage,
+  setupLabel,
   onRefresh,
   children,
 }: {
@@ -84,6 +87,7 @@ export function WorkWidgetShell({
   presentation: WorkPresentationState
   emptyLabel: string
   errorMessage?: string
+  setupLabel?: string
   onRefresh?: () => void
   children: ReactNode
 }) {
@@ -114,6 +118,7 @@ export function WorkWidgetShell({
           presentation={presentation}
           emptyLabel={emptyLabel}
           errorMessage={errorMessage}
+          setupLabel={setupLabel}
           onRefresh={onRefresh}
         >
           {children}
@@ -168,6 +173,7 @@ export function WorkDockDetail({
   presentation,
   emptyLabel,
   errorMessage,
+  setupLabel,
   onRefresh,
   children,
 }: {
@@ -177,6 +183,7 @@ export function WorkDockDetail({
   presentation: WorkPresentationState
   emptyLabel: string
   errorMessage?: string
+  setupLabel?: string
   onRefresh?: () => void
   children: ReactNode
 }) {
@@ -247,6 +254,7 @@ export function WorkDockDetail({
                 presentation={presentation}
                 emptyLabel={emptyLabel}
                 errorMessage={errorMessage}
+                setupLabel={setupLabel}
                 onRefresh={onRefresh}
               >
                 {children}

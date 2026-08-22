@@ -35,6 +35,7 @@ const KNOWN_KEYS = [
   'photoPrefs',
   'location',
   'weatherCache',
+  'weatherAlertCache',
   'notes',
   'worldClocks',
   'countdowns',

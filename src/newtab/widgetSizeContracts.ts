@@ -53,6 +53,9 @@ export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>
   linear: contract(['compact', 'standard', 'full'], 'Assigned and due counts', 'Prioritized assigned work', 'All assigned work that fits', 'Assigned and due counts'),
   sentry: contract(['compact', 'standard', 'full'], 'Unresolved count and top issue', 'Named unresolved issues', 'All unresolved issues that fit', 'Unresolved count and top issue'),
   todoist: contract(['compact', 'standard', 'full'], 'Due and overdue counts', 'Due task sections', 'All due tasks that fit', 'Due and overdue counts'),
+  onThisDay: contract(['compact', 'standard', 'full'], 'One historical event', 'Three historical events', 'Events, births, and deaths', 'Year and event'),
+  publicHolidays: contract(['compact', 'standard', 'full'], 'Next national holiday', 'Next three national holidays', 'Current and next-year national holidays', 'Next holiday and date'),
+  auroraKp: contract(['compact', 'standard', 'full'], 'Current Kp and next peak', 'Current Kp and next four intervals', 'Bounded three-day Kp forecast', 'Current Kp and next peak'),
 })
 
 function joinNames(items: readonly SelectedCanvasContent[]): string {

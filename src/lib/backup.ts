@@ -30,13 +30,13 @@ export interface BackupEnvelope {
   version: number
   exportedAt: string
   redactions: BackupRedactions
-  // connectorSnapshots and apodCache are both cache, not user data —
+  // connectorSnapshots, apodCache, and weatherAlertCache are caches, not user data —
   // deliberately excluded from every export (smaller files, and one less
   // validator surface on import: see validateBackupShape's matching
   // never-trust-it-on-import handling below). `connectors` (user-chosen
   // config) IS exported, minus anything a connector's registry descriptor
   // lists in `secretFields`.
-  data: Omit<AuroraData, 'connectorSnapshots' | 'apodCache'>
+  data: Omit<AuroraData, 'connectorSnapshots' | 'apodCache' | 'weatherAlertCache'>
 }
 
 export type ParseBackupResult =
@@ -115,7 +115,12 @@ export function redactBackupData(data: AuroraData): { data: BackupEnvelope['data
     if (!config) continue
     connectors[id] = redactConnectorConfig(config, descriptorFor(id))
   }
-  const { connectorSnapshots: _connectorSnapshots, apodCache: _apodCache, ...rest } = data
+  const {
+    connectorSnapshots: _connectorSnapshots,
+    apodCache: _apodCache,
+    weatherAlertCache: _weatherAlertCache,
+    ...rest
+  } = data
   const redactedData = { ...rest, connectors }
   return {
     data: redactedData,
@@ -471,7 +476,7 @@ function isHabits(v: unknown): boolean {
   return Array.isArray(v)
 }
 
-const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache'>, (v: unknown) => boolean> = {
+const VALIDATORS: Record<Exclude<DataKey, 'connectorSnapshots' | 'apodCache' | 'weatherAlertCache'>, (v: unknown) => boolean> = {
   settings: isSettings,
   focus: isFocus,
   todoLists: isTodoLists,
@@ -561,7 +566,7 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
   const source = data as unknown as Record<string, unknown>
   const cleaned = {} as Record<string, unknown>
   for (const key of DATA_KEYS) {
-    // connectorSnapshots and apodCache are both cache, not user data (see
+    // connectorSnapshots, apodCache, and weatherAlertCache are caches, not user data (see
     // serializeBackup's doc comment): neither is ever trusted from an
     // import, both are always reset regardless of what — if anything — is
     // present for the key. No validator needed for either; they're simply
@@ -573,6 +578,10 @@ export function validateBackupShape(data: AuroraData): ValidateShapeResult {
       continue
     }
     if (key === 'apodCache') {
+      cleaned[key] = null
+      continue
+    }
+    if (key === 'weatherAlertCache') {
       cleaned[key] = null
       continue
     }

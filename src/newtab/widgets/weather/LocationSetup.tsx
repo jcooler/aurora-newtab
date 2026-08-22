@@ -166,7 +166,7 @@ export default function LocationSetup() {
           const lon = Math.round(pos.coords.longitude * 100) / 100
           // One-time lookup so the pill reads "Overcast · Dallas", not "· My location"
           const label = (await reverseGeocode(lat, lon, fetch, controller.signal)) ?? 'My location'
-          await storage.updateMany(['location', 'weatherCache'], () => {
+          await storage.updateMany(['location', 'weatherCache', 'weatherAlertCache'], () => {
             if (
               !mountedRef.current ||
               controller.signal.aborted ||
@@ -175,6 +175,7 @@ export default function LocationSetup() {
             return {
               location: { lat, lon, label, manual: false },
               weatherCache: null,
+              weatherAlertCache: null,
             }
           })
         } catch {
@@ -278,6 +279,7 @@ export default function LocationSetup() {
       await storage.setMany({
         location: { lat: m.lat, lon: m.lon, label: m.name, manual: true },
         weatherCache: null,
+        weatherAlertCache: null,
       })
       if (!mountedRef.current || selectionGenerationRef.current !== generation) return
       setQuery(m.name)

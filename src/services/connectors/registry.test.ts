@@ -18,6 +18,18 @@ import {
 // CONNECTOR_IDS, or a registered id that getConnector can't resolve all fail
 // immediately, for the current registry and every future descriptor alike.
 describe('connector registry invariants', () => {
+  it('reserves the approved At a glance identities and category without reordering existing groups', () => {
+    expect(CONNECTOR_IDS.slice(-3)).toEqual(['onThisDay', 'publicHolidays', 'auroraKp'])
+    expect(CATEGORY_ORDER).toEqual([
+      'development',
+      'calendar-tasks',
+      'at-a-glance',
+      'home',
+      'news-markets',
+      'fun',
+    ])
+  })
+
   it('has no duplicate descriptor ids', () => {
     const ids = CONNECTORS.map((d) => d.id)
     expect(new Set(ids).size).toBe(ids.length)
@@ -44,6 +56,21 @@ describe('connector registry invariants', () => {
     expect(getConnector('rss')?.backupReentryRequired).toBeTypeOf('function')
     expect(getConnector('ics')?.redactForBackup).toBeTypeOf('function')
     expect(getConnector('ics')?.backupReentryRequired).toBeTypeOf('function')
+  })
+
+  it('registers the three keyless At a glance descriptors without claiming Chrome origins', () => {
+    const configs: Record<'onThisDay' | 'publicHolidays' | 'auroraKp', ConnectorConfig> = {
+      onThisDay: { enabled: true },
+      publicHolidays: { enabled: true, countryCode: 'US' },
+      auroraKp: { enabled: true },
+    }
+    for (const id of Object.keys(configs) as (keyof typeof configs)[]) {
+      const descriptor = getConnector(id)
+      expect(descriptor).toMatchObject({ id, category: 'at-a-glance', auth: 'none' })
+      expect(descriptor?.origins(configs[id])).toEqual([])
+      expect(descriptor?.ownsOrigins(configs[id])).toBe(true)
+    }
+    expect(getConnector('publicHolidays')?.ownsOrigins({ enabled: true, countryCode: 'usa' })).toBe(false)
   })
 
   // Completeness direction, written conditionally so it becomes meaningful
@@ -121,6 +148,9 @@ describe('descriptor categories', () => {
       linear: 'development',
       sentry: 'development',
       todoist: 'calendar-tasks',
+      onThisDay: 'at-a-glance',
+      publicHolidays: 'at-a-glance',
+      auroraKp: 'at-a-glance',
     }
     for (const d of CONNECTORS) {
       expect(d.category).toBe(expected[d.id])

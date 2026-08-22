@@ -285,8 +285,10 @@ describe('LocationSetup typeahead', () => {
     expect(write).toHaveBeenCalledWith({
       location: { lat: 32.78, lon: -96.8, label: 'Dallas', manual: true },
       weatherCache: null,
+      weatherAlertCache: null,
     })
     expect(await storage.get('weatherCache')).toBeNull()
+    expect(await storage.get('weatherAlertCache')).toBeNull()
   })
 
   it('keeps the prior state, reports a save failure, and permits retry', async () => {

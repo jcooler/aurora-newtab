@@ -18,6 +18,7 @@ import type { CalendarColor } from './calendarColors'
 export const CONNECTOR_IDS = [
   'rss', 'github', 'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'status', 'homeassistant',
   'linear', 'sentry', 'todoist',
+  'onThisDay', 'publicHolidays', 'auroraKp',
 ] as const
 export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 
@@ -30,11 +31,12 @@ export type ConnectorId = (typeof CONNECTOR_IDS)[number]
 // UI-layer lookup that could drift from it. `home` and `fun` have no
 // occupants yet (future sub-projects) — they exist here so the type and the
 // drawer's rendering are ready before the first connector lands in either.
-export type ConnectorCategory = 'development' | 'calendar-tasks' | 'home' | 'news-markets' | 'fun'
+export type ConnectorCategory = 'development' | 'calendar-tasks' | 'at-a-glance' | 'home' | 'news-markets' | 'fun'
 
 export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
   development: 'Development',
   'calendar-tasks': 'Calendar & tasks',
+  'at-a-glance': 'At a glance',
   home: 'Home',
   'news-markets': 'News & markets',
   fun: 'Fun',
@@ -46,6 +48,7 @@ export const CATEGORY_LABELS: Record<ConnectorCategory, string> = {
 export const CATEGORY_ORDER: readonly ConnectorCategory[] = [
   'development',
   'calendar-tasks',
+  'at-a-glance',
   'home',
   'news-markets',
   'fun',
@@ -211,6 +214,19 @@ export interface TodoistConfig extends ConnectorCacheIdentity {
   itemLimit?: number
 }
 
+export interface OnThisDayConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+}
+
+export interface PublicHolidaysConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+  countryCode: string
+}
+
+export interface AuroraKpConfig extends ConnectorCacheIdentity {
+  enabled: boolean
+}
+
 export type ConnectorConfig =
   | RssConfig
   | GithubConfig
@@ -224,6 +240,9 @@ export type ConnectorConfig =
   | LinearConfig
   | SentryConfig
   | TodoistConfig
+  | OnThisDayConfig
+  | PublicHolidaysConfig
+  | AuroraKpConfig
 
 export interface ConnectorSnapshot {
   /** Missing only on legacy v1 caches; the hook treats those as absent. */

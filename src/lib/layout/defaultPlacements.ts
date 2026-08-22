@@ -72,6 +72,11 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   linear: { x: 28, y: 34 },
   sentry: { x: 28, y: 51 },
   todoist: { x: 28, y: 68 },
+  // Public-data widgets get fixed slots of their own. Enabling one never
+  // moves another identity; any crowding remains user-owned.
+  onThisDay: { x: 38, y: 28 },
+  publicHolidays: { x: 38, y: 50 },
+  auroraKp: { x: 38, y: 72 },
 })
 
 /** Work-column connector identities that DEFAULT to their compact glance
@@ -81,6 +86,9 @@ const COMPACT_DEFAULT_IDS: ReadonlySet<BlockId> = new Set([
   'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
   'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
   'linear', 'sentry', 'todoist',
+  'onThisDay',
+  'publicHolidays',
+  'auroraKp',
 ])
 
 /** Default tier mirrors the retired preferred-size rule for the Desktop

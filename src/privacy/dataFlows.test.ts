@@ -25,6 +25,7 @@ const DATA_KEYS = [
   'photoPrefs',
   'location',
   'weatherCache',
+  'weatherAlertCache',
   'notes',
   'worldClocks',
   'countdowns',
@@ -73,6 +74,7 @@ describe('code-backed privacy inventory', () => {
     expect(STORED_DATA_FLOWS.weatherCache.export).toBe('included')
     expect(STORED_DATA_FLOWS.connectorSnapshots.export).toBe('excluded')
     expect(STORED_DATA_FLOWS.apodCache.export).toBe('excluded')
+    expect(STORED_DATA_FLOWS.weatherAlertCache.export).toBe('excluded')
 
     const data = {
       ...defaults(),
@@ -95,11 +97,18 @@ describe('code-backed privacy inventory', () => {
       },
       connectorSnapshots: { crypto: { fetchedAt: 1, data: { coins: [] } } },
       apodCache: { date: '2026-08-14', photo: null },
+      weatherAlertCache: {
+        requestIdentity: 'nws-alerts:v1:https://api.weather.gov/alerts/active?point=1,2',
+        fetchedAt: 1,
+        status: 'supported' as const,
+        alerts: [],
+      },
     }
     const exported = JSON.parse(serializeBackup(data)).data
     expect(exported.weatherCache).toEqual(data.weatherCache)
     expect(exported).not.toHaveProperty('connectorSnapshots')
     expect(exported).not.toHaveProperty('apodCache')
+    expect(exported).not.toHaveProperty('weatherAlertCache')
     expect(validateBackupShape(data).ok).toBe(true)
   })
 
@@ -117,7 +126,7 @@ describe('code-backed privacy inventory', () => {
     expect(Object.keys(CONNECTOR_DATA_FLOWS)).toEqual(CONNECTOR_IDS)
     for (const descriptor of CONNECTORS) {
       const flow = CONNECTOR_DATA_FLOWS[descriptor.id]
-      expect(flow.permission).toBe('optional-per-origin')
+      expect(['optional-per-origin', 'none']).toContain(flow.permission)
       expect(flow.transmission).toBe('provider-direct')
       expect(flow.destinationKind).toMatch(/^(fixed|configured)-provider$/)
       expect(flow.destinations.length).toBeGreaterThan(0)
@@ -150,12 +159,28 @@ describe('code-backed privacy inventory', () => {
       'the selected official sentry.io, us.sentry.io, or de.sentry.io region',
     ])
     expect(CONNECTOR_DATA_FLOWS.todoist.methods).toEqual(['GET', 'POST'])
+    expect(CONNECTOR_DATA_FLOWS.onThisDay).toMatchObject({
+      permission: 'none',
+      destinations: ['en.wikipedia.org'],
+      sends: ['local month and day'],
+    })
+    expect(CONNECTOR_DATA_FLOWS.publicHolidays).toMatchObject({
+      permission: 'none',
+      destinations: ['date.nager.at'],
+      sends: ['selected country code and current/next local year'],
+    })
+    expect(CONNECTOR_DATA_FLOWS.auroraKp).toMatchObject({
+      permission: 'none',
+      destinations: ['services.swpc.noaa.gov'],
+      sends: ['no user data'],
+    })
   })
 
   it('distinguishes Aurora network requests from browser-mediated and navigation flows', () => {
     expect(Object.keys(FIXED_DATA_FLOWS)).toEqual([
       'weatherForecast',
       'weatherEnvironment',
+      'weatherAlerts',
       'citySearch',
       'reverseGeocode',
       'apod',
@@ -189,6 +214,17 @@ describe('code-backed privacy inventory', () => {
       methods: ['GET'],
       permission: 'not-separately-requested-by-flow',
       cache: 'weatherCache-included-in-backup',
+      backend: 'none',
+    })
+    expect(FIXED_DATA_FLOWS.weatherAlerts).toEqual({
+      destinations: ['api.weather.gov'],
+      transmission: 'provider-direct',
+      trigger: ['enabled Weather widget with a selected location and a stale or mismatched five-minute alert cache'],
+      sends: ['rounded coordinates'],
+      receives: ['active NWS watches, warnings, and advisories for that point'],
+      methods: ['GET'],
+      permission: 'not-separately-requested-by-flow',
+      cache: 'weatherAlertCache-excluded-from-backup',
       backend: 'none',
     })
     expect(BROWSER_DATA_FLOWS.search.transmission).toBe('browser-mediated')

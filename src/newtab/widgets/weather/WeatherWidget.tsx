@@ -20,8 +20,10 @@ import {
 import LocationSetup from './LocationSetup'
 import WeatherIcon from './WeatherIcon'
 import { useWeather } from './useWeather'
+import { useWeatherAlerts } from './useWeatherAlerts'
 import { weatherPanelAnchor, type WeatherPanelAnchor } from './weatherPanelAnchor'
 import type { WidgetVariant } from '../../../lib/layout/types'
+import type { WeatherAlert } from '../../../lib/storage/schema'
 
 /** Chevron — the panel's disclosure affordance, in both directions. Rotates
  *  rather than swapping glyphs so the control reads as one continuous thing. */
@@ -54,6 +56,13 @@ export default function WeatherWidget({
   const [settings] = useStoredKey('settings')
   const [location] = useStoredKey('location')
   const { snapshot, stale, loading, enrichmentPending, error, refresh, state } = useWeather()
+  const {
+    snapshot: alertSnapshot,
+    loading: alertsLoading,
+    stale: alertsStale,
+    error: alertError,
+    refresh: refreshAlerts,
+  } = useWeatherAlerts()
   const summarySize = stageVariant === 'expanded' ? 'full' : stageVariant
   const [expanded, setExpanded] = useState(false)
   const [retrying, setRetrying] = useState(false)
@@ -161,7 +170,8 @@ export default function WeatherWidget({
 
   const requestRefresh = () => {
     setRetrying(true)
-    void refresh().finally(() => setRetrying(false))
+    const alertsRefresh = !alertSnapshot || alertsStale || alertError ? refreshAlerts() : Promise.resolve()
+    void Promise.all([refresh(), alertsRefresh]).finally(() => setRetrying(false))
   }
 
   // Mirrors BookmarksBar's own `onPopoverOpenChange` idiom (App.tsx): a ref
@@ -216,6 +226,9 @@ export default function WeatherWidget({
     environmentAqi || environmentUv || (environmentPollen && environmentPollen.kind !== 'unavailable'),
   )
   const environmentNeedsRetry = !enrichmentPending && (!environment || environment.status === 'unavailable')
+  const activeAlerts = alertSnapshot?.status === 'supported' ? alertSnapshot.alerts : []
+  const highestAlert = activeAlerts[0] ?? null
+  const urgentAlert = activeAlerts.find((alert) => alert.severity === 'Extreme' || alert.severity === 'Severe') ?? null
 
   // Width caps. ORIGINALLY derived to keep this panel clear of the centred
   // bookmarks bar HORIZONTALLY, back when the two shared the top line: the
@@ -420,6 +433,7 @@ export default function WeatherWidget({
               onClick={() => expanded ? closeExpanded() : setExpanded(true)}
               data-dock-line=""
               data-weather-summary=""
+              aria-label={`${displayTempWithUnit(snapshot.current.tempC, settings.units)}, ${snapshot.locationLabel}, ${describeCode(snapshot.current.code).label}${urgentAlert ? `, ALERT, ${urgentAlert.event}` : ''}`}
               className="dock-line cursor-pointer rounded-panel text-left transition-colors hover:bg-fg/5 focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none"
             >
               <WeatherIcon
@@ -441,6 +455,14 @@ export default function WeatherWidget({
               <span data-canvas-type-role="body" className="opacity-[0.68]">{snapshot.locationLabel}</span>
               <span aria-hidden className="opacity-[0.68]">·</span>
               <span data-canvas-type-role="body" className="opacity-[0.68]">{describeCode(snapshot.current.code).label}</span>
+              {urgentAlert ? (
+                <>
+                  <span aria-hidden className="opacity-[0.68]">·</span>
+                  <span data-weather-alert-badge="" data-canvas-type-role="body" className="font-semibold text-red-400">ALERT</span>
+                  <span aria-hidden className="opacity-[0.68]">·</span>
+                  <span data-canvas-type-role="body" className="max-w-56 truncate text-red-300">{urgentAlert.event}</span>
+                </>
+              ) : null}
             </button>
           ) : (
           <>
@@ -516,6 +538,15 @@ export default function WeatherWidget({
               </span>
               <span data-weather-disclosure=""><Chevron expanded={expanded} /></span>
             </span>
+            {summarySize === 'compact' && urgentAlert ? (
+              <span data-weather-alert-badge="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
+                {urgentAlert.event}
+              </span>
+            ) : summarySize !== 'compact' && highestAlert ? (
+              <span data-weather-alert-line="" data-canvas-type-role="body" className="truncate text-sm font-medium text-red-300">
+                {highestAlert.severity} · {highestAlert.event}
+              </span>
+            ) : null}
             {summarySize !== 'compact' && trendSignal ? (
               <span data-weather-summary-row="trend" data-weather-summary-trend="" data-canvas-type-role="body" className="truncate text-accent">
                 {trendSignal}
@@ -840,6 +871,13 @@ export default function WeatherWidget({
                 </a>
               </div>
 
+              <WeatherAlertsSection
+                snapshot={alertSnapshot}
+                loading={alertsLoading}
+                error={alertError}
+                onRefresh={refreshAlerts}
+              />
+
               <div className="mt-3 short:mt-2 xshort:mt-2 flex items-center justify-between gap-3">
                 {stale || error || retrying || enrichmentPending || environmentNeedsRetry ? (
                   <button
@@ -876,4 +914,79 @@ export default function WeatherWidget({
       )}
     </section>
   )
+}
+
+function WeatherAlertsSection({
+  snapshot,
+  loading,
+  error,
+  onRefresh,
+}: {
+  snapshot: ReturnType<typeof useWeatherAlerts>['snapshot']
+  loading: boolean
+  error: string | null
+  onRefresh: () => Promise<void>
+}) {
+  if (snapshot?.status === 'unsupported') return null
+  if (!snapshot && !loading && !error) return null
+  return (
+    <section
+      role="region"
+      aria-label="NWS alerts"
+      data-weather-alerts=""
+      className="mt-3 border-t border-panel-border pt-3 short:mt-2 short:pt-2 xshort:mt-2 xshort:pt-2"
+    >
+      <div data-canvas-type-role="metadata" className="uppercase tracking-[0.08em] text-fg-muted">NWS alerts</div>
+      {snapshot?.status === 'supported' && snapshot.alerts.length === 0 ? (
+        <p className="mt-2 text-sm text-fg-muted">No active NWS alerts</p>
+      ) : snapshot?.status === 'supported' ? (
+        <div className="mt-2 space-y-3">
+          {snapshot.alerts.map((alert) => <AlertDetails key={alert.id} alert={alert} />)}
+          {error ? <p className="text-xs text-fg-muted">Saved alert data. Live NWS refresh unavailable.</p> : null}
+        </div>
+      ) : loading ? (
+        <p role="status" className="mt-2 text-sm text-fg-muted">Loading NWS alerts…</p>
+      ) : (
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <p role="status" className="text-sm text-fg-muted">NWS alerts unavailable.</p>
+          <button type="button" onClick={() => void onRefresh()} className="min-h-9 cursor-pointer text-xs text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent">Retry</button>
+        </div>
+      )}
+      <a
+        href="https://www.weather.gov/"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex text-xs text-fg-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-accent"
+      >
+        National Weather Service
+      </a>
+    </section>
+  )
+}
+
+function AlertDetails({ alert }: { alert: WeatherAlert }) {
+  return (
+    <article className="rounded-lg border border-red-400/30 bg-red-400/[0.06] p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-fg">{alert.event}</h3>
+          <p className="text-xs text-red-300">{alert.severity} · {alert.urgency}</p>
+        </div>
+        {alert.expires ? <span className="text-xs text-fg-muted">Until {alertTime(alert.expires)}</span> : null}
+      </div>
+      <p className="mt-2 text-sm leading-5 text-fg">{alert.headline}</p>
+      <p className="mt-1 text-xs text-fg-muted">{alert.areaDescription}</p>
+      {alert.description || alert.instruction ? (
+        <details className="mt-2">
+          <summary className="min-h-9 cursor-pointer py-2 text-xs font-medium text-accent focus-visible:outline-2 focus-visible:outline-accent">Details and instructions</summary>
+          {alert.description ? <p className="text-sm leading-5 text-fg-muted">{alert.description}</p> : null}
+          {alert.instruction ? <p className="mt-2 text-sm font-medium leading-5 text-fg">{alert.instruction}</p> : null}
+        </details>
+      ) : null}
+    </article>
+  )
+}
+
+function alertTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(new Date(value))
 }
