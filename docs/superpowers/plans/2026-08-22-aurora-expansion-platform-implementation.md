@@ -58,8 +58,10 @@ Playwright 1.62, MV3 Chrome APIs, JSON and Markdown documentation.
 
 - [ ] **Step 1: Write catalog validation failures**
 
-Create Node tests that pass a literal valid one-candidate catalog and mutate it
-one field at a time. The tests must prove these failures independently:
+Create a `validCatalog()` test builder with 36 uniquely identified complete
+candidates and mutate it one field at a time. The builder uses literal field
+values and does not call the validator or production normalization. The tests
+must prove these failures independently:
 
 ```js
 assert.deepEqual(validateExpansionCatalog({ catalogVersion: 1, verifiedOn: '2026-08-22', candidates: [] }), {
@@ -199,15 +201,17 @@ git commit -m "docs: add Aurora expansion catalog"
   `scaffoldAddition({ id, label, kind, outDir, repoRoot, protectedRoot })`.
 - `kind` is exactly `builtin | connector | provider`.
 - A successful scaffold returns `{ root, files: [{ path, sha256 }] }` sorted by
-  path.
+  path. `files` covers payload files and excludes `manifest.json`, which cannot
+  contain its own digest.
 
 - [ ] **Step 1: Write path-safety failures**
 
 In temporary directories, assert rejection before any write for repository
 root, protected root, `src`, `docs`, `scripts`, `dist`, traversal, wrong prefix,
 non-empty output, output-file collision, and symlink or junction ancestors.
-Assert `.aurora-expansion-readingList` and `.qa-expansion-provider` resolve
-successfully only inside the active repository fixture.
+Assert `.aurora-expansion-readingList` resolves successfully only inside the
+active repository fixture. QA roots are tested separately in Task 6 and must
+use `.qa-expansion-platform-`.
 
 - [ ] **Step 2: Observe output-safety RED**
 
@@ -234,12 +238,14 @@ removed by test-owned cleanup.
 - [ ] **Step 5: Write scaffold behavior failures**
 
 For each kind, invoke `scaffoldAddition` in a temporary repository fixture and
-assert an exact sorted file list. Assert generated source contains no `fetch(`,
-`chrome.storage`, `chrome.permissions`, token-like literal, capability URL, or
-an unfinished-work marker. Verify each digest independently with
-`createHash('sha256')`.
-Assert invalid IDs, blank labels, unknown kinds, and an unavailable candidate
-ID fail before output exists.
+assert an exact sorted payload-file list. Assert generated non-test source
+contains no `fetch(`, `chrome.storage`, `chrome.permissions`, token-like
+literal, capability URL, or unfinished-work marker. Assert each generated test
+contains the exact intentional first-RED error. Verify every payload digest
+independently with `createHash('sha256')`, and assert `manifest.json` lists all
+payloads but not itself. Assert invalid IDs, blank labels, unknown kinds, an
+unavailable candidate ID, and a kind that disagrees with the candidate catalog
+fail before output exists.
 
 - [ ] **Step 6: Observe scaffold RED**
 
@@ -263,6 +269,8 @@ INTEGRATION-CHECKLIST.md
 manifest.json
 ```
 
+Map candidate kinds exactly: `browser-native` and `local` require `builtin`,
+`connector` requires `connector`, and `built-in-provider` requires `provider`.
 Connector and provider kinds additionally receive
 `src/services/<kind>s/<id>.ts` and `<id>.test.ts`. Connector kind additionally
 receives `src/settings/<PascalId>ConnectorSettings.tsx`. The candidate has
@@ -308,6 +316,8 @@ git commit -m "feat(dev): add guarded Aurora addition scaffold"
 - Create: `scripts/widget-catalog-manifest.d.mts`
 - Create: `scripts/widget-catalog-manifest.test.mjs`
 - Create: `src/newtab/expansionWidgetContracts.test.ts`
+- Create: `src/lib/storage/widgetToggleVersions.ts`
+- Create: `src/lib/storage/widgetToggleVersions.test.ts`
 - Modify: `src/newtab/widgetRenderers.tsx`
 - Modify: `scripts/catalog-nl-p5.mjs`
 
@@ -318,6 +328,9 @@ git commit -m "feat(dev): add guarded Aurora addition scaffold"
   current readonly `WidgetRendererKey[]` public type.
 - `scripts/widget-catalog-manifest.mjs` exports `CATALOG_BATCHES`,
   `CATALOG_CONTRACTS`, `CODED_DOCK_LINES`, and `captureTiersFor(id)`.
+- `WIDGET_TOGGLE_INTRO_VERSIONS` satisfies
+  `Record<keyof WidgetToggles, number>` and records the schema version whose
+  migration first materialized each toggle.
 - The existing catalog script consumes those exports without changing existing
   batch verdicts or canonical output.
 
@@ -326,7 +339,8 @@ git commit -m "feat(dev): add guarded Aurora addition scaffold"
 Add a Vitest test that imports the proposed `WIDGET_RENDERERS` export and
 compares a hand-written sorted 26-ID literal against registry IDs,
 size-contract keys, default-point keys, `Object.keys(WIDGET_RENDERERS)`, and
-`WIDGET_RENDERER_KEYS`.
+`WIDGET_RENDERER_KEYS`. Compare every registry entry's `rendererKey` to its own
+ID as a separate mapping assertion.
 
 - [ ] **Step 2: Observe widget parity RED**
 
@@ -358,16 +372,53 @@ and every widget availability key exists in `defaults().settings.widgets`.
 Run the focused Vitest test plus existing registry, renderer, size-contract,
 and default-placement tests. Expected: all pass.
 
-- [ ] **Step 5: Write visual-catalog parity failures**
+- [ ] **Step 5: Write widget-toggle migration contract failures**
+
+Use this hand-written expected introduction-version map for every current
+`WidgetToggles` key:
+
+```ts
+{
+  search: 1, weather: 1, links: 1, todo: 1, timer: 1, quote: 1,
+  bookmarks: 2, notes: 2, clocks: 2, countdown: 2,
+  habits: 7, monthCal: 7,
+  sun: 9, moon: 9,
+}
+```
+
+For each entry introduced after version 1, remove that key from a complete
+stored fixture at `introducedIn - 1`, run the real `migrate`, and assert the
+current result owns a boolean key. Version-1 keys are asserted against the
+literal original-key set and defaults. Also assert exact key parity among the
+ledger, `defaults().settings.widgets`, and the Settings widget controls. The initial
+RED is a compile failure because `widgetToggleVersions.ts` does not exist.
+
+- [ ] **Step 6: Implement and prove migration metadata**
+
+Add only the immutable introduction-version ledger. Do not change schema or
+migrations. Run:
+
+```powershell
+npx vitest run src/lib/storage/widgetToggleVersions.test.ts src/lib/storage/migrations.test.ts src/lib/storage/index.test.ts
+```
+
+Expected: every existing toggle proves a complete migration path. Future
+toggle additions must update the ledger, defaults, Settings, version, migration,
+and metadata floor or this family fails.
+
+- [ ] **Step 7: Write visual-catalog parity and non-writing check failures**
 
 Extend the Vitest contract to import the typed `.mjs` tooling manifest and
 compare it to this exact current production expectation: all 26 `BLOCK_IDS`
 appear once; free capture tiers equal each contract's `sizes`; Docked capture
 exists exactly for nonblank `docked`; and batch 1 plus batch 2 have no overlap.
 The Node test exercises `captureTiersFor(id)` and rejects duplicate and unknown
-manifest identities without parsing TypeScript source text.
+manifest identities without parsing TypeScript source text. Add an argument and
+CLI contract test proving `--check` performs no directory deletion, browser
+launch, screenshot write, Markdown write, or accepted-evidence mutation, and
+returns nonzero when the committed Markdown references a missing declared PNG.
 
-- [ ] **Step 6: Observe catalog-manifest RED**
+- [ ] **Step 8: Observe catalog-manifest RED**
 
 Run:
 
@@ -377,21 +428,26 @@ node --test scripts/widget-catalog-manifest.test.mjs
 
 Expected: FAIL because the shared manifest is missing.
 
-- [ ] **Step 7: Extract one tooling manifest**
+- [ ] **Step 9: Extract one tooling manifest and implement real check mode**
 
 Move the current `BATCH_1`, `BATCH_2`, contract labels, and coded-dock-line set
 from `catalog-nl-p5.mjs` without changing values or order. Import them back into
 the existing script. Keep all owner verdicts in the existing script as data.
+Refactor argument parsing and Markdown computation into exported pure helpers.
+`--check` may read committed Markdown and PNGs to verify the manifest and hash
+disclosures, but it must return before any removal, profile creation, Chromium
+launch, capture, or write.
 
-- [ ] **Step 8: Prove catalog output stability**
+- [ ] **Step 10: Prove catalog output stability without capture**
 
 Run both batch catalog generators in `--check` mode against committed Markdown
-and assert zero diff. Then run the Node manifest and focused Vitest families.
+and assert zero writes using the new contract. Then run the Node manifest,
+widget parity, and migration families.
 
-- [ ] **Step 9: Commit the widget-contract slice**
+- [ ] **Step 11: Commit the widget-contract slice**
 
 ```powershell
-git add -- src/newtab/widgetRenderers.tsx src/newtab/expansionWidgetContracts.test.ts scripts/widget-catalog-manifest.mjs scripts/widget-catalog-manifest.d.mts scripts/widget-catalog-manifest.test.mjs scripts/catalog-nl-p5.mjs
+git add -- src/newtab/widgetRenderers.tsx src/newtab/expansionWidgetContracts.test.ts src/lib/storage/widgetToggleVersions.ts src/lib/storage/widgetToggleVersions.test.ts scripts/widget-catalog-manifest.mjs scripts/widget-catalog-manifest.d.mts scripts/widget-catalog-manifest.test.mjs scripts/catalog-nl-p5.mjs
 git commit -m "test: enforce Aurora widget addition contracts"
 ```
 
@@ -411,16 +467,17 @@ git commit -m "test: enforce Aurora widget addition contracts"
 - `CONNECTOR_BODY_IDS: readonly ConnectorId[]` derives from actual
   `BODY_COMPONENTS` keys.
 - `COMPLETE_CONNECTOR_CONTRACT_FIXTURES` is test-only and satisfies
-  `Record<ConnectorId, ConnectorConfig>` with inert `.invalid` origins and
-  credential-shaped placeholders that are never logged.
+  `Record<ConnectorId, ConnectorConfig>` with reserved `.invalid` origins and
+  unmistakably inert values such as `contract-token` that are never logged.
 
 - [ ] **Step 1: Write connector authority failures**
 
 Add literal expected IDs for the current nine connectors and compare them to
 `CONNECTOR_IDS`, descriptor IDs, connector-backed widget availability IDs,
-actual settings body IDs, and fixture IDs. Add per-descriptor behavior checks:
-nonblank auth/TTL/backup re-entry copy, complete origin ownership, and secret
-field declarations present in the corresponding complete fixture.
+actual settings body IDs, and fixture IDs. Add per-descriptor structure checks:
+nonblank auth, positive TTL, complete origin declaration, and every declared
+secret field present in the corresponding complete fixture. Do not invent
+descriptor copy fields that the production interface does not own.
 
 - [ ] **Step 2: Observe connector parity RED**
 
@@ -446,20 +503,27 @@ change.
 
 - [ ] **Step 5: Write backup and origin behavior failures**
 
-Use real `stripSecrets`, connector descriptors, `ownedOriginPatterns`, and the
-complete fixtures. Hand-derive expected redacted keys per connector. Assert:
+Use real `redactBackupData`, `requiredReentryConnectorIds`,
+`ownedOriginPatterns`, `heldOrigins`, connector descriptors, and the complete
+fixtures. Hand-derive the exact redacted connector object and re-entry identity
+list per connector. Assert through the full backup path:
 
 ```ts
-expect(JSON.stringify(stripSecrets(fixtures))).not.toContain('contract-token')
-expect(exported.github).not.toHaveProperty('token')
-expect(exported.rss.feeds).toEqual([])
+const { data: redacted, redactions } = redactBackupData({ ...defaults(), connectors: fixtures })
+expect(JSON.stringify(redacted)).not.toContain('contract-token')
+expect(redacted.connectors.github).not.toHaveProperty('token')
+expect(redacted.connectors.rss?.feeds).toEqual([])
+expect(redactions.reentryRequired).toEqual(expectedIds)
+expect(requiredReentryConnectorIds(redacted.connectors, expectedIds, true)).toEqual(expectedIds)
 ```
 
-For each descriptor origin, mutate only that connector to invalid/disabled and
-assert ownership disappears unless another existing descriptor explicitly owns
-the same pattern. Test disabled, invalid, configured-hidden, and
-configured-visible UI states through `deriveConnectorCardState` using real
-configs.
+For each descriptor origin, mutate only that connector to invalid/incomplete
+and assert ownership disappears unless another existing descriptor explicitly
+owns the same pattern. Assert a complete disabled connector deliberately keeps
+`ownedOriginPatterns` ownership for re-enable, while `heldOrigins` contains only
+origins held by enabled complete configs. Test disabled, invalid,
+configured-hidden, and configured-visible UI states through
+`deriveConnectorCardState` using real configs.
 
 - [ ] **Step 6: Observe privacy/origin RED where coverage is missing**
 
@@ -567,7 +631,10 @@ git commit -m "test: add Aurora expansion contract command"
 Invoke the argument parser and output preflight against temporary roots. Prove
 that canonical docs remain byte-identical in scratch mode and that protected,
 production, non-empty, wrong-prefix, traversal, symlink, and junction paths fail
-before profile or preview directories are created.
+before profile or preview directories are created. Add a routed request test in
+which an unexpected successful HTTPS response still makes the harness fail, and
+a DOM fixture whose wrapper is larger than 8px but contains no visible text,
+semantic image, or interactive control and therefore fails usefulness.
 
 - [ ] **Step 2: Observe browser-harness RED**
 
@@ -583,8 +650,14 @@ Expected: FAIL because `--out-dir` is not implemented.
 
 Route PNG, Markdown, evidence JSON, preview, and Playwright profile paths under
 the preflighted scratch root. Add `.qa-expansion-platform-*/` to `.gitignore`.
-Keep per-capture runtime error, failed request, unexpected request, useful
-geometry, no-whitespace, and Docked-height assertions active.
+Fail on every HTTP(S) request outside the explicit routed fixture allowlist,
+whether it succeeds or fails. Replace the 8px-only usefulness check with both
+nondegenerate geometry and at least one visible text node, semantic image, or
+enabled interactive control inside the widget. Keep per-capture runtime error,
+failed request, no-whitespace, and Docked-height assertions active. Update the
+Weather seed to the exact current forecast request identity plus complete
+environment identity/data, and route both exact endpoints so a catalog run can
+never reach live Open-Meteo.
 
 - [ ] **Step 4: Reach harness-contract GREEN**
 
@@ -596,8 +669,8 @@ Run:
 
 ```powershell
 npm run build:preview
-node scripts/catalog-nl-p5.mjs --batch=1 --out-dir=.qa-expansion-platform-final
-node scripts/catalog-nl-p5.mjs --batch=2 --out-dir=.qa-expansion-platform-final
+node scripts/catalog-nl-p5.mjs --batch=1 --out-dir=.qa-expansion-platform-batch-1-final
+node scripts/catalog-nl-p5.mjs --batch=2 --out-dir=.qa-expansion-platform-batch-2-final
 ```
 
 Expected: all 26 identities and every declared free/Docked capture complete,
@@ -665,7 +738,7 @@ npm test
 npx tsc --noEmit
 npm run test:information-first-contract
 npm run test:expansion-contract
-node --test scripts/verify-output-safety.test.mjs scripts/catalog-output-safety.test.mjs
+node --test scripts/qa-nl-p6-output.test.mjs scripts/expansion/output-safety.test.mjs scripts/catalog-output-safety.test.mjs
 npm run build:preview
 git diff --check
 ```

@@ -83,7 +83,7 @@ The JSON root has this shape:
 ```ts
 interface ExpansionCatalog {
   catalogVersion: 1
-  verifiedOn: '2026-08-22'
+  verifiedOn: string // ISO calendar date, for example 2026-08-22
   candidates: ExpansionCandidate[]
 }
 ```
@@ -209,11 +209,12 @@ or silently reorder approved waves.
 ```
 
 The output directory must be absent or empty and must resolve inside the
-active worktree. Its first path segment must begin with `.aurora-expansion-`
-or `.qa-expansion-`. The command rejects the repository root, `src`, `docs`,
-`scripts`, `dist`, the protected original path, existing symlinks and
-junctions, traversal, absolute children, duplicate writes, and a non-empty
-target. Failure happens before the first write.
+active worktree. A scaffold root's first path segment must begin with
+`.aurora-expansion-`; a QA root must begin with `.qa-expansion-platform-`.
+The command rejects the repository root, `src`, `docs`, `scripts`, `dist`, the
+protected original path, existing symlinks and junctions, traversal, absolute
+children, duplicate writes, and a non-empty target. Failure happens before the
+first write.
 
 ### 6.2 Output
 
@@ -227,7 +228,8 @@ The scaffold generates only a starter packet:
 - `INTEGRATION-CHECKLIST.md` with every production authority and required
   RED/GREEN, backup, permission, privacy, tier, dock, error, Chromium, review,
   and checkpoint proof;
-- `manifest.json` listing every emitted file and its SHA-256 digest.
+- `manifest.json` listing every emitted payload file and its SHA-256 digest;
+  the manifest does not attempt to hash itself.
 
 Generated TypeScript is intentionally not production-ready. It has no fetch,
 storage write, permission request, credential literal, or hidden fallback.
@@ -246,6 +248,9 @@ The contract suite compares independent runtime authorities:
 - `WIDGET_SIZE_CONTRACTS` keys and nonblank declared promises;
 - `DEFAULT_WIDGET_POINTS` keys;
 - widget availability keys against `defaults().settings.widgets`;
+- a widget-toggle introduction-version ledger against the real migration path,
+  so every current toggle is covered and every post-baseline toggle is
+  materialized by its declared migration;
 - catalog-capture identities and each supported free tier;
 - Docked capture coverage exactly when the content contract declares Docked.
 
@@ -260,7 +265,8 @@ The suite verifies:
 - `CONNECTOR_IDS`, connector descriptors, connector-backed registry entries,
   and settings bodies have exact identity parity;
 - every descriptor declares nonblank auth, TTL, origin ownership, backup
-  re-entry behavior, secret fields, and redaction behavior;
+  re-entry behavior, secret fields, and redaction behavior through the real
+  full-backup path;
 - generic complete fixtures exist for every connector identity;
 - backup export never emits any declared secret field;
 - every declared held origin has exactly one owning connector in a full
@@ -275,11 +281,13 @@ values.
 ### 7.3 Command and Chromium proof
 
 `npm run test:expansion-contract` runs the focused Vitest and Node contract
-families. A guarded scratch-output option on the existing widget catalog
-harness rebuilds `dist` from the reviewed commit, captures all currently
-supported widget tiers into an ignored directory, and fails on a missing
-identity, declared tier, Docked branch, empty useful region, page/runtime
-error, failed request, or unexpected external request.
+families. The existing catalog harness first gains a tested non-writing check
+mode so contract checks cannot replace accepted evidence. A separate guarded
+scratch-output option rebuilds `dist` from the reviewed commit, captures all
+currently supported widget tiers into ignored batch-specific directories, and
+fails on a missing identity, declared tier, Docked branch, empty useful region,
+page/runtime error, failed request, or any unexpected successful or failed
+external request.
 
 Program E records one full scratch catalog run and individually inspects a
 bounded representative set: one built-in, one browser-owned widget, one local
@@ -316,9 +324,11 @@ addition does not authorize another.
   replacing output.
 - Contract failures name the missing or extra identity and the two authorities
   that disagree.
-- Secrets, credential-shaped fixture values, capability URLs, and OAuth
-  client secrets never appear in generated artifacts, logs, catalogs, or
-  committed fixtures.
+- Real secrets, live capability URLs, provider account data, and OAuth client
+  secrets never appear in generated artifacts, logs, catalogs, or committed
+  fixtures. Contract fixtures may use unmistakably inert values such as
+  `contract-token` and reserved `.invalid` URLs solely to prove redaction and
+  origin behavior; those values are never logged.
 
 ## 10. Acceptance criteria
 
