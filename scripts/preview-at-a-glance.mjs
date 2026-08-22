@@ -350,9 +350,9 @@ function alertCache(status = 'supported', stale = false) {
   }
 }
 
-async function seed({ id, tier, config = null, snapshotData, snapshotFresh = true, preserveSnapshot = false, weatherAlert = undefined, runtimeScopeOverride = undefined }) {
+async function seed({ id, tier, config = null, snapshotData, snapshotFresh = true, preserveSnapshot = false, weatherAlert = undefined, runtimeScopeOverride = undefined, freezePhoto = false }) {
   const weather = weatherSnapshot()
-  await page.evaluate(async ({ id, tier, config, snapshotData, snapshotFresh, preserveSnapshot, allWidgetIds, runtimeScope, weather, weatherAlert }) => {
+  await page.evaluate(async ({ id, tier, config, snapshotData, snapshotFresh, preserveSnapshot, allWidgetIds, runtimeScope, weather, weatherAlert, freezePhoto }) => {
     const canonical = (value) => {
       if (value === null) return 'null'
       if (typeof value === 'string' || typeof value === 'boolean') return JSON.stringify(value)
@@ -384,12 +384,13 @@ async function seed({ id, tier, config = null, snapshotData, snapshotFresh = tru
       location: id === 'weather' ? weather.location : current.location,
       weatherCache: id === 'weather' ? weather.snapshot : current.weatherCache,
       weatherAlertCache: id === 'weather' ? weatherAlert : current.weatherAlertCache,
+      photoPrefs: freezePhoto ? { ...current.photoPrefs, mode: 'gradient' } : current.photoPrefs,
       layouts: { version: 1, activeLayoutId: 'glance-qa', layouts: [{ id: 'glance-qa', name: 'Glance QA', widgets }] },
     })
   }, {
     id, tier, config, snapshotData, snapshotFresh, preserveSnapshot, allWidgetIds: ALL_WIDGET_IDS,
     runtimeScope: runtimeScopeOverride ?? (id === 'onThisDay' || id === 'publicHolidays' ? localDayKey : undefined),
-    weather, weatherAlert,
+    weather, weatherAlert, freezePhoto,
   })
   await clearWriteLog()
   const runtimeBefore = await page.evaluate(() => chrome.storage.local.get(null))
@@ -558,6 +559,7 @@ async function runScenario(scenario) {
     snapshotFresh,
     weatherAlert,
     runtimeScopeOverride,
+    freezePhoto: scenario.fixture === 'local-midnight',
   })
 
   if (scenario.fixture === 'setup') await witnessCountryPicker()
