@@ -18,7 +18,10 @@ direct provider requests only as disclosed below.
   from your device location or a searched city; expand it for feels-like
   temperature, humidity, rain probability with an unambiguous hour, wind
   speed with a compass label and matching direction arrow, and distinct
-  sunrise/sunset facts. No API key needed.
+  sunrise/sunset facts. The expanded briefing also shows current US AQI, UV,
+  and provider-available pollen with visible meaning and source attribution.
+  Forecast remains useful when that optional environmental data is unavailable.
+  No API key needed.
 - **Background photos** — a bundled, hand-curated set of landscape photos
   that rotates daily, or upload your own as a gallery (add several at once,
   remove any one from a thumbnail strip, rotates through the rest), or use
@@ -152,10 +155,13 @@ to watch the run in a visible browser window instead of headless.
 
 Weather is powered by [Open-Meteo](https://open-meteo.com/), a free service
 that needs no API key and no sign-up. Aurora sends it only a latitude and
-longitude (rounded to ~1km) and, for city search, whatever you've typed into
-the city search box so far — suggestions filter as you type (debounced, so
-it's not a call per keystroke), not only after you press Enter. Your location
-is stored locally and is never sent anywhere else.
+longitude. Device location is rounded to two decimals; a selected city keeps
+Open-Meteo's returned coordinates, and forecast/environment requests normalize
+either source to at most four decimals. City suggestions filter the text you
+type after a short debounce, not on every keystroke. Forecast uses
+`api.open-meteo.com`; current AQI, UV, and available pollen use
+`air-quality-api.open-meteo.com`. Both results are stored in the included local
+Weather cache. Environmental failure never suppresses forecast.
 
 ## Connectors
 
@@ -402,16 +408,18 @@ never uploaded anywhere).
 
 
 The **fixed** outbound network calls Aurora makes on its own are to
-Open-Meteo: the forecast endpoint (`api.open-meteo.com`), only once the
-weather widget is enabled and a location is set, and the geocoder
+Open-Meteo: the forecast endpoint (`api.open-meteo.com`) and environmental
+endpoint (`air-quality-api.open-meteo.com`), only once the Weather widget is
+enabled and a location is set, and the geocoder
 (`geocoding-api.open-meteo.com`), only while the widget is enabled and
 you're actively searching for a city — queried as you type (debounced by
 ~300ms, at least 2 characters), not only when you press Enter — plus a
 single keyless reverse-geocode lookup (`api.bigdatacloud.net`) at the
 moment you click "Use my location", so the widget can label your weather
 with a real place name. That lookup happens once, only for device location,
-and sends the same ~1 km-rounded coordinates the forecast call already
-uses. Beyond those fixed calls, the **Connectors** framework lets you point
+and sends the same two-decimal device coordinates. Weather provider requests
+normalize a selected city's returned coordinates to at most four decimals.
+Beyond those fixed calls, the **Connectors** framework lets you point
 Aurora at outside sites yourself — RSS, GitHub, GitLab, Jira, Vercel,
 Crypto, Calendar, Status, and Home Assistant today: every connector fetch
 goes directly from your browser to that connector's own host, with no

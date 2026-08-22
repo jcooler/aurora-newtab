@@ -3,9 +3,11 @@
 **Updated:** 2026-08-22<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Continuous delivery roadmap - Weather enrichment<br>
-**Last verified packet:** `Widget stacks` - manual stacks, stable shared footprint, exact edit recovery, Ready rereview, 172-capture full sweep, 24-capture post-fix stack sweep, and exact 1408x445 real-window witness<br>
-**Current packet:** Weather enrichment implementation under the approved 2026-08-22 provider, cache, permission, and presentation design
+**Current wave:** Continuous delivery roadmap - Expansion platform<br>
+**Last verified packet:** `Weather enrichment` - independent request identity, failure-tolerant AQI/UV/pollen, Ready rereview, 162 files / 2,737 tests, and 9 rebuilt-extension captures<br>
+**Current packet:** Expansion platform just-in-time design and implementation planning
+
+- **Weather enrichment (2026-08-22, VERIFIED):** Expanded Weather now uses its accepted whitespace for current US AQI, UV, and provider-available pollen while Compact and Docked remain unchanged. The original forecast URL and `open-meteo:v1:` identity are byte-compatible; the optional `open-meteo-air:v1:` leg is separately identified, validated, backed up, privacy-disclosed, race-safe, and bounded so a failed or hung environmental request cannot suppress forecast. Old/mismatched cache self-heal remains under the one Weather request owner, explicit Refresh recovers without hiding cached forecast, and successful no-readings, pollen unavailable, and endpoint failure each have distinct truthful copy. The independent review found three Important issues; observed RED tests preceded `32fed81`, and the same reviewer returned Ready with none open. Final evidence: 162 files / 2,737 tests, TypeScript, 8/8 information-first contracts, 7/7 scratch-output contracts, 3/3 Weather harness contracts, a 218-module build, and 9 individually useful original-resolution captures over exact 1408x445, four corners, pollen unavailable, Docked, and reload. Six exact provider requests completed with zero failures, unexpected runtime errors, or failed requests; permissions, origin owners, and all non-Weather storage remained unchanged. Report: `docs/superpowers/reports/WEATHER-ENRICHMENT-QA.md`. No Store action occurred.
 
 - **Widget stacks (2026-08-22, VERIFIED):** Named layouts can now own manual cards with ordered existing widget identities and one stable face. All members mount once in one grid, only the facing member is visible and interactive, and the stored shared tier resolves independently per member so a compact-only face cannot collapse a Full stack. A continuous 500ms editing hold is the only creation path; ordinary overlap stays movement. Users can page with arrows, dots, swipe, or keyboard, drag the whole stack, append a widget, reorder, remove, detach, or dissolve members, and Undo/Cancel remains exact. Normal paging is the one immediate serialized `layouts` write; edit changes stay draft-only. Native `pointercancel` restores the exact pre-preview session and never invokes drop semantics. The bounded review found two Important issues (face-dependent tier collapse and cancel-as-drop); seven observed RED regressions preceded `619da14`, and the one rereview returned Ready with none open. Evidence: 172-cell full scratch matrix, 24-cell post-fix stack rerun, exact 1408x445 DPR 1 nine-stage real-window witness, 161 files / 2,679 tests, TypeScript, 8/8 information-first contracts, 7/7 output-safety contracts, and a 217-module build. Report: `docs/superpowers/reports/WIDGET-STACKS-QA.md`. Manual ceilings are real touch hardware, real screen-reader speech, mixed-DPI pointer cancellation, live connector combinations, and subjective long-session judgment. No Store, permission, manifest, dependency, credential, request-contract, or protected-checkout boundary changed.
 
@@ -452,13 +454,13 @@
 
 ## Files intentionally dirty
 
-- None at the widget-stacks checkpoint. Weather enrichment begins from the clean pushed baseline.
+- None at the Weather enrichment checkpoint. Expansion platform begins from the clean pushed baseline.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** Weather enrichment
-- **Plan:** Write the just-in-time Weather enrichment design and implementation plan from the clean pushed widget-stacks checkpoint.
-- **State:** Program A, named-layout NL-P6, Flow, and widget stacks are verified. Weather enrichment is next. Do not mutate Store state.
+- **Packet:** Expansion platform
+- **Plan:** Write the just-in-time Expansion platform design and implementation plan from the clean pushed Weather enrichment checkpoint.
+- **State:** Program A, named-layout NL-P6, Flow, widget stacks, and Weather enrichment are verified. Expansion platform is next. Do not mutate Store state.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -470,9 +472,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: Weather enrichment
-Verified source checkpoint: Widget stacks
-Expected next checkpoint subject: docs: approve the Aurora Weather enrichment implementation plan
-Execution: execute Weather enrichment, followed by the expansion platform and bounded addition waves without routine continuation prompts.
+Starting packet: Expansion platform
+Verified source checkpoint: Weather enrichment
+Expected next checkpoint subject: docs: approve the Aurora Expansion platform implementation plan
+Execution: execute the expansion platform, followed by bounded addition waves without routine continuation prompts.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```

@@ -151,17 +151,17 @@ interface WeatherEnvironmentSnapshot {
 
 **RED:**
 
-- [ ] Add tests importing the missing environmental contract, URL, identity,
+- [x] Add tests importing the missing environmental contract, URL, identity,
   mapper, AQI category, UV category, and dominant-pollen functions. Assert the
   exact host/path/current-field order, `timezone=auto`, four-decimal coordinate
   normalization, `-0` canonicalization, invalid coordinate rejection, public
   identity contents, and identity drift when the contract changes.
-- [ ] Assert all AQI/UV category boundaries, fractional values immediately on
+- [x] Assert all AQI/UV category boundaries, fractional values immediately on
   both sides of rounding boundaries, one shared rounded display/category value,
   fixed pollen ordering, highest-value selection, zero result, null/missing
   unavailable result, malformed finite/negative rejection, and stable species
   labels.
-- [ ] Run:
+- [x] Run:
 
 ```powershell
 npx vitest run src/services/weather/environmentIdentity.test.ts
@@ -171,14 +171,14 @@ Record the missing-module/export failure.
 
 **GREEN:**
 
-- [ ] Add the optional schema types without changing `CURRENT_VERSION` or
+- [x] Add the optional schema types without changing `CURRENT_VERSION` or
   defaults.
-- [ ] Implement one immutable contract and one serializer for both URL and
+- [x] Implement one immutable contract and one serializer for both URL and
   identity. Reuse `normalizeWeatherCoordinates` rather than copying its rules.
-- [ ] Implement the pure categories and provider-value mapper with no DOM,
+- [x] Implement the pure categories and provider-value mapper with no DOM,
   storage, network, locale, or color dependency.
-- [ ] Rerun the focused file and `npx tsc --noEmit`.
-- [ ] Commit `feat(weather): define environmental readings`.
+- [x] Rerun the focused file and `npx tsc --noEmit`.
+- [x] Commit `feat(weather): define environmental readings`.
 
 ## Task 2: Fetch both provider legs without sacrificing forecast usefulness
 
@@ -190,29 +190,29 @@ Record the missing-module/export failure.
 
 **RED:**
 
-- [ ] Extend provider tests so one call produces exactly one forecast GET and
+- [x] Extend provider tests so one call produces exactly one forecast GET and
   one environmental GET with the same signal and normalized coordinates.
-- [ ] Cover fully available data, pollen-null success, environmental HTTP
+- [x] Cover fully available data, pollen-null success, environmental HTTP
   failure, environmental JSON/mapping failure, forecast HTTP failure, forecast
   rejection, and environmental AbortError. Include forecast-fails-first while
   the environmental promise later rejects; it must create no unhandled
   rejection, cache result, or late mutation.
-- [ ] Assert forecast success plus environmental failure returns a normal
+- [x] Assert forecast success plus environmental failure returns a normal
   Weather snapshot with exact unavailable environment identity/fetchedAt;
   forecast failure still rejects; abort is never converted to unavailable.
-- [ ] Run `npx vitest run src/services/weather/openMeteo.test.ts` and record the
+- [x] Run `npx vitest run src/services/weather/openMeteo.test.ts` and record the
   focused failures.
 
 **GREEN:**
 
-- [ ] Start both requests together, pass the exact signal to each, and keep
+- [x] Start both requests together, pass the exact signal to each, and keep
   forecast mapping byte-compatible.
-- [ ] Map environmental success with the pure mapper. Catch only non-abort
+- [x] Map environmental success with the pure mapper. Catch only non-abort
   environmental failures and construct the exact unavailable snapshot.
-- [ ] Use one captured completion timestamp for the aggregate snapshot and its
+- [x] Use one captured completion timestamp for the aggregate snapshot and its
   environment leg so TTL comparisons are deterministic.
-- [ ] Rerun the provider and identity tests plus TypeScript.
-- [ ] Commit `feat(weather): fetch optional environmental context`.
+- [x] Rerun the provider and identity tests plus TypeScript.
+- [x] Commit `feat(weather): fetch optional environmental context`.
 
 ## Task 3: Preserve backup and privacy truth
 
@@ -226,31 +226,31 @@ Record the missing-module/export failure.
 
 **RED:**
 
-- [ ] Add backup tests accepting pre-packet caches, available environment data,
+- [x] Add backup tests accepting pre-packet caches, available environment data,
   unavailable environment data, and canonical partial pollen subsequences.
   Reject unknown nested keys, unknown species, duplicate/reordered species,
   empty available pollen, negative/non-finite values, malformed identity/status,
   contradictory unavailable discriminants, extra-shape arrays, and invalid
   nullable AQI/UV values.
-- [ ] Add privacy tests expecting a fifth fixed flow named
+- [x] Add privacy tests expecting a fifth fixed flow named
   `weatherEnvironment` with the exact provider-direct destination, trigger,
   sent/received data, permission, cache, method, and backend contract.
-- [ ] Add a source-contract assertion over `PRIVACY.md`, then update its fixed
+- [x] Add a source-contract assertion over `PRIVACY.md`, then update its fixed
   endpoint count, Weather endpoint list, trigger, sent/received fields, and
   included environmental cache description. Store listing/dashboard state
   remains untouched.
-- [ ] Prove export/import keeps the valid environment object byte-exact and
+- [x] Prove export/import keeps the valid environment object byte-exact and
   adds no redaction entry.
-- [ ] Run the two focused test files and record the failures.
+- [x] Run the two focused test files and record the failures.
 
 **GREEN:**
 
-- [ ] Implement strict optional nested validation while leaving legacy cache
+- [x] Implement strict optional nested validation while leaving legacy cache
   acceptance unchanged.
-- [ ] Add the environmental data flow without changing manifest generation or
+- [x] Add the environmental data flow without changing manifest generation or
   permission ownership.
-- [ ] Rerun focused tests and TypeScript.
-- [ ] Commit `feat(weather): validate and disclose environmental cache data`.
+- [x] Rerun focused tests and TypeScript.
+- [x] Commit `feat(weather): validate and disclose environmental cache data`.
 
 ## Task 4: Self-heal old caches under the existing race authority
 
@@ -261,37 +261,37 @@ Record the missing-module/export failure.
 
 **RED:**
 
-- [ ] Update the shared post-packet fixture helper to include a matching recent
+- [x] Update the shared post-packet fixture helper to include a matching recent
   environment leg, then add explicit tests for a pre-packet cache and a
   mismatched environmental identity. Both must render forecast immediately,
   omit environmental data, and start exactly one refresh.
-- [ ] Add tests proving a matching recent unavailable leg does not loop, the
+- [x] Add tests proving a matching recent unavailable leg does not loop, the
   exact TTL refreshes both legs once, explicit retry replaces unavailable data,
   and a label-only location change does not fetch.
-- [ ] Prove old-cache self-heal sets `enrichmentPending` without setting
+- [x] Prove old-cache self-heal sets `enrichmentPending` without setting
   forecast `loading` or changing resource state from success; an expanded
   consumer sees pending truth while closed consumers remain byte-compatible.
-- [ ] Extend the existing newer-location, silent second-context, clear,
+- [x] Extend the existing newer-location, silent second-context, clear,
   unmount, late rejection, StrictMode, and dedupe tests to assert both expected
   identities before persistence.
-- [ ] Run `npx vitest run src/newtab/widgets/weather/useWeather.test.tsx` and
+- [x] Run `npx vitest run src/newtab/widgets/weather/useWeather.test.tsx` and
   record focused failures.
 
 **GREEN:**
 
-- [ ] Compute expected forecast and environmental identities during render,
+- [x] Compute expected forecast and environmental identities during render,
   with one recoverable coordinate error boundary.
-- [ ] Keep matching forecast data renderable while stripping an absent or
+- [x] Keep matching forecast data renderable while stripping an absent or
   mismatched environment leg from the exposed snapshot.
-- [ ] Treat incomplete environmental identity/freshness as one refresh reason
+- [x] Treat incomplete environmental identity/freshness as one refresh reason
   without changing resource freshness for an otherwise usable forecast.
-- [ ] Keep environment-only self-heal/retry out of the shared `loading` flag;
+- [x] Keep environment-only self-heal/retry out of the shared `loading` flag;
   clear `enrichmentPending` on success, unavailable settlement, abort, identity
   change, clear, unmount, and late rejection.
-- [ ] Revalidate both identities against the authority-held stored location
+- [x] Revalidate both identities against the authority-held stored location
   before writing.
-- [ ] Rerun the focused hook/provider/identity tests and TypeScript.
-- [ ] Commit `fix(weather): self-heal enrichment under request ownership`.
+- [x] Rerun the focused hook/provider/identity tests and TypeScript.
+- [x] Commit `fix(weather): self-heal enrichment under request ownership`.
 
 ## Task 5: Fill expanded Weather with readable environmental facts
 
@@ -304,37 +304,37 @@ Record the missing-module/export failure.
 
 **RED:**
 
-- [ ] Add expanded-dialog tests for AQI value/category, UV value/category,
+- [x] Add expanded-dialog tests for AQI value/category, UV value/category,
   dominant pollen and units, zero pollen, pollen unavailable here, and complete
   environmental failure.
-- [ ] Cover AQI-only, UV-only, pollen-only, and successful none-present payloads
+- [x] Cover AQI-only, UV-only, pollen-only, and successful none-present payloads
   with content-driven omission and no empty definition cells. Pin fractional
   AQI/UV display/category agreement.
-- [ ] Add accessible-name tests showing meaning is not color-only and the CAMS
+- [x] Add accessible-name tests showing meaning is not color-only and the CAMS
   via Open-Meteo attribution is visible, safely linked, and keyboard reachable.
-- [ ] Add regression assertions that Compact and Docked content, dock click
+- [x] Add regression assertions that Compact and Docked content, dock click
   parity, full hourly summary, rain hour, compass arrow/label, sunrise sun,
   sunset moon, Escape, and focus restoration are unchanged.
-- [ ] Add an old-cache UI case that opens useful forecast details while the
+- [x] Add an old-cache UI case that opens useful forecast details while the
   enrichment refresh is pending. Assert exact Compact and Docked closed DOM and
   geometry remain unchanged during that pending state.
-- [ ] Add the user-facing retry path: unavailable details show Refresh; clicking
+- [x] Add the user-facing retry path: unavailable details show Refresh; clicking
   it keeps forecast visible, shows environmental pending only inside the open
   dialog, and replaces unavailable facts on success.
-- [ ] Run `npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx`
+- [x] Run `npx vitest run src/newtab/widgets/weather/WeatherWidget.test.tsx`
   and record the failures.
 
 **GREEN:**
 
-- [ ] Refactor the existing details `dl` into content-driven condition and
+- [x] Refactor the existing details `dl` into content-driven condition and
   environmental groups without nested cards or fixed empty rows.
-- [ ] Use existing semantic type/color tokens and visible category text. Any
+- [x] Use existing semantic type/color tokens and visible category text. Any
   category tint must preserve readable text over arbitrary panel colors.
-- [ ] Render exactly one full-width unavailable line on environmental failure,
+- [x] Render exactly one full-width unavailable line on environmental failure,
   and a distinct pollen-unavailable fact on successful non-pollen responses.
-- [ ] Keep summary branches and details-dialog geometry ownership unchanged.
-- [ ] Rerun Weather widget/hook/provider tests and TypeScript.
-- [ ] Commit `feat(weather): add environmental glance details`.
+- [x] Keep summary branches and details-dialog geometry ownership unchanged.
+- [x] Rerun Weather widget/hook/provider tests and TypeScript.
+- [x] Commit `feat(weather): add environmental glance details`.
 
 ## Task 6: Add the focused built-extension Weather witness
 
@@ -348,39 +348,39 @@ Record the missing-module/export failure.
 
 **RED:**
 
-- [ ] Add a Node contract test requiring safe scratch-only output handling,
+- [x] Add a Node contract test requiring safe scratch-only output handling,
   production `dist` loading, exact forecast/environment route fixtures,
   successful/pollen-unavailable/environment-failure states, four corners,
   Docked click parity, exact 1408x445, normal desktop, reload, request/storage
   accounting, and original-resolution captures.
-- [ ] Run `node --test scripts/qa-weather-enrichment.test.mjs` and record the
+- [x] Run `node --test scripts/qa-weather-enrichment.test.mjs` and record the
   missing-harness failures.
 
 **GREEN:**
 
-- [ ] Implement the harness with destructive-path guards matching the NL-P6
+- [x] Implement the harness with destructive-path guards matching the NL-P6
   output helper and ignored `.qa-weather-enrichment-*` roots only.
-- [ ] Seed real named-layout-shaped storage. Route the two production provider
+- [x] Seed real named-layout-shaped storage. Route the two production provider
   URLs without monkey-patching application code.
-- [ ] For every state assert useful visible text, exact category/availability,
+- [x] For every state assert useful visible text, exact category/availability,
   clamped dialog, no horizontal page overflow, no degenerate/offscreen box,
   no plain-click selection chrome, no unexpected request, no failed request,
   no runtime error, and no forbidden `layout` write.
-- [ ] Snapshot production and preview manifest permissions, record
+- [x] Snapshot production and preview manifest permissions, record
   `chrome.permissions.getAll()` and origin-lifecycle storage before/after, and
   assert the environmental request causes no permission request/grant or owner
   mutation. Add a static source assertion that Weather imports no permission
   transaction.
-- [ ] Exercise one continuous recovery path in the built extension: begin with
+- [x] Exercise one continuous recovery path in the built extension: begin with
   the environmental endpoint failing, open details and verify the forecast is
   still useful, change only the environmental route to success, click the
   visible Refresh control, and verify the new AQI/UV/pollen facts plus the exact
   persisted environmental identity. Forecast content must never disappear and
   the transition must add no permission, origin-owner, legacy `layout`, or
   unrelated storage write.
-- [ ] Capture and inspect all corner, Docked, 1408x445, normal-height,
+- [x] Capture and inspect all corner, Docked, 1408x445, normal-height,
   unavailable, and reload images at original resolution.
-- [ ] Run the contract test, syntax check, this exact focused unit gate,
+- [x] Run the contract test, syntax check, this exact focused unit gate,
   TypeScript, and `git diff --check`:
 
 ```powershell
@@ -390,7 +390,7 @@ npx vitest run src/services/weather/environmentIdentity.test.ts src/services/wea
 npx tsc --noEmit
 git diff --check
 ```
-- [ ] Commit `test(weather): witness environmental enrichment in Chromium`.
+- [x] Commit `test(weather): witness environmental enrichment in Chromium`.
 
 ## Task 7: Review, stabilize, document, and checkpoint
 
@@ -406,14 +406,14 @@ git diff --check
 
 **Steps:**
 
-- [ ] Commit the complete pre-review packet and request one independent bounded
+- [x] Commit the complete pre-review packet and request one independent bounded
   review from plan checkpoint through that commit. Ask explicitly for identity,
   abort/failure, cache, backup/privacy, no-whitespace, accessibility, and
   harness-honesty findings classified Critical/Important/Minor.
-- [ ] If Critical/Important findings exist, observe focused RED tests, apply one
+- [x] If Critical/Important findings exist, observe focused RED tests, apply one
   bounded fix commit, rerun focused checks, and request one rereview. Ledger
   Minor findings instead of opening more cycles.
-- [ ] From the exact reviewed production commit run once:
+- [x] From the exact reviewed production commit run once:
 
 ```powershell
 npm test
@@ -426,16 +426,16 @@ node scripts/qa-weather-enrichment.mjs --out-dir=.qa-weather-enrichment-final
 git diff --check
 ```
 
-- [ ] Rebuild `dist` with `npm run build` immediately before the browser run and
+- [x] Rebuild `dist` with `npm run build` immediately before the browser run and
   record the reviewed commit inside the report.
-- [ ] Inspect every original-resolution Weather capture individually and record
+- [x] Inspect every original-resolution Weather capture individually and record
   per-capture usefulness, not only aggregate invariants.
-- [ ] Update README provider/privacy/Weather copy, A2-D065, STATUS, ROADMAP, the
+- [x] Update README provider/privacy/Weather copy, A2-D065, STATUS, ROADMAP, the
   QA report, and every completed checklist item. Do not alter Store artifacts.
-- [ ] Commit `docs: checkpoint Aurora Weather enrichment` and push the active
+- [x] Commit `docs: checkpoint Aurora Weather enrichment` and push the active
   branch.
-- [ ] Prove local/upstream HEAD equality and clean active/protected checkouts.
-- [ ] Reread the continuous roadmap and begin Program E's just-in-time
+- [x] Prove local/upstream HEAD equality and clean active/protected checkouts.
+- [x] Reread the continuous roadmap and begin Program E's just-in-time
   expansion-platform design and plan without asking for routine continuation.
 
 ## Definition of done
