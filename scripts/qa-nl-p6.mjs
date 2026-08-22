@@ -287,6 +287,32 @@ async function stackInteractionChecks() {
   }
 
   const dimensions = [{ face: 'quote', ...await box() }]
+  await page.mouse.move(1, 1)
+  const restingArrow = card.locator('button[aria-label="Next widget"]')
+  const restingControls = await restingArrow.evaluate((node) => {
+    const arrowStyle = getComputedStyle(node)
+    const cardStyle = getComputedStyle(node.closest('[data-stack-card]'))
+    return {
+      opacity: arrowStyle.opacity,
+      visibility: arrowStyle.visibility,
+      pointerEvents: arrowStyle.pointerEvents,
+      userSelect: cardStyle.userSelect,
+    }
+  })
+  if (restingControls.opacity !== '0' || restingControls.visibility !== 'hidden' || restingControls.pointerEvents !== 'none') {
+    throw new Error(`stacks: arrows are not hidden at rest ${JSON.stringify(restingControls)}`)
+  }
+  if (restingControls.userSelect !== 'none') {
+    throw new Error(`stacks: native text selection is not suppressed ${JSON.stringify(restingControls)}`)
+  }
+
+  await card.hover()
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-stack-card="qa-stack"] button[aria-label="Next widget"]')
+    if (!node) return false
+    const style = getComputedStyle(node)
+    return Number(style.opacity) >= 0.89 && style.visibility === 'visible' && style.pointerEvents === 'auto'
+  })
   const nextButton = card.getByRole('button', { name: 'Next widget' })
   await assertHitTarget(nextButton, 'Next widget')
   await nextButton.click()
@@ -329,21 +355,40 @@ async function stackInteractionChecks() {
 
   const swipeBox = await card.boundingBox()
   if (!swipeBox) throw new Error('stacks: stack card disappeared before swipe')
+  await page.evaluate(() => window.getSelection()?.removeAllRanges())
   await page.mouse.move(swipeBox.x + swipeBox.width / 2, swipeBox.y + swipeBox.height / 2)
   await page.mouse.down()
   await page.mouse.move(swipeBox.x + swipeBox.width / 2 - 50, swipeBox.y + swipeBox.height / 2, { steps: 4 })
   await page.mouse.up()
   await waitForFace('Quote, 3 of 3')
+  const selectedText = await page.evaluate(() => window.getSelection()?.toString() ?? '')
+  if (selectedText) fail(`stacks: swipe selected page text ${JSON.stringify(selectedText)}`)
   if (await page.getByRole('dialog', { name: 'Weather details' }).count()) {
     fail('stacks: swipe activated the Weather face click')
   }
 
+  // Hidden stack members stay mounted by design, so their resource caches
+  // may write while the interaction sequence runs. Clear that deliberately
+  // broad window before proving the next explicit paging action in isolation.
+  const setupWrites = await takeWrites()
+  if (setupWrites.some((keys) => keys.split(',').includes('layout'))) {
+    fail(`stacks: setup interactions touched frozen legacy layout ${setupWrites.join(';')}`)
+  }
+  evidence.writes.push(...setupWrites.map((keys) => `stack-interactions:${keys}`))
+
+  await page.mouse.move(1, 1)
   await card.focus()
+  await page.waitForFunction(() => {
+    const node = document.querySelector('[data-stack-card="qa-stack"] button[aria-label="Next widget"]')
+    if (!node) return false
+    const style = getComputedStyle(node)
+    return Number(style.opacity) >= 0.89 && style.visibility === 'visible' && style.pointerEvents === 'auto'
+  })
   await page.keyboard.press('ArrowRight')
   await waitForFace('Month, 1 of 3')
   await waitForStoredFace('monthCal')
   const pagingWrites = await takeWrites()
-  if (pagingWrites.length === 0 || pagingWrites.some((keys) => keys !== 'layouts')) {
+  if (pagingWrites.length !== 1 || pagingWrites[0] !== 'layouts') {
     fail(`stacks: normal paging writes were ${pagingWrites.join(';') || 'empty'}`)
   }
   evidence.writes.push(...pagingWrites.map((keys) => `stack-interactions:${keys}`))
@@ -378,6 +423,8 @@ async function stackInteractionChecks() {
     wraparound: true,
     weatherClickParity: true,
     swipeWithoutClick: true,
+    swipeWithoutSelection: true,
+    keyboardFocusRevealsArrows: true,
     keyboardPaging: true,
     reloadFacing: 'monthCal',
     cancelledDraftFacing: 'weather',
@@ -469,6 +516,10 @@ try {
       await page.waitForTimeout(350)
       const cell = `${scenario.id}-${vpId}`
 
+      await page.mouse.move(1, 1)
+      await page.evaluate(() => {
+        if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
+      })
       await assertInvariants(`${cell}-normal`, scenario.id)
       await capture(`${cell}-normal`)
 

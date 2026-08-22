@@ -132,4 +132,13 @@ describe('StackCard', () => {
     expect(outer).not.toContain('border:')
     expect(indexCss).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^}]*\.stack-card/s)
   })
+
+  it('keeps paging arrows hidden and non-interactive until the stack is hovered or focused', () => {
+    expect(indexCss).toMatch(/\.stack-card__arrow\s*\{[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/s)
+    expect(indexCss).toMatch(/\.stack-card:hover \.stack-card__arrow,\s*\.stack-card:focus-within \.stack-card__arrow\s*\{[^}]*opacity:\s*0\.9;[^}]*visibility:\s*visible;[^}]*pointer-events:\s*auto;/s)
+  })
+
+  it('prevents a horizontal stack swipe from starting native text selection', () => {
+    expect(indexCss).toMatch(/\.stack-card\s*\{[^}]*user-select:\s*none;/s)
+  })
 })

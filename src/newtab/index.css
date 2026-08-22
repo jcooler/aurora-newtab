@@ -94,6 +94,7 @@
      gutters are transparent control space, not a second card surface. */
   padding: 0 28px 20px;
   touch-action: pan-y;
+  user-select: none;
   transition: filter 120ms ease;
 }
 .stack-card__members {
@@ -122,7 +123,9 @@
   border-radius: 9999px;
   background: color-mix(in srgb, var(--panel-solid) 72%, transparent);
   color: var(--fg-muted);
-  opacity: 0.38;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   cursor: pointer;
   transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
 }
@@ -131,6 +134,8 @@
 .stack-card:hover .stack-card__arrow,
 .stack-card:focus-within .stack-card__arrow {
   opacity: 0.9;
+  visibility: visible;
+  pointer-events: auto;
 }
 .stack-card__arrow:hover {
   background: var(--panel-solid);
