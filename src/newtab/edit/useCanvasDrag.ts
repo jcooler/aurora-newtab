@@ -59,6 +59,7 @@ export function useCanvasDrag(input: {
   ) => void
   onZoneChange?: (zone: DockEdge | null) => void
   onDrop: (context: CanvasDragDrop) => void
+  onCancel?: (subject: CanvasDragSubject) => void
   canDock?: (id: BlockId) => boolean
   canStackTarget?: (sourceId: BlockId, target: StackDropTarget) => boolean
 }): CanvasDragApi {
@@ -203,8 +204,9 @@ export function useCanvasDrag(input: {
 
     const finish = (event: PointerEvent) => {
       if (event.pointerId !== start.pointerId) return
+      const cancelled = event.type === 'pointercancel'
       const droppedZone = zone
-      const droppedTarget = event.type === 'pointercancel' || droppedZone !== null ? null : markedTarget
+      const droppedTarget = droppedZone !== null ? null : markedTarget
       removeListeners()
       setDragging(null)
       setGuides([])
@@ -212,6 +214,10 @@ export function useCanvasDrag(input: {
       candidateKey = null
       markedTarget = null
       setZone(null)
+      if (cancelled) {
+        inputRef.current.onCancel?.(subject)
+        return
+      }
       inputRef.current.onDrop({
         zone: droppedZone,
         pointerX: lastPointerX,

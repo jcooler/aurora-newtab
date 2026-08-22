@@ -24,6 +24,7 @@ import {
   setSelectedStackFacing,
   setSelectedTier,
   stepSelectedLayer,
+  type EditSession,
   undo,
   undockSelected,
   undockSelectedLive,
@@ -261,6 +262,7 @@ function AuroraApp() {
 
   const [dragZone, setDragZone] = useState<DockEdge | null>(null)
   const draggingSubjectRef = useRef<CanvasDragSubject | null>(null)
+  const dragOriginSessionRef = useRef<EditSession | null>(null)
   // The pointer maps DIRECTLY to a strip position (spec 2.4, owner-refined
   // 2026-08-18: complete control, exactly like the canvas). Clamped so the
   // dragged member's own box stays inside the bar — measured live because
@@ -287,6 +289,7 @@ function AuroraApp() {
       draggingSubjectRef.current = subject
       if (subject.kind === 'stack-member') return
       editMode.dispatch((current) => {
+        if (dragOriginSessionRef.current === null) dragOriginSessionRef.current = current
         const selected = subject.kind === 'widget'
           ? selectWidget(current, subject.id)
           : selectStack(current, subject.id)
@@ -306,6 +309,12 @@ function AuroraApp() {
       })
     },
     onZoneChange: setDragZone,
+    onCancel: () => {
+      draggingSubjectRef.current = null
+      const origin = dragOriginSessionRef.current
+      dragOriginSessionRef.current = null
+      if (origin) editMode.dispatch(() => origin)
+    },
     // Dock eligibility (spec 2.3, owner-reported 2026-08-18): a widget with
     // no Docked tier is never offered a dock zone — its edge drop is an
     // ordinary free placement.
@@ -320,6 +329,7 @@ function AuroraApp() {
     onDrop: ({ zone, pointerX, point, stackTarget }) => {
       const subject = draggingSubjectRef.current
       draggingSubjectRef.current = null
+      dragOriginSessionRef.current = null
       if (!subject) return
       editMode.dispatch((current) => {
         if (subject.kind === 'stack-member') {
@@ -346,6 +356,7 @@ function AuroraApp() {
     event: ReactPointerEvent,
   ) => {
     event.preventDefault()
+    dragOriginSessionRef.current = null
     // Starting edit mode unmounts the normal hover grip under the pointer.
     // Swallow only the release click that lands back on the grabbed object.
     let timeoutId: number | undefined

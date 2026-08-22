@@ -293,6 +293,26 @@ describe('CanvasSurface widget stacks', () => {
     )
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBe(item)
     expect(within(item).getByRole('group').getAttribute('aria-label')).toBe('Weather, 1 of 3')
+
+    const compactFaceLayout: NamedLayout = {
+      ...stackLayout,
+      stacks: [{ ...stackLayout.stacks![0], facing: 'timer' }],
+    }
+    rerender(
+      <CanvasSurface
+        activeLayout={compactFaceLayout}
+        entries={stackEntries}
+        viewport={{ width: 1408, height: 445 }}
+        chrome="normal"
+        onStepStack={onStepStack}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+    expect(item.dataset.canvasSize).toBe('full')
+    expect(within(item).getByText('Weather:full')).toBeTruthy()
+    expect(within(item).getByText('Clock:full')).toBeTruthy()
+    expect(within(item).getByText('Timer:compact')).toBeTruthy()
+    expect(within(item).getByRole('group').getAttribute('aria-label')).toBe('Timer, 3 of 3')
   })
 
   it('routes edit-mode dots directly while leaving ordinary docked and standalone rendering unchanged', () => {

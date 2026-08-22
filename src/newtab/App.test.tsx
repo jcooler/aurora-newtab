@@ -771,7 +771,7 @@ describe('App Canvas composition', () => {
 
     cleanup()
     await renderApp(storage)
-    expect(screen.getByTestId('canvas-item-stack:stack-day').dataset.canvasSize).toBe('compact')
+    expect(screen.getByTestId('canvas-item-stack:stack-day').dataset.canvasSize).toBe('full')
     expect(screen.getByRole('group', { name: 'Notes, 1 of 2' })).toBeTruthy()
   })
 
@@ -801,6 +801,92 @@ describe('App Canvas composition', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Undo' }))
     await act(async () => {})
     expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
+  })
+
+  it('restores free movement exactly when the browser cancels the pointer gesture', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'cancel-free',
+      layouts: [{
+        id: 'cancel-free',
+        name: 'Cancel free',
+        widgets: {
+          clock: { kind: 'free', anchor: 'top-left', offsetX: 20, offsetY: 20, tier: 'full', layer: 2 },
+        },
+      }],
+    })
+    await renderApp(storage)
+    const before = itemPoint('clock')
+
+    fireEvent.pointerDown(within(canvasItem('clock')).getByRole('button', { name: 'Move Clock' }), {
+      pointerId: 51, clientX: 110, clientY: 110,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 51, clientX: 360, clientY: 260 })
+    fireEvent.pointerCancel(document, { pointerId: 51, clientX: 360, clientY: 260 })
+    await act(async () => {})
+
+    expect(itemPoint('clock')).toEqual(before)
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('restores the exact dock and x position when the browser cancels the pointer gesture', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'cancel-dock',
+      layouts: [{
+        id: 'cancel-dock',
+        name: 'Cancel dock',
+        widgets: {
+          weather: { kind: 'docked', dock: 'bottom', order: 0, x: 31, tier: 'compact' },
+        },
+      }],
+    })
+    await renderApp(storage)
+    const before = canvasGeometry('weather')
+
+    fireEvent.pointerDown(within(canvasItem('weather')).getByRole('button', { name: 'Move Weather' }), {
+      pointerId: 52, clientX: 550, clientY: 520,
+    })
+    await act(async () => {})
+    fireEvent.pointerMove(document, { pointerId: 52, clientX: 760, clientY: 20 })
+    fireEvent.pointerCancel(document, { pointerId: 52, clientX: 760, clientY: 20 })
+    await act(async () => {})
+
+    expect(canvasGeometry('weather')).toEqual(before)
+    expect(within(screen.getByRole('navigation', { name: 'Bottom bar' })).getByTestId('canvas-item-weather')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
+  })
+
+  it('keeps an inspector-origin member in its stack when the browser cancels the pointer gesture', async () => {
+    installStackGeometry()
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', stackedDocument())
+    await renderApp(storage)
+
+    const card = screen.getByTestId('canvas-item-stack:stack-day')
+    fireEvent.pointerDown(within(card).getByRole('button', { name: 'Move Notes +1' }), {
+      pointerId: 53, clientX: 510, clientY: 110,
+    })
+    await act(async () => {})
+    const inspector = screen.getByRole('dialog', { name: 'Notes +1 inspector' })
+    fireEvent.pointerDown(within(inspector).getByRole('button', { name: 'Move Tasks out of stack' }), {
+      pointerId: 54, clientX: 900, clientY: 400,
+    })
+    fireEvent.pointerMove(document, { pointerId: 54, clientX: 300, clientY: 300 })
+    fireEvent.pointerCancel(document, { pointerId: 54, clientX: 300, clientY: 300 })
+    await act(async () => {})
+
+    expect(screen.getByTestId('canvas-item-stack:stack-day')).toBeTruthy()
+    expect(document.querySelector('[data-canvas-object-id="tasks"]')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
   })
 
   it('uses one body-owned document-safe tool sheet on Small', async () => {

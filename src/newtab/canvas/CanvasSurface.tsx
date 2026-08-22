@@ -99,6 +99,11 @@ export default function CanvasSurface({
     // Resolve stored tiers against each widget's declared sizes exactly once.
     const items = raw.items.map((item): LayoutRenderItem => {
       if (!('tier' in item)) return item
+      // A stack's stored tier belongs to the shared card, not its facing
+      // widget. Resolving here against the face would collapse every member
+      // when paging to a compact-only widget. Each member resolves this same
+      // stored tier independently in renderItem below.
+      if ('stack' in item && item.stack) return item
       const entry = byId.get(item.id)
       return entry ? { ...item, tier: resolveRenderTier(entry.canvasSizes, item.tier) } : item
     })

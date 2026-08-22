@@ -237,4 +237,19 @@ describe('useCanvasDrag', () => {
     act(() => { document.dispatchEvent(pointerEvent('pointermove', { clientX: 400, clientY: 300, pointerId: 24 })) })
     expect(onPreviewMove).toHaveBeenCalledTimes(calls)
   })
+
+  it.each([
+    ['free widget movement', { kind: 'widget', id: 'clock' } as const, { x: 300, y: 250 }],
+    ['dock movement', { kind: 'widget', id: 'clock' } as const, { x: 300, y: 20 }],
+    ['inspector member detachment', { kind: 'stack-member', stackId: 'stack-day', id: 'clock' } as const, { x: 300, y: 250 }],
+  ])('never turns pointercancel into %s drop semantics', (_label, subject, point) => {
+    const { rendered, onDrop } = setup()
+    act(() => rendered.result.current.startDrag(subject, { clientX: 110, clientY: 110, pointerId: 51 }))
+    act(() => { document.dispatchEvent(pointerEvent('pointermove', { clientX: point.x, clientY: point.y, pointerId: 51 })) })
+    act(() => { document.dispatchEvent(pointerEvent('pointercancel', { clientX: point.x, clientY: point.y, pointerId: 51 })) })
+
+    expect(onDrop).not.toHaveBeenCalled()
+    expect(rendered.result.current.dragging).toBeNull()
+    expect(rendered.result.current.guides).toEqual([])
+  })
 })
