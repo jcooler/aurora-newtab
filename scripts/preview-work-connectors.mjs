@@ -12,6 +12,7 @@ import {
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
+  requestFailureKey,
 } from './work-connector-harness-contracts.mjs'
 
 const repoRoot = resolve(process.cwd())
@@ -197,6 +198,7 @@ const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
 const expectedFailedRequests = new Set()
 const pendingProviderRequests = new Set()
+const requestScenarios = new Map()
 const activeProviderRoutes = new Set()
 const delayedProviderRoutes = new Map()
 const lastProviderRequestAt = new Map()
@@ -415,11 +417,18 @@ page.on('pageerror', (error) => evidence.runtimeErrors.push(`page: ${String(erro
 page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
+  const key = requestFailureKey(request)
+  const requestScenario = requestScenarios.get(key) ?? 'unknown'
+  requestScenarios.delete(key)
   pendingProviderRequests.delete(request)
-  if (harnessNavigating || isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
-    evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
+  if (
+    harnessNavigating ||
+    (requestScenario.endsWith(':todoist-completion:error') && url.endsWith('/api/v1/tasks/task-1/close')) ||
+    isExpectedRequestFailure(request, errorText, expectedFailedRequests)
+  ) {
+    evidence.expectedRequestAborts.push(`${requestScenario} ${request.method()} ${url}: ${errorText}`)
   } else if (!url.startsWith('chrome-extension://')) {
-    evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
+    evidence.failedRequests.push(`${requestScenario} ${request.method()} ${url}: ${errorText}`)
   }
 })
 page.on('requestfinished', (request) => pendingProviderRequests.delete(request))
@@ -427,6 +436,7 @@ page.on('request', (request) => {
   const url = request.url()
   if (providerForUrl(url)) {
     pendingProviderRequests.add(request)
+    requestScenarios.set(requestFailureKey(request), activeRequestScenario)
     lastProviderRequestAt.set(providerForUrl(url), Date.now())
     if (harnessNavigating) authorizeRequestFailure(expectedFailedRequests, request)
   }
@@ -887,7 +897,7 @@ async function exerciseTodoistCompletion(widget) {
     response.url().endsWith('/api/v1/tasks/task-1/close') && response.status() === 500
   ))
   await page.getByRole('button', { name: 'Confirm completion' }).click()
-  await (await failedCloseResponse).finished()
+  await failedCloseResponse
   await page.getByRole('alert').filter({ hasText: 'status 500' }).waitFor()
   await settleProvider(widget.id)
   const path = join(outDir, 'todoist-completion-error.png')
