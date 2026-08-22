@@ -14,14 +14,18 @@ import {
 } from './work-connector-harness-contracts.mjs'
 
 const TOKENS = { linear: 'linear-fake', sentry: 'sentry-fake', todoist: 'todoist-fake' }
+let requestStartTime = 0
 
 function request(overrides = {}) {
+  requestStartTime += 1
+  const startTime = requestStartTime
   return {
     method: 'GET',
     url: 'https://api.todoist.com/api/v1/projects?limit=200',
     authorization: `Bearer ${TOKENS.todoist}`,
     contentType: null,
     body: null,
+    timing: () => ({ startTime }),
     ...overrides,
   }
 }
@@ -116,7 +120,7 @@ test('requires exact dist provenance and exact request-instance failure authoriz
   assert.equal(isExpectedRequestFailure(unexpected, 'net::ERR_ABORTED', authorized), false)
   authorizeRequestFailure(authorized, expected)
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_CONNECTION_REFUSED', authorized), false)
-  assert.equal(authorized.has(expected), true)
+  assert.equal(authorized.size, 1)
 })
 
 test('requires the exact provider operation totals', () => {
