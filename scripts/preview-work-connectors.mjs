@@ -879,7 +879,11 @@ async function exerciseTodoistCompletion(widget) {
   await settleProvider(widget.id)
   markRequestScenario('todoist-completion:error')
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
+  const failedCloseResponse = page.waitForResponse((response) => (
+    response.url().endsWith('/api/v1/tasks/task-1/close') && response.status() === 500
+  ))
   await page.getByRole('button', { name: 'Confirm completion' }).click()
+  await failedCloseResponse
   await page.getByRole('alert').filter({ hasText: 'status 500' }).waitFor()
   await settleProvider(widget.id)
   const path = join(outDir, 'todoist-completion-error.png')
