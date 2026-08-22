@@ -3001,8 +3001,13 @@ describe('Connectors tab — search and categories', () => {
       'Jira',
       'Vercel',
       'Status',
+      'Linear',
+      'Sentry',
     ])
-    expect(within(within(available).getByRole('region', { name: 'Calendar & tasks' })).getByRole('heading', { name: 'Calendar' })).toBeTruthy()
+    expect(within(within(available).getByRole('region', { name: 'Calendar & tasks' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual([
+      'Calendar',
+      'Todoist',
+    ])
     expect(within(within(available).getByRole('region', { name: 'Home' })).getByRole('heading', { name: 'Home Assistant' })).toBeTruthy()
     expect(within(within(available).getByRole('region', { name: 'News & markets' })).getAllByRole('heading', { level: 4 }).map((heading) => heading.textContent)).toEqual(['RSS', 'Crypto'])
   })
