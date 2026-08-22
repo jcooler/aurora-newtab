@@ -50,6 +50,20 @@ describe('RecentlyClosedWidget', () => {
     expect(screen.getByText(/Window · 4 tabs/)).toBeTruthy()
   })
 
+  it('gives repeated generic sessions distinct state-rich row and restore names', () => {
+    render(<RecentlyClosedWidget canvasSize="standard" />)
+    const restoreNames = screen.getAllByRole('button', { name: /^Restore / })
+      .map((button) => button.getAttribute('aria-label'))
+    expect(new Set(restoreNames).size).toBe(restoreNames.length)
+    expect(restoreNames.every((name) => /(?:just now|\d+[mhd] ago)/.test(name ?? ''))).toBe(true)
+    expect(restoreNames.every((name) => /item \d+ of 5/.test(name ?? ''))).toBe(true)
+
+    const rowNames = screen.getAllByRole('article').map((row) => row.getAttribute('aria-label'))
+    expect(new Set(rowNames).size).toBe(rowNames.length)
+    expect(rowNames.every((name) => /(?:Tab|Window)/.test(name ?? ''))).toBe(true)
+    expect(rowNames.every((name) => /item \d+ of 5/.test(name ?? ''))).toBe(true)
+  })
+
   it('Full groups every returned entry into Tabs and Windows', () => {
     render(<RecentlyClosedWidget canvasSize="full" />)
     expect(screen.getByRole('heading', { name: 'Tabs' })).toBeTruthy()

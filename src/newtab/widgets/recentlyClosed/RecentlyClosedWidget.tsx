@@ -22,6 +22,12 @@ function closedAge(timestamp: number): string {
   return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`
 }
 
+function sessionState(item: RecentlyClosedItem): string {
+  return item.type === 'tab'
+    ? 'Tab'
+    : `Window, ${item.tabCount} ${item.tabCount === 1 ? 'tab' : 'tabs'}`
+}
+
 export default function RecentlyClosedWidget({
   canvasSize = 'standard',
   docked = false,
@@ -137,8 +143,10 @@ function RecentlyClosedDetail({
         <section key={group.title ?? 'recent'} className="space-y-1">
           {group.title ? <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{group.title}</h3> : null}
           <div className="divide-y divide-hairline">
-            {group.rows.map((item) => (
-              <article key={item.sessionId} aria-label={`${item.title}, ${item.type}`} className="flex min-h-12 items-center gap-3 py-2">
+            {group.rows.map((item, index) => {
+              const context = `${item.title}, ${sessionState(item)}, ${closedAge(item.closedAt)}, item ${index + 1} of ${group.rows.length}`
+              return (
+              <article key={item.sessionId} aria-label={context} className="flex min-h-12 items-center gap-3 py-2">
                 <span aria-hidden className="h-px w-5 shrink-0 bg-fg-muted/50" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.title}</span>
@@ -151,14 +159,15 @@ function RecentlyClosedDetail({
                 <button
                   type="button"
                   disabled={busyId !== null}
-                  aria-label={`Restore ${item.title}`}
+                  aria-label={`Restore ${context}`}
                   onClick={() => void restore(item)}
                   className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                 >
                   Restore
                 </button>
               </article>
-            ))}
+              )
+            })}
           </div>
         </section>
       ) : null)}
