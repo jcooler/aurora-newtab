@@ -200,7 +200,7 @@ The owner-approved authority is [`2026-08-17-aurora-named-layouts-live-canvas-de
 | NL-P6 Product QA | Verified - owner accepted | 124 judged captures over five storage shapes and twelve viewports, exact 1408x445 real-window interaction witness, F9 explicitly accepted as user-owned density. | `1ff6650`, `3e9a003` |
 | NL-P7 Stabilization | Verified as Program A | Warning-free tests, current ledgers, scratch-only QA reruns, one reviewed full gate, and rebuilt `dist`; release restaging remains deferred. | Program A checkpoint |
 | Flow | Verified | One persisted cross-tab timer authority plus the immersive mantra, timer, and top-task screen; exact dashboard restoration, zero layout writes, 148-capture scratch sweep, and exact 1408x445 two-tab witness. | [`2026-08-21-aurora-flow-implementation.md`](../plans/2026-08-21-aurora-flow-implementation.md); `5802e59` |
-| Widget stacks | Current | User-created cards that hold several existing widget identities and page through one at a time without duplicating data owners or weakening named-layout placement. | [`2026-08-19-aurora-widget-stacks-design.md`](../specs/2026-08-19-aurora-widget-stacks-design.md) |
+| Widget stacks | In progress | User-created cards that hold several existing widget identities and page through one at a time without duplicating data owners or weakening named-layout placement. | [`2026-08-21-aurora-widget-stacks-implementation.md`](../plans/2026-08-21-aurora-widget-stacks-implementation.md) |
 
 The active approved sequence is widget stacks, Weather enrichment, the expansion platform, and bounded widget/connector addition waves. Flow is verified; widget stacks is the current packet.
 
