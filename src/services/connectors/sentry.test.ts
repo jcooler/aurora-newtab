@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   fetchSentryIssues,
   isSentryData,
+  isSentryDataForRegion,
   sentryBaseUrl,
   sentryDescriptor,
   sentryItemLimit,
@@ -308,6 +309,10 @@ describe('isSentryData', () => {
     expect(isSentryData(result.data)).toBe(true)
     expect(isSentryData({ issues: [{ ...result.data.issues[0], count: '12' }] })).toBe(false)
     expect(isSentryData({ issues: Array.from({ length: 26 }, () => result.data.issues[0]) })).toBe(false)
+    expect(isSentryData({ issues: [{ ...result.data.issues[0], permalink: 'https://evil.example/issues/100/' }] })).toBe(false)
+    expect(isSentryData({ issues: [{ ...result.data.issues[0], permalink: 'https://us.sentry.io:444/issues/100/' }] })).toBe(false)
+    expect(isSentryDataForRegion(result.data, 'us')).toBe(true)
+    expect(isSentryDataForRegion(result.data, 'global')).toBe(false)
   })
 
   it('narrows a valid snapshot to the exported normalized types', () => {

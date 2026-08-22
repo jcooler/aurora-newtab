@@ -172,10 +172,11 @@ describe('fetchLinearWork request and failure contract', () => {
       Authorization: 'lin_api_secret',
       'Content-Type': 'application/json',
     })
-    const body = JSON.parse(String(init?.body)) as { query: string }
+    const body = JSON.parse(String(init?.body)) as { query: string; variables?: unknown }
     expect(compactQuery(body.query)).toBe(
-      'query AuroraLinearWork { viewer { assignedIssues(first: 50) { nodes { id identifier title priority dueDate url state { name type } team { id key name } cycle { id name startsAt endsAt } } } } }',
+      'query AuroraLinearWork($filter: IssueFilter) { viewer { assignedIssues(first: 50, filter: $filter) { nodes { id identifier title priority dueDate url state { name type } team { id key name } cycle { id name startsAt endsAt } } } } }',
     )
+    expect(body.variables).toEqual({ filter: { team: { id: { in: ['team-a'] } } } })
   })
 
   it('rejects an HTTP 200 with GraphQL errors instead of accepting partial work', async () => {

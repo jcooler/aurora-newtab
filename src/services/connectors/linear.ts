@@ -22,9 +22,9 @@ const IDENTITY_QUERY = `
 `
 
 const WORK_QUERY = `
-  query AuroraLinearWork {
+  query AuroraLinearWork($filter: IssueFilter) {
     viewer {
-      assignedIssues(first: 50) {
+      assignedIssues(first: 50, filter: $filter) {
         nodes {
           id
           identifier
@@ -235,12 +235,13 @@ async function requestLinear(
   token: string,
   query: string,
   fetchFn: typeof fetch,
+  variables?: Record<string, unknown>,
 ): Promise<{ ok: true; body: Record<string, unknown> } | LinearRequestFailure> {
   try {
     const result = await postJson<unknown>(
       LINEAR_GRAPHQL_URL,
       { Authorization: token },
-      { query },
+      variables ? { query, variables } : { query },
       fetchFn,
     )
     if (!result.ok) {
@@ -290,7 +291,20 @@ export async function fetchLinearWork(
   fetchFn: typeof fetch = fetch,
   now: Date = new Date(),
 ): Promise<LinearWorkData> {
-  const result = await requestLinear(token, WORK_QUERY, fetchFn)
+  const selectedIds =
+    Array.isArray(selectedTeamIds)
+      ? selectedTeamIds
+        .filter((id): id is string => typeof id === 'string')
+        .map((id) => id.trim())
+        .filter(Boolean)
+      : []
+  const selected = new Set(selectedIds)
+  const result = await requestLinear(
+    token,
+    WORK_QUERY,
+    fetchFn,
+    { filter: selected.size > 0 ? { team: { id: { in: [...selected] } } } : null },
+  )
   if (!result.ok) throw new Error('Linear work request failed.')
 
   const data = isRecord(result.body.data) ? result.body.data : null
@@ -299,15 +313,6 @@ export async function fetchLinearWork(
   if (!assignedIssues || !Array.isArray(assignedIssues.nodes)) {
     throw new Error('Linear work request failed.')
   }
-
-  const selected = new Set(
-    Array.isArray(selectedTeamIds)
-      ? selectedTeamIds
-        .filter((id): id is string => typeof id === 'string')
-        .map((id) => id.trim())
-        .filter(Boolean)
-      : [],
-  )
   const seen = new Set<string>()
   const issues: LinearIssue[] = []
   for (const raw of assignedIssues.nodes) {

@@ -4,6 +4,12 @@ import { basename, dirname, join, resolve } from 'node:path'
 import { chromium } from 'playwright'
 import sharp from 'sharp'
 import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'
+import {
+  assertAllowedStorageChange,
+  assertBuildProvenance,
+  inspectProviderRequest,
+  isExpectedRequestFailure,
+} from './work-connector-harness-contracts.mjs'
 
 const repoRoot = resolve(process.cwd())
 const protectedRoot = resolve('D:/DEV/Chrome plugin')
@@ -43,14 +49,7 @@ const manifest = JSON.parse(readFileSync(resolve(dist, 'manifest.json'), 'utf8')
 if (!manifest.optional_host_permissions?.includes('https://*/*')) {
   throw new Error('dist is missing the requestable optional HTTPS origin boundary')
 }
-const EXACT_REQUEST_MARKERS = [
-  'https://api.linear.app/graphql',
-  '/api/0/organizations/acme-labs/issues/',
-  '/api/v1/projects',
-  '/api/v1/tasks',
-  '/api/v1/tasks/task-1/close',
-]
-void EXACT_REQUEST_MARKERS
+assertBuildProvenance(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'), expectedCommit)
 const ALL_WIDGET_IDS = [...new Set(Object.values(CATALOG_BATCHES).flatMap((batch) => batch.map((entry) => entry.id)))]
 
 const TIERS = ['compact', 'standard', 'full', 'docked']
@@ -107,12 +106,12 @@ const todoistTasks = Array.from({ length: 25 }, (_, index) => ({
   id: `task-${index + 1}`,
   content: `Ship Aurora ${String(index + 1).padStart(2, '0')}`,
   projectId: index % 2 ? 'personal' : 'work',
-  due: { date: today, datetime: null, timeZone: null, text: index < 5 ? 'overdue' : 'today', isRecurring: index === 2 },
+  due: { date: today, datetime: null, timeZone: null, text: index < 5 ? 'overdue' : index < 15 ? 'today' : 'upcoming', isRecurring: index === 2 },
   priority: index === 0 ? 4 : 2,
   labels: index === 0 ? ['release'] : [],
   duration: index === 0 ? { amount: 30, unit: 'minute' } : null,
   parentId: null,
-  bucket: index < 5 ? 'overdue' : 'today',
+  bucket: index < 5 ? 'overdue' : index < 15 ? 'today' : 'upcoming',
   url: `https://app.todoist.com/app/task/task-${index + 1}`,
 }))
 
@@ -121,19 +120,24 @@ const WIDGETS = [
     id: 'linear', title: 'Linear', origin: 'https://api.linear.app/*',
     config: { enabled: true, token: FAKE_TOKENS.linear, displayName: 'QA Builder', teamIds: [], itemLimit: 6 },
     data: { issues: linearIssues }, empty: { issues: [] },
-    compact: ['25 assigned', '5 due soon'], standard: ['Work issue 01', 'AUR-1', 'Aurora'], full: ['Work issue 25', 'QA Cycle'],
+    compact: ['25 assigned', '5 due soon', 'AUR-1'], docked: ['25 assigned', '5 due soon'],
+    standard: ['Work issue 01', 'AUR-1', 'Aurora', 'Urgent'], full: ['Work issue 25', 'In Progress', 'Todo', 'QA Cycle'],
   },
   {
     id: 'sentry', title: 'Sentry', origin: 'https://us.sentry.io/*',
     config: { enabled: true, token: FAKE_TOKENS.sentry, organization: 'acme-labs', region: 'us', projectSlugs: [], itemLimit: 6 },
     data: { issues: sentryIssues }, empty: { issues: [] },
-    compact: ['25 unresolved', '1 critical'], standard: ['Checkout failure 01', 'Web', 'WEB-1'], full: ['Checkout failure 25', 'events in 24h'],
+    compact: ['25 unresolved', '1 critical', 'Fatal', 'WEB-1'], docked: ['25 unresolved', 'WEB-1'],
+    standard: ['Checkout failure 01', 'Web', 'WEB-1', 'Fatal', '3 users', 'Last seen'],
+    full: ['Checkout failure 25', 'First seen', 'Priority high', 'Regression'],
   },
   {
     id: 'todoist', title: 'Todoist', origin: 'https://api.todoist.com/*',
     config: { enabled: true, token: FAKE_TOKENS.todoist, accountLabel: 'Todoist', projectIds: [], itemLimit: 6 },
     data: { projects: todoistProjects, tasks: todoistTasks }, empty: { projects: todoistProjects, tasks: [] },
-    compact: ['25 due', '5 overdue'], standard: ['Ship Aurora 01', 'Work', 'Overdue'], full: ['Ship Aurora 25', 'Personal'],
+    compact: ['25 due', '5 overdue', '10 due today', 'Next: Ship Aurora 01'], docked: ['10 due today', '5 overdue'],
+    standard: ['Ship Aurora 01', 'Work', 'Overdue', 'Today', 'Priority 4', '30 minutes'],
+    full: ['Ship Aurora 25', 'Personal', 'Upcoming', 'Repeats'],
   },
 ]
 
@@ -165,6 +169,7 @@ const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
 const expectedFailedRequests = new WeakSet()
 const pendingProviderRequests = new Set()
+const permissionCallTimeline = []
 let closeMode = 'success'
 const closedTasks = new Set()
 
@@ -205,21 +210,33 @@ await context.addInitScript(() => {
   globalThis.__auroraWorkHarness = { storageWrites }
 })
 
-function logRequest(request) {
+async function checkedRouteRequest(route) {
+  const request = route.request()
   const headers = request.headers()
   const authorization = headers.authorization ?? ''
-  const authKind = authorization.startsWith('Bearer ') ? 'bearer' : authorization ? 'raw' : 'none'
+  let contract
+  try {
+    contract = inspectProviderRequest({
+      method: request.method(),
+      url: request.url(),
+      authorization,
+      contentType: headers['content-type'] ?? null,
+      body: request.postData(),
+    }, FAKE_TOKENS)
+  } catch (error) {
+    fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
+    expectedFailedRequests.add(request)
+    await route.abort('failed').catch(() => {})
+    return null
+  }
   evidence.requestLog.push({
     method: request.method(),
     url: request.url(),
-    authKind,
+    authKind: authorization.startsWith('Bearer ') ? 'bearer' : authorization ? 'raw' : 'none',
     contentType: headers['content-type'] ?? null,
-    bodyKind: request.postData()?.includes('AuroraLinearIdentity')
-      ? 'linear-identity'
-      : request.postData()?.includes('AuroraLinearWork')
-        ? 'linear-work'
-        : null,
+    bodyKind: contract.operation,
   })
+  return { request, operation: contract.operation }
 }
 
 async function delayed(route) {
@@ -229,13 +246,13 @@ async function delayed(route) {
 }
 
 await context.route('https://api.linear.app/**', async (route) => {
-  const request = route.request()
-  logRequest(request)
+  const checked = await checkedRouteRequest(route)
+  if (!checked) return
+  const { operation } = checked
   const mode = networkModes.get('linear') ?? 'ready'
   if (mode === 'loading' || mode === 'stale') return delayed(route)
   if (mode === 'hard-error' || mode === 'retained-error') return route.fulfill({ status: 503, body: '' })
-  const body = request.postData() ?? ''
-  if (body.includes('AuroraLinearIdentity')) {
+  if (operation === 'linear-identity') {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { viewer: { id: 'qa-user', name: 'QA Builder', teams: { nodes: [{ id: 'aurora', key: 'AUR', name: 'Aurora' }, { id: 'ops', key: 'OPS', name: 'Ops' }] } } } }) })
   }
   const nodes = linearIssues.map((issue) => ({
@@ -246,7 +263,8 @@ await context.route('https://api.linear.app/**', async (route) => {
 })
 
 await context.route(/https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\/.*/, async (route) => {
-  logRequest(route.request())
+  const checked = await checkedRouteRequest(route)
+  if (!checked) return
   const mode = networkModes.get('sentry') ?? 'ready'
   if (mode === 'loading' || mode === 'stale') return delayed(route)
   if (mode === 'hard-error' || mode === 'retained-error') return route.fulfill({ status: 503, body: '' })
@@ -262,19 +280,20 @@ await context.route(/https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\/.*/, async 
 })
 
 await context.route('https://api.todoist.com/**', async (route) => {
-  const request = route.request()
-  logRequest(request)
+  const checked = await checkedRouteRequest(route)
+  if (!checked) return
+  const { request, operation } = checked
   const mode = networkModes.get('todoist') ?? 'ready'
   if (mode === 'loading' || mode === 'stale') return delayed(route)
   if (mode === 'hard-error' || mode === 'retained-error') return route.fulfill({ status: 503, body: '' })
-  const url = new URL(request.url())
-  if (request.method() === 'POST' && /\/api\/v1\/tasks\/[^/]+\/close$/.test(url.pathname)) {
+  if (operation === 'todoist-close') {
     if (closeMode === 'error') return route.fulfill({ status: 500, body: '' })
+    const url = new URL(request.url())
     const id = decodeURIComponent(url.pathname.split('/').at(-2))
     closedTasks.add(id)
-    return route.fulfill({ status: 204, body: '' })
+    return route.fulfill({ status: 200, contentType: 'application/json', body: 'null' })
   }
-  if (url.pathname === '/api/v1/projects') {
+  if (operation === 'todoist-projects') {
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ results: todoistProjects, next_cursor: null }) })
   }
   const results = todoistTasks.filter((task) => !closedTasks.has(task.id)).map((task) => ({
@@ -301,9 +320,9 @@ page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (providerForUrl(url) && errorText === 'net::ERR_ABORTED') {
+  if (isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
     evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
-  } else if (!url.startsWith('chrome-extension://') && !expectedFailedRequests.has(request)) {
+  } else if (!url.startsWith('chrome-extension://')) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
   }
 })
@@ -325,8 +344,17 @@ function markHarnessNavigation() {
   for (const request of pendingProviderRequests) expectedFailedRequests.add(request)
 }
 
+async function harvestPermissionCalls() {
+  const calls = await page.evaluate(() => {
+    const current = globalThis.__auroraWorkPermissionHarness?.calls ?? []
+    return current.splice(0, current.length)
+  }).catch(() => [])
+  permissionCallTimeline.push(...calls)
+}
+
 async function reloadForHarness() {
   markHarnessNavigation()
+  await harvestPermissionCalls()
   await page.reload({ waitUntil: 'domcontentloaded' })
 }
 
@@ -389,10 +417,31 @@ async function seed(widget, tier, state = 'ready') {
 }
 
 async function storageTruth() {
-  return page.evaluate(async () => ({
-    serialized: JSON.stringify(await chrome.storage.local.get(null)),
-    writes: globalThis.__auroraWorkHarness?.storageWrites ?? [],
-  }))
+  return page.evaluate(async () => {
+    const data = await chrome.storage.local.get(null)
+    return { data, serialized: JSON.stringify(data), writes: globalThis.__auroraWorkHarness?.storageWrites ?? [] }
+  })
+}
+
+async function storageCheckpoint() {
+  return page.evaluate(async () => {
+    const writes = globalThis.__auroraWorkHarness?.storageWrites ?? []
+    return { data: await chrome.storage.local.get(null), writes: writes.splice(0, writes.length) }
+  })
+}
+
+async function assertStorageStep(label, before, allowedKeys) {
+  const after = await storageCheckpoint()
+  try {
+    const changedKeys = assertAllowedStorageChange(before.data, after.data, allowedKeys)
+    const allowed = new Set(allowedKeys)
+    const forbiddenWriteKeys = [...new Set(after.writes.flat())].filter((key) => !allowed.has(key))
+    if (forbiddenWriteKeys.length) throw new Error(`Unexpected storage write keys: ${forbiddenWriteKeys.join(', ')}`)
+    evidence.storageWrites.push({ label, changedKeys, writes: after.writes })
+  } catch (error) {
+    fail(`${label}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+  return after
 }
 
 async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPORTS[0], openDock = tier === 'docked' }) {
@@ -429,7 +478,7 @@ async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPOR
   }
   if (tier === 'docked' && truth.rect && truth.rect.height > 48) fail(`${label}: Docked height ${truth.rect.height}px exceeds 48px`)
   const expected = state === 'ready'
-    ? tier === 'compact' || tier === 'docked' ? widget.compact : tier === 'standard' ? widget.standard : widget.full
+    ? tier === 'docked' ? widget.docked : tier === 'compact' ? widget.compact : tier === 'standard' ? widget.standard : widget.full
     : state === 'setup' ? [`Connect ${widget.title} in Settings.`]
       : state === 'loading' ? [`Loading ${widget.title}`]
         : state === 'empty' ? [widget.id === 'linear' ? 'No assigned issues.' : widget.id === 'sentry' ? 'No unresolved issues.' : 'No due tasks.']
@@ -502,21 +551,27 @@ async function fillSetup(widget) {
 
 async function exerciseSettings(widget) {
   await resetForSettings(widget)
+  const permissionCursor = permissionCallTimeline.length
   const search = page.getByPlaceholder('Search connectors')
   await search.fill(widget.title)
   await page.getByRole('button', { name: `Set up ${widget.title}` }).click()
   await fillSetup(widget)
+  const beforeDenied = await storageCheckpoint()
   await page.evaluate(() => { globalThis.__auroraWorkPermissionHarness.mode = 'deny' })
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.getByRole('alert').filter({ hasText: 'denied' }).waitFor()
+  await assertStorageStep(`${widget.id}-settings-denied`, beforeDenied, [])
   const denied = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]), widget.id)
   if (denied !== undefined) fail(`${widget.id}: denied setup persisted a connector`)
 
+  const beforeConnect = await storageCheckpoint()
   await page.evaluate(() => { globalThis.__auroraWorkPermissionHarness.mode = 'grant' })
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.enabled === true), widget.id)
   await page.waitForFunction((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots?.[id]?.data), widget.id)
+  await assertStorageStep(`${widget.id}-settings-connect`, beforeConnect, ['connectors', 'connectorSnapshots'])
 
+  const beforePreferences = await storageCheckpoint()
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   if (widget.id === 'linear') await page.getByRole('button', { name: 'Ops' }).click()
   if (widget.id === 'sentry') await page.getByRole('button', { name: 'API' }).click()
@@ -524,6 +579,7 @@ async function exerciseSettings(widget) {
   const countLabel = widget.id === 'todoist' ? 'Tasks shown' : 'Issues shown'
   await page.getByLabel(countLabel).selectOption('7')
   await page.waitForFunction(({ id }) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id]?.itemLimit === 7), { id: widget.id })
+  await assertStorageStep(`${widget.id}-settings-preferences`, beforePreferences, ['connectors', 'connectorSnapshots'])
 
   const path = join(outDir, `${widget.id}-settings-connected.png`)
   await page.screenshot({ path, fullPage: true })
@@ -534,7 +590,12 @@ async function exerciseSettings(widget) {
     const { connectors } = await chrome.storage.local.get('connectors')
     const current = connectors[id]
     const identity = id === 'linear' ? { displayName: current.displayName } : id === 'sentry' ? { organization: current.organization, region: current.region } : { accountLabel: current.accountLabel }
-    await chrome.storage.local.set({ connectors: { ...connectors, [id]: { enabled: true, ...identity } } })
+    const staleAccountPicks = id === 'linear'
+      ? { teamIds: current.teamIds, itemLimit: current.itemLimit }
+      : id === 'sentry'
+        ? { projectSlugs: current.projectSlugs, itemLimit: current.itemLimit }
+        : { projectIds: current.projectIds, itemLimit: current.itemLimit }
+    await chrome.storage.local.set({ connectors: { ...connectors, [id]: { enabled: true, ...identity, ...staleAccountPicks } } })
   }, widget.id)
   await reloadForHarness()
   await waitForSurface()
@@ -544,13 +605,23 @@ async function exerciseSettings(widget) {
   const reconnectRegion = page.getByRole('region', { name: `${widget.title} reconnect` })
   await reconnectRegion.waitFor()
   await fillSetup(widget)
+  const beforeReconnect = await storageCheckpoint()
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => Boolean(connectors?.[id]?.token)), widget.id)
+  await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
+  const reconnected = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors[id]), widget.id)
+  if (widget.id === 'linear' && reconnected.teamIds !== undefined) fail('linear: reconnect retained stale account-scoped team ids')
+  if (widget.id === 'sentry' && reconnected.projectSlugs !== undefined) fail('sentry: reconnect retained stale account-scoped project slugs')
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
+  const beforeDisconnect = await storageCheckpoint()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id] === undefined), widget.id)
+  await assertStorageStep(`${widget.id}-settings-disconnect`, beforeDisconnect, ['connectors', 'connectorSnapshots'])
+  const disconnectedSnapshot = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots?.[id]), widget.id)
+  if (disconnectedSnapshot !== undefined) fail(`${widget.id}: disconnect retained its provider snapshot`)
 
-  const permissionCalls = await page.evaluate(() => globalThis.__auroraWorkPermissionHarness.calls)
+  await harvestPermissionCalls()
+  const permissionCalls = permissionCallTimeline.slice(permissionCursor)
   evidence.permissionCalls.push({ widget: widget.id, calls: permissionCalls })
   const requested = permissionCalls.filter((entry) => entry.action === 'request').flatMap((entry) => entry.origins)
   if (!requested.includes(widget.origin)) fail(`${widget.id}: exact optional origin was not requested`)

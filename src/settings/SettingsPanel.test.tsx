@@ -3770,11 +3770,11 @@ describe('SettingsPanel Connectors section (GitHub card — first token connecto
 
   it('keeps GitHub connected and does not release when its authoritative removal write rejects', async () => {
     const storage = await renderWithGithub({ enabled: true, token: 'github_pat_x', username: 'octocat' })
-    const update = storage.update.bind(storage)
-    storage.update = ((key, fn) => {
-      if (key === 'connectors') return Promise.reject(new Error('storage rejected'))
-      return update(key, fn)
-    }) as AuroraStorage['update']
+    const updateMany = storage.updateMany.bind(storage)
+    storage.updateMany = ((keys, fn) => {
+      if ((keys as readonly string[]).includes('connectors')) return Promise.reject(new Error('storage rejected'))
+      return updateMany(keys, fn)
+    }) as AuroraStorage['updateMany']
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Disconnect' }))
@@ -4755,11 +4755,11 @@ describe('SettingsPanel Connectors section (Crypto card — Task 52, no auth)', 
 
   it('keeps Crypto configured and reports an owner-write error when Clear cannot persist removal', async () => {
     const storage = await renderWithCrypto({ enabled: true, coins: ['bitcoin', 'ethereum'] })
-    const update = storage.update.bind(storage)
-    storage.update = ((key, fn) => {
-      if (key === 'connectors') return Promise.reject(new Error('disk full'))
-      return update(key, fn)
-    }) as AuroraStorage['update']
+    const updateMany = storage.updateMany.bind(storage)
+    storage.updateMany = ((keys, fn) => {
+      if ((keys as readonly string[]).includes('connectors')) return Promise.reject(new Error('disk full'))
+      return updateMany(keys, fn)
+    }) as AuroraStorage['updateMany']
 
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Clear' }))

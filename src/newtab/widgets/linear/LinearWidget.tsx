@@ -51,6 +51,7 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
   const issues = data?.issues ?? []
   const presentation = workPresentationState(true, state, data !== null && issues.length === 0)
   const dueSoon = issues.filter((issue) => issue.dueSoon).length
+  const nearestDue = issues.find((issue) => issue.dueSoon) ?? issues[0] ?? null
   const facts = [
     `${issues.length} assigned`,
     dueSoon > 0 ? `${dueSoon} due soon` : issues.length > 0 ? 'Nothing due soon' : null,
@@ -99,11 +100,37 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <strong className="text-sm font-semibold">{issues.length} assigned</strong>
             <span className={dueSoon > 0 ? 'text-xs text-accent' : 'text-xs text-fg-muted'}>{dueSoon} due soon</span>
+            {canvasSize === 'compact' && nearestDue ? (
+              <span className="text-xs font-medium text-fg-muted">{nearestDue.identifier}</span>
+            ) : null}
           </div>
-          {visible.length > 0 ? <IssueList issues={visible} className="mt-3" /> : null}
+          {visible.length > 0 ? (
+            canvasSize === 'full'
+              ? <IssueGroups issues={visible} className="mt-3" />
+              : <IssueList issues={visible} className="mt-3" />
+          ) : null}
         </>
       ) : null}
     </WorkWidgetShell>
+  )
+}
+
+function IssueGroups({ issues, className = '' }: { issues: readonly LinearIssue[]; className?: string }) {
+  const groups = new Map<string, LinearIssue[]>()
+  for (const issue of issues) {
+    const group = groups.get(issue.state.name) ?? []
+    group.push(issue)
+    groups.set(issue.state.name, group)
+  }
+  return (
+    <div className={`space-y-4 ${className}`}>
+      {[...groups.entries()].map(([state, rows]) => (
+        <section key={state} aria-label={`${state} Linear work`}>
+          <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{state}</h3>
+          <IssueList issues={rows} />
+        </section>
+      ))}
+    </div>
   )
 }
 
@@ -125,6 +152,7 @@ function dueLabel(issue: LinearIssue): string | null {
 
 function IssueRow({ issue }: { issue: LinearIssue }) {
   const due = dueLabel(issue)
+  const priority = `${issue.priority[0]!.toUpperCase()}${issue.priority.slice(1)} priority`
   return (
     <a
       href={issue.url}
@@ -139,6 +167,7 @@ function IssueRow({ issue }: { issue: LinearIssue }) {
         <span className={`block truncate text-xs ${workRowClass}`}>
           {issue.identifier} · {issue.team.name} · {issue.state.name}
         </span>
+        <span className={`block truncate text-xs ${workRowClass}`}>{priority}</span>
       </span>
       {due || issue.cycle ? (
         <span className={`shrink-0 text-right text-xs ${workRowClass}`}>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { createStorage, type AuroraStorage } from '../../lib/storage'
 import { memoryDriver } from '../../lib/storage/driver'
 import { useStoredKey } from '../../lib/hooks/useStoredKey'
@@ -9,7 +9,31 @@ import type { SentryData } from '../../services/connectors/sentry'
 import type { LinearWorkData } from '../../services/connectors/linear'
 import type { TodoistData } from '../../services/connectors/todoist'
 import type { LinearConfig, SentryConfig, TodoistConfig } from '../../services/connectors/types'
-import Connectors from './Connectors'
+import { initializePermissionMirror } from '../../services/permissionMirror'
+import Connectors, { nextLinearConnection, nextSentryConnection } from './Connectors'
+
+beforeAll(async () => {
+  vi.stubGlobal('chrome', {
+    permissions: {
+      getAll: vi.fn(async () => ({ origins: [] })),
+      request: vi.fn(async () => true),
+      contains: vi.fn(async ({ origins = [] }: chrome.permissions.Permissions) => origins.length === 0),
+      remove: vi.fn(async () => false),
+      onAdded: { addListener: vi.fn() },
+      onRemoved: { addListener: vi.fn() },
+    },
+  })
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: { request: async (_name: string, _options: LockOptions, work: () => Promise<unknown>) => work() },
+  })
+  await initializePermissionMirror()
+})
+
+afterAll(() => {
+  vi.unstubAllGlobals()
+  Reflect.deleteProperty(navigator, 'locks')
+})
 
 function Harness({ storage }: { storage: AuroraStorage }) {
   const [connectors] = useStoredKey('connectors')
@@ -100,6 +124,24 @@ async function storageWithTodoist() {
 }
 
 describe('Work connector settings', () => {
+  it('drops account-scoped picks when Linear and Sentry credentials are replaced', () => {
+    const linear = nextLinearConnection(
+      { enabled: true, token: 'old', displayName: 'Old', teamIds: ['old-team'], itemLimit: 7 },
+      'new-linear-token',
+      'New Linear user',
+    )
+    expect(linear).toMatchObject({ token: 'new-linear-token', displayName: 'New Linear user', itemLimit: 7 })
+    expect(linear.teamIds).toBeUndefined()
+
+    const sentry = nextSentryConnection(
+      { enabled: true, token: 'old', organization: 'old-org', region: 'us', projectSlugs: ['old-project'], itemLimit: 8 },
+      { token: 'new-sentry-token', region: 'de' },
+      'new-org',
+    )
+    expect(sentry).toMatchObject({ token: 'new-sentry-token', organization: 'new-org', region: 'de', itemLimit: 8 })
+    expect(sentry.projectSlugs).toBeUndefined()
+  })
+
   it('opens a stripped Linear credential directly in reconnect mode', async () => {
     const storage = createStorage(memoryDriver())
     await storage.init()
@@ -150,6 +192,23 @@ describe('Work connector settings', () => {
     const snapshots = await storage.get('connectorSnapshots')
     expect(snapshots.sentry).toBeUndefined()
     expect(snapshots.github).toEqual({ scope: 'github-scope', fetchedAt: 2, data: { marker: true } })
+    expect(screen.getByRole('button', { name: 'Web' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'API' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy()
+  })
+
+  it('removes only the disconnected connector snapshot', async () => {
+    const storage = await storageWithSentry()
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sentry' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Disconnect' }))
+
+    await waitFor(async () => {
+      expect((await storage.get('connectors')).sentry).toBeUndefined()
+    })
+    const snapshots = await storage.get('connectorSnapshots')
+    expect(snapshots.sentry).toBeUndefined()
+    expect(snapshots.github).toEqual({ scope: 'github-scope', fetchedAt: 2, data: { marker: true } })
   })
 
   it('renders and persists provider-derived Linear team controls', async () => {
@@ -167,6 +226,43 @@ describe('Work connector settings', () => {
       expect(config.itemLimit).toBe(7)
     })
     expect((await storage.get('connectorSnapshots')).linear).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Aurora' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Ops' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy()
+  })
+
+  it('keeps a selected Linear team removable when no snapshot is available', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      linear: { enabled: true, token: 'linear_test', displayName: 'Sam', teamIds: ['stale-team'], itemLimit: 6 },
+    })
+
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Linear' }))
+
+    expect(await screen.findByRole('button', { name: 'stale-team' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await waitFor(async () => {
+      expect(((await storage.get('connectors')).linear as LinearConfig).teamIds).toEqual([])
+    })
+  })
+
+  it('keeps a selected Sentry project removable when no snapshot is available', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('connectors', {
+      sentry: { enabled: true, token: 'sentry_test', organization: 'aurora-test', region: 'us', projectSlugs: ['stale-project'], itemLimit: 6 },
+    })
+
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sentry' }))
+
+    expect(await screen.findByRole('button', { name: 'stale-project' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }))
+    await waitFor(async () => {
+      expect(((await storage.get('connectors')).sentry as SentryConfig).projectSlugs).toEqual([])
+    })
   })
 
   it('renders and persists a real Todoist project picklist', async () => {

@@ -69,6 +69,7 @@ describe('LinearWidget', () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 assigned')).toBeTruthy()
     expect(screen.getByText('1 due soon')).toBeTruthy()
+    expect(screen.getByText('AUR-0')).toBeTruthy()
     expect(screen.queryByText('Build Aurora 0')).toBeNull()
   })
 
@@ -77,14 +78,18 @@ describe('LinearWidget', () => {
     const title = await screen.findByText('Build Aurora 0')
     expect(screen.getByText('AUR-0 · Aurora · In Progress')).toBeTruthy()
     expect(screen.getByText('Overdue · August')).toBeTruthy()
+    expect(title.closest('li')?.textContent).toContain('Urgent priority')
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://linear.app/aurora/issue/AUR-0')
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
   it('keeps all 25 Full rows inside the local scrollport', async () => {
-    mount(await seededStorage(CONNECTED, { issues: Array.from({ length: 25 }, (_, index) => issue(index)) }), { canvasSize: 'full' })
+    const issues = Array.from({ length: 25 }, (_, index) => issue(index, index === 1 ? { state: { name: 'Todo', type: 'unstarted' } } : {}))
+    mount(await seededStorage(CONNECTED, { issues }), { canvasSize: 'full' })
     expect(await screen.findByText('Build Aurora 24')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'In Progress' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Todo' })).toBeTruthy()
     expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
   })
 

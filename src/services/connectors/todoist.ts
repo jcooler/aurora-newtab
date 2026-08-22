@@ -52,7 +52,7 @@ export interface TodoistTaskFetchOptions {
 
 export interface TodoistCloseSuccess {
   ok: true
-  status: 204
+  status: 200
 }
 
 const DATE_ONLY_RE = /^(\d{4})-(\d{2})-(\d{2})$/
@@ -385,10 +385,10 @@ export async function closeTodoistTask(
       : `Todoist close failed with status ${result.status}.`
     throw new TodoistServiceError(message, result.status)
   }
-  if (result.status !== 204) {
+  if (result.status !== 200) {
     throw new TodoistServiceError(`Todoist close returned unexpected status ${result.status}.`, result.status)
   }
-  return { ok: true, status: 204 }
+  return { ok: true, status: 200 }
 }
 
 export function todoistItemLimit(config: Pick<TodoistConfig, 'itemLimit'> | null | undefined): number {

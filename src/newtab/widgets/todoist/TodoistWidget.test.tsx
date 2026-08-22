@@ -68,26 +68,42 @@ describe('TodoistWidget', () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 due')).toBeTruthy()
     expect(screen.getByText('1 overdue')).toBeTruthy()
+    expect(screen.getByText('1 due today')).toBeTruthy()
+    expect(screen.getByText('Next: Ship Aurora 0')).toBeTruthy()
     expect(screen.queryByText('Ship Aurora 0')).toBeNull()
   })
 
   it('renders Standard named task, project, due context, and safe provider link', async () => {
-    mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
+    const recurring = {
+      ...task(0),
+      due: { ...task(0).due, text: 'Today at 2:00 PM', isRecurring: true },
+      duration: { amount: 30, unit: 'minute' as const },
+    }
+    mount(await seededStorage(CONNECTED, { ...DATA, tasks: [recurring, task(1)] }), { canvasSize: 'standard' })
     const title = await screen.findByText('Ship Aurora 0')
-    expect(screen.getByText('Work · Overdue')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy()
+    expect(title.closest('li')?.textContent).toContain('Today at 2:00 PM')
+    expect(title.closest('li')?.textContent).toContain('Priority 4')
+    expect(title.closest('li')?.textContent).toContain('Recurring')
+    expect(title.closest('li')?.textContent).toContain('30 min')
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://app.todoist.com/app/task/task-0')
     expect(link.getAttribute('target')).toBe('_blank')
   })
 
   it('keeps 25 Full rows in the local scrollport and opens named Docked detail', async () => {
-    const full = mount(await seededStorage(CONNECTED, { ...DATA, tasks: Array.from({ length: 25 }, (_, index) => task(index, 'upcoming')) }), { canvasSize: 'full' })
+    const fullTasks = [task(0, 'overdue'), task(1, 'today'), ...Array.from({ length: 23 }, (_, index) => task(index + 2, 'upcoming'))]
+    const full = mount(await seededStorage(CONNECTED, { ...DATA, tasks: fullTasks }), { canvasSize: 'full' })
     expect(await screen.findByText('Ship Aurora 24')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Overdue' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Today' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Upcoming' })).toBeTruthy()
     expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
     full.unmount()
 
     mount(await seededStorage(CONNECTED), { docked: true })
-    const trigger = await screen.findByRole('button', { name: 'Todoist: 2 due, 1 overdue' })
+    const trigger = await screen.findByRole('button', { name: 'Todoist: 1 due today, 1 overdue' })
     await act(async () => { trigger.click() })
     expect(screen.getByRole('dialog', { name: 'Todoist details' })).toBeTruthy()
     expect(screen.getByText('Ship Aurora 0')).toBeTruthy()
@@ -104,8 +120,14 @@ describe('TodoistWidget', () => {
     mount(storage, { canvasSize: 'standard' })
     const complete = await screen.findByRole('button', { name: 'Complete Ship Aurora 0' })
     fireEvent.click(complete)
-    expect(screen.getByRole('dialog', { name: 'Complete Ship Aurora 0?' })).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel completion' }))
+    const dialog = screen.getByRole('dialog', { name: 'Complete Ship Aurora 0?' })
+    const cancel = screen.getByRole('button', { name: 'Cancel completion' })
+    const confirm = screen.getByRole('button', { name: 'Confirm completion' })
+    expect(document.activeElement).toBe(cancel)
+    confirm.focus()
+    fireEvent.keyDown(dialog, { key: 'Tab' })
+    expect(document.activeElement).toBe(cancel)
+    fireEvent.click(cancel)
     await act(async () => { await Promise.resolve() })
     expect(fetchFn).not.toHaveBeenCalled()
     expect(JSON.stringify({
@@ -113,6 +135,15 @@ describe('TodoistWidget', () => {
       connectorSnapshots: await storage.get('connectorSnapshots'),
     })).toBe(before)
     expect(document.activeElement).toBe(complete)
+  })
+
+  it('explains recurring-task advancement before confirmation', async () => {
+    const recurring = { ...task(0), due: { ...task(0).due, isRecurring: true } }
+    mount(await seededStorage(CONNECTED, { ...DATA, tasks: [recurring] }), { canvasSize: 'standard' })
+    fireEvent.click(await screen.findByRole('button', { name: 'Complete Ship Aurora 0' }))
+
+    expect(screen.getByRole('dialog', { name: 'Complete Ship Aurora 0?' }).textContent)
+      .toContain('Recurring tasks move to their next occurrence.')
   })
 
   it('Confirm is single-flight, posts once, clears only Todoist snapshot, and closes once', async () => {
@@ -138,7 +169,7 @@ describe('TodoistWidget', () => {
     expect(typeof resolveClose).toBe('function')
     expect(fetchFn.mock.calls.filter((call) => call[1]?.method === 'POST')).toHaveLength(1)
     await act(async () => {
-      resolveClose({ ok: true, status: 204, headers: { get: () => null } })
+      resolveClose({ ok: true, status: 200, headers: { get: () => null } })
       await Promise.resolve()
     })
     expect(screen.queryByRole('dialog', { name: 'Complete Ship Aurora 0?' })).toBeNull()

@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:preview": "tsc --noEmit && vite build --mode preview",
+    "build": "node scripts/build.mjs",
+    "build:preview": "node scripts/build.mjs --mode=preview",
     "package": "npm run build && node scripts/package.mjs",
     "pretest": "node scripts/verify-photo-manifest.mjs",
     "test": "vitest run",

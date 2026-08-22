@@ -65,6 +65,37 @@ interface BodyProps {
 
 type DisconnectableConnectorId = 'github' | 'gitlab' | 'jira' | 'vercel' | 'homeassistant' | 'crypto' | 'linear' | 'sentry' | 'todoist'
 
+/** A credential replacement may identify a different provider account. Keep
+ * display preferences, but never carry account-scoped entity ids across it. */
+export function nextLinearConnection(
+  previous: LinearConfig | undefined,
+  token: string,
+  displayName: string,
+): LinearConfig {
+  return {
+    enabled: true,
+    token,
+    displayName,
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: linearItemLimit(previous),
+  }
+}
+
+export function nextSentryConnection(
+  previous: SentryConfig | undefined,
+  values: Record<string, string>,
+  organization: string,
+): SentryConfig {
+  return {
+    enabled: true,
+    token: values.token,
+    organization,
+    region: sentryRegion(values.region),
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: sentryItemLimit(previous),
+  }
+}
+
 function canonicalCandidates(candidates: readonly string[]): string[] {
   const canonical = new Set<string>()
   for (const candidate of candidates) {
@@ -119,12 +150,14 @@ async function disconnectTokenConnector(
 ): Promise<TokenDisconnectResult> {
   let candidates: string[] = []
   const transaction = await runOriginTransaction(storage, [], async () => {
-    await storage.update('connectors', (prev) => {
-      const removed = prev[id]
-      const next = { ...prev }
-      delete next[id]
+    await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
+      const removed = connectors[id]
+      const nextConnectors = { ...connectors }
+      const nextSnapshots = { ...connectorSnapshots }
+      delete nextConnectors[id]
+      delete nextSnapshots[id]
       if (removed) candidates = descriptorCandidates(id, removed)
-      return next
+      return { connectors: nextConnectors, connectorSnapshots: nextSnapshots }
     })
     return { ok: true as const, value: undefined, ownerCommitted: true as const }
   })
@@ -1888,6 +1921,12 @@ function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }
   const teams = [...new Map(issues.map((issue) => [issue.team.id, issue.team])).values()]
     .sort((a, b) => a.name.localeCompare(b.name))
   const selected = linearTeamIds(linear)
+  const teamOptionsRef = useRef(new Map<string, { id: string; label: string }>())
+  for (const team of teams) teamOptionsRef.current.set(team.id, { id: team.id, label: team.name })
+  for (const id of selected) {
+    if (!teamOptionsRef.current.has(id)) teamOptionsRef.current.set(id, { id, label: id })
+  }
+  const teamOptions = [...teamOptionsRef.current.values()].sort((a, b) => a.label.localeCompare(b.label))
 
   async function updatePreferences(update: (current: LinearConfig) => LinearConfig) {
     await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
@@ -1919,14 +1958,7 @@ function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }
           return {
             connectors: {
               ...connectors,
-              linear: {
-                enabled: true,
-                token: values.token,
-                displayName: identity,
-                snapshotEpoch: newSnapshotEpoch(),
-                ...(previous?.teamIds ? { teamIds: previous.teamIds } : {}),
-                itemLimit: linearItemLimit(previous),
-              },
+              linear: nextLinearConnection(previous, values.token, identity),
             },
             connectorSnapshots: nextSnapshots,
           }
@@ -1938,13 +1970,13 @@ function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }
         <WorkPreferenceControls
           groupLabel="Teams"
           emptyLabel="Teams appear after the first successful refresh."
-          options={teams.map((team) => ({ id: team.id, label: team.name }))}
+          options={teamOptions}
           selected={selected}
           onToggle={(id) => void updatePreferences((current) => {
             const ids = linearTeamIds(current)
             return { ...current, teamIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
           })}
-          onSelectAll={() => void updatePreferences((current) => ({ ...current, teamIds: teams.map((team) => team.id) }))}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, teamIds: teamOptions.map((team) => team.id) }))}
           onClear={() => void updatePreferences((current) => ({ ...current, teamIds: [] }))}
           countLabel="Issues shown"
           count={linearItemLimit(linear)}
@@ -2049,6 +2081,12 @@ function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }
   const projects = [...new Map(issues.map((issue) => [issue.project.slug, issue.project])).values()]
     .sort((a, b) => a.name.localeCompare(b.name))
   const selectedProjects = sentryProjectSlugs(sentry)
+  const projectOptionsRef = useRef(new Map<string, { slug: string; name: string }>())
+  for (const project of projects) projectOptionsRef.current.set(project.slug, { slug: project.slug, name: project.name })
+  for (const slug of selectedProjects) {
+    if (!projectOptionsRef.current.has(slug)) projectOptionsRef.current.set(slug, { slug, name: slug })
+  }
+  const projectOptions = [...projectOptionsRef.current.values()].sort((a, b) => a.name.localeCompare(b.name))
   const itemLimit = sentryItemLimit(sentry)
 
   async function updatePreferences(
@@ -2113,15 +2151,7 @@ function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }
           return {
             connectors: {
               ...connectors,
-              sentry: {
-                enabled: true,
-                token: values.token,
-                organization: identity,
-                region: sentryRegion(values.region),
-                snapshotEpoch: newSnapshotEpoch(),
-                ...(previous?.projectSlugs ? { projectSlugs: previous.projectSlugs } : {}),
-                itemLimit: sentryItemLimit(previous),
-              },
+              sentry: nextSentryConnection(previous, values, identity),
             },
             connectorSnapshots: nextSnapshots,
           }
@@ -2135,9 +2165,9 @@ function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }
             <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">
               Projects
             </p>
-            {projects.length > 0 ? (
+            {projectOptions.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
-                {projects.map((project) => (
+                {projectOptions.map((project) => (
                   <ToggleChip
                     key={project.slug}
                     label={project.name}
@@ -2157,14 +2187,14 @@ function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }
             ) : (
               <p className="text-xs text-fg-muted">Projects appear after the first successful refresh.</p>
             )}
-            {projects.length > 0 ? (
+            {projectOptions.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 <button
                   type="button"
                   className={btnQuiet}
                   onClick={() => void updatePreferences((current) => ({
                     ...current,
-                    projectSlugs: projects.map((project) => project.slug),
+                    projectSlugs: projectOptions.map((project) => project.slug),
                   }))}
                 >
                   Select all

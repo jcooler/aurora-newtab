@@ -4,6 +4,7 @@ import { useConnectorSnapshot } from '../../../lib/hooks/useConnectorSnapshot'
 import { useStoredKey } from '../../../lib/hooks/useStoredKey'
 import { useStorage } from '../../../lib/storage/context'
 import { useDialogEscape } from '../../../lib/dialogStack'
+import { useFocusTrap } from '../../../lib/hooks/useFocusTrap'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import {
   closeTodoistTask,
@@ -70,8 +71,13 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
   const projectNames = new Map(projects.map((project) => [project.id, project.name]))
   const presentation = workPresentationState(true, state, data !== null && tasks.length === 0)
   const overdue = tasks.filter((task) => task.bucket === 'overdue').length
-  const facts = [`${tasks.length} due`, overdue > 0 ? `${overdue} overdue` : tasks.length > 0 ? 'None overdue' : null]
-  const visible = canvasSize === 'full' ? tasks : canvasSize === 'standard' ? tasks.slice(0, todoistItemLimit(config)) : []
+  const dueToday = tasks.filter((task) => task.bucket === 'today').length
+  const dockFacts = [`${dueToday} due today`, `${overdue} overdue`]
+  const visible = canvasSize === 'full'
+    ? tasks
+    : canvasSize === 'standard'
+      ? tasks.filter((task) => task.bucket !== 'upcoming').slice(0, todoistItemLimit(config))
+      : []
   const detailRows = tasks.slice(0, Math.min(3, todoistItemLimit(config)))
 
   const retry = () => {
@@ -125,7 +131,7 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
   const content = docked ? (
     <WorkDockDetail
       label="Todoist"
-      facts={presentation === 'hard-error' ? ['Todoist unavailable'] : presentation === 'loading' ? ['Loading Todoist'] : facts}
+      facts={presentation === 'hard-error' ? ['Todoist unavailable'] : presentation === 'loading' ? ['Loading Todoist'] : dockFacts}
       tone={overdue > 0 ? 'attention' : 'quiet'}
       presentation={presentation}
       emptyLabel="No due tasks."
@@ -148,8 +154,22 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <strong className="text-sm font-semibold">{tasks.length} due</strong>
             <span className={overdue > 0 ? 'text-xs text-accent' : 'text-xs text-fg-muted'}>{overdue} overdue</span>
+            <span className="text-xs text-fg-muted">{dueToday} due today</span>
           </div>
-          {visible.length > 0 ? <div className="mt-3">{rows(visible)}</div> : null}
+          {canvasSize === 'compact' && tasks[0] ? (
+            <p className="mt-2 max-w-full truncate text-xs text-fg-muted">Next: {tasks[0].content}</p>
+          ) : null}
+          {visible.length > 0 ? (
+            <TaskGroups
+              tasks={visible}
+              projects={projectNames}
+              onComplete={(task, button) => {
+                restoreFocusRef.current = button
+                setCompleteError(null)
+                setCompleteTarget(task)
+              }}
+            />
+          ) : null}
         </>
       ) : null}
     </WorkWidgetShell>
@@ -166,6 +186,35 @@ function TodoistInner({ config, canvasSize, docked }: { config: TodoistConfig; c
         onConfirm={() => void confirmCompletion()}
       />
     </>
+  )
+}
+
+function TaskGroups({
+  tasks,
+  projects,
+  onComplete,
+}: {
+  tasks: readonly TodoistTask[]
+  projects: ReadonlyMap<string, string>
+  onComplete(task: TodoistTask, button: HTMLButtonElement): void
+}) {
+  const groups: Array<{ bucket: TodoistTask['bucket']; label: string }> = [
+    { bucket: 'overdue', label: 'Overdue' },
+    { bucket: 'today', label: 'Today' },
+    { bucket: 'upcoming', label: 'Upcoming' },
+  ]
+  return (
+    <div className="mt-3 space-y-4">
+      {groups.map(({ bucket, label }) => {
+        const matches = tasks.filter((task) => task.bucket === bucket)
+        return matches.length > 0 ? (
+          <section key={bucket} aria-label={`${label} Todoist tasks`}>
+            <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-fg-muted">{label}</h3>
+            <TaskList tasks={matches} projects={projects} onComplete={onComplete} />
+          </section>
+        ) : null
+      })}
+    </div>
   )
 }
 
@@ -194,6 +243,9 @@ function TaskList({
             <span className={`block truncate text-xs ${workRowClass}`}>
               {projects.get(task.projectId) ?? 'Unknown project'} · {bucketLabel(task.bucket)}
             </span>
+            <span className={`block truncate text-xs ${workRowClass}`}>
+              {taskFacts(task).join(' · ')}
+            </span>
           </a>
           <button
             type="button"
@@ -207,6 +259,20 @@ function TaskList({
       ))}
     </ul>
   )
+}
+
+function taskFacts(task: TodoistTask): string[] {
+  const duration = task.duration
+    ? task.duration.unit === 'minute'
+      ? `${task.duration.amount} min`
+      : `${task.duration.amount} ${task.duration.amount === 1 ? 'day' : 'days'}`
+    : null
+  return [
+    task.due.text,
+    `Priority ${task.priority}`,
+    task.due.isRecurring ? 'Recurring' : null,
+    duration,
+  ].filter((fact): fact is string => Boolean(fact))
 }
 
 function bucketLabel(bucket: TodoistTask['bucket']): string {
@@ -228,10 +294,13 @@ function CompletionDialog({
   onCancel(): void
   onConfirm(): void
 }) {
+  const dialogRef = useRef<HTMLElement>(null)
+  useFocusTrap(dialogRef, task !== null)
   if (!task) return null
   return createPortal(
     <div className="fixed inset-0 z-[70] grid place-items-center bg-black/45 p-4">
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={`Complete ${task.content}?`}
@@ -239,6 +308,9 @@ function CompletionDialog({
       >
         <h2 className="text-base font-semibold">Complete this task?</h2>
         <p className="mt-2 text-sm text-fg-muted">{task.content}</p>
+        <p className="mt-2 text-xs text-fg-muted">
+          Regular tasks move to history. Recurring tasks move to their next occurrence.
+        </p>
         {error ? <p role="alert" className="mt-3 text-xs text-red-300">{error}</p> : null}
         <div className="mt-4 flex justify-end gap-2">
           <button

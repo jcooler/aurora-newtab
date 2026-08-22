@@ -96,6 +96,8 @@ describe('SentryWidget', () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'compact' })
     expect(await screen.findByText('2 unresolved')).toBeTruthy()
     expect(screen.getByText('1 critical')).toBeTruthy()
+    expect(screen.getByText('Fatal')).toBeTruthy()
+    expect(screen.getByText('WEB-0')).toBeTruthy()
     expect(screen.queryByText('Checkout failure 0')).toBeNull()
   })
 
@@ -104,6 +106,9 @@ describe('SentryWidget', () => {
     const title = await screen.findByText('Checkout failure 0')
     expect(screen.getByText('Web · WEB-0')).toBeTruthy()
     expect(screen.getByText('4 events in 24h · rising')).toBeTruthy()
+    expect(title.closest('li')?.textContent).toContain('Fatal')
+    expect(title.closest('li')?.textContent).toContain('3 users')
+    expect(title.closest('li')?.textContent).toContain('Last seen')
     const link = title.closest('a') as HTMLAnchorElement
     expect(link.getAttribute('href')).toBe('https://us.sentry.io/issues/0/')
     expect(link.getAttribute('target')).toBe('_blank')
@@ -114,12 +119,16 @@ describe('SentryWidget', () => {
     const data = { issues: Array.from({ length: 25 }, (_, index) => issue(index)) }
     mount(await seededStorage({ ...CONNECTED, itemLimit: 10 }, data), { canvasSize: 'full' })
     expect(await screen.findByText('Checkout failure 24')).toBeTruthy()
+    const lead = screen.getByText('Checkout failure 0').closest('li')
+    expect(lead?.textContent).toContain('First seen')
+    expect(lead?.textContent).toContain('Priority high')
+    expect(lead?.textContent).toContain('Regression')
     expect(document.querySelector('[data-work-widget-scroll]')?.className).toContain('overflow-y-auto')
   })
 
   it('opens a Docked detail with named issue context', async () => {
     mount(await seededStorage(CONNECTED), { docked: true })
-    const trigger = await screen.findByRole('button', { name: 'Sentry: 2 unresolved, 1 critical' })
+    const trigger = await screen.findByRole('button', { name: 'Sentry: 2 unresolved, WEB-0' })
     await act(async () => { trigger.click() })
     expect(screen.getByRole('dialog', { name: 'Sentry details' })).toBeTruthy()
     expect(screen.getByText('Checkout failure 0')).toBeTruthy()

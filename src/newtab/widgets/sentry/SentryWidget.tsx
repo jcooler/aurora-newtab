@@ -4,7 +4,7 @@ import { useStorage } from '../../../lib/storage/context'
 import type { CanvasSize } from '../../../lib/layout/canvasTypes'
 import {
   fetchSentryIssues,
-  isSentryData,
+  isSentryDataForRegion,
   sentryItemLimit,
   type SentryData,
   type SentryIssue,
@@ -57,15 +57,16 @@ function SentryInner({
     },
     undefined,
     undefined,
-    isSentryData,
+    (value) => isSentryDataForRegion(value, config.region),
   )
 
   const issues = data?.issues ?? []
   const presentation = workPresentationState(true, state, data !== null && issues.length === 0)
   const critical = issues.filter((issue) => issue.severity === 'critical').length
-  const facts = [
+  const strongest = strongestIssue(issues)
+  const dockFacts = [
     `${issues.length} unresolved`,
-    critical > 0 ? `${critical} critical` : issues.length > 0 ? 'No critical' : null,
+    strongest?.shortId ?? null,
   ]
   const visible = canvasSize === 'full'
     ? issues
@@ -83,15 +84,15 @@ function SentryInner({
   }
 
   if (docked) {
-    const dockFacts = presentation === 'hard-error'
+    const renderedDockFacts = presentation === 'hard-error'
       ? ['Sentry unavailable']
       : presentation === 'loading'
         ? ['Loading Sentry']
-        : facts
+        : dockFacts
     return (
       <WorkDockDetail
         label="Sentry"
-        facts={dockFacts}
+        facts={renderedDockFacts}
         tone={critical > 0 ? 'critical' : 'quiet'}
         presentation={presentation}
         emptyLabel="No unresolved issues."
@@ -119,27 +120,54 @@ function SentryInner({
               {issues.length} unresolved
             </strong>
             <span className="text-xs text-fg-muted">{critical} critical</span>
+            {canvasSize === 'compact' && strongest ? (
+              <>
+                <span className="text-xs font-medium text-fg-muted">{levelLabel(strongest.level)}</span>
+                <span className="text-xs font-medium text-fg-muted">{strongest.shortId}</span>
+              </>
+            ) : null}
           </div>
-          {visible.length > 0 ? <IssueList issues={visible} className="mt-3" /> : null}
+          {visible.length > 0 ? <IssueList issues={visible} className="mt-3" full={canvasSize === 'full'} /> : null}
         </>
       ) : null}
     </WorkWidgetShell>
   )
 }
 
-function IssueList({ issues, className = '' }: { issues: readonly SentryIssue[]; className?: string }) {
+function strongestIssue(issues: readonly SentryIssue[]): SentryIssue | null {
+  const rank: Record<SentryIssue['level'], number> = { fatal: 6, error: 5, warning: 4, info: 3, debug: 2, unknown: 1 }
+  return issues.reduce<SentryIssue | null>((strongest, issue) =>
+    strongest === null || rank[issue.level] > rank[strongest.level] ? issue : strongest, null)
+}
+
+function levelLabel(level: SentryIssue['level']): string {
+  return `${level[0]!.toUpperCase()}${level.slice(1)}`
+}
+
+function seenLabel(prefix: string, value: string | null): string | null {
+  if (!value) return null
+  return `${prefix} ${new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value))}`
+}
+
+function IssueList({ issues, className = '', full = false }: { issues: readonly SentryIssue[]; className?: string; full?: boolean }) {
   return (
     <ul className={`flex flex-col gap-2 ${className}`}>
       {issues.map((issue) => (
         <li key={issue.id}>
-          <IssueRow issue={issue} />
+          <IssueRow issue={issue} full={full} />
         </li>
       ))}
     </ul>
   )
 }
 
-function IssueRow({ issue }: { issue: SentryIssue }) {
+function IssueRow({ issue, full = false }: { issue: SentryIssue; full?: boolean }) {
+  const standardFacts = [levelLabel(issue.level), `${issue.userCount} users`, seenLabel('Last seen', issue.lastSeen)]
+  const fullFacts = [
+    seenLabel('First seen', issue.firstSeen),
+    issue.priority ? `Priority ${issue.priority}` : null,
+    issue.isRegression ? 'Regression' : null,
+  ]
   const content = (
     <>
       <span className="min-w-0 flex-1">
@@ -149,6 +177,14 @@ function IssueRow({ issue }: { issue: SentryIssue }) {
         <span className={`block truncate text-xs ${workRowClass}`}>
           {issue.project.name} · {issue.shortId}
         </span>
+        <span className={`block truncate text-xs ${workRowClass}`}>
+          {standardFacts.filter(Boolean).join(' · ')}
+        </span>
+        {full && fullFacts.some(Boolean) ? (
+          <span className={`block truncate text-xs ${workRowClass}`}>
+            {fullFacts.filter(Boolean).join(' · ')}
+          </span>
+        ) : null}
       </span>
       <span className={`shrink-0 text-right text-xs ${workRowClass}`}>
         {issue.events24h} events in 24h · {issue.trend}

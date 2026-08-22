@@ -171,7 +171,7 @@ function safePermalink(value: unknown, host: string): string | null {
   try {
     const url = new URL(value)
     if (
-      url.protocol !== 'https:' || url.hostname !== host ||
+      url.protocol !== 'https:' || url.hostname !== host || url.port !== '' ||
       url.username.length > 0 || url.password.length > 0
     ) return null
     return url.toString()
@@ -294,7 +294,14 @@ function isStatsPoint(value: unknown): value is SentryStatsPoint {
     typeof value[1] === 'number' && Number.isInteger(value[1]) && value[1] >= 0
 }
 
-function isSentryIssue(value: unknown): value is SentryIssue {
+function hasSafeStoredPermalink(value: unknown, host?: string): boolean {
+  if (value === null) return true
+  if (typeof value !== 'string') return false
+  if (host) return safePermalink(value, host) !== null
+  return Object.values(SENTRY_REGION_HOSTS).some((officialHost) => safePermalink(value, officialHost) !== null)
+}
+
+function isSentryIssue(value: unknown, host?: string): value is SentryIssue {
   if (typeof value !== 'object' || value === null) return false
   const issue = value as Record<string, unknown>
   const project = issue.project
@@ -315,14 +322,22 @@ function isSentryIssue(value: unknown): value is SentryIssue {
     typeof issue.events24h === 'number' && Number.isInteger(issue.events24h) && issue.events24h >= 0 &&
     (issue.trend === 'new' || issue.trend === 'rising' || issue.trend === 'steady' || issue.trend === 'falling' || issue.trend === 'unknown') &&
     typeof issue.isRegression === 'boolean' &&
-    (issue.permalink === null || typeof issue.permalink === 'string') &&
+    hasSafeStoredPermalink(issue.permalink, host) &&
     (issue.priority === null || typeof issue.priority === 'string')
 }
 
 export function isSentryData(value: unknown): value is SentryData {
   if (typeof value !== 'object' || value === null) return false
   const issues = (value as Record<string, unknown>).issues
-  if (!Array.isArray(issues) || issues.length > SENTRY_ISSUE_LIMIT || !issues.every(isSentryIssue)) return false
+  if (!Array.isArray(issues) || issues.length > SENTRY_ISSUE_LIMIT || !issues.every((issue) => isSentryIssue(issue))) return false
+  return new Set(issues.map((issue) => issue.id)).size === issues.length
+}
+
+export function isSentryDataForRegion(value: unknown, region: unknown): value is SentryData {
+  if (typeof value !== 'object' || value === null) return false
+  const issues = (value as Record<string, unknown>).issues
+  const host = SENTRY_REGION_HOSTS[sentryRegion(region)]
+  if (!Array.isArray(issues) || issues.length > SENTRY_ISSUE_LIMIT || !issues.every((issue) => isSentryIssue(issue, host))) return false
   return new Set(issues.map((issue) => issue.id)).size === issues.length
 }
 

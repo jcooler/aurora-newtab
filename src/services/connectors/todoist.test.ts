@@ -327,12 +327,12 @@ describe('fetchTodoistTasks', () => {
 
 describe('closeTodoistTask', () => {
   it('POSTs the exact encoded close path with bearer auth and no request body', async () => {
-    const res = fakeResponse({ status: 204 })
+    const res = fakeResponse({ status: 200, body: null })
     const fetchFn = vi.fn(async () => res)
 
     const result = await closeTodoistTask('todoist-secret', 'task/one two', fetchFn as unknown as typeof fetch)
 
-    expect(result).toEqual({ ok: true, status: 204 })
+    expect(result).toEqual({ ok: true, status: 200 })
     expect(fetchFn).toHaveBeenCalledTimes(1)
     const [url, init] = (fetchFn.mock.calls as unknown as Array<[string, RequestInit]>)[0]
     expect(url).toBe('https://api.todoist.com/api/v1/tasks/task%2Fone%20two/close')
@@ -355,12 +355,12 @@ describe('closeTodoistTask', () => {
     expect(fetchFn).not.toHaveBeenCalled()
   })
 
-  it('accepts only the documented 204 response even when another 2xx status is ok', async () => {
-    const fetchFn = vi.fn(async () => fakeResponse({ status: 200 }))
+  it('rejects an undocumented 204 response even when it is otherwise ok', async () => {
+    const fetchFn = vi.fn(async () => fakeResponse({ status: 204 }))
 
     const error = await capturedError(closeTodoistTask('token', 'task-one', fetchFn as unknown as typeof fetch))
 
-    expect(error.message).toBe('Todoist close returned unexpected status 200.')
+    expect(error.message).toBe('Todoist close returned unexpected status 204.')
   })
 
   it('sanitizes close failures without leaking token, task content, or response body', async () => {
