@@ -478,7 +478,7 @@ async function witnessCountryPicker() {
   await page.getByRole('button', { name: 'Open settings' }).click()
   await page.getByRole('dialog', { name: 'Settings' }).waitFor()
   await page.getByRole('tab', { name: 'Connectors' }).click()
-  await page.getByRole('button', { name: /(?:Configure|Edit) Public Holidays/ }).click()
+  await page.getByRole('button', { name: /(?:Set up|Configure|Edit) Public Holidays/ }).click()
   await page.getByRole('combobox', { name: 'Country' }).waitFor()
   await page.getByRole('button', { name: 'Close settings' }).click()
 }
