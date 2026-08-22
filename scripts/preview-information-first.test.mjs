@@ -123,7 +123,7 @@ test('a green focused rerun can resume without repeating its viewport', () => {
   assert.deepEqual(merged.deepInteractions, [{ viewport: '1024x768' }])
 })
 
-test('Flow is a first-class NL-P6 scenario with immersive and cross-tab proof', () => {
+test('Flow and widget stacks are first-class NL-P6 scenarios', () => {
   assert.deepEqual(SCENARIOS.map(({ id }) => id), [
     'fresh',
     'legacy-v1',
@@ -131,6 +131,7 @@ test('Flow is a first-class NL-P6 scenario with immersive and cross-tab proof', 
     'connectors',
     'connectors-default',
     'flow',
+    'stacks',
   ])
 
   const scenarios = readFileSync(new URL('./qa-nl-p6-scenarios.mjs', import.meta.url), 'utf8')
