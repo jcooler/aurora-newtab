@@ -692,9 +692,9 @@ try {
     }
 
     await assertDeepLink(widget)
+    if (widget.id === 'todoist') await exerciseTodoistCompletion(widget)
     await exerciseSettings(widget)
   }
-  await exerciseTodoistCompletion(WIDGETS.find((widget) => widget.id === 'todoist'))
 } finally {
   await context.close()
 }
