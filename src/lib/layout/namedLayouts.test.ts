@@ -5,11 +5,14 @@ import {
   LayoutsDocumentValidationError,
   anchorForPoint,
   cleanLayoutsDocument,
+  dockedYPercent,
   freePlacementFromPoint,
   isLayoutsDocument,
+  LAYOUTS_DOCUMENT_VERSION,
   pointFromFreePlacement,
   type LayoutsDocument,
 } from './namedLayouts'
+import { CURRENT_VERSION } from '../storage/schema'
 
 function validDocument(): LayoutsDocument {
   return {
@@ -31,6 +34,36 @@ function validDocument(): LayoutsDocument {
 }
 
 describe('cleanLayoutsDocument', () => {
+  it('round-trips explicit dock y and returnTier while preserving their absence', () => {
+    const doc = validDocument()
+    doc.layouts[0].widgets.weather = {
+      kind: 'docked', dock: 'top', order: 0, x: 17.5, y: 82.25, returnTier: 'full',
+    }
+
+    const cleaned = cleanLayoutsDocument(doc)
+    expect(cleaned.layouts[0].widgets.weather).toEqual(doc.layouts[0].widgets.weather)
+    expect(cleaned.layouts[0].widgets.bookmarks).toEqual({ kind: 'docked', dock: 'top', order: 0 })
+    expect(dockedYPercent(cleaned.layouts[0].widgets.weather as never)).toBe(82.25)
+    expect(dockedYPercent(cleaned.layouts[0].widgets.bookmarks as never)).toBeUndefined()
+    expect(CURRENT_VERSION).toBe(16)
+    expect(LAYOUTS_DOCUMENT_VERSION).toBe(1)
+  })
+
+  it.each([
+    ['y', Number.NaN],
+    ['y', -0.01],
+    ['y', 100.01],
+    ['returnTier', 'giant'],
+  ])('rejects malformed dock %s', (field, value) => {
+    const doc = validDocument() as unknown as {
+      layouts: { widgets: Record<string, unknown> }[]
+    }
+    doc.layouts[0].widgets.bookmarks = {
+      kind: 'docked', dock: 'top', order: 0, [field]: value,
+    }
+    expect(() => cleanLayoutsDocument(doc)).toThrow(LayoutsDocumentValidationError)
+  })
+
   it('returns a deep clone of a valid document', () => {
     const input = validDocument()
     const cleaned = cleanLayoutsDocument(input)

@@ -16,6 +16,12 @@ export type WidgetTier = (typeof WIDGET_TIERS)[number]
 export const DOCK_EDGES = ['top', 'bottom'] as const
 export type DockEdge = (typeof DOCK_EDGES)[number]
 
+/** A member-center position inside one transparent dock band. */
+export interface DockPoint {
+  xPct: number
+  yPct: number
+}
+
 export interface FreeWidgetPlacement {
   kind: 'free'
   anchor: LayoutAnchor
@@ -51,6 +57,10 @@ export interface DockedWidgetPlacement {
    *  that... just like the regular screen"). Absent: a legacy `align`
    *  resolves through DOCK_ALIGN_X, else center. */
   x?: number
+  /** The member's CENTER as a percent of the transparent dock band's usable
+   *  height. Absent preserves the exact pre-DY edge-specific baseline and
+   *  must never be interpreted or persisted as an invented 50%. */
+  y?: number
   /** Legacy section (read-only compat; new writes store `x`). */
   align?: DockAlign
   /** The member's chosen size within the strip (owner direction 2026-08-18:
@@ -58,6 +68,10 @@ export interface DockedWidgetPlacement {
    *  widget's docked default: Bookmarks' full readable bar (spec 2.3
    *  exemption), every other widget's compact composition. */
   tier?: WidgetTier
+  /** The free-floating tier to restore when this member leaves the dock.
+   *  Absent is legacy data and deliberately falls back to Standard at the
+   *  undock operation, never during document cleaning. */
+  returnTier?: WidgetTier
 }
 
 /** The strip position a docked placement renders at (percent of the strip
@@ -65,6 +79,14 @@ export interface DockedWidgetPlacement {
 export function dockedXPercent(placement: DockedWidgetPlacement): number {
   if (typeof placement.x === 'number') return Math.min(100, Math.max(0, placement.x))
   return placement.align ? DOCK_ALIGN_X[placement.align] : 50
+}
+
+/** Explicit vertical position only. `undefined` is meaningful legacy state:
+ *  rendering owns its edge-specific baseline and storage stays byte-shaped. */
+export function dockedYPercent(placement: DockedWidgetPlacement): number | undefined {
+  return typeof placement.y === 'number'
+    ? Math.min(100, Math.max(0, placement.y))
+    : undefined
 }
 
 /** Enabled globally but not shown in THIS layout (spec 2.5 "hide"). Distinct
@@ -166,7 +188,9 @@ function isDockedPlacement(value: unknown): value is DockedWidgetPlacement {
     && (value.order as number) >= 0
     && (value.align === undefined || (typeof value.align === 'string' && ALIGN_SET.has(value.align)))
     && (value.x === undefined || (typeof value.x === 'number' && Number.isFinite(value.x) && value.x >= 0 && value.x <= 100))
+    && (value.y === undefined || (finite(value.y) && value.y >= 0 && value.y <= 100))
     && (value.tier === undefined || (typeof value.tier === 'string' && TIER_SET.has(value.tier)))
+    && (value.returnTier === undefined || (typeof value.returnTier === 'string' && TIER_SET.has(value.returnTier)))
 }
 
 function isHiddenPlacement(value: unknown): value is HiddenWidgetPlacement {

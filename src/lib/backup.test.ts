@@ -1368,6 +1368,41 @@ describe('layouts document backup boundary (NL-P1)', () => {
     if (prepared.ok) expect(prepared.data.layouts).toEqual(document)
   })
 
+  it('round-trips explicit dock y and returnTier without materializing absent fields', () => {
+    const withDy = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    withDy.layouts[0].widgets.bookmarks = {
+      kind: 'docked', dock: 'top', order: 0, x: 18, y: 67.5, returnTier: 'standard',
+    }
+    const prepared = prepareBackup(serializeBackup({
+      ...defaults(), layouts: withDy as unknown as AuroraData['layouts'],
+    }))
+    expect(prepared.ok).toBe(true)
+    if (prepared.ok) {
+      const layouts = prepared.data.layouts as unknown as { layouts: { widgets: Record<string, unknown> }[] }
+      expect(layouts.layouts[0].widgets.bookmarks).toEqual(withDy.layouts[0].widgets.bookmarks)
+      expect(layouts.layouts[0].widgets.clock).not.toHaveProperty('y')
+      expect(CURRENT_VERSION).toBe(16)
+    }
+  })
+
+  it.each([
+    ['y', Number.NaN],
+    ['y', -0.01],
+    ['y', 100.01],
+    ['returnTier', 'giant'],
+  ])('rejects malformed dock %s at the backup boundary', (field, value) => {
+    const malformed = structuredClone(document) as { layouts: { widgets: Record<string, unknown> }[] }
+    malformed.layouts[0].widgets.bookmarks = {
+      kind: 'docked', dock: 'top', order: 0, [field]: value,
+    }
+    const backup = JSON.parse(serializeBackup(defaults())) as { data: Record<string, unknown> }
+    backup.data.layouts = malformed
+    expect(prepareBackup(JSON.stringify(backup))).toEqual({
+      ok: false,
+      reason: 'That backup\'s "layouts" data is invalid.',
+    })
+  })
+
   it('serializes the default null layouts and imports it as null', () => {
     const prepared = prepareBackup(serializeBackup(defaults()))
     expect(prepared.ok).toBe(true)
