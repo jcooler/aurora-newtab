@@ -206,9 +206,11 @@ describe('hide, restore, bulk, reset', () => {
   it('dockSelected stores the exact strip position and derives orders left-to-right (owner-refined 2026-08-18)', () => {
     // DOC already has bookmarks docked bottom (legacy, no x → renders 50).
     let session = selectWidget(fresh(), 'clock')
-    session = dockSelected(session, 'bottom', 12)
+    session = dockSelected(session, 'bottom', { xPct: 12, yPct: 81 })
     const layout = activeDraftLayout(session)
-    expect(layout.widgets.clock).toEqual({ kind: 'docked', dock: 'bottom', order: 0, x: 12 })
+    expect(layout.widgets.clock).toEqual({
+      kind: 'docked', dock: 'bottom', order: 0, x: 12, y: 81, returnTier: 'full',
+    })
     expect(layout.widgets.bookmarks).toMatchObject({ kind: 'docked', dock: 'bottom', order: 1 })
     expect(dockOrder(layout, 'bottom')).toEqual(['clock', 'bookmarks'])
     expect(session.dirty).toBe(true)
@@ -216,26 +218,32 @@ describe('hide, restore, bulk, reset', () => {
 
   it('dockSelected repositions an already-docked widget and orders follow position', () => {
     let session = selectWidget(fresh(), 'clock')
-    session = dockSelected(session, 'bottom', 12)
+    session = dockSelected(session, 'bottom', { xPct: 12, yPct: 20 })
     session = selectWidget(session, 'clock')
-    session = dockSelected(session, 'bottom', 88)
+    session = dockSelected(session, 'bottom', { xPct: 88, yPct: 70 })
     const layout = activeDraftLayout(session)
-    expect(layout.widgets.clock).toEqual({ kind: 'docked', dock: 'bottom', order: 1, x: 88 })
+    expect(layout.widgets.clock).toEqual({
+      kind: 'docked', dock: 'bottom', order: 1, x: 88, y: 70, returnTier: 'full',
+    })
     expect(dockOrder(layout, 'bottom')).toEqual(['bookmarks', 'clock'])
   })
 
   it('dockSelected can create the top dock and clamps a wild position onto the strip', () => {
     let session = selectWidget(fresh(), 'weather')
-    session = dockSelected(session, 'top', 250)
-    expect(activeDraftLayout(session).widgets.weather).toEqual({ kind: 'docked', dock: 'top', order: 0, x: 100 })
+    session = dockSelected(session, 'top', { xPct: 250, yPct: -10 })
+    expect(activeDraftLayout(session).widgets.weather).toEqual({
+      kind: 'docked', dock: 'top', order: 0, x: 100, y: 0, returnTier: 'standard',
+    })
   })
 
   it('a zone-drag gesture costs ONE undo entry: move pushes, dockSelectedLive completes (review fix I2)', () => {
     let session = selectWidget(fresh(), 'clock')
     session = moveSelected(session, { xPct: 50, yPct: 96 })   // the drag's first move
-    session = dockSelectedLive(session, 'bottom', 30)         // the drop
+    session = dockSelectedLive(session, 'bottom', { xPct: 30, yPct: 60 }) // the drop
     expect(session.past).toHaveLength(1)
-    expect(activeDraftLayout(session).widgets.clock).toEqual({ kind: 'docked', dock: 'bottom', order: 0, x: 30 })
+    expect(activeDraftLayout(session).widgets.clock).toEqual({
+      kind: 'docked', dock: 'bottom', order: 0, x: 30, y: 60, returnTier: 'full',
+    })
     const undone = undo(session)
     expect(undone.dirty).toBe(false)
     expect(activeDraftLayout(undone).widgets.clock).toEqual(activeDraftLayout(fresh()).widgets.clock)
@@ -243,9 +251,9 @@ describe('hide, restore, bulk, reset', () => {
 
   it('a gesture crossing OUT of and back INTO a dock band stays ONE undo entry (owner-reported 2026-08-18)', () => {
     let session = selectWidget(fresh(), 'bookmarks')
-    session = dockSelected(session, 'bottom', 20)                 // first move: in-band reposition pushes
+    session = dockSelected(session, 'bottom', { xPct: 20, yPct: 30 }) // first move: in-band reposition pushes
     session = undockSelectedLive(session, { xPct: 40, yPct: 50 }) // pointer leaves the band
-    session = dockSelectedLive(session, 'bottom', 75)             // pointer re-enters, re-docks live
+    session = dockSelectedLive(session, 'bottom', { xPct: 75, yPct: 80 }) // pointer re-enters, re-docks live
     expect(session.past).toHaveLength(1)
     const undone = undo(session)
     expect(activeDraftLayout(undone).widgets.bookmarks).toEqual(activeDraftLayout(fresh()).widgets.bookmarks)
@@ -258,10 +266,69 @@ describe('hide, restore, bulk, reset', () => {
       kind: 'docked', dock: 'bottom', order: 0, tier: 'compact',
     })
     // A later reposition must not discard the stored size.
-    session = dockSelected(session, 'bottom', 5)
+    session = dockSelected(session, 'bottom', { xPct: 5, yPct: 50 })
     expect(activeDraftLayout(session).widgets.bookmarks).toEqual({
-      kind: 'docked', dock: 'bottom', order: 0, x: 5, tier: 'compact',
+      kind: 'docked', dock: 'bottom', order: 0, x: 5, y: 50, tier: 'compact',
     })
+  })
+
+  it('keeps prior order for equal x, then BLOCK_IDS identity as the final tie without reading y', () => {
+    const equalX: LayoutsDocument = {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{
+        id: 'a',
+        name: 'Equal X',
+        widgets: {
+          weather: { kind: 'docked', dock: 'top', order: 1, x: 40, y: 10 },
+          bookmarks: { kind: 'docked', dock: 'top', order: 0, x: 40, y: 20 },
+          tasks: { kind: 'docked', dock: 'top', order: 0, x: 40, y: 90 },
+        },
+      }],
+    }
+    let session = beginEditSession(equalX, ['weather', 'bookmarks', 'tasks'])
+    session = selectWidget(session, 'weather')
+    session = dockSelected(session, 'top', { xPct: 40, yPct: 99 })
+
+    expect(dockOrder(activeDraftLayout(session), 'top')).toEqual(['tasks', 'bookmarks', 'weather'])
+    expect(activeDraftLayout(session).widgets.weather).toMatchObject({ order: 2, x: 40, y: 99 })
+  })
+
+  it('restores returnTier and falls back to Standard only when the field is absent', () => {
+    const explicit: LayoutsDocument = {
+      version: 1,
+      activeLayoutId: 'a',
+      layouts: [{
+        id: 'a', name: 'Return tier', widgets: {
+          bookmarks: { kind: 'docked', dock: 'bottom', order: 0, returnTier: 'compact' },
+        },
+      }],
+    }
+    const restored = undockSelected(
+      selectWidget(beginEditSession(explicit, ['bookmarks']), 'bookmarks'),
+      { xPct: 30, yPct: 60 },
+    )
+    expect((activeDraftLayout(restored).widgets.bookmarks as FreeWidgetPlacement).tier).toBe('compact')
+
+    const legacy = undockSelected(selectWidget(fresh(), 'bookmarks'), { xPct: 30, yPct: 60 })
+    expect((activeDraftLayout(legacy).widgets.bookmarks as FreeWidgetPlacement).tier).toBe('standard')
+  })
+
+  it('top to bottom to canvas to top remains one undo entry and retains gesture memory', () => {
+    const before = fresh()
+    let session = selectWidget(before, 'clock')
+    const memory = { dockTier: 'compact' as const, returnTier: 'full' as const }
+    session = dockSelected(session, 'top', { xPct: 20, yPct: 25 }, memory)
+    session = dockSelectedLive(session, 'bottom', { xPct: 70, yPct: 75 }, memory)
+    session = undockSelectedLive(session, { xPct: 45, yPct: 55 })
+    session = dockSelectedLive(session, 'top', { xPct: 82, yPct: 18 }, memory)
+
+    expect(session.past).toHaveLength(1)
+    expect(activeDraftLayout(session).widgets.clock).toEqual({
+      kind: 'docked', dock: 'top', order: 0, x: 82, y: 18,
+      tier: 'compact', returnTier: 'full',
+    })
+    expect(undo(session).draft).toEqual(before.draft)
   })
 
   it('undockSelected returns a docked widget to a free anchor at the drop point', () => {

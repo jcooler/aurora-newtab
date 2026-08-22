@@ -1,5 +1,6 @@
 import {
   ANCHOR_POINTS,
+  dockedYPercent,
   dockedXPercent,
   type DockEdge,
   type LayoutsDocument,
@@ -30,7 +31,7 @@ export interface AnchoredRenderItem {
   stack?: RenderStack
 }
 export interface StackedRenderItem { id: BlockId; mode: 'stacked'; order: number; tier: WidgetTier; stack?: RenderStack }
-export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
+export interface DockedRenderItem { id: BlockId; mode: 'docked'; dock: DockEdge; order: number; xPct: number; yPct?: number; dockTier?: WidgetTier }
 export type LayoutRenderItem = AnchoredRenderItem | StackedRenderItem | DockedRenderItem
 export interface LayoutRenderPlan { narrow: boolean; items: LayoutRenderItem[] }
 
@@ -92,7 +93,7 @@ export function enforceDockEligibility(
 }
 
 interface PlannedFree { id: BlockId; leftPct: number; topPct: number; tier: WidgetTier; layer: number; stack?: RenderStack }
-interface PlannedDock { id: BlockId; dock: DockEdge; order: number; xPct: number; dockTier?: WidgetTier }
+interface PlannedDock { id: BlockId; dock: DockEdge; order: number; xPct: number; yPct?: number; dockTier?: WidgetTier }
 
 /** The size a docked member renders at: its stored tier when the user chose
  *  one, else the widget's docked default — Bookmarks' full readable bar
@@ -153,11 +154,13 @@ export function planLayoutRender(
     if (placement.kind === 'docked') {
       if (dockableIds && !dockableIds.has(id)) undockable.push(id)
       else {
+        const yPct = dockedYPercent(placement)
         docked.push({
           id,
           dock: placement.dock,
           order: placement.order,
           xPct: dockedXPercent(placement),
+          ...(yPct === undefined ? {} : { yPct }),
           ...(placement.tier ? { dockTier: placement.tier } : {}),
         })
       }
@@ -218,7 +221,14 @@ export function planLayoutRender(
     const stackTier = (item: PlannedFree | PlannedDock): WidgetTier => (
       'tier' in item ? item.tier : 'compact'
     )
-    const items: StackedRenderItem[] = [...dockSorted, ...freeSorted].map((item, order) => ({
+    // Narrow is a mechanical order-only stack. Presentation X/Y never
+    // changes it; the stored order is already the user's X-derived order.
+    const dockOrderSorted = [...docked].sort((a, b) => (
+      a.dock === b.dock
+        ? a.order - b.order || BLOCK_IDS.indexOf(a.id) - BLOCK_IDS.indexOf(b.id)
+        : a.dock === 'top' ? -1 : 1
+    ))
+    const items: StackedRenderItem[] = [...dockOrderSorted, ...freeSorted].map((item, order) => ({
       id: item.id,
       mode: 'stacked',
       order,
@@ -233,6 +243,7 @@ export function planLayoutRender(
     items: [
       ...dockSorted.map((item): DockedRenderItem => ({
         id: item.id, mode: 'docked', dock: item.dock, order: item.order, xPct: item.xPct,
+        ...(item.yPct === undefined ? {} : { yPct: item.yPct }),
         ...(item.dockTier ? { dockTier: item.dockTier } : {}),
       })),
       ...free.map((item): AnchoredRenderItem => ({

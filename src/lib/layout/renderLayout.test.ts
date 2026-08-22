@@ -5,6 +5,7 @@ import {
   planLayoutRender,
   resolveRenderTier,
   type AnchoredRenderItem,
+  type DockedRenderItem,
   type StackedRenderItem,
 } from './renderLayout'
 import type { NamedLayout } from './namedLayouts'
@@ -74,6 +75,22 @@ describe('planLayoutRender (anchored)', () => {
     })
   })
 
+  it('emits explicit dock y without inventing one for legacy placements', () => {
+    const positioned: NamedLayout = {
+      ...LAYOUT,
+      widgets: {
+        ...LAYOUT.widgets,
+        tasks: { kind: 'docked', dock: 'top', order: 0, x: 13.5, y: 77.25 },
+      },
+    }
+    const explicit = planLayoutRender(positioned, ENABLED, 1408).items
+      .find((item) => item.id === 'tasks') as DockedRenderItem
+    const legacy = planLayoutRender(positioned, ENABLED, 1408).items
+      .find((item) => item.id === 'timer') as DockedRenderItem
+    expect(explicit).toMatchObject({ xPct: 13.5, yPct: 77.25 })
+    expect(legacy).not.toHaveProperty('yPct')
+  })
+
   it('gives an enabled widget missing from the layout its designed static default slot above every stored layer, and never renders a disabled one', () => {
     const notes = plan.items.find((item) => item.id === 'notes') as AnchoredRenderItem
     // Identity-stable default layer: maxStoredLayer(2) + 1 + BLOCK_IDS index
@@ -87,12 +104,18 @@ describe('planLayoutRender (anchored)', () => {
 
 describe('planLayoutRender (narrow floor)', () => {
   it('below the floor renders one mechanical stack: docks first (top then bottom, by order), then free items in layer order', () => {
-    const plan = planLayoutRender(LAYOUT, ENABLED, NARROW_FLOOR_WIDTH - 1)
+    const input = structuredClone(LAYOUT)
+    input.widgets.tasks = { kind: 'docked', dock: 'top', order: 0, x: 95, y: 92 }
+    const before = structuredClone(input)
+    const plan = planLayoutRender(input, ENABLED, NARROW_FLOOR_WIDTH - 1)
     expect(plan.narrow).toBe(true)
     const ids = plan.items.map((item) => item.id)
     expect(ids).toEqual(['tasks', 'timer', 'bookmarks', 'quote', 'weather', 'clock', 'notes'])
     expect(plan.items.every((item) => item.mode === 'stacked')).toBe(true)
     expect((plan.items as StackedRenderItem[]).map((item) => item.order)).toEqual([0, 1, 2, 3, 4, 5, 6])
+    expect(plan.items.find((item) => item.id === 'tasks')).not.toHaveProperty('xPct')
+    expect(plan.items.find((item) => item.id === 'tasks')).not.toHaveProperty('yPct')
+    expect(input).toEqual(before)
   })
 
   it('exactly at the floor width stays anchored', () => {

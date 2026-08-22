@@ -4,6 +4,7 @@ import {
   freePlacementFromPoint,
   pointFromFreePlacement,
   type DockEdge,
+  type DockPoint,
   type FreeWidgetPlacement,
   type LayoutsDocument,
   type NamedLayoutPlacement,
@@ -429,25 +430,52 @@ export function dockOrder(layout: NamedLayout, dock: DockEdge): readonly BlockId
     .map((entry) => entry.id)
 }
 
+export interface DockGestureMemory {
+  dockTier?: WidgetTier
+  returnTier?: WidgetTier
+}
+
+function clampPct(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
 function dockSelectedInternal(
   session: EditSession,
   dock: DockEdge,
-  xPct: number,
+  point: DockPoint | number,
   pushUndo: boolean,
+  memory?: DockGestureMemory,
 ): EditSession {
   const selection = session.selection
   if (selection?.kind !== 'widget') return session
   const id = selection.id
-  const clampedX = Math.min(100, Math.max(0, xPct))
+  // Number is a short-lived compatibility path for the pre-DY App callsite:
+  // it preserves absent Y exactly until Task 6 supplies measured DockPoint
+  // values. New callers always use DockPoint.
+  const xPct = typeof point === 'number' ? point : point.xPct
+  const yPct = typeof point === 'number' ? undefined : point.yPct
   return commit(session, withActiveLayout(session.draft, (draftLayout) => {
     const widgets = { ...draftLayout.widgets }
     const existing = draftLayout.widgets[id]
+    const priorOrders = new Map<BlockId, number>()
+    for (const memberId of BLOCK_IDS) {
+      const placement = widgets[memberId]
+      if (placement?.kind === 'docked') priorOrders.set(memberId, placement.order)
+    }
+    const derivedReturnTier = memory?.returnTier
+      ?? (existing?.kind === 'free'
+        ? existing.tier
+        : existing?.kind === 'docked' ? existing.returnTier : undefined)
+    const derivedDockTier = memory?.dockTier
+      ?? (existing?.kind === 'docked' ? existing.tier : undefined)
     widgets[id] = {
       kind: 'docked',
       dock,
-      order: 0,
-      x: clampedX,
-      ...(existing?.kind === 'docked' && existing.tier ? { tier: existing.tier } : {}),
+      order: existing?.kind === 'docked' ? existing.order : Number.MAX_SAFE_INTEGER,
+      x: clampPct(xPct),
+      ...(yPct === undefined ? {} : { y: clampPct(yPct) }),
+      ...(derivedDockTier ? { tier: derivedDockTier } : {}),
+      ...(derivedReturnTier ? { returnTier: derivedReturnTier } : {}),
     }
     // Orders are DERIVED from position (position IS the order now): both
     // edges renumber left-to-right so the narrow stack and validation stay
@@ -457,10 +485,18 @@ function dockSelectedInternal(
         .flatMap((memberId) => {
           const placement = widgets[memberId]
           return placement?.kind === 'docked' && placement.dock === edge
-            ? [{ memberId, placement }]
+            ? [{
+              memberId,
+              placement,
+              priorOrder: priorOrders.get(memberId) ?? placement.order,
+            }]
             : []
         })
-        .sort((a, b) => dockedXPercent(a.placement) - dockedXPercent(b.placement))
+        .sort((a, b) => (
+          dockedXPercent(a.placement) - dockedXPercent(b.placement)
+          || a.priorOrder - b.priorOrder
+          || BLOCK_IDS.indexOf(a.memberId) - BLOCK_IDS.indexOf(b.memberId)
+        ))
         .forEach(({ memberId, placement }, order) => {
           widgets[memberId] = { ...placement, order }
         })
@@ -473,15 +509,25 @@ function dockSelectedInternal(
  *  edge's strip (named-layouts spec 2.4, owner-refined 2026-08-18: complete
  *  control — any position within the bar, exactly like the canvas). Orders
  *  in both docks are derived from position. Never called automatically. */
-export function dockSelected(session: EditSession, dock: DockEdge, xPct: number): EditSession {
-  return dockSelectedInternal(session, dock, xPct, true)
+export function dockSelected(
+  session: EditSession,
+  dock: DockEdge,
+  point: DockPoint | number,
+  memory?: DockGestureMemory,
+): EditSession {
+  return dockSelectedInternal(session, dock, point, true, memory)
 }
 
 /** The drop half of a zone-drag gesture: the drag's first move already
  *  pushed the gesture's one undo entry (review fix I2 — one entry per
  *  gesture), so this variant reuses it. */
-export function dockSelectedLive(session: EditSession, dock: DockEdge, xPct: number): EditSession {
-  return dockSelectedInternal(session, dock, xPct, false)
+export function dockSelectedLive(
+  session: EditSession,
+  dock: DockEdge,
+  point: DockPoint | number,
+  memory?: DockGestureMemory,
+): EditSession {
+  return dockSelectedInternal(session, dock, point, false, memory)
 }
 
 function undockSelectedInternal(
@@ -493,7 +539,8 @@ function undockSelectedInternal(
   if (selection?.kind !== 'widget') return session
   const id = selection.id
   const layout = activeDraftLayout(session)
-  if (layout.widgets[id]?.kind !== 'docked') return session
+  const docked = layout.widgets[id]
+  if (docked?.kind !== 'docked') return session
   let maxLayer = -1
   for (const blockId of BLOCK_IDS) {
     const placement = layout.widgets[blockId]
@@ -506,17 +553,16 @@ function undockSelectedInternal(
       [id]: freePlacementFromPoint({
         x: point.xPct,
         y: point.yPct,
-        tier: 'standard',
+        tier: docked.returnTier ?? 'standard',
         layer: maxLayer + 1 + BLOCK_IDS.indexOf(id),
       }),
     },
   })), pushUndo)
 }
 
-/** Returns a docked selected widget to free placement at the drop point.
- *  The docked form stored no tier, so the undocked widget starts Standard
- *  (clamped per widget by the renderer); remembering the pre-dock tier is
- *  an NL-P5 nicety once Docked tiers are designed. */
+/** Returns a docked selected widget to free placement at the drop point,
+ *  restoring its recorded pre-dock tier. Legacy rows with no returnTier use
+ *  the owner-approved Standard fallback. */
 export function undockSelected(
   session: EditSession,
   point: { xPct: number; yPct: number },
