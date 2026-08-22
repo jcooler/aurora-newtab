@@ -76,10 +76,10 @@ describe('CanvasSurface (anchored named layout)', () => {
     const nav = screen.getByRole('navigation', { name: 'Bottom bar' })
     expect(nav.querySelector('.dock-lane')).toBeTruthy()
     const timer = screen.getByTestId('canvas-item-timer')
-    expect(timer.style.marginLeft).toBe('7.25%')
+    expect(timer.style.marginLeft).toBe('calc(7.25% + 1.71px)')
     expect(timer.style.transform).toBe('translateX(-50%)')
     // A legacy placement without x renders centered.
-    expect(screen.getByTestId('canvas-item-bookmarks').style.marginLeft).toBe('50%')
+    expect(screen.getByTestId('canvas-item-bookmarks').style.marginLeft).toBe('calc(50% + 0px)')
   })
 
   it('keeps absent-Y members on the legacy edge grid and positions explicit-Y members in both axes', () => {
@@ -87,10 +87,10 @@ describe('CanvasSurface (anchored named layout)', () => {
       ...LAYOUT,
       widgets: {
         ...LAYOUT.widgets,
-        bookmarks: { kind: 'docked', dock: 'top', order: 0, x: 72 },
-        weather: { kind: 'docked', dock: 'top', order: 1, x: 27, y: 73 },
-        focus: { kind: 'docked', dock: 'bottom', order: 0, x: 24 },
-        timer: { kind: 'docked', dock: 'bottom', order: 1, x: 76, y: 18 },
+        weather: { kind: 'docked', dock: 'top', order: 0, x: 27, y: 73 },
+        bookmarks: { kind: 'docked', dock: 'top', order: 1, x: 72 },
+        timer: { kind: 'docked', dock: 'bottom', order: 0, x: 76, y: 18 },
+        focus: { kind: 'docked', dock: 'bottom', order: 1, x: 24 },
       },
     }
     renderSurface(mixed)
@@ -98,17 +98,21 @@ describe('CanvasSurface (anchored named layout)', () => {
     const legacyTop = screen.getByTestId('canvas-item-bookmarks')
     expect(legacyTop.dataset.dockPositioning).toBe('legacy')
     expect(legacyTop.style.top).toBe('')
-    expect(legacyTop.closest('.dock-lane__legacy')).toBeTruthy()
+    expect(legacyTop.closest('.dock-lane')).toBeTruthy()
 
     const explicitTop = screen.getByTestId('canvas-item-weather')
     expect(explicitTop.dataset.dockPositioning).toBe('explicit')
     expect(explicitTop.style.left).toBe('27%')
     expect(explicitTop.style.top).toBe('73%')
-    expect(explicitTop.style.transform).toBe('translate(-50%, -50%)')
-    expect(explicitTop.closest('.dock-lane__placed')).toBeTruthy()
+    expect(explicitTop.style.transform).toBe('translate(calc(-50% + 0px), calc(-50% + 0px))')
+    expect(explicitTop.closest('.dock-lane')).toBeTruthy()
 
-    expect(screen.getByTestId('canvas-item-focus').closest('.dock-lane__legacy')).toBeTruthy()
-    expect(screen.getByTestId('canvas-item-timer').closest('.dock-lane__placed')).toBeTruthy()
+    const topOrder = [...screen.getByRole('navigation', { name: 'Top bar' }).querySelectorAll('[data-block-id]')]
+      .map((node) => node.getAttribute('data-block-id'))
+    const bottomOrder = [...screen.getByRole('navigation', { name: 'Bottom bar' }).querySelectorAll('[data-block-id]')]
+      .map((node) => node.getAttribute('data-block-id'))
+    expect(topOrder).toEqual(['weather', 'bookmarks'])
+    expect(bottomOrder).toEqual(['timer', 'focus'])
   })
 
   it('routes a dock guide set only into its matching transparent band', () => {
@@ -202,16 +206,22 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*pointer-events:\s*none/)
     expect(indexCss).toMatch(/\.dock-lane \.canvas-item\s*\{[^}]*pointer-events:\s*auto/)
     expect(indexCss).toMatch(/\.dock-lane\s*\{[^}]*pointer-events:\s*none/)
-    expect(indexCss).toMatch(/\.dock-lane__legacy,\s*\.dock-lane__placed\s*\{[^}]*pointer-events:\s*none/)
+    expect(indexCss).not.toContain('.dock-lane__legacy')
+    expect(indexCss).not.toContain('.dock-lane__placed')
+  })
+
+  it('keeps hidden-widget recovery buttons interactive inside the modeless toolbar menu', () => {
+    expect(indexCss).toMatch(/\.edit-toolbar__hidden-menu\s*>\s*button\s*\{[^}]*pointer-events:\s*auto/)
   })
 
   it('pins the responsive transparent band and exact nested legacy baselines', () => {
     expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*right:\s*72px;[^}]*left:\s*72px;[^}]*height:\s*clamp\(96px,\s*16vh,\s*128px\)/)
     expect(indexCss).toMatch(/\.canvas-bottom-bar\s*\{\s*bottom:\s*16px;\s*\}/)
     expect(indexCss).toMatch(/\.canvas-top-bar\s*\{\s*top:\s*16px;\s*\}/)
-    expect(indexCss).toMatch(/\.dock-lane__legacy\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*end;[^}]*padding:\s*16px 2px 2px/)
-    expect(indexCss).toMatch(/\.dock-lane__legacy\[data-edge="top"\]\s*\{\s*top:\s*0;\s*\}/)
-    expect(indexCss).toMatch(/\.dock-lane__legacy\[data-edge="bottom"\]\s*\{\s*bottom:\s*0;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-lane\s*\{[^}]*display:\s*grid;[^}]*grid-template-columns:\s*100%/)
+    expect(indexCss).toMatch(/\.dock-lane\[data-edge="top"\]\s*\{\s*grid-template-rows:\s*max-content 1fr;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-lane\[data-edge="bottom"\]\s*\{\s*grid-template-rows:\s*1fr max-content;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-lane\s*>\s*\.canvas-item\[data-dock-positioning="legacy"\]\s*\{[^}]*align-self:\s*end;[^}]*margin-top:\s*16px;[^}]*margin-right:\s*2px;[^}]*margin-bottom:\s*2px/)
   })
 
   it('limits the transient edit boundary to the real transparent dock band', () => {

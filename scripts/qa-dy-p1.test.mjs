@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -105,12 +105,39 @@ test('the runnable deterministic manifest names every viewport, behavior, and bu
     'legacy-baseline',
     'byte-stable-layouts',
     'legacy-layout-write-rejection',
+    'legacy-screenshot-equality',
+    'hidden-widget-recovery',
+    'explicit-edge-clamp',
+    'mixed-dock-reading-order',
   ]
   assert.deepEqual(required.filter((id) => !manifest.behaviors.includes(id)), [])
   assert.deepEqual(manifest.provenance, {
     build: 'git-head-preview-build',
     recordsCommit: true,
+    rejectsDirtyTrackedSource: true,
+    verifiesBuiltCommit: true,
   })
+})
+
+test('the deterministic runner rejects dirty tracked source and verifies its emitted build provenance', () => {
+  const source = readFileSync(resolve(process.cwd(), 'scripts/qa-dy-p1.mjs'), 'utf8')
+  assert.match(source, /assertCleanTrackedStatus/)
+  assert.match(source, /git['"], \['status', '--porcelain', '--untracked-files=no'\]/)
+  assert.match(source, /assertBuildProvenance/)
+  assert.match(source, /build-provenance\.json/)
+})
+
+test('screenshot comparison fails closed on a changed legacy capture', async () => {
+  const contracts = await import('./qa-dy-p1-output.mjs')
+  assert.equal(typeof contracts.assertLegacyScreenshotEquality, 'function')
+  assert.doesNotThrow(() => contracts.assertLegacyScreenshotEquality(
+    [{ viewport: { width: 1408, height: 445 }, screenshotSha256: 'same' }],
+    [{ viewport: { width: 1408, height: 445 }, screenshotSha256: 'same' }],
+  ))
+  assert.throws(() => contracts.assertLegacyScreenshotEquality(
+    [{ viewport: { width: 1408, height: 445 }, screenshotSha256: 'before' }],
+    [{ viewport: { width: 1408, height: 445 }, screenshotSha256: 'after' }],
+  ), /screenshot/i)
 })
 
 test('the runnable real-window manifest requires the caller-reviewed dist and real OS geometry', () => {

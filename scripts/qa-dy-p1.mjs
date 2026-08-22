@@ -9,7 +9,9 @@ import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { BLOCK_IDS } from '../src/lib/layout/types.ts'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
-import { prepareDyOutputDir } from './qa-dy-p1-output.mjs'
+import { assertCleanTrackedStatus } from './build-contracts.mjs'
+import { assertBuildProvenance } from './work-connector-harness-contracts.mjs'
+import { assertLegacyScreenshotEquality, prepareDyOutputDir } from './qa-dy-p1-output.mjs'
 
 export const DY_VIEWPORTS = Object.freeze([
   Object.freeze({ width: 1366, height: 768 }),
@@ -31,6 +33,10 @@ export const DY_BEHAVIORS = Object.freeze([
   'legacy-baseline',
   'byte-stable-layouts',
   'legacy-layout-write-rejection',
+  'legacy-screenshot-equality',
+  'hidden-widget-recovery',
+  'explicit-edge-clamp',
+  'mixed-dock-reading-order',
   'bookmark-tier-choice',
   'narrow-boundary',
 ])
@@ -40,7 +46,12 @@ if (argv.includes('--describe')) {
   console.log(JSON.stringify({
     viewports: DY_VIEWPORTS,
     behaviors: DY_BEHAVIORS,
-    provenance: { build: 'git-head-preview-build', recordsCommit: true },
+    provenance: {
+      build: 'git-head-preview-build',
+      recordsCommit: true,
+      rejectsDirtyTrackedSource: true,
+      verifiesBuiltCommit: true,
+    },
   }))
   process.exit(0)
 }
@@ -49,6 +60,10 @@ if (!['baseline', 'after'].includes(phase)) throw new Error(`unknown DY-P1 phase
 const baselineOnly = argv.includes('--baseline-only')
 
 const repoRoot = process.cwd()
+assertCleanTrackedStatus(spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], {
+  cwd: repoRoot,
+  encoding: 'utf8',
+}).stdout)
 const dist = resolve(repoRoot, '.qa-dy-p1-dist')
 const profileDir = resolve(repoRoot, '.playwright-profile-qa-dy-p1')
 let outDir = prepareDyOutputDir(argv, repoRoot, phase)
@@ -96,6 +111,7 @@ if (build.status !== 0) {
   process.stderr.write(build.stderr ?? '')
   throw new Error(`DY-P1 preview build failed: ${build.status}`)
 }
+assertBuildProvenance(readFileSync(resolve(dist, 'build-provenance.json'), 'utf8'), commit)
 
 const evidence = {
   phase,
@@ -111,6 +127,8 @@ const evidence = {
   failedRequests: [],
   failures: [],
   comparisons: [],
+  screenshotComparisons: [],
+  edgeSafety: [],
 }
 const fail = (message) => { evidence.failures.push(message) }
 const sha256File = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
@@ -194,7 +212,7 @@ const currentLayoutsJson = () => page.evaluate(async () => {
 const seedInteractionLayout = () => page.evaluate(async ({ blockIds }) => {
   const { settings } = await chrome.storage.local.get('settings')
   const widgetFlags = Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false]))
-  Object.assign(widgetFlags, { weather: true, bookmarks: true, todo: true, notes: true })
+  Object.assign(widgetFlags, { weather: true, bookmarks: true, todo: true, notes: true, clock: true })
   const widgets = Object.fromEntries(blockIds.map((id) => [id, { kind: 'hidden' }]))
   Object.assign(widgets, {
     weather: {
@@ -278,6 +296,107 @@ const guideState = () => page.evaluate(() => ({
     .map((node) => node.getAttribute('style')),
 }))
 
+const edgeSafetyState = () => page.evaluate(() => {
+  const inspect = (edge, ids) => {
+    const lane = document.querySelector(`.dock-lane[data-edge="${edge}"]`)
+    if (!lane) return { order: [], tabOrder: [], lane: null, members: [] }
+    const laneRect = lane.getBoundingClientRect()
+    const members = ids.map((id) => {
+      const node = lane.querySelector(`[data-block-id="${id}"]`)
+      const rect = node?.getBoundingClientRect()
+      return {
+        id,
+        rect: rect ? {
+          left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom,
+          width: rect.width, height: rect.height,
+        } : null,
+        inside: Boolean(rect
+          && rect.left >= laneRect.left - 0.5
+          && rect.right <= laneRect.right + 0.5
+          && rect.top >= laneRect.top - 0.5
+          && rect.bottom <= laneRect.bottom + 0.5),
+      }
+    })
+    return {
+      order: [...lane.querySelectorAll('[data-block-id]')].map((node) => node.getAttribute('data-block-id')),
+      tabOrder: [...lane.querySelectorAll('[data-block-id][tabindex="0"]')].map((node) => node.getAttribute('data-block-id')),
+      lane: {
+        left: laneRect.left, top: laneRect.top, right: laneRect.right, bottom: laneRect.bottom,
+        width: laneRect.width, height: laneRect.height,
+      },
+      members,
+    }
+  }
+  return {
+    top: inspect('top', ['weather', 'bookmarks']),
+    bottom: inspect('bottom', ['tasks', 'notes']),
+  }
+})
+
+const runEdgeSafetyWitness = async () => {
+  await seedInteractionLayout()
+  await page.evaluate(async () => {
+    const { layouts } = await chrome.storage.local.get('layouts')
+    const draft = structuredClone(layouts)
+    const widgets = draft.layouts[0].widgets
+    widgets.weather = {
+      kind: 'docked', dock: 'top', order: 0, x: 0, y: 0,
+      tier: 'compact', returnTier: 'standard',
+    }
+    const { y: _bookmarkY, ...legacyBookmarks } = widgets.bookmarks
+    widgets.bookmarks = { ...legacyBookmarks, order: 1, x: 72 }
+    widgets.tasks = {
+      kind: 'docked', dock: 'bottom', order: 0, x: 100, y: 100,
+      tier: 'compact', returnTier: 'compact',
+    }
+    const { y: _notesY, ...legacyNotes } = widgets.notes
+    widgets.notes = { ...legacyNotes, order: 1, x: 76 }
+    await chrome.storage.local.set({ layouts: draft })
+  })
+
+  await reloadForViewport({ width: 600, height: 800 })
+  const settledBytes = await currentLayoutsJson()
+  await enterEdit()
+  const at600 = await edgeSafetyState()
+  await page.setViewportSize({ width: 1366, height: 768 })
+  await page.waitForTimeout(220)
+  const at1366 = await edgeSafetyState()
+  await page.setViewportSize({ width: 600, height: 800 })
+  await page.waitForTimeout(220)
+  const returned600 = await edgeSafetyState()
+
+  for (const [label, state] of [['600', at600], ['1366', at1366], ['600-return', returned600]]) {
+    if (JSON.stringify(state.top.order) !== JSON.stringify(['weather', 'bookmarks'])) {
+      fail(`edge-${label}: mixed top reading order ${state.top.order.join(',')}`)
+    }
+    if (JSON.stringify(state.bottom.order) !== JSON.stringify(['tasks', 'notes'])) {
+      fail(`edge-${label}: mixed bottom reading order ${state.bottom.order.join(',')}`)
+    }
+    if (JSON.stringify(state.top.tabOrder) !== JSON.stringify(['weather', 'bookmarks'])) {
+      fail(`edge-${label}: mixed top tab order ${state.top.tabOrder.join(',')}`)
+    }
+    if (JSON.stringify(state.bottom.tabOrder) !== JSON.stringify(['tasks', 'notes'])) {
+      fail(`edge-${label}: mixed bottom tab order ${state.bottom.tabOrder.join(',')}`)
+    }
+    for (const member of [...state.top.members, ...state.bottom.members]) {
+      if (!member.inside) fail(`edge-${label}: ${member.id} crossed its dock safety boundary`)
+    }
+  }
+
+  await page.keyboard.press('Escape')
+  await page.waitForSelector('[data-editing]', { state: 'detached' })
+  if (await currentLayoutsJson() !== settledBytes) fail('edge-resize: Cancel changed stored 0/100 dock points')
+  await harvestWrites('edge-resize')
+  await reloadForViewport({ width: 600, height: 800 })
+  const reloaded600 = await edgeSafetyState()
+  for (const member of [...reloaded600.top.members, ...reloaded600.bottom.members]) {
+    if (!member.inside) fail(`edge-reload: ${member.id} crossed its dock safety boundary`)
+  }
+  if (await currentLayoutsJson() !== settledBytes) fail('edge-reload: stored 0/100 dock points changed')
+  await harvestWrites('edge-reload')
+  evidence.edgeSafety.push({ at600, at1366, returned600, reloaded600, byteStable: true })
+}
+
 const dispatchPointerCancel = async () => {
   await page.evaluate(() => {
     const pointerId = window.__dyLastPointerId ?? 1
@@ -322,6 +441,15 @@ const runDesktopInteractions = async (viewport) => {
   }
 
   await enterEdit()
+  const hiddenSummary = page.getByText('Hidden 1', { exact: true })
+  await hiddenSummary.click()
+  await page.getByRole('button', { name: 'Show Clock' }).click()
+  await page.waitForSelector('[data-block-id="clock"]')
+  await page.locator('[role="toolbar"][aria-label="Edit layout"] button', { hasText: 'Undo' }).click()
+  await page.waitForSelector('[data-block-id="clock"]', { state: 'detached' })
+  if ((await harvestWrites(`${label}:hidden-recovery`)).length !== 0) {
+    fail(`${label}: hidden-widget recovery wrote storage before Save`)
+  }
   const topBand = await bandOf('top')
   const bottomBand = await bandOf('bottom')
   if (!topBand || !bottomBand) throw new Error(`${label}: both dock bands must render`)
@@ -614,6 +742,14 @@ try {
   if (evidence.boundaries.length !== 2) fail(`expected 2 boundary witnesses, found ${evidence.boundaries.length}`)
 
   if (baselineEvidence) {
+    try {
+      evidence.screenshotComparisons = assertLegacyScreenshotEquality(
+        baselineEvidence.desktop,
+        evidence.desktop,
+      )
+    } catch (error) {
+      fail(error instanceof Error ? error.message : String(error))
+    }
     for (const current of evidence.desktop) {
       const baseline = baselineEvidence.desktop.find((candidate) => (
         candidate.viewport.width === current.viewport.width
@@ -692,10 +828,12 @@ try {
       evidence.interactionBoundaries.push({ viewport, ...boundary })
       await harvestWrites(`${key(viewport)}:explicit-boundary`)
     }
+    await runEdgeSafetyWitness()
     if (evidence.interactions.length !== 3) fail(`expected 3 interaction captures, found ${evidence.interactions.length}`)
     if (evidence.interactionBoundaries.length !== 2) {
       fail(`expected 2 explicit boundary witnesses, found ${evidence.interactionBoundaries.length}`)
     }
+    if (evidence.edgeSafety.length !== 1) fail(`expected one explicit edge-safety witness, found ${evidence.edgeSafety.length}`)
   }
 } catch (error) {
   caughtError = error

@@ -51,7 +51,7 @@ import { isPremium } from '../lib/premium'
 import { useStorage } from '../lib/storage/context'
 import EditToolbar from './edit/EditToolbar'
 import { useEditMode } from './edit/useEditMode'
-import type { BlockId } from '../lib/layout/types'
+import { BLOCK_IDS, type BlockId } from '../lib/layout/types'
 import { applyInkColors, applyPanelColor } from '../theme/index'
 import Drawer from '../settings/Drawer'
 import DrawerBoundary from '../settings/DrawerBoundary'
@@ -324,6 +324,12 @@ function AuroraApp() {
     // no Docked tier is never offered a dock zone — its edge drop is an
     // ordinary free placement.
     canDock: (id) => activeEntries.some((entry) => entry.id === id && entry.supportsDocked),
+    isDockPeer: (id, dock) => {
+      if (!BLOCK_IDS.includes(id as BlockId)) return false
+      const layout = session ? activeDraftLayout(session) : activeLayout
+      const placement = layout?.widgets[id as BlockId]
+      return placement?.kind === 'docked' && placement.dock === dock
+    },
     canStackTarget: (sourceId, target) => {
       const layout = session ? activeDraftLayout(session) : activeLayout
       if (!layout) return false

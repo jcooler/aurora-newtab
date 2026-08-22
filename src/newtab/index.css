@@ -702,10 +702,8 @@
      retain a hit target. */
   pointer-events: none;
 }
-.edit-inspector :is(button, input, select, textarea, a, summary) {
-  pointer-events: auto;
-}
 .edit-toolbar__hidden-menu > button {
+  pointer-events: auto;
   width: 100%;
   text-align: left;
 }
@@ -764,27 +762,22 @@
   position: relative;
   height: 100%;
   width: 100%;
-  pointer-events: none;
-}
-.dock-lane__legacy,
-.dock-lane__placed {
-  position: absolute;
-  pointer-events: none;
-}
-.dock-lane__placed {
-  inset: 0;
-}
-/* Exact pre-DY grid. Top members retain top:16+16px; bottom members retain
-   bottom:16+2px. Its intrinsic height, padding, and end alignment are the
-   immutable absent-Y baseline captured by scripts/qa-dy-p1.mjs. */
-.dock-lane__legacy {
   display: grid;
-  width: 100%;
-  align-items: end;
-  padding: 16px 2px 2px;
+  grid-template-columns: 100%;
+  pointer-events: none;
 }
-.dock-lane__legacy[data-edge="top"] { top: 0; }
-.dock-lane__legacy[data-edge="bottom"] { bottom: 0; }
+.dock-lane[data-edge="top"] { grid-template-rows: max-content 1fr; }
+.dock-lane[data-edge="bottom"] { grid-template-rows: 1fr max-content; }
+/* One DOM sequence owns reading and keyboard order for mixed legacy/explicit
+   docks. Absent-Y members remain grid items with the exact old 16/2px block
+   padding represented as margins; explicit members are absolute and leave
+   that max-content row untouched. */
+.dock-lane > .canvas-item[data-dock-positioning="legacy"] {
+  align-self: end;
+  margin-top: 16px;
+  margin-right: 2px;
+  margin-bottom: 2px;
+}
 .dock-lane .canvas-item {
   pointer-events: auto;
 }

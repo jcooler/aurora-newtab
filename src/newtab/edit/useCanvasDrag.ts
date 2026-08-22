@@ -105,6 +105,7 @@ export function useCanvasDrag(input: {
   onDrop: (context: CanvasDragDrop) => void
   onCancel?: (subject: CanvasDragSubject) => void
   canDock?: (id: BlockId) => boolean
+  isDockPeer?: (id: string, dock: DockEdge) => boolean
   canStackTarget?: (sourceId: BlockId, target: StackDropTarget) => boolean
 }): CanvasDragApi {
   const [dragging, setDragging] = useState<CanvasDragSubject | null>(null)
@@ -285,6 +286,7 @@ export function useCanvasDrag(input: {
         const neighbors: DockSnapNeighbor[] = []
         for (const [neighborId, rect] of inputRef.current.getItemRects()) {
           if (neighborId === sourceKey) continue
+          if (inputRef.current.isDockPeer?.(neighborId, nextZone) === false) continue
           const centerX = rect.left + rect.width / 2
           const centerY = rect.top + rect.height / 2
           if (!contains(band, centerX, centerY)) continue

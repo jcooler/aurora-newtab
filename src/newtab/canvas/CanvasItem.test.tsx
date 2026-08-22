@@ -4,6 +4,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { WIDGET_REGISTRY_BY_ID } from '../widgetRegistry'
 import CanvasItem from './CanvasItem'
 
+function rect(left: number, top: number, width: number, height: number): DOMRectReadOnly {
+  return {
+    left, top, width, height,
+    right: left + width, bottom: top + height,
+    x: left, y: top,
+    toJSON: () => ({}),
+  } as DOMRectReadOnly
+}
+
 describe('CanvasItem', () => {
   afterEach(cleanup)
 
@@ -75,7 +84,7 @@ describe('CanvasItem', () => {
     )
     const item = screen.getByTestId('canvas-item-github')
     expect(item.dataset.dockPositioning).toBe('legacy')
-    expect(item.style.marginLeft).toBe('27%')
+    expect(item.style.marginLeft).toBe('calc(27% + 0.92px)')
     expect(item.style.top).toBe('')
 
     rerender(
@@ -90,7 +99,36 @@ describe('CanvasItem', () => {
     expect(item.style.left).toBe('27%')
     expect(item.style.top).toBe('73%')
     expect(item.style.marginLeft).toBe('')
-    expect(item.style.transform).toBe('translate(-50%, -50%)')
+    expect(item.style.transform).toBe('translate(calc(-50% + 0px), calc(-50% + 0px))')
+  })
+
+  it('visually clamps an explicit dock member inside its live lane without changing the stored point', async () => {
+    vi.spyOn(HTMLElement.prototype, 'offsetParent', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.dataset.canvasMode === 'docked' ? this.parentElement : null
+    })
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      if (this.dataset.testid === 'dock-lane') return rect(0, 0, 300, 100)
+      if (this.dataset.canvasMode === 'docked') return rect(-50, -20, 100, 40)
+      return rect(0, 0, 0, 0)
+    })
+
+    render(
+      <div data-testid="dock-lane">
+        <CanvasItem
+          entry={WIDGET_REGISTRY_BY_ID.github}
+          item={{ id: 'github', mode: 'docked', dock: 'top', order: 0, xPct: 0, yPct: 0 }}
+        >
+          <span>GitHub content</span>
+        </CanvasItem>
+      </div>,
+    )
+
+    const item = screen.getByTestId('canvas-item-github')
+    await waitFor(() => {
+      expect(item.style.transform).toBe('translate(calc(-50% + 50px), calc(-50% + 20px))')
+    })
+    expect(item.style.left).toBe('0%')
+    expect(item.style.top).toBe('0%')
   })
 
   it('keeps normal dock content live and makes only the interior inert during editing', () => {

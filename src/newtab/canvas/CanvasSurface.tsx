@@ -58,14 +58,12 @@ export interface DragGuideSet {
 function DockStrip({
   edge,
   label,
-  legacyChildren,
-  explicitChildren,
+  children,
   guides,
 }: {
   edge: 'top' | 'bottom'
   label: string
-  legacyChildren: ReactNode
-  explicitChildren: ReactNode
+  children: ReactNode
   guides: readonly CanvasGuide[]
 }) {
   return (
@@ -74,8 +72,7 @@ function DockStrip({
       className={edge === 'top' ? 'canvas-top-bar' : 'canvas-bottom-bar'}
     >
       <div className="dock-lane" data-edge={edge}>
-        <div className="dock-lane__legacy" data-edge={edge}>{legacyChildren}</div>
-        <div className="dock-lane__placed">{explicitChildren}</div>
+        {children}
         <GuideOverlay guides={guides} className="edit-guides--dock" />
       </div>
     </nav>
@@ -215,10 +212,10 @@ export default function CanvasSurface({
         <DockStrip
           edge="top"
           label="Top bar"
-          legacyChildren={topDock.filter((item) => item.yPct === undefined).map(renderItem)}
-          explicitChildren={topDock.filter((item) => item.yPct !== undefined).map(renderItem)}
           guides={guideSet?.space === 'top' ? guideSet.guides : []}
-        />
+        >
+          {topDock.map(renderItem)}
+        </DockStrip>
       ) : null}
       <section
         aria-label="Canvas"
@@ -235,10 +232,10 @@ export default function CanvasSurface({
         <DockStrip
           edge="bottom"
           label="Bottom bar"
-          legacyChildren={bottomDock.filter((item) => item.yPct === undefined).map(renderItem)}
-          explicitChildren={bottomDock.filter((item) => item.yPct !== undefined).map(renderItem)}
           guides={guideSet?.space === 'bottom' ? guideSet.guides : []}
-        />
+        >
+          {bottomDock.map(renderItem)}
+        </DockStrip>
       ) : null}
     </div>
   )

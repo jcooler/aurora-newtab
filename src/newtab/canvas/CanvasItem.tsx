@@ -135,19 +135,20 @@ export default function CanvasItem({
     onObjectGeometryChange?.(objectId, rect)
   }, [empty, entry.id, item, objectId, onGeometryChange, onObjectGeometryChange])
 
-  // Edge safety clamp (NL-P6 finding F6). Anchored placements are stored as
-  // PERCENT points while widgets have PIXEL widths, so the same document
-  // opened in a narrower window pushed edge-placed content off-screen. The
-  // offset is recomputed from the item's own live box against its offset
-  // parent, so it self-corrects on resize and vanishes entirely once the
-  // window is roomy again. Storage is never touched and no neighbour moves.
+  // Edge safety clamp (NL-P6 finding F6, DY-P1 review I1). Anchored AND
+  // explicit two-axis dock placements are stored as PERCENT points while
+  // widgets have PIXEL dimensions. The same document opened in a narrower
+  // window, a restored backup, or a legal 0/100 dock point can otherwise
+  // strand painted content beyond its live surface. The correction is
+  // storage-neutral, recomputes on resize, and never moves a neighbour.
   const [clamp, setClamp] = useState({ dx: 0, dy: 0 })
   const clampRef = useRef(clamp)
   clampRef.current = clamp
   useLayoutEffect(() => {
     const node = ref.current
     const surface = node?.offsetParent as HTMLElement | null
-    if (!node || !surface || item.mode !== 'anchored') {
+    const explicitDock = item.mode === 'docked' && item.yPct !== undefined
+    if (!node || !surface || (item.mode !== 'anchored' && !explicitDock)) {
       if (clampRef.current.dx !== 0 || clampRef.current.dy !== 0) setClamp({ dx: 0, dy: 0 })
       return
     }
@@ -163,7 +164,14 @@ export default function CanvasItem({
         top: rect.top - surfaceRect.top - applied.dy,
         bottom: rect.bottom - surfaceRect.top - applied.dy,
       }
-      const next = edgeClampOffset(raw, { width: surfaceRect.width, height: surfaceRect.height })
+      // Canvas placements retain their 8px viewport safety inset. A dock's
+      // band already owns the approved 72px/16px viewport insets, so its
+      // member only needs to stay inside the band itself.
+      const next = edgeClampOffset(
+        raw,
+        { width: surfaceRect.width, height: surfaceRect.height },
+        explicitDock ? 0 : undefined,
+      )
       if (Math.abs(next.dx - applied.dx) > 0.5 || Math.abs(next.dy - applied.dy) > 0.5) {
         setClamp(next)
       }
@@ -192,12 +200,16 @@ export default function CanvasItem({
     position: 'absolute',
     left: `${item.xPct}%`,
     top: `${item.yPct}%`,
-    transform: 'translate(-50%, -50%)',
+    transform: `translate(calc(-50% + ${clamp.dx}px), calc(-50% + ${clamp.dy}px))`,
   } : item.mode === 'docked' ? {
     position: 'relative',
-    gridArea: '1 / 1',
+    gridColumn: '1',
+    gridRow: item.dock === 'top' ? '1' : '2',
     justifySelf: 'start',
-    marginLeft: `${item.xPct}%`,
+    // The immutable legacy lane had 2px inline padding. Express that exact
+    // old content-box percentage against the new full-width shared grid so
+    // mixed legacy/explicit DOM order does not move an absent-Y pixel.
+    marginLeft: `calc(${item.xPct}% + ${2 - item.xPct * 0.04}px)`,
     transform: 'translateX(-50%)',
   } : {
     position: 'relative',

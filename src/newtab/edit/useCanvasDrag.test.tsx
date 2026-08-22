@@ -13,7 +13,10 @@ function rect(left: number, top: number, width: number, height: number): DOMRect
   } as DOMRectReadOnly
 }
 
-function setup(canDock?: (id: BlockId) => boolean) {
+function setup(
+  canDock?: (id: BlockId) => boolean,
+  isDockPeer?: (id: string, dock: 'top' | 'bottom') => boolean,
+) {
   const surface = document.createElement('section')
   const top = document.createElement('nav')
   const bottom = document.createElement('nav')
@@ -41,6 +44,7 @@ function setup(canDock?: (id: BlockId) => boolean) {
     onCancel,
     onZoneChange,
     canDock,
+    isDockPeer,
   }))
   return {
     surface,
@@ -207,6 +211,18 @@ describe('useCanvasDrag two-axis placement state', () => {
       altKey: true,
     })) })
     expect(rendered.result.current.guideSet).toEqual({ space: 'canvas', guides: [] })
+  })
+
+  it('never treats a free canvas widget inside the transparent band as a dock alignment peer', () => {
+    const { surface, itemRects, rendered } = setup(undefined, () => false)
+    itemRects.set('weather', rect(300, 40, 120, 50))
+    act(() => rendered.result.current.startDrag(
+      { kind: 'widget', id: 'clock' },
+      { clientX: 150, clientY: 200, pointerId: 14 },
+    ))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', { clientX: 360, clientY: 65, pointerId: 14 })) })
+
+    expect(rendered.result.current.guideSet?.guides.some((guide) => guide.neighborId === 'weather')).toBe(false)
   })
 
   it('bypasses dock magnetism while Alt is held but keeps the same safety band', () => {

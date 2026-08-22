@@ -44,3 +44,18 @@ export function prepareDyOutputDir(argv, repoRoot, phase) {
   }
   return output
 }
+
+export function assertLegacyScreenshotEquality(baseline, current) {
+  return baseline.map((expected) => {
+    const observed = current.find((candidate) => (
+      candidate.viewport.width === expected.viewport.width
+      && candidate.viewport.height === expected.viewport.height
+    ))
+    const label = `${expected.viewport.width}x${expected.viewport.height}`
+    if (!observed) throw new Error(`${label}: legacy screenshot is missing`)
+    if (observed.screenshotSha256 !== expected.screenshotSha256) {
+      throw new Error(`${label}: legacy screenshot changed`)
+    }
+    return { viewport: expected.viewport, exact: true }
+  })
+}
