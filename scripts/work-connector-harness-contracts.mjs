@@ -141,6 +141,28 @@ export function assertOperationCounts(requestLog, expectedCounts) {
   return Object.fromEntries([...actual.entries()].sort(([a], [b]) => a.localeCompare(b)))
 }
 
+export function assertScenarioOperationCounts(requestLog, expectedCounts) {
+  const auditedScenarios = new Set(
+    Object.keys(expectedCounts).map((key) => key.slice(0, key.lastIndexOf('|'))),
+  )
+  const actual = new Map()
+  for (const request of requestLog) {
+    const scenario = String(request?.scenario ?? '').replace(/^\d+:/, '')
+    if (!auditedScenarios.has(scenario)) continue
+    const operation = request?.bodyKind
+    expect(typeof operation === 'string' && operation.length > 0, `${scenario} request is missing its operation`)
+    const key = `${scenario}|${operation}`
+    actual.set(key, (actual.get(key) ?? 0) + 1)
+  }
+  const keys = new Set([...Object.keys(expectedCounts), ...actual.keys()])
+  for (const key of keys) {
+    const expected = expectedCounts[key] ?? 0
+    const observed = actual.get(key) ?? 0
+    expect(observed === expected, `${key} request count mismatch: ${observed} != ${expected}`)
+  }
+  return Object.fromEntries([...actual.entries()].sort(([a], [b]) => a.localeCompare(b)))
+}
+
 function requestValue(request, field) {
   const value = request[field]
   return typeof value === 'function' ? value.call(request) : value

@@ -8,6 +8,7 @@ import {
   assertAllowedStorageChange,
   assertBuildProvenance,
   assertOperationCounts,
+  assertScenarioOperationCounts,
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
@@ -132,6 +133,27 @@ test('requires the exact provider operation totals', () => {
   assert.doesNotThrow(() => assertOperationCounts(log, { 'linear-identity': 1, 'linear-work': 2 }))
   assert.throws(() => assertOperationCounts(log, { 'linear-identity': 1, 'linear-work': 1 }), /linear-work/)
   assert.throws(() => assertOperationCounts([...log, { bodyKind: 'unexpected' }], { 'linear-identity': 1, 'linear-work': 2 }), /unexpected/)
+})
+
+test('requires exact operation totals inside each audited interaction scenario', () => {
+  const log = [
+    { scenario: '12:settings:linear:connect', bodyKind: 'linear-identity' },
+    { scenario: '12:settings:linear:connect', bodyKind: 'linear-work' },
+    { scenario: '13:seed:linear:standard:loading', bodyKind: 'linear-work' },
+  ]
+  const expected = {
+    'settings:linear:connect|linear-identity': 1,
+    'settings:linear:connect|linear-work': 1,
+  }
+  assert.doesNotThrow(() => assertScenarioOperationCounts(log, expected))
+  assert.throws(
+    () => assertScenarioOperationCounts([...log, { scenario: '12:settings:linear:connect', bodyKind: 'linear-work' }], expected),
+    /settings:linear:connect.*linear-work/,
+  )
+  assert.throws(
+    () => assertScenarioOperationCounts([...log, { scenario: '12:settings:linear:connect', bodyKind: 'unexpected' }], expected),
+    /unexpected/,
+  )
 })
 
 test('the production build emits a commit provenance artifact', async () => {

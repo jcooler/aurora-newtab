@@ -8,6 +8,7 @@ import {
   assertAllowedStorageChange,
   assertBuildProvenance,
   assertOperationCounts,
+  assertScenarioOperationCounts,
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
@@ -142,13 +143,29 @@ const WIDGETS = [
     full: ['Ship Aurora 25', 'Personal', 'Upcoming', 'Recurring'],
   },
 ]
-const EXPECTED_OPERATION_COUNTS = Object.freeze({
+const EXPECTED_CONTROL_OPERATION_COUNTS = Object.freeze({
   'linear-identity': 2,
-  'linear-work': 22,
-  'sentry-issues': 22,
   'todoist-close': 2,
-  'todoist-projects': 23,
-  'todoist-tasks': 21,
+})
+const EXPECTED_INTERACTION_OPERATION_COUNTS = Object.freeze({
+  'settings:linear:connect|linear-identity': 1,
+  'settings:linear:connect|linear-work': 1,
+  'settings:linear:preferences|linear-work': 2,
+  'settings:linear:reconnect|linear-identity': 1,
+  'settings:linear:reconnect|linear-work': 1,
+  'settings:sentry:connect|sentry-issues': 2,
+  'settings:sentry:preferences|sentry-issues': 2,
+  'settings:sentry:reconnect|sentry-issues': 2,
+  'settings:todoist:connect|todoist-projects': 2,
+  'settings:todoist:connect|todoist-tasks': 1,
+  'settings:todoist:preferences|todoist-projects': 2,
+  'settings:todoist:preferences|todoist-tasks': 2,
+  'settings:todoist:reconnect|todoist-projects': 2,
+  'settings:todoist:reconnect|todoist-tasks': 1,
+  'todoist-completion:success|todoist-close': 1,
+  'todoist-completion:success|todoist-projects': 1,
+  'todoist-completion:success|todoist-tasks': 1,
+  'todoist-completion:error|todoist-close': 1,
 })
 
 // Source-visible scenario declarations are part of the witness contract.
@@ -387,7 +404,8 @@ page.on('console', (message) => {
   if (message.type() !== 'error') return
   const text = message.text()
   if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text) ||
-      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && (harnessNavigating || expectedFailedRequests.size > 0))) {
+      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) &&
+        (harnessNavigating || expectedFailedRequests.size > 0 || /:seed:[^:]+:[^:]+:(?:loading|stale)$/.test(activeRequestScenario)))) {
     evidence.expectedFaultSignals.push(`console: ${text}`)
   } else {
     evidence.runtimeErrors.push(`console: ${text}`)
@@ -863,6 +881,7 @@ async function exerciseTodoistCompletion(widget) {
   await page.getByRole('button', { name: 'Complete Ship Aurora 01' }).click()
   await page.getByRole('button', { name: 'Confirm completion' }).click()
   await page.getByRole('alert').filter({ hasText: 'status 500' }).waitFor()
+  await settleProvider(widget.id)
   const path = join(outDir, 'todoist-completion-error.png')
   await page.screenshot({ path, fullPage: true })
   evidence.captures.push({ label: 'todoist-completion-error', path, widget: 'todoist', kind: 'todoist-completion', usefulness: { judgment: 'useful', reason: 'named confirmation retains retryable failure' } })
@@ -918,7 +937,14 @@ for (const request of evidence.requestLog) {
   if (request.url.startsWith('https://api.todoist.com/') && request.authKind !== 'bearer') fail(`Todoist request contract mismatch: ${JSON.stringify(request)}`)
 }
 try {
-  evidence.operationCounts = assertOperationCounts(evidence.requestLog, EXPECTED_OPERATION_COUNTS)
+  evidence.controlOperationCounts = assertOperationCounts(
+    evidence.requestLog.filter((request) => request.bodyKind === 'linear-identity' || request.bodyKind === 'todoist-close'),
+    EXPECTED_CONTROL_OPERATION_COUNTS,
+  )
+  evidence.interactionOperationCounts = assertScenarioOperationCounts(
+    evidence.requestLog,
+    EXPECTED_INTERACTION_OPERATION_COUNTS,
+  )
 } catch (error) {
   fail(error instanceof Error ? error.message : String(error))
 }
