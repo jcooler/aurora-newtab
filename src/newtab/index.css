@@ -644,15 +644,52 @@
   top: 12px;
   right: 50%;
   display: flex;
+  width: max-content;
   max-width: calc(100vw - 24px);
   translate: 50% 0;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 10px;
   padding: 6px 10px;
   border: 1px solid var(--panel-border);
   border-radius: 9999px;
   background: var(--panel-solid);
   box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+.edit-toolbar [aria-label="Hidden in this layout"] {
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+@media (max-width: 900px) {
+  .edit-toolbar {
+    border-radius: 16px;
+  }
+}
+@media (max-width: 640px) {
+  /* The full edit vocabulary cannot fit honestly in one 600px row. Keep the
+     explanatory layout and bulk-size controls together, then give the four
+     session actions a centered second row. Every target stays visible; no
+     hidden horizontal scroller or clipped Save button. */
+  .edit-toolbar {
+    right: 8px;
+    left: 8px;
+    width: auto;
+    max-width: none;
+    translate: 0 0;
+    gap: 6px;
+    border-radius: 16px;
+  }
+  .edit-toolbar > span:last-child {
+    flex: 1 0 100%;
+    justify-content: center;
+  }
+  /* Below the mechanical stack floor, reserve the wrapped toolbar's second
+     row in document flow so the first stacked widget remains reachable. */
+  [data-editing="true"] .canvas-surface--stack {
+    padding-top: 72px;
+  }
 }
 
 /* Dock strips (named-layouts spec 2.4, owner-refined 2026-08-18): a free
@@ -1775,16 +1812,16 @@ select > option {
   --canvas-fg-muted: var(--photo-ink-quote-muted, var(--photo-ink-muted, rgb(245 245 244 / 0.68)));
 }
 
-/* These canvas-only widgets intentionally have no controls. Let pointer hit
-   testing fall through their glyphs to the BoardItem (which still owns the
-   Arrange long-press) instead of masking a neighbouring compact control. */
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="clock"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="worldClocks"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="countdown"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="quote"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="sun"] > *,
-.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="moon"] > *,
+/* These canvas-only widget interiors intentionally have no controls. Let
+   pointer hit testing fall through their glyphs to the CanvasItem without
+   disabling that item's sibling Move and Settings hover controls. */
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="clock"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="greeting"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="worldClocks"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="countdown"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="quote"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="sun"] > :not(.canvas-item-chrome),
+.canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="moon"] > :not(.canvas-item-chrome),
 .canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] > section {
   pointer-events: none;
 }

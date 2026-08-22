@@ -106,4 +106,37 @@ describe('StackInspector', () => {
     expect(indexCss).toMatch(/\.stack-inspector__drag\s*\{[^}]*cursor:\s*grab;/)
     expect(indexCss).toMatch(/\.stack-inspector__icon:disabled\s*\{[^}]*opacity:/)
   })
+
+  it('keeps a tall short-window inspector beside the selected stack instead of covering its dots', () => {
+    const originalWidth = window.innerWidth
+    const originalHeight = window.innerHeight
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1408 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 445 })
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue(rect(0, 0, 280, 381.25) as DOMRect)
+    const callbacks = {
+      onTier: vi.fn(), onLayer: vi.fn(), onReorder: vi.fn(), onRemove: vi.fn(),
+      onMemberPointerDown: vi.fn(), onHide: vi.fn(),
+    }
+
+    try {
+      render(
+        <StackInspector
+          stack={stack}
+          entries={stack.members.map((id) => WIDGET_REGISTRY_BY_ID[id])}
+          anchorRect={rect(650.2578125, 117.25, 445.390625, 255)}
+          overlapLabels={['Greeting', 'Search', 'Focus', 'Links']}
+          {...callbacks}
+        />,
+      )
+      const dialog = screen.getByRole('dialog', { name: 'Weather +2 inspector' })
+      expect(dialog.style.left).toBe('362.2578125px')
+      expect(dialog.style.top).toBe('54.125px')
+      expect(dialog.style.bottom).toBe('')
+    } finally {
+      bounds.mockRestore()
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalWidth })
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: originalHeight })
+    }
+  })
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   VIEWPORT_PANEL_GUTTER,
   anchorPanel,
+  anchorPanelAvoidingAnchor,
   fitPanelSize,
   hugHorizontal,
   type PanelPlacement,
@@ -149,6 +150,26 @@ describe('anchorPanel', () => {
 
     expect(result).toEqual({ left: 368, bottom: 216, maxHeight: 226 })
     expect(viewport.h - bottomOf(result)).toBe(dockTop - VIEWPORT_PANEL_GUTTER)
+  })
+})
+
+describe('anchorPanelAvoidingAnchor', () => {
+  it('moves a clamped tall inspector beside the selected card when horizontal room exists', () => {
+    const anchor = {
+      left: 650.2578125,
+      top: 117.25,
+      right: 1095.6484375,
+      bottom: 372.25,
+      width: 445.390625,
+      height: 255,
+    }
+    const result = anchorPanelAvoidingAnchor(
+      anchor,
+      { w: 280, h: 381.25 },
+      { w: 1408, h: 445 },
+    )
+
+    expect(result).toEqual({ left: 362.2578125, top: 54.125 })
   })
 })
 

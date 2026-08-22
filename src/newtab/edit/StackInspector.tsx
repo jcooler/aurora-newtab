@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import { anchorPanel } from '../../lib/layout/anchor'
+import { anchorPanelAvoidingAnchor } from '../../lib/layout/anchor'
 import { WIDGET_TIERS, type WidgetStack, type WidgetTier } from '../../lib/layout/namedLayouts'
 import type { BlockId } from '../../lib/layout/types'
 import type { WidgetRegistryEntry } from '../widgetRegistry'
@@ -43,7 +43,7 @@ export default function StackInspector({
     w: typeof window === 'undefined' ? 1 : window.innerWidth,
     h: typeof window === 'undefined' ? 1 : window.innerHeight,
   }
-  const position = anchorPanel(anchorRect, { w: 280, h: measuredHeight }, viewport)
+  const position = anchorPanelAvoidingAnchor(anchorRect, { w: 280, h: measuredHeight }, viewport)
   const byId = new Map(entries.map((entry) => [entry.id, entry]))
   const facing = byId.get(stack.facing)
   const title = `${facing?.label ?? 'Widget'} +${Math.max(0, stack.members.length - 1)}`

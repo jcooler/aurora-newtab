@@ -120,3 +120,49 @@ export function anchorPanel(
     ...(maxHeight === undefined ? {} : { maxHeight }),
   }
 }
+
+/** Preserve anchorPanel's established above/below placement whenever it does
+ * not cover the thing that opened it. If a viewport clamp forces the panel
+ * across that anchor, use a side with enough room and vertically center it.
+ * This is intentionally opt-in for tall editing inspectors: ordinary widget
+ * panels retain their existing placement contract. */
+export function anchorPanelAvoidingAnchor(
+  anchorRect: DOMRectReadOnly | { left: number; top: number; right: number; bottom: number; width: number; height: number },
+  panel: Size,
+  viewport: Size,
+): PanelPlacement {
+  const placement = anchorPanel(anchorRect, panel, viewport)
+  const fittedPanel = fitPanelSize(panel, viewport)
+  const panelTop = 'top' in placement
+    ? placement.top
+    : viewport.h - placement.bottom - fittedPanel.h
+  const panelRect = {
+    left: placement.left,
+    top: panelTop,
+    right: placement.left + fittedPanel.w,
+    bottom: panelTop + fittedPanel.h,
+  }
+  const overlaps = panelRect.left < anchorRect.right
+    && panelRect.right > anchorRect.left
+    && panelRect.top < anchorRect.bottom
+    && panelRect.bottom > anchorRect.top
+  if (!overlaps) return placement
+
+  const gap = 8
+  const margin = VIEWPORT_PANEL_GUTTER
+  const left = anchorRect.left - gap - fittedPanel.w
+  const right = anchorRect.right + gap
+  const leftRoom = anchorRect.left - gap - margin
+  const rightRoom = viewport.w - margin - right
+  const leftFits = left >= margin
+  const rightFits = right + fittedPanel.w <= viewport.w - margin
+  if (!leftFits && !rightFits) return placement
+
+  const sideLeft = leftFits && (!rightFits || leftRoom >= rightRoom) ? left : right
+  const maxTop = Math.max(margin, viewport.h - fittedPanel.h - margin)
+  const centeredTop = (anchorRect.top + anchorRect.bottom - fittedPanel.h) / 2
+  return {
+    left: sideLeft,
+    top: Math.min(Math.max(centeredTop, margin), maxTop),
+  }
+}
