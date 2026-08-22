@@ -5,17 +5,17 @@
 // shaped storage, programmatic invariants at every cell, one capture per
 // cell for the per-capture judgment pass (Task 4). Accepted evidence is
 // immutable: every run requires an explicit repository-local scratch path.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
-import { resolveQaOutputDir } from './qa-nl-p6-output.mjs'
+import { prepareQaOutputDir } from './qa-nl-p6-output.mjs'
 
 const repoRoot = process.cwd()
 const dist = resolve('.qa-nl-p6-dist')
 const profileDir = resolve('.playwright-profile-qa-nl-p6')
-const outDir = resolveQaOutputDir(process.argv.slice(2), repoRoot)
+const outDir = prepareQaOutputDir(process.argv.slice(2), repoRoot, { empty: true })
 const headed = process.argv.includes('--headed')
 
 for (const [path, suffix] of [
@@ -26,8 +26,6 @@ for (const [path, suffix] of [
 }
 rmSync(dist, { recursive: true, force: true })
 rmSync(profileDir, { recursive: true, force: true })
-rmSync(outDir, { recursive: true, force: true })
-mkdirSync(outDir, { recursive: true })
 
 const build = spawnSync(process.execPath, [
   resolve('node_modules/vite/bin/vite.js'),

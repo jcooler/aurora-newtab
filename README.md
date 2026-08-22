@@ -76,7 +76,7 @@ direct provider requests only as disclosed below.
 - **Named layouts & live editing** — create and switch layouts, hover a
   widget for Move and Settings, drag it anywhere on the live page, choose
   its Compact/Standard/Full presentation, layer or hide it, and create
-  pixel-positioned top or bottom docks. Save commits the draft; Cancel
+  precisely positioned top or bottom docks. Save commits the draft; Cancel
   restores the exact stored layout. Aurora never changes layouts or
   rearranges authored positions on its own.
 

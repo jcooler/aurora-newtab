@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { resolve } from 'node:path'
-import { resolveQaOutputDir } from './qa-nl-p6-output.mjs'
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { prepareQaOutputDir, resolveQaOutputDir } from './qa-nl-p6-output.mjs'
 
 const repoRoot = resolve('fixture-repo')
 
@@ -42,4 +44,21 @@ test('rejects nested or empty scratch names', () => {
     () => resolveQaOutputDir(['--out-dir=.qa-nl-p6-'], repoRoot),
     /scratch output/,
   )
+})
+
+test('rejects a scratch-named symbolic link or junction before writing', () => {
+  const root = mkdtempSync(join(tmpdir(), 'aurora-qa-output-'))
+  const accepted = join(root, 'accepted-evidence')
+  const redirected = join(root, '.qa-nl-p6-redirected')
+  mkdirSync(accepted)
+  symlinkSync(accepted, redirected, 'junction')
+  try {
+    assert.throws(
+      () => prepareQaOutputDir(['--out-dir=.qa-nl-p6-redirected'], root),
+      /symbolic link or junction/,
+    )
+  } finally {
+    rmSync(redirected, { recursive: true, force: true })
+    rmSync(root, { recursive: true, force: true })
+  }
 })

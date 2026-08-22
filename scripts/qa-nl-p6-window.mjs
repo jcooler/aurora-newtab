@@ -4,17 +4,17 @@
 // inner size; the script MEASURES it and records the truth rather than
 // trusting the request. Interaction smoke on the named-saved scenario:
 // free drag, dock-out-and-back, save round-trip, exact cancel.
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
-import { resolveQaOutputDir } from './qa-nl-p6-output.mjs'
+import { prepareQaOutputDir } from './qa-nl-p6-output.mjs'
 
 const repoRoot = process.cwd()
 const dist = resolve('.qa-nl-p6-dist')
 const profileDir = resolve('.playwright-profile-qa-nl-p6-window')
-const outDir = resolveQaOutputDir(process.argv.slice(2), repoRoot)
+const outDir = prepareQaOutputDir(process.argv.slice(2), repoRoot)
 
 for (const [path, suffix] of [
   [dist, '.qa-nl-p6-dist'],
@@ -23,7 +23,6 @@ for (const [path, suffix] of [
   if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
 }
 rmSync(profileDir, { recursive: true, force: true })
-mkdirSync(outDir, { recursive: true })
 
 if (!existsSync(dist)) {
   const build = spawnSync(process.execPath, [
