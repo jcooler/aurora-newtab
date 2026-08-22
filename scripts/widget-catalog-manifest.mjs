@@ -2,7 +2,8 @@ const KNOWN_WIDGET_IDS = new Set([
   'clock', 'greeting', 'worldClocks', 'countdown', 'search', 'focus', 'links',
   'quote', 'weather', 'timer', 'tasks', 'notes', 'bookmarks', 'rss', 'github',
   'gitlab', 'jira', 'vercel', 'crypto', 'ics', 'habits', 'monthCal', 'sun',
-  'moon', 'status', 'homeassistant',
+  'moon', 'status', 'homeassistant', 'readingList', 'recentlyClosed',
+  'downloads', 'tabGroups',
 ])
 
 const batch = (entries) => Object.freeze(entries.map((entry) => Object.freeze({
@@ -41,6 +42,12 @@ export const CATALOG_BATCHES = Object.freeze({
     { id: 'monthCal', label: 'Month', tiers: ['standard'] },
     { id: 'links', label: 'Quick Links', tiers: ['compact', 'standard'] },
   ]),
+  '3': batch([
+    { id: 'readingList', label: 'Reading List', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'recentlyClosed', label: 'Recently Closed', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'downloads', label: 'Downloads', tiers: ['compact', 'standard', 'full', 'docked'] },
+    { id: 'tabGroups', label: 'Tab Groups', tiers: ['compact', 'standard', 'full', 'docked'] },
+  ]),
 })
 
 export const CATALOG_CONTRACTS = Object.freeze({
@@ -74,12 +81,19 @@ export const CATALOG_CONTRACTS = Object.freeze({
     monthCal: { standard: 'Complete month' },
     links: { compact: 'Primary link action', standard: 'Selected quick links' },
   }),
+  '3': Object.freeze({
+    readingList: { compact: 'Unread count and newest title', standard: 'Unread reading queue', full: 'Unread and recently read pages', docked: 'Unread count and newest title' },
+    recentlyClosed: { compact: 'Latest closed session', standard: 'Recently closed sessions', full: 'All restorable sessions', docked: 'Closed count and latest title' },
+    downloads: { compact: 'Active count and newest filename', standard: 'Active and recent downloads', full: 'All recent download states', docked: 'Active count and newest filename' },
+    tabGroups: { compact: 'Group count and first group', standard: 'Open browser workspaces', full: 'All groups by window', docked: 'Group count and first group' },
+  }),
 })
 
 export const CODED_DOCK_LINES = new Set([
   'weather', 'clock',
   'github', 'gitlab', 'jira', 'vercel', 'status', 'rss', 'crypto',
   'homeassistant', 'ics', 'habits', 'sun', 'moon',
+  'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
 ])
 
 export function captureTiersFor(id, batches = CATALOG_BATCHES) {

@@ -9,9 +9,10 @@ import { WIDGET_SIZE_CONTRACTS } from './widgetSizeContracts'
 import { CATALOG_BATCHES, CATALOG_CONTRACTS, captureTiersFor } from '../../scripts/widget-catalog-manifest.mjs'
 
 const EXPECTED_WIDGET_IDS = [
-  'bookmarks', 'clock', 'countdown', 'crypto', 'focus', 'github', 'gitlab',
+  'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
   'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'links', 'monthCal',
-  'moon', 'notes', 'quote', 'rss', 'search', 'status', 'sun', 'tasks', 'timer',
+  'moon', 'notes', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
+  'status', 'sun', 'tabGroups', 'tasks', 'timer',
   'vercel', 'weather', 'worldClocks',
 ] as const satisfies readonly BlockId[]
 
@@ -60,10 +61,10 @@ describe('expansion widget authorities', () => {
   })
 
   it('captures every free tier and Docked promise exactly once across disjoint batches', () => {
-    const first = CATALOG_BATCHES['1'].map(({ id }) => id)
-    const second = CATALOG_BATCHES['2'].map(({ id }) => id)
-    expect(sorted([...first, ...second])).toEqual([...EXPECTED_WIDGET_IDS])
-    expect(new Set(first.filter((id) => second.includes(id))).size).toBe(0)
+    const batches = Object.values(CATALOG_BATCHES).map((batch) => batch.map(({ id }) => id))
+    const catalogIds = batches.flat()
+    expect(sorted(catalogIds)).toEqual([...EXPECTED_WIDGET_IDS])
+    expect(new Set(catalogIds).size).toBe(catalogIds.length)
 
     for (const id of BLOCK_IDS) {
       const tiers = captureTiersFor(id)

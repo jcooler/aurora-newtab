@@ -29,9 +29,10 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
       .map(([id]) => id)
       .sort()
     expect(docked).toEqual([
-      'bookmarks', 'clock', 'countdown', 'crypto', 'focus', 'github', 'gitlab',
-      'habits', 'homeassistant', 'ics', 'jira', 'moon', 'notes', 'rss',
-      'status', 'sun', 'tasks', 'timer', 'vercel', 'weather', 'worldClocks',
+      'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
+      'habits', 'homeassistant', 'ics', 'jira', 'moon', 'notes', 'readingList',
+      'recentlyClosed', 'rss', 'status', 'sun', 'tabGroups', 'tasks',
+      'timer', 'vercel', 'weather', 'worldClocks',
     ])
     expect(WIDGET_SIZE_CONTRACTS.weather.docked).toBe('Temperature · location · condition')
     expect(WIDGET_SIZE_CONTRACTS.clock.docked).toBe('Time · date')
@@ -40,6 +41,19 @@ describe('Docked tier contracts (NL-P5 batches 1 and 2)', () => {
     expect(WIDGET_SIZE_CONTRACTS.rss.docked).toBe('Top headline')
     expect(WIDGET_SIZE_CONTRACTS.monthCal.docked).toBeUndefined()
     expect(WIDGET_SIZE_CONTRACTS.links.docked).toBeUndefined()
+  })
+
+  it('declares every browser-native widget at Compact, Standard, Full, and Docked', () => {
+    expect(WIDGET_SIZE_CONTRACTS.readingList).toEqual({
+      sizes: ['compact', 'standard', 'full'],
+      compact: 'Unread count and newest title',
+      standard: 'Unread reading queue',
+      full: 'Unread and recently read pages',
+      docked: 'Unread count and newest title',
+    })
+    expect(WIDGET_SIZE_CONTRACTS.recentlyClosed.sizes).toEqual(['compact', 'standard', 'full'])
+    expect(WIDGET_SIZE_CONTRACTS.downloads.sizes).toEqual(['compact', 'standard', 'full'])
+    expect(WIDGET_SIZE_CONTRACTS.tabGroups.sizes).toEqual(['compact', 'standard', 'full'])
   })
 
   it('Month offers only the complete month (batch-2 owner review removed compact)', () => {

@@ -9,25 +9,28 @@ import {
 } from './widget-catalog-manifest.mjs'
 
 const EXPECTED_IDS = [
-  'bookmarks', 'clock', 'countdown', 'crypto', 'focus', 'github', 'gitlab',
+  'bookmarks', 'clock', 'countdown', 'crypto', 'downloads', 'focus', 'github', 'gitlab',
   'greeting', 'habits', 'homeassistant', 'ics', 'jira', 'links', 'monthCal',
-  'moon', 'notes', 'quote', 'rss', 'search', 'status', 'sun', 'tasks', 'timer',
+  'moon', 'notes', 'quote', 'readingList', 'recentlyClosed', 'rss', 'search',
+  'status', 'sun', 'tabGroups', 'tasks', 'timer',
   'vercel', 'weather', 'worldClocks',
 ]
 
-test('covers all 26 identities exactly once across disjoint catalog batches', () => {
-  const first = CATALOG_BATCHES['1'].map(({ id }) => id)
-  const second = CATALOG_BATCHES['2'].map(({ id }) => id)
-  assert.deepEqual([...first, ...second].sort(), EXPECTED_IDS)
-  assert.equal(new Set([...first, ...second]).size, EXPECTED_IDS.length)
-  assert.deepEqual(Object.keys(CATALOG_CONTRACTS['1']), first)
-  assert.deepEqual(Object.keys(CATALOG_CONTRACTS['2']), second)
+test('covers all 30 identities exactly once across disjoint catalog batches', () => {
+  const batches = Object.entries(CATALOG_BATCHES)
+  const ids = batches.flatMap(([, entries]) => entries.map(({ id }) => id))
+  assert.deepEqual(ids.sort(), EXPECTED_IDS)
+  assert.equal(new Set(ids).size, EXPECTED_IDS.length)
+  for (const [batchId, entries] of batches) {
+    assert.deepEqual(Object.keys(CATALOG_CONTRACTS[batchId]), entries.map(({ id }) => id))
+  }
 })
 
 test('returns the declared capture tiers without deriving presentation', () => {
   assert.deepEqual(captureTiersFor('weather'), ['compact', 'standard', 'full', 'docked'])
   assert.deepEqual(captureTiersFor('monthCal'), ['standard'])
   assert.deepEqual(captureTiersFor('moon'), ['compact', 'docked'])
+  assert.deepEqual(captureTiersFor('readingList'), ['compact', 'standard', 'full', 'docked'])
   assert.equal(CODED_DOCK_LINES.has('weather'), true)
   assert.equal(CODED_DOCK_LINES.has('monthCal'), false)
 })

@@ -61,6 +61,12 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
   homeassistant: { x: 87, y: 69 },
   rss: { x: 87, y: 78 },
   crypto: { x: 87, y: 87 },
+  // Browser-native pulse column. These are static starting points, separate
+  // from the connector column, so enabling one never moves another widget.
+  readingList: { x: 72, y: 28 },
+  recentlyClosed: { x: 72, y: 47 },
+  downloads: { x: 72, y: 66 },
+  tabGroups: { x: 72, y: 85 },
 })
 
 /** Work-column connector identities that DEFAULT to their compact glance
@@ -68,6 +74,7 @@ export const DEFAULT_WIDGET_POINTS: Readonly<Record<BlockId, { x: number; y: num
  *  cannot. The user's own tier choices always override defaults. */
 const COMPACT_DEFAULT_IDS: ReadonlySet<BlockId> = new Set([
   'status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto',
+  'readingList', 'recentlyClosed', 'downloads', 'tabGroups',
 ])
 
 /** Default tier mirrors the retired preferred-size rule for the Desktop

@@ -45,6 +45,10 @@ export const WIDGET_SIZE_CONTRACTS: Readonly<Record<BlockId, WidgetSizeContract>
   homeassistant: contract(['compact', 'standard', 'full'], 'Selected entity or action', 'Selected entities and actions', 'Complete selected home composition', 'Selected entity state'),
   rss: contract(['compact', 'standard', 'full'], 'Top headline', 'Selected headlines', 'All selected headlines that fit', 'Top headline'),
   crypto: contract(['compact', 'standard'], 'Primary coin price', 'Selected coin prices', undefined, 'Primary coin price'),
+  readingList: contract(['compact', 'standard', 'full'], 'Unread count and newest title', 'Unread reading queue', 'Unread and recently read pages', 'Unread count and newest title'),
+  recentlyClosed: contract(['compact', 'standard', 'full'], 'Latest closed session', 'Recently closed sessions', 'All restorable sessions', 'Closed count and latest title'),
+  downloads: contract(['compact', 'standard', 'full'], 'Active count and newest filename', 'Active and recent downloads', 'All recent download states', 'Active count and newest filename'),
+  tabGroups: contract(['compact', 'standard', 'full'], 'Group count and first group', 'Open browser workspaces', 'All groups by window', 'Group count and first group'),
   timer: contract(['compact'], 'Timer action', undefined, undefined, 'Timer state'), tasks: contract(['compact'], 'Tasks action', undefined, undefined, 'Tasks action'), notes: contract(['compact'], 'Notes action', undefined, undefined, 'Notes action'),
 })
 

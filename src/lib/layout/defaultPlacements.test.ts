@@ -34,11 +34,33 @@ describe('DEFAULT_WIDGET_POINTS composition contract (QA F1-F5)', () => {
   })
 
   it('work-column connectors default to their compact glance tier; clock leads Full; others Standard', () => {
-    for (const id of ['status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto'] as const) {
+    for (const id of ['status', 'github', 'gitlab', 'jira', 'vercel', 'homeassistant', 'rss', 'crypto', 'readingList', 'recentlyClosed', 'downloads', 'tabGroups'] as const) {
       expect(defaultFreePlacement(id, 0).tier, `${id} defaults compact`).toBe('compact')
     }
     expect(defaultFreePlacement('clock', 0).tier).toBe('full')
     expect(defaultFreePlacement('greeting', 0).tier).toBe('standard')
     expect(defaultFreePlacement('monthCal', 0).tier).toBe('standard')
+  })
+
+  it('adds four distinct static browser-native points without moving existing work points', () => {
+    expect({
+      readingList: DEFAULT_WIDGET_POINTS.readingList,
+      recentlyClosed: DEFAULT_WIDGET_POINTS.recentlyClosed,
+      downloads: DEFAULT_WIDGET_POINTS.downloads,
+      tabGroups: DEFAULT_WIDGET_POINTS.tabGroups,
+    }).toEqual({
+      readingList: { x: 72, y: 28 },
+      recentlyClosed: { x: 72, y: 47 },
+      downloads: { x: 72, y: 66 },
+      tabGroups: { x: 72, y: 85 },
+    })
+    expect(new Set([
+      DEFAULT_WIDGET_POINTS.readingList.y,
+      DEFAULT_WIDGET_POINTS.recentlyClosed.y,
+      DEFAULT_WIDGET_POINTS.downloads.y,
+      DEFAULT_WIDGET_POINTS.tabGroups.y,
+    ]).size).toBe(4)
+    expect(DEFAULT_WIDGET_POINTS.status).toEqual({ x: 87, y: 25 })
+    expect(DEFAULT_WIDGET_POINTS.crypto).toEqual({ x: 87, y: 87 })
   })
 })

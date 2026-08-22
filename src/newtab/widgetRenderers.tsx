@@ -8,6 +8,7 @@ import CalendarWidget from './widgets/calendar/CalendarWidget'
 import WorldClocks from './widgets/clocks/WorldClocks'
 import CountdownLine from './widgets/countdown/CountdownLine'
 import CryptoWidget from './widgets/crypto/CryptoWidget'
+import DownloadsWidget from './widgets/downloads/DownloadsWidget'
 import GithubWidget from './widgets/github/GithubWidget'
 import GitlabWidget from './widgets/gitlab/GitlabWidget'
 import HabitsWidget from './widgets/habits/HabitsWidget'
@@ -18,9 +19,12 @@ import MonthCalWidget from './widgets/monthcal/MonthCalWidget'
 import MoonWidget from './widgets/moon/MoonWidget'
 import NotesWidget from './widgets/notes/NotesWidget'
 import QuoteWidget from './widgets/quote/QuoteWidget'
+import ReadingListWidget from './widgets/readingList/ReadingListWidget'
+import RecentlyClosedWidget from './widgets/recentlyClosed/RecentlyClosedWidget'
 import RssWidget from './widgets/rss/RssWidget'
 import StatusWidget from './widgets/status/StatusWidget'
 import SunWidget from './widgets/sun/SunWidget'
+import TabGroupsWidget from './widgets/tabGroups/TabGroupsWidget'
 import TimerWidget from './widgets/timer/TimerWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
@@ -79,6 +83,10 @@ export const WIDGET_RENDERERS = {
   homeassistant: (props) => <HomeAssistantWidget stageVariant={effectiveVariant(props)} utilityTray={props.utilityTray} docked={props.docked} />,
   rss: (props) => <RssWidget stageVariant={effectiveVariant(props)} docked={props.docked} />,
   crypto: (props) => <CryptoWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  readingList: (props) => <ReadingListWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  recentlyClosed: (props) => <RecentlyClosedWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  downloads: (props) => <DownloadsWidget canvasSize={props.canvasSize} docked={props.docked} />,
+  tabGroups: (props) => <TabGroupsWidget canvasSize={props.canvasSize} docked={props.docked} />,
   timer: ({ onTimerOpenChange }) => <TimerWidget onOpenChange={onTimerOpenChange} />,
   tasks: ({ onTasksOpenChange }) => <TodoWidget onOpenChange={onTasksOpenChange} />,
   notes: ({ onNotesOpenChange }) => <NotesWidget onOpenChange={onNotesOpenChange} />,

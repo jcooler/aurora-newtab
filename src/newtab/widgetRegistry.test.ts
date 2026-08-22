@@ -30,6 +30,10 @@ const EXPECTED = [
   ['homeassistant', 'Home Assistant', 'pulse', 5, 'automatic', ['pulse', 'dock'], 'standard', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['rss', 'Headlines', 'pulse', 6, 'automatic', ['pulse', 'dock'], 'standard', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['crypto', 'Crypto', 'pulse', 7, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 1] }],
+  ['readingList', 'Reading List', 'pulse', 8, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['recentlyClosed', 'Recently Closed', 'pulse', 9, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['downloads', 'Downloads', 'pulse', 10, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
+  ['tabGroups', 'Tab Groups', 'pulse', 11, 'automatic', ['pulse', 'dock'], 'compact', { compact: [1, 1], standard: [2, 2], expanded: [3, 2] }],
   ['timer', 'Timer', 'dock', 0, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
   ['tasks', 'Tasks', 'dock', 1, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
   ['notes', 'Notes', 'dock', 2, 'dock', ['dock'], 'compact', { compact: [1, 1] }],
@@ -47,6 +51,8 @@ const TOGGLE_MAPPING = [
   ['timer', 'timer'], ['quote', 'quote'], ['bookmarks', 'bookmarks'], ['notes', 'notes'],
   ['worldClocks', 'clocks'], ['countdown', 'countdown'], ['habits', 'habits'],
   ['monthCal', 'monthCal'], ['sun', 'sun'], ['moon', 'moon'],
+  ['readingList', 'readingList'], ['recentlyClosed', 'recentlyClosed'],
+  ['downloads', 'downloads'], ['tabGroups', 'tabGroups'],
 ] as const
 
 function settingsWith(widgets: WidgetToggles): Settings {
@@ -192,7 +198,7 @@ describe('source-owned widget registry', () => {
   it('resolves every registry renderer exhaustively with exact key set equality', () => {
     const registryKeys = WIDGET_REGISTRY.map((row) => row.rendererKey)
     expect(WIDGET_RENDERER_KEYS).toEqual(registryKeys)
-    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(26)
+    expect(new Set(WIDGET_RENDERER_KEYS).size).toBe(30)
     for (const key of registryKeys) expect(typeof resolveWidgetRenderer(key), key).toBe('function')
   })
 })

@@ -298,36 +298,36 @@ feat(browser): add Tab Groups widget
 - Modify: `src/settings/SettingsPanel.test.tsx`
 - Modify: affected layout, backup, and fixture exact-set tests
 
-- [ ] **Step 1: Write exact integration failures**
+- [x] **Step 1: Write exact integration failures**
 
 Pin all four identities across BlockId, contracts, registry, renderer, toggle,
 default placement, enabled-id, dock support, and expansion parity. Pin distinct
 static default points and no movement of existing points.
 
-- [ ] **Step 2: Observe integration RED**
+- [x] **Step 2: Observe integration RED**
 
 Run the exact registry/contract/default-placement families. Expected: FAIL on
 the missing identities.
 
-- [ ] **Step 3: Integrate all four identities**
+- [x] **Step 3: Integrate all four identities**
 
 Declare Compact, Standard, Full, and Docked for each. Add static default points
 in the Pulse side of the canvas without changing old literals. Thread existing
 renderer props only; do not add another App owner.
 
-- [ ] **Step 4: Write Settings permission failures**
+- [x] **Step 4: Write Settings permission failures**
 
 For every new switch, assert request is the first async boundary, grant enables
 only that widget, denial/rejection keeps it off with feature-specific copy,
 turning off makes no request, and no other permission is requested.
 
-- [ ] **Step 5: Observe Settings RED and implement**
+- [x] **Step 5: Observe Settings RED and implement**
 
 Add a Browser Settings group and a data-driven exact permission map. Keep the
 existing Bookmarks behavior unchanged. Rerun Settings and integration families
 to GREEN.
 
-- [ ] **Step 6: Commit integration**
+- [x] **Step 6: Commit integration**
 
 Run TypeScript and diff hygiene, then commit:
 
