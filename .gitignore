@@ -68,4 +68,7 @@ output/
 .playwright-profile-qa-nl-p6/
 .playwright-profile-qa-nl-p6-window/
 
+# Focused Weather environmental-enrichment witness scratch.
+.qa-weather-enrichment-*
+
 .playwright-profile-measure/
