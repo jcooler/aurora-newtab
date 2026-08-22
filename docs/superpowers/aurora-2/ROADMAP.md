@@ -200,9 +200,10 @@ The owner-approved authority is [`2026-08-17-aurora-named-layouts-live-canvas-de
 | NL-P6 Product QA | Verified - owner accepted | 124 judged captures over five storage shapes and twelve viewports, exact 1408x445 real-window interaction witness, F9 explicitly accepted as user-owned density. | `1ff6650`, `3e9a003` |
 | NL-P7 Stabilization | Verified as Program A | Warning-free tests, current ledgers, scratch-only QA reruns, one reviewed full gate, and rebuilt `dist`; release restaging remains deferred. | Program A checkpoint |
 | Flow | Verified | One persisted cross-tab timer authority plus the immersive mantra, timer, and top-task screen; exact dashboard restoration, zero layout writes, 148-capture scratch sweep, and exact 1408x445 two-tab witness. | [`2026-08-21-aurora-flow-implementation.md`](../plans/2026-08-21-aurora-flow-implementation.md); `5802e59` |
-| Widget stacks | In progress | User-created cards that hold several existing widget identities and page through one at a time without duplicating data owners or weakening named-layout placement. | [`2026-08-21-aurora-widget-stacks-implementation.md`](../plans/2026-08-21-aurora-widget-stacks-implementation.md) |
+| Widget stacks | Verified | Manual 500ms hold creation, ordered mounted-once members, stable shared footprint, explicit paging, exact edit recovery, and no duplicate data owners. | [`2026-08-21-aurora-widget-stacks-implementation.md`](../plans/2026-08-21-aurora-widget-stacks-implementation.md); `619da14`; [`WIDGET-STACKS-QA.md`](../reports/WIDGET-STACKS-QA.md) |
+| Weather enrichment | In progress | Fill the accepted Weather surfaces with clearer conditions, precipitation timing, compass-readable wind, distinct sun facts, and bounded environmental context without adding a second data owner. | Just-in-time design and plan next |
 
-The active approved sequence is widget stacks, Weather enrichment, the expansion platform, and bounded widget/connector addition waves. Flow is verified; widget stacks is the current packet.
+The active approved sequence is Weather enrichment, the expansion platform, and bounded widget/connector addition waves. Flow and widget stacks are verified; Weather enrichment is the current packet.
 
 ## Program definition of done
 

@@ -83,6 +83,11 @@ direct provider requests only as disclosed below.
   precisely positioned top or bottom docks. Save commits the draft; Cancel
   restores the exact stored layout. Aurora never changes layouts or
   rearranges authored positions on its own.
+- **Widget stacks:** while editing, hold one free widget over another for
+  half a second to create one card with several ordered widgets. Page it with
+  arrows, dots, a horizontal swipe, or Left/Right keys; drag the whole card,
+  reorder or remove members, and Undo or Cancel exactly. Every member keeps
+  its one existing data owner, and the card never auto-rotates or moves itself.
 
 Settings is organized into four tabs: **General** (name/greeting, 24-hour
 clock, widget color, units, mute, background), **Widgets** (per-widget on/off

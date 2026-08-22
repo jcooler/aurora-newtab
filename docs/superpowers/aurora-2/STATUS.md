@@ -1,11 +1,13 @@
 # Aurora 2 Status
 
-**Updated:** 2026-08-21<br>
+**Updated:** 2026-08-22<br>
 **Branch:** `feat/aurora-2-observatory`<br>
 **Worktree:** `D:\DEV\Chrome plugin-aurora-2`<br>
-**Current wave:** Continuous delivery roadmap - widget stacks<br>
-**Last verified packet:** `Flow` - one cross-tab timer authority, immersive focus/timer/task surface, Ready rereview, 148-capture scratch sweep, and exact 1408x445 two-tab witness<br>
-**Current packet:** Widget stacks under `docs/superpowers/plans/2026-08-21-aurora-widget-stacks-implementation.md`; plan checkpoint and implementation are current
+**Current wave:** Continuous delivery roadmap - Weather enrichment<br>
+**Last verified packet:** `Widget stacks` - manual stacks, stable shared footprint, exact edit recovery, Ready rereview, 172-capture full sweep, 24-capture post-fix stack sweep, and exact 1408x445 real-window witness<br>
+**Current packet:** Weather enrichment design and just-in-time implementation plan
+
+- **Widget stacks (2026-08-22, VERIFIED):** Named layouts can now own manual cards with ordered existing widget identities and one stable face. All members mount once in one grid, only the facing member is visible and interactive, and the stored shared tier resolves independently per member so a compact-only face cannot collapse a Full stack. A continuous 500ms editing hold is the only creation path; ordinary overlap stays movement. Users can page with arrows, dots, swipe, or keyboard, drag the whole stack, append a widget, reorder, remove, detach, or dissolve members, and Undo/Cancel remains exact. Normal paging is the one immediate serialized `layouts` write; edit changes stay draft-only. Native `pointercancel` restores the exact pre-preview session and never invokes drop semantics. The bounded review found two Important issues (face-dependent tier collapse and cancel-as-drop); seven observed RED regressions preceded `619da14`, and the one rereview returned Ready with none open. Evidence: 172-cell full scratch matrix, 24-cell post-fix stack rerun, exact 1408x445 DPR 1 nine-stage real-window witness, 161 files / 2,679 tests, TypeScript, 8/8 information-first contracts, 7/7 output-safety contracts, and a 217-module build. Report: `docs/superpowers/reports/WIDGET-STACKS-QA.md`. Manual ceilings are real touch hardware, real screen-reader speech, mixed-DPI pointer cancellation, live connector combinations, and subjective long-session judgment. No Store, permission, manifest, dependency, credential, request-contract, or protected-checkout boundary changed.
 
 - **NL-P5 appearance ink system (2026-08-19, owner-approved all three layers, "soft at rest but white on hover", and the standing directive "let's not develop specifically for black widgets, people may want bright pink" — saved to assistant memory):** The owner-observed mismatch was one base ink at two strengths applied ad hoc (bookmarks/settings gear muted, Tasks/Notes/Timer/weather digits full). Layer 1, the chip law: every one-line chip and dock line rests at the SOFT tier and brightens to full on hover — the three launcher pills flipped to `text-fg-muted hover:text-fg`, `.dock-line` owns its color (muted rest, full hover incl. the wrapper-hover path), and DockLine/weather/clock secondary facts moved from fixed muted classes to RELATIVE 0.68 opacity so they brighten with the line while attention/critical tones keep their tints. Layer 2: `settings.widgetTextColor` — applyInkColors (composed after applyPanelColor; clearing re-derives) overrides `--fg`/`--fg-muted`, the muted tier DERIVING from any pick at the standing 0.68 alpha (`mutedInk`), with an advisory (never blocking) WCAG 4.5 contrast warning against the actual panel color (`contrastRatio`). Layer 3: `settings.photoTextColor` re-inks photograph text via the new `--photo-ink` chain (themes.css routes `--canvas-fg` through it), with per-element `photoClockColor`/`photoGreetingColor`/`photoQuoteColor` overrides scoped per canvas-item var chains, and a dark-pick advisory (luminance floor 0.25). Storage per the STANDING RULE: CURRENT_VERSION 13→14, migrations[13] backfills the five nested nulls, METADATA_ONLY_FLOOR moved to 14 (its rule) with the v11/v12 metadata-only tests rewritten to the full-path reality and the floor guard probe hardened to OMIT an ink field (a defaults-shaped probe would let a non-identity step masquerade), backup isSettings covers all five. Settings UI: the picker machinery extracted to a shared ColorPickerRow (labels/behavior byte-compatible with the widget-color tests); Appearance gained Widget text, Photo text, and a per-element disclosure. The witness proves the system on BRIGHT PINK panels (per the directive) with measured computed colors — chips at the derived muted ink brightening to the full pick on hover, clock override beating the global photo ink, greeting AND quote (measured `rgb(255,215,0)`, correcting my own misreading of the compressed capture) taking it — and CAUGHT one real regression fixed under it: the full-width lane swallowed pointer events across the whole band (Tasks launcher/settings gear unreachable); the strips are now pointer-transparent with only members as hit targets, CSS-pinned. Full `npm test` 154 files / 2545 green, TypeScript clean, `dist` rebuilt, checkpoint `3b6b2cd`. Single-coin crypto (owner: "sometimes people just want one") shipped separately at `e95ba80`.
 
@@ -450,13 +452,13 @@
 
 ## Files intentionally dirty
 
-- None at the Flow checkpoint. Widget stacks begins from the clean pushed baseline.
+- None at the widget-stacks checkpoint. Weather enrichment begins from the clean pushed baseline.
 
 ## Continuous remaining-work protocol
 
-- **Packet:** Widget stacks
-- **Plan:** Execute the just-in-time `docs/superpowers/plans/2026-08-21-aurora-widget-stacks-implementation.md` from the clean pushed Flow checkpoint.
-- **State:** Program A, named-layout NL-P6, and Flow are verified. Widget stacks is approved but unimplemented. Do not mutate Store state.
+- **Packet:** Weather enrichment
+- **Plan:** Write the just-in-time Weather enrichment design and implementation plan from the clean pushed widget-stacks checkpoint.
+- **State:** Program A, named-layout NL-P6, Flow, and widget stacks are verified. Weather enrichment is next. Do not mutate Store state.
 - After each packet's dedicated checkpoint, push, local/upstream equality proof, and clean target/protected-original proof, proceed directly to the next Not started `ROADMAP.md` packet without a new chat handoff or continuation prompt.
 - Before each just-in-time plan, re-read the master specification, `STATUS.md`, `ROADMAP.md`, and `DECISIONS.md`, and revalidate repository provenance and cleanliness.
 - Keep one written packet envelope, one review/fix round, one focused verification set, and one checkpoint per packet. Do not combine packets or skip their gates.
@@ -468,9 +470,9 @@
 ```text
 Worktree: D:\DEV\Chrome plugin-aurora-2
 Branch: feat/aurora-2-observatory
-Starting packet: Widget stacks
-Verified source checkpoint: Flow
-Expected next checkpoint subject: docs: approve the Aurora widget-stacks implementation plan
-Execution: execute stacks, followed by Weather enrichment, the expansion platform, and bounded addition waves without routine continuation prompts.
+Starting packet: Weather enrichment
+Verified source checkpoint: Widget stacks
+Expected next checkpoint subject: docs: approve the Aurora Weather enrichment implementation plan
+Execution: execute Weather enrichment, followed by the expansion platform and bounded addition waves without routine continuation prompts.
 Hard stop: no Chrome Web Store upload, edit/save, submission, publication, distribution, or rollout without contemporaneous explicit approval.
 ```

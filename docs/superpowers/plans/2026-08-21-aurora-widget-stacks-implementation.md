@@ -210,7 +210,7 @@ export interface CleanLayoutsDocumentOptions {
 }
 ```
 
-- [ ] **RED:** Add focused tests that require absent `stacks` to remain absent,
+- [x] **RED:** Add focused tests that require absent `stacks` to remain absent,
   a valid stack to clean canonically, unknown members to drop, bad facing to
   reset, duplicate memberships to keep their first valid stack, conflicts
   with `widgets` to keep the widget placement, duplicate stack ids to drop the
@@ -224,17 +224,17 @@ npx vitest run src/lib/layout/namedLayouts.test.ts
 Expected RED: `NamedLayout` has no `stacks` contract and the cleaner drops the
 field.
 
-- [ ] Implement canonical cleaning in `namedLayouts.ts`. Process `widgets`
+- [x] Implement canonical cleaning in `namedLayouts.ts`. Process `widgets`
   first, then stacks in stored order with one occupied-member set. Never add an
   empty `stacks` array to a document that omitted the field.
-- [ ] **RED:** Add backup tests proving a complete valid stack round-trips,
+- [x] **RED:** Add backup tests proving a complete valid stack round-trips,
   old backups remain exact, and malformed stack structure, unknown members,
   duplicate members, bad geometry, bad tier, bad facing, and duplicate ids are
   rejected with the existing `layouts` reason instead of being laundered.
-- [ ] Make backup validation call
+- [x] Make backup validation call
   `cleanLayoutsDocument(value, { invalidStack: 'reject' })`; runtime resolution
   keeps the default `clean` behavior. Do not change connector redaction.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene:
+- [x] Run focused GREEN, TypeScript, and diff hygiene:
 
 ```powershell
 npx vitest run src/lib/layout/namedLayouts.test.ts src/lib/backup.test.ts src/lib/backupRestore.test.ts
@@ -242,7 +242,7 @@ npx tsc --noEmit
 git diff --check
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add src/lib/layout/namedLayouts.ts src/lib/layout/namedLayouts.test.ts src/lib/backup.ts src/lib/backup.test.ts src/lib/backupRestore.test.ts
@@ -302,31 +302,31 @@ export function removeSelectedStackMember(session: EditSession, memberId: BlockI
 export function detachSelectedStackMember(session: EditSession, memberId: BlockId, point: { xPct: number; yPct: number }, pushUndo?: boolean): EditSession
 ```
 
-- [ ] **RED:** In `stacks.test.ts`, pin create over a widget, append to a
+- [x] **RED:** In `stacks.test.ts`, pin create over a widget, append to a
   stack, wraparound previous/next, direct face jump, reorder boundaries,
   removal with centerward 4% offset, exact survivor dissolution, direct
   detach at pointer position, and dissolve-to-hidden. Assert every input stays
   byte-identical.
-- [ ] Implement `stacks.ts` as pure NamedLayout transformations. Every result
+- [x] Implement `stacks.ts` as pure NamedLayout transformations. Every result
   returns through `cleanLayoutsDocument` at the edit/document boundary; no
   function reads DOM, storage, clocks, registry state, or random ids.
-- [ ] **RED:** Refactor edit-session tests to tagged selection and add one
+- [x] **RED:** Refactor edit-session tests to tagged selection and add one
   undo-entry proofs for create, append, face, reorder, remove, detach,
   dissolve, and Hide. Require move/tier/layer/bulk-tier to address a selected
   stack as one object and `beginEditSession` to skip materializing ids already
   present in stacks.
-- [ ] Update `editSession.ts` with shared selected-geometry helpers. Preserve
+- [x] Update `editSession.ts` with shared selected-geometry helpers. Preserve
   the existing widget function names as compatibility wrappers while changing
   `EditSession.selectedId` to `EditSession.selection`.
-- [ ] **RED:** Add a storage spy requiring rapid normal-mode paging to apply
+- [x] **RED:** Add a storage spy requiring rapid normal-mode paging to apply
   against fresh stored state, touch only `layouts`, preserve `layout`, and do
   nothing when the exact layout or stack no longer exists.
-- [ ] Add `updateStoredStackFacing(storage, layoutId, stackId, command)` in
+- [x] Add `updateStoredStackFacing(storage, layoutId, stackId, command)` in
   `layoutOperations.ts` using `storage.update('layouts', current => ...)` and
   strict cleaning. Never derive a document when the stored value is null.
-- [ ] Update `useEditMode.select` to accept `EditSelection | null` and retain
+- [x] Update `useEditMode.select` to accept `EditSelection | null` and retain
   exact Cancel/Save/focus behavior.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene:
+- [x] Run focused GREEN, TypeScript, and diff hygiene:
 
 ```powershell
 npx vitest run src/lib/layout/stacks.test.ts src/lib/layout/editSession.test.ts src/lib/layout/layoutOperations.test.ts src/newtab/edit/useEditMode.test.tsx
@@ -334,7 +334,7 @@ npx tsc --noEmit
 git diff --check
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add src/lib/layout/stacks.ts src/lib/layout/stacks.test.ts src/lib/layout/editSession.ts src/lib/layout/editSession.test.ts src/lib/layout/layoutOperations.ts src/lib/layout/layoutOperations.test.ts src/newtab/edit/useEditMode.ts src/newtab/edit/useEditMode.test.tsx
@@ -396,34 +396,34 @@ export interface StackCardProps {
 }
 ```
 
-- [ ] **RED:** Add planner tests requiring one item per stack, no separate
+- [x] **RED:** Add planner tests requiring one item per stack, no separate
   member items, exact target geometry/tier/layer, unchanged facing across
   widths and reload-shaped calls, one item below 600px, and no materialization
   of stack members as default widgets. Require a disabled facing member to
   suppress the stack without selecting another face.
-- [ ] Update `planLayoutRender` to consume stack members before the default
+- [x] Update `planLayoutRender` to consume stack members before the default
   widget loop and emit the facing identity plus stable `stack` metadata.
-- [ ] **RED:** Add `StackCard` tests for all members mounted once, one visible
+- [x] **RED:** Add `StackCard` tests for all members mounted once, one visible
   face, centered short face, wrapped arrows, direct dots, 40px swipe with
   release-click suppression, sub-threshold click parity, Left/Right only when
   the card itself holds focus, always-visible edit dots, and no arrow/swipe
   paging in edit mode.
-- [ ] Implement `StackCard` with one CSS grid and event-local swipe state.
+- [x] Implement `StackCard` with one CSS grid and event-local swipe state.
   Controls stop propagation; the face content does not. Use
   `aria-roledescription="widget stack"`, a label such as `Weather, 1 of 3`,
   and explicit Previous/Next names.
-- [ ] **RED:** Add Canvas tests proving all member renderers mount exactly
+- [x] **RED:** Add Canvas tests proving all member renderers mount exactly
   once, all use the stack tier through each member's nearest-supported rule,
   the outer CanvasItem uses `stack:<id>` as its stable React/geometry key, and
   ordinary standalone/docked behavior remains exact.
-- [ ] Route stacks through CanvasSurface and CanvasItem. Keep the facing
+- [x] Route stacks through CanvasSurface and CanvasItem. Keep the facing
   entry's gear action for settings, but label movement/selection as
   `<Facing label> +<remaining count>`.
-- [ ] Add CSS contracts for `display: grid`, shared `grid-area`, hidden face
+- [x] Add CSS contracts for `display: grid`, shared `grid-area`, hidden face
   pointer safety, centered short faces, quiet dots, edge arrows, focus-visible
   treatment, reduced motion, and edit-only visibility. Use only existing
   tokens and do not add an outer card background.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene:
+- [x] Run focused GREEN, TypeScript, and diff hygiene:
 
 ```powershell
 npx vitest run src/lib/layout/renderLayout.test.ts src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/CanvasItem.test.tsx
@@ -431,7 +431,7 @@ npx tsc --noEmit
 git diff --check
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add src/lib/layout/renderLayout.ts src/lib/layout/renderLayout.test.ts src/newtab/canvas/StackCard.tsx src/newtab/canvas/StackCard.test.tsx src/newtab/canvas/CanvasSurface.tsx src/newtab/canvas/CanvasSurface.test.tsx src/newtab/canvas/CanvasItem.tsx src/newtab/canvas/CanvasItem.test.tsx src/newtab/index.css
@@ -469,37 +469,37 @@ export interface CanvasDragDrop {
 }
 ```
 
-- [ ] **RED:** Extend drag-hook tests with fake time: a widget held over a
+- [x] **RED:** Extend drag-hook tests with fake time: a widget held over a
   free target for 499ms is unmarked, at 500ms is marked, leaving clears it,
   entering a dock clears it, changing targets restarts the clock, drop returns
   only the currently marked target, and a stack subject never becomes a stack
   source. Move/up listeners must clean up after inspector-origin member drags.
-- [ ] Generalize `useCanvasDrag` to tagged subjects, document-level move/up
+- [x] Generalize `useCanvasDrag` to tagged subjects, document-level move/up
   listeners, target hit testing against the live geometry map, and one owned
   timeout. Preserve pointer capture, snapping, dock bands, and one-first-move
   semantics for standalone widgets.
-- [ ] **RED:** Add StackInspector tests for title `Weather +2`, one shared Size
+- [x] **RED:** Add StackInspector tests for title `Weather +2`, one shared Size
   group, Layer controls, ordered member rows, disabled boundary arrows, Remove,
   drag-out handle names, and Hide. Do not render Restore defaults for stacks.
-- [ ] Implement StackInspector using the current inspector visual language:
+- [x] Implement StackInspector using the current inspector visual language:
   labelled rows, joined controls, quiet footer, and no extra modal. Increase
   panel height through measured content and `anchorPanel`; do not hardcode it
   over the selected card.
-- [ ] **RED:** Add App interaction tests proving: 500ms hold creates and faces
+- [x] **RED:** Add App interaction tests proving: 500ms hold creates and faces
   the dragged widget; no hold leaves overlap; dropping onto a stack appends;
   a stack drag moves the whole card; member-handle drag detaches one member;
   two-member detach dissolves; dot paging in edit creates one undo entry;
   Cancel writes nothing; Save/reload preserves exact `stacks`; and normal
   arrow paging writes only `layouts` while reaching the widget's own click on
   a plain click.
-- [ ] Integrate stable object geometry keys in App. The target outline and
+- [x] Integrate stable object geometry keys in App. The target outline and
   `Stack with <label>` label render only while the 500ms target is marked.
   Dock zones remain unavailable for stack subjects; standalone widgets keep
   their existing dock eligibility behavior.
-- [ ] Feed stack inspector overlap labels from the one card rect. Treat each
+- [x] Feed stack inspector overlap labels from the one card rect. Treat each
   other stack or free widget as one box and never compare hidden or docked
   members.
-- [ ] Run focused GREEN, TypeScript, and diff hygiene:
+- [x] Run focused GREEN, TypeScript, and diff hygiene:
 
 ```powershell
 npx vitest run src/newtab/edit/useCanvasDrag.test.tsx src/newtab/edit/StackInspector.test.tsx src/newtab/edit/WidgetInspector.test.tsx src/newtab/App.test.tsx
@@ -507,7 +507,7 @@ npx tsc --noEmit
 git diff --check
 ```
 
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add src/newtab/edit/useCanvasDrag.ts src/newtab/edit/useCanvasDrag.test.tsx src/newtab/edit/StackInspector.tsx src/newtab/edit/StackInspector.test.tsx src/newtab/edit/WidgetInspector.tsx src/newtab/App.tsx src/newtab/App.test.tsx src/newtab/index.css
@@ -527,24 +527,24 @@ git commit -m "feat(stacks): create and edit stacks on canvas"
 **Produces:** One new saved `stacks` scenario across all twelve viewports and
 one real-window interaction sequence. Accepted NL-P6 files remain unchanged.
 
-- [ ] **RED:** Add a script-contract test or deliberate harness assertion that
+- [x] **RED:** Add a script-contract test or deliberate harness assertion that
   fails because no `stacks` scenario exists. The fixture must contain a
   three-member Standard stack with Month, Weather, and Quote, facing Quote,
   plus at least one standalone and one docked widget.
-- [ ] Add the scenario without changing existing scenario bytes. At each cell
+- [x] Add the scenario without changing existing scenario bytes. At each cell
   assert one stack card, three mounted members, one visible facing member,
   exact stored facing, no duplicate standalone member wrappers, no zero box,
   no offscreen card, and no page overflow.
-- [ ] **RED:** Add real-browser interaction assertions for constant card
+- [x] **RED:** Add real-browser interaction assertions for constant card
   width/height across all three faces, wraparound arrows, dot jump, Weather
   click parity, 40px swipe without face click, keyboard paging, immediate
   `layouts`-only persistence, reload continuity, and edit-mode dot draft with
   exact Cancel.
-- [ ] Add 500ms hold creation and sub-500ms deliberate-overlap controls to the
+- [x] Add 500ms hold creation and sub-500ms deliberate-overlap controls to the
   exact 1408x445 real OS-window witness. Add member reorder/remove/dissolve and
   one-Undo checks where stable automation can observe them without replacing
   the required human judgment.
-- [ ] Run the development matrix to ignored scratch output, inspect every new
+- [x] Run the development matrix to ignored scratch output, inspect every new
   original-resolution stack capture, and record defects rather than grading
   mere render success as useful:
 
@@ -553,11 +553,11 @@ node scripts/qa-nl-p6.mjs --out=.qa-widget-stacks-sweep
 node scripts/qa-nl-p6-window.mjs --out=.qa-widget-stacks-window
 ```
 
-- [ ] Require zero failures, runtime errors, unexpected failed requests,
+- [x] Require zero failures, runtime errors, unexpected failed requests,
   legacy `layout` writes, and cancelled-session writes. Keep authentic network,
   real touch hardware, and real screen-reader behavior as explicit manual
   ceilings.
-- [ ] Commit only source and harness changes, never scratch output:
+- [x] Commit only source and harness changes, never scratch output:
 
 ```powershell
 git add scripts/qa-nl-p6-scenarios.mjs scripts/qa-nl-p6.mjs scripts/qa-nl-p6-window.mjs scripts/qa-nl-p6-output.test.mjs
@@ -575,14 +575,14 @@ git commit -m "test(stacks): prove stack behavior in Chromium"
 - Modify: `docs/superpowers/aurora-2/DECISIONS.md`
 - Modify: `README.md`
 
-- [ ] Request one independent bounded review of the complete stack range. Give
+- [x] Request one independent bounded review of the complete stack range. Give
   the reviewer the approved stack spec, this plan, exact base/head, frozen
   boundaries, test commands, scratch evidence locations, and a Critical /
   Important / Minor reporting contract.
-- [ ] If the review finds confirmed Critical or Important issues, add one
+- [x] If the review finds confirmed Critical or Important issues, add one
   focused failing regression per issue, apply one fix commit, and request one
   rereview of only that fix range. Ledger Minor observations without churn.
-- [ ] Rebuild `dist` from the exact reviewed commit, then run one stabilized
+- [x] Rebuild `dist` from the exact reviewed commit, then run one stabilized
   packet gate:
 
 ```powershell
@@ -594,16 +594,16 @@ npm run build
 git diff --check
 ```
 
-- [ ] Rerun the stack sweep and real-window witness only if the review changed
+- [x] Rerun the stack sweep and real-window witness only if the review changed
   stack behavior or QA assertions. Otherwise preserve the already reviewed
   evidence and do not create verification churn.
-- [ ] Inspect the stack captures at 599x800, 600x800, 720x900, 1024x600,
+- [x] Inspect the stack captures at 599x800, 600x800, 720x900, 1024x600,
   exact 1408x445, 1600x900, 1920x550, and 3440x1440. Record per-capture
   usefulness and the swipe experiment verdict in `WIDGET-STACKS-QA.md`.
-- [ ] Record A2-D064: stacks are manual canvas placements with stable facing,
+- [x] Record A2-D064: stacks are manual canvas placements with stable facing,
   constant tallest-member footprint, serialized normal paging, draft-only edit
   changes, and no Smart surfacing or docked stacks.
-- [ ] Mark every completed checkbox, update STATUS/ROADMAP/README truthfully,
+- [x] Mark every completed checkbox, update STATUS/ROADMAP/README truthfully,
   and commit the packet checkpoint:
 
 ```powershell
@@ -612,29 +612,29 @@ git commit -m "docs: checkpoint Aurora widget stacks"
 git push origin feat/aurora-2-observatory
 ```
 
-- [ ] Prove active HEAD equals upstream with a clean worktree, prove the
+- [x] Prove active HEAD equals upstream with a clean worktree, prove the
   protected checkout remains clean at `eb1354b6`, and proceed directly to the
   Weather enrichment just-in-time design/plan without a routine continuation
   prompt.
 
 ## Self-review checklist
 
-- [ ] Spec sections 1-9 each map to a task above.
-- [ ] Every production and harness behavior names its focused RED before its
+- [x] Spec sections 1-9 each map to a task above.
+- [x] Every production and harness behavior names its focused RED before its
   implementation step.
-- [ ] Every function and type consumed by a later task is defined by an earlier
+- [x] Every function and type consumed by a later task is defined by an earlier
   task.
-- [ ] One-place cleaning, strict backup rejection, exact old-document loading,
+- [x] One-place cleaning, strict backup rejection, exact old-document loading,
   and no version bump are all explicit.
-- [ ] Constant footprint, short-face centering, all paging paths, click parity,
+- [x] Constant footprint, short-face centering, all paging paths, click parity,
   and no edit-mode swipe are all explicit.
-- [ ] Hold creation, ordinary overlap, append, reorder, remove, direct detach,
+- [x] Hold creation, ordinary overlap, append, reorder, remove, direct detach,
   dissolve, Hide, and one-entry undo are all explicit.
-- [ ] Normal paging and edit-mode persistence laws are independently tested.
-- [ ] Narrow-floor, short-height, exact 1408x445, and reload evidence are all
+- [x] Normal paging and edit-mode persistence laws are independently tested.
+- [x] Narrow-floor, short-height, exact 1408x445, and reload evidence are all
   required.
-- [ ] Smart surfacing, docked stacks, Weather enrichment, new widgets,
+- [x] Smart surfacing, docked stacks, Weather enrichment, new widgets,
   dependencies, permissions, release packaging, and Store actions remain out
   of scope.
-- [ ] Placeholder scan finds no unresolved marker language or unspecified
+- [x] Placeholder scan finds no unresolved marker language or unspecified
   error-handling step.
