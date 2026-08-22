@@ -159,6 +159,7 @@ const evidence = {
   contactSheets: [],
   requestLog: [],
   storageWrites: [],
+  settingsStates: [],
   permissionCalls: [],
   expectedFaultSignals: [],
   expectedRequestAborts: [],
@@ -470,6 +471,28 @@ async function storageCheckpoint() {
   })
 }
 
+async function recordSettingsState(label, id) {
+  const state = await page.evaluate(async (connectorId) => {
+    const { connectors, connectorSnapshots } = await chrome.storage.local.get(['connectors', 'connectorSnapshots'])
+    const connector = connectors?.[connectorId]
+    return {
+      connector: connector ? {
+        present: true,
+        enabled: connector.enabled === true,
+        hasToken: typeof connector.token === 'string' && connector.token.length > 0,
+        snapshotEpoch: connector.snapshotEpoch ?? null,
+        teamIds: connector.teamIds ?? null,
+        projectSlugs: connector.projectSlugs ?? null,
+        projectIds: connector.projectIds ?? null,
+        itemLimit: connector.itemLimit ?? null,
+      } : { present: false },
+      snapshotPresent: Boolean(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, connectorId)),
+    }
+  }, id)
+  evidence.settingsStates.push({ label, widget: id, ...state })
+  return state
+}
+
 async function assertStorageStep(label, before, allowedKeys) {
   const after = await storageCheckpoint()
   try {
@@ -637,6 +660,7 @@ async function exerciseSettings(widget) {
         : { projectIds: current.projectIds, itemLimit: current.itemLimit }
     await chrome.storage.local.set({ connectors: { ...connectors, [id]: { enabled: true, ...identity, ...staleAccountPicks } } })
   }, widget.id)
+  await recordSettingsState(`${widget.id}-stripped`, widget.id)
   await reloadForHarness()
   await waitForSurface()
   await openConnectors()
@@ -646,6 +670,7 @@ async function exerciseSettings(widget) {
   await reconnectRegion.waitFor()
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
+  await recordSettingsState(`${widget.id}-before-reconnect`, widget.id)
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
     const connector = connectors?.[id]
@@ -654,7 +679,9 @@ async function exerciseSettings(widget) {
     if (id === 'sentry') return !connector.projectSlugs?.includes('api')
     return true
   }), widget.id)
+  await page.waitForTimeout(250)
   await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
+  await recordSettingsState(`${widget.id}-after-reconnect`, widget.id)
   const reconnected = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors[id]), widget.id)
   if (widget.id === 'linear' && reconnected.teamIds?.includes('ops')) fail('linear: reconnect retained stale account-scoped team ids')
   if (widget.id === 'sentry' && reconnected.projectSlugs?.includes('api')) fail('sentry: reconnect retained stale account-scoped project slugs')
@@ -664,7 +691,9 @@ async function exerciseSettings(widget) {
   await page.waitForFunction((id) => chrome.storage.local.get(['connectors', 'connectorSnapshots']).then(({ connectors, connectorSnapshots }) => (
     connectors?.[id] === undefined && !(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
   )), widget.id)
+  await page.waitForTimeout(250)
   await assertStorageStep(`${widget.id}-settings-disconnect`, beforeDisconnect, ['connectors', 'connectorSnapshots'])
+  await recordSettingsState(`${widget.id}-after-disconnect`, widget.id)
   const disconnectedSnapshotPresent = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => (
     Boolean(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
   )), widget.id)
