@@ -387,7 +387,7 @@ page.on('console', (message) => {
   if (message.type() !== 'error') return
   const text = message.text()
   if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text) ||
-      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequests.size > 0)) {
+      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && (harnessNavigating || expectedFailedRequests.size > 0))) {
     evidence.expectedFaultSignals.push(`console: ${text}`)
   } else {
     evidence.runtimeErrors.push(`console: ${text}`)
@@ -398,7 +398,7 @@ page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
+  if (harnessNavigating || isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
     evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
   } else if (!url.startsWith('chrome-extension://')) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
@@ -471,6 +471,10 @@ async function reloadForHarness() {
   await harvestPermissionCalls()
   try {
     await page.reload({ waitUntil: 'domcontentloaded' })
+    // Keep the navigation boundary open through the old document's deferred
+    // request-abort events. Chromium can deliver those just after the new
+    // document reaches DOMContentLoaded.
+    await page.waitForTimeout(100)
   } finally {
     harnessNavigating = false
   }
