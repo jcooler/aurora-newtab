@@ -1,4 +1,4 @@
-import { anchorPanel } from '../../lib/layout/anchor'
+import { anchorPanel, VIEWPORT_PANEL_GUTTER, type PanelPlacement } from '../../lib/layout/anchor'
 import type { NamedLayoutPlacement, WidgetTier } from '../../lib/layout/namedLayouts'
 import { dockedRenderSize, dockSizeVaries, type WidgetRegistryEntry } from '../widgetRegistry'
 
@@ -9,6 +9,38 @@ const TIER_LABELS: Readonly<Record<WidgetTier, string>> = {
 }
 
 const PANEL_SIZE = { w: 248, h: 264 }
+
+function avoidToolbar(
+  placement: PanelPlacement,
+  toolbarRect: DOMRectReadOnly | undefined,
+  viewport: { w: number; h: number },
+  panelSize: { w: number; h: number },
+): PanelPlacement {
+  if (!toolbarRect) return placement
+  const top = 'top' in placement
+    ? placement.top
+    : viewport.h - placement.bottom - panelSize.h
+  const panel = {
+    left: placement.left,
+    top,
+    right: placement.left + panelSize.w,
+    bottom: top + panelSize.h,
+  }
+  const overlaps = panel.left < toolbarRect.right
+    && panel.right > toolbarRect.left
+    && panel.top < toolbarRect.bottom
+    && panel.bottom > toolbarRect.top
+  if (!overlaps) return placement
+
+  const gap = 8
+  const below = toolbarRect.bottom + gap
+  if (below + panelSize.h <= viewport.h - VIEWPORT_PANEL_GUTTER) {
+    return { left: placement.left, top: below }
+  }
+  const above = toolbarRect.top - gap - panelSize.h
+  if (above >= VIEWPORT_PANEL_GUTTER) return { left: placement.left, top: above }
+  return placement
+}
 
 /** The small floating inspector beside the selected widget (named-layouts
  *  spec 2.5): tier, layer forward/backward, hide, restore defaults, plus the
@@ -23,6 +55,7 @@ export default function WidgetInspector({
   entry,
   placement,
   anchorRect,
+  toolbarRect,
   overlapLabels,
   onTier,
   onLayer,
@@ -32,6 +65,7 @@ export default function WidgetInspector({
   entry: WidgetRegistryEntry
   placement: NamedLayoutPlacement
   anchorRect: DOMRectReadOnly
+  toolbarRect?: DOMRectReadOnly
   overlapLabels: readonly string[]
   onTier: (tier: WidgetTier) => void
   onLayer: (direction: 'forward' | 'backward') => void
@@ -42,15 +76,28 @@ export default function WidgetInspector({
     w: typeof window === 'undefined' ? 1 : window.innerWidth,
     h: typeof window === 'undefined' ? 1 : window.innerHeight,
   }
-  const position = anchorPanel(anchorRect, PANEL_SIZE, viewport)
   const free = placement.kind === 'free'
   const docked = placement.kind === 'docked'
+  // The free inspector owns layer controls and is the full design height;
+  // docked variants are much shorter. Collision decisions use the variant
+  // that is actually rendered, so a 163px Bookmarks panel is not rejected by
+  // a fictional 264px box in short desktop windows.
+  const sizeRow = free || (docked && entry.canvasSizes.length > 1 && dockSizeVaries(entry))
+  const panelSize = {
+    w: PANEL_SIZE.w,
+    h: free ? PANEL_SIZE.h : sizeRow ? 164 : 124,
+  }
+  const position = avoidToolbar(
+    anchorPanel(anchorRect, panelSize, viewport),
+    toolbarRect,
+    viewport,
+    panelSize,
+  )
   // Docked members size within the strip too (owner direction 2026-08-18:
   // docked Bookmarks compact = the one-letter mark bar); the checked radio
   // reflects the stored choice or the widget's docked default.
   // A docked Size row only where size actually changes the strip form —
   // offering dead radios on every docked widget would be lying UI.
-  const sizeRow = free || (docked && entry.canvasSizes.length > 1 && dockSizeVaries(entry))
   const checkedTier = free
     ? placement.tier
     : docked

@@ -67,6 +67,14 @@ describe('Retired stage machinery is deleted, not merely unreachable (NL-P2)', (
     expect(indexCss).not.toContain('var(--stage-control-target)')
   })
 
+  it('keeps the selected inspector above the compact fixed edit toolbar', () => {
+    const inspector = declarationBlock('.edit-inspector')
+    expect(inspector).toMatch(/z-index:\s*70\s*;/)
+    expect(inspector).toMatch(/pointer-events:\s*none\s*;/)
+    expect(declarationBlock('.edit-inspector :is(button, input, select, textarea, a, summary)'))
+      .toMatch(/pointer-events:\s*auto\s*;/)
+  })
+
   it('fits the unconfigured Weather controls inside a compact finite allocation', () => {
     const wrapper = declarationBlock('.canvas-item[data-canvas-size="compact"]:not([data-canvas-mode="docked"])[data-block-id="weather"] > section:has(input[aria-label="Search for a city"]) > div')
     expect(wrapper).toMatch(/padding:\s*4px\s*;/)

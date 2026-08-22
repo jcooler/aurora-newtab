@@ -557,7 +557,12 @@ function AuroraApp() {
     const widgetPlacement = renderedLayout.widgets[entry.id]
     return widgetPlacement?.kind === 'docked' && widgetPlacement.dock === 'top'
   })
-  const toolbarTopOffset = session && hasTopDock ? 64 : undefined
+  const toolbarTopOffset = session && hasTopDock
+    ? (() => {
+        const band = fallbackDockBandRect('top', viewport)
+        return band.top + band.height + 8
+      })()
+    : undefined
 
   return (
     <main
@@ -709,6 +714,7 @@ function AuroraApp() {
               entry={entry}
               placement={placement}
               anchorRect={anchorRect}
+              toolbarRect={document.querySelector<HTMLElement>('.edit-toolbar')?.getBoundingClientRect()}
               overlapLabels={overlapLabels}
               onTier={(tier) => editMode.dispatch((current) => setSelectedTier(current, tier))}
               onLayer={(direction) => editMode.dispatch((current) => stepSelectedLayer(current, direction))}

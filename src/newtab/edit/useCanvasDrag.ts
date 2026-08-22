@@ -149,6 +149,9 @@ export function useCanvasDrag(input: {
     let holdTimer: number | null = null
     let candidateKey: string | null = null
     let markedTarget: StackDropTarget | null = null
+    let previewFrame: number | null = null
+    let lastPointer: { clientX: number; clientY: number; altKey: boolean } | null = null
+    let lastMeasuredSize = { width: originRect.width, height: originRect.height }
 
     const dockable = subject.kind === 'widget'
       ? inputRef.current.canDock?.(subject.id) ?? true
@@ -202,6 +205,10 @@ export function useCanvasDrag(input: {
       document.removeEventListener('pointerup', finish)
       document.removeEventListener('pointercancel', cancelFromPointer)
       dragSurface.removeEventListener('lostpointercapture', cancelFromPointer)
+      if (previewFrame !== null) {
+        window.cancelAnimationFrame(previewFrame)
+        previewFrame = null
+      }
       try {
         dragSurface.releasePointerCapture?.(start.pointerId)
       } catch {
@@ -232,20 +239,42 @@ export function useCanvasDrag(input: {
       cancelActive()
     }
 
-    function onMove(event: PointerEvent) {
-      if (!active || event.pointerId !== start.pointerId) return
-      event.preventDefault()
+    function schedulePresentationRefresh() {
+      if (previewFrame !== null) return
+      previewFrame = window.requestAnimationFrame(() => {
+        previewFrame = null
+        if (!active || !lastPointer) return
+        const rect = inputRef.current.getItemRects().get(sourceKey)
+        const sizeChanged = rect
+          ? Math.abs(rect.width - lastMeasuredSize.width) > 0.1
+            || Math.abs(rect.height - lastMeasuredSize.height) > 0.1
+          : false
+        // Docking and undocking replace a card with a differently-sized
+        // presentation. React paints that replacement after the pointermove;
+        // converge the still-held preview on the next frame so pointerup does
+        // not visibly jump to geometry the user was never shown.
+        if (sizeChanged) previewAt(lastPointer)
+        // Pointermove bursts can finish before React commits the final
+        // presentation swap. Keep one cheap rect read alive while held; it
+        // dispatches nothing unless the painted dimensions actually change.
+        schedulePresentationRefresh()
+      })
+    }
+
+    function previewAt(pointerEvent: { clientX: number; clientY: number; altKey: boolean }) {
+      if (!active) return
       const surfaceRect = dragSurface.getBoundingClientRect()
       const liveRect = inputRef.current.getItemRects().get(sourceKey) ?? originRect
       const member = {
         width: liveRect.width,
         height: liveRect.height,
       }
+      lastMeasuredSize = member
       const topBand = bandRect('top', surfaceRect)
       const bottomBand = bandRect('bottom', surfaceRect)
-      const nextZone = dockable && contains(topBand, event.clientX, event.clientY)
+      const nextZone = dockable && contains(topBand, pointerEvent.clientX, pointerEvent.clientY)
         ? 'top'
-        : dockable && contains(bottomBand, event.clientX, event.clientY)
+        : dockable && contains(bottomBand, pointerEvent.clientX, pointerEvent.clientY)
           ? 'bottom'
           : null
       setZone(nextZone)
@@ -268,17 +297,17 @@ export function useCanvasDrag(input: {
           })
         }
         const snapped = snapDockPoint({
-          pointer: { x: event.clientX, y: event.clientY },
+          pointer: { x: pointerEvent.clientX, y: pointerEvent.clientY },
           pointerOffsetRatio,
           member,
           band,
           neighbors,
-          bypassMagnetism: Boolean(event.altKey),
+          bypassMagnetism: pointerEvent.altKey,
         })
         lastPlacement = { kind: 'dock', dock: nextZone, point: snapped.point }
         setGuideSet({ space: nextZone, guides: snapped.guides })
       } else {
-        armStackHold(stackCandidateAt(event.clientX, event.clientY))
+        armStackHold(stackCandidateAt(pointerEvent.clientX, pointerEvent.clientY))
         const neighbors: SnapNeighbor[] = []
         for (const [neighborId, rect] of inputRef.current.getItemRects()) {
           if (neighborId === sourceKey) continue
@@ -291,15 +320,15 @@ export function useCanvasDrag(input: {
           })
         }
         const pointer = {
-          x: event.clientX - surfaceRect.left,
-          y: event.clientY - surfaceRect.top,
+          x: pointerEvent.clientX - surfaceRect.left,
+          y: pointerEvent.clientY - surfaceRect.top,
         }
         const pointerOffset = {
           x: pointerOffsetRatio.x * member.width,
           y: pointerOffsetRatio.y * member.height,
         }
         const bounds = { width: surfaceRect.width, height: surfaceRect.height, inset: 8 }
-        const snapped = event.altKey
+        const snapped = pointerEvent.altKey
           ? {
               ...clampCanvasTopLeft({
                 left: pointer.x - pointerOffset.x,
@@ -321,10 +350,22 @@ export function useCanvasDrag(input: {
       const first = !moved
       moved = true
       inputRef.current.onPreviewMove(subject, lastPlacement, first, {
+        clientX: pointerEvent.clientX,
+        clientY: pointerEvent.clientY,
+        altKey: pointerEvent.altKey,
+      })
+      schedulePresentationRefresh()
+    }
+
+    function onMove(event: PointerEvent) {
+      if (!active || event.pointerId !== start.pointerId) return
+      event.preventDefault()
+      lastPointer = {
         clientX: event.clientX,
         clientY: event.clientY,
         altKey: Boolean(event.altKey),
-      })
+      }
+      previewAt(lastPointer)
     }
 
     function finish(event: PointerEvent) {

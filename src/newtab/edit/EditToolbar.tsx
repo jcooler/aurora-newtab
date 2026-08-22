@@ -75,19 +75,22 @@ export default function EditToolbar({
         ))}
       </span>
       {hiddenWidgets.length > 0 ? (
-        <span role="group" aria-label="Hidden in this layout" className="flex items-center gap-1">
-          {hiddenWidgets.map(({ id, label: widgetLabel }) => (
-            <button
-              key={id}
-              type="button"
-              className={button}
-              aria-label={`Show ${widgetLabel}`}
-              onClick={() => onRestoreHidden?.(id)}
-            >
-              Show {widgetLabel}
-            </button>
-          ))}
-        </span>
+        <details className="edit-toolbar__hidden">
+          <summary className={button}>Hidden {hiddenWidgets.length}</summary>
+          <span role="group" aria-label="Hidden in this layout" className="edit-toolbar__hidden-menu">
+            {hiddenWidgets.map(({ id, label: widgetLabel }) => (
+              <button
+                key={id}
+                type="button"
+                className={button}
+                aria-label={`Show ${widgetLabel}`}
+                onClick={() => onRestoreHidden?.(id)}
+              >
+                Show {widgetLabel}
+              </button>
+            ))}
+          </span>
+        </details>
       ) : null}
       <span className="flex items-center gap-1">
         <button type="button" className={button} disabled={session.past.length === 0} onClick={onUndo}>

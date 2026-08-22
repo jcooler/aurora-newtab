@@ -959,6 +959,32 @@ describe('App Canvas composition', () => {
     expect(screen.getByRole('button', { name: 'Undo' }).hasAttribute('disabled')).toBe(true)
   })
 
+  it('places the edit toolbar below the full live top dock band', async () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1408 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 445 })
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    await storage.set('layouts', {
+      version: 1,
+      activeLayoutId: 'top-dock-access',
+      layouts: [{
+        id: 'top-dock-access',
+        name: 'Top dock access',
+        widgets: {
+          weather: { kind: 'docked', dock: 'top', order: 0, x: 26, y: 76, tier: 'compact', returnTier: 'standard' },
+        },
+      }],
+    })
+    await renderApp(storage)
+
+    fireEvent.keyDown(window, { key: 'E', ctrlKey: true, shiftKey: true })
+    await act(async () => {})
+
+    const toolbar = screen.getByRole('toolbar', { name: 'Edit layout' })
+    // 16px edge inset + 96px short-window band + 8px clearance.
+    expect(toolbar.style.top).toBe('120px')
+  })
+
   it('keeps dock tier and return tier through bottom -> canvas -> top in one gesture', async () => {
     installDockGeometry()
     const storage = createStorage(memoryDriver())
@@ -1281,6 +1307,7 @@ describe('App Canvas composition', () => {
     await act(async () => {})
     expect(screen.queryByTestId('canvas-item-weather')).toBeNull()
 
+    fireEvent.click(screen.getByText(/Hidden \d+/))
     fireEvent.click(within(screen.getByRole('group', { name: 'Hidden in this layout' })).getByRole('button', { name: 'Show Weather' }))
     await act(async () => {})
     expect(screen.getByTestId('canvas-item-weather')).toBeTruthy()

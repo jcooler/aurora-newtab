@@ -19,13 +19,34 @@ export const DY_VIEWPORTS = Object.freeze([
   Object.freeze({ width: 600, height: 800 }),
 ])
 
+export const DY_BEHAVIORS = Object.freeze([
+  'return-tier',
+  'pointer-cancel',
+  'explicit-cancel',
+  'alt-bypass',
+  'top-to-bottom',
+  'bottom-to-top',
+  'two-axis-guides',
+  'live-overlap',
+  'legacy-baseline',
+  'byte-stable-layouts',
+  'legacy-layout-write-rejection',
+  'bookmark-tier-choice',
+  'narrow-boundary',
+])
+
 const argv = process.argv.slice(2)
+if (argv.includes('--describe')) {
+  console.log(JSON.stringify({
+    viewports: DY_VIEWPORTS,
+    behaviors: DY_BEHAVIORS,
+    provenance: { build: 'git-head-preview-build', recordsCommit: true },
+  }))
+  process.exit(0)
+}
 const phase = argv.find((value) => value.startsWith('--phase='))?.slice('--phase='.length) ?? 'baseline'
 if (!['baseline', 'after'].includes(phase)) throw new Error(`unknown DY-P1 phase: ${phase}`)
 const baselineOnly = argv.includes('--baseline-only')
-if (phase === 'after' && !baselineOnly) {
-  throw new Error('DY-P1 after-phase interactions are added in implementation Task 7')
-}
 
 const repoRoot = process.cwd()
 const dist = resolve(repoRoot, '.qa-dy-p1-dist')
@@ -83,6 +104,8 @@ const evidence = {
   viewports: DY_VIEWPORTS,
   desktop: [],
   boundaries: [],
+  interactionBoundaries: [],
+  interactions: [],
   writes: [],
   runtimeErrors: [],
   failedRequests: [],
@@ -140,12 +163,20 @@ const armWriteLog = () => page.evaluate(() => {
   })
 })
 
-const harvestWrites = async (label) => {
-  const writes = await page.evaluate(() => window.__dyWriteLog ?? [])
+const harvestWrites = async (label, allowed = []) => {
+  const writes = await page.evaluate(() => {
+    const current = window.__dyWriteLog ?? []
+    window.__dyWriteLog = []
+    return current
+  })
   for (const keys of writes) {
-    evidence.writes.push({ label, keys })
-    fail(`${label}: unexpected storage write (${keys.join(',')})`)
+    const joined = keys.join(',')
+    const expected = allowed.includes(joined)
+    evidence.writes.push({ label, keys, expected })
+    if (keys.includes('layout')) fail(`${label}: forbidden legacy layout write (${joined})`)
+    if (!expected) fail(`${label}: unexpected storage write (${joined})`)
   }
+  return writes
 }
 
 const reloadForViewport = async (viewport) => {
@@ -153,6 +184,306 @@ const reloadForViewport = async (viewport) => {
   await page.reload({ waitUntil: 'domcontentloaded' })
   await waitForCanvas()
   await armWriteLog()
+}
+
+const currentLayoutsJson = () => page.evaluate(async () => {
+  const { layouts } = await chrome.storage.local.get('layouts')
+  return JSON.stringify(layouts)
+})
+
+const seedInteractionLayout = () => page.evaluate(async ({ blockIds }) => {
+  const { settings } = await chrome.storage.local.get('settings')
+  const widgetFlags = Object.fromEntries(Object.keys(settings.widgets).map((id) => [id, false]))
+  Object.assign(widgetFlags, { weather: true, bookmarks: true, todo: true, notes: true })
+  const widgets = Object.fromEntries(blockIds.map((id) => [id, { kind: 'hidden' }]))
+  Object.assign(widgets, {
+    weather: {
+      kind: 'free', anchor: 'center', offsetX: 0, offsetY: -8,
+      tier: 'standard', layer: 4,
+    },
+    bookmarks: {
+      kind: 'docked', dock: 'top', order: 0, x: 12, y: 18,
+      tier: 'compact', returnTier: 'standard',
+    },
+    tasks: {
+      kind: 'docked', dock: 'bottom', order: 0, x: 50, y: 50,
+      tier: 'compact', returnTier: 'compact',
+    },
+    notes: {
+      kind: 'docked', dock: 'bottom', order: 1, x: 80, y: 70,
+      tier: 'compact', returnTier: 'compact',
+    },
+  })
+  const layouts = {
+    version: 1,
+    activeLayoutId: 'dy-interactions',
+    layouts: [{ id: 'dy-interactions', name: 'DY interactions', widgets }],
+  }
+  await chrome.storage.local.set({ settings: { ...settings, widgets: widgetFlags }, layouts })
+  return JSON.stringify(layouts)
+}, { blockIds: BLOCK_IDS })
+
+const rectOf = async (id) => {
+  const box = await page.locator(`[data-block-id="${id}"]`).boundingBox()
+  if (!box) throw new Error(`${id}: missing bounding box`)
+  return box
+}
+
+const bandOf = async (edge) => page.evaluate((dock) => {
+  const node = document.querySelector(dock === 'top' ? '.canvas-top-bar' : '.canvas-bottom-bar')
+  if (!node) return null
+  const rect = node.getBoundingClientRect()
+  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+}, edge)
+
+const enterEdit = async () => {
+  if (await page.locator('[role="toolbar"][aria-label="Edit layout"]').count()) return
+  await page.keyboard.press('Control+Shift+E')
+  await page.waitForSelector('[role="toolbar"][aria-label="Edit layout"]')
+}
+
+const pointInBand = (band, xPct, yPct) => ({
+  x: band.left + band.width * xPct / 100,
+  y: band.top + band.height * yPct / 100,
+})
+
+const beginMouseDrag = async (id) => {
+  const box = await rectOf(id)
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+  await page.mouse.down()
+  return box
+}
+
+const moveMouse = async (point, options = {}) => {
+  if (options.alt) await page.keyboard.down('Alt')
+  await page.mouse.move(point.x, point.y, { steps: options.steps ?? 7 })
+  await page.waitForTimeout(options.settle ?? 90)
+  if (options.alt) await page.keyboard.up('Alt')
+}
+
+const releaseMouse = async () => {
+  await page.mouse.up()
+  await page.waitForTimeout(120)
+}
+
+const modeAndSize = (id) => page.locator(`[data-block-id="${id}"]`).evaluate((node) => ({
+  mode: node.getAttribute('data-canvas-mode'),
+  size: node.getAttribute('data-canvas-size'),
+}))
+
+const guideState = () => page.evaluate(() => ({
+  axes: [...document.querySelectorAll('.edit-guides--dock .edit-guide')]
+    .map((node) => node.getAttribute('data-axis')),
+  positions: [...document.querySelectorAll('.edit-guides--dock .edit-guide')]
+    .map((node) => node.getAttribute('style')),
+}))
+
+const dispatchPointerCancel = async () => {
+  await page.evaluate(() => {
+    const pointerId = window.__dyLastPointerId ?? 1
+    document.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true, pointerId }))
+  })
+  // Release Playwright's physical button after the product listener has
+  // already torn down; this release must not become a product drop.
+  await page.mouse.up()
+  await page.waitForTimeout(120)
+}
+
+const runDesktopInteractions = async (viewport) => {
+  const label = key(viewport)
+  await seedInteractionLayout()
+  await reloadForViewport(viewport)
+  const seededJson = await currentLayoutsJson()
+  const interaction = { viewport }
+  evidence.interactions.push(interaction)
+  await page.evaluate(() => {
+    window.__dyLastPointerId = null
+    document.addEventListener('pointerdown', (event) => {
+      window.__dyLastPointerId = event.pointerId
+    }, { capture: true })
+  })
+  const initialScrollY = await page.evaluate(() => window.scrollY)
+  if (initialScrollY !== 0) fail(`${label}: page began scrolled at ${initialScrollY}`)
+
+  const initial = await page.evaluate(() => Object.fromEntries(
+    ['bookmarks', 'weather', 'tasks', 'notes'].map((id) => {
+      const node = document.querySelector(`[data-block-id="${id}"]`)
+      const rect = node?.getBoundingClientRect()
+      return [id, {
+        mode: node?.getAttribute('data-canvas-mode'),
+        size: node?.getAttribute('data-canvas-size'),
+        center: rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null,
+      }]
+    }),
+  ))
+  if (initial.bookmarks.size !== 'compact') fail(`${label}: Bookmarks compact choice rendered ${initial.bookmarks.size}`)
+  for (const id of ['bookmarks', 'tasks', 'notes']) {
+    if (initial[id].mode !== 'docked') fail(`${label}: ${id} initial mode ${initial[id].mode}`)
+  }
+
+  await enterEdit()
+  const topBand = await bandOf('top')
+  const bottomBand = await bandOf('bottom')
+  if (!topBand || !bottomBand) throw new Error(`${label}: both dock bands must render`)
+
+  // One gesture crosses free -> top -> bottom. Center guides prove both
+  // dock axes; Alt at the same near-center point must suppress them all.
+  await beginMouseDrag('weather')
+  await moveMouse(pointInBand(topBand, 50, 50))
+  const centeredGuides = await guideState()
+  if (!centeredGuides.axes.includes('x') || !centeredGuides.axes.includes('y')) {
+    fail(`${label}: top dock did not publish both center guides`)
+  }
+  await moveMouse(pointInBand(topBand, 50.35, 53), { alt: true })
+  const altGuides = await guideState()
+  if (altGuides.axes.length !== 0) fail(`${label}: Alt bypass left ${altGuides.axes.length} guide nodes`)
+  await moveMouse(pointInBand(bottomBand, 74, 24))
+  const preview = await rectOf('weather')
+  const previewPlacement = await page.locator('[data-block-id="weather"]').evaluate((node) => ({
+    mode: node.getAttribute('data-canvas-mode'),
+    left: node.style.left,
+    top: node.style.top,
+  }))
+  await releaseMouse()
+  const settled = await rectOf('weather')
+  const settledPlacement = await page.locator('[data-block-id="weather"]').evaluate((node) => ({
+    mode: node.getAttribute('data-canvas-mode'),
+    left: node.style.left,
+    top: node.style.top,
+  }))
+  const previewDelta = Math.max(Math.abs(preview.x - settled.x), Math.abs(preview.y - settled.y))
+  if (previewDelta > 2) fail(`${label}: drop settled ${previewDelta.toFixed(2)}px from final preview`)
+  if ((await modeAndSize('weather')).mode !== 'docked') fail(`${label}: free -> top -> bottom did not dock Weather`)
+
+  // The opposite traversal is one gesture too.
+  await beginMouseDrag('weather')
+  await moveMouse(pointInBand(topBand, 26, 76))
+  await releaseMouse()
+  if (!await page.locator('.canvas-top-bar [data-block-id="weather"]').count()) {
+    fail(`${label}: bottom -> top did not finish in top dock`)
+  }
+
+  // Leaving the band restores the source Standard tier automatically.
+  await beginMouseDrag('weather')
+  await moveMouse({ x: viewport.width * 0.56, y: viewport.height * 0.52 })
+  await releaseMouse()
+  const freeWeather = await modeAndSize('weather')
+  if (freeWeather.mode !== 'anchored' || freeWeather.size !== 'standard') {
+    fail(`${label}: undock restored ${freeWeather.mode}/${freeWeather.size}, expected anchored/standard`)
+  }
+
+  // Peer-edge/center magnetism and live overlap are observed during the
+  // gesture, then both warning and guides clear before pointerup.
+  const notesRect = await rectOf('notes')
+  await beginMouseDrag('tasks')
+  await moveMouse({ x: notesRect.x + notesRect.width / 2, y: notesRect.y + notesRect.height / 2 })
+  if (!await page.locator('[role="dialog"][aria-label="Tasks inspector"]').count()) {
+    throw new Error(`${label}: Tasks drag did not select Tasks`)
+  }
+  const overlapText = await page.locator('[role="dialog"][aria-label="Tasks inspector"]').textContent()
+  if (!overlapText?.includes('Overlaps Notes')) fail(`${label}: live same-dock overlap warning did not appear`)
+  const peerGuides = await guideState()
+  if (!peerGuides.axes.includes('x') || !peerGuides.axes.includes('y')) {
+    fail(`${label}: peer alignment did not publish both axes`)
+  }
+  await moveMouse(pointInBand(bottomBand, 10, 18), { alt: true })
+  const clearedText = await page.locator('[role="dialog"][aria-label="Tasks inspector"]').textContent()
+  if (clearedText?.includes('Overlaps Notes')) fail(`${label}: live overlap warning stayed stale after separation`)
+  if ((await guideState()).axes.length !== 0) fail(`${label}: dock guides stayed stale after Alt separation`)
+  await releaseMouse()
+
+  // Pointer cancellation restores the exact current draft geometry.
+  const cancelBefore = await rectOf('weather')
+  await beginMouseDrag('weather')
+  await moveMouse(pointInBand(bottomBand, 50, 50))
+  await dispatchPointerCancel()
+  const cancelAfter = await rectOf('weather')
+  const cancelDelta = Math.max(Math.abs(cancelBefore.x - cancelAfter.x), Math.abs(cancelBefore.y - cancelAfter.y))
+  if (cancelDelta > 0.5 || (await modeAndSize('weather')).mode !== 'anchored') {
+    fail(`${label}: pointercancel restored with ${cancelDelta.toFixed(2)}px delta and ${(await modeAndSize('weather')).mode} mode`)
+  }
+
+  // The visible Cancel closes a live drag, restores the seeded document,
+  // and cannot leave a zone/guide listener alive for the next session.
+  await beginMouseDrag('weather')
+  await moveMouse(pointInBand(bottomBand, 50, 50))
+  await page.locator('[role="toolbar"][aria-label="Edit layout"] button', { hasText: 'Cancel' }).evaluate((button) => button.click())
+  await page.mouse.up()
+  await page.waitForTimeout(100)
+  if (await page.locator('[data-editing]').count()) fail(`${label}: explicit Cancel left edit mode open`)
+  if (await page.locator('.dock-drop-zone, .edit-guides').count()) fail(`${label}: explicit Cancel left transient dock chrome`)
+  if (await currentLayoutsJson() !== seededJson) fail(`${label}: explicit Cancel changed layouts storage`)
+  await harvestWrites(`${label}:cancel`)
+
+  // Fresh draft: Bookmarks retains its explicit compact/standard choice,
+  // then an exact two-axis move saves once and reloads byte-stably.
+  await enterEdit()
+  await page.locator('[data-block-id="bookmarks"]').click()
+  const inspector = page.getByRole('dialog', { name: 'Bookmarks inspector' })
+  await inspector.getByRole('radio', { name: 'Standard' }).click()
+  if ((await modeAndSize('bookmarks')).size !== 'standard') fail(`${label}: Bookmarks Standard choice did not render`)
+
+  await beginMouseDrag('bookmarks')
+  await moveMouse(pointInBand(topBand, 86, 78), { alt: true })
+  await releaseMouse()
+  await page.locator('[role="toolbar"][aria-label="Edit layout"] button', { hasText: 'Save' }).click()
+  await page.waitForTimeout(180)
+  const saveWrites = await harvestWrites(`${label}:save`, ['layouts'])
+  if (saveWrites.length !== 1 || saveWrites[0].join(',') !== 'layouts') {
+    fail(`${label}: Save write sequence was ${JSON.stringify(saveWrites)}`)
+  }
+  const savedBytes = await currentLayoutsJson()
+  const savedPlacement = JSON.parse(savedBytes).layouts[0].widgets.bookmarks
+  if (savedPlacement.kind !== 'docked' || savedPlacement.y === undefined || savedPlacement.tier !== 'standard') {
+    fail(`${label}: saved Bookmarks placement missing X/Y/Standard choice`)
+  }
+  await page.reload({ waitUntil: 'domcontentloaded' })
+  await waitForCanvas()
+  await armWriteLog()
+  const reloadedBytes = await currentLayoutsJson()
+  if (reloadedBytes !== savedBytes) fail(`${label}: saved layouts were not byte-stable across reload`)
+  const reloadedPlacement = await page.evaluate(async () => {
+    const { layouts } = await chrome.storage.local.get('layouts')
+    return layouts.layouts[0].widgets.bookmarks
+  })
+  if (reloadedPlacement.x !== savedPlacement.x || reloadedPlacement.y !== savedPlacement.y) {
+    fail(`${label}: saved X/Y changed on reload`)
+  }
+  await harvestWrites(`${label}:reload`)
+
+  const stripSafety = await page.evaluate(() => ({
+    scrollY: window.scrollY,
+    bars: [...document.querySelectorAll('.canvas-top-bar, .canvas-bottom-bar')].map((node) => {
+      const style = getComputedStyle(node)
+      return { overflowX: style.overflowX, maskImage: style.maskImage }
+    }),
+    staleChrome: document.querySelectorAll('.dock-drop-zone, .edit-guides').length,
+  }))
+  if (stripSafety.scrollY !== 0) fail(`${label}: dock interaction moved page to scrollY ${stripSafety.scrollY}`)
+  if (stripSafety.bars.some((bar) => ['auto', 'scroll'].includes(bar.overflowX) || bar.maskImage !== 'none')) {
+    fail(`${label}: a dock bar retained scroll/fade machinery`)
+  }
+  if (stripSafety.staleChrome !== 0) fail(`${label}: transient chrome survived Save/reload`)
+
+  const screenshot = resolve(outDir, `${label}-interactions.png`)
+  await page.screenshot({ path: screenshot })
+  Object.assign(interaction, {
+    screenshot: `${label}-interactions.png`,
+    screenshotSha256: sha256File(screenshot),
+    initial,
+    centeredGuides,
+    altGuideCount: altGuides.axes.length,
+    peerGuides,
+    previewDelta,
+    preview,
+    previewPlacement,
+    settled,
+    settledPlacement,
+    cancelDelta,
+    savedPlacement,
+    byteStable: reloadedBytes === savedBytes,
+    stripSafety,
+  })
 }
 
 let caughtError = null
@@ -320,6 +651,52 @@ try {
       }
     }
   }
+
+  if (phase === 'after' && !baselineOnly) {
+    for (const viewport of DY_VIEWPORTS.filter(({ width }) => width > 600)) {
+      await runDesktopInteractions(viewport)
+    }
+    for (const viewport of DY_VIEWPORTS.filter(({ width }) => width <= 600)) {
+      await seedInteractionLayout()
+      await reloadForViewport(viewport)
+      // Compare against the browser's settled serialized document. Storage
+      // normalization may canonicalize key order on hydration without a
+      // write; raw pre-reload object construction order is not byte evidence.
+      const seededBytes = await currentLayoutsJson()
+      const boundary = await page.evaluate(async () => {
+        const { layouts } = await chrome.storage.local.get('layouts')
+        return {
+          order: [...document.querySelectorAll('[data-block-id]')].map((node) => node.getAttribute('data-block-id')),
+          modes: Object.fromEntries(['bookmarks', 'tasks', 'notes', 'weather'].map((id) => [
+            id,
+            document.querySelector(`[data-block-id="${id}"]`)?.getAttribute('data-canvas-mode') ?? null,
+          ])),
+          layoutsBytes: JSON.stringify(layouts),
+        }
+      })
+      const expectedOrder = viewport.width < 600
+        ? ['bookmarks', 'tasks', 'notes', 'weather']
+        : ['bookmarks', 'weather', 'tasks', 'notes']
+      if (JSON.stringify(boundary.order) !== JSON.stringify(expectedOrder)) {
+        fail(`${key(viewport)}: explicit X/Y boundary order ${boundary.order.join(',')}`)
+      }
+      const expectedDockMode = viewport.width < 600 ? 'stacked' : 'docked'
+      const expectedWeatherMode = viewport.width < 600 ? 'stacked' : 'anchored'
+      for (const id of ['bookmarks', 'tasks', 'notes']) {
+        if (boundary.modes[id] !== expectedDockMode) fail(`${key(viewport)}: ${id} boundary mode ${boundary.modes[id]}`)
+      }
+      if (boundary.modes.weather !== expectedWeatherMode) {
+        fail(`${key(viewport)}: Weather boundary mode ${boundary.modes.weather}`)
+      }
+      if (boundary.layoutsBytes !== seededBytes) fail(`${key(viewport)}: boundary changed stored X/Y bytes`)
+      evidence.interactionBoundaries.push({ viewport, ...boundary })
+      await harvestWrites(`${key(viewport)}:explicit-boundary`)
+    }
+    if (evidence.interactions.length !== 3) fail(`expected 3 interaction captures, found ${evidence.interactions.length}`)
+    if (evidence.interactionBoundaries.length !== 2) {
+      fail(`expected 2 explicit boundary witnesses, found ${evidence.interactionBoundaries.length}`)
+    }
+  }
 } catch (error) {
   caughtError = error
   fail(`harness: ${error instanceof Error ? error.message : String(error)}`)
@@ -337,6 +714,8 @@ console.log(JSON.stringify({
   desktopCaptures: evidence.desktop.length,
   rectangleWitnesses: evidence.desktop.reduce((sum, capture) => sum + Object.values(capture.rects).filter(Boolean).length, 0),
   boundaries: evidence.boundaries.length,
+  interactions: evidence.interactions.length,
+  interactionBoundaries: evidence.interactionBoundaries.length,
   writes: evidence.writes.length,
   runtimeErrors: evidence.runtimeErrors.length,
   failedRequests: evidence.failedRequests.length,

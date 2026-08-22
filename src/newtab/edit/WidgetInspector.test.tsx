@@ -102,4 +102,28 @@ describe('WidgetInspector', () => {
     // Passive text, not a control — nothing moves automatically.
     expect(note.closest('button')).toBeNull()
   })
+
+  it('moves below the live edit toolbar when the anchored position would be covered', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1408 })
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 445 })
+    render(
+      <WidgetInspector
+        entry={WIDGET_REGISTRY_BY_ID.bookmarks}
+        placement={{ kind: 'docked', dock: 'top', order: 0, x: 12, y: 18, tier: 'compact' }}
+        anchorRect={rect(190, 30, 180, 32)}
+        toolbarRect={rect(12, 64, 1384, 114)}
+        overlapLabels={[]}
+        onTier={vi.fn()}
+        onLayer={vi.fn()}
+        onHide={vi.fn()}
+        onRestore={vi.fn()}
+      />,
+    )
+
+    const dialog = screen.getByRole('dialog', { name: 'Bookmarks inspector' })
+    // The docked Bookmarks panel is materially shorter than a full free-card
+    // inspector, so it fits below the toolbar even in the owner's 1408x445
+    // window. A one-size 264px estimate incorrectly left it underneath.
+    expect(dialog.style.top).toBe('186px')
+  })
 })

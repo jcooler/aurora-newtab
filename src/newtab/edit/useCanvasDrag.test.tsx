@@ -153,6 +153,38 @@ describe('useCanvasDrag two-axis placement state', () => {
     expect(placement.point.yPct).toBeCloseTo(49 / 96 * 100, 5)
   })
 
+  it('refreshes the visible preview when docking changes the live presentation size before release', () => {
+    let frame: FrameRequestCallback | undefined
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frame = callback
+      return 1
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    const { surface, itemRects, rendered, onPreviewMove } = setup()
+    act(() => rendered.result.current.startDrag(
+      { kind: 'widget', id: 'clock' },
+      { clientX: 125, clientY: 190, pointerId: 13 },
+    ))
+    act(() => { surface.dispatchEvent(pointerEvent('pointermove', {
+      clientX: 300, clientY: 50, pointerId: 13, altKey: true,
+    })) })
+    const first = onPreviewMove.mock.calls.at(-1)?.[1]
+    if (first?.kind !== 'dock') throw new Error('Expected a dock placement')
+
+    // React has painted the docked line at its new size while the pointer is
+    // still held and stationary. The preview must converge now, not jump only
+    // when pointerup re-runs geometry.
+    itemRects.set('clock', rect(200, 20, 200, 60))
+    expect(frame).toBeTypeOf('function')
+    act(() => frame?.(16))
+
+    expect(onPreviewMove).toHaveBeenCalledTimes(2)
+    const refreshed = onPreviewMove.mock.calls.at(-1)?.[1]
+    if (refreshed?.kind !== 'dock') throw new Error('Expected a dock placement')
+    expect(refreshed.point.xPct).toBeCloseTo(278 / 856 * 100, 5)
+    expect(refreshed.point.yPct).toBeCloseTo(49 / 96 * 100, 5)
+  })
+
   it('publishes dock-local X/Y guides and clears that guide space on band exit', () => {
     const { surface, rendered } = setup()
     act(() => rendered.result.current.startDrag(

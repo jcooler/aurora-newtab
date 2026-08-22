@@ -3,6 +3,7 @@ import test from 'node:test'
 import { mkdtempSync, mkdirSync, rmSync, symlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { spawnSync } from 'node:child_process'
 import { prepareDyOutputDir } from './qa-dy-p1-output.mjs'
 
 test('DY output accepts only its phase-specific ignored scratch root', () => {
@@ -55,5 +56,73 @@ test('DY output rejects a scratch-named symbolic link or junction', () => {
   } finally {
     rmSync(redirected, { recursive: true, force: true })
     rmSync(root, { recursive: true, force: true })
+  }
+})
+
+test('DY output rejects every controlled target under the frozen NL-P6 evidence tree', () => {
+  const root = mkdtempSync(join(tmpdir(), 'aurora-dy-output-'))
+  try {
+    for (const target of [
+      'docs/superpowers/qa/nl-p6',
+      'docs/superpowers/qa/nl-p6/dy-p1',
+      resolve(root, 'docs/superpowers/qa/nl-p6/dy-p1-evidence'),
+    ]) {
+      assert.throws(
+        () => prepareDyOutputDir([`--out=${target}`], root, 'after'),
+        /unsafe/i,
+        target,
+      )
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
+function describeScript(script) {
+  const result = spawnSync(process.execPath, [resolve(process.cwd(), script), '--describe'], {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+  })
+  assert.equal(result.status, 0, `${script}: ${result.stderr || result.stdout}`)
+  return JSON.parse(result.stdout)
+}
+
+test('the runnable deterministic manifest names every viewport, behavior, and build provenance', () => {
+  const manifest = describeScript('scripts/qa-dy-p1.mjs')
+  assert.deepEqual(manifest.viewports, [
+    { width: 1366, height: 768 },
+    { width: 1408, height: 445 },
+    { width: 1600, height: 900 },
+    { width: 599, height: 800 },
+    { width: 600, height: 800 },
+  ])
+  const required = [
+    'return-tier',
+    'pointer-cancel',
+    'alt-bypass',
+    'top-to-bottom',
+    'bottom-to-top',
+    'legacy-baseline',
+    'byte-stable-layouts',
+    'legacy-layout-write-rejection',
+  ]
+  assert.deepEqual(required.filter((id) => !manifest.behaviors.includes(id)), [])
+  assert.deepEqual(manifest.provenance, {
+    build: 'git-head-preview-build',
+    recordsCommit: true,
+  })
+})
+
+test('the runnable real-window manifest requires the caller-reviewed dist and real OS geometry', () => {
+  const manifest = describeScript('scripts/qa-dy-p1-window.mjs')
+  assert.equal(manifest.viewport, null)
+  assert.equal(manifest.targetFamily, '1408x445')
+  assert.deepEqual(manifest.provenance, {
+    build: 'caller-provided-exact-dist',
+    distArgumentRequired: true,
+    mutatesBuild: false,
+  })
+  for (const id of ['return-tier', 'pointer-cancel', 'top-to-bottom', 'byte-stable-layouts']) {
+    assert.equal(manifest.behaviors.includes(id), true, id)
   }
 })
