@@ -78,10 +78,18 @@ test('requires the scenario-selected Linear team filter exactly', () => {
     ...base,
     body: JSON.stringify({ query, variables: { filter: null } }),
   }), TOKENS, { linearTeamIds: ['ops'] }), /Linear work filter/)
-  assert.equal(inspectProviderRequest(request({
+  assert.deepEqual(inspectProviderRequest(request({
     ...base,
     body: JSON.stringify({ query, variables: { filter: { team: { id: { in: ['ops'] } } } } }),
-  }), TOKENS, { linearTeamIds: ['ops'] }).operation, 'linear-work')
+  }), TOKENS, { linearTeamIds: ['ops'] }), {
+    provider: 'linear',
+    operation: 'linear-work',
+    linearTeamIds: ['ops'],
+  })
+  assert.throws(() => inspectProviderRequest(request({
+    ...base,
+    body: JSON.stringify({ query, variables: { filter: { team: { id: ['ops'] } } } }),
+  }), TOKENS), /Linear work filter shape/)
 })
 
 test('checks complete storage snapshots against an explicit allowed-key set', () => {

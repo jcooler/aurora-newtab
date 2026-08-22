@@ -185,7 +185,6 @@ const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
 const closedTasks = new Set()
-let expectedLinearTeamIds = []
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
@@ -258,12 +257,19 @@ async function checkedRouteRequest(route) {
       authorization,
       contentType: headers['content-type'] ?? null,
       body: request.postData(),
-    }, FAKE_TOKENS, { linearTeamIds: expectedLinearTeamIds })
+    }, FAKE_TOKENS)
   } catch (error) {
     fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
     authorizeRequestFailure(expectedFailedRequestCounts, request)
     await route.abort('failed').catch(() => {})
     return null
+  }
+  if (
+    contract.operation === 'linear-work' &&
+    JSON.stringify(contract.linearTeamIds) !== '[]' &&
+    JSON.stringify(contract.linearTeamIds) !== '["ops"]'
+  ) {
+    fail(`Linear work request used an unplanned team filter: ${JSON.stringify(contract.linearTeamIds)}`)
   }
   evidence.requestLog.push({
     method: request.method(),
@@ -271,6 +277,7 @@ async function checkedRouteRequest(route) {
     authKind: authorization.startsWith('Bearer ') ? 'bearer' : authorization ? 'raw' : 'none',
     contentType: headers['content-type'] ?? null,
     bodyKind: contract.operation,
+    ...(contract.linearTeamIds ? { linearTeamIds: contract.linearTeamIds } : {}),
   })
   return { request, operation: contract.operation }
 }
@@ -384,10 +391,10 @@ function markHarnessNavigation() {
   for (const request of pendingProviderRequests) authorizeRequestFailure(expectedFailedRequestCounts, request)
 }
 
-async function waitForProviderIdle(provider) {
+async function waitForLoggedRequest(startIndex, predicate, label) {
   const deadline = Date.now() + 5_000
-  while ([...pendingProviderRequests].some((request) => providerForUrl(request.url()) === provider)) {
-    if (Date.now() >= deadline) throw new Error(`${provider} requests did not become idle`)
+  while (!evidence.requestLog.slice(startIndex).some(predicate)) {
+    if (Date.now() >= deadline) throw new Error(`${label} request was not observed`)
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 25))
   }
 }
@@ -420,7 +427,6 @@ async function seed(widget, tier, state = 'ready') {
   networkModes.clear()
   networkModes.set(widget.id, state)
   const config = state === 'setup' ? { enabled: true } : widget.config
-  expectedLinearTeamIds = widget.id === 'linear' && Array.isArray(config.teamIds) ? [...config.teamIds] : []
   const data = state === 'empty' ? widget.empty : widget.data
   const snapshot = ['ready', 'empty', 'retained-error', 'stale'].includes(state)
   const stale = state === 'retained-error' || state === 'stale'
@@ -656,10 +662,14 @@ async function exerciseSettings(widget) {
   const beforePreferences = await storageCheckpoint()
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   if (widget.id === 'linear') {
-    await waitForProviderIdle('linear')
-    expectedLinearTeamIds = ['ops']
+    const requestStart = evidence.requestLog.length
     await page.getByRole('button', { name: 'Ops' }).click()
     await page.waitForFunction(() => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.linear?.teamIds?.includes('ops')))
+    await waitForLoggedRequest(
+      requestStart,
+      (request) => request.bodyKind === 'linear-work' && JSON.stringify(request.linearTeamIds) === '["ops"]',
+      'Linear selected-team filter',
+    )
   }
   if (widget.id === 'sentry') await page.getByRole('button', { name: 'API' }).click()
   if (widget.id === 'todoist') await page.getByRole('button', { name: 'Personal' }).click()
@@ -695,10 +705,7 @@ async function exerciseSettings(widget) {
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
   await recordSettingsState(`${widget.id}-before-reconnect`, widget.id)
-  if (widget.id === 'linear') {
-    await waitForProviderIdle('linear')
-    expectedLinearTeamIds = []
-  }
+  const reconnectRequestStart = evidence.requestLog.length
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
     const connector = connectors?.[id]
@@ -707,6 +714,13 @@ async function exerciseSettings(widget) {
     if (id === 'sentry') return !connector.projectSlugs?.includes('api')
     return true
   }), widget.id)
+  if (widget.id === 'linear') {
+    await waitForLoggedRequest(
+      reconnectRequestStart,
+      (request) => request.bodyKind === 'linear-work' && JSON.stringify(request.linearTeamIds) === '[]',
+      'Linear reconnect cleared-team filter',
+    )
+  }
   await page.waitForTimeout(250)
   await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
   await recordSettingsState(`${widget.id}-after-reconnect`, widget.id)

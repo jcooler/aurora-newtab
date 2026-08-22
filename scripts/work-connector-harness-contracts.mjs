@@ -38,6 +38,20 @@ export function inspectProviderRequest(request, tokens, expectations = {}) {
     }
     if (query.includes('query AuroraLinearWork($filter: IssueFilter)') && query.includes('assignedIssues(first: 50, filter: $filter)')) {
       expect(body.variables && Object.hasOwn(body.variables, 'filter'), 'Linear work filter variable is missing')
+      const filter = body.variables.filter
+      let linearTeamIds = []
+      if (filter !== null) {
+        const ids = filter?.team?.id?.in
+        expect(
+          Array.isArray(ids) &&
+            ids.length > 0 &&
+            ids.every((id) => typeof id === 'string' && id.length > 0) &&
+            new Set(ids).size === ids.length &&
+            canonical(filter) === canonical({ team: { id: { in: ids } } }),
+          'Linear work filter shape is unexpected',
+        )
+        linearTeamIds = [...ids]
+      }
       if (Array.isArray(expectations.linearTeamIds)) {
         const expectedFilter = expectations.linearTeamIds.length > 0
           ? { team: { id: { in: [...expectations.linearTeamIds] } } }
@@ -47,7 +61,7 @@ export function inspectProviderRequest(request, tokens, expectations = {}) {
           `Linear work filter mismatch: ${canonical(body.variables.filter)} != ${canonical(expectedFilter)}`,
         )
       }
-      return { provider: 'linear', operation: 'linear-work' }
+      return { provider: 'linear', operation: 'linear-work', linearTeamIds }
     }
     throw new Error('Unexpected Linear operation')
   }
