@@ -434,10 +434,15 @@ async function settleProvider(provider, { cancelDelayed = false } = {}) {
   const startedAt = Date.now()
   const deadline = startedAt + 5_000
   while (true) {
+    if (cancelDelayed) {
+      for (const entry of delayedProviderRoutes.values()) {
+        if (entry.provider === provider) entry.release()
+      }
+    }
     const pending = [...pendingProviderRequests].some((request) => providerForUrl(request.url()) === provider)
     const lastRequestAt = lastProviderRequestAt.get(provider) ?? startedAt
     if (!pending && Date.now() - lastRequestAt >= 200) return
-    if (Date.now() >= deadline) throw new Error(`${provider} requests did not settle`)
+    if (Date.now() >= deadline) throw new Error(`${provider} requests did not settle during ${activeRequestScenario}`)
     await new Promise((resolveDelay) => setTimeout(resolveDelay, 25))
   }
 }
