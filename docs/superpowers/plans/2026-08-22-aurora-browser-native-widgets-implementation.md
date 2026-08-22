@@ -213,18 +213,18 @@ feat(browser): add Reading List widget
 - Create: `src/newtab/widgets/recentlyClosed/RecentlyClosedWidget.test.tsx`
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Write Recently Closed failures**
+- [x] **Step 1: Write Recently Closed failures**
 
 Pin tab/window labels, missing-field fallbacks, 5-row Standard, 25-entry Full,
 Docked detail parity, explicit restore by selected session ID, empty/error
 truth, and one action per click.
 
-- [ ] **Step 2: Observe RED, implement, and reach GREEN**
+- [x] **Step 2: Observe RED, implement, and reach GREEN**
 
 Run the new widget test, implement against the shared shell/resource, rerun it
 with TypeScript and diff hygiene.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```text
 feat(browser): add Recently Closed widget
