@@ -441,13 +441,13 @@ describe('useConnectorSnapshot', () => {
     await screen.findByText('ics:stale-event-data:true')
     expect(refresh).toHaveBeenCalledTimes(1)
 
-    await storage.set('connectors', { ics: icsConfigWithColor })
-    view.rerender(
-      <StorageProvider storage={storage}>
-        <IcsProbe config={icsConfigWithColor} refresh={refresh} ttl={1_000} />
-      </StorageProvider>,
-    )
     await act(async () => {
+      await storage.set('connectors', { ics: icsConfigWithColor })
+      view.rerender(
+        <StorageProvider storage={storage}>
+          <IcsProbe config={icsConfigWithColor} refresh={refresh} ttl={1_000} />
+        </StorageProvider>,
+      )
       await tick()
     })
     expect(refresh).toHaveBeenCalledTimes(1)
@@ -516,6 +516,28 @@ describe('useConnectorSnapshot', () => {
       await tick()
     })
 
+    expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
+  })
+
+  it('does not start an old-owner refresh after authoritative disconnect before React rerenders', async () => {
+    const storage = await freshStorage(configA, {
+      fetchedAt: Date.now(),
+      data: 'account-a',
+    })
+    const refresh = vi.fn(() => Promise.resolve('must-not-run'))
+    mount(storage, refresh, 60_000, configA)
+    await screen.findByText('data:account-a')
+    expect(refresh).not.toHaveBeenCalled()
+
+    await act(async () => {
+      await storage.updateMany(['connectors', 'connectorSnapshots'], () => ({
+        connectors: {},
+        connectorSnapshots: {},
+      }))
+      await tick()
+    })
+
+    expect(refresh).not.toHaveBeenCalled()
     expect((await storage.get('connectorSnapshots')).rss).toBeUndefined()
   })
 
@@ -591,12 +613,16 @@ describe('useConnectorSnapshot', () => {
     await act(async () => {
       await tick()
     })
-    expect(refresh).toHaveBeenCalledTimes(2)
+    expect(refresh).toHaveBeenCalledTimes(1)
 
-    releaseQueue.resolve()
-    await priorUpdate
-    await queuedAWrite
-    await configBCommit
+    await act(async () => {
+      releaseQueue.resolve()
+      await priorUpdate
+      await queuedAWrite
+      await configBCommit
+      await tick()
+    })
+    expect(refresh).toHaveBeenCalledTimes(2)
 
     const storedAfterA = (await storage.get('connectorSnapshots')).rss
     expect(storedAfterA?.data).not.toBe('account-a')

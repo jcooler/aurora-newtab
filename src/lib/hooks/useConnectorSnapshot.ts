@@ -69,6 +69,7 @@ export function useConnectorSnapshot<T>(
   useEffect(() => {
     let live = true
     let unsubscribe: () => void = () => undefined
+    let unsubscribeConnectors: () => void = () => undefined
     let removeRestorationListeners: () => void = () => undefined
     let expiryTimer: number | undefined
 
@@ -121,6 +122,18 @@ export function useConnectorSnapshot<T>(
       }
 
       const runRefresh = async (previousData: T | null): Promise<void> => {
+        const connectors = await storage.get('connectors')
+        if (!live || !isCurrent()) return
+        const authoritativeConfig = connectors[id]
+        const authoritativeConfigKey = authoritativeConfig
+          ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+          : null
+        // Snapshot removal and connector replacement are delivered as
+        // separate React/storage notifications. Revalidate before issuing
+        // the request so the old mounted owner cannot make one last call with
+        // credentials that authoritative storage has already disconnected.
+        if (!authoritativeConfig?.enabled || authoritativeConfigKey !== configKey) return
+
         const requestKey = `${id}\n${scope}`
         let pending = inFlight.get(requestKey)
         const owner = pending === undefined
@@ -219,6 +232,20 @@ export function useConnectorSnapshot<T>(
         scheduleSnapshot(snapshot)
       })
 
+      unsubscribeConnectors = storage.subscribe('connectors', (connectors) => {
+        if (!live || !isCurrent()) return
+        const authoritativeConfig = connectors?.[id]
+        const authoritativeConfigKey = authoritativeConfig
+          ? `${canonicalConnectorEventConfig(id, authoritativeConfig)}\n${runtimeKey}`
+          : null
+        // A render can observe the next config while an earlier queued
+        // storage update is still finishing. Once storage confirms that same
+        // owner, retry freshness; removed or different owners stay silent.
+        if (authoritativeConfig?.enabled && authoritativeConfigKey === configKey) {
+          void checkFreshness()
+        }
+      })
+
       const onVisibility = () => {
         if (document.visibilityState === 'visible') void checkFreshness()
       }
@@ -258,6 +285,7 @@ export function useConnectorSnapshot<T>(
       live = false
       clearExpiryTimer()
       unsubscribe()
+      unsubscribeConnectors()
       removeRestorationListeners()
     }
   }, [id, storage, configKey, ttlMs])
