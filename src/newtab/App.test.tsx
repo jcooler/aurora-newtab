@@ -546,7 +546,10 @@ describe('App Canvas composition', () => {
     ]) {
       const launcher = await screen.findByRole('button', { name: entry.button })
       launcher.focus()
-      fireEvent.click(launcher)
+      // Flush the panel's useDialogEscape registration before synthesizing
+      // the next separate user event. findByRole can resolve from the click
+      // render before passive effects have joined the shared Escape stack.
+      await act(async () => { fireEvent.click(launcher) })
       expect(await screen.findByRole('dialog', { name: entry.dialog })).toBeTruthy()
       expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
       expect(canvasItem(entry.id).dataset.canvasMode).toBe('anchored')
@@ -558,7 +561,7 @@ describe('App Canvas composition', () => {
 
     const timer = await screen.findByRole('button', { name: /Focus timer:/ })
     timer.focus()
-    fireEvent.click(timer)
+    await act(async () => { fireEvent.click(timer) })
     expect(await screen.findByRole('dialog', { name: 'Focus timer' })).toBeTruthy()
     expect(screen.queryByRole('dialog', { name: 'Utility Tray' })).toBeNull()
     expect(canvasItem('timer').dataset.canvasMode).toBe('anchored')
