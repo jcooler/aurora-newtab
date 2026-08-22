@@ -40,4 +40,23 @@ describe('useNow restoration', () => {
     act(() => document.dispatchEvent(new Event('visibilitychange')))
     expect(result.current.getTime()).toBe(Date.UTC(2026, 5, 1, 12))
   })
+
+  it('owns no clock or restoration listeners while inactive, then samples immediately on activation', () => {
+    vi.setSystemTime(Date.UTC(2026, 5, 1, 12))
+    const addDocument = vi.spyOn(document, 'addEventListener')
+    const addWindow = vi.spyOn(window, 'addEventListener')
+    const { result, rerender } = renderHook(
+      ({ active }) => useNow(500, active),
+      { initialProps: { active: false } },
+    )
+
+    expect(vi.getTimerCount()).toBe(0)
+    expect(addDocument).not.toHaveBeenCalledWith('visibilitychange', expect.any(Function))
+    expect(addWindow).not.toHaveBeenCalledWith('focus', expect.any(Function))
+
+    vi.setSystemTime(Date.UTC(2026, 5, 1, 12, 2))
+    rerender({ active: true })
+    expect(result.current.getTime()).toBe(Date.UTC(2026, 5, 1, 12, 2))
+    expect(vi.getTimerCount()).toBe(1)
+  })
 })

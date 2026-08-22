@@ -1,8 +1,8 @@
 # Aurora Flow — Design
 
 **Status:** Owner approved in brainstorming on 2026-08-21 (a session that
-holds across tabs; focus + timer + top task; named "Flow"). **Not yet
-implemented** — the owner asked to gather more ideas before building.
+holds across tabs; focus + timer + top task; named "Flow"). Implemented and
+verified in the bounded Flow packet on 2026-08-21.
 **Prior art:** Momentum's Focus Mode, researched 2026-08-21.
 
 ## 1. What Flow is

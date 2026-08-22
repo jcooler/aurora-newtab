@@ -240,11 +240,12 @@ git commit -m "feat(flow): clear the dashboard down to the work"
   tabs show the same mode/deadline and displayed countdown within one second;
   pause in one and observe the other update.
 - [x] Run the focused Node contract GREEN. Build `dist` from the implementation
-  commit, then run the sweep and window witness only into `.qa-flow-*` scratch
+  commit, then run the sweep and window witness only into
+  `.qa-nl-p6-flow-*` scratch
   output. Inspect Flow at 599x800, 720x900, 1024x600, 1408x445, 1600x900,
   1920x550, and 3440x1440 at original resolution. Record exact evidence and
   honest manual ceilings in `FLOW-QA.md`; do not replace accepted NL-P6 files.
-- [ ] Commit:
+- [x] Commit:
 
 ```powershell
 git add scripts/qa-nl-p6-scenarios.mjs scripts/qa-nl-p6.mjs scripts/qa-nl-p6-window.mjs scripts/preview-information-first.test.mjs docs/superpowers/reports/FLOW-QA.md

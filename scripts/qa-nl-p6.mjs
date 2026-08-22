@@ -72,9 +72,7 @@ page.setDefaultTimeout(20_000)
 page.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`console: ${m.text()}`) })
 page.on('pageerror', (e) => evidence.runtimeErrors.push(`page: ${String(e)}`))
 page.on('requestfailed', (r) => {
-  if (!r.url().startsWith('chrome-extension://')) {
-    evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
-  }
+  evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
 })
 
 const waitForProductSurface = async () => {
@@ -99,6 +97,18 @@ async function assertInvariants(cell) {
     const surface = document.querySelector('[data-canvas-surface]')
     const flow = document.querySelector('[data-flow-screen]')
     const flowRect = flow?.getBoundingClientRect()
+    const flowTargetEscapes = flow ? [
+      flow.querySelector('[data-flow-timer]'),
+      flow.querySelector('button[aria-label="Pause timer"], button[aria-label="Resume timer"]'),
+      flow.querySelector('button[aria-label="End flow"]'),
+      flow.querySelector('[data-flow-task]'),
+    ].filter(Boolean).flatMap((node) => {
+      const rect = node.getBoundingClientRect()
+      return rect.left < -1 || rect.top < -1
+        || rect.right > window.innerWidth + 1 || rect.bottom > window.innerHeight + 1
+        ? [node.getAttribute('aria-label') || node.getAttribute('data-flow-task') === '' && 'task' || node.getAttribute('data-flow-timer') === '' && 'timer' || node.tagName]
+        : []
+    }) : []
     const flowLeaks = flow ? [
       '[data-canvas-surface]',
       'nav[aria-label="Top bar"]',
@@ -136,15 +146,17 @@ async function assertInvariants(cell) {
       : false
     return {
       hOverflow: doc.scrollWidth > doc.clientWidth,
+      vOverflow: doc.scrollHeight > doc.clientHeight,
       surfacePresent: Boolean(surface),
       flowPresent: Boolean(flow),
       flowBounded: Boolean(flowRect
         && flowRect.left >= -1 && flowRect.top >= -1
         && flowRect.right <= window.innerWidth + 1
-        && flowRect.bottom <= Math.max(window.innerHeight, flowRect.height) + 1),
+        && flowRect.bottom <= window.innerHeight + 1),
       flowTimerPresent: Boolean(flow?.querySelector('[data-flow-timer]')),
       flowExitPresent: Boolean(flow?.querySelector('button[aria-label="End flow"]')),
       flowLeaks,
+      flowTargetEscapes,
       zero,
       offscreen,
       gearHit,
@@ -152,8 +164,11 @@ async function assertInvariants(cell) {
   })
   if (truth.hOverflow) fail(`${cell}: horizontal page overflow`)
   if (truth.flowPresent) {
-    if (!truth.flowBounded || !truth.flowTimerPresent || !truth.flowExitPresent) {
+    if (truth.vOverflow || !truth.flowBounded || !truth.flowTimerPresent || !truth.flowExitPresent) {
       fail(`${cell}: flow screen missing or unbounded`)
+    }
+    if (truth.flowTargetEscapes.length) {
+      fail(`${cell}: Flow target escaped the viewport (${truth.flowTargetEscapes.join(',')})`)
     }
     if (truth.surfacePresent || truth.flowLeaks.length) {
       fail(`${cell}: dashboard leaked into Flow (${truth.flowLeaks.join(',')})`)

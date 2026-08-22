@@ -145,6 +145,9 @@ test('Flow is a first-class NL-P6 scenario with immersive and cross-tab proof', 
     'dashboard leaked into Flow',
     'edit chord changed Flow',
     'Flow rendered with storage writes',
+    'vOverflow: doc.scrollHeight > doc.clientHeight',
+    'flowRect.bottom <= window.innerHeight + 1',
+    'Flow target escaped the viewport',
   ]) assert.match(sweep, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
 
   const windowWitness = readFileSync(new URL('./qa-nl-p6-window.mjs', import.meta.url), 'utf8')

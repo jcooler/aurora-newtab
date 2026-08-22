@@ -65,9 +65,7 @@ page.setDefaultTimeout(20_000)
 page.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`console: ${m.text()}`) })
 page.on('pageerror', (e) => evidence.runtimeErrors.push(`page: ${String(e)}`))
 page.on('requestfailed', (r) => {
-  if (!r.url().startsWith('chrome-extension://')) {
-    evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
-  }
+  evidence.failedRequests.push(`${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
 })
 
 const waitForCanvas = async () => {
@@ -202,6 +200,9 @@ try {
   secondPage.setDefaultTimeout(20_000)
   secondPage.on('console', (m) => { if (m.type() === 'error') evidence.runtimeErrors.push(`second-tab console: ${m.text()}`) })
   secondPage.on('pageerror', (e) => evidence.runtimeErrors.push(`second-tab page: ${String(e)}`))
+  secondPage.on('requestfailed', (r) => {
+    evidence.failedRequests.push(`second-tab ${r.method()} ${r.url()}: ${r.failure()?.errorText ?? 'failed'}`)
+  })
   await secondPage.goto('chrome://newtab/', { waitUntil: 'domcontentloaded' })
   await waitForFlow(secondPage)
   const secondSession = await secondPage.evaluate(async () => (await chrome.storage.local.get('timerSession')).timerSession)

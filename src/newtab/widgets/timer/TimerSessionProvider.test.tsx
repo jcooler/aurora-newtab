@@ -9,6 +9,7 @@ import { createStorage } from '../../../lib/storage/index'
 import { defaults, type TimerSession } from '../../../lib/storage/schema'
 import {
   TimerSessionProvider,
+  useTimerFlowState,
   useTimerSession,
 } from './TimerSessionProvider'
 
@@ -123,6 +124,24 @@ describe('TimerSessionProvider', () => {
     }))
   })
 
+  it('reduces an action against the freshest locked config before its React subscription commits', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(20 * MIN)
+    const { result, storage, otherContext } = await harness(session({ remainingMs: 25 * MIN }))
+
+    await act(async () => {
+      await otherContext.set('timerConfig', { workMinutes: 50, breakMinutes: 7 })
+      await result.current.reset()
+      await result.current.start()
+    })
+
+    expect(await storage.get('timerSession')).toEqual(session({
+      running: true,
+      endsAt: 70 * MIN,
+      remainingMs: 50 * MIN,
+    }))
+  })
+
   it('receives another context update and exposes it without a reload', async () => {
     const { result, otherContext } = await harness()
     const external = session({ mode: 'break', remainingMs: 2 * MIN, cycles: 3, flow: true })
@@ -132,8 +151,12 @@ describe('TimerSessionProvider', () => {
     await waitFor(() => expect(result.current.session).toEqual(external))
   })
 
-  it('owns one clock even when multiple descendants consume the controller', async () => {
-    const driver = memoryDriver({ ...defaults(), 'aurora:version': 15 })
+  it('owns one clock even when multiple descendants consume a running controller', async () => {
+    const driver = memoryDriver({
+      ...defaults(),
+      timerSession: session({ running: true, endsAt: Date.now() + 10 * MIN }),
+      'aurora:version': 15,
+    })
     const storage = createStorage(driver)
     await storage.init()
     const intervalSpy = vi.spyOn(window, 'setInterval')
@@ -152,5 +175,35 @@ describe('TimerSessionProvider', () => {
     )
     await act(async () => {})
     expect(intervalSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('owns no idle clock and does not invalidate stable Flow consumers on running ticks', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const driver = memoryDriver({ ...defaults(), 'aurora:version': 15 })
+    const storage = createStorage(driver)
+    await storage.init()
+    let flowRenders = 0
+    function FlowConsumer() {
+      useTimerFlowState()
+      flowRenders++
+      return null
+    }
+    const view = render(
+      <StorageProvider storage={storage}>
+        <TimerSessionProvider><FlowConsumer /></TimerSessionProvider>
+      </StorageProvider>,
+    )
+    await act(async () => {})
+    expect(vi.getTimerCount()).toBe(0)
+
+    await act(async () => {
+      await storage.set('timerSession', session({ running: true, endsAt: 10 * MIN }))
+    })
+    const rendersAfterStart = flowRenders
+    expect(vi.getTimerCount()).toBe(1)
+    await act(async () => { await vi.advanceTimersByTimeAsync(1_500) })
+    expect(flowRenders).toBe(rendersAfterStart)
+    view.unmount()
   })
 })

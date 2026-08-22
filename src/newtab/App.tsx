@@ -52,7 +52,7 @@ import { selectActiveWidgetRegistry } from './widgetRegistry'
 import { resolveWidgetRenderer, type WidgetRendererProps } from './widgetRenderers'
 import { useCanvasViewport } from './useCanvasViewport'
 import { projectTextScale } from './canvas/canvasTextScale'
-import { TimerSessionProvider, useTimerSession } from './widgets/timer/TimerSessionProvider'
+import { TimerSessionProvider, useTimerFlowState } from './widgets/timer/TimerSessionProvider'
 import FlowScreen from './flow/FlowScreen'
 
 const DENSITY_PREFERENCES = new Set(['auto', 'compact', 'balanced', 'spacious'])
@@ -72,7 +72,7 @@ function usableStoredLayout(value: StoredLayout | null | undefined): StoredLayou
 }
 
 function AuroraApp() {
-  const timer = useTimerSession()
+  const timerFlow = useTimerFlowState()
   const [settings] = useStoredKey('settings')
   const [photoPrefs, savePhotoPrefs] = useStoredKey('photoPrefs')
   const [layout] = useStoredKey('layout')
@@ -90,6 +90,12 @@ function AuroraApp() {
   const utilityTrayInvokerRef = useRef<HTMLButtonElement>(null)
   const utilityCloseGuardRef = useRef<{ tool: UtilityToolId; guard: UtilityCloseGuard } | null>(null)
   const effectiveUtilityToolRef = useRef<UtilityToolId | null>(null)
+  const clickSuppressorCleanupsRef = useRef(new Set<() => void>())
+
+  useEffect(() => () => {
+    for (const cleanup of clickSuppressorCleanupsRef.current) cleanup()
+    clickSuppressorCleanupsRef.current.clear()
+  }, [])
 
   const storedLayout = useMemo(() => usableStoredLayout(layout), [layout])
   const viewport = useCanvasViewport()
@@ -323,14 +329,14 @@ function AuroraApp() {
       // Flow is mutually exclusive with every Canvas editing surface. The
       // hidden dashboard never accepts edit commands while the timer owns
       // the viewport.
-      if (timer.session.flow) return
+      if (timerFlow.flow) return
       if (event.target instanceof Element && event.target.closest('input, textarea, select, [contenteditable="true"]')) return
       event.preventDefault()
       editMode.begin(document.activeElement instanceof HTMLElement ? document.activeElement : null)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [editMode, timer.session.flow])
+  }, [editMode, timerFlow.flow])
 
   // Arrow keys move the selection by 8px, Shift+Arrow by 1px (spec 2.5),
   // converted to percent against the live viewport span.
@@ -350,9 +356,9 @@ function AuroraApp() {
     return () => window.removeEventListener('keydown', onKey)
   }, [editMode, session])
 
-  if (!settings || !photoPrefs || !timer.hydrated) return null
+  if (!settings || !photoPrefs || !timerFlow.hydrated) return null
 
-  if (timer.session.flow) {
+  if (timerFlow.flow) {
     return (
       <main data-aurora-flow="" className="aurora-canvas text-fg">
         <Background prefs={photoPrefs} onPrefsChange={savePhotoPrefs} showControls={false} />
@@ -449,15 +455,22 @@ function AuroraApp() {
             // the grabbed widget — clicks anywhere else (toolbar, another
             // widget) are unrelated and pass through.
             const grabbedId = id
-            const swallowClick = (clickEvent: MouseEvent) => {
+            let timeoutId: number | undefined
+            const cleanupSuppressor = () => {
               document.removeEventListener('click', swallowClick, { capture: true })
+              if (timeoutId !== undefined) window.clearTimeout(timeoutId)
+              clickSuppressorCleanupsRef.current.delete(cleanupSuppressor)
+            }
+            const swallowClick = (clickEvent: MouseEvent) => {
+              cleanupSuppressor()
               if (clickEvent.target instanceof Element && clickEvent.target.closest(`[data-block-id="${grabbedId}"]`)) {
                 clickEvent.preventDefault()
                 clickEvent.stopPropagation()
               }
             }
             document.addEventListener('click', swallowClick, { capture: true })
-            window.setTimeout(() => document.removeEventListener('click', swallowClick, { capture: true }), 500)
+            timeoutId = window.setTimeout(cleanupSuppressor, 500)
+            clickSuppressorCleanupsRef.current.add(cleanupSuppressor)
             if (!session) editMode.begin(event.currentTarget as HTMLElement)
             editMode.select(id)
             drag.startDrag(id, {

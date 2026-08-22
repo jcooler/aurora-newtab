@@ -68,9 +68,8 @@ function TimerInner({
   onOpenChange?: (open: boolean) => void
   utilityTray?: UtilityTrayBridge
 }) {
-  const [timerConfig, saveTimerConfig] = useStoredKey('timerConfig')
   const timer = useTimerSession()
-  const config = timerConfig ?? timer.config ?? DEFAULT_CONFIG
+  const config = timer.config ?? DEFAULT_CONFIG
   const state = timer.session
   const [open, setOpen] = useState(false)
   const [flash, setFlash] = useState(false)
@@ -147,7 +146,7 @@ function TimerInner({
     return () => onOpenChangeRef.current?.(false)
   }, [open])
 
-  if (timerConfig === undefined || !timer.hydrated) return null
+  if (!timer.hydrated) return null
 
   const display = formatRemaining(timer.remainingMs)
   const progressPct = timer.progressPct
@@ -279,10 +278,7 @@ function TimerInner({
                 value={config.workMinutes}
                 disabled={state.running}
                 onChange={(e) =>
-                  saveTimerConfig({
-                    ...config,
-                    workMinutes: clampMinutes(e.currentTarget.valueAsNumber),
-                  })
+                  void timer.updateConfig({ workMinutes: clampMinutes(e.currentTarget.valueAsNumber) })
                 }
                 className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
               />
@@ -297,10 +293,7 @@ function TimerInner({
                 value={config.breakMinutes}
                 disabled={state.running}
                 onChange={(e) =>
-                  saveTimerConfig({
-                    ...config,
-                    breakMinutes: clampMinutes(e.currentTarget.valueAsNumber),
-                  })
+                  void timer.updateConfig({ breakMinutes: clampMinutes(e.currentTarget.valueAsNumber) })
                 }
                 className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
               />
@@ -323,7 +316,7 @@ function TimerInner({
               display={display}
               progressPct={progressPct}
               config={config}
-              saveTimerConfig={saveTimerConfig}
+              updateTimerConfig={(patch) => { void timer.updateConfig(patch) }}
               start={start}
               pause={pause}
               reset={reset}
@@ -345,7 +338,7 @@ function TimerTrayDetails({
   display,
   progressPct,
   config,
-  saveTimerConfig,
+  updateTimerConfig,
   start,
   pause,
   reset,
@@ -355,7 +348,7 @@ function TimerTrayDetails({
   display: string
   progressPct: number
   config: TimerConfig
-  saveTimerConfig: (next: TimerConfig) => void
+  updateTimerConfig: (patch: Partial<TimerConfig>) => void
   start: () => void
   pause: () => void
   reset: () => void
@@ -389,7 +382,7 @@ function TimerTrayDetails({
             max={MAX_MINUTES}
             value={config.workMinutes}
             disabled={state.running}
-            onChange={(event) => saveTimerConfig({ ...config, workMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
+            onChange={(event) => updateTimerConfig({ workMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
             className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
           /> min
         </label>
@@ -401,7 +394,7 @@ function TimerTrayDetails({
             max={MAX_MINUTES}
             value={config.breakMinutes}
             disabled={state.running}
-            onChange={(event) => saveTimerConfig({ ...config, breakMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
+            onChange={(event) => updateTimerConfig({ breakMinutes: clampMinutes(event.currentTarget.valueAsNumber) })}
             className={`${control} w-14 text-center [appearance:textfield] disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
           /> min
         </label>

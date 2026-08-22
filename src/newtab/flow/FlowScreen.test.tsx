@@ -127,4 +127,13 @@ describe('FlowScreen', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
     await waitFor(async () => expect((await storage.get('timerSession'))?.flow).toBe(false))
   })
+
+  it('names and displays the persisted break phase directly', async () => {
+    await renderFlow({
+      timerSession: timer({ mode: 'break', remainingMs: 4 * MIN }),
+    })
+
+    expect(screen.getByText('Break')).toBeTruthy()
+    expect(screen.getByLabelText('Break timer 04:00')).toBeTruthy()
+  })
 })

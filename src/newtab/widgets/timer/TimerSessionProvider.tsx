@@ -29,6 +29,7 @@ export interface TimerSessionController {
   progressPct: number
   justFinished: 'work' | 'break' | null
   clearFinished(): void
+  updateConfig(patch: Partial<TimerConfig>): Promise<TimerConfig>
   start(): Promise<TimerSession | null>
   pause(): Promise<TimerSession | null>
   reset(): Promise<TimerSession | null>
@@ -37,17 +38,23 @@ export interface TimerSessionController {
 }
 
 const TimerSessionContext = createContext<TimerSessionController | null>(null)
+interface TimerFlowState {
+  hydrated: boolean
+  flow: boolean
+}
+const TimerFlowContext = createContext<TimerFlowState | null>(null)
 
 export function TimerSessionProvider({ children }: { children: ReactNode }) {
   const storage = useStorage()
   const [storedSession] = useStoredKey('timerSession')
   const [storedConfig] = useStoredKey('timerConfig')
-  const now = useNow(500)
+  // Paused and canonical-idle sessions have no moving value and own no
+  // interval/listeners. A running deadline keeps ticking even when the Timer
+  // widget is hidden so phase rollover remains App-level authority.
+  const now = useNow(500, storedSession?.running === true)
   const [justFinished, setJustFinished] = useState<'work' | 'break' | null>(null)
   const transitionInFlight = useRef(false)
   const config = storedConfig ?? DEFAULT_CONFIG
-  const configRef = useRef(config)
-  configRef.current = config
   const session = materializeTimerSession(storedSession ?? null, config)
   const remainingMs = liveTimerRemainingMs(storedSession ?? null, now.getTime(), config)
   const totalMs = (session.mode === 'work' ? config.workMinutes : config.breakMinutes) * 60_000
@@ -58,9 +65,10 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
 
   const runAction = useCallback(async (action: TimerSessionAction) => {
     setJustFinished(null)
-    return storage.update('timerSession', (current) => (
-      reduceTimerSession(current, action, configRef.current)
-    ))
+    const patch = await storage.updateMany(['timerSession', 'timerConfig'], ({ timerSession, timerConfig }) => ({
+      timerSession: reduceTimerSession(timerSession, action, timerConfig ?? DEFAULT_CONFIG),
+    }))
+    return patch.timerSession ?? null
   }, [storage])
 
   useEffect(() => {
@@ -75,7 +83,7 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
 
     transitionInFlight.current = true
     let completed: 'work' | 'break' | null = null
-    void storage.updateMany(['timerSession'], ({ timerSession }) => {
+    void storage.updateMany(['timerSession', 'timerConfig'], ({ timerSession, timerConfig }) => {
       if (
         timerSession === null ||
         !timerSession.running ||
@@ -87,7 +95,7 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
         timerSession: reduceTimerSession(
           timerSession,
           { type: 'tick', now: now.getTime() },
-          configRef.current,
+          timerConfig ?? DEFAULT_CONFIG,
         ),
       }
     }).then((patch) => {
@@ -107,14 +115,26 @@ export function TimerSessionProvider({ children }: { children: ReactNode }) {
     progressPct,
     justFinished,
     clearFinished: () => setJustFinished(null),
+    updateConfig: (patch) => storage.update('timerConfig', (current) => ({ ...current, ...patch })),
     start: () => runAction({ type: 'start', now: Date.now() }),
     pause: () => runAction({ type: 'pause', now: Date.now() }),
     reset: () => runAction({ type: 'reset', now: Date.now() }),
     enterFlow: () => runAction({ type: 'enterFlow', now: Date.now() }),
     exitFlow: () => runAction({ type: 'exitFlow', now: Date.now() }),
-  }), [config, hydrated, justFinished, progressPct, remainingMs, runAction, session])
+  }), [config, hydrated, justFinished, progressPct, remainingMs, runAction, session, storage])
 
-  return <TimerSessionContext.Provider value={value}>{children}</TimerSessionContext.Provider>
+  // AuroraApp reads only this stable context. Countdown ticks update the
+  // display context below without invalidating the complete Canvas tree.
+  const flowState = useMemo<TimerFlowState>(() => ({
+    hydrated,
+    flow: session.flow,
+  }), [hydrated, session.flow])
+
+  return (
+    <TimerFlowContext.Provider value={flowState}>
+      <TimerSessionContext.Provider value={value}>{children}</TimerSessionContext.Provider>
+    </TimerFlowContext.Provider>
+  )
 }
 
 export function useTimerSession(): TimerSessionController {
@@ -123,4 +143,12 @@ export function useTimerSession(): TimerSessionController {
     throw new Error('useTimerSession must be used inside <TimerSessionProvider>')
   }
   return controller
+}
+
+export function useTimerFlowState(): TimerFlowState {
+  const state = useContext(TimerFlowContext)
+  if (!state) {
+    throw new Error('useTimerFlowState must be used inside <TimerSessionProvider>')
+  }
+  return state
 }
