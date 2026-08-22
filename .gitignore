@@ -68,6 +68,11 @@ output/
 .playwright-profile-qa-nl-p6/
 .playwright-profile-qa-nl-p6-window/
 
+# DY-P1 immutable legacy baseline and two-axis dock witness scratch.
+.qa-dy-p1-*
+.playwright-profile-qa-dy-p1/
+.playwright-profile-qa-dy-p1-window/
+
 # Focused Weather environmental-enrichment witness scratch.
 .qa-weather-enrichment-*
 
