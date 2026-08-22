@@ -173,6 +173,35 @@ export interface HourlyPoint {
   isDay?: boolean // see CurrentWeather.isDay
 }
 
+export type PollenSpecies = 'alder' | 'birch' | 'grass' | 'mugwort' | 'olive' | 'ragweed'
+
+export interface PollenReading {
+  species: PollenSpecies
+  grainsPerCubicMeter: number
+}
+
+export type WeatherPollenSnapshot =
+  | { status: 'available'; readings: PollenReading[] }
+  | { status: 'unavailable' }
+
+export type WeatherEnvironmentSnapshot =
+  | {
+      requestIdentity: string
+      fetchedAt: number
+      status: 'available'
+      usAqi: number | null
+      uvIndex: number | null
+      pollen: WeatherPollenSnapshot
+    }
+  | {
+      requestIdentity: string
+      fetchedAt: number
+      status: 'unavailable'
+      usAqi: null
+      uvIndex: null
+      pollen: { status: 'unavailable' }
+    }
+
 export interface WeatherSnapshot {
   current: CurrentWeather
   hourly: HourlyPoint[] // next ~12h
@@ -183,6 +212,9 @@ export interface WeatherSnapshot {
   requestIdentity?: string
   sunriseISO?: string
   sunsetISO?: string
+  /** Separately identified optional provider leg. Pre-enrichment caches omit
+   *  it and remain usable for forecast display while the hook self-heals. */
+  environment?: WeatherEnvironmentSnapshot
 }
 
 export interface Notes {
