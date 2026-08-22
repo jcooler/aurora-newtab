@@ -1,0 +1,3364 @@
+{
+  "catalogVersion": 1,
+  "verifiedOn": "2026-08-22",
+  "candidates": [
+    {
+      "id": "readingList",
+      "label": "Reading List",
+      "kind": "browser-native",
+      "status": "approved-wave",
+      "wave": "browser-native",
+      "priority": 1,
+      "userValue": "See unread pages saved in Chrome",
+      "glanceQuestion": "What did I save to read next?",
+      "source": {
+        "provider": "Chrome Reading List API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/readingList",
+        "transport": "chrome.readingList",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "readingList"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "Chrome may display a permission warning for readingList"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant Reading List access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "Reading List primary fact with no filler",
+        "standard": "Reading List summary with one useful supporting detail",
+        "full": "Reading List detail that uses added space for context rather than whitespace",
+        "docked": "Reading List single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "recentlyClosed",
+      "label": "Recently Closed",
+      "kind": "browser-native",
+      "status": "approved-wave",
+      "wave": "browser-native",
+      "priority": 2,
+      "userValue": "Reopen recently closed tabs and windows",
+      "glanceQuestion": "What did I just close?",
+      "source": {
+        "provider": "Chrome Sessions API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/sessions",
+        "transport": "chrome.sessions",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "sessions"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "Chrome may display a permission warning for sessions"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant Recently Closed access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "Recently Closed primary fact with no filler",
+        "standard": "Recently Closed summary with one useful supporting detail",
+        "full": "Recently Closed detail that uses added space for context rather than whitespace",
+        "docked": "Recently Closed single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "downloads",
+      "label": "Downloads",
+      "kind": "browser-native",
+      "status": "approved-wave",
+      "wave": "browser-native",
+      "priority": 3,
+      "userValue": "See active and recent downloads",
+      "glanceQuestion": "What is downloading or ready?",
+      "source": {
+        "provider": "Chrome Downloads API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/downloads",
+        "transport": "chrome.downloads",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "downloads"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "Chrome may display a permission warning for downloads"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant Downloads access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "Downloads primary fact with no filler",
+        "standard": "Downloads summary with one useful supporting detail",
+        "full": "Downloads detail that uses added space for context rather than whitespace",
+        "docked": "Downloads single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "tabGroups",
+      "label": "Tab Groups",
+      "kind": "browser-native",
+      "status": "approved-wave",
+      "wave": "browser-native",
+      "priority": 4,
+      "userValue": "See and activate grouped browser workspaces",
+      "glanceQuestion": "Which tab group needs attention?",
+      "source": {
+        "provider": "Chrome Tab Groups API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/tabGroups",
+        "transport": "chrome.tabGroups and chrome.tabs",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "tabGroups",
+          "tabs"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "Chrome may display a permission warning for tabGroups and tabs"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant Tab Groups access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "Tab Groups primary fact with no filler",
+        "standard": "Tab Groups summary with one useful supporting detail",
+        "full": "Tab Groups detail that uses added space for context rather than whitespace",
+        "docked": "Tab Groups single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "linear",
+      "label": "Linear",
+      "kind": "connector",
+      "status": "approved-wave",
+      "wave": "work",
+      "priority": 1,
+      "userValue": "See assigned issues and due work",
+      "glanceQuestion": "What Linear work needs attention?",
+      "source": {
+        "provider": "Linear GraphQL API",
+        "docsUrl": "https://linear.app/developers/graphql",
+        "transport": "GraphQL over HTTPS",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://linear.app/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Linear GraphQL API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Linear facts, labels, states, and timestamps from Linear GraphQL API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Linear API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Linear primary fact with no filler",
+        "standard": "Linear summary with one useful supporting detail",
+        "full": "Linear detail that uses added space for context rather than whitespace",
+        "docked": "Linear single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "sentry",
+      "label": "Sentry",
+      "kind": "connector",
+      "status": "approved-wave",
+      "wave": "work",
+      "priority": 2,
+      "userValue": "See unresolved production issues",
+      "glanceQuestion": "What is breaking now?",
+      "source": {
+        "provider": "Sentry Web API",
+        "docsUrl": "https://docs.sentry.io/api/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://docs.sentry.io/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Sentry Web API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Sentry facts, labels, states, and timestamps from Sentry Web API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Sentry API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Sentry primary fact with no filler",
+        "standard": "Sentry summary with one useful supporting detail",
+        "full": "Sentry detail that uses added space for context rather than whitespace",
+        "docked": "Sentry single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "todoist",
+      "label": "Todoist",
+      "kind": "connector",
+      "status": "approved-wave",
+      "wave": "work",
+      "priority": 3,
+      "userValue": "See due and overdue external tasks",
+      "glanceQuestion": "What Todoist work is due?",
+      "source": {
+        "provider": "Todoist API v1",
+        "docsUrl": "https://developer.todoist.com/api/v1/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developer.todoist.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Todoist API v1"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Todoist facts, labels, states, and timestamps from Todoist API v1"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Todoist API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Todoist primary fact with no filler",
+        "standard": "Todoist summary with one useful supporting detail",
+        "full": "Todoist detail that uses added space for context rather than whitespace",
+        "docked": "Todoist single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "onThisDay",
+      "label": "On This Day",
+      "kind": "built-in-provider",
+      "status": "approved-wave",
+      "wave": "at-a-glance",
+      "priority": 1,
+      "userValue": "Read a concise historical event for today",
+      "glanceQuestion": "What happened on this date?",
+      "source": {
+        "provider": "Wikimedia API",
+        "docsUrl": "https://www.mediawiki.org/wiki/Wikimedia_APIs",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://www.mediawiki.org/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "On This Day facts, labels, states, and timestamps from Wikimedia API"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "On This Day primary fact with no filler",
+        "standard": "On This Day summary with one useful supporting detail",
+        "full": "On This Day detail that uses added space for context rather than whitespace",
+        "docked": "On This Day single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "publicHolidays",
+      "label": "Public Holidays",
+      "kind": "built-in-provider",
+      "status": "approved-wave",
+      "wave": "at-a-glance",
+      "priority": 2,
+      "userValue": "See the next public holiday",
+      "glanceQuestion": "What holiday is coming up?",
+      "source": {
+        "provider": "Nager.Date",
+        "docsUrl": "https://github.com/nager/Nager.Date",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://github.com/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Public Holidays facts, labels, states, and timestamps from Nager.Date"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Public Holidays primary fact with no filler",
+        "standard": "Public Holidays summary with one useful supporting detail",
+        "full": "Public Holidays detail that uses added space for context rather than whitespace",
+        "docked": "Public Holidays single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "severeWeather",
+      "label": "Severe Weather",
+      "kind": "built-in-provider",
+      "status": "absorbed",
+      "wave": "at-a-glance",
+      "priority": 3,
+      "userValue": "See active official alerts inside Weather",
+      "glanceQuestion": "Is dangerous weather nearby?",
+      "source": {
+        "provider": "National Weather Service API",
+        "docsUrl": "https://www.weather.gov/documentation/services-web-api",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://www.weather.gov/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Severe Weather facts, labels, states, and timestamps from National Weather Service API"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Severe Weather primary fact with no filler",
+        "standard": "Severe Weather summary with one useful supporting detail",
+        "full": "Severe Weather detail that uses added space for context rather than whitespace",
+        "docked": "Severe Weather single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "This value belongs inside the existing Weather identity instead of creating a duplicate widget",
+        "blockers": []
+      }
+    },
+    {
+      "id": "auroraKp",
+      "label": "Aurora & Kp",
+      "kind": "built-in-provider",
+      "status": "approved-wave",
+      "wave": "at-a-glance",
+      "priority": 4,
+      "userValue": "See geomagnetic activity and aurora potential",
+      "glanceQuestion": "Could the aurora be visible tonight?",
+      "source": {
+        "provider": "NOAA Space Weather Prediction Center",
+        "docsUrl": "https://services.swpc.noaa.gov/products/",
+        "transport": "HTTPS JSON feed",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://services.swpc.noaa.gov/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Aurora & Kp facts, labels, states, and timestamps from NOAA Space Weather Prediction Center"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Aurora & Kp primary fact with no filler",
+        "standard": "Aurora & Kp summary with one useful supporting detail",
+        "full": "Aurora & Kp detail that uses added space for context rather than whitespace",
+        "docked": "Aurora & Kp single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "notion",
+      "label": "Notion",
+      "kind": "connector",
+      "status": "blocked",
+      "wave": "broader",
+      "priority": 1,
+      "userValue": "See selected database items",
+      "glanceQuestion": "What changed in my Notion view?",
+      "source": {
+        "provider": "Notion API",
+        "docsUrl": "https://developers.notion.com/guides/get-started/public-connections",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "high"
+      },
+      "auth": {
+        "mode": "oauth-secret-required",
+        "directClientViable": false,
+        "secretHandling": "A public OAuth client secret cannot ship in Aurora; no implementation is authorized"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developers.notion.com/*"
+        ],
+        "userWarnings": [
+          "Notion can expose sensitive personal or workplace context"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Notion facts, labels, states, and timestamps from Notion API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Notion"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Notion primary fact with no filler",
+        "standard": "Notion summary with one useful supporting detail",
+        "full": "Notion detail that uses added space for context rather than whitespace",
+        "docked": "Notion single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value is real, but current authorization, policy, or provider constraints are not accepted",
+        "blockers": [
+          "Client-secret-required OAuth cannot ship in a direct MV3 client",
+          "Scope, privacy, and provider-policy acceptance"
+        ]
+      }
+    },
+    {
+      "id": "slack",
+      "label": "Slack",
+      "kind": "connector",
+      "status": "blocked",
+      "wave": "broader",
+      "priority": 2,
+      "userValue": "See selected mentions and channel signals",
+      "glanceQuestion": "What in Slack needs attention?",
+      "source": {
+        "provider": "Slack OAuth v2",
+        "docsUrl": "https://api.slack.com/authentication/oauth-v2",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "high"
+      },
+      "auth": {
+        "mode": "oauth-secret-required",
+        "directClientViable": false,
+        "secretHandling": "A public OAuth client secret cannot ship in Aurora; no implementation is authorized"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://api.slack.com/*"
+        ],
+        "userWarnings": [
+          "Slack can expose sensitive personal or workplace context"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Slack facts, labels, states, and timestamps from Slack OAuth v2"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Slack"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Slack primary fact with no filler",
+        "standard": "Slack summary with one useful supporting detail",
+        "full": "Slack detail that uses added space for context rather than whitespace",
+        "docked": "Slack single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value is real, but current authorization, policy, or provider constraints are not accepted",
+        "blockers": [
+          "Client-secret-required OAuth cannot ship in a direct MV3 client",
+          "Scope, privacy, and provider-policy acceptance"
+        ]
+      }
+    },
+    {
+      "id": "spotify",
+      "label": "Spotify",
+      "kind": "connector",
+      "status": "blocked",
+      "wave": "broader",
+      "priority": 3,
+      "userValue": "See now playing context",
+      "glanceQuestion": "What is playing?",
+      "source": {
+        "provider": "Spotify Web API",
+        "docsUrl": "https://developer.spotify.com/documentation/web-api/concepts/authorization",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "high"
+      },
+      "auth": {
+        "mode": "oauth-pkce",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developer.spotify.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Spotify Web API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Spotify facts, labels, states, and timestamps from Spotify Web API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Spotify"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Spotify primary fact with no filler",
+        "standard": "Spotify summary with one useful supporting detail",
+        "full": "Spotify detail that uses added space for context rather than whitespace",
+        "docked": "Spotify single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value is real, but current authorization, policy, or provider constraints are not accepted",
+        "blockers": [
+          "OAuth token lifecycle, scopes, privacy, and provider-policy acceptance"
+        ]
+      }
+    },
+    {
+      "id": "topSites",
+      "label": "Top Sites",
+      "kind": "browser-native",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 1,
+      "userValue": "Launch frequently visited sites",
+      "glanceQuestion": "Which sites do I visit most?",
+      "source": {
+        "provider": "Chrome Top Sites API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/topSites",
+        "transport": "chrome.topSites",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "topSites"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "Chrome may display a permission warning for topSites"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant Top Sites access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "Top Sites primary fact with no filler",
+        "standard": "Top Sites summary with one useful supporting detail",
+        "full": "Top Sites detail that uses added space for context rather than whitespace",
+        "docked": "Top Sites single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "historyDigest",
+      "label": "History Digest",
+      "kind": "browser-native",
+      "status": "deferred",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "Summarize unfinished browsing research",
+      "glanceQuestion": "What was I researching?",
+      "source": {
+        "provider": "Chrome History API",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/history",
+        "transport": "chrome.history",
+        "termsRisk": "medium"
+      },
+      "auth": {
+        "mode": "browser-permission",
+        "directClientViable": true,
+        "secretHandling": "Chrome owns access; Aurora stores no credential"
+      },
+      "access": {
+        "chromePermissions": [
+          "history"
+        ],
+        "origins": [],
+        "userWarnings": [
+          "History Digest can expose sensitive personal or workplace context"
+        ]
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Browser-owned titles, URLs, state, and timestamps needed for the selected view"
+        ],
+        "stores": [
+          "Display preferences only"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Sensitive titles, URLs, and content are excluded from backup and logs"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Grant History Digest access"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Required browser permission is available"
+        ]
+      },
+      "presentation": {
+        "compact": "History Digest primary fact with no filler",
+        "standard": "History Digest summary with one useful supporting detail",
+        "full": "History Digest detail that uses added space for context rather than whitespace",
+        "docked": "History Digest single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Chrome API lifecycle and platform availability"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value does not yet justify its privacy, coverage, or setup cost",
+        "blockers": [
+          "Owner privacy acceptance and user research"
+        ]
+      }
+    },
+    {
+      "id": "githubActions",
+      "label": "GitHub Actions",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 2,
+      "userValue": "See workflow health for selected repositories",
+      "glanceQuestion": "Which GitHub workflow needs attention?",
+      "source": {
+        "provider": "GitHub REST API",
+        "docsUrl": "https://docs.github.com/en/rest/actions/workflow-runs",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://docs.github.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to GitHub REST API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "GitHub Actions facts, labels, states, and timestamps from GitHub REST API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a GitHub Actions API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "GitHub Actions primary fact with no filler",
+        "standard": "GitHub Actions summary with one useful supporting detail",
+        "full": "GitHub Actions detail that uses added space for context rather than whitespace",
+        "docked": "GitHub Actions single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "gitlabPipelines",
+      "label": "GitLab Pipelines",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See pipeline health for selected projects",
+      "glanceQuestion": "Which GitLab pipeline needs attention?",
+      "source": {
+        "provider": "GitLab Pipelines API",
+        "docsUrl": "https://docs.gitlab.com/api/pipelines/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://docs.gitlab.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to GitLab Pipelines API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "GitLab Pipelines facts, labels, states, and timestamps from GitLab Pipelines API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a GitLab Pipelines API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "GitLab Pipelines primary fact with no filler",
+        "standard": "GitLab Pipelines summary with one useful supporting detail",
+        "full": "GitLab Pipelines detail that uses added space for context rather than whitespace",
+        "docked": "GitLab Pipelines single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "pagerDuty",
+      "label": "PagerDuty",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See active incidents and on-call pressure",
+      "glanceQuestion": "Is there an active incident?",
+      "source": {
+        "provider": "PagerDuty REST API",
+        "docsUrl": "https://developer.pagerduty.com/api-reference/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developer.pagerduty.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to PagerDuty REST API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "PagerDuty facts, labels, states, and timestamps from PagerDuty REST API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a PagerDuty API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "PagerDuty primary fact with no filler",
+        "standard": "PagerDuty summary with one useful supporting detail",
+        "full": "PagerDuty detail that uses added space for context rather than whitespace",
+        "docked": "PagerDuty single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "datadog",
+      "label": "Datadog",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See monitor and incident health",
+      "glanceQuestion": "What is unhealthy in Datadog?",
+      "source": {
+        "provider": "Datadog API",
+        "docsUrl": "https://docs.datadoghq.com/api/latest/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://docs.datadoghq.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Datadog API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Datadog facts, labels, states, and timestamps from Datadog API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Datadog API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Datadog primary fact with no filler",
+        "standard": "Datadog summary with one useful supporting detail",
+        "full": "Datadog detail that uses added space for context rather than whitespace",
+        "docked": "Datadog single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "cloudflareAnalytics",
+      "label": "Cloudflare Analytics",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See traffic and error health",
+      "glanceQuestion": "Did traffic or errors change?",
+      "source": {
+        "provider": "Cloudflare GraphQL Analytics API",
+        "docsUrl": "https://developers.cloudflare.com/analytics/graphql-api/",
+        "transport": "GraphQL over HTTPS",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developers.cloudflare.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Cloudflare GraphQL Analytics API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Cloudflare Analytics facts, labels, states, and timestamps from Cloudflare GraphQL Analytics API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Cloudflare Analytics API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Cloudflare Analytics primary fact with no filler",
+        "standard": "Cloudflare Analytics summary with one useful supporting detail",
+        "full": "Cloudflare Analytics detail that uses added space for context rather than whitespace",
+        "docked": "Cloudflare Analytics single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "buildkite",
+      "label": "Buildkite",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See recent build health",
+      "glanceQuestion": "Which Buildkite build needs attention?",
+      "source": {
+        "provider": "Buildkite REST API",
+        "docsUrl": "https://buildkite.com/docs/apis/rest-api/builds",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://buildkite.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Buildkite REST API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Buildkite facts, labels, states, and timestamps from Buildkite REST API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Buildkite API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Buildkite primary fact with no filler",
+        "standard": "Buildkite summary with one useful supporting detail",
+        "full": "Buildkite detail that uses added space for context rather than whitespace",
+        "docked": "Buildkite single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "jenkins",
+      "label": "Jenkins",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See job and build health",
+      "glanceQuestion": "Which Jenkins job is unhealthy?",
+      "source": {
+        "provider": "Jenkins Remote Access API",
+        "docsUrl": "https://www.jenkins.io/doc/book/using/remote-access-api/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://www.jenkins.io/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Jenkins Remote Access API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Jenkins facts, labels, states, and timestamps from Jenkins Remote Access API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Jenkins API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Jenkins primary fact with no filler",
+        "standard": "Jenkins summary with one useful supporting detail",
+        "full": "Jenkins detail that uses added space for context rather than whitespace",
+        "docked": "Jenkins single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "asana",
+      "label": "Asana",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See assigned task pressure",
+      "glanceQuestion": "What Asana work is due?",
+      "source": {
+        "provider": "Asana API",
+        "docsUrl": "https://developers.asana.com/reference/tasks",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developers.asana.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Asana API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Asana facts, labels, states, and timestamps from Asana API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Asana API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Asana primary fact with no filler",
+        "standard": "Asana summary with one useful supporting detail",
+        "full": "Asana detail that uses added space for context rather than whitespace",
+        "docked": "Asana single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "trello",
+      "label": "Trello",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See selected board activity",
+      "glanceQuestion": "What changed on my Trello board?",
+      "source": {
+        "provider": "Trello REST API",
+        "docsUrl": "https://developer.atlassian.com/cloud/trello/rest/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developer.atlassian.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Trello REST API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Trello facts, labels, states, and timestamps from Trello REST API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a Trello API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Trello primary fact with no filler",
+        "standard": "Trello summary with one useful supporting detail",
+        "full": "Trello detail that uses added space for context rather than whitespace",
+        "docked": "Trello single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "clickUp",
+      "label": "ClickUp",
+      "kind": "connector",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See assigned work and due dates",
+      "glanceQuestion": "What ClickUp work is due?",
+      "source": {
+        "provider": "ClickUp API",
+        "docsUrl": "https://developer.clickup.com/docs/authentication",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developer.clickup.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to ClickUp API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "ClickUp facts, labels, states, and timestamps from ClickUp API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a ClickUp API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "ClickUp primary fact with no filler",
+        "standard": "ClickUp summary with one useful supporting detail",
+        "full": "ClickUp detail that uses added space for context rather than whitespace",
+        "docked": "ClickUp single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "microsoftTodo",
+      "label": "Microsoft To Do",
+      "kind": "connector",
+      "status": "blocked",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "See Microsoft task lists and due work",
+      "glanceQuestion": "What Microsoft To Do work is due?",
+      "source": {
+        "provider": "Microsoft Graph To Do API",
+        "docsUrl": "https://learn.microsoft.com/en-us/graph/todo-concept-overview",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "high"
+      },
+      "auth": {
+        "mode": "oauth-pkce",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://learn.microsoft.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Microsoft Graph To Do API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Microsoft To Do facts, labels, states, and timestamps from Microsoft Graph To Do API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Microsoft To Do"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Microsoft To Do primary fact with no filler",
+        "standard": "Microsoft To Do summary with one useful supporting detail",
+        "full": "Microsoft To Do detail that uses added space for context rather than whitespace",
+        "docked": "Microsoft To Do single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value is real, but current authorization, policy, or provider constraints are not accepted",
+        "blockers": [
+          "OAuth token lifecycle, scopes, privacy, and provider-policy acceptance"
+        ]
+      }
+    },
+    {
+      "id": "googleCalendar",
+      "label": "Google Calendar",
+      "kind": "connector",
+      "status": "blocked",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "See upcoming Google Calendar context",
+      "glanceQuestion": "What is next on Google Calendar?",
+      "source": {
+        "provider": "Google Calendar API",
+        "docsUrl": "https://developers.google.com/workspace/calendar/api/guides/overview",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "high"
+      },
+      "auth": {
+        "mode": "oauth-pkce",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developers.google.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends a scoped request to Google Calendar API"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Google Calendar facts, labels, states, and timestamps from Google Calendar API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Google Calendar"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Google Calendar primary fact with no filler",
+        "standard": "Google Calendar summary with one useful supporting detail",
+        "full": "Google Calendar detail that uses added space for context rather than whitespace",
+        "docked": "Google Calendar single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value is real, but current authorization, policy, or provider constraints are not accepted",
+        "blockers": [
+          "OAuth token lifecycle, scopes, privacy, and provider-policy acceptance"
+        ]
+      }
+    },
+    {
+      "id": "earthquakes",
+      "label": "Earthquakes",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 2,
+      "userValue": "See nearby significant earthquakes",
+      "glanceQuestion": "Was there a significant earthquake nearby?",
+      "source": {
+        "provider": "USGS Earthquake API",
+        "docsUrl": "https://earthquake.usgs.gov/fdsnws/event/1/",
+        "transport": "HTTPS GeoJSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://earthquake.usgs.gov/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Earthquakes facts, labels, states, and timestamps from USGS Earthquake API"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Earthquakes primary fact with no filler",
+        "standard": "Earthquakes summary with one useful supporting detail",
+        "full": "Earthquakes detail that uses added space for context rather than whitespace",
+        "docked": "Earthquakes single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "spaceLaunches",
+      "label": "Space Launches",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See upcoming orbital launches",
+      "glanceQuestion": "What launches next?",
+      "source": {
+        "provider": "The Space Devs Launch Library 2",
+        "docsUrl": "https://thespacedevs.com/llapi",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://thespacedevs.com/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Space Launches facts, labels, states, and timestamps from The Space Devs Launch Library 2"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Space Launches primary fact with no filler",
+        "standard": "Space Launches summary with one useful supporting detail",
+        "full": "Space Launches detail that uses added space for context rather than whitespace",
+        "docked": "Space Launches single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "issTracker",
+      "label": "ISS Tracker",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See current ISS position context",
+      "glanceQuestion": "Where is the ISS now?",
+      "source": {
+        "provider": "Open Notify",
+        "docsUrl": "https://open-notify.org/Open-Notify-API/ISS-Location-Now/",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://open-notify.org/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "ISS Tracker facts, labels, states, and timestamps from Open Notify"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "ISS Tracker primary fact with no filler",
+        "standard": "ISS Tracker summary with one useful supporting detail",
+        "full": "ISS Tracker detail that uses added space for context rather than whitespace",
+        "docked": "ISS Tracker single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "wordOfDay",
+      "label": "Word of the Day",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "Read a daily word and definition",
+      "glanceQuestion": "What word can I learn today?",
+      "source": {
+        "provider": "Merriam-Webster Dictionary API",
+        "docsUrl": "https://dictionaryapi.com/products/index",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://dictionaryapi.com/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Word of the Day facts, labels, states, and timestamps from Merriam-Webster Dictionary API"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Word of the Day primary fact with no filler",
+        "standard": "Word of the Day summary with one useful supporting detail",
+        "full": "Word of the Day detail that uses added space for context rather than whitespace",
+        "docked": "Word of the Day single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "dailyTrivia",
+      "label": "Daily Trivia",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See one lightweight trivia prompt",
+      "glanceQuestion": "What can I test myself on today?",
+      "source": {
+        "provider": "Open Trivia Database",
+        "docsUrl": "https://opentdb.com/api_config.php",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://opentdb.com/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Daily Trivia facts, labels, states, and timestamps from Open Trivia Database"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Daily Trivia primary fact with no filler",
+        "standard": "Daily Trivia summary with one useful supporting detail",
+        "full": "Daily Trivia detail that uses added space for context rather than whitespace",
+        "docked": "Daily Trivia single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "sportsScores",
+      "label": "Sports Scores",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "See selected team scores and schedules",
+      "glanceQuestion": "How did my teams do?",
+      "source": {
+        "provider": "TheSportsDB",
+        "docsUrl": "https://www.thesportsdb.com/documentation",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "medium"
+      },
+      "auth": {
+        "mode": "api-token",
+        "directClientViable": true,
+        "secretHandling": "Credential material stays out of backup, logs, fixtures, and generated artifacts"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://www.thesportsdb.com/*"
+        ],
+        "userWarnings": [
+          "Aurora sends selected league and team queries to TheSportsDB"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "API token",
+          "Selected league, team, and schedule filters"
+        ],
+        "receives": [
+          "Scores, schedules, teams, leagues, and update timestamps from TheSportsDB"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Add a TheSportsDB API token"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Sports Scores primary fact with no filler",
+        "standard": "Sports Scores summary with one useful supporting detail",
+        "full": "Sports Scores detail that uses added space for context rather than whitespace",
+        "docked": "Sports Scores single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "medium",
+        "drivers": [
+          "Provider availability and response schema",
+          "Free and paid plan capability differences",
+          "Live-score freshness"
+        ]
+      },
+      "decision": {
+        "rationale": "TheSportsDB offers an official multi-sport API suitable for a future bounded provider packet",
+        "blockers": [
+          "Confirm the production plan, rate limits, and provider terms before implementation"
+        ]
+      }
+    },
+    {
+      "id": "transitCommute",
+      "label": "Transit Commute",
+      "kind": "built-in-provider",
+      "status": "deferred",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "See departures and service disruptions",
+      "glanceQuestion": "Is my commute on time?",
+      "source": {
+        "provider": "GTFS Realtime",
+        "docsUrl": "https://gtfs.org/documentation/realtime/reference/",
+        "transport": "GTFS Realtime protobuf",
+        "termsRisk": "medium"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://gtfs.org/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Transit Commute facts, labels, states, and timestamps from GTFS Realtime"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Transit Commute primary fact with no filler",
+        "standard": "Transit Commute summary with one useful supporting detail",
+        "full": "Transit Commute detail that uses added space for context rather than whitespace",
+        "docked": "Transit Commute single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value does not yet justify its privacy, coverage, or setup cost",
+        "blockers": [
+          "Coverage and setup experience need design"
+        ]
+      }
+    },
+    {
+      "id": "packageUpdates",
+      "label": "Package Updates",
+      "kind": "built-in-provider",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See dependency release updates",
+      "glanceQuestion": "Which packages have updates?",
+      "source": {
+        "provider": "npm Registry API",
+        "docsUrl": "https://github.com/npm/registry/blob/main/docs/REGISTRY-API.md",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://github.com/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Package Updates facts, labels, states, and timestamps from npm Registry API"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Package Updates primary fact with no filler",
+        "standard": "Package Updates summary with one useful supporting detail",
+        "full": "Package Updates detail that uses added space for context rather than whitespace",
+        "docked": "Package Updates single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "uptime",
+      "label": "Uptime",
+      "kind": "local",
+      "status": "researched",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See reachability and response time",
+      "glanceQuestion": "Are my endpoints up?",
+      "source": {
+        "provider": "User-configured HTTPS endpoints",
+        "docsUrl": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+        "transport": "HTTPS request",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Existing Aurora-owned local records selected by the user"
+        ],
+        "stores": [
+          "Existing Aurora-owned local data and display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Uptime primary fact with no filler",
+        "standard": "Uptime summary with one useful supporting detail",
+        "full": "Uptime detail that uses added space for context rather than whitespace",
+        "docked": "Uptime single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Truthful local calculations and migrations"
+        ]
+      },
+      "decision": {
+        "rationale": "The glance question is repeatable and the source contract is narrow enough for a future bounded packet",
+        "blockers": []
+      }
+    },
+    {
+      "id": "emailInbox",
+      "label": "Email Inbox",
+      "kind": "connector",
+      "status": "deferred",
+      "wave": "backlog",
+      "priority": 5,
+      "userValue": "See bounded unread and priority mail",
+      "glanceQuestion": "Which email needs attention?",
+      "source": {
+        "provider": "Gmail API",
+        "docsUrl": "https://developers.google.com/workspace/gmail/api/auth/scopes",
+        "transport": "HTTPS JSON API",
+        "termsRisk": "medium"
+      },
+      "auth": {
+        "mode": "oauth-secret-required",
+        "directClientViable": false,
+        "secretHandling": "A public OAuth client secret cannot ship in Aurora; no implementation is authorized"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://developers.google.com/*"
+        ],
+        "userWarnings": [
+          "Email Inbox can expose sensitive personal or workplace context"
+        ]
+      },
+      "privacy": {
+        "sends": [
+          "Scoped credential",
+          "Selected query and filters"
+        ],
+        "receives": [
+          "Email Inbox facts, labels, states, and timestamps from Gmail API"
+        ],
+        "stores": [
+          "Scoped connector snapshot",
+          "Non-secret connector settings"
+        ],
+        "backup": "Only non-secret settings may enter backup; credentials, content, and snapshots do not",
+        "redaction": "Tokens, authorization headers, user content, identifiers, and capability URLs are removed"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [
+          "Authorize Email Inbox"
+        ],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Credential and selected resource can be verified"
+        ]
+      },
+      "presentation": {
+        "compact": "Email Inbox primary fact with no filler",
+        "standard": "Email Inbox summary with one useful supporting detail",
+        "full": "Email Inbox detail that uses added space for context rather than whitespace",
+        "docked": "Email Inbox single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "high",
+        "drivers": [
+          "Provider API changes",
+          "Rate limits",
+          "Authentication lifecycle"
+        ]
+      },
+      "decision": {
+        "rationale": "Potential value does not yet justify its privacy, coverage, or setup cost",
+        "blockers": [
+          "Owner privacy acceptance and user research"
+        ]
+      }
+    },
+    {
+      "id": "habitInsights",
+      "label": "Habit Insights",
+      "kind": "local",
+      "status": "absorbed",
+      "wave": "backlog",
+      "priority": 3,
+      "userValue": "See streak trends from existing Habits data",
+      "glanceQuestion": "How consistent have my habits been?",
+      "source": {
+        "provider": "Aurora local Habits data",
+        "docsUrl": "https://developer.chrome.com/docs/extensions/reference/api/storage",
+        "transport": "Local calculation",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "local",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [],
+        "receives": [
+          "Existing Aurora-owned local records selected by the user"
+        ],
+        "stores": [
+          "Existing Aurora-owned local data and display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Habit Insights primary fact with no filler",
+        "standard": "Habit Insights summary with one useful supporting detail",
+        "full": "Habit Insights detail that uses added space for context rather than whitespace",
+        "docked": "Habit Insights single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Truthful local calculations and migrations"
+        ]
+      },
+      "decision": {
+        "rationale": "This value belongs inside the existing Habits identity instead of creating a duplicate widget",
+        "blockers": []
+      }
+    },
+    {
+      "id": "currentEvents",
+      "label": "Current Events",
+      "kind": "built-in-provider",
+      "status": "absorbed",
+      "wave": "backlog",
+      "priority": 4,
+      "userValue": "See selected current-event headlines",
+      "glanceQuestion": "What happened recently?",
+      "source": {
+        "provider": "RSS 2.0",
+        "docsUrl": "https://www.rssboard.org/rss-specification",
+        "transport": "RSS or Atom over HTTPS",
+        "termsRisk": "low"
+      },
+      "auth": {
+        "mode": "none",
+        "directClientViable": true,
+        "secretHandling": "No external credential is required"
+      },
+      "access": {
+        "chromePermissions": [],
+        "origins": [
+          "https://www.rssboard.org/*"
+        ],
+        "userWarnings": []
+      },
+      "privacy": {
+        "sends": [
+          "Public query parameters and filters"
+        ],
+        "receives": [
+          "Current Events facts, labels, states, and timestamps from RSS 2.0"
+        ],
+        "stores": [
+          "Bounded public-data cache",
+          "Display preferences"
+        ],
+        "backup": "Only user preferences may enter backup",
+        "redaction": "No secret is present; fetched snapshots stay outside backup"
+      },
+      "cache": {
+        "freshness": "Refresh on open, on explicit user refresh, and only within a source-appropriate minimum interval",
+        "staleBehavior": "Keep the last useful value visibly marked stale",
+        "refresh": "One bounded in-flight request per identity with deduplicated refresh",
+        "failure": "Keep the last useful value and show a concise retry or setup action"
+      },
+      "settings": {
+        "setup": [],
+        "controls": [
+          "Visible facts",
+          "Item limit",
+          "Refresh preference"
+        ],
+        "validation": [
+          "Selections and limits are within supported bounds"
+        ]
+      },
+      "presentation": {
+        "compact": "Current Events primary fact with no filler",
+        "standard": "Current Events summary with one useful supporting detail",
+        "full": "Current Events detail that uses added space for context rather than whitespace",
+        "docked": "Current Events single-line fact or null when no useful fact exists",
+        "interaction": "Open source detail or settings without changing layout placement",
+        "empty": "Explain what is missing and offer the relevant setup path",
+        "loading": "Reserve only the content-tight footprint needed for the result",
+        "stale": "Show the last useful value with a visible stale label",
+        "error": "Show a concise recovery action without exposing sensitive data"
+      },
+      "maintenance": {
+        "risk": "low",
+        "drivers": [
+          "Provider availability and response schema"
+        ]
+      },
+      "decision": {
+        "rationale": "This value belongs inside the existing RSS identity instead of creating a duplicate widget",
+        "blockers": []
+      }
+    }
+  ]
+}
