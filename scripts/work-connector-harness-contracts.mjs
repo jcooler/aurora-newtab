@@ -47,12 +47,16 @@ export function inspectProviderRequest(request, tokens) {
     expect(method === 'GET', `Unexpected Sentry method: ${method}`)
     expect(url.hostname === 'us.sentry.io', `Unexpected Sentry host: ${url.hostname}`)
     expect(url.pathname === '/api/0/organizations/acme-labs/issues/', `Unexpected Sentry path: ${url.pathname}`)
+    const projects = url.searchParams.getAll('project')
+    expect(projects.every((project) => project === 'web' || project === 'api'), `Unexpected Sentry project query: ${projects.join(',')}`)
+    expect(new Set(projects).size === projects.length, `Unexpected duplicate Sentry project query: ${projects.join(',')}`)
     expect(exactSearch(url, [
       ['query', 'is:unresolved'],
       ['sort', 'trends'],
       ['statsPeriod', '24h'],
       ['groupStatsPeriod', '24h'],
       ['limit', '25'],
+      ...projects.map((project) => ['project', project]),
     ]), `Unexpected Sentry query: ${url.search}`)
     expect(authorization === `Bearer ${tokens.sentry}`, 'Sentry authorization contract mismatch')
     return { provider: 'sentry', operation: 'sentry-issues' }
@@ -98,6 +102,23 @@ export function assertBuildProvenance(source, expectedCommit) {
   return parsed
 }
 
-export function isExpectedRequestFailure(request, errorText, authorizedRequests) {
-  return authorizedRequests.has(request) && (errorText === 'net::ERR_ABORTED' || errorText === 'net::ERR_FAILED')
+function requestValue(request, field) {
+  const value = request[field]
+  return typeof value === 'function' ? value.call(request) : value
+}
+
+export function requestFailureKey(request) {
+  return JSON.stringify({
+    method: requestValue(request, 'method'),
+    url: requestValue(request, 'url'),
+    body: requestValue(request, 'postData') ?? requestValue(request, 'body') ?? null,
+  })
+}
+
+export function isExpectedRequestFailure(request, errorText, authorizedRequestKeys) {
+  if (errorText !== 'net::ERR_ABORTED' && errorText !== 'net::ERR_FAILED') return false
+  const key = requestFailureKey(request)
+  if (!authorizedRequestKeys.has(key)) return false
+  authorizedRequestKeys.delete(key)
+  return true
 }

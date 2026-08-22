@@ -6,6 +6,7 @@ import {
   assertBuildProvenance,
   inspectProviderRequest,
   isExpectedRequestFailure,
+  requestFailureKey,
 } from './work-connector-harness-contracts.mjs'
 
 const TOKENS = { linear: 'linear-fake', sentry: 'sentry-fake', todoist: 'todoist-fake' }
@@ -36,6 +37,10 @@ test('accepts only the five exact provider request contracts', () => {
     url: 'https://us.sentry.io/api/0/organizations/acme-labs/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25',
     authorization: `Bearer ${TOKENS.sentry}`,
   }), TOKENS).operation, 'sentry-issues')
+  assert.equal(inspectProviderRequest(request({
+    url: 'https://us.sentry.io/api/0/organizations/acme-labs/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25&project=api',
+    authorization: `Bearer ${TOKENS.sentry}`,
+  }), TOKENS).operation, 'sentry-issues')
 })
 
 test('rejects broad-route false positives and malformed request bodies', () => {
@@ -48,6 +53,10 @@ test('rejects broad-route false positives and malformed request bodies', () => {
   }), TOKENS), /operation/)
   assert.throws(() => inspectProviderRequest(request({
     url: 'https://us.sentry.io/api/0/organizations/other/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25',
+    authorization: `Bearer ${TOKENS.sentry}`,
+  }), TOKENS), /Unexpected Sentry/)
+  assert.throws(() => inspectProviderRequest(request({
+    url: 'https://us.sentry.io/api/0/organizations/acme-labs/issues/?query=is%3Aunresolved&sort=trends&statsPeriod=24h&groupStatsPeriod=24h&limit=25&project=unknown',
     authorization: `Bearer ${TOKENS.sentry}`,
   }), TOKENS), /Unexpected Sentry/)
 })
@@ -65,11 +74,12 @@ test('checks complete storage snapshots against an explicit allowed-key set', ()
 test('requires exact dist provenance and exact request-instance failure authorization', () => {
   assert.doesNotThrow(() => assertBuildProvenance(JSON.stringify({ commit: 'abc123' }), 'abc123'))
   assert.throws(() => assertBuildProvenance(JSON.stringify({ commit: 'stale' }), 'abc123'), /stale/)
-  const expected = {}
-  const unexpected = {}
-  const authorized = new WeakSet([expected])
+  const expected = request({ url: 'https://api.todoist.com/api/v1/tasks?limit=200' })
+  const unexpected = request({ url: 'https://api.todoist.com/api/v1/projects?limit=200' })
+  const authorized = new Set([requestFailureKey(expected)])
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_ABORTED', authorized), true)
   assert.equal(isExpectedRequestFailure(unexpected, 'net::ERR_ABORTED', authorized), false)
+  authorized.add(requestFailureKey(expected))
   assert.equal(isExpectedRequestFailure(expected, 'net::ERR_CONNECTION_REFUSED', authorized), false)
 })
 

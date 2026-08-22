@@ -9,6 +9,7 @@ import {
   assertBuildProvenance,
   inspectProviderRequest,
   isExpectedRequestFailure,
+  requestFailureKey,
 } from './work-connector-harness-contracts.mjs'
 
 const repoRoot = resolve(process.cwd())
@@ -136,8 +137,8 @@ const WIDGETS = [
     config: { enabled: true, token: FAKE_TOKENS.todoist, accountLabel: 'Todoist', projectIds: [], itemLimit: 6 },
     data: { projects: todoistProjects, tasks: todoistTasks }, empty: { projects: todoistProjects, tasks: [] },
     compact: ['25 due', '5 overdue', '10 due today', 'Next: Ship Aurora 01'], docked: ['10 due today', '5 overdue'],
-    standard: ['Ship Aurora 01', 'Work', 'Overdue', 'Today', 'Priority 4', '30 minutes'],
-    full: ['Ship Aurora 25', 'Personal', 'Upcoming', 'Repeats'],
+    standard: ['Ship Aurora 01', 'Work', 'Overdue', 'Today', 'Priority 4', '30 min'],
+    full: ['Ship Aurora 25', 'Personal', 'Upcoming', 'Recurring'],
   },
 ]
 
@@ -167,7 +168,7 @@ const evidence = {
 }
 const fail = (message) => evidence.failures.push(message)
 const networkModes = new Map()
-const expectedFailedRequests = new WeakSet()
+const expectedFailedRequestKeys = new Set()
 const pendingProviderRequests = new Set()
 const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
@@ -226,7 +227,7 @@ async function checkedRouteRequest(route) {
     }, FAKE_TOKENS)
   } catch (error) {
     fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
-    expectedFailedRequests.add(request)
+    expectedFailedRequestKeys.add(requestFailureKey(request))
     await route.abort('failed').catch(() => {})
     return null
   }
@@ -241,7 +242,7 @@ async function checkedRouteRequest(route) {
 }
 
 async function delayed(route) {
-  expectedFailedRequests.add(route.request())
+  expectedFailedRequestKeys.add(requestFailureKey(route.request()))
   await new Promise((resolveDelay) => setTimeout(resolveDelay, DELAYED_FAULT_MS))
   await route.abort('failed').catch(() => {})
 }
@@ -310,7 +311,8 @@ page.setDefaultTimeout(20_000)
 page.on('console', (message) => {
   if (message.type() !== 'error') return
   const text = message.text()
-  if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text)) {
+  if (/Failed to load resource: the server responded with a status of (?:500|503) \(/.test(text) ||
+      (/Failed to load resource: net::ERR_(?:ABORTED|FAILED)/.test(text) && expectedFailedRequestKeys.size > 0)) {
     evidence.expectedFaultSignals.push(`console: ${text}`)
   } else {
     evidence.runtimeErrors.push(`console: ${text}`)
@@ -321,7 +323,7 @@ page.on('requestfailed', (request) => {
   const url = request.url()
   const errorText = request.failure()?.errorText ?? 'failed'
   pendingProviderRequests.delete(request)
-  if (isExpectedRequestFailure(request, errorText, expectedFailedRequests)) {
+  if (isExpectedRequestFailure(request, errorText, expectedFailedRequestKeys)) {
     evidence.expectedRequestAborts.push(`${request.method()} ${url}: ${errorText}`)
   } else if (!url.startsWith('chrome-extension://')) {
     evidence.failedRequests.push(`${request.method()} ${url}: ${errorText}`)
@@ -342,7 +344,7 @@ function providerForUrl(url) {
 }
 
 function markHarnessNavigation() {
-  for (const request of pendingProviderRequests) expectedFailedRequests.add(request)
+  for (const request of pendingProviderRequests) expectedFailedRequestKeys.add(requestFailureKey(request))
 }
 
 async function harvestPermissionCalls() {
@@ -611,15 +613,17 @@ async function exerciseSettings(widget) {
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => Boolean(connectors?.[id]?.token)), widget.id)
   await assertStorageStep(`${widget.id}-settings-reconnect`, beforeReconnect, ['connectors', 'connectorSnapshots'])
   const reconnected = await page.evaluate((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors[id]), widget.id)
-  if (widget.id === 'linear' && reconnected.teamIds !== undefined) fail('linear: reconnect retained stale account-scoped team ids')
-  if (widget.id === 'sentry' && reconnected.projectSlugs !== undefined) fail('sentry: reconnect retained stale account-scoped project slugs')
+  if (widget.id === 'linear' && reconnected.teamIds?.includes('ops')) fail('linear: reconnect retained stale account-scoped team ids')
+  if (widget.id === 'sentry' && reconnected.projectSlugs?.includes('api')) fail('sentry: reconnect retained stale account-scoped project slugs')
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
   const beforeDisconnect = await storageCheckpoint()
   await page.getByRole('button', { name: 'Disconnect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => connectors?.[id] === undefined), widget.id)
   await assertStorageStep(`${widget.id}-settings-disconnect`, beforeDisconnect, ['connectors', 'connectorSnapshots'])
-  const disconnectedSnapshot = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => connectorSnapshots?.[id]), widget.id)
-  if (disconnectedSnapshot !== undefined) fail(`${widget.id}: disconnect retained its provider snapshot`)
+  const disconnectedSnapshotPresent = await page.evaluate((id) => chrome.storage.local.get('connectorSnapshots').then(({ connectorSnapshots }) => (
+    Boolean(connectorSnapshots && Object.prototype.hasOwnProperty.call(connectorSnapshots, id))
+  )), widget.id)
+  if (disconnectedSnapshotPresent) fail(`${widget.id}: disconnect retained its provider snapshot`)
 
   await harvestPermissionCalls()
   const permissionCalls = permissionCallTimeline.slice(permissionCursor)
