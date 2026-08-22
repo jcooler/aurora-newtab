@@ -450,6 +450,7 @@ const runDesktopInteractions = async (viewport) => {
   await page.waitForSelector('[data-block-id="clock"]')
   await page.locator('[role="toolbar"][aria-label="Edit layout"] button', { hasText: 'Undo' }).click()
   await page.waitForSelector('[data-block-id="clock"]', { state: 'detached' })
+  await hiddenSummary.click()
   if ((await harvestWrites(`${label}:hidden-recovery`)).length !== 0) {
     fail(`${label}: hidden-widget recovery wrote storage before Save`)
   }
