@@ -8,7 +8,7 @@ import { whoamiGithub, resolveGithubViews } from '../../services/connectors/gith
 import { whoamiGitlab, DEFAULT_GITLAB_VIEWS } from '../../services/connectors/gitlab'
 import { whoamiJira, normalizeJiraSite, DEFAULT_JIRA_VIEWS } from '../../services/connectors/jira'
 import { whoamiVercel, DEFAULT_VERCEL_VIEWS } from '../../services/connectors/vercel'
-import { newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
+import { connectorSnapshotScope, newSnapshotEpoch } from '../../services/connectors/snapshotIdentity'
 import { isSentryData, sentryBaseUrl, sentryItemLimit, sentryProjectSlugs, sentryRegion, validateSentryConnection } from '../../services/connectors/sentry'
 import { isLinearWorkData, LINEAR_ORIGIN, linearItemLimit, linearTeamIds, whoamiLinear } from '../../services/connectors/linear'
 import { fetchTodoistProjects, isTodoistData, TODOIST_ORIGIN, todoistItemLimit, todoistProjectIds } from '../../services/connectors/todoist'
@@ -94,6 +94,45 @@ export function nextSentryConnection(
     snapshotEpoch: newSnapshotEpoch(),
     itemLimit: sentryItemLimit(previous),
   }
+}
+
+export function nextTodoistConnection(
+  previous: TodoistConfig | undefined,
+  token: string,
+  accountLabel: string,
+): TodoistConfig {
+  return {
+    enabled: true,
+    token,
+    accountLabel,
+    snapshotEpoch: newSnapshotEpoch(),
+    itemLimit: todoistItemLimit(previous),
+  }
+}
+
+function useScopeValidatedSnapshotData(
+  id: 'linear' | 'sentry' | 'todoist',
+  config: ConnectorConfig | undefined,
+  snapshot: AuroraData['connectorSnapshots'][ConnectorId],
+): unknown | null {
+  const [validated, setValidated] = useState<{
+    config: ConnectorConfig
+    snapshot: NonNullable<typeof snapshot>
+    data: unknown
+  } | null>(null)
+
+  useEffect(() => {
+    let current = true
+    setValidated(null)
+    if (!config || !snapshot?.scope) return () => { current = false }
+
+    void connectorSnapshotScope(id, config).then((scope) => {
+      if (current && snapshot.scope === scope) setValidated({ config, snapshot, data: snapshot.data })
+    })
+    return () => { current = false }
+  }, [config, id, snapshot])
+
+  return validated !== null && validated.config === config && validated.snapshot === snapshot ? validated.data : null
 }
 
 function canonicalCandidates(candidates: readonly string[]): string[] {
@@ -1916,17 +1955,21 @@ function LinearBody({ config, storage, reportPendingCleanup, mode, closeEditor }
   const displayName = typeof linear?.displayName === 'string' ? linear.displayName : ''
   const connectedAs = token && displayName ? displayName : null
   const [snapshots] = useStoredKey('connectorSnapshots')
-  const snapshotData = snapshots?.linear?.data
+  const snapshotData = useScopeValidatedSnapshotData('linear', linear, snapshots?.linear)
   const issues = isLinearWorkData(snapshotData) ? snapshotData.issues : []
   const teams = [...new Map(issues.map((issue) => [issue.team.id, issue.team])).values()]
     .sort((a, b) => a.name.localeCompare(b.name))
   const selected = linearTeamIds(linear)
-  const teamOptionsRef = useRef(new Map<string, { id: string; label: string }>())
-  for (const team of teams) teamOptionsRef.current.set(team.id, { id: team.id, label: team.name })
-  for (const id of selected) {
-    if (!teamOptionsRef.current.has(id)) teamOptionsRef.current.set(id, { id, label: id })
+  const teamOwner = `${linear?.snapshotEpoch ?? ''}\n${token}\n${displayName}`
+  const teamOptionsRef = useRef({ owner: teamOwner, values: new Map<string, { id: string; label: string }>() })
+  if (teamOptionsRef.current.owner !== teamOwner) {
+    teamOptionsRef.current = { owner: teamOwner, values: new Map() }
   }
-  const teamOptions = [...teamOptionsRef.current.values()].sort((a, b) => a.label.localeCompare(b.label))
+  for (const team of teams) teamOptionsRef.current.values.set(team.id, { id: team.id, label: team.name })
+  for (const id of selected) {
+    if (!teamOptionsRef.current.values.has(id)) teamOptionsRef.current.values.set(id, { id, label: id })
+  }
+  const teamOptions = [...teamOptionsRef.current.values.values()].sort((a, b) => a.label.localeCompare(b.label))
 
   async function updatePreferences(update: (current: LinearConfig) => LinearConfig) {
     await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
@@ -1994,9 +2037,19 @@ function TodoistBody({ config, storage, reportPendingCleanup, mode, closeEditor 
   const accountLabel = typeof todoist?.accountLabel === 'string' ? todoist.accountLabel : ''
   const connectedAs = token && accountLabel ? accountLabel : null
   const [snapshots] = useStoredKey('connectorSnapshots')
-  const snapshotData = snapshots?.todoist?.data
+  const snapshotData = useScopeValidatedSnapshotData('todoist', todoist, snapshots?.todoist)
   const projects = isTodoistData(snapshotData) ? snapshotData.projects : []
   const selected = todoistProjectIds(todoist)
+  const projectOwner = `${todoist?.snapshotEpoch ?? ''}\n${token}\n${accountLabel}`
+  const projectOptionsRef = useRef({ owner: projectOwner, values: new Map<string, { id: string; label: string }>() })
+  if (projectOptionsRef.current.owner !== projectOwner) {
+    projectOptionsRef.current = { owner: projectOwner, values: new Map() }
+  }
+  for (const project of projects) projectOptionsRef.current.values.set(project.id, { id: project.id, label: project.name })
+  for (const id of selected) {
+    if (!projectOptionsRef.current.values.has(id)) projectOptionsRef.current.values.set(id, { id, label: id })
+  }
+  const projectOptions = [...projectOptionsRef.current.values.values()].sort((a, b) => a.label.localeCompare(b.label))
 
   async function updatePreferences(update: (current: TodoistConfig) => TodoistConfig) {
     await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors, connectorSnapshots }) => {
@@ -2032,14 +2085,7 @@ function TodoistBody({ config, storage, reportPendingCleanup, mode, closeEditor 
           return {
             connectors: {
               ...connectors,
-              todoist: {
-                enabled: true,
-                token: values.token,
-                accountLabel: identity,
-                snapshotEpoch: newSnapshotEpoch(),
-                ...(previous?.projectIds ? { projectIds: previous.projectIds } : {}),
-                itemLimit: todoistItemLimit(previous),
-              },
+              todoist: nextTodoistConnection(previous, values.token, identity),
             },
             connectorSnapshots: nextSnapshots,
           }
@@ -2051,13 +2097,13 @@ function TodoistBody({ config, storage, reportPendingCleanup, mode, closeEditor 
         <WorkPreferenceControls
           groupLabel="Projects"
           emptyLabel="Projects appear after the first successful refresh."
-          options={projects.map((project) => ({ id: project.id, label: project.name }))}
+          options={projectOptions}
           selected={selected}
           onToggle={(id) => void updatePreferences((current) => {
             const ids = todoistProjectIds(current)
             return { ...current, projectIds: ids.includes(id) ? ids.filter((value) => value !== id) : [...ids, id] }
           })}
-          onSelectAll={() => void updatePreferences((current) => ({ ...current, projectIds: projects.map((project) => project.id) }))}
+          onSelectAll={() => void updatePreferences((current) => ({ ...current, projectIds: projectOptions.map((project) => project.id) }))}
           onClear={() => void updatePreferences((current) => ({ ...current, projectIds: [] }))}
           countLabel="Tasks shown"
           count={todoistItemLimit(todoist)}
@@ -2076,17 +2122,21 @@ function SentryBody({ config, storage, reportPendingCleanup, mode, closeEditor }
   const region = sentryRegion(sentry?.region)
   const connectedAs = token && organization ? organization : null
   const [snapshots] = useStoredKey('connectorSnapshots')
-  const snapshotData = snapshots?.sentry?.data
+  const snapshotData = useScopeValidatedSnapshotData('sentry', sentry, snapshots?.sentry)
   const issues = isSentryData(snapshotData) ? snapshotData.issues : []
   const projects = [...new Map(issues.map((issue) => [issue.project.slug, issue.project])).values()]
     .sort((a, b) => a.name.localeCompare(b.name))
   const selectedProjects = sentryProjectSlugs(sentry)
-  const projectOptionsRef = useRef(new Map<string, { slug: string; name: string }>())
-  for (const project of projects) projectOptionsRef.current.set(project.slug, { slug: project.slug, name: project.name })
-  for (const slug of selectedProjects) {
-    if (!projectOptionsRef.current.has(slug)) projectOptionsRef.current.set(slug, { slug, name: slug })
+  const projectOwner = `${sentry?.snapshotEpoch ?? ''}\n${token}\n${organization}\n${region}`
+  const projectOptionsRef = useRef({ owner: projectOwner, values: new Map<string, { slug: string; name: string }>() })
+  if (projectOptionsRef.current.owner !== projectOwner) {
+    projectOptionsRef.current = { owner: projectOwner, values: new Map() }
   }
-  const projectOptions = [...projectOptionsRef.current.values()].sort((a, b) => a.name.localeCompare(b.name))
+  for (const project of projects) projectOptionsRef.current.values.set(project.slug, { slug: project.slug, name: project.name })
+  for (const slug of selectedProjects) {
+    if (!projectOptionsRef.current.values.has(slug)) projectOptionsRef.current.values.set(slug, { slug, name: slug })
+  }
+  const projectOptions = [...projectOptionsRef.current.values.values()].sort((a, b) => a.name.localeCompare(b.name))
   const itemLimit = sentryItemLimit(sentry)
 
   async function updatePreferences(

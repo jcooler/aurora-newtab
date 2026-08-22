@@ -33,12 +33,17 @@ function buildProvenancePlugin(): Plugin {
 // defines the same constant separately (Vitest ignores vite.config.ts
 // entirely once a vitest.config.ts exists), so both must be kept in sync if
 // this ever changes.
-export default defineConfig({
-  plugins: [react(), tailwindcss(), crx({ manifest }), buildProvenancePlugin()],
+export default defineConfig(({ command }) => ({
+  plugins: [
+    react(),
+    tailwindcss(),
+    crx({ manifest }),
+    ...(command === 'build' ? [buildProvenancePlugin()] : []),
+  ],
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   build: {
     target: 'es2022',
   },
-})
+}))

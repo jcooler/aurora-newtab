@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { loadConfigFromFile } from 'vite'
+import { assertCleanTrackedStatus } from './build-contracts.mjs'
 import {
   assertAllowedStorageChange,
   assertBuildProvenance,
+  assertOperationCounts,
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
@@ -62,6 +66,24 @@ test('rejects broad-route false positives and malformed request bodies', () => {
   }), TOKENS), /Unexpected Sentry/)
 })
 
+test('requires the scenario-selected Linear team filter exactly', () => {
+  const base = {
+    method: 'POST',
+    url: 'https://api.linear.app/graphql',
+    authorization: TOKENS.linear,
+    contentType: 'application/json',
+  }
+  const query = 'query AuroraLinearWork($filter: IssueFilter) { viewer { assignedIssues(first: 50, filter: $filter) { nodes { id } } } }'
+  assert.throws(() => inspectProviderRequest(request({
+    ...base,
+    body: JSON.stringify({ query, variables: { filter: null } }),
+  }), TOKENS, { linearTeamIds: ['ops'] }), /Linear work filter/)
+  assert.equal(inspectProviderRequest(request({
+    ...base,
+    body: JSON.stringify({ query, variables: { filter: { team: { id: { in: ['ops'] } } } } }),
+  }), TOKENS, { linearTeamIds: ['ops'] }).operation, 'linear-work')
+})
+
 test('checks complete storage snapshots against an explicit allowed-key set', () => {
   const before = { settings: { widgets: {} }, connectors: {}, layouts: { version: 1 }, layout: { frozen: true } }
   const after = { ...before, connectors: { linear: { enabled: true } } }
@@ -89,10 +111,37 @@ test('requires exact dist provenance and exact request-instance failure authoriz
   assert.equal(authorized.get(requestFailureKey(expected)), 1)
 })
 
+test('requires the exact provider operation totals', () => {
+  const log = [
+    { bodyKind: 'linear-identity' },
+    { bodyKind: 'linear-work' },
+    { bodyKind: 'linear-work' },
+  ]
+  assert.doesNotThrow(() => assertOperationCounts(log, { 'linear-identity': 1, 'linear-work': 2 }))
+  assert.throws(() => assertOperationCounts(log, { 'linear-identity': 1, 'linear-work': 1 }), /linear-work/)
+  assert.throws(() => assertOperationCounts([...log, { bodyKind: 'unexpected' }], { 'linear-identity': 1, 'linear-work': 2 }), /unexpected/)
+})
+
 test('the production build emits a commit provenance artifact', async () => {
   const source = await readFile(new URL('../vite.config.ts', import.meta.url), 'utf8')
   assert.match(source, /build-provenance\.json/)
   assert.match(source, /generateBundle/)
+})
+
+test('the normal Vite development server can load without build provenance', async () => {
+  const loaded = await loadConfigFromFile(
+    { command: 'serve', mode: 'development' },
+    fileURLToPath(new URL('../vite.config.ts', import.meta.url)),
+  )
+  assert.ok(loaded?.config)
+})
+
+test('an attributable build refuses tracked worktree changes', () => {
+  assert.doesNotThrow(() => assertCleanTrackedStatus(''))
+  assert.throws(
+    () => assertCleanTrackedStatus(' M src/newtab/App.tsx\n'),
+    /clean tracked worktree/,
+  )
 })
 
 test('declares every provider, tier, degraded state, settings path, and Todoist mutation scenario', async () => {

@@ -101,6 +101,19 @@ describe('SentryWidget', () => {
     expect(screen.queryByText('Checkout failure 0')).toBeNull()
   })
 
+  it('shows strongest level and top trending short ID as independent Compact facts', async () => {
+    const data = {
+      issues: [
+        issue(0, { level: 'fatal', severity: 'critical', trend: 'falling', events24h: 30 }),
+        issue(1, { level: 'error', severity: 'high', trend: 'rising', events24h: 12 }),
+      ],
+    }
+    mount(await seededStorage(CONNECTED, data), { canvasSize: 'compact' })
+    expect(await screen.findByText('Fatal')).toBeTruthy()
+    expect(screen.getByText('WEB-1')).toBeTruthy()
+    expect(screen.queryByText('WEB-0')).toBeNull()
+  })
+
   it('renders named Standard issue context and safe provider links', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
     const title = await screen.findByText('Checkout failure 0')

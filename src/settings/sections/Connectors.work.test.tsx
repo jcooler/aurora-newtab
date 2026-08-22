@@ -9,8 +9,9 @@ import type { SentryData } from '../../services/connectors/sentry'
 import type { LinearWorkData } from '../../services/connectors/linear'
 import type { TodoistData } from '../../services/connectors/todoist'
 import type { LinearConfig, SentryConfig, TodoistConfig } from '../../services/connectors/types'
+import { connectorSnapshotScope } from '../../services/connectors/snapshotIdentity'
 import { initializePermissionMirror } from '../../services/permissionMirror'
-import Connectors, { nextLinearConnection, nextSentryConnection } from './Connectors'
+import Connectors, { nextLinearConnection, nextSentryConnection, nextTodoistConnection } from './Connectors'
 
 beforeAll(async () => {
   vi.stubGlobal('chrome', {
@@ -84,7 +85,7 @@ async function storageWithSentry() {
     github: { enabled: true, token: 'github_test', username: 'octocat' },
   })
   await storage.set('connectorSnapshots', {
-    sentry: { scope: 'sentry-scope', fetchedAt: 1, data },
+    sentry: { scope: await connectorSnapshotScope('sentry', sentry), fetchedAt: 1, data },
     github: { scope: 'github-scope', fetchedAt: 2, data: { marker: true } },
   })
   return storage
@@ -109,7 +110,7 @@ async function storageWithLinear() {
     ],
   }
   await storage.set('connectors', { linear })
-  await storage.set('connectorSnapshots', { linear: { scope: 'linear-scope', fetchedAt: 1, data } })
+  await storage.set('connectorSnapshots', { linear: { scope: await connectorSnapshotScope('linear', linear), fetchedAt: 1, data } })
   return storage
 }
 
@@ -119,12 +120,12 @@ async function storageWithTodoist() {
   const todoist: TodoistConfig = { enabled: true, token: 'todoist_test', accountLabel: 'Todoist', projectIds: ['work'], itemLimit: 6 }
   const data: TodoistData = { projects: [{ id: 'work', name: 'Work' }, { id: 'personal', name: 'Personal' }], tasks: [] }
   await storage.set('connectors', { todoist })
-  await storage.set('connectorSnapshots', { todoist: { scope: 'todoist-scope', fetchedAt: 1, data } })
+  await storage.set('connectorSnapshots', { todoist: { scope: await connectorSnapshotScope('todoist', todoist), fetchedAt: 1, data } })
   return storage
 }
 
 describe('Work connector settings', () => {
-  it('drops account-scoped picks when Linear and Sentry credentials are replaced', () => {
+  it('drops account-scoped picks when Work connector credentials are replaced', () => {
     const linear = nextLinearConnection(
       { enabled: true, token: 'old', displayName: 'Old', teamIds: ['old-team'], itemLimit: 7 },
       'new-linear-token',
@@ -140,6 +141,14 @@ describe('Work connector settings', () => {
     )
     expect(sentry).toMatchObject({ token: 'new-sentry-token', organization: 'new-org', region: 'de', itemLimit: 8 })
     expect(sentry.projectSlugs).toBeUndefined()
+
+    const todoist = nextTodoistConnection(
+      { enabled: true, token: 'old', accountLabel: 'Old account', projectIds: ['old-project'], itemLimit: 9 },
+      'new-todoist-token',
+      'New account',
+    )
+    expect(todoist).toMatchObject({ token: 'new-todoist-token', accountLabel: 'New account', itemLimit: 9 })
+    expect(todoist.projectIds).toBeUndefined()
   })
 
   it('opens a stripped Linear credential directly in reconnect mode', async () => {
@@ -197,6 +206,40 @@ describe('Work connector settings', () => {
     expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy()
   })
 
+  it('drops old-account Sentry projects when the mounted connection owner changes', async () => {
+    const storage = await storageWithSentry()
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Sentry' }))
+    expect(await screen.findByRole('button', { name: 'API' })).toBeTruthy()
+
+    const replacement = nextSentryConnection(
+      (await storage.get('connectors')).sentry as SentryConfig,
+      { token: 'new-sentry-token', region: 'de' },
+      'new-org',
+    )
+    const replacementData: SentryData = {
+      issues: [{
+        id: '3', title: 'New project failed', shortId: 'NEW-3',
+        project: { id: 'new', name: 'New project', slug: 'new' },
+        level: 'error', severity: 'high', count: 1, userCount: 1,
+        firstSeen: null, lastSeen: null, stats24h: [], events24h: 1,
+        trend: 'new', isRegression: false,
+        permalink: 'https://de.sentry.io/issues/3/', priority: null,
+      }],
+    }
+    const replacementScope = await connectorSnapshotScope('sentry', replacement)
+    await act(async () => {
+      await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors }) => ({
+        connectors: { ...connectors, sentry: replacement },
+        connectorSnapshots: { sentry: { scope: replacementScope, fetchedAt: 2, data: replacementData } },
+      }))
+    })
+
+    expect(await screen.findByRole('button', { name: 'New project' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'API' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Web' })).toBeNull()
+  })
+
   it('removes only the disconnected connector snapshot', async () => {
     const storage = await storageWithSentry()
     mount(storage)
@@ -229,6 +272,69 @@ describe('Work connector settings', () => {
     expect(screen.getByRole('button', { name: 'Aurora' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Ops' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Clear' })).toBeTruthy()
+  })
+
+  it('drops old-account picker options when Linear reconnects in the mounted Settings view', async () => {
+    const storage = await storageWithLinear()
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Linear' }))
+    expect(await screen.findByRole('button', { name: 'Ops' })).toBeTruthy()
+
+    const replacement = nextLinearConnection(
+      (await storage.get('connectors')).linear as LinearConfig,
+      'new-linear-token',
+      'New user',
+    )
+    const replacementData: LinearWorkData = {
+      issues: [{
+        id: '3', identifier: 'NEW-3', title: 'New account issue', priority: 'normal', dueDate: null,
+        dueStatus: 'none', dueSoon: false, url: 'https://linear.app/aurora/issue/NEW-3',
+        state: { name: 'Started', type: 'started' }, team: { id: 'new', key: 'NEW', name: 'New team' }, cycle: null,
+      }],
+    }
+    const replacementScope = await connectorSnapshotScope('linear', replacement)
+    await act(async () => {
+      await storage.updateMany(['connectors', 'connectorSnapshots'], ({ connectors }) => ({
+        connectors: { ...connectors, linear: replacement },
+        connectorSnapshots: { linear: { scope: replacementScope, fetchedAt: 2, data: replacementData } },
+      }))
+    })
+
+    expect(await screen.findByRole('button', { name: 'New team' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Ops' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Aurora' })).toBeNull()
+  })
+
+  it('does not derive picker options from a snapshot owned by another connection', async () => {
+    const storage = createStorage(memoryDriver())
+    await storage.init()
+    const linear: LinearConfig = {
+      enabled: true,
+      token: 'current-token',
+      displayName: 'Current user',
+      snapshotEpoch: 'current-epoch',
+      teamIds: [],
+      itemLimit: 6,
+    }
+    const foreignData: LinearWorkData = {
+      issues: [{
+        id: 'foreign', identifier: 'OLD-1', title: 'Foreign issue', priority: 'normal', dueDate: null,
+        dueStatus: 'none', dueSoon: false, url: 'https://linear.app/aurora/issue/OLD-1',
+        state: { name: 'Started', type: 'started' }, team: { id: 'foreign', key: 'OLD', name: 'Foreign team' }, cycle: null,
+      }],
+    }
+    await storage.set('connectors', { linear })
+    await storage.set('connectorSnapshots', {
+      linear: { scope: 'linear:v1:not-the-current-scope', fetchedAt: 1, data: foreignData },
+    })
+
+    mount(storage)
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit Linear' }))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('button', { name: 'Foreign team' })).toBeNull()
+    })
+    expect(screen.getByText('Teams appear after the first successful refresh.')).toBeTruthy()
   })
 
   it('keeps a selected Linear team removable when no snapshot is available', async () => {
@@ -278,5 +384,7 @@ describe('Work connector settings', () => {
       expect(config.itemLimit).toBe(9)
     })
     expect((await storage.get('connectorSnapshots')).todoist).toBeUndefined()
+    expect(screen.getByRole('button', { name: 'Work' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Personal' })).toBeTruthy()
   })
 })

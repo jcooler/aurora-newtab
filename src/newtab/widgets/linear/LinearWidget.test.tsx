@@ -73,6 +73,18 @@ describe('LinearWidget', () => {
     expect(screen.queryByText('Build Aurora 0')).toBeNull()
   })
 
+  it('chooses the nearest due date instead of the first provider-ordered due issue', async () => {
+    const data = {
+      issues: [
+        issue(0, { dueDate: '2026-08-28', dueStatus: 'soon', dueSoon: true }),
+        issue(1, { dueDate: '2026-08-23', dueStatus: 'soon', dueSoon: true }),
+      ],
+    }
+    mount(await seededStorage(CONNECTED, data), { canvasSize: 'compact' })
+    expect(await screen.findByText('AUR-1')).toBeTruthy()
+    expect(screen.queryByText('AUR-0')).toBeNull()
+  })
+
   it('renders Standard issue, team, state, due, and safe provider link context', async () => {
     mount(await seededStorage(CONNECTED), { canvasSize: 'standard' })
     const title = await screen.findByText('Build Aurora 0')

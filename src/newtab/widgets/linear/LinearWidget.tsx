@@ -51,7 +51,7 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
   const issues = data?.issues ?? []
   const presentation = workPresentationState(true, state, data !== null && issues.length === 0)
   const dueSoon = issues.filter((issue) => issue.dueSoon).length
-  const nearestDue = issues.find((issue) => issue.dueSoon) ?? issues[0] ?? null
+  const nearestDue = nearestDueIssue(issues)
   const facts = [
     `${issues.length} assigned`,
     dueSoon > 0 ? `${dueSoon} due soon` : issues.length > 0 ? 'Nothing due soon' : null,
@@ -113,6 +113,25 @@ function LinearInner({ config, canvasSize, docked }: { config: LinearConfig; can
       ) : null}
     </WorkWidgetShell>
   )
+}
+
+function nearestDueIssue(issues: readonly LinearIssue[]): LinearIssue | null {
+  const statusRank: Record<LinearIssue['dueStatus'], number> = {
+    today: 0,
+    overdue: 1,
+    soon: 2,
+    later: 3,
+    none: 4,
+  }
+  return issues
+    .filter((issue) => issue.dueSoon && issue.dueDate !== null)
+    .reduce<LinearIssue | null>((nearest, issue) => {
+      if (nearest === null) return issue
+      const rankDifference = statusRank[issue.dueStatus] - statusRank[nearest.dueStatus]
+      if (rankDifference !== 0) return rankDifference < 0 ? issue : nearest
+      if (issue.dueStatus === 'overdue') return issue.dueDate! > nearest.dueDate! ? issue : nearest
+      return issue.dueDate! < nearest.dueDate! ? issue : nearest
+    }, null)
 }
 
 function IssueGroups({ issues, className = '' }: { issues: readonly LinearIssue[]; className?: string }) {

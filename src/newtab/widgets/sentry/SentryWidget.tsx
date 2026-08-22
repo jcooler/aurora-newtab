@@ -64,9 +64,10 @@ function SentryInner({
   const presentation = workPresentationState(true, state, data !== null && issues.length === 0)
   const critical = issues.filter((issue) => issue.severity === 'critical').length
   const strongest = strongestIssue(issues)
+  const topTrending = topTrendingIssue(issues)
   const dockFacts = [
     `${issues.length} unresolved`,
-    strongest?.shortId ?? null,
+    topTrending?.shortId ?? null,
   ]
   const visible = canvasSize === 'full'
     ? issues
@@ -120,10 +121,10 @@ function SentryInner({
               {issues.length} unresolved
             </strong>
             <span className="text-xs text-fg-muted">{critical} critical</span>
-            {canvasSize === 'compact' && strongest ? (
+            {canvasSize === 'compact' && strongest && topTrending ? (
               <>
                 <span className="text-xs font-medium text-fg-muted">{levelLabel(strongest.level)}</span>
-                <span className="text-xs font-medium text-fg-muted">{strongest.shortId}</span>
+                <span className="text-xs font-medium text-fg-muted">{topTrending.shortId}</span>
               </>
             ) : null}
           </div>
@@ -138,6 +139,15 @@ function strongestIssue(issues: readonly SentryIssue[]): SentryIssue | null {
   const rank: Record<SentryIssue['level'], number> = { fatal: 6, error: 5, warning: 4, info: 3, debug: 2, unknown: 1 }
   return issues.reduce<SentryIssue | null>((strongest, issue) =>
     strongest === null || rank[issue.level] > rank[strongest.level] ? issue : strongest, null)
+}
+
+function topTrendingIssue(issues: readonly SentryIssue[]): SentryIssue | null {
+  const rank: Record<SentryIssue['trend'], number> = { rising: 5, new: 4, steady: 3, falling: 2, unknown: 1 }
+  return issues.reduce<SentryIssue | null>((top, issue) => {
+    if (top === null) return issue
+    if (rank[issue.trend] !== rank[top.trend]) return rank[issue.trend] > rank[top.trend] ? issue : top
+    return issue.events24h > top.events24h ? issue : top
+  }, null)
 }
 
 function levelLabel(level: SentryIssue['level']): string {

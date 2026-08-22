@@ -20,7 +20,7 @@ function exactSearch(url, entries) {
   return JSON.stringify(actual) === JSON.stringify(expected)
 }
 
-export function inspectProviderRequest(request, tokens) {
+export function inspectProviderRequest(request, tokens, expectations = {}) {
   const url = new URL(request.url)
   const method = String(request.method).toUpperCase()
   const authorization = request.authorization ?? ''
@@ -38,6 +38,15 @@ export function inspectProviderRequest(request, tokens) {
     }
     if (query.includes('query AuroraLinearWork($filter: IssueFilter)') && query.includes('assignedIssues(first: 50, filter: $filter)')) {
       expect(body.variables && Object.hasOwn(body.variables, 'filter'), 'Linear work filter variable is missing')
+      if (Array.isArray(expectations.linearTeamIds)) {
+        const expectedFilter = expectations.linearTeamIds.length > 0
+          ? { team: { id: { in: [...expectations.linearTeamIds] } } }
+          : null
+        expect(
+          canonical(body.variables.filter) === canonical(expectedFilter),
+          `Linear work filter mismatch: ${canonical(body.variables.filter)} != ${canonical(expectedFilter)}`,
+        )
+      }
       return { provider: 'linear', operation: 'linear-work' }
     }
     throw new Error('Unexpected Linear operation')
@@ -100,6 +109,22 @@ export function assertBuildProvenance(source, expectedCommit) {
   try { parsed = JSON.parse(source) } catch { throw new Error('dist build provenance is invalid JSON') }
   expect(parsed && parsed.commit === expectedCommit, `dist build provenance is stale: ${parsed?.commit ?? 'missing'} != ${expectedCommit}`)
   return parsed
+}
+
+export function assertOperationCounts(requestLog, expectedCounts) {
+  const actual = new Map()
+  for (const request of requestLog) {
+    const operation = request?.bodyKind
+    expect(typeof operation === 'string' && operation.length > 0, 'Provider request is missing its operation')
+    actual.set(operation, (actual.get(operation) ?? 0) + 1)
+  }
+  const operations = new Set([...Object.keys(expectedCounts), ...actual.keys()])
+  for (const operation of operations) {
+    const expected = expectedCounts[operation] ?? 0
+    const observed = actual.get(operation) ?? 0
+    expect(observed === expected, `${operation} request count mismatch: ${observed} != ${expected}`)
+  }
+  return Object.fromEntries([...actual.entries()].sort(([a], [b]) => a.localeCompare(b)))
 }
 
 function requestValue(request, field) {

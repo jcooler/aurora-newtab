@@ -7,6 +7,7 @@ import { CATALOG_BATCHES } from './widget-catalog-manifest.mjs'
 import {
   assertAllowedStorageChange,
   assertBuildProvenance,
+  assertOperationCounts,
   authorizeRequestFailure,
   inspectProviderRequest,
   isExpectedRequestFailure,
@@ -141,6 +142,14 @@ const WIDGETS = [
     full: ['Ship Aurora 25', 'Personal', 'Upcoming', 'Recurring'],
   },
 ]
+const EXPECTED_OPERATION_COUNTS = Object.freeze({
+  'linear-identity': 2,
+  'linear-work': 22,
+  'sentry-issues': 21,
+  'todoist-close': 2,
+  'todoist-projects': 23,
+  'todoist-tasks': 21,
+})
 
 // Source-visible scenario declarations are part of the witness contract.
 const SCENARIOS = [
@@ -176,6 +185,7 @@ const permissionCallTimeline = []
 const DELAYED_FAULT_MS = 10_000
 let closeMode = 'success'
 const closedTasks = new Set()
+let expectedLinearTeamIds = []
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: 'chromium',
@@ -248,7 +258,7 @@ async function checkedRouteRequest(route) {
       authorization,
       contentType: headers['content-type'] ?? null,
       body: request.postData(),
-    }, FAKE_TOKENS)
+    }, FAKE_TOKENS, { linearTeamIds: expectedLinearTeamIds })
   } catch (error) {
     fail(`provider request contract mismatch: ${error instanceof Error ? error.message : String(error)}`)
     authorizeRequestFailure(expectedFailedRequestCounts, request)
@@ -402,6 +412,7 @@ async function seed(widget, tier, state = 'ready') {
   networkModes.clear()
   networkModes.set(widget.id, state)
   const config = state === 'setup' ? { enabled: true } : widget.config
+  expectedLinearTeamIds = widget.id === 'linear' && Array.isArray(config.teamIds) ? [...config.teamIds] : []
   const data = state === 'empty' ? widget.empty : widget.data
   const snapshot = ['ready', 'empty', 'retained-error', 'stale'].includes(state)
   const stale = state === 'retained-error' || state === 'stale'
@@ -636,7 +647,10 @@ async function exerciseSettings(widget) {
 
   const beforePreferences = await storageCheckpoint()
   await page.getByRole('button', { name: `Edit ${widget.title}` }).click()
-  if (widget.id === 'linear') await page.getByRole('button', { name: 'Ops' }).click()
+  if (widget.id === 'linear') {
+    expectedLinearTeamIds = ['ops']
+    await page.getByRole('button', { name: 'Ops' }).click()
+  }
   if (widget.id === 'sentry') await page.getByRole('button', { name: 'API' }).click()
   if (widget.id === 'todoist') await page.getByRole('button', { name: 'Personal' }).click()
   const countLabel = widget.id === 'todoist' ? 'Tasks shown' : 'Issues shown'
@@ -671,6 +685,7 @@ async function exerciseSettings(widget) {
   await fillSetup(widget)
   const beforeReconnect = await storageCheckpoint()
   await recordSettingsState(`${widget.id}-before-reconnect`, widget.id)
+  if (widget.id === 'linear') expectedLinearTeamIds = []
   await page.getByRole('button', { name: 'Connect', exact: true }).click()
   await page.waitForFunction((id) => chrome.storage.local.get('connectors').then(({ connectors }) => {
     const connector = connectors?.[id]
@@ -786,6 +801,11 @@ for (const request of evidence.requestLog) {
   if (/^https:\/\/(?:sentry|us\.sentry|de\.sentry)\.io\//.test(request.url) && (request.method !== 'GET' || request.authKind !== 'bearer')) fail(`Sentry request contract mismatch: ${JSON.stringify(request)}`)
   if (request.url.startsWith('https://api.todoist.com/') && request.authKind !== 'bearer') fail(`Todoist request contract mismatch: ${JSON.stringify(request)}`)
 }
+try {
+  evidence.operationCounts = assertOperationCounts(evidence.requestLog, EXPECTED_OPERATION_COUNTS)
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error))
+}
 if (evidence.runtimeErrors.length) fail(`runtime errors: ${evidence.runtimeErrors.join(' | ')}`)
 if (evidence.failedRequests.length) fail(`failed requests: ${evidence.failedRequests.join(' | ')}`)
 
@@ -808,7 +828,7 @@ for (const token of Object.values(FAKE_TOKENS)) {
   if (evidenceJson.includes(token)) fail('live-looking credential leaked into evidence')
 }
 writeFileSync(join(outDir, 'evidence.json'), `${JSON.stringify(evidence, null, 2)}\n`, 'utf8')
-writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Expected injected fault signals: ${evidence.expectedFaultSignals.length}\n- Expected harness-navigation request aborts: ${evidence.expectedRequestAborts.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNGs inspected individually before checkpoint: pending coordinator inspection\n`, 'utf8')
+writeFileSync(join(outDir, 'REPORT.md'), `# Work Connector Chromium Evidence\n\n- Commit: \`${evidenceCommit}\`\n- Captures: ${evidence.captures.length}\n- Requests: ${evidence.requestLog.length}\n- Expected injected fault signals: ${evidence.expectedFaultSignals.length}\n- Expected harness-navigation request aborts: ${evidence.expectedRequestAborts.length}\n- Runtime errors: ${evidence.runtimeErrors.length}\n- Failed requests: ${evidence.failedRequests.length}\n- Failures: ${evidence.failures.length}\n- Original PNG inspection: external checkpoint requirement recorded in WORK-CONNECTORS-QA.md\n`, 'utf8')
 process.stdout.write(`Work connector QA: ${evidence.captures.length} captures, ${evidence.requestLog.length} requests, ${evidence.failures.length} failures\n`)
 for (const failure of evidence.failures) process.stderr.write(`FAIL ${failure}\n`)
 if (evidence.failures.length) process.exitCode = 1
