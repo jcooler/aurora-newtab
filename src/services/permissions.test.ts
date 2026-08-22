@@ -8,6 +8,7 @@ import {
   removeOrigin,
   ensureOrigins,
   canonicalOriginPatterns,
+  subscribePermission,
 } from './permissions'
 
 describe('hasPermission / ensurePermission (chrome.permissions wrappers)', () => {
@@ -92,6 +93,30 @@ describe('originPattern (URL -> chrome.permissions origin match pattern)', () =>
 
   it('canonicalOriginPatterns throws for a malformed member before any Chrome boundary is needed', () => {
     expect(() => canonicalOriginPatterns(['https://ok.example.com/', 'http://bad.example.com/'])).toThrow()
+  })
+
+  it('subscribePermission reports only matching add/remove changes and cleans up both listeners', () => {
+    const added = new Set<(permissions: chrome.permissions.Permissions) => void>()
+    const removed = new Set<(permissions: chrome.permissions.Permissions) => void>()
+    const onAdded = {
+      addListener: vi.fn((listener: (permissions: chrome.permissions.Permissions) => void) => added.add(listener)),
+      removeListener: vi.fn((listener: (permissions: chrome.permissions.Permissions) => void) => added.delete(listener)),
+    }
+    const onRemoved = {
+      addListener: vi.fn((listener: (permissions: chrome.permissions.Permissions) => void) => removed.add(listener)),
+      removeListener: vi.fn((listener: (permissions: chrome.permissions.Permissions) => void) => removed.delete(listener)),
+    }
+    vi.stubGlobal('chrome', { permissions: { onAdded, onRemoved } })
+    const listener = vi.fn()
+    const cleanup = subscribePermission('downloads', listener)
+
+    added.forEach((fire) => fire({ permissions: ['bookmarks'] }))
+    added.forEach((fire) => fire({ permissions: ['downloads'] }))
+    removed.forEach((fire) => fire({ permissions: ['downloads'] }))
+    expect(listener.mock.calls).toEqual([[true], [false]])
+    cleanup()
+    expect(onAdded.removeListener).toHaveBeenCalled()
+    expect(onRemoved.removeListener).toHaveBeenCalled()
   })
 })
 

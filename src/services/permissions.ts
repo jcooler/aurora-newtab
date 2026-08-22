@@ -90,6 +90,28 @@ export async function ensurePermission(name: chrome.runtime.ManifestPermission):
   return permissionsBoundary().request({ permissions: [name] })
 }
 
+/** Observes one named optional permission without leaking unrelated changes
+ * into a feature resource. The listener receives current ownership truth for
+ * matching add/remove events and the returned cleanup releases both hooks. */
+export function subscribePermission(
+  name: chrome.runtime.ManifestPermission,
+  listener: (held: boolean) => void,
+): () => void {
+  const boundary = permissionsBoundary()
+  const onAdded = (permissions: chrome.permissions.Permissions) => {
+    if (permissions.permissions?.includes(name)) listener(true)
+  }
+  const onRemoved = (permissions: chrome.permissions.Permissions) => {
+    if (permissions.permissions?.includes(name)) listener(false)
+  }
+  boundary.onAdded.addListener(onAdded)
+  boundary.onRemoved.addListener(onRemoved)
+  return () => {
+    boundary.onAdded.removeListener(onAdded)
+    boundary.onRemoved.removeListener(onRemoved)
+  }
+}
+
 /** Per-origin counterpart to the named-permission trio above, for connectors:
  *  each connector needs host access to exactly the site it fetches, granted
  *  and revoked independently of every other connector's site, rather than

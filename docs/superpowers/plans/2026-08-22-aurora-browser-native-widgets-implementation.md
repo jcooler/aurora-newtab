@@ -129,19 +129,19 @@ feat(browser): add native-widget permission foundation
 - Modify: `src/services/permissions.ts`
 - Modify: `src/services/permissions.test.ts`
 
-- [ ] **Step 1: Write pure adapter failures**
+- [x] **Step 1: Write pure adapter failures**
 
 Pin deterministic sorting, title/host/filename fallbacks, stable window
 ordinals, state grouping, progress truth, 25-item limits, exact Chrome query
 arguments, and action allowlists. Assert no adapter exposes `acceptDanger`,
 `open`, `removeFile`, `erase`, tab-content query, or network behavior.
 
-- [ ] **Step 2: Observe adapter RED**
+- [x] **Step 2: Observe adapter RED**
 
 Run the five new service test files. Expected: FAIL because the adapters are
 missing.
 
-- [ ] **Step 3: Implement the boundaries and adapters**
+- [x] **Step 3: Implement the boundaries and adapters**
 
 Create a preview-only injectable boundary that production constant-folds to
 `chrome.readingList`, `chrome.sessions`, `chrome.downloads`,
@@ -149,19 +149,19 @@ Create a preview-only injectable boundary that production constant-folds to
 thin. Add named permission helpers or an exact identity-to-permission map on
 top of the existing no-pre-await `ensurePermission` path.
 
-- [ ] **Step 4: Write resource-lifecycle failures**
+- [x] **Step 4: Write resource-lifecycle failures**
 
 Cover absent permission, one in-flight load per identity, stale completion
 suppression, event refresh, visible-document refresh, in-memory stale data on
 error, bounded retry, permission revocation, listener cleanup, and zero storage
 writes.
 
-- [ ] **Step 5: Observe resource RED and implement**
+- [x] **Step 5: Observe resource RED and implement**
 
 Run `src/lib/hooks/useBrowserResource.test.tsx`, observe failure, implement the
 shared hook, and rerun the focused service/hook family to GREEN.
 
-- [ ] **Step 6: Commit the runtime foundation**
+- [x] **Step 6: Commit the runtime foundation**
 
 Run TypeScript and diff hygiene, then commit:
 
