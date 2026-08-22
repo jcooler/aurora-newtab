@@ -82,6 +82,59 @@ describe('CanvasSurface (anchored named layout)', () => {
     expect(screen.getByTestId('canvas-item-bookmarks').style.marginLeft).toBe('50%')
   })
 
+  it('keeps absent-Y members on the legacy edge grid and positions explicit-Y members in both axes', () => {
+    const mixed: NamedLayout = {
+      ...LAYOUT,
+      widgets: {
+        ...LAYOUT.widgets,
+        bookmarks: { kind: 'docked', dock: 'top', order: 0, x: 72 },
+        weather: { kind: 'docked', dock: 'top', order: 1, x: 27, y: 73 },
+        focus: { kind: 'docked', dock: 'bottom', order: 0, x: 24 },
+        timer: { kind: 'docked', dock: 'bottom', order: 1, x: 76, y: 18 },
+      },
+    }
+    renderSurface(mixed)
+
+    const legacyTop = screen.getByTestId('canvas-item-bookmarks')
+    expect(legacyTop.dataset.dockPositioning).toBe('legacy')
+    expect(legacyTop.style.top).toBe('')
+    expect(legacyTop.closest('.dock-lane__legacy')).toBeTruthy()
+
+    const explicitTop = screen.getByTestId('canvas-item-weather')
+    expect(explicitTop.dataset.dockPositioning).toBe('explicit')
+    expect(explicitTop.style.left).toBe('27%')
+    expect(explicitTop.style.top).toBe('73%')
+    expect(explicitTop.style.transform).toBe('translate(-50%, -50%)')
+    expect(explicitTop.closest('.dock-lane__placed')).toBeTruthy()
+
+    expect(screen.getByTestId('canvas-item-focus').closest('.dock-lane__legacy')).toBeTruthy()
+    expect(screen.getByTestId('canvas-item-timer').closest('.dock-lane__placed')).toBeTruthy()
+  })
+
+  it('routes a dock guide set only into its matching transparent band', () => {
+    const mixed: NamedLayout = {
+      ...LAYOUT,
+      widgets: {
+        ...LAYOUT.widgets,
+        weather: { kind: 'docked', dock: 'top', order: 0, x: 27, y: 73 },
+      },
+    }
+    render(
+      <CanvasSurface
+        activeLayout={mixed}
+        entries={ENTRIES}
+        viewport={{ width: 1408, height: 445 }}
+        guideSet={{ space: 'top', guides: [{ axis: 'y', value: 48, kind: 'canvas-center' }] }}
+        renderWidget={(entry, size) => <span>{entry.label}:{size}</span>}
+      />,
+    )
+    const top = screen.getByRole('navigation', { name: 'Top bar' })
+    const bottom = screen.getByRole('navigation', { name: 'Bottom bar' })
+    expect(top.querySelector('.edit-guides--dock .edit-guide')?.getAttribute('style')).toContain('top: 48px')
+    expect(bottom.querySelector('.edit-guides--dock')).toBeNull()
+    expect(screen.getByRole('region', { name: 'Canvas' }).querySelector('.edit-guides')).toBeNull()
+  })
+
   it('renders docked items in the bottom strip in order, not in the surface', () => {
     renderSurface()
     const nav = screen.getByRole('navigation', { name: 'Bottom bar' })
@@ -148,6 +201,17 @@ describe('CanvasSurface (anchored named layout)', () => {
     // beneath its empty stretches.
     expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*pointer-events:\s*none/)
     expect(indexCss).toMatch(/\.dock-lane \.canvas-item\s*\{[^}]*pointer-events:\s*auto/)
+    expect(indexCss).toMatch(/\.dock-lane\s*\{[^}]*pointer-events:\s*none/)
+    expect(indexCss).toMatch(/\.dock-lane__legacy,\s*\.dock-lane__placed\s*\{[^}]*pointer-events:\s*none/)
+  })
+
+  it('pins the responsive transparent band and exact nested legacy baselines', () => {
+    expect(indexCss).toMatch(/\.canvas-bottom-bar,\s*\.canvas-top-bar\s*\{[^}]*right:\s*72px;[^}]*left:\s*72px;[^}]*height:\s*clamp\(96px,\s*16vh,\s*128px\)/)
+    expect(indexCss).toMatch(/\.canvas-bottom-bar\s*\{\s*bottom:\s*16px;\s*\}/)
+    expect(indexCss).toMatch(/\.canvas-top-bar\s*\{\s*top:\s*16px;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-lane__legacy\s*\{[^}]*display:\s*grid;[^}]*align-items:\s*end;[^}]*padding:\s*16px 2px 2px/)
+    expect(indexCss).toMatch(/\.dock-lane__legacy\[data-edge="top"\]\s*\{\s*top:\s*0;\s*\}/)
+    expect(indexCss).toMatch(/\.dock-lane__legacy\[data-edge="bottom"\]\s*\{\s*bottom:\s*0;\s*\}/)
   })
 
   it('the ordered-row scroller machinery is retired, not merely unreachable (free-x docks, owner-refined 2026-08-18)', () => {

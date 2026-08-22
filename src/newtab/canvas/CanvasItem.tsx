@@ -188,6 +188,11 @@ export default function CanvasItem({
     top: `${item.topPct}%`,
     transform: `translate(calc(-50% + ${clamp.dx}px), calc(-50% + ${clamp.dy}px))`,
     zIndex: item.layer,
+  } : item.mode === 'docked' && item.yPct !== undefined ? {
+    position: 'absolute',
+    left: `${item.xPct}%`,
+    top: `${item.yPct}%`,
+    transform: 'translate(-50%, -50%)',
   } : item.mode === 'docked' ? {
     position: 'relative',
     gridArea: '1 / 1',
@@ -248,6 +253,9 @@ export default function CanvasItem({
       data-canvas-object-id={objectId}
       data-canvas-size={size}
       data-canvas-mode={item.mode}
+      data-dock-positioning={item.mode === 'docked'
+        ? item.yPct === undefined ? 'legacy' : 'explicit'
+        : undefined}
       data-canvas-empty={empty ? '' : undefined}
       className={`canvas-item${editingClass}${className ? ` ${className}` : ''}`}
       style={style}

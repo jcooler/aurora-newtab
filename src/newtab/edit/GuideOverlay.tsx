@@ -2,10 +2,16 @@ import type { CanvasGuide } from '../arrange/canvasSnap'
 
 /** Magnetic alignment guides during a drag (named-layouts spec 2.5),
  *  rendered as surface-local hairlines. Pointer-transparent chrome. */
-export default function GuideOverlay({ guides }: { guides: readonly CanvasGuide[] }) {
+export default function GuideOverlay({
+  guides,
+  className,
+}: {
+  guides: readonly CanvasGuide[]
+  className?: string
+}) {
   if (guides.length === 0) return null
   return (
-    <div className="edit-guides" aria-hidden>
+    <div className={`edit-guides${className ? ` ${className}` : ''}`} aria-hidden>
       {guides.map((guide) => (
         <div
           key={`${guide.axis}-${guide.kind}-${guide.value}`}

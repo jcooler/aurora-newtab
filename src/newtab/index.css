@@ -697,15 +697,17 @@
   }
 }
 
-/* Dock strips (named-layouts spec 2.4, owner-refined 2026-08-18): a free
-   one-row lane spanning the width — members sit at their own stored x.
-   72px side insets keep the fixed utility cluster corners clear. */
+/* Dock strips (A2-D071): transparent two-axis bands. The outer band owns
+   only the 72px side / 16px edge safety geometry; it never paints or catches
+   a pointer. Legacy absent-Y members live in their exact old edge grid while
+   explicit-Y members use the full band independently. */
 .canvas-bottom-bar,
 .canvas-top-bar {
   position: fixed;
   z-index: 30;
   right: 72px;
   left: 72px;
+  height: clamp(96px, 16vh, 128px);
   display: flex;
   /* The full-width lane is pointer-TRANSPARENT: only its members catch
      events, so the empty stretches never block launchers, the settings
@@ -713,23 +715,36 @@
      lane went full-width). */
   pointer-events: none;
 }
-.dock-lane .canvas-item {
-  pointer-events: auto;
-}
 .canvas-bottom-bar { bottom: 16px; }
 .canvas-top-bar { top: 16px; }
 
-/* The free one-row lane (owner-refined 2026-08-18: complete positional
-   control within the bar). Grid-stack: every member occupies the SAME cell,
-   offset by its own x-percent margin — the tallest member sizes the lane
-   and nothing scrolls, clips, or re-flows a neighbour. The 16px top
-   headroom is INVISIBLE reserve (the strip has no background) for the hover
-   grip + gear floating above each member. */
 .dock-lane {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  pointer-events: none;
+}
+.dock-lane__legacy,
+.dock-lane__placed {
+  position: absolute;
+  pointer-events: none;
+}
+.dock-lane__placed {
+  inset: 0;
+}
+/* Exact pre-DY grid. Top members retain top:16+16px; bottom members retain
+   bottom:16+2px. Its intrinsic height, padding, and end alignment are the
+   immutable absent-Y baseline captured by scripts/qa-dy-p1.mjs. */
+.dock-lane__legacy {
   display: grid;
   width: 100%;
   align-items: end;
   padding: 16px 2px 2px;
+}
+.dock-lane__legacy[data-edge="top"] { top: 0; }
+.dock-lane__legacy[data-edge="bottom"] { bottom: 0; }
+.dock-lane .canvas-item {
+  pointer-events: auto;
 }
 /* Dock launchers must publish their intrinsic button width. Inline-size
    containment makes every wrapper report a zero base and lets later
@@ -1830,6 +1845,9 @@ select > option {
 .canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="moon"] > :not(.canvas-item-chrome),
 .canvas-item:not([data-canvas-object-id^="stack:"])[data-block-id="status"] > section {
   pointer-events: none;
+}
+.edit-guides--dock {
+  z-index: 40;
 }
 
 /* Compact registry variants must honor the planner-owned inline size. The

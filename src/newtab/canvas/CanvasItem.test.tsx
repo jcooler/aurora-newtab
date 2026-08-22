@@ -64,6 +64,68 @@ describe('CanvasItem', () => {
     expect(item.style.position).toBe('relative')
   })
 
+  it('uses exact two-axis positioning only when dock y is explicit', () => {
+    const { rerender } = render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.github}
+        item={{ id: 'github', mode: 'docked', dock: 'top', order: 0, xPct: 27 }}
+      >
+        <span>GitHub content</span>
+      </CanvasItem>,
+    )
+    const item = screen.getByTestId('canvas-item-github')
+    expect(item.dataset.dockPositioning).toBe('legacy')
+    expect(item.style.marginLeft).toBe('27%')
+    expect(item.style.top).toBe('')
+
+    rerender(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.github}
+        item={{ id: 'github', mode: 'docked', dock: 'top', order: 0, xPct: 27, yPct: 73 }}
+      >
+        <span>GitHub content</span>
+      </CanvasItem>,
+    )
+    expect(item.dataset.dockPositioning).toBe('explicit')
+    expect(item.style.left).toBe('27%')
+    expect(item.style.top).toBe('73%')
+    expect(item.style.marginLeft).toBe('')
+    expect(item.style.transform).toBe('translate(-50%, -50%)')
+  })
+
+  it('keeps normal dock content live and makes only the interior inert during editing', () => {
+    const onGripPointerDown = vi.fn()
+    const { rerender } = render(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.github}
+        item={{ id: 'github', mode: 'docked', dock: 'bottom', order: 0, xPct: 50, yPct: 50 }}
+        chrome="normal"
+        onGripPointerDown={onGripPointerDown}
+      >
+        <button type="button">Open GitHub</button>
+      </CanvasItem>,
+    )
+    const item = screen.getByTestId('canvas-item-github')
+    const interior = screen.getByRole('button', { name: 'Open GitHub' })
+    expect(interior.hasAttribute('inert')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Move GitHub' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'GitHub settings' })).toBeTruthy()
+
+    rerender(
+      <CanvasItem
+        entry={WIDGET_REGISTRY_BY_ID.github}
+        item={{ id: 'github', mode: 'docked', dock: 'bottom', order: 0, xPct: 50, yPct: 50 }}
+        chrome="editing"
+        onGripPointerDown={onGripPointerDown}
+      >
+        <button type="button">Open GitHub</button>
+      </CanvasItem>,
+    )
+    expect(interior.hasAttribute('inert')).toBe(true)
+    fireEvent.pointerDown(item)
+    expect(onGripPointerDown).toHaveBeenCalledWith('github', expect.anything())
+  })
+
   it('renders hover chrome (grip + gear) only in normal chrome mode and forwards events', () => {
     const onGearClick = vi.fn()
     const onGripPointerDown = vi.fn()

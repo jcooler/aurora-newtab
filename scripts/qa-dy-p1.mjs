@@ -22,7 +22,8 @@ export const DY_VIEWPORTS = Object.freeze([
 const argv = process.argv.slice(2)
 const phase = argv.find((value) => value.startsWith('--phase='))?.slice('--phase='.length) ?? 'baseline'
 if (!['baseline', 'after'].includes(phase)) throw new Error(`unknown DY-P1 phase: ${phase}`)
-if (phase === 'after') {
+const baselineOnly = argv.includes('--baseline-only')
+if (phase === 'after' && !baselineOnly) {
   throw new Error('DY-P1 after-phase interactions are added in implementation Task 7')
 }
 
@@ -32,11 +33,19 @@ const profileDir = resolve(repoRoot, '.playwright-profile-qa-dy-p1')
 let outDir = prepareDyOutputDir(argv, repoRoot, phase)
 const evidencePath = resolve(outDir, 'evidence.json')
 const replaceBaseline = argv.includes('--replace-baseline')
+const baselineEvidencePath = resolve(repoRoot, '.qa-dy-p1-baseline', 'evidence.json')
+const baselineEvidence = phase === 'after'
+  ? JSON.parse(readFileSync(baselineEvidencePath, 'utf8'))
+  : null
 
-if (existsSync(evidencePath) && !replaceBaseline) {
+if (phase === 'baseline' && existsSync(evidencePath) && !replaceBaseline) {
   throw new Error('DY-P1 baseline already exists; pass --replace-baseline to replace it deliberately')
 }
-if (replaceBaseline) {
+if (phase === 'baseline' && replaceBaseline) {
+  rmSync(outDir, { recursive: true, force: true })
+  outDir = prepareDyOutputDir(argv, repoRoot, phase)
+}
+if (phase === 'after') {
   rmSync(outDir, { recursive: true, force: true })
   outDir = prepareDyOutputDir(argv, repoRoot, phase)
 }
@@ -70,6 +79,7 @@ if (build.status !== 0) {
 const evidence = {
   phase,
   commit,
+  ...(baselineEvidence ? { baselineCommit: baselineEvidence.commit } : {}),
   viewports: DY_VIEWPORTS,
   desktop: [],
   boundaries: [],
@@ -77,6 +87,7 @@ const evidence = {
   runtimeErrors: [],
   failedRequests: [],
   failures: [],
+  comparisons: [],
 }
 const fail = (message) => { evidence.failures.push(message) }
 const sha256File = (path) => createHash('sha256').update(readFileSync(path)).digest('hex')
@@ -270,6 +281,45 @@ try {
   ), 0)
   if (rectWitnesses !== 12) fail(`expected 12 desktop rectangle witnesses, found ${rectWitnesses}`)
   if (evidence.boundaries.length !== 2) fail(`expected 2 boundary witnesses, found ${evidence.boundaries.length}`)
+
+  if (baselineEvidence) {
+    for (const current of evidence.desktop) {
+      const baseline = baselineEvidence.desktop.find((candidate) => (
+        candidate.viewport.width === current.viewport.width
+        && candidate.viewport.height === current.viewport.height
+      ))
+      if (!baseline) {
+        fail(`${key(current.viewport)}: immutable baseline capture missing`)
+        continue
+      }
+      for (const id of ['weather', 'bookmarks', 'tasks', 'notes']) {
+        const exact = JSON.stringify(current.rects[id]) === JSON.stringify(baseline.rects[id])
+        evidence.comparisons.push({ viewport: current.viewport, id, exact })
+        if (!exact) {
+          fail(`${key(current.viewport)}: absent-Y ${id} rectangle changed`)
+        }
+      }
+      if (current.layouts !== baseline.layouts) {
+        fail(`${key(current.viewport)}: layouts bytes differ from immutable baseline`)
+      }
+    }
+    for (const current of evidence.boundaries) {
+      const baseline = baselineEvidence.boundaries.find((candidate) => (
+        candidate.viewport.width === current.viewport.width
+        && candidate.viewport.height === current.viewport.height
+      ))
+      if (!baseline) {
+        fail(`${key(current.viewport)}: immutable boundary baseline missing`)
+        continue
+      }
+      if (JSON.stringify(current.order) !== JSON.stringify(baseline.order)) {
+        fail(`${key(current.viewport)}: narrow boundary order changed`)
+      }
+      if (current.layouts !== baseline.layouts) {
+        fail(`${key(current.viewport)}: boundary layouts bytes differ from immutable baseline`)
+      }
+    }
+  }
 } catch (error) {
   caughtError = error
   fail(`harness: ${error instanceof Error ? error.message : String(error)}`)
@@ -291,6 +341,7 @@ console.log(JSON.stringify({
   runtimeErrors: evidence.runtimeErrors.length,
   failedRequests: evidence.failedRequests.length,
   failures: evidence.failures,
+  comparisons: evidence.comparisons.length,
 }, null, 2))
 
 if (caughtError || evidence.failures.length || evidence.runtimeErrors.length || evidence.failedRequests.length) {

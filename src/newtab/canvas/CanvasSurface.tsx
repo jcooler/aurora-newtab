@@ -7,7 +7,7 @@ import {
   type LayoutRenderItem,
   type StackedRenderItem,
 } from '../../lib/layout/renderLayout'
-import type { NamedLayout } from '../../lib/layout/namedLayouts'
+import type { DockEdge, NamedLayout } from '../../lib/layout/namedLayouts'
 import type { CanvasSize } from '../../lib/layout/canvasTypes'
 import CanvasItem from './CanvasItem'
 import CanvasLegibilityLayer from './CanvasLegibilityLayer'
@@ -31,6 +31,7 @@ interface CanvasSurfaceProps {
   selectedStackId?: string | null
   stackTarget?: StackDropTarget | null
   guides?: readonly CanvasGuide[]
+  guideSet?: DragGuideSet | null
   onSelectItem?: (id: WidgetRegistryEntry['id']) => void
   onSelectStack?: (id: string) => void
   onGripPointerDown?: (id: WidgetRegistryEntry['id'], e: React.PointerEvent) => void
@@ -43,6 +44,11 @@ interface CanvasSurfaceProps {
   renderWidget: (entry: WidgetRegistryEntry, size: CanvasSize, docked: boolean) => ReactNode
 }
 
+export interface DragGuideSet {
+  space: 'canvas' | DockEdge
+  guides: readonly CanvasGuide[]
+}
+
 /** One dock strip (named-layouts spec 2.4, owner-refined 2026-08-18): a
  *  free one-row lane spanning the width. Every member sits at its OWN
  *  stored x — complete positional control, exactly like the canvas — via
@@ -52,18 +58,26 @@ interface CanvasSurfaceProps {
 function DockStrip({
   edge,
   label,
-  children,
+  legacyChildren,
+  explicitChildren,
+  guides,
 }: {
   edge: 'top' | 'bottom'
   label: string
-  children: ReactNode
+  legacyChildren: ReactNode
+  explicitChildren: ReactNode
+  guides: readonly CanvasGuide[]
 }) {
   return (
     <nav
       aria-label={label}
       className={edge === 'top' ? 'canvas-top-bar' : 'canvas-bottom-bar'}
     >
-      <div className="dock-lane">{children}</div>
+      <div className="dock-lane" data-edge={edge}>
+        <div className="dock-lane__legacy" data-edge={edge}>{legacyChildren}</div>
+        <div className="dock-lane__placed">{explicitChildren}</div>
+        <GuideOverlay guides={guides} className="edit-guides--dock" />
+      </div>
     </nav>
   )
 }
@@ -78,6 +92,7 @@ export default function CanvasSurface({
   selectedStackId = null,
   stackTarget = null,
   guides = [],
+  guideSet = null,
   onSelectItem,
   onSelectStack,
   onGripPointerDown,
@@ -197,9 +212,13 @@ export default function CanvasSurface({
   return (
     <div data-canvas-root="" className="canvas-root">
       {topDock.length > 0 ? (
-        <DockStrip edge="top" label="Top bar">
-          {topDock.map(renderItem)}
-        </DockStrip>
+        <DockStrip
+          edge="top"
+          label="Top bar"
+          legacyChildren={topDock.filter((item) => item.yPct === undefined).map(renderItem)}
+          explicitChildren={topDock.filter((item) => item.yPct !== undefined).map(renderItem)}
+          guides={guideSet?.space === 'top' ? guideSet.guides : []}
+        />
       ) : null}
       <section
         aria-label="Canvas"
@@ -210,12 +229,16 @@ export default function CanvasSurface({
       >
         <CanvasLegibilityLayer />
         {plan.narrow ? stacked.map(renderItem) : anchored.map(renderItem)}
-        <GuideOverlay guides={guides} />
+        <GuideOverlay guides={guideSet?.space === 'canvas' ? guideSet.guides : guides} />
       </section>
       {bottomDock.length > 0 ? (
-        <DockStrip edge="bottom" label="Bottom bar">
-          {bottomDock.map(renderItem)}
-        </DockStrip>
+        <DockStrip
+          edge="bottom"
+          label="Bottom bar"
+          legacyChildren={bottomDock.filter((item) => item.yPct === undefined).map(renderItem)}
+          explicitChildren={bottomDock.filter((item) => item.yPct !== undefined).map(renderItem)}
+          guides={guideSet?.space === 'bottom' ? guideSet.guides : []}
+        />
       ) : null}
     </div>
   )
