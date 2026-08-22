@@ -241,7 +241,7 @@ git commit -m "docs: reconcile the accepted named-layout baseline"
 - Consumes: the existing NL-P6 harness and immutable canonical evidence.
 - Produces: an enforced scratch-only output boundary for every future NL-P6 script run.
 
-- [ ] **Step 1: Write a failing isolated-output contract for the QA scripts**
+- [x] **Step 1: Write a failing isolated-output contract for the QA scripts**
 
 Create `scripts/qa-nl-p6-output.test.mjs` with Node's test runner. The test
 imports `resolveQaOutputDir(argv, cwd)` and proves:
@@ -268,7 +268,7 @@ assert.throws(
 Run `node --test scripts/qa-nl-p6-output.test.mjs` and observe failure because
 the module does not exist.
 
-- [ ] **Step 2: Implement the isolated-output parser**
+- [x] **Step 2: Implement the isolated-output parser**
 
 Create `scripts/qa-nl-p6-output.mjs` exporting:
 
@@ -295,7 +295,7 @@ including the canonical evidence directory and an absent flag.
 
 Run `node --test scripts/qa-nl-p6-output.test.mjs`; expected PASS.
 
-- [ ] **Step 3: Commit the isolated-output boundary**
+- [x] **Step 3: Commit the isolated-output boundary**
 
 ```powershell
 git add scripts/qa-nl-p6-output.mjs scripts/qa-nl-p6-output.test.mjs scripts/qa-nl-p6.mjs scripts/qa-nl-p6-window.mjs

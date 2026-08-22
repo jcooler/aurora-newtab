@@ -3,24 +3,24 @@
 // preview build of the real extension, per the corrected A2-D060 standard —
 // short-height desktop family including exact 1408x445, existing-layout-
 // shaped storage, programmatic invariants at every cell, one capture per
-// cell for the per-capture judgment pass (Task 4). Writes TRACKED evidence
-// to docs/superpowers/qa/nl-p6/.
+// cell for the per-capture judgment pass (Task 4). Accepted evidence is
+// immutable: every run requires an explicit repository-local scratch path.
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
+import { resolveQaOutputDir } from './qa-nl-p6-output.mjs'
 
 const repoRoot = process.cwd()
 const dist = resolve('.qa-nl-p6-dist')
 const profileDir = resolve('.playwright-profile-qa-nl-p6')
-const outDir = resolve('docs/superpowers/qa/nl-p6')
+const outDir = resolveQaOutputDir(process.argv.slice(2), repoRoot)
 const headed = process.argv.includes('--headed')
 
 for (const [path, suffix] of [
   [dist, '.qa-nl-p6-dist'],
   [profileDir, '.playwright-profile-qa-nl-p6'],
-  [outDir, 'nl-p6'],
 ]) {
   if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
 }

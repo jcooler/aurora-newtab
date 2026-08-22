@@ -9,16 +9,16 @@ import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { SCENARIOS } from './qa-nl-p6-scenarios.mjs'
+import { resolveQaOutputDir } from './qa-nl-p6-output.mjs'
 
 const repoRoot = process.cwd()
 const dist = resolve('.qa-nl-p6-dist')
 const profileDir = resolve('.playwright-profile-qa-nl-p6-window')
-const outDir = resolve('docs/superpowers/qa/nl-p6')
+const outDir = resolveQaOutputDir(process.argv.slice(2), repoRoot)
 
 for (const [path, suffix] of [
   [dist, '.qa-nl-p6-dist'],
   [profileDir, '.playwright-profile-qa-nl-p6-window'],
-  [outDir, 'nl-p6'],
 ]) {
   if (!path.endsWith(suffix)) throw new Error(`unsafe path: ${path}`)
 }
