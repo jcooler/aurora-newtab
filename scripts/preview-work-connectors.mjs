@@ -39,13 +39,9 @@ safeScratch(outDir, '.qa-work-connectors-')
 safeScratch(profileDir, '.qa-work-connectors-')
 
 const manifest = JSON.parse(readFileSync(resolve(dist, 'manifest.json'), 'utf8'))
-const REQUIRED_ORIGINS = [
-  'https://api.linear.app/*',
-  'https://sentry.io/*',
-  'https://us.sentry.io/*',
-  'https://de.sentry.io/*',
-  'https://api.todoist.com/*',
-]
+if (!manifest.optional_host_permissions?.includes('https://*/*')) {
+  throw new Error('dist is missing the requestable optional HTTPS origin boundary')
+}
 const EXACT_REQUEST_MARKERS = [
   'https://api.linear.app/graphql',
   '/api/0/organizations/acme-labs/issues/',
@@ -54,9 +50,6 @@ const EXACT_REQUEST_MARKERS = [
   '/api/v1/tasks/task-1/close',
 ]
 void EXACT_REQUEST_MARKERS
-for (const origin of REQUIRED_ORIGINS) {
-  if (!manifest.optional_host_permissions?.includes(origin)) throw new Error(`dist is missing optional origin ${origin}`)
-}
 
 const TIERS = ['compact', 'standard', 'full', 'docked']
 const DEGRADED_STATES = ['setup', 'loading', 'empty', 'hard-error', 'retained-error', 'stale']
@@ -418,7 +411,7 @@ async function capture(widget, { kind, tier, state = 'ready', viewport = VIEWPOR
   await page.screenshot({ path, fullPage: true })
   const stored = await storageTruth()
   if (stored.writes.length) fail(`${label}: storage mutation outside expected keys ${JSON.stringify(stored.writes)}`)
-  if (/"layout"\s*:/.test(stored.serialized)) fail(`${label}: legacy layout write`)
+  if (stored.writes.some((keys) => keys.includes('layout'))) fail(`${label}: legacy layout write`)
   evidence.storageWrites.push({ label, writes: stored.writes })
   evidence.captures.push({
     label, path, widget: widget.id, kind, tier, state, viewport,

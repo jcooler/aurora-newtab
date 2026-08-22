@@ -43,3 +43,9 @@ test('declares every provider, tier, degraded state, settings path, and Todoist 
     assert.match(source, new RegExp(`kind: '${scenario}'`))
   }
 })
+
+test('checks the manifest wildcard while policing legacy layout writes through the write log', async () => {
+  const source = await readFile(new URL('./preview-work-connectors.mjs', import.meta.url), 'utf8')
+  assert.ok(source.includes("optional_host_permissions?.includes('https://*/*')"))
+  assert.ok(source.includes("stored.writes.some((keys) => keys.includes('layout'))"))
+})
