@@ -1,14 +1,58 @@
 import type { WeatherSnapshot } from '../../lib/storage/schema'
 import type { WeatherProvider } from './types'
+import {
+  environmentRequestIdentity,
+  environmentRequestUrl,
+  mapEnvironmentPayload,
+  unavailableEnvironmentSnapshot,
+} from './environmentIdentity'
 import { weatherRequestIdentity, weatherRequestUrl } from './identity'
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException
+    ? error.name === 'AbortError'
+    : error instanceof Error && error.name === 'AbortError'
+}
 
 export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvider {
   return {
     async fetchSnapshot(lat, lon, label, options): Promise<WeatherSnapshot> {
       const url = weatherRequestUrl(lat, lon)
-      const res = await fetchFn(url, options?.signal ? { signal: options.signal } : undefined)
-      if (!res.ok) throw new Error(`Open-Meteo request failed: HTTP ${res.status}`)
-      const data = await res.json()
+      const environmentUrl = environmentRequestUrl(lat, lon)
+      const environmentIdentity = environmentRequestIdentity(lat, lon)
+      const init = options?.signal ? { signal: options.signal } : undefined
+
+      // Start both same-location legs together. The environmental promise owns
+      // its rejection immediately, so a forecast-first failure cannot leave a
+      // later environmental rejection unhandled.
+      const environmentResult = (async () => {
+        const response = await fetchFn(environmentUrl, init)
+        if (!response.ok) {
+          throw new Error(`Open-Meteo environmental request failed: HTTP ${response.status}`)
+        }
+        return response.json()
+      })().then(
+        (value) => ({ ok: true as const, value }),
+        (error: unknown) => ({ ok: false as const, error }),
+      )
+
+      const forecastResult = (async () => {
+        const response = await fetchFn(url, init)
+        if (!response.ok) throw new Error(`Open-Meteo request failed: HTTP ${response.status}`)
+        return response.json()
+      })()
+
+      const [data, settledEnvironment] = await Promise.all([forecastResult, environmentResult])
+      const fetchedAt = Date.now()
+      const environment = (() => {
+        try {
+          if (!settledEnvironment.ok) throw settledEnvironment.error
+          return mapEnvironmentPayload(settledEnvironment.value, environmentIdentity, fetchedAt)
+        } catch (caught) {
+          if (isAbortError(caught)) throw caught
+          return unavailableEnvironmentSnapshot(environmentIdentity, fetchedAt)
+        }
+      })()
       return {
         current: {
           tempC: data.current.temperature_2m,
@@ -31,11 +75,12 @@ export function openMeteoProvider(fetchFn: typeof fetch = fetch): WeatherProvide
           code: data.hourly.weather_code[i],
           isDay: (data.hourly.is_day?.[i] ?? 1) !== 0,
         })),
-        fetchedAt: Date.now(),
+        fetchedAt,
         locationLabel: label,
         requestIdentity: weatherRequestIdentity(lat, lon),
         sunriseISO: data.daily?.sunrise?.[0],
         sunsetISO: data.daily?.sunset?.[0],
+        environment,
       }
     },
   }
