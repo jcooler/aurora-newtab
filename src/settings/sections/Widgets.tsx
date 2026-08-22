@@ -54,6 +54,10 @@ const WIDGET_GROUPS: readonly WidgetGroup[] = [
   },
 ]
 
+export const WIDGET_CONTROL_KEYS: readonly (keyof WidgetToggles)[] = Object.freeze(
+  WIDGET_GROUPS.flatMap((group) => group.widgets.map(([key]) => key)),
+)
+
 const SKY_LOCATION_HINT_ID = 'w-sky-location-hint'
 const MAX_HABITS = 6
 

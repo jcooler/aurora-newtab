@@ -25,7 +25,7 @@ import TimerWidget from './widgets/timer/TimerWidget'
 import TodoWidget from './widgets/todo/TodoWidget'
 import VercelWidget from './widgets/vercel/VercelWidget'
 import WeatherWidget from './widgets/weather/WeatherWidget'
-import { WIDGET_REGISTRY, type WidgetRendererKey } from './widgetRegistry'
+import type { WidgetRendererKey } from './widgetRegistry'
 import type { WidgetVariant } from '../lib/layout/types'
 import type { UtilityTrayBridge } from './components/utilityTrayBridge'
 import type { CanvasSize } from '../lib/layout/canvasTypes'
@@ -53,7 +53,7 @@ function effectiveVariant({ stageVariant, canvasSize }: WidgetRendererProps): Wi
   return canvasSize
 }
 
-const RENDERERS = {
+export const WIDGET_RENDERERS = {
   weather: (props) => (
     <WeatherWidget onExpandedChange={props.onWeatherExpandedChange} stageVariant={effectiveVariant(props)} docked={props.docked} />
   ),
@@ -85,9 +85,9 @@ const RENDERERS = {
 } satisfies Record<WidgetRendererKey, WidgetRenderer>
 
 export const WIDGET_RENDERER_KEYS: readonly WidgetRendererKey[] = Object.freeze(
-  WIDGET_REGISTRY.map((entry) => entry.rendererKey),
+  Object.keys(WIDGET_RENDERERS) as WidgetRendererKey[],
 )
 
 export function resolveWidgetRenderer(key: WidgetRendererKey): WidgetRenderer {
-  return RENDERERS[key]
+  return WIDGET_RENDERERS[key]
 }

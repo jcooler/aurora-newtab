@@ -9,17 +9,25 @@
 //   node scripts/catalog-nl-p5.mjs --batch=2  # batch 2 (connectors + small widgets)
 import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import { resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 import { chromium } from 'playwright'
 import { seedInformationFirstFixtures } from './information-first-fixtures.mjs'
+import { checkCatalogArtifacts, parseCatalogArgs, renderCatalogMarkdown } from './catalog-nl-p5-content.mjs'
+import { CATALOG_BATCHES, CATALOG_CONTRACTS, CODED_DOCK_LINES } from './widget-catalog-manifest.mjs'
 
-const batch = process.argv.includes('--batch=2') ? '2' : '1'
+const options = parseCatalogArgs(process.argv.slice(2))
+const { batch, headed, outDir } = options
+if (options.check) {
+  const result = await checkCatalogArtifacts({ batch, outDir, readFile })
+  if (!result.ok) result.errors.forEach((error) => process.stderr.write(`${error}\n`))
+  process.exit(result.ok ? 0 : 1)
+}
+
 const repoRoot = process.cwd()
 const dist = resolve('.preview-nl-p5-dist')
 const profileDir = resolve('.playwright-profile-nl-p5')
-const outDir = resolve(`docs/superpowers/catalog/batch-${batch}`)
-const headed = process.argv.includes('--headed')
 
 for (const [path, suffix] of [
   [dist, '.preview-nl-p5-dist'],
@@ -43,51 +51,8 @@ if (build.status !== 0) {
   throw new Error(`build failed: ${build.status}`)
 }
 
-// Per-batch widget matrices with their supported tiers, mirrored from
-// WIDGET_SIZE_CONTRACTS (drift-guarded against the source below).
-const BATCH_1 = [
-  { id: 'clock', label: 'Clock', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'greeting', label: 'Greeting', tiers: ['compact', 'standard'] },
-  { id: 'search', label: 'Search', tiers: ['compact', 'standard'] },
-  { id: 'focus', label: 'Focus', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'quote', label: 'Quote', tiers: ['compact', 'standard'] },
-  { id: 'weather', label: 'Weather', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'timer', label: 'Timer', tiers: ['compact', 'docked'] },
-  { id: 'tasks', label: 'Tasks', tiers: ['compact', 'docked'] },
-  { id: 'notes', label: 'Notes', tiers: ['compact', 'docked'] },
-  { id: 'bookmarks', label: 'Bookmarks', tiers: ['compact', 'standard', 'docked'] },
-]
-
-const BATCH_2 = [
-  { id: 'github', label: 'GitHub', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'gitlab', label: 'GitLab', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'jira', label: 'Jira', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'vercel', label: 'Vercel', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'status', label: 'Status', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'rss', label: 'Headlines', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'crypto', label: 'Crypto', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'homeassistant', label: 'Home Assistant', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'ics', label: 'Calendar', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'habits', label: 'Habits', tiers: ['compact', 'docked'] },
-  { id: 'worldClocks', label: 'World clocks', tiers: ['compact', 'standard', 'full', 'docked'] },
-  { id: 'countdown', label: 'Countdown', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'sun', label: 'Sun', tiers: ['compact', 'standard', 'docked'] },
-  { id: 'moon', label: 'Moon', tiers: ['compact', 'docked'] },
-  { id: 'monthCal', label: 'Month', tiers: ['standard'] },
-  { id: 'links', label: 'Quick Links', tiers: ['compact', 'standard'] },
-]
-
-// The batch-2 widgets with CODED dock lines (declare-only widgets render
-// their compact composition in the strip; the catalog shows it for judgment).
-// sun and moon joined after the batch-2 owner review ("take up more space in
-// the dock than they do in compact") — bare DockLines now, not compact cards.
-const CODED_DOCK_LINES = new Set([
-  'weather', 'clock',
-  'github', 'gitlab', 'jira', 'vercel', 'status', 'rss', 'crypto', 'homeassistant', 'ics', 'habits',
-  'sun', 'moon',
-])
-
-const BATCH = batch === '2' ? BATCH_2 : BATCH_1
+// Shared with executable widget/tier contracts. Owner verdicts remain below.
+const BATCH = CATALOG_BATCHES[batch]
 
 const evidence = { captures: [], failures: [], runtimeErrors: [], failedRequests: [] }
 const fail = (message) => { evidence.failures.push(message) }
@@ -273,39 +238,7 @@ try {
 // CATALOG.md: the owner-review index. Contract strings mirrored from
 // widgetSizeContracts.ts — and VERIFIED against it below (drift in this map
 // fails the run), so the owner never reads a stale contract.
-const CONTRACTS_1 = {
-  clock: { compact: 'Current time', standard: 'Time and date', full: 'Large, legible time and date', docked: 'Time · date' },
-  greeting: { compact: 'Greeting', standard: 'More legible greeting' },
-  search: { compact: 'Search action', standard: 'More legible search action' },
-  focus: { compact: 'Focus action', standard: 'Focus detail', docked: 'Focus text and completion' },
-  quote: { compact: 'Quote', standard: 'Readable full quote' },
-  weather: { compact: 'Current temperature and condition', standard: 'Forecast context', full: 'Detailed forecast', docked: 'Temperature · location · condition' },
-  timer: { compact: 'Timer action', docked: 'Timer state' },
-  tasks: { compact: 'Tasks action', docked: 'Tasks action' },
-  notes: { compact: 'Notes action', docked: 'Notes action' },
-  bookmarks: { compact: 'Bookmark marks', standard: 'Named bookmark bar', docked: 'Full readable bookmark bar' },
-}
-
-const CONTRACTS_2 = {
-  github: { compact: 'Selected primary count or graph', standard: 'Selected graph or rows', full: 'Graph, stats, and all selected row families', docked: 'Selected activity counts' },
-  gitlab: { compact: 'Selected primary count or graph', standard: 'Selected graph or rows', full: 'All selected GitLab sections', docked: 'Selected activity counts' },
-  jira: { compact: 'Selected-view count', standard: 'Prioritized issue rows', full: 'All selected Jira sections', docked: 'Selected issue counts' },
-  vercel: { compact: 'Deployment health', standard: 'Selected deployment rows or summary', full: 'All selected deployment sections', docked: 'Deployment health' },
-  status: { compact: 'Service health', standard: 'Service dots and active issues', docked: 'Service health' },
-  rss: { compact: 'Top headline', standard: 'Selected headlines', full: 'All selected headlines that fit', docked: 'Top headline' },
-  crypto: { compact: 'Primary coin price', standard: 'Selected coin prices', docked: 'Primary coin price' },
-  homeassistant: { compact: 'Selected entity or action', standard: 'Selected entities and actions', full: 'Complete selected home composition', docked: 'Selected entity state' },
-  ics: { compact: 'Next event', standard: 'Selected calendar view', docked: 'Next event' },
-  habits: { compact: 'Habit action', docked: 'Habits done today' },
-  worldClocks: { compact: 'Primary world clock', standard: 'Selected clocks', full: 'All selected clocks', docked: 'Primary world clock' },
-  countdown: { compact: 'Countdown', standard: 'Countdown detail', docked: 'Next countdown' },
-  sun: { compact: 'Next sun event', standard: 'Sunrise and sunset', docked: 'Next sun event' },
-  moon: { compact: 'Current phase', docked: 'Current phase' },
-  monthCal: { standard: 'Complete month' },
-  links: { compact: 'Primary link action', standard: 'Selected quick links' },
-}
-
-const CONTRACTS = batch === '2' ? CONTRACTS_2 : CONTRACTS_1
+const CONTRACTS = CATALOG_CONTRACTS[batch]
 
 // Drift guard (batch-1 review fix I1): every contract string in the active
 // map must appear verbatim in widgetSizeContracts.ts, or the run fails.
@@ -318,98 +251,17 @@ for (const [id, tiers] of Object.entries(CONTRACTS)) {
   }
 }
 
-// Identical-capture disclosure (batch-1 review fix I2): tiers whose captures
-// are byte-identical are annotated so the owner's verdict is informed — a
-// contract column promising more than the pixels show would be a lie.
-const captureHash = (name) => {
-  try {
-    return createHash('md5').update(readFileSync(resolve(outDir, `${name}.png`))).digest('hex')
-  } catch {
-    return null
-  }
-}
-const identicalTo = (id, tier, tiers) => {
-  const own = captureHash(`${id}-${tier}`)
-  if (!own) return null
-  for (const other of tiers) {
-    if (other === tier) break
-    if (captureHash(`${id}-${other}`) === own) return other
-  }
-  return null
-}
-
-const HEADER_1 = [
-  '# NL-P5 Tier Catalog — Batch 1',
-  '',
-  'Owner review per the named-layouts spec §2.3: each widget, each supported',
-  'tier, judged as a designed composition under the no-whitespace law. Docked',
-  'lines are one dense text-first row (middle dots separate facts). Captures',
-  'were taken from the production preview build at 1600x900 with seeded data.',
-  '',
-  'Batch-1 notes for the review:',
-  '- Timer/Tasks/Notes Docked lines are their existing dense launcher chips, declared rather than rebuilt.',
-  '- Bookmarks Docked is the full readable bar (spec exemption).',
-  '- Focus Docked is its existing single-line form rendered in the strip.',
-  '- greeting, search, and quote declare NO Docked tier in batch 1 (no honest one-line dock form); overrule here if wanted.',
-  '- The docked Weather line omits the free chip\'s staleness/offline feedback text (a one-dense-line tradeoff); a stale cache reads like a fresh one in the strip. Owner call: accept, or add a muted staleness marker.',
-  '',
-]
-
-const HEADER_2 = [
-  '# NL-P5 Tier Catalog — Batch 2',
-  '',
-  'Owner review per the named-layouts spec §2.3: the nine connector widgets',
-  'plus the remaining small widgets, each at every supported tier. Docked',
-  'lines are one dense text-first row (middle dots separate facts), built',
-  'from the SAME snapshot each widget already renders — no second fetch.',
-  'Captures were taken from the production preview build at 1600x900 with',
-  'the authoritative nine-connector fixture data.',
-  '',
-  'Batch-2 notes for the review:',
-  '- Connector dock lines are non-interactive readouts: their free forms offer no panel or expansion, so a readout IS click parity (spec 2.4). Overrule here if a docked connector should open something.',
-  '- worldClocks and countdown declare Docked with their existing compact single-line compositions (declared, not rebuilt); judge them in the strip captures.',
-  '- sun and moon now render bare dense DockLines at the shared strip density (no panel), per the batch-2 owner review.',
-  '- monthCal and links declare NO Docked tier (a month grid and a launcher grid have no honest one-line form); overrule here if wanted.',
-  '- The batch-2 owner review removed the compact Month tier ("takes up way too much space, just remove it") — the complete month is Month\'s only tier.',
-  '- The GitHub line follows the spec\'s own example shape (PRs · issues · unread). Quiet states read "All clear".',
-  '- Bookmarks are a batch-1 widget: reviewed and approved in the batch-1 catalog (full readable bar, single-letter compact marks).',
-  '',
-]
-
-const APPROVED = 'Approved (owner review 2026-08-18)'
-const VERDICTS_1 = {
-  'weather-compact': 'Approved with refinement (2026-08-18): the F/C scale letter was a smidge too large — pinned to the 12px metadata floor. Applied.',
-  'bookmarks-compact': 'Approved with refinement (2026-08-18): single-letter folder marks (N for News, D for Docs, M for Music). Applied.',
-}
-const VERDICTS_2 = {
-  'github-full': 'Approved with refinement (2026-08-18): full looked exactly like standard — now a wider card (25rem) with a larger graph (18px cells). Applied.',
-  'gitlab-full': 'Approved with refinement (2026-08-18): full looked exactly like standard — now a wider card (25rem) with a larger graph (18px cells). Applied.',
-  'github-compact': 'Approved with refinement (2026-08-18): match GitLab compact — graph with streak and contributions. Applied.',
-  'status-compact': 'Approved with refinement (2026-08-18): dots without names were not intuitive — compact stays dots-only with hover titles naming each service. Applied.',
-  'status-standard': 'Approved with refinement (2026-08-18): dots without names were not intuitive — service names now shown beside each dot. Applied.',
-  'sun-docked': 'Approved with refinement (2026-08-18): docked previously rendered the padded card and out-sized compact — now a bare dense line at the shared strip density, no panel. Applied.',
-  'moon-docked': 'Approved with refinement (2026-08-18): docked previously rendered the padded card and out-sized compact — now a bare dense line at the shared strip density, no panel. Applied.',
-}
-
-const lines = batch === '2' ? [...HEADER_2] : [...HEADER_1]
-const verdicts = batch === '2' ? VERDICTS_2 : VERDICTS_1
-const defaultVerdict = APPROVED
-
-for (const { id, label, tiers } of BATCH) {
-  lines.push(`## ${label}`, '')
-  lines.push('| Tier | Content contract | Capture | Owner verdict |')
-  lines.push('| --- | --- | --- | --- |')
-  for (const tier of tiers) {
-    const twin = identicalTo(id, tier, tiers)
-    const disclosure = twin
-      ? `<br>_Currently renders identically to ${twin}${id === 'bookmarks' ? ' (spec exemption: the full readable bar at every tier)' : ' — tier differentiation pending owner direction'}_`
-      : ''
-    const verdict = verdicts[`${id}-${tier}`] ?? defaultVerdict
-    lines.push(`| ${tier} | ${CONTRACTS[id][tier]}${disclosure} | ![${id} ${tier}](${id}-${tier}.png) | ${verdict} |`)
-  }
-  lines.push('')
-}
-writeFileSync(resolve(outDir, 'CATALOG.md'), lines.join('\n'))
+const catalogMarkdown = renderCatalogMarkdown({
+  batch,
+  captureHash: (name) => {
+    try {
+      return createHash('md5').update(readFileSync(resolve(outDir, `${name}.png`))).digest('hex')
+    } catch {
+      return null
+    }
+  },
+})
+writeFileSync(resolve(outDir, 'CATALOG.md'), catalogMarkdown)
 
 const summary = {
   batch,
