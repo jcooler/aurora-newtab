@@ -367,6 +367,10 @@ const BODY_COMPONENTS: Partial<Record<ConnectorId, ComponentType<BodyProps>>> = 
   homeassistant: HomeAssistantBody,
 }
 
+export const CONNECTOR_BODY_IDS: readonly ConnectorId[] = Object.freeze(
+  Object.keys(BODY_COMPONENTS) as ConnectorId[],
+)
+
 function ConnectorCard({
   descriptor,
   config,
