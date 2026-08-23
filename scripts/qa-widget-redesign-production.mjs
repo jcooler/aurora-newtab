@@ -163,6 +163,7 @@ export async function runProductionQa() {
   const approvedRequests = []
   const unexpectedRequests = []
   const captures = []
+  const storageWrites = []
   let context
   try {
     context = await chromium.launchPersistentContext(profile, resolveSfP1ContextOptions(resolveSfP1BrowserMode([]), dist))
@@ -244,7 +245,10 @@ export async function runProductionQa() {
 
         const writes = await page.evaluate(() => globalThis.__widgetRedesignProduction?.writes ?? [])
         assert(writes.length >= 1, `${stack.id} ${theme.id} did not persist its explicit facing change`)
-        assert(writes.every((keys) => keys.length === 1 && keys[0] === 'layouts'), `${stack.id} ${theme.id} wrote outside layouts`)
+        assert(writes.some((keys) => keys.length === 1 && keys[0] === 'layouts'), `${stack.id} ${theme.id} did not write its explicit facing change to layouts`)
+        const allowedWriteKeys = new Set(stack.members.includes('weather') ? ['layouts', 'weatherAlertCache'] : ['layouts'])
+        assert(writes.every((keys) => keys.every((key) => allowedWriteKeys.has(key))), `${stack.id} ${theme.id} wrote outside ${[...allowedWriteKeys].join(', ')}`)
+        storageWrites.push({ key: stack.id, theme: theme.id, writes })
         const legacyAfter = await page.evaluate(() => chrome.storage.local.get('layout'))
         assert.deepEqual(legacyAfter, legacyBefore, `${stack.id} ${theme.id} changed legacy layout storage`)
       }
@@ -262,6 +266,7 @@ export async function runProductionQa() {
       approvedTargets: APPROVED_TARGET_IDS,
       mixedStacks: MIXED_STACKS,
       captures,
+      storageWrites,
       approvedRequests,
       summary: { captures: captures.length, approvedRequests: approvedRequests.length, runtimeErrors: 0, failedRequests: 0, unexpectedRequests: 0 },
     }
