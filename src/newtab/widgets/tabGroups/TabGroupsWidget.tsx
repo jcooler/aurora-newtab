@@ -55,7 +55,7 @@ export default function TabGroupsWidget({
         emptyLabel="No tab groups open."
         onRefresh={() => void resource.refresh()}
       >
-        <TabGroupDetail groups={data} onRefresh={resource.refresh} full />
+        <TabGroupDetail groups={data} onRefresh={resource.refresh} mode="detail" />
       </BrowserDockDetail>
     )
   }
@@ -92,7 +92,11 @@ export default function TabGroupsWidget({
       emptyLabel="No tab groups open."
       onRefresh={() => void resource.refresh()}
     >
-      <TabGroupDetail groups={data} onRefresh={resource.refresh} full={canvasSize === 'full'} />
+      <TabGroupDetail
+        groups={data}
+        onRefresh={resource.refresh}
+        mode={canvasSize === 'full' ? 'full' : 'standard'}
+      />
     </BrowserWidgetShell>
   )
 }
@@ -100,21 +104,30 @@ export default function TabGroupsWidget({
 function TabGroupDetail({
   groups,
   onRefresh,
-  full,
+  mode,
 }: {
   groups: readonly BrowserTabGroup[]
   onRefresh: () => Promise<void>
-  full: boolean
+  mode: 'standard' | 'full' | 'detail'
 }) {
   const [busyId, setBusyId] = useState<number | null>(null)
   const [announcement, setAnnouncement] = useState<string | null>(null)
-  const visible = full ? groups : groups.slice(0, 5)
-  const sections = full
+  const fullWindowOrdinals = [...new Set(groups.map((group) => group.windowOrdinal))].slice(0, 2)
+  const visible = mode === 'detail'
+    ? groups
+    : mode === 'full'
+      ? fullWindowOrdinals.flatMap((windowOrdinal) => (
+        groups.filter((group) => group.windowOrdinal === windowOrdinal).slice(0, 2)
+      ))
+      : groups.slice(0, 2)
+  const sections = mode !== 'standard'
     ? [...new Set(visible.map((group) => group.windowOrdinal))].map((windowOrdinal) => ({
       title: `Window ${windowOrdinal}`,
       groups: visible.filter((group) => group.windowOrdinal === windowOrdinal),
     }))
     : [{ title: undefined, groups: visible }]
+  const hiddenCount = Math.max(0, groups.length - visible.length)
+  const dense = mode !== 'detail'
 
   async function perform(group: BrowserTabGroup, action: () => Promise<void>, success: string) {
     setBusyId(group.id)
@@ -136,13 +149,16 @@ function TabGroupDetail({
         <section key={section.title ?? 'groups'} className="space-y-1">
           {section.title ? <h3 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">{section.title}</h3> : null}
           <div className="divide-y divide-hairline">
-            {section.groups.map((group) => (
-              <article key={group.id} aria-label={`${group.title}, Window ${group.windowOrdinal}, ${group.collapsed ? 'collapsed' : 'open'}`} className="flex min-h-14 items-center gap-3 py-2">
+            {section.groups.map((group, index) => {
+              const detail = `Window ${group.windowOrdinal}, ${group.collapsed ? 'collapsed' : 'open'}, item ${index + 1} of ${section.groups.length}`
+              const context = `${group.title}, ${detail}`
+              return (
+              <article key={group.id} aria-label={context} className={`flex items-center gap-3 ${dense ? 'min-h-10 py-1' : 'min-h-14 py-2'}`}>
                 <span
                   aria-hidden
                   data-testid={`tab-group-color-${group.id}`}
                   data-tab-group-color={group.color}
-                  className={`h-9 w-1 shrink-0 rounded-full ${COLOR_CLASS[group.color]}`}
+                  className={`${dense ? 'h-7' : 'h-9'} w-1 shrink-0 rounded-full ${COLOR_CLASS[group.color]}`}
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{group.title}</span>
@@ -150,31 +166,35 @@ function TabGroupDetail({
                     Window {group.windowOrdinal} · {group.collapsed ? 'Collapsed' : 'Open'}{group.shared ? ' · Shared' : ''}
                   </span>
                 </span>
-                <span className="flex shrink-0 flex-wrap justify-end gap-1 text-xs">
+                <span className="flex shrink-0 flex-wrap justify-end gap-1 text-sm">
                   <button
                     type="button"
                     disabled={busyId !== null}
-                    aria-label={`Focus ${group.title} window`}
+                    aria-label={`Focus ${group.title} window, ${detail}`}
                     onClick={() => void perform(group, () => focusTabGroupWindow(group.windowId), `Focused ${group.title}`)}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                   >Focus</button>
                   <button
                     type="button"
                     disabled={busyId !== null}
-                    aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${group.title}`}
+                    aria-label={`${group.collapsed ? 'Expand' : 'Collapse'} ${context}`}
                     onClick={() => void perform(
                       group,
                       () => setTabGroupCollapsed(group.id, !group.collapsed),
                       `${group.collapsed ? 'Expanded' : 'Collapsed'} ${group.title}`,
                     )}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                   >{group.collapsed ? 'Expand' : 'Collapse'}</button>
                 </span>
               </article>
-            ))}
+              )
+            })}
           </div>
         </section>
       ))}
+      {mode !== 'detail' && hiddenCount > 0 ? (
+        <p className="text-[11px] text-fg-muted">{hiddenCount} more Chrome tab groups</p>
+      ) : null}
       {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
     </div>
   )

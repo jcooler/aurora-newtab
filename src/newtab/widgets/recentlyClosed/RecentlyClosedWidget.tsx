@@ -61,7 +61,7 @@ export default function RecentlyClosedWidget({
         emptyLabel="Nothing recently closed."
         onRefresh={() => void resource.refresh()}
       >
-        <RecentlyClosedDetail items={data} onRefresh={resource.refresh} full />
+        <RecentlyClosedDetail items={data} onRefresh={resource.refresh} mode="detail" />
       </BrowserDockDetail>
     )
   }
@@ -99,7 +99,11 @@ export default function RecentlyClosedWidget({
       emptyLabel="Nothing recently closed."
       onRefresh={() => void resource.refresh()}
     >
-      <RecentlyClosedDetail items={data} onRefresh={resource.refresh} full={canvasSize === 'full'} />
+      <RecentlyClosedDetail
+        items={data}
+        onRefresh={resource.refresh}
+        mode={canvasSize === 'full' ? 'full' : 'standard'}
+      />
     </BrowserWidgetShell>
   )
 }
@@ -107,11 +111,11 @@ export default function RecentlyClosedWidget({
 function RecentlyClosedDetail({
   items,
   onRefresh,
-  full,
+  mode,
 }: {
   items: readonly RecentlyClosedItem[]
   onRefresh: () => Promise<void>
-  full: boolean
+  mode: 'standard' | 'full' | 'detail'
 }) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [announcement, setAnnouncement] = useState<string | null>(null)
@@ -130,12 +134,22 @@ function RecentlyClosedDetail({
     }
   }
 
-  const groups = full
-    ? [
-      { title: 'Tabs', rows: items.filter((item) => item.type === 'tab') },
-      { title: 'Windows', rows: items.filter((item) => item.type === 'window') },
+  const visible = mode === 'detail'
+    ? items
+    : mode === 'full'
+      ? [
+        ...items.filter((item) => item.type === 'tab').slice(0, 2),
+        ...items.filter((item) => item.type === 'window').slice(0, 2),
+      ]
+      : items.slice(0, 2)
+  const groups = mode === 'standard'
+    ? [{ title: undefined, rows: visible }]
+    : [
+      { title: 'Tabs', rows: visible.filter((item) => item.type === 'tab') },
+      { title: 'Windows', rows: visible.filter((item) => item.type === 'window') },
     ]
-    : [{ title: undefined, rows: items.slice(0, 5) }]
+  const hiddenCount = Math.max(0, items.length - visible.length)
+  const dense = mode !== 'detail'
 
   return (
     <div className="space-y-3">
@@ -146,7 +160,7 @@ function RecentlyClosedDetail({
             {group.rows.map((item, index) => {
               const context = `${item.title}, ${sessionState(item)}, ${closedAge(item.closedAt)}, item ${index + 1} of ${group.rows.length}`
               return (
-              <article key={item.sessionId} aria-label={context} className="flex min-h-12 items-center gap-3 py-2">
+              <article key={item.sessionId} aria-label={context} className={`flex items-center gap-3 ${dense ? 'min-h-10 py-1' : 'min-h-12 py-2'}`}>
                 <span aria-hidden className="h-px w-5 shrink-0 bg-fg-muted/50" />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{item.title}</span>
@@ -161,7 +175,7 @@ function RecentlyClosedDetail({
                   disabled={busyId !== null}
                   aria-label={`Restore ${context}`}
                   onClick={() => void restore(item)}
-                  className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-md px-2 text-xs font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                  className="inline-flex min-h-9 shrink-0 cursor-pointer items-center rounded-md px-2 text-sm font-medium text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                 >
                   Restore
                 </button>
@@ -171,6 +185,9 @@ function RecentlyClosedDetail({
           </div>
         </section>
       ) : null)}
+      {mode !== 'detail' && hiddenCount > 0 ? (
+        <p className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Recently Closed</p>
+      ) : null}
       {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
     </div>
   )

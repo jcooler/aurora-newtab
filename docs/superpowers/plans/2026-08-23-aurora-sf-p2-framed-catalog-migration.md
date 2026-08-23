@@ -205,9 +205,9 @@ git commit -m "feat: frame connected information widgets"
 - Modify: `src/newtab/widgets/browser/BrowserWidgetShell.tsx` only through a new focused shell RED
 - Modify: `src/newtab/index.css`
 
-- [ ] **Step 1: Add and observe RED tests per browser identity.** Require every supported tier to use the exact frame, preserve distinct accessible row/action names, show meaningful permission/loading/empty/retained-error states in the same frame, and contain the maximum 25-record fixture without an internal scrollbar by rendering a bounded tier subset.
-- [ ] **Step 2: Implement authored browser compositions.** Compact keeps the primary count and newest item, Standard keeps a useful queue, Full keeps the richest bounded rows by kind/state. Keep all Chrome API calls, optional permissions, ephemeral ownership, and actions unchanged. Overflow points to existing Settings or native action context rather than a second store.
-- [ ] **Step 3: Run GREEN and commit.** Run all four widget tests plus Browser shell tests, TypeScript, and diff hygiene, then commit:
+- [x] **Step 1: Add and observe RED tests per browser identity.** Require every supported tier to use the exact frame, preserve distinct accessible row/action names, show meaningful permission/loading/empty/retained-error states in the same frame, and contain the maximum 25-record fixture without an internal scrollbar by rendering a bounded tier subset.
+- [x] **Step 2: Implement authored browser compositions.** Compact keeps the primary count and newest item, Standard keeps a useful queue, Full keeps the richest bounded rows by kind/state. Keep all Chrome API calls, optional permissions, ephemeral ownership, and actions unchanged. Overflow points to existing Settings or native action context rather than a second store.
+- [x] **Step 3: Run GREEN and commit.** Run all four widget tests plus Browser shell tests, TypeScript, and diff hygiene, then commit:
 
 ```powershell
 git add src/newtab/widgets/readingList src/newtab/widgets/recentlyClosed src/newtab/widgets/downloads src/newtab/widgets/tabGroups src/newtab/widgets/browser/BrowserWidgetShell.tsx src/newtab/index.css

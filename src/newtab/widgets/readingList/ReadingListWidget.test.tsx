@@ -37,6 +37,66 @@ beforeEach(() => {
 })
 
 describe('ReadingListWidget', () => {
+  it.each([
+    ['compact', 0],
+    ['standard', 1],
+    ['full', 2],
+  ] as const)('%s keeps a 25-record queue inside its exact frame with a bounded useful subset', (canvasSize, visibleRows) => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      url: `https://reading.example/item-${index + 1}`,
+      title: `Saved page ${index + 1}`,
+      host: 'reading.example',
+      hasBeenRead: index >= 18,
+      createdAt: index + 1,
+      updatedAt: 25 - index,
+    }))
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'ready', data: items, refreshedAt: 1, refreshing: false },
+      refresh,
+    })
+
+    render(<ReadingListWidget canvasSize={canvasSize} />)
+
+    const frame = screen.getByRole('region', { name: 'Reading List' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.className).toContain(`tier-frame--${canvasSize}`)
+    expect(frame.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+    expect(frame.querySelectorAll('article')).toHaveLength(visibleRows)
+
+    if (visibleRows > 0) {
+      const actions = [...frame.querySelectorAll<HTMLElement>('a[aria-label], button[aria-label]')]
+      const names = actions.map((action) => action.getAttribute('aria-label'))
+      expect(names.every(Boolean)).toBe(true)
+      expect(new Set(names).size).toBe(names.length)
+      expect(actions.every((action) => action.className.includes('text-sm'))).toBe(true)
+      expect(screen.getByRole('link', { name: /^Open Saved page 1,/ })).toBeTruthy()
+      expect(frame.textContent).toContain(`${25 - visibleRows} more in Chrome Reading List`)
+    }
+  })
+
+  it('gives duplicate saved-page titles distinct row and action names', () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: {
+        status: 'ready',
+        data: [
+          { ...ITEMS[0], url: 'https://news.example/first', title: 'Same title' },
+          { ...ITEMS[0], url: 'https://news.example/second', title: 'Same title' },
+        ],
+        refreshedAt: 1,
+        refreshing: false,
+      },
+      refresh,
+    })
+
+    render(<ReadingListWidget canvasSize="full" />)
+
+    const rowNames = screen.getAllByRole('article').map((row) => row.getAttribute('aria-label'))
+    const openNames = screen.getAllByRole('link', { name: /^Open Same title/ })
+      .map((link) => link.getAttribute('aria-label'))
+    expect(new Set(rowNames).size).toBe(2)
+    expect(new Set(openNames).size).toBe(2)
+  })
+
   it('Compact answers the glance question without rendering the working list', () => {
     render(<ReadingListWidget canvasSize="compact" />)
     expect(screen.getByRole('region', { name: 'Reading List' }).textContent).toContain('2 unread')
@@ -47,11 +107,11 @@ describe('ReadingListWidget', () => {
   it('Standard renders unread title, host, age, and safe row actions', () => {
     render(<ReadingListWidget canvasSize="standard" />)
     expect(screen.getByText('news.example')).toBeTruthy()
-    const open = screen.getByRole('link', { name: 'Open Launch notes' })
+    const open = screen.getByRole('link', { name: /^Open Launch notes,/ })
     expect(open.getAttribute('href')).toBe('https://news.example/launch')
     expect(open.getAttribute('target')).toBe('_blank')
     expect(open.getAttribute('rel')).toBe('noopener noreferrer')
-    expect(screen.getByRole('button', { name: 'Mark Launch notes read' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Mark Launch notes,.* read$/ })).toBeTruthy()
   })
 
   it('Full earns space with unread and recently read sections', () => {
@@ -59,7 +119,7 @@ describe('ReadingListWidget', () => {
     expect(screen.getByRole('heading', { name: 'Unread' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Recently read' })).toBeTruthy()
     expect(screen.getByText('Aurora story')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Mark Aurora story unread' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Mark Aurora story,.* unread$/ })).toBeTruthy()
   })
 
   it('Docked renders one clean line and opens the same actionable detail', async () => {
@@ -69,12 +129,12 @@ describe('ReadingListWidget', () => {
     expect(screen.queryByRole('link', { name: /Open Launch notes/ })).toBeNull()
     await act(async () => { line.click() })
     expect(screen.getByRole('dialog', { name: 'Reading List details' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Open Launch notes' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: /^Open Launch notes,/ })).toBeTruthy()
   })
 
   it('marks an item read then refreshes from Chrome before announcing success', async () => {
     render(<ReadingListWidget canvasSize="standard" />)
-    await act(async () => { screen.getByRole('button', { name: 'Mark Launch notes read' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Mark Launch notes,.* read$/ }).click() })
     expect(setReadingListReadState).toHaveBeenCalledWith('https://news.example/launch', true)
     expect(refresh).toHaveBeenCalledTimes(1)
     expect(screen.getByRole('status').textContent).toContain('Marked Launch notes read')
@@ -82,9 +142,9 @@ describe('ReadingListWidget', () => {
 
   it('requires a second inline confirmation before Remove', async () => {
     render(<ReadingListWidget canvasSize="standard" />)
-    await act(async () => { screen.getByRole('button', { name: 'Remove Launch notes' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Remove Launch notes,/ }).click() })
     expect(removeReadingListEntry).not.toHaveBeenCalled()
-    await act(async () => { screen.getByRole('button', { name: 'Confirm remove Launch notes' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Confirm remove Launch notes,/ }).click() })
     expect(removeReadingListEntry).toHaveBeenCalledWith('https://news.example/launch')
     expect(refresh).toHaveBeenCalledTimes(1)
   })

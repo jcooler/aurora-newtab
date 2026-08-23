@@ -42,30 +42,84 @@ beforeEach(() => {
 })
 
 describe('DownloadsWidget', () => {
+  it.each([
+    ['compact', 0],
+    ['standard', 3],
+    ['full', 5],
+  ] as const)('%s keeps 25 download records inside its exact frame with a bounded stateful subset', (canvasSize, visibleRows) => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      ...ITEMS[index % ITEMS.length],
+      id: index + 1,
+      filename: `download-${index + 1}.bin`,
+      startedAt: 25 - index,
+    }))
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'ready', data: items, refreshedAt: 1, refreshing: false },
+      refresh,
+    })
+
+    render(<DownloadsWidget canvasSize={canvasSize} />)
+
+    const frame = screen.getByRole('region', { name: 'Downloads' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.className).toContain(`tier-frame--${canvasSize}`)
+    expect(frame.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+    expect(frame.querySelectorAll('article')).toHaveLength(visibleRows)
+
+    if (visibleRows > 0) {
+      const actions = [...frame.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
+      const names = actions.map((button) => button.getAttribute('aria-label'))
+      expect(names.every(Boolean)).toBe(true)
+      expect(new Set(names).size).toBe(names.length)
+      expect(actions.every((button) => button.className.includes('text-sm'))).toBe(true)
+      expect(frame.textContent).toContain(`${25 - visibleRows} more in Chrome Downloads`)
+    }
+  })
+
+  it('gives duplicate filenames distinct row and native action names', () => {
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: {
+        status: 'ready',
+        data: Array.from({ length: 5 }, (_, index) => ({ ...ITEMS[0], id: index + 20, filename: 'archive.zip' })),
+        refreshedAt: 1,
+        refreshing: false,
+      },
+      refresh,
+    })
+
+    render(<DownloadsWidget canvasSize="full" />)
+
+    const rowNames = screen.getAllByRole('article').map((row) => row.getAttribute('aria-label'))
+    const pauseNames = screen.getAllByRole('button', { name: /^Pause archive.zip/ })
+      .map((button) => button.getAttribute('aria-label'))
+    expect(new Set(rowNames).size).toBe(5)
+    expect(new Set(pauseNames).size).toBe(5)
+  })
+
   it('Compact shows the active count and newest filename without a row wall', () => {
     render(<DownloadsWidget canvasSize="compact" />)
     const region = screen.getByRole('region', { name: 'Downloads' })
     expect(region.textContent).toContain('2 active')
     expect(region.textContent).toContain('aurora.zip')
-    expect(screen.queryByRole('button', { name: 'Pause aurora.zip' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /^Pause aurora.zip,/ })).toBeNull()
   })
 
-  it('Standard paints truthful known and unknown progress and caps at four rows', () => {
+  it('Standard paints truthful known and unknown progress and caps at three rows', () => {
     render(<DownloadsWidget canvasSize="standard" />)
-    const progress = screen.getByRole('progressbar', { name: 'aurora.zip download progress' })
+    const progress = screen.getByRole('progressbar', { name: /^aurora.zip,.* download progress$/ })
     expect(progress.getAttribute('aria-valuenow')).toBe('50')
     expect(screen.getByText(/size unknown/i)).toBeTruthy()
     expect(screen.queryByText('warning.exe')).toBeNull()
-    expect(screen.getByText('Interrupted · NETWORK_FAILED')).toBeTruthy()
+    expect(screen.getByText('done.pdf')).toBeTruthy()
   })
 
   it('Full distinguishes dangerous files and exposes only state-safe actions', () => {
     render(<DownloadsWidget canvasSize="full" />)
     expect(screen.getByText('Potentially unsafe')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Pause aurora.zip' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Resume archive.iso' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Resume failed.mov' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Show done.pdf in folder' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Pause aurora.zip,/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Resume archive.iso,/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Resume failed.mov,/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Show done.pdf,.* in folder$/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Open|Accept|Delete|Erase/i })).toBeNull()
   })
 
@@ -74,7 +128,7 @@ describe('DownloadsWidget', () => {
     const line = screen.getByRole('button', { name: 'Downloads: 2 active · aurora.zip' })
     await act(async () => { line.click() })
     expect(screen.getByRole('dialog', { name: 'Downloads details' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Pause aurora.zip' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Pause aurora.zip,/ })).toBeTruthy()
   })
 
   it('keeps missing permission as a dense Docked line', async () => {
@@ -88,9 +142,9 @@ describe('DownloadsWidget', () => {
 
   it('Pause, Resume, and Show call exactly the selected download', async () => {
     render(<DownloadsWidget canvasSize="full" />)
-    await act(async () => { screen.getByRole('button', { name: 'Pause aurora.zip' }).click() })
-    await act(async () => { screen.getByRole('button', { name: 'Resume archive.iso' }).click() })
-    await act(async () => { screen.getByRole('button', { name: 'Show done.pdf in folder' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Pause aurora.zip,/ }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Resume archive.iso,/ }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Show done.pdf,.* in folder$/ }).click() })
     expect(pauseDownload).toHaveBeenCalledWith(1)
     expect(resumeDownload).toHaveBeenCalledWith(2)
     expect(showDownload).toHaveBeenCalledWith(3)
@@ -99,9 +153,9 @@ describe('DownloadsWidget', () => {
 
   it('Cancel requires a second inline confirmation', async () => {
     render(<DownloadsWidget canvasSize="full" />)
-    await act(async () => { screen.getByRole('button', { name: 'Cancel aurora.zip' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Cancel aurora.zip,/ }).click() })
     expect(cancelDownload).not.toHaveBeenCalled()
-    await act(async () => { screen.getByRole('button', { name: 'Confirm cancel aurora.zip' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Confirm cancel aurora.zip,/ }).click() })
     expect(cancelDownload).toHaveBeenCalledWith(1)
     expect(refresh).toHaveBeenCalledTimes(1)
   })
@@ -109,7 +163,7 @@ describe('DownloadsWidget', () => {
   it('announces action failure without hiding retained rows', async () => {
     vi.mocked(pauseDownload).mockRejectedValueOnce(new Error('Pause failed'))
     render(<DownloadsWidget canvasSize="full" />)
-    await act(async () => { screen.getByRole('button', { name: 'Pause aurora.zip' }).click() })
+    await act(async () => { screen.getByRole('button', { name: /^Pause aurora.zip,/ }).click() })
     expect(screen.getByText('aurora.zip')).toBeTruthy()
     expect(screen.getByRole('status').textContent).toContain('Pause failed')
     expect(refresh).not.toHaveBeenCalled()

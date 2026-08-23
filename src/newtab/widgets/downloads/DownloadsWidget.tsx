@@ -56,7 +56,7 @@ export default function DownloadsWidget({
         emptyLabel="No recent downloads."
         onRefresh={() => void resource.refresh()}
       >
-        <DownloadDetail items={data} onRefresh={resource.refresh} full />
+        <DownloadDetail items={data} onRefresh={resource.refresh} mode="detail" />
       </BrowserDockDetail>
     )
   }
@@ -91,7 +91,11 @@ export default function DownloadsWidget({
       emptyLabel="No recent downloads."
       onRefresh={() => void resource.refresh()}
     >
-      <DownloadDetail items={data} onRefresh={resource.refresh} full={canvasSize === 'full'} />
+      <DownloadDetail
+        items={data}
+        onRefresh={resource.refresh}
+        mode={canvasSize === 'full' ? 'full' : 'standard'}
+      />
     </BrowserWidgetShell>
   )
 }
@@ -99,16 +103,20 @@ export default function DownloadsWidget({
 function DownloadDetail({
   items,
   onRefresh,
-  full,
+  mode,
 }: {
   items: readonly BrowserDownloadItem[]
   onRefresh: () => Promise<void>
-  full: boolean
+  mode: 'standard' | 'full' | 'detail'
 }) {
   const [confirmId, setConfirmId] = useState<number | null>(null)
   const [busyId, setBusyId] = useState<number | null>(null)
   const [announcement, setAnnouncement] = useState<string | null>(null)
-  const rows = full ? items.slice(0, 25) : items.slice(0, 4)
+  const rows = mode === 'detail'
+    ? items.slice(0, 25)
+    : items.slice(0, mode === 'full' ? 5 : 3)
+  const hiddenCount = Math.max(0, items.length - rows.length)
+  const dense = mode !== 'detail'
 
   async function perform(
     item: BrowserDownloadItem,
@@ -132,50 +140,51 @@ function DownloadDetail({
   return (
     <div className="space-y-2">
       <div className="divide-y divide-hairline">
-        {rows.map((item) => {
+        {rows.map((item, index) => {
           const busy = busyId !== null
           const active = item.state === 'in_progress'
+          const context = `${item.filename}, ${stateLabel(item)}, item ${index + 1} of ${rows.length}`
           return (
-            <article key={item.id} aria-label={`${item.filename}, ${stateLabel(item)}`} className="py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium">{item.filename}</span>
-                <span className={item.dangerous ? 'shrink-0 text-xs text-amber-300' : 'shrink-0 text-xs text-fg-muted'}>
+            <article key={item.id} aria-label={context} className={dense ? 'grid min-h-10 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 py-1' : 'py-2'}>
+              <div className={dense ? 'min-w-0' : 'flex min-w-0 items-center gap-2'}>
+                <span className={dense ? 'block truncate text-sm font-medium' : 'min-w-0 flex-1 truncate text-sm font-medium'}>{item.filename}</span>
+                <span className={`${item.dangerous ? 'text-amber-300' : 'text-fg-muted'} ${dense ? 'block truncate text-[11px]' : 'shrink-0 text-[11px]'}`}>
                   {stateLabel(item)}
                 </span>
               </div>
               {active && item.progressPercent !== null ? (
                 <div
                   role="progressbar"
-                  aria-label={`${item.filename} download progress`}
+                  aria-label={`${context} download progress`}
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-valuenow={item.progressPercent}
-                  className="mt-2 h-1 overflow-hidden rounded-full bg-fg/10"
+                  className={`${dense ? 'col-start-1 mt-1' : 'mt-2'} h-1 overflow-hidden rounded-full bg-fg/10`}
                 >
                   <span className="block h-full rounded-full bg-accent transition-[width] motion-reduce:transition-none" style={{ width: `${item.progressPercent}%` }} />
                 </div>
               ) : active ? (
-                <div data-download-progress="indeterminate" className="mt-2 h-1 overflow-hidden rounded-full bg-fg/10">
+                <div data-download-progress="indeterminate" className={`${dense ? 'col-start-1 mt-1' : 'mt-2'} h-1 overflow-hidden rounded-full bg-fg/10`}>
                   <span className="block h-full w-1/3 rounded-full bg-accent/70" />
                 </div>
               ) : null}
-              <div className="mt-1 flex flex-wrap items-center gap-1 text-xs">
+              <div className={dense ? 'col-start-2 row-span-2 row-start-1 flex max-w-40 flex-wrap items-center justify-end gap-1 text-sm' : 'mt-1 flex flex-wrap items-center gap-1 text-sm'}>
                 {active && !item.paused ? (
                   <button
                     type="button"
                     disabled={busy}
-                    aria-label={`Pause ${item.filename}`}
+                    aria-label={`Pause ${context}`}
                     onClick={() => void perform(item, () => pauseDownload(item.id), `Paused ${item.filename}`)}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                   >Pause</button>
                 ) : null}
                 {item.canResume && (item.paused || item.state === 'interrupted') ? (
                   <button
                     type="button"
                     disabled={busy}
-                    aria-label={`Resume ${item.filename}`}
+                    aria-label={`Resume ${context}`}
                     onClick={() => void perform(item, () => resumeDownload(item.id), `Resumed ${item.filename}`)}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                   >Resume</button>
                 ) : null}
                 {active ? confirmId === item.id ? (
@@ -183,31 +192,31 @@ function DownloadDetail({
                     <button
                       type="button"
                       disabled={busy}
-                      aria-label={`Confirm cancel ${item.filename}`}
+                      aria-label={`Confirm cancel ${context}`}
                       onClick={() => void perform(item, () => cancelDownload(item.id), `Cancelled ${item.filename}`)}
-                      className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-red-300 hover:bg-red-400/10 focus-visible:outline-2 focus-visible:outline-accent"
+                      className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-red-300 hover:bg-red-400/10 focus-visible:outline-2 focus-visible:outline-accent"
                     >Confirm cancel</button>
                     <button
                       type="button"
                       onClick={() => setConfirmId(null)}
-                      className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                      className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
                     >Keep</button>
                   </>
                 ) : (
                   <button
                     type="button"
-                    aria-label={`Cancel ${item.filename}`}
+                    aria-label={`Cancel ${context}`}
                     onClick={() => setConfirmId(item.id)}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent"
                   >Cancel</button>
                 ) : null}
                 {item.state === 'complete' && item.exists ? (
                   <button
                     type="button"
                     disabled={busy}
-                    aria-label={`Show ${item.filename} in folder`}
+                    aria-label={`Show ${context} in folder`}
                     onClick={() => void perform(item, () => showDownload(item.id), `Showing ${item.filename} in folder`)}
-                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
+                    className="inline-flex min-h-9 cursor-pointer items-center rounded-md px-2 text-sm text-fg-muted hover:bg-fg/5 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-default disabled:opacity-50"
                   >Show in folder</button>
                 ) : null}
               </div>
@@ -215,6 +224,9 @@ function DownloadDetail({
           )
         })}
       </div>
+      {mode !== 'detail' && hiddenCount > 0 ? (
+        <p className="text-[11px] text-fg-muted">{hiddenCount} more in Chrome Downloads</p>
+      ) : null}
       {announcement ? <p role="status" className="text-xs text-fg-muted">{announcement}</p> : null}
     </div>
   )

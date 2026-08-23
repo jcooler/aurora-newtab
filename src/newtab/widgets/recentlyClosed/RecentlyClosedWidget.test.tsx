@@ -35,6 +35,40 @@ beforeEach(() => {
 })
 
 describe('RecentlyClosedWidget', () => {
+  it.each([
+    ['compact', 0],
+    ['standard', 2],
+    ['full', 4],
+  ] as const)('%s keeps 25 restorable sessions inside its exact frame with distinct bounded rows', (canvasSize, visibleRows) => {
+    const items = Array.from({ length: 25 }, (_, index) => ({
+      sessionId: `session-${index + 1}`,
+      type: index % 2 === 0 ? 'tab' as const : 'window' as const,
+      title: `Closed session ${index + 1}`,
+      tabCount: index % 2 === 0 ? 1 : index + 2,
+      closedAt: Date.now() - (index + 1) * 60_000,
+    }))
+    vi.mocked(useBrowserResource).mockReturnValueOnce({
+      state: { status: 'ready', data: items, refreshedAt: 1, refreshing: false },
+      refresh,
+    })
+
+    render(<RecentlyClosedWidget canvasSize={canvasSize} />)
+
+    const frame = screen.getByRole('region', { name: 'Recently Closed' })
+    expect(frame.getAttribute('data-tier-frame')).toBe(canvasSize)
+    expect(frame.className).toContain(`tier-frame--${canvasSize}`)
+    expect(frame.querySelector('.overflow-y-auto, .overflow-y-scroll')).toBeNull()
+    expect(frame.querySelectorAll('article')).toHaveLength(visibleRows)
+
+    if (visibleRows > 0) {
+      const restores = screen.getAllByRole('button', { name: /^Restore / })
+      const names = restores.map((button) => button.getAttribute('aria-label'))
+      expect(new Set(names).size).toBe(names.length)
+      expect(restores.every((button) => button.className.includes('text-sm'))).toBe(true)
+      expect(frame.textContent).toContain(`${25 - visibleRows} more in Chrome Recently Closed`)
+    }
+  })
+
   it('Compact shows only sessions-permission metadata and never claims a title', () => {
     render(<RecentlyClosedWidget canvasSize="compact" />)
     const region = screen.getByRole('region', { name: 'Recently Closed' })
@@ -43,10 +77,10 @@ describe('RecentlyClosedWidget', () => {
     expect(screen.queryByRole('button', { name: /Restore Closed tab/ })).toBeNull()
   })
 
-  it('Standard caps the actionable reverse-time list at five rows', () => {
+  it('Standard caps the actionable reverse-time list at two rows', () => {
     render(<RecentlyClosedWidget canvasSize="standard" />)
-    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(5)
-    expect(screen.getAllByText('Closed tab')).toHaveLength(3)
+    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(2)
+    expect(screen.getAllByText('Closed tab')).toHaveLength(1)
     expect(screen.getByText(/Window · 4 tabs/)).toBeTruthy()
   })
 
@@ -56,20 +90,21 @@ describe('RecentlyClosedWidget', () => {
       .map((button) => button.getAttribute('aria-label'))
     expect(new Set(restoreNames).size).toBe(restoreNames.length)
     expect(restoreNames.every((name) => /(?:just now|\d+[mhd] ago)/.test(name ?? ''))).toBe(true)
-    expect(restoreNames.every((name) => /item \d+ of 5/.test(name ?? ''))).toBe(true)
+    expect(restoreNames.every((name) => /item \d+ of 2/.test(name ?? ''))).toBe(true)
 
     const rowNames = screen.getAllByRole('article').map((row) => row.getAttribute('aria-label'))
     expect(new Set(rowNames).size).toBe(rowNames.length)
     expect(rowNames.every((name) => /(?:Tab|Window)/.test(name ?? ''))).toBe(true)
-    expect(rowNames.every((name) => /item \d+ of 5/.test(name ?? ''))).toBe(true)
+    expect(rowNames.every((name) => /item \d+ of 2/.test(name ?? ''))).toBe(true)
   })
 
-  it('Full groups every returned entry into Tabs and Windows', () => {
+  it('Full groups a bounded useful subset into Tabs and Windows', () => {
     render(<RecentlyClosedWidget canvasSize="full" />)
     expect(screen.getByRole('heading', { name: 'Tabs' })).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Windows' })).toBeTruthy()
-    expect(screen.getAllByText('Closed tab')).toHaveLength(4)
-    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(6)
+    expect(screen.getAllByText('Closed tab')).toHaveLength(2)
+    expect(screen.getAllByText('Closed window')).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Restore / })).toHaveLength(4)
   })
 
   it('Docked count and latest sessions-only type open the same restore detail', async () => {
@@ -82,11 +117,11 @@ describe('RecentlyClosedWidget', () => {
 
   it('restores the selected session id once and refreshes the browser result', async () => {
     render(<RecentlyClosedWidget canvasSize="standard" />)
-    await act(async () => { screen.getAllByRole('button', { name: /Restore Closed tab/ })[1].click() })
+    await act(async () => { screen.getByRole('button', { name: /Restore Closed window/ }).click() })
     expect(restoreRecentlyClosed).toHaveBeenCalledTimes(1)
-    expect(restoreRecentlyClosed).toHaveBeenCalledWith('tab-2')
+    expect(restoreRecentlyClosed).toHaveBeenCalledWith('window-1')
     expect(refresh).toHaveBeenCalledTimes(1)
-    expect(screen.getByRole('status').textContent).toContain('Restored Closed tab')
+    expect(screen.getByRole('status').textContent).toContain('Restored Closed window')
   })
 
   it('renders empty and retained-error truth', () => {
